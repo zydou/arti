@@ -14,8 +14,21 @@ use pin_project::pin_project;
 /// This type is useful for cases when we can't cancel a future simply by
 /// dropping it, because the future is owned by some other object (like a
 /// `FuturesUnordered`) that won't give it up.
+///
+/// # Limitations
+///
+/// Do not try to cancel a future from inside a cancellable future,
+/// including the future itself:
+/// this may cause a panic or deadlock.
+///
+/// In `arti-rpcserver`, we prevent this happening by ensuring that
+/// every method that calls `cancel()` is itself uncancellable.
+///
+// TODO: We should probably fix this limitation somehow before exposing
+// this code outside of this crate.  But see comments inside `Cancel::poll`
+// for why we might not want to just drop the lock while polling.
 //
-// We could use `tokio_util`'s cancellable futures instead here, but I don't
+// Also: We could use `tokio_util`'s cancellable futures instead here, but I don't
 // think we want an unconditional tokio_util dependency.
 #[pin_project]
 pub(crate) struct Cancel<F> {
@@ -80,7 +93,11 @@ impl<F> Cancel<F> {
 
 impl CancelHandle {
     /// Cancel the associated future, if it has not already finished.
-    #[allow(dead_code)] // TODO RPC
+    ///
+    /// # Limitations
+    ///
+    /// This function may panic or deadlock if you call it from inside a `Cancel<F>`
+    /// future.  See discussion in [`Cancel`] documentation.
     pub(crate) fn cancel(&self) -> Result<(), CannotCancel> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         match inner.status {
