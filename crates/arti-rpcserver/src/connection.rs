@@ -484,6 +484,9 @@ impl Connection {
             .await;
 
         // Unregister the request.
+        //
+        // TODO: This may unregister a different request if the user sent
+        // in another request with the same ID.
         self.remove_request(&id);
     }
 
@@ -759,7 +762,7 @@ impl From<CancelError> for RpcError {
         use rpc::RpcErrorKind as REK;
         use CancelError as CE;
         let code = match err {
-            CE::RequestNotFound => REK::ObjectNotFound,
+            CE::RequestNotFound => REK::RequestError,
             CE::CannotCancelRequest => REK::RequestError,
             CE::AlreadyCancelled => REK::InternalError,
         };

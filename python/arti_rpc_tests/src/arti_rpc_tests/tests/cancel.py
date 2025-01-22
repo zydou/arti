@@ -10,7 +10,7 @@ def cancel_nonexistent(context):
         conn.connection().invoke("rpc:cancel", request_id="123")
         assert False
     except ArtiRpcError as e:
-        assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
+        assert "RPC request not found" in str(e)
 
 
 @arti_test
