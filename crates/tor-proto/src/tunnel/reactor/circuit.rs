@@ -789,7 +789,7 @@ impl Circuit {
         &mut self,
         recv_created: oneshot::Receiver<CreateResponse>,
         handshake: CircuitHandshake,
-        params: &CircParameters,
+        params: &mut CircParameters,
         done: ReactorResultChannel<()>,
     ) -> StdResult<(), ReactorError> {
         let ret = match handshake {
@@ -826,7 +826,7 @@ impl Circuit {
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
-        params: &CircParameters,
+        params: &mut CircParameters,
         msg: &M,
     ) -> Result<()>
     where
@@ -890,7 +890,7 @@ impl Circuit {
     async fn create_firsthop_fast(
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
-        params: &CircParameters,
+        params: &mut CircParameters,
     ) -> Result<()> {
         // In a CREATE_FAST handshake, we can't negotiate a format other than this.
         let protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
@@ -908,7 +908,7 @@ impl Circuit {
         recvcreated: oneshot::Receiver<CreateResponse>,
         ed_identity: pk::ed25519::Ed25519Identity,
         pubkey: NtorPublicKey,
-        params: &CircParameters,
+        params: &mut CircParameters,
     ) -> Result<()> {
         // In an ntor handshake, we can't negotiate a format other than this.
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
@@ -943,7 +943,7 @@ impl Circuit {
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
         pubkey: NtorV3PublicKey,
-        params: &CircParameters,
+        params: &mut CircParameters,
     ) -> Result<()> {
         // Exit now if we have a mismatched key.
         let target = RelayIds::builder()

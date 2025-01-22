@@ -811,13 +811,13 @@ impl Reactor {
             CtrlMsg::Create {
                 recv_created,
                 handshake,
-                params,
+                mut params,
                 done,
             } => {
                 // TODO(conflux): instead of crashing the reactor, it might be better
                 // to send the error via the done channel instead
                 let (_id, leg) = self.circuits.single_leg_mut()?;
-                leg.handle_create(recv_created, handshake, &params, done)
+                leg.handle_create(recv_created, handshake, &mut params, done)
                     .await
             }
             _ => {

@@ -166,7 +166,7 @@ where
 
         // Handle auxiliary data returned from the server, e.g. validating that
         // requested extensions have been acknowledged.
-        H::handle_server_aux_data(&self.params, &server_aux_data)?;
+        H::handle_server_aux_data(&mut self.params, &server_aux_data)?;
 
         let layer = L::construct(keygen)?;
 
@@ -237,13 +237,16 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     /// Handle auxiliary handshake data returned when creating or extending a
     /// circuit.
     fn handle_server_aux_data(
-        params: &CircParameters,
+        params: &mut CircParameters,
         data: &<Self as ClientHandshake>::ServerAuxData,
     ) -> Result<()>;
 }
 
 impl HandshakeAuxDataHandler for NtorV3Client {
-    fn handle_server_aux_data(_params: &CircParameters, data: &Vec<NtorV3Extension>) -> Result<()> {
+    fn handle_server_aux_data(
+        _params: &mut CircParameters,
+        data: &Vec<NtorV3Extension>,
+    ) -> Result<()> {
         // There are currently no accepted server extensions,
         // particularly since we don't request any extensions yet.
         if !data.is_empty() {
@@ -256,14 +259,14 @@ impl HandshakeAuxDataHandler for NtorV3Client {
 }
 
 impl HandshakeAuxDataHandler for NtorClient {
-    fn handle_server_aux_data(_params: &CircParameters, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_params: &mut CircParameters, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }
 }
 
 impl HandshakeAuxDataHandler for CreateFastClient {
-    fn handle_server_aux_data(_params: &CircParameters, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_params: &mut CircParameters, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }
