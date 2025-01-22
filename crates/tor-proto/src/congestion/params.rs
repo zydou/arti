@@ -182,7 +182,6 @@ impl CongestionWindowParams {
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct CongestionControlParams {
     /// The congestion control algorithm to use.
-    #[getter(as_mut)]
     alg: Algorithm,
     /// This is the fallback algorithm in case the one we have in the consensus is not supported by
     /// the relay we are connecting to. Reminder that these parameteres are per-hop.
@@ -205,6 +204,11 @@ impl CongestionControlParams {
     /// C-tor ref: congestion_control_enabled()
     pub(crate) fn is_enabled(&self) -> bool {
         !matches!(self.alg(), Algorithm::FixedWindow(_))
+    }
+
+    /// Make these parameters to use the fallback algorithm. This can't be reversed.
+    pub fn use_fallback_alg(&mut self) {
+        self.alg = self.fallback_alg.clone();
     }
 }
 

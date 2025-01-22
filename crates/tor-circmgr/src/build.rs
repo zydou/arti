@@ -15,15 +15,14 @@ use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_error::into_internal;
 use tor_guardmgr::GuardStatus;
-use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
+use tor_linkspec::{ChanTarget, CircTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_protover::named::RELAY_NTORV3;
+use tor_protover::{ProtoKind, Protocols};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
-
-use tor_linkspec::CircTarget;
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::VanguardMgr;
@@ -225,6 +224,16 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
         }
     }
 
+    /// Helper function that takes the circuit parameters and apply any changes from the given
+    /// subprotocol versions.
+    fn apply_protovers_to_circparams(params: &mut CircParameters, protocols: &Protocols) {
+        // Not supporting FlowCtrl=2 means we have to use the fallback congestion control algorithm
+        // which is the FixedWindow one.
+        if !protocols.supports_known_subver(ProtoKind::FlowCtrl, 2) {
+            params.ccontrol.use_fallback_alg();
+        }
+    }
+
     /// Build a circuit, without performing any timeout operations.
     ///
     /// After each hop is built, increments n_hops_built.  Make sure that
@@ -265,12 +274,15 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 let n_hops = p.len() as u8;
                 // If we fail now, it's the guard's fault.
                 guard_status.pending(GuardStatus::Failure);
+                // Each hop has its own circ parameters. This is for the first hop (CREATE).
+                let mut first_hop_params = params.clone();
+                Self::apply_protovers_to_circparams(&mut first_hop_params, p[0].protovers());
                 let circ = C::create(
                     &self.chanmgr,
                     &self.runtime,
                     &guard_status,
                     &p[0],
-                    params.clone(),
+                    first_hop_params,
                     usage,
                 )
                 .await?;
@@ -282,7 +294,10 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
                 let mut hop_num = 1;
                 for relay in p[1..].iter() {
-                    circ.extend(&self.runtime, relay, params.clone()).await?;
+                    // Get the params per subsequent hop (EXTEND).
+                    let mut hop_params = params.clone();
+                    Self::apply_protovers_to_circparams(&mut hop_params, relay.protovers());
+                    circ.extend(&self.runtime, relay, hop_params).await?;
                     n_hops_built.fetch_add(1, Ordering::SeqCst);
                     self.timeouts.note_hop_completed(
                         hop_num,
