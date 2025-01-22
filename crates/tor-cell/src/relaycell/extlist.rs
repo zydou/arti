@@ -29,7 +29,7 @@ use tor_memquota::{derive_deftly_template_HasMemoryCost, HasMemoryCostStructural
 #[deftly(has_memory_cost(bounds = "T: HasMemoryCostStructural"))]
 pub(super) struct ExtList<T> {
     /// The extensions themselves.
-    extensions: Vec<T>,
+    pub(super) extensions: Vec<T>,
 }
 impl<T> Default for ExtList<T> {
     fn default() -> Self {

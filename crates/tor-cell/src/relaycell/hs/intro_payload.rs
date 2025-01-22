@@ -172,4 +172,13 @@ impl IntroduceHandshakePayload {
     pub fn link_specifiers(&self) -> &[EncodedLinkSpec] {
         &self.link_specifiers[..]
     }
+
+    /// Return the proof-of-work extension for the specified rendezvous point.
+    pub fn proof_of_work_extension(&self) -> Option<&ProofOfWork> {
+        // TODO: it would be nice to change ExtList to provide a nicer API for this...
+        self.extensions.extensions.iter().find_map(|x| match x {
+            CircRequestExt::ProofOfWork(x) => Some(x),
+            _ => None,
+        })
+    }
 }
