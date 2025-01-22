@@ -606,7 +606,7 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
-    pub async fn extend_ntor<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
+    pub async fn extend_ntor<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
     where
         Tg: CircTarget,
     {
@@ -631,7 +631,7 @@ impl ClientCirc {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -643,7 +643,7 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
-    pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
+    pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
     where
         Tg: CircTarget,
     {
@@ -668,7 +668,7 @@ impl ClientCirc {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1048,14 +1048,14 @@ impl PendingClientCirc {
     /// There's no authentication in CRATE_FAST,
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
-    pub async fn create_firsthop_fast(self, params: &CircParameters) -> Result<Arc<ClientCirc>> {
+    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<Arc<ClientCirc>> {
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
             .unbounded_send(CtrlMsg::Create {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::CreateFast,
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1094,7 +1094,7 @@ impl PendingClientCirc {
                         .ed_identity()
                         .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
                 },
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1134,7 +1134,7 @@ impl PendingClientCirc {
                         pk: *target.ntor_onion_key(),
                     },
                 },
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1377,7 +1377,7 @@ pub(crate) mod test {
             let ret = match handshake_type {
                 HandshakeType::Fast => {
                     trace!("doing fast create");
-                    pending.create_firsthop_fast(&params).await
+                    pending.create_firsthop_fast(params).await
                 }
                 HandshakeType::Ntor => {
                     trace!("doing ntor create");
@@ -1535,8 +1535,8 @@ pub(crate) mod test {
             let target = example_target();
             match handshake_type {
                 HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
-                HandshakeType::Ntor => circ.extend_ntor(&target, &params).await.unwrap(),
-                HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, &params).await.unwrap(),
+                HandshakeType::Ntor => circ.extend_ntor(&target, params).await.unwrap(),
+                HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, params).await.unwrap(),
             };
             circ // gotta keep the circ alive, or the reactor would exit.
         };
@@ -1650,7 +1650,7 @@ pub(crate) mod test {
                 sink
             })
             .unwrap();
-        let outcome = circ.extend_ntor(&target, &params).await;
+        let outcome = circ.extend_ntor(&target, params).await;
         let _sink = sink_handle.await;
 
         assert_eq!(circ.n_hops(), 3);

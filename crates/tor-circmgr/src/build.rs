@@ -51,7 +51,7 @@ pub(crate) trait Buildable: Sized {
         rt: &RT,
         guard_status: &GuardStatusHandle,
         ct: &OwnedChanTarget,
-        params: &CircParameters,
+        params: CircParameters,
         usage: ChannelUsage,
     ) -> Result<Arc<Self>>;
 
@@ -62,7 +62,7 @@ pub(crate) trait Buildable: Sized {
         rt: &RT,
         guard_status: &GuardStatusHandle,
         ct: &OwnedCircTarget,
-        params: &CircParameters,
+        params: CircParameters,
         usage: ChannelUsage,
     ) -> Result<Arc<Self>>;
 
@@ -72,7 +72,7 @@ pub(crate) trait Buildable: Sized {
         &self,
         rt: &RT,
         ct: &OwnedCircTarget,
-        params: &CircParameters,
+        params: CircParameters,
     ) -> Result<()>;
 }
 
@@ -131,7 +131,7 @@ impl Buildable for ClientCirc {
         rt: &RT,
         guard_status: &GuardStatusHandle,
         ct: &OwnedChanTarget,
-        params: &CircParameters,
+        params: CircParameters,
         usage: ChannelUsage,
     ) -> Result<Arc<Self>> {
         let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
@@ -150,13 +150,12 @@ impl Buildable for ClientCirc {
         rt: &RT,
         guard_status: &GuardStatusHandle,
         ct: &OwnedCircTarget,
-        params: &CircParameters,
+        params: CircParameters,
         usage: ChannelUsage,
     ) -> Result<Arc<Self>> {
         let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
         let unique_id = Some(circ.peek_unique_id());
 
-        let params = params.clone();
         // The target supports ntor_v3 iff it advertises the relevant protover.
         let handshake_res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
             circ.create_firsthop_ntor_v3(ct, params).await
@@ -175,7 +174,7 @@ impl Buildable for ClientCirc {
         &self,
         _rt: &RT,
         ct: &OwnedCircTarget,
-        params: &CircParameters,
+        params: CircParameters,
     ) -> Result<()> {
         // The target supports ntor_v3 iff it advertises the relevant protover.
         let res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
@@ -252,7 +251,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                     &self.runtime,
                     &guard_status,
                     &target,
-                    &params,
+                    params,
                     usage,
                 )
                 .await?;
@@ -271,7 +270,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                     &self.runtime,
                     &guard_status,
                     &p[0],
-                    &params,
+                    params.clone(),
                     usage,
                 )
                 .await?;
@@ -283,7 +282,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
                 let mut hop_num = 1;
                 for relay in p[1..].iter() {
-                    circ.extend(&self.runtime, relay, &params).await?;
+                    circ.extend(&self.runtime, relay, params.clone()).await?;
                     n_hops_built.fetch_add(1, Ordering::SeqCst);
                     self.timeouts.note_hop_completed(
                         hop_num,
@@ -874,7 +873,7 @@ mod test {
             rt: &RT,
             _guard_status: &GuardStatusHandle,
             ct: &OwnedChanTarget,
-            _: &CircParameters,
+            _: CircParameters,
             _usage: ChannelUsage,
         ) -> Result<Arc<Self>> {
             let (d1, d2) = timeouts_from_chantarget(ct);
@@ -894,7 +893,7 @@ mod test {
             rt: &RT,
             _guard_status: &GuardStatusHandle,
             ct: &OwnedCircTarget,
-            _: &CircParameters,
+            _: CircParameters,
             _usage: ChannelUsage,
         ) -> Result<Arc<Self>> {
             let (d1, d2) = timeouts_from_chantarget(ct);
@@ -913,7 +912,7 @@ mod test {
             &self,
             rt: &RT,
             ct: &OwnedCircTarget,
-            _: &CircParameters,
+            _: CircParameters,
         ) -> Result<()> {
             let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
