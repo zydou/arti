@@ -359,6 +359,7 @@ impl IntoFfiError for crate::StreamError {
             E::NewStreamRejected(_) => F::RequestFailed,
             E::StreamReleaseRejected(_) => F::RequestFailed,
             E::NotAuthenticated => F::NotAuthenticated,
+            E::NoSession => F::NotSupported,
             E::Internal(_) => F::Internal,
             E::NoProxy => F::RequestFailed,
             E::Io(_) => F::ProxyIo,
