@@ -1025,7 +1025,8 @@ the `rpc:cancel` method has had no effect.)
 
 If there have been multiple object requests with the same request ID,
 and those requests have been in-flight simultaneously,
-then `rpc:cancel` will only cancel the most recently added such request.
+then it is not specified whether `rpc:cancel` will cancel one,
+both, or neither.
 
 > In general, users should avoid simultaneous requests with the same
 > request ID.
