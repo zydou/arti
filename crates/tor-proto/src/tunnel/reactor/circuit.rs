@@ -38,6 +38,7 @@ use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
+use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
@@ -955,9 +956,11 @@ impl Circuit {
         // TODO #1947: Add support for negotiating other formats.
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
-        // TODO: Set client extensions. e.g. request congestion control
-        // if specified in `params`.
-        let client_extensions = [];
+        // Set the client extensions.
+        let mut client_extensions = Vec::new();
+        if params.ccontrol.is_enabled() {
+            client_extensions.push(NtorV3Extension::RequestCongestionControl);
+        }
 
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,

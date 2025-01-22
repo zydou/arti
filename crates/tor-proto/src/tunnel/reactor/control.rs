@@ -16,6 +16,7 @@ use crate::tunnel::{streammap, HopLocation, LegId, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
 use tor_cell::chancell::msg::HandshakeType;
+use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0, StreamId,
@@ -358,8 +359,11 @@ impl<'a> ControlHandler<'a> {
                 /// Local type alias to ensure consistency below.
                 type Rcf = RelayCellFormatV0;
 
-                // TODO: Set extensions, e.g. based on `params`.
-                let client_extensions = [];
+                // Set client extensions.
+                let mut client_extensions = Vec::new();
+                if params.ccontrol.is_enabled() {
+                    client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                }
 
                 let (extender, cell) =
                     CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
