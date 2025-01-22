@@ -9,6 +9,8 @@ use derive_builder::Builder;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_units::Percentage;
 
+use crate::circuit::CircParameters;
+
 /// Fixed window parameters that are for the SENDME v0 world of fixed congestion window.
 #[non_exhaustive]
 #[derive(Builder, Clone, Debug, amplify::Getters)]
@@ -167,6 +169,13 @@ pub struct CongestionWindowParams {
 }
 impl_standard_builder! { CongestionWindowParams: !Deserialize + !Default}
 
+impl CongestionWindowParams {
+    /// Set the sendme_inc value.
+    pub(crate) fn set_sendme_inc(&mut self, inc: u8) {
+        self.sendme_inc = u32::from(inc);
+    }
+}
+
 /// Global congestion control parameters taken from consensus. These are per-circuit.
 #[non_exhaustive]
 #[derive(Builder, Clone, Debug, amplify::Getters)]
@@ -175,8 +184,37 @@ pub struct CongestionControlParams {
     /// The congestion control algorithm to use.
     alg: Algorithm,
     /// Congestion window parameters.
+    #[getter(as_mut)]
     cwnd_params: CongestionWindowParams,
     /// RTT calculation parameters.
     rtt_params: RoundTripEstimatorParams,
 }
 impl_standard_builder! { CongestionControlParams: !Deserialize + !Default }
+
+impl CongestionControlParams {
+    /// Return true iff congestion control is enabled that is the algorithm is anything other than
+    /// the fixed window SENDMEs.
+    ///
+    /// C-tor ref: congestion_control_enabled()
+    pub(crate) fn is_enabled(&self) -> bool {
+        !matches!(self.alg(), Algorithm::FixedWindow(_))
+    }
+}
+
+/// Return true iff the given sendme increment is valid with regards to the value in the circuit
+/// parameters that is taken from the consensus.
+pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CircParameters) -> bool {
+    // Ease our lives a bit because the consensus value is u32.
+    let inc_u32 = u32::from(inc);
+    // A consensus value of 1 would allow this sendme increment to be 0 and thus
+    // we have to special case it before evaluating.
+    if inc == 0 {
+        return false;
+    }
+    let inc_consensus = params.ccontrol.cwnd_params().sendme_inc();
+    // See prop324 section 10.3
+    if inc_u32 > (inc_consensus.saturating_add(1)) || inc_u32 < (inc_consensus.saturating_sub(1)) {
+        return false;
+    }
+    true
+}

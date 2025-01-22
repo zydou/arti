@@ -1,6 +1,7 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{Circuit, ReactorResultChannel};
+use crate::congestion;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
@@ -244,15 +245,39 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
 
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(
-        _params: &mut CircParameters,
+        params: &mut CircParameters,
         data: &Vec<NtorV3Extension>,
     ) -> Result<()> {
-        // There are currently no accepted server extensions,
-        // particularly since we don't request any extensions yet.
-        if !data.is_empty() {
-            return Err(Error::HandshakeProto(
-                "Received unexpected ntorv3 extension".into(),
-            ));
+        // Process all extensions.
+        for ext in data {
+            match ext {
+                NtorV3Extension::AckCongestionControl { sendme_inc } => {
+                    // Unexpected ACK extension as in if CC is disabled on our side, we would never have
+                    // requested it. Reject and circuit must be closed.
+                    if !params.ccontrol.is_enabled() {
+                        return Err(Error::HandshakeProto(
+                            "Received unexpected ntorv3 CC ack extension".into(),
+                        ));
+                    }
+                    // Invalid increment, reject and circuit must be closed.
+                    if !congestion::params::is_sendme_inc_valid(*sendme_inc, params) {
+                        return Err(Error::HandshakeProto(
+                            "Received invalid sendme increment in CC ntorv3 extension".into(),
+                        ));
+                    }
+                    // Excellent, we have a negotiated sendme increment. Set it for this circuit.
+                    params
+                        .ccontrol
+                        .cwnd_params_mut()
+                        .set_sendme_inc(*sendme_inc);
+                }
+                // Any other extensions is not expected. Reject and circuit must be closed.
+                _ => {
+                    return Err(Error::HandshakeProto(
+                        "Received unexpected ntorv3 extension".into(),
+                    ));
+                }
+            }
         }
         Ok(())
     }
