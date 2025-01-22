@@ -21,7 +21,7 @@ use serde_json::error::Category as JsonErrorCategory;
 use tor_async_utils::{mpsc_channel_no_memquota, SinkExt as _};
 
 use crate::{
-    cancel::{Cancel, CancelHandle},
+    cancel::{self, Cancel, CancelHandle},
     err::RequestParseError,
     globalid::{GlobalId, MacKey},
     msgs::{BoxedResponse, FlexibleRequest, ReqMeta, Request, RequestId, ResponseBody},
@@ -259,7 +259,8 @@ impl Connection {
         match inner.inflight.remove(id) {
             Some(Some(handle)) => {
                 drop(inner);
-                handle.cancel().map_err(|_| CancelError::RequestNotFound)
+                handle.cancel()?;
+                Ok(())
             }
             Some(None) => {
                 // Put it back in case somebody tries again.
@@ -732,6 +733,25 @@ pub(crate) enum CancelError {
     /// This kind of request cannot be cancelled.
     #[error("Uncancellable request")]
     CannotCancelRequest,
+
+    /// We tried to cancel a request but found out it was already cancelled.
+    ///
+    /// This error should be impossible.
+    #[error("Request somehow cancelled twice!")]
+    AlreadyCancelled,
+}
+
+impl From<cancel::CannotCancel> for CancelError {
+    fn from(value: cancel::CannotCancel) -> Self {
+        use cancel::CannotCancel as CC;
+        use CancelError as CE;
+        match value {
+            CC::Cancelled => CE::AlreadyCancelled,
+            // We map "finished" to RequestNotFound since it is not in the general case
+            // distinguishable from it; see documentation on RequestNotFound.
+            CC::Finished => CE::RequestNotFound,
+        }
+    }
 }
 
 impl From<CancelError> for RpcError {
@@ -741,6 +761,7 @@ impl From<CancelError> for RpcError {
         let code = match err {
             CE::RequestNotFound => REK::ObjectNotFound,
             CE::CannotCancelRequest => REK::RequestError,
+            CE::AlreadyCancelled => REK::InternalError,
         };
         RpcError::new(err.to_string(), code)
     }
