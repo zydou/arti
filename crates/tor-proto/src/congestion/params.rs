@@ -229,3 +229,26 @@ pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CircParameters) -> bool {
     }
     true
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        ccparams::is_sendme_inc_valid, circuit::CircParameters,
+        congestion::test_utils::params::build_cc_vegas_params,
+    };
+
+    #[test]
+    fn test_sendme_inc_valid() {
+        let params = CircParameters::new(true, build_cc_vegas_params());
+        let ref_inc = params.ccontrol.cwnd_params().sendme_inc() as u8;
+
+        // In range.
+        assert!(is_sendme_inc_valid(ref_inc, &params));
+        assert!(is_sendme_inc_valid(ref_inc + 1, &params));
+        assert!(is_sendme_inc_valid(ref_inc - 1, &params));
+        // Out of range.
+        assert!(!is_sendme_inc_valid(0, &params));
+        assert!(!is_sendme_inc_valid(ref_inc + 2, &params));
+        assert!(!is_sendme_inc_valid(ref_inc - 2, &params));
+    }
+}
