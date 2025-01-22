@@ -19,7 +19,7 @@ use super::Connection;
 /// For more information see `rpc-meta-draft.md`.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "rpc:cancel"))]
+#[deftly(rpc(method_name = "rpc:cancel", no_cancel))]
 struct RpcCancel {
     /// The ID for the request that we should try to cancel.
     request_id: crate::msgs::RequestId,
@@ -35,7 +35,7 @@ async fn connection_rpc_cancel(
     conn: Arc<Connection>,
     cancel: Box<RpcCancel>,
     _ctx: Arc<dyn rpc::Context>,
-) -> Result<rpc::Nil, super::RequestNotFound> {
+) -> Result<rpc::Nil, super::CancelError> {
     conn.cancel_request(&cancel.request_id).map(|()| rpc::NIL)
 }
 

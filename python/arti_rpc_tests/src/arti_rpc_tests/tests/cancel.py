@@ -31,3 +31,23 @@ def cancel_pending(context):
         if err := resp.error():
             assert "rpc:RequestCancelled" in err["kinds"]
             break
+
+
+@arti_test
+def cancel_self(context):
+    conn = context.open_rpc_connection()
+
+    # This request purports to cancel itself.
+    req = {
+        "id": "req1",
+        "obj": conn.connection().id(),
+        "method": "rpc:cancel",
+        "params": {
+            "request_id": "req1",
+        },
+    }
+    try:
+        _ = conn.execute(req)
+        assert False
+    except ArtiRpcError as e:
+        assert "Uncancellable request" in str(e)

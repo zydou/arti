@@ -90,7 +90,7 @@ struct Inner {
     // TODO: We have two options here for handling colliding IDs.  We can either turn
     // this into a multimap, or we can declare that cancelling a request only
     // cancels the most recent request sent with that ID.
-    inflight: HashMap<RequestId, CancelHandle>,
+    inflight: HashMap<RequestId, Option<CancelHandle>>,
 
     /// An object map used to look up most objects by ID, and keep track of
     /// which objects are owned by this connection.
@@ -243,7 +243,9 @@ impl Connection {
     }
 
     /// Register the request `id` as a cancellable request.
-    fn register_request(&self, id: RequestId, handle: CancelHandle) {
+    ///
+    /// If `handle` is none, register it as an uncancellable request.
+    fn register_request(&self, id: RequestId, handle: Option<CancelHandle>) {
         let mut inner = self.inner.lock().expect("lock poisoned");
         inner.inflight.insert(id, handle);
     }
@@ -252,13 +254,19 @@ impl Connection {
     ///
     /// Return an error when `id` cannot be found, or cannot be cancelled.
     /// (These cases are indistinguishable.)
-    fn cancel_request(&self, id: &RequestId) -> Result<(), RequestNotFound> {
+    fn cancel_request(&self, id: &RequestId) -> Result<(), CancelError> {
         let mut inner = self.inner.lock().expect("lock poisoned");
-        if let Some(handle) = inner.inflight.remove(id) {
-            drop(inner);
-            handle.cancel().map_err(|_| RequestNotFound)
-        } else {
-            Err(RequestNotFound)
+        match inner.inflight.remove(id) {
+            Some(Some(handle)) => {
+                drop(inner);
+                handle.cancel().map_err(|_| CancelError::RequestNotFound)
+            }
+            Some(None) => {
+                // Put it back in case somebody tries again.
+                inner.inflight.insert(id.clone(), None);
+                Err(CancelError::CannotCancelRequest)
+            }
+            None => Err(CancelError::RequestNotFound),
         }
     }
 
@@ -432,13 +440,23 @@ impl Connection {
             Box::pin(sink)
         };
 
+        let is_cancellable = method.is_cancellable();
+
         // Create `run_method_lowlevel` future, and make it cancellable.
         let fut = self.run_method_lowlevel(update_sender, obj, method, meta);
-        let (handle, fut) = Cancel::new(fut);
-        self.register_request(id.clone(), handle);
 
-        // Run the cancellable future to completion, and figure out how to respond.
-        let body = match fut.await {
+        // Optionally register the future as cancellable.  Then run it to completion.
+        let outcome = if is_cancellable {
+            let (handle, fut) = Cancel::new(fut);
+            self.register_request(id.clone(), Some(handle));
+            fut.await
+        } else {
+            self.register_request(id.clone(), None);
+            Ok(fut.await)
+        };
+
+        // Figure out how to respond.
+        let body = match outcome {
             Ok(Ok(value)) => ResponseBody::Success(value),
             // TODO: If we're going to box this, let's do so earlier.
             Ok(Err(err)) => {
@@ -699,20 +717,31 @@ impl From<RequestCancelled> for RpcError {
 
 /// An error given when we attempt to cancel an RPC request, but cannot.
 ///
-/// Since we don't keep track of requests after they finish or are cancelled,
-/// we cannot distinguish the cases where a request has finished,
-/// where the request has been cancelled,
-/// or where the request never existed.
-/// Therefore we collapse them into a single error type.
 #[derive(thiserror::Error, Clone, Debug, serde::Serialize)]
-#[error("RPC request not found")]
-pub(crate) struct RequestNotFound;
+pub(crate) enum CancelError {
+    /// We didn't find any request with the provided ID.
+    ///
+    /// Since we don't keep track of requests after they finish or are cancelled,
+    /// we cannot distinguish the cases where a request has finished,
+    /// where the request has been cancelled,
+    /// or where the request never existed.
+    /// Therefore we collapse them into a single error type.
+    #[error("RPC request not found")]
+    RequestNotFound,
 
-impl From<RequestNotFound> for RpcError {
-    fn from(_: RequestNotFound) -> Self {
-        RpcError::new(
-            "RPC request not found".into(),
-            rpc::RpcErrorKind::ObjectNotFound,
-        )
+    /// This kind of request cannot be cancelled.
+    #[error("Uncancellable request")]
+    CannotCancelRequest,
+}
+
+impl From<CancelError> for RpcError {
+    fn from(err: CancelError) -> Self {
+        use rpc::RpcErrorKind as REK;
+        use CancelError as CE;
+        let code = match err {
+            CE::RequestNotFound => REK::ObjectNotFound,
+            CE::CannotCancelRequest => REK::RequestError,
+        };
+        RpcError::new(err.to_string(), code)
     }
 }
