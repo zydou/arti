@@ -570,6 +570,7 @@ fn circparameters_from_netparameters(
         .map_err(into_internal!("Unable to build RTT params from NetParams"))?;
     let ccontrol = ccparams::CongestionControlParamsBuilder::default()
         .alg(alg)
+        .fallback_alg(build_cc_fixedwindow(inp))
         .cwnd_params(cwnd_params)
         .rtt_params(rtt_params)
         .build()

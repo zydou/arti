@@ -182,7 +182,14 @@ impl CongestionWindowParams {
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct CongestionControlParams {
     /// The congestion control algorithm to use.
+    #[getter(as_mut)]
     alg: Algorithm,
+    /// This is the fallback algorithm in case the one we have in the consensus is not supported by
+    /// the relay we are connecting to. Reminder that these parameteres are per-hop.
+    ///
+    /// It is put in here because by the time we do path selection, we don't have access to the
+    /// consensus and so we have to keep our fallback ready.
+    fallback_alg: Algorithm,
     /// Congestion window parameters.
     #[getter(as_mut)]
     cwnd_params: CongestionWindowParams,

@@ -35,7 +35,8 @@ pub(crate) mod params {
         CongestionControlParamsBuilder::default()
             .rtt_params(build_rtt_params())
             .cwnd_params(build_cwnd_params())
-            .alg(Algorithm::FixedWindow(params))
+            .alg(Algorithm::FixedWindow(params.clone()))
+            .fallback_alg(Algorithm::FixedWindow(params))
             .build()
             .expect("Unable to build CC params")
     }
