@@ -23,9 +23,9 @@ import subprocess
 import sys
 
 # What version of rustdoc json do we know?
-SUPPORTED_FORMAT_VERSION = 35
+SUPPORTED_FORMAT_VERSION = 38
 # What nightly do we know to provide that version?
-KNOWN_GOOD_NIGHTLY = "nightly-2024-10-22"
+KNOWN_GOOD_NIGHTLY = "nightly-2025-01-17"
 
 # Tricky bits, unsolved
 #   - Converting links in the md to be correct.
