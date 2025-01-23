@@ -589,8 +589,10 @@ The RPC server behaves as follows.
    (or for the connect points themselves)
    among all enabled entries
    in the `rpc.listen` table in `arti.toml`,
-   and tries to bind to each,
-   treating all errors as fatal.
+   and tries to bind to each.
+   A nonexistent directory in `rpc.listen` is treated
+   as if it were present but empty.
+   All other errors are treated as fatal.
    (It does not attempt to load or validate connect files
    whose entries are disabled.)
 3. If an error did not occur,

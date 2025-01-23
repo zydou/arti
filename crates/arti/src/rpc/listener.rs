@@ -297,6 +297,8 @@ impl RpcListenerSetConfig {
             let dir_contents =
                 match ParsedConnectPoint::load_dir(dir.as_ref(), mistrust, &load_options) {
                     Ok(contents) => contents,
+                    //  The spec says: "A nonexistent directory in `rpc.listen` is treated as if it
+                    //  were present but empty."
                     Err(LoadError::Access(fs_mistrust::Error::NotFound(_))) => return Ok(vec![]),
                     Err(e) => {
                         return Err(e).with_context(|| {
