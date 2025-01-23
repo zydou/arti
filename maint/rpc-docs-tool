@@ -189,15 +189,53 @@ def extract_md_section(document, magic_heading=MAGIC_HEADING):
         document.children = new_children
 
 
-def recursively_fix_links(doc, linkfixer):
+def recursively_evaluate(doc, function):
     """
-    Run the function `linkfixer` on every markdown link inside `doc`.
+    Apply 'function' to doc, and recursively to every one of its children.
+
+    Does not apply 'function' to strings.
     """
-    for elt in doc.children:
+    function(doc)
+    if isinstance(doc.children, list):
+        for elt in doc.children:
+            recursively_evaluate(elt, function)
+
+
+def fix_rustdoc_links(doc):
+    """
+    Repair rustdoc links that marko can't otherwise detect.
+
+    The problematic links are those of the form `[foo](bar)`
+    where `bar` is a Rust identifier: Although we generate
+    link definitions for those `bar` elements, marko "normalizes"
+    their link labels, which throws off the parsing later on.
+    """
+    # Find every link def ("[foo]: https://...") in the document.
+    link_defs = dict()
+
+    def find_link_defs(elt):
+        if elt.get_type() == "LinkRefDef":
+            link_defs[elt.label] = elt.dest
+
+    recursively_evaluate(doc, find_link_defs)
+
+    # For every link, see if it looks like a broken link to a link
+    # def, and if so fix its target.  This effectively turns
+    # [text](UnnormalizedLabel) into [text](destination),
+    # which marko will render as [text][normalizedlabel].
+    def fix_link_target(elt):
         if elt.get_type() == "Link":
-            linkfixer(elt)
-        if isinstance(elt.children, list):
-            recursively_fix_links(elt, linkfixer)
+            dest_orig = elt.dest
+            normalized_dest = marko.helpers.normalize_label(dest_orig)
+            if (
+                not dest_orig.startswith("http")
+                and dest_orig not in link_defs
+                and normalized_dest in link_defs
+            ):
+
+                elt.dest = link_defs[normalized_dest]
+
+    recursively_evaluate(doc, fix_link_target)
 
 
 def adjust_doc(doc, link_table, outer_h_level=3):
@@ -210,7 +248,7 @@ def adjust_doc(doc, link_table, outer_h_level=3):
     - Increment or decrement the heading level so that the entire document
       nests within a heading of level outer_h_level.
 
-    - Adjust every link that we find. (TODO RPC: Implement!)
+    - Adjust every link that we find.
 
     Returns a string rendering of the document.
     """
@@ -244,10 +282,8 @@ def adjust_doc(doc, link_table, outer_h_level=3):
             elt.level += adjustment
 
     ####
-    # Make rustdoc links into something better.
-    #
-    # TODO: decide what to actually do here.
-    recursively_fix_links(document, lambda lnk: None)
+    # Make rustdoc links of the form [`foo`](RustId) actually work correctly.
+    fix_rustdoc_links(document)
 
     return MD.render(document)
 
