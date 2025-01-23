@@ -146,7 +146,7 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
     resolver: &CfgPathResolver,
     mistrust: &Mistrust,
     client: TorClient<R>,
-) -> Result<Option<(Arc<RpcMgr>, RpcStateSender)>> {
+) -> Result<Option<RpcProxySupport>> {
     if !cfg.enable {
         return Ok(None);
     }
@@ -174,7 +174,10 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
         }
         drop(guards);
     })?;
-    Ok(Some((rpc_mgr, rpc_state_sender)))
+    Ok(Some(RpcProxySupport {
+        rpc_mgr,
+        rpc_state_sender,
+    }))
 }
 
 /// Backend function to implement an RPC listener: runs in a loop.
@@ -197,6 +200,15 @@ async fn run_rpc_listener<R: Runtime>(
         })?;
     }
     Ok(())
+}
+
+/// Information passed to a SOCKS proxy or similar stream provider when running with RPC support.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) struct RpcProxySupport {
+    /// An RPC manager to use for looking up objects as possible stream targets.
+    pub(crate) rpc_mgr: Arc<arti_rpcserver::RpcMgr>,
+    /// An RPCStateSender to use for registering the list of known proxy ports.
+    pub(crate) rpc_state_sender: RpcStateSender,
 }
 
 #[cfg(test)]

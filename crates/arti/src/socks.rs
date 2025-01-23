@@ -26,8 +26,7 @@ use tor_socksproto::{Handshake as _, SocksAddr, SocksAuth, SocksCmd, SocksReques
 
 use anyhow::{anyhow, Context, Result};
 
-#[cfg(feature = "rpc")]
-use crate::rpc::RpcStateSender;
+use crate::rpc::RpcProxySupport;
 
 /// Payload to return when an HTTP connection arrive on a Socks port
 const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
@@ -797,16 +796,14 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-    // TODO RPC: This is not a good way to make an API conditional. We MUST
-    // refactor this before the RPC feature becomes non-experimental.
-    #[cfg(feature = "rpc")] rpc_data: Option<(
-        Arc<arti_rpcserver::RpcMgr>, //
-        RpcStateSender,
-    )>,
+    rpc_data: Option<RpcProxySupport>,
 ) -> Result<()> {
     #[cfg(feature = "rpc")]
     let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
-        Some((m, s)) => (Some(m), Some(s)),
+        Some(RpcProxySupport {
+            rpc_mgr,
+            rpc_state_sender,
+        }) => (Some(rpc_mgr), Some(rpc_state_sender)),
         None => (None, None),
     };
 

@@ -92,8 +92,7 @@ semipublic_mod! {
     mod reload_cfg;
     mod socks;
 }
-
-#[cfg(feature = "rpc")]
+#[cfg_attr(not(feature = "rpc"), path = "rpc_stub.rs")]
 mod rpc;
 
 use std::ffi::OsString;

@@ -58,7 +58,6 @@ pub(crate) struct RpcVisibleArtiState {
 
 /// Handle to set RPC state across RPC sessions.  (See `RpcVisibleArtiState`.)
 #[derive(Debug)]
-#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) struct RpcStateSender {
     /// Sender for setting our list of proxy ports.
     proxy_info_sender: DropNotifyWatchSender<ProxyInfoState>,
