@@ -89,11 +89,8 @@ def load_methods_via_rpc():
     Return value is as for "x_list_all_rpc_methods".
     """
 
-    # TODO RPC: This isn't how connection strings will work in production
-    socket_path = os.path.expanduser("~/.local/run/arti/SOCKET")
-    connect_string = f"unix:{socket_path}"
     try:
-        connection = arti_rpc.ArtiRpcConn(connect_string)
+        connection = arti_rpc.ArtiRpcConn()
     except arti_rpc.ArtiRpcError as e:
         print(f"Cannot connect to Arti via RPC: {e}")
         print(
