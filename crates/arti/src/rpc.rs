@@ -146,13 +146,12 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
     resolver: &CfgPathResolver,
     mistrust: &Mistrust,
     client: TorClient<R>,
-) -> Result<Option<(Arc<RpcMgr>, RpcStateSender)>> {
+) -> Result<Option<RpcProxySupport>> {
     if !cfg.enable {
         return Ok(None);
     }
     let (rpc_state, rpc_state_sender) = RpcVisibleArtiState::new();
 
-    // TODO RPC: there should be an error return instead.
     let rpc_mgr = RpcMgr::new(move |auth| ArtiRpcSession::new(auth, &client, &rpc_state))?;
     // Register methods. Needed since TorClient is generic.
     //
@@ -175,7 +174,10 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
         }
         drop(guards);
     })?;
-    Ok(Some((rpc_mgr, rpc_state_sender)))
+    Ok(Some(RpcProxySupport {
+        rpc_mgr,
+        rpc_state_sender,
+    }))
 }
 
 /// Backend function to implement an RPC listener: runs in a loop.
@@ -185,8 +187,6 @@ async fn run_rpc_listener<R: Runtime>(
     rpc_mgr: Arc<RpcMgr>,
 ) -> Result<()> {
     while let Some((stream, _addr, info)) = incoming.next().await.transpose()? {
-        // TODO RPC: Perhaps we should have rpcmgr hold the client reference?
-        // TODO RPC: We'll need to pass info (or part of it?) to rpc_mgr.
         debug!("Received incoming RPC connection from {}", &info.name);
 
         let connection = rpc_mgr.new_connection(info.auth.clone());
@@ -200,6 +200,15 @@ async fn run_rpc_listener<R: Runtime>(
         })?;
     }
     Ok(())
+}
+
+/// Information passed to a SOCKS proxy or similar stream provider when running with RPC support.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) struct RpcProxySupport {
+    /// An RPC manager to use for looking up objects as possible stream targets.
+    pub(crate) rpc_mgr: Arc<arti_rpcserver::RpcMgr>,
+    /// An RPCStateSender to use for registering the list of known proxy ports.
+    pub(crate) rpc_state_sender: RpcStateSender,
 }
 
 #[cfg(test)]

@@ -129,17 +129,20 @@ async fn run_proxy<R: Runtime>(
         weak_modules,
     )?;
 
-    #[cfg(feature = "rpc")]
-    let rpc_data = {
-        rpc::launch_rpc_mgr(
-            &runtime,
-            &arti_config.rpc,
-            &path_resolver,
-            &fs_mistrust,
-            client.clone(),
-        )
-        .await?
-    };
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "rpc")] {
+            let rpc_data = rpc::launch_rpc_mgr(
+                &runtime,
+                &arti_config.rpc,
+                &path_resolver,
+                &fs_mistrust,
+                client.clone(),
+            )
+            .await?;
+        } else {
+            let rpc_data = None;
+        }
+    }
 
     let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
     if !socks_listen.is_empty() {
@@ -147,14 +150,7 @@ async fn run_proxy<R: Runtime>(
         let client = client.isolated_client();
         let socks_listen = socks_listen.clone();
         proxy.push(Box::pin(async move {
-            let res = socks::run_socks_proxy(
-                runtime,
-                client,
-                socks_listen,
-                #[cfg(feature = "rpc")]
-                rpc_data,
-            )
-            .await;
+            let res = socks::run_socks_proxy(runtime, client, socks_listen, rpc_data).await;
             (res, "SOCKS")
         }));
     }
