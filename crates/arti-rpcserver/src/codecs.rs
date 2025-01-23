@@ -2,18 +2,8 @@
 
 use std::marker::PhantomData;
 
-use asynchronous_codec::JsonCodec;
 use bytes::BytesMut;
 use serde::Serialize;
-
-use crate::msgs::BoxedResponse;
-use crate::msgs::FlexibleRequest;
-
-/// A stream of [`Request`](crate::msgs::Request)
-/// taken from `T` (an `AsyncRead`) and deserialized from Json.
-#[allow(dead_code)] // TODO RPC
-pub(crate) type RequestStream<T> =
-    asynchronous_codec::FramedRead<T, JsonCodec<(), FlexibleRequest>>;
 
 /// As JsonCodec, but only supports encoding, and places a newline after every
 /// object.
@@ -48,12 +38,6 @@ where
         Ok(())
     }
 }
-
-/// A stream of [`BoxedResponse`] serialized as newline-terminated json objects
-/// onto an `AsyncWrite.`
-#[allow(dead_code)] // TODO RPC
-pub(crate) type ResponseSink<T> =
-    asynchronous_codec::FramedWrite<T, JsonLinesEncoder<BoxedResponse>>;
 
 #[cfg(test)]
 mod test {
@@ -109,7 +93,8 @@ mod test {
         expect.push('\n');
 
         {
-            let mut sink = ResponseSink::new(&mut buf, JsonLinesEncoder::default());
+            let mut sink =
+                asynchronous_codec::FramedWrite::new(&mut buf, JsonLinesEncoder::default());
             sink.send(r1).await.unwrap();
             sink.send(r2).await.unwrap();
             sink.send(r3).await.unwrap();
