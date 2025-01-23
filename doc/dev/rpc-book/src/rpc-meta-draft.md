@@ -1031,6 +1031,11 @@ both, or neither.
 > In general, users should avoid simultaneous requests with the same
 > request ID.
 
+Not all requests are cancellable.
+Methods which cannot be cancelled should be documented as such.
+
+> In Arti, only the rpc:cancel method is uncancellable.
+
 ### Authentication
 
 ...

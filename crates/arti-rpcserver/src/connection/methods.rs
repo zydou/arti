@@ -16,6 +16,8 @@ use super::Connection;
 /// We also guarantee that both the request and this method will finish "fairly quickly"
 /// after this method is called.
 ///
+/// In Arti's current implementation, a cancel request is itself is not cancellable.
+///
 /// For more information see `rpc-meta-draft.md`.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
