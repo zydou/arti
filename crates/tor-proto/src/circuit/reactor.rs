@@ -2005,40 +2005,39 @@ impl Reactor {
         cell_counts_toward_windows: bool,
         msg: UnparsedRelayMsg,
     ) -> Result<bool> {
-                // The stream for this message exists, and is open.
+        // The stream for this message exists, and is open.
 
-                if msg.cmd() == RelayCmd::SENDME {
-                    let _sendme = msg
-                        .decode::<Sendme>()
-                        .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
-                        .into_msg();
-                    // We need to handle sendmes here, not in the stream's
-                    // recv() method, or else we'd never notice them if the
-                    // stream isn't reading.
-                    ent.put_for_incoming_sendme()?;
-                    return Ok(false);
-                }
+        if msg.cmd() == RelayCmd::SENDME {
+            let _sendme = msg
+                .decode::<Sendme>()
+                .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
+                .into_msg();
+            // We need to handle sendmes here, not in the stream's
+            // recv() method, or else we'd never notice them if the
+            // stream isn't reading.
+            ent.put_for_incoming_sendme()?;
+            return Ok(false);
+        }
 
-                let message_closes_stream =
-                    ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+        let message_closes_stream = ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
-                if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
-                    if e.is_full() {
-                        // If we get here, we either have a logic bug (!), or an attacker
-                        // is sending us more cells than we asked for via congestion control.
-                        return Err(Error::CircProto(format!(
-                            "Stream sink would block; received too many cells on stream ID {}",
-                            sv(streamid),
-                        )));
-                    }
-                    if e.is_disconnected() && cell_counts_toward_windows {
-                        // the other side of the stream has gone away; remember
-                        // that we received a cell that we couldn't queue for it.
-                        //
-                        // Later this value will be recorded in a half-stream.
-                        ent.dropped += 1;
-                    }
-                }
+        if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
+            if e.is_full() {
+                // If we get here, we either have a logic bug (!), or an attacker
+                // is sending us more cells than we asked for via congestion control.
+                return Err(Error::CircProto(format!(
+                    "Stream sink would block; received too many cells on stream ID {}",
+                    sv(streamid),
+                )));
+            }
+            if e.is_disconnected() && cell_counts_toward_windows {
+                // the other side of the stream has gone away; remember
+                // that we received a cell that we couldn't queue for it.
+                //
+                // Later this value will be recorded in a half-stream.
+                ent.dropped += 1;
+            }
+        }
 
         Ok(message_closes_stream)
     }
