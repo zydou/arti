@@ -21,7 +21,7 @@ use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_error::internal;
 use tor_rpc_connect::{
     auth::RpcAuth,
-    load::{LoadOptions, LoadOptionsBuilder},
+    load::{LoadError, LoadOptions, LoadOptionsBuilder},
     server::ListenerGuard,
     ParsedConnectPoint,
 };
@@ -294,13 +294,19 @@ impl RpcListenerSetConfig {
                 .map(|(s, or)| (s.into(), or.load_options()))
                 .collect();
             let mut listeners = Vec::new();
-            let dir_contents = ParsedConnectPoint::load_dir(dir.as_ref(), mistrust, &load_options)
-                .with_context(|| {
-                    format!(
-                        "Can't read RPC connect point directory at {}",
-                        dir.anonymize_home()
-                    )
-                })?;
+            let dir_contents =
+                match ParsedConnectPoint::load_dir(dir.as_ref(), mistrust, &load_options) {
+                    Ok(contents) => contents,
+                    Err(LoadError::Access(fs_mistrust::Error::NotFound(_))) => return Ok(vec![]),
+                    Err(e) => {
+                        return Err(e).with_context(|| {
+                            format!(
+                                "Can't read RPC connect point directory at {}",
+                                dir.anonymize_home()
+                            )
+                        })
+                    }
+                };
             for (path, conn_pt_result) in dir_contents {
                 debug!("Binding to connect point from {}", path.display_lossy());
                 let ctx = |action| {
