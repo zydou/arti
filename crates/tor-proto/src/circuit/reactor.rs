@@ -1939,15 +1939,7 @@ impl Reactor {
     ) -> Result<CellStatus> {
         // If this msg wants/refuses to have a Stream ID, does it
         // have/not have one?
-        let cmd = msg.cmd();
-        let streamid = msg.stream_id();
-        if !cmd.accepts_streamid_val(streamid) {
-            return Err(Error::CircProto(format!(
-                "Invalid stream ID {} for relay command {}",
-                sv(StreamId::get_or_zero(streamid)),
-                msg.cmd()
-            )));
-        }
+        let streamid = msg_streamid(&msg)?;
 
         // If this doesn't have a StreamId, it's a meta cell,
         // not meant for a particular stream.
@@ -2195,6 +2187,23 @@ impl Reactor {
     fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
         self.hops.get_mut(Into::<usize>::into(hopnum))
     }
+}
+
+/// Return the stream ID of `msg`, if it has one.
+///
+/// Returns `Ok(None)` if `msg` is a meta cell.
+fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
+    let cmd = msg.cmd();
+    let streamid = msg.stream_id();
+    if !cmd.accepts_streamid_val(streamid) {
+        return Err(Error::CircProto(format!(
+            "Invalid stream ID {} for relay command {}",
+            sv(StreamId::get_or_zero(streamid)),
+            msg.cmd()
+        )));
+    }
+
+    Ok(streamid)
 }
 
 #[cfg(feature = "send-control-msg")]
