@@ -152,7 +152,6 @@ pub(crate) async fn launch_rpc_mgr<R: Runtime>(
     }
     let (rpc_state, rpc_state_sender) = RpcVisibleArtiState::new();
 
-    // TODO RPC: there should be an error return instead.
     let rpc_mgr = RpcMgr::new(move |auth| ArtiRpcSession::new(auth, &client, &rpc_state))?;
     // Register methods. Needed since TorClient is generic.
     //
