@@ -264,8 +264,8 @@ impl RpcConn {
             "rpc:cancel",
             CancelParams { request_id },
         );
-        match self.execute_internal::<EmptyResponse>(&request.encode()?)? {
-            Ok(EmptyResponse {}) => Ok(()),
+        match self.execute_internal::<EmptyReply>(&request.encode()?)? {
+            Ok(EmptyReply {}) => Ok(()),
             Err(_) => Err(ProtoError::RequestCompleted),
         }
     }
