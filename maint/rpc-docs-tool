@@ -104,6 +104,21 @@ def load_methods_via_rpc():
     return methods
 
 
+def add_additional_methods(methods):
+    """
+    Add entries for additional methods that are not ordinarily detected
+    `by arti:x_list_all_rpc_methods`.
+    """
+    # This one isn't detected because it applies to all objects.
+    # Eventually we may add a better way to solve this.
+    methods["methods"]["rpc:release"] = {
+        "applies_to_object_types": "*",
+        "method_type": "arti_rpcserver::objmap::methods::RpcRelease",
+        "output_type": "tor_rpcbase::Nil",
+        "update_type": None,
+    }
+
+
 def mdheader(s, anchor):
     """
     Return Text for a markdown header with
@@ -339,14 +354,17 @@ class RpcUniverse:
     # Fields
     #
     # methods: A map from method name dicts of `applies_to_object_types`,
-    #      `method_type`, `output_type`, and an optional `update_type`.
+    #      `method_type`, `output_type`, `universal`, and an optional `update_type`
     # delegations: A map from RustIdent for an RPC Object type to a
     #   list of the RustIdents which it can delegate to.
     # rustdoc: A map from crate to Rustdoc object.
     def __init__(self, method_list):
         self.methods = dict()
         for mname, minfo in method_list["methods"].items():
-            atypes = [RustIdent(t) for t in minfo["applies_to_object_types"]]
+            universal = "*" in minfo["applies_to_object_types"]
+            atypes = [
+                RustIdent(t) for t in minfo["applies_to_object_types"] if t != "*"
+            ]
             mtype = RustIdent(minfo["method_type"])
             otype = RustIdent(minfo["output_type"])
             if minfo["update_type"] is not None:
@@ -358,6 +376,7 @@ class RpcUniverse:
                 "method_type": mtype,
                 "output_type": otype,
                 "update_type": utype,
+                "universal": universal,
             }
 
         self.delegations = dict()
@@ -500,11 +519,14 @@ class RpcUniverse:
         else:
             f.write("- (No incremental updates)\n")
 
-        f.write("- **Implemented by**\n")
-        for itype in obj["applies_to_object_types"]:
-            itype_url = self.get_rustdoc_url(itype)
-            anchor = f"object:{itype}"
-            f.write(f"    - [`{itype}`](#{anchor}) ([Rustdoc]({itype_url}))\n")
+        if obj["universal"]:
+            f.write("- **Implemented by all objects**\n")
+        else:
+            f.write("- **Implemented by**\n")
+            for itype in obj["applies_to_object_types"]:
+                itype_url = self.get_rustdoc_url(itype)
+                anchor = f"object:{itype}"
+                f.write(f"    - [`{itype}`](#{anchor}) ([Rustdoc]({itype_url}))\n")
 
         f.write("\n\n")
 
@@ -687,6 +709,7 @@ def run(output, fmt="md"):
     )
 
     methods = load_methods_via_rpc()
+    add_additional_methods(methods)
     universe = RpcUniverse(methods)
 
     n_methods = len(methods["methods"])
