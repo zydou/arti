@@ -300,7 +300,7 @@ impl IntoFfiError for crate::ConnectError {
         use FfiStatus as F;
         match self {
             E::CannotConnect(e) => e.status(),
-            E::AuthenticationRejected(_) => F::BadAuth,
+            E::AuthenticationFailed(_) => F::BadAuth,
             E::InvalidBanner => F::PeerProtocolViolation,
             E::BadMessage(_) => F::PeerProtocolViolation,
             E::ProtoError(e) => e.status(),
@@ -319,7 +319,7 @@ impl IntoFfiError for crate::ConnectError {
     fn into_error_response(self) -> Option<ErrorResponse> {
         use crate::ConnectError as E;
         match self {
-            E::AuthenticationRejected(msg) => Some(msg),
+            E::AuthenticationFailed(msg) => Some(msg),
             _ => None,
         }
     }
@@ -359,6 +359,7 @@ impl IntoFfiError for crate::StreamError {
             E::NewStreamRejected(_) => F::RequestFailed,
             E::StreamReleaseRejected(_) => F::RequestFailed,
             E::NotAuthenticated => F::NotAuthenticated,
+            E::NoSession => F::NotSupported,
             E::Internal(_) => F::Internal,
             E::NoProxy => F::RequestFailed,
             E::Io(_) => F::ProxyIo,

@@ -124,6 +124,17 @@ impl ErrorResponse {
         ErrorResponse(s)
     }
 
+    /// Convert this response into an internal error in response to `cmd`.
+    ///
+    /// This is only appropriate when the error cannot be caused because of user behavior.
+    pub(crate) fn internal_error(&self, cmd: &str) -> ProtoError {
+        ProtoError::InternalRequestFailed(UnexpectedReply {
+            request: cmd.to_string(),
+            reply: self.to_string(),
+            problem: UnexpectedReplyProblem::ErrorNotExpected,
+        })
+    }
+
     /// Try to interpret this response as an [`RpcError`].
     pub fn decode(&self) -> RpcError {
         crate::msgs::response::try_decode_response_as_err(self.0.as_ref())
@@ -212,7 +223,8 @@ impl RpcConn {
     /// Use this method in cases where it's reasonable for Arti to sometimes return an RPC error:
     /// in other words, where it's not necessarily a programming error or version mismatch.
     ///
-    /// Don't use this for user-generated requests.
+    /// Don't use this for user-generated requests: it will misreport unexpeted replies
+    /// as internal errors.
     pub(crate) fn execute_internal<T: DeserializeOwned>(
         &self,
         cmd: &str,
@@ -235,18 +247,15 @@ impl RpcConn {
     /// Behaves like `execute_internal`, except that it treats any RPC error reply
     /// as an internal error or version mismatch.
     ///
-    /// Don't use this for user-generated requests.
+    /// Don't use this for user-generated requests, or for requests that can fail because of
+    /// incorrect user inputs: it will misreport failures in those requests as internal errors.
     pub(crate) fn execute_internal_ok<T: DeserializeOwned>(
         &self,
         cmd: &str,
     ) -> Result<T, ProtoError> {
         match self.execute_internal(cmd)? {
             Ok(v) => Ok(v),
-            Err(err_response) => Err(ProtoError::InternalRequestFailed(UnexpectedReply {
-                request: cmd.to_string(),
-                reply: err_response.to_string(),
-                problem: UnexpectedReplyProblem::ErrorNotExpected,
-            })),
+            Err(err_response) => Err(err_response.internal_error(cmd)),
         }
     }
 
@@ -292,6 +301,16 @@ impl RpcConn {
                 AnyResponse::Update(u) => update_cb(u),
             }
         }
+    }
+
+    /// Helper: Tell Arti to release `obj`.
+    ///
+    /// Do not use this method for a user-provided object ID:
+    /// It gives an internal error if the object does not exist.
+    pub(crate) fn release_obj(&self, obj: ObjectId) -> Result<(), ProtoError> {
+        let release_request = crate::msgs::request::Request::new(obj, "rpc:release", NoParams {});
+        let _empty_response: EmptyReply = self.execute_internal_ok(&release_request.encode()?)?;
+        Ok(())
     }
 
     // TODO RPC: shutdown() on the socket on Drop.
@@ -445,9 +464,9 @@ pub enum ConnectError {
     /// (Only absolute paths are supported).
     #[error("Connect file was given as a relative path.")]
     RelativeConnectFile,
-    /// One of our authentication messages was rejected.
-    #[error("Arti rejected our authentication: {0:?}")]
-    AuthenticationRejected(ErrorResponse),
+    /// One of our authentication messages received an error.
+    #[error("Received an error while trying to authenticate: {0:?}")]
+    AuthenticationFailed(ErrorResponse),
     /// The connect point uses an RPC authentication type we don't support.
     #[error("Authentication type is not supported")]
     AuthenticationNotSupported,
@@ -486,7 +505,7 @@ impl HasClientErrorAction for ConnectError {
             E::CannotConnect(e) => e.client_action(),
             E::InvalidBanner => A::Decline,
             E::RelativeConnectFile => A::Abort,
-            E::AuthenticationRejected(_) => A::Decline,
+            E::AuthenticationFailed(_) => A::Decline,
             // TODO RPC: Is this correct?  This error can also occur when
             // we are talking to something other than an RPC server.
             E::BadMessage(_) => A::Abort,

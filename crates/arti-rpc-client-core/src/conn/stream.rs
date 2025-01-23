@@ -8,8 +8,11 @@ use std::{
 
 use serde::Deserialize;
 
-use super::{EmptyReply, ErrorResponse, NoParams, RpcConn};
-use crate::{msgs::request::Request, ObjectId};
+use super::{ErrorResponse, NoParams, RpcConn};
+use crate::{
+    msgs::{request::Request, response::RpcErrorCode},
+    ObjectId,
+};
 
 use tor_error::ErrorReport as _;
 
@@ -39,6 +42,13 @@ pub enum StreamError {
     /// `arti-rpc-client-core`, but that may change in the future.)
     #[error("RPC connection not authenticated")]
     NotAuthenticated,
+
+    /// Tried to open a stream after having dropped the RPC session
+    ///
+    /// (At present (Jan 2025) dropping the RPC session is possible, but is not supported
+    /// when opening RPC streams.)
+    #[error("Unable to access Session object")]
+    NoSession,
 
     /// We encountered an internal error.
     /// (This should be impossible.)
@@ -212,8 +222,19 @@ impl RpcConn {
 
         let proxy_info_request: Request<NoParams> =
             Request::new(session_id, "arti:get_rpc_proxy_info", NoParams {});
-        let proxy_info =
-            self.execute_internal_ok::<ProxyInfoReply>(&proxy_info_request.encode()?)?;
+        let cmd = proxy_info_request.encode()?;
+        let proxy_info = match self.execute_internal::<ProxyInfoReply>(&cmd)? {
+            Ok(info) => info,
+            Err(response) => {
+                if response.decode().code() == RpcErrorCode::OBJECT_ERROR {
+                    // TODO: This is an unfortunate error; it would be better
+                    // to tolerate this situation.  See #1819.
+                    return Err(StreamError::NoSession);
+                } else {
+                    return Err(response.internal_error(&cmd).into());
+                }
+            }
+        };
         let socks_proxy_addr = proxy_info.find_socks_addr().ok_or(StreamError::NoProxy)?;
 
         Ok(socks_proxy_addr)
@@ -230,13 +251,6 @@ impl RpcConn {
             Some(obj) => obj.clone(),
             None => self.session_id_required()?.clone(),
         })
-    }
-
-    /// Helper: Tell Arti to release `obj`.
-    fn release_obj(&self, obj: ObjectId) -> Result<(), StreamError> {
-        let release_request = Request::new(obj, "rpc:release", NoParams {});
-        let _empty_response: EmptyReply = self.execute_internal_ok(&release_request.encode()?)?;
-        Ok(())
     }
 }
 

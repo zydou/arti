@@ -5,7 +5,7 @@ use tor_rpc_connect::auth::cookie::{Cookie, CookieAuthMac, CookieAuthNonce};
 
 use crate::msgs::{request::Request, ObjectId};
 
-use super::{ConnectError, EmptyReply, NoParams, RpcConn};
+use super::{ConnectError, RpcConn};
 
 /// Arguments to an `auth:authenticate` request.
 #[derive(Serialize, Debug)]
@@ -63,7 +63,9 @@ impl RpcConn {
                 scheme: scheme_name,
             },
         );
-        let authenticated: AuthenticatedReply = self.execute_internal_ok(&r.encode()?)?;
+        let authenticated: AuthenticatedReply = self
+            .execute_internal(&r.encode()?)?
+            .map_err(ConnectError::AuthenticationFailed)?;
 
         Ok(authenticated.session)
     }
@@ -84,7 +86,9 @@ impl RpcConn {
                 client_nonce: client_nonce.clone(),
             },
         );
-        let reply: CookieBeginReply = self.execute_internal_ok(&cookie_begin.encode()?)?;
+        let reply: CookieBeginReply = self
+            .execute_internal(&cookie_begin.encode()?)?
+            .map_err(ConnectError::AuthenticationFailed)?;
 
         if server_addr != reply.server_addr {
             return Err(ConnectError::ServerAddressMismatch {
@@ -106,12 +110,12 @@ impl RpcConn {
             "auth:cookie_continue",
             CookieContinueParams { client_mac },
         );
-        let authenticated: AuthenticatedReply =
-            self.execute_internal_ok(&cookie_continue.encode()?)?;
+        let authenticated: AuthenticatedReply = self
+            .execute_internal(&cookie_continue.encode()?)?
+            .map_err(ConnectError::AuthenticationFailed)?;
 
         // Drop the cookie_auth_obj: we don't need it now that we have authenticated.
-        let drop_request = Request::new(cookie_auth_obj, "rpc:release", NoParams {});
-        let _reply: EmptyReply = self.execute_internal_ok(&drop_request.encode()?)?;
+        self.release_obj(cookie_auth_obj)?;
 
         Ok(authenticated.session)
     }
