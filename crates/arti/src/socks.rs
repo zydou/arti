@@ -495,11 +495,12 @@ where
 
         match step {
             NS::Recv(mut recv) => {
-                let n = socks_stream.read(recv.buf())
+                let n = socks_stream
+                    .read(recv.buf())
                     .await
                     .context("Error while reading SOCKS handshake")?;
                 recv.note_received(n)?;
-            },
+            }
             NS::Send(data) => write_all_and_flush(&mut socks_stream, &data).await?,
             NS::Finished(fin) => break fin.into_output_forbid_pipelining()?,
         }
