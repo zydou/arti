@@ -223,7 +223,8 @@ impl RpcConn {
     /// Use this method in cases where it's reasonable for Arti to sometimes return an RPC error:
     /// in other words, where it's not necessarily a programming error or version mismatch.
     ///
-    /// Don't use this for user-generated requests.
+    /// Don't use this for user-generated requests: it will misreport unexpeted replies
+    /// as internal errors.
     pub(crate) fn execute_internal<T: DeserializeOwned>(
         &self,
         cmd: &str,
@@ -247,7 +248,7 @@ impl RpcConn {
     /// as an internal error or version mismatch.
     ///
     /// Don't use this for user-generated requests, or for requests that can fail because of
-    /// incorrect inputs.
+    /// incorrect user inputs: it will misreport failures in those requests as internal errors.
     pub(crate) fn execute_internal_ok<T: DeserializeOwned>(
         &self,
         cmd: &str,
@@ -304,7 +305,8 @@ impl RpcConn {
 
     /// Helper: Tell Arti to release `obj`.
     ///
-    /// Do not use this method for a user-provided object ID.
+    /// Do not use this method for a user-provided object ID:
+    /// It gives an internal error if the object does not exist.
     pub(crate) fn release_obj(&self, obj: ObjectId) -> Result<(), ProtoError> {
         let release_request = crate::msgs::request::Request::new(obj, "rpc:release", NoParams {});
         let _empty_response: EmptyReply = self.execute_internal_ok(&release_request.encode()?)?;
