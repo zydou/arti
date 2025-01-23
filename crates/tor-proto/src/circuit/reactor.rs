@@ -19,7 +19,7 @@
 pub(super) mod syncview;
 
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{EndSentStreamEnt, ShouldSendEnd, StreamEntMut};
+use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -1952,40 +1952,9 @@ impl Reactor {
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         match hop.map.get_mut(streamid) {
             Some(StreamEntMut::Open(ent)) => {
-                // The stream for this message exists, and is open.
-
-                if msg.cmd() == RelayCmd::SENDME {
-                    let _sendme = msg
-                        .decode::<Sendme>()
-                        .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
-                        .into_msg();
-                    // We need to handle sendmes here, not in the stream's
-                    // recv() method, or else we'd never notice them if the
-                    // stream isn't reading.
-                    ent.put_for_incoming_sendme()?;
-                    return Ok(CellStatus::Continue);
-                }
-
                 let message_closes_stream =
-                    ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+                    Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
 
-                if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
-                    if e.is_full() {
-                        // If we get here, we either have a logic bug (!), or an attacker
-                        // is sending us more cells than we asked for via congestion control.
-                        return Err(Error::CircProto(format!(
-                            "Stream sink would block; received too many cells on stream ID {}",
-                            sv(streamid),
-                        )));
-                    }
-                    if e.is_disconnected() && cell_counts_toward_windows {
-                        // the other side of the stream has gone away; remember
-                        // that we received a cell that we couldn't queue for it.
-                        //
-                        // Later this value will be recorded in a half-stream.
-                        ent.dropped += 1;
-                    }
-                }
                 if message_closes_stream {
                     hop.map.ending_msg_received(streamid)?;
                 }
@@ -2027,6 +1996,51 @@ impl Reactor {
             }
         }
         Ok(CellStatus::Continue)
+    }
+
+    /// Deliver `msg` to the specified open stream entry `ent`.
+    fn deliver_msg_to_stream(
+        streamid: StreamId,
+        ent: &mut OpenStreamEnt,
+        cell_counts_toward_windows: bool,
+        msg: UnparsedRelayMsg,
+    ) -> Result<bool> {
+                // The stream for this message exists, and is open.
+
+                if msg.cmd() == RelayCmd::SENDME {
+                    let _sendme = msg
+                        .decode::<Sendme>()
+                        .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
+                        .into_msg();
+                    // We need to handle sendmes here, not in the stream's
+                    // recv() method, or else we'd never notice them if the
+                    // stream isn't reading.
+                    ent.put_for_incoming_sendme()?;
+                    return Ok(false);
+                }
+
+                let message_closes_stream =
+                    ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+
+                if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
+                    if e.is_full() {
+                        // If we get here, we either have a logic bug (!), or an attacker
+                        // is sending us more cells than we asked for via congestion control.
+                        return Err(Error::CircProto(format!(
+                            "Stream sink would block; received too many cells on stream ID {}",
+                            sv(streamid),
+                        )));
+                    }
+                    if e.is_disconnected() && cell_counts_toward_windows {
+                        // the other side of the stream has gone away; remember
+                        // that we received a cell that we couldn't queue for it.
+                        //
+                        // Later this value will be recorded in a half-stream.
+                        ent.dropped += 1;
+                    }
+                }
+
+        Ok(message_closes_stream)
     }
 
     /// A helper for handling incoming stream requests.
