@@ -184,7 +184,6 @@ async fn run_rpc_listener<R: Runtime>(
     rpc_mgr: Arc<RpcMgr>,
 ) -> Result<()> {
     while let Some((stream, _addr, info)) = incoming.next().await.transpose()? {
-        // TODO RPC: Perhaps we should have rpcmgr hold the client reference?
         // TODO RPC: We'll need to pass info (or part of it?) to rpc_mgr.
         debug!("Received incoming RPC connection from {}", &info.name);
 
