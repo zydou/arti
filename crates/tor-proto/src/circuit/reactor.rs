@@ -1907,7 +1907,7 @@ impl Reactor {
         while let Some(msg) = msgs.next() {
             let msg_status = self.handle_relay_msg(cx, hopnum, c_t_w, msg)?;
             match msg_status {
-                CellStatus::Continue => (),
+                CellStatus::Continue => continue,
                 CellStatus::CleanShutdown => {
                     for msg in msgs {
                         debug!(
