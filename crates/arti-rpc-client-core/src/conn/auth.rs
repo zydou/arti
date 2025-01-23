@@ -65,7 +65,7 @@ impl RpcConn {
         );
         let authenticated: AuthenticatedReply = self
             .execute_internal(&r.encode()?)?
-            .map_err(ConnectError::AuthenticationRejected)?;
+            .map_err(ConnectError::AuthenticationFailed)?;
 
         Ok(authenticated.session)
     }
@@ -88,7 +88,7 @@ impl RpcConn {
         );
         let reply: CookieBeginReply = self
             .execute_internal(&cookie_begin.encode()?)?
-            .map_err(ConnectError::AuthenticationRejected)?;
+            .map_err(ConnectError::AuthenticationFailed)?;
 
         if server_addr != reply.server_addr {
             return Err(ConnectError::ServerAddressMismatch {
@@ -112,7 +112,7 @@ impl RpcConn {
         );
         let authenticated: AuthenticatedReply = self
             .execute_internal(&cookie_continue.encode()?)?
-            .map_err(ConnectError::AuthenticationRejected)?;
+            .map_err(ConnectError::AuthenticationFailed)?;
 
         // Drop the cookie_auth_obj: we don't need it now that we have authenticated.
         self.release_obj(cookie_auth_obj)?;

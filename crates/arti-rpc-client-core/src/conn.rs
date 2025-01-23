@@ -462,9 +462,9 @@ pub enum ConnectError {
     /// (Only absolute paths are supported).
     #[error("Connect file was given as a relative path.")]
     RelativeConnectFile,
-    /// One of our authentication messages was rejected.
-    #[error("Arti rejected our authentication: {0:?}")]
-    AuthenticationRejected(ErrorResponse),
+    /// One of our authentication messages received an error.
+    #[error("Received an error while trying to authenticate: {0:?}")]
+    AuthenticationFailed(ErrorResponse),
     /// The connect point uses an RPC authentication type we don't support.
     #[error("Authentication type is not supported")]
     AuthenticationNotSupported,
@@ -503,7 +503,7 @@ impl HasClientErrorAction for ConnectError {
             E::CannotConnect(e) => e.client_action(),
             E::InvalidBanner => A::Decline,
             E::RelativeConnectFile => A::Abort,
-            E::AuthenticationRejected(_) => A::Decline,
+            E::AuthenticationFailed(_) => A::Decline,
             // TODO RPC: Is this correct?  This error can also occur when
             // we are talking to something other than an RPC server.
             E::BadMessage(_) => A::Abort,
