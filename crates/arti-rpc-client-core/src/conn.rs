@@ -4,7 +4,7 @@
 //! and matching them with their responses.
 
 use std::{
-    io,
+    io::{self},
     sync::{Arc, Mutex},
 };
 
@@ -29,6 +29,10 @@ use tor_rpc_connect::{auth::cookie::CookieAccessError, HasClientErrorAction};
 /// A handle to an open request.
 ///
 /// These handles are created with [`RpcConn::execute_with_handle`].
+///
+/// Note that dropping a RequestHandle does not cancel the associated request:
+/// it will continue running, but you won't have a way to receive updates from it.
+/// To cancel a request, use [`RpcConn::cancel`].
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub struct RequestHandle {
@@ -247,9 +251,25 @@ impl RpcConn {
     }
 
     /// Cancel a request by ID.
-    pub fn cancel(&self, _id: &AnyRequestId) -> Result<(), ProtoError> {
-        todo!()
+    pub fn cancel(&self, request_id: &AnyRequestId) -> Result<(), ProtoError> {
+        /// Arguments to an `rpc::cancel` request.
+        #[derive(serde::Serialize, Debug)]
+        struct CancelParams<'a> {
+            /// The request to cancel.
+            request_id: &'a AnyRequestId,
+        }
+
+        let request = crate::msgs::request::Request::new(
+            ObjectId::connection_id(),
+            "rpc:cancel",
+            CancelParams { request_id },
+        );
+        match self.execute_internal::<EmptyResponse>(&request.encode()?)? {
+            Ok(EmptyResponse {}) => Ok(()),
+            Err(_) => Err(ProtoError::RequestCompleted),
+        }
     }
+
     /// Like `execute`, but don't wait.  This lets the caller see the
     /// request ID and  maybe cancel it.
     pub fn execute_with_handle(&self, cmd: &str) -> Result<RequestHandle, ProtoError> {
@@ -316,8 +336,6 @@ impl RequestHandle {
 
         Ok(AnyResponse::from_validated(validated))
     }
-    // TODO RPC: Cancel on drop.
-    // TODO RPC: way to drop without cancelling.
 
     // TODO RPC: Sketch out how we would want to do this in an async world,
     // or with poll

@@ -207,6 +207,7 @@ class ArtiRpcConn(_RpcBase):
 
     _conn: Optional[Ptr[FfiConn]]
     _session: ArtiRpcObject
+    _conn_object: ArtiRpcObject
 
     def __init__(self, rpc_lib=None, _conn: Optional[Ptr[FfiConn]] = None):
         """
@@ -229,6 +230,7 @@ class ArtiRpcConn(_RpcBase):
         self._conn = _conn
         s = self._rpc.arti_rpc_conn_get_session_id(self._conn).decode("utf-8")
         self._session = self.make_object(s)
+        self._conn_object = self.make_object("connection")
 
     def __del__(self):
         if self._conn is not None:
@@ -244,6 +246,15 @@ class ArtiRpcConn(_RpcBase):
         a more ergonomic interface to `execute` and `execute_with_handle`.)
         """
         return ArtiRpcObject(object_id, self)
+
+    def connection(self) -> ArtiRpcObject:
+        """
+        Return an ArtiRpcObject for this connection itself.
+
+        The connection object is used to cancel and otherwise manipulate
+        RPC requests.
+        """
+        return self._conn_object
 
     def session(self) -> ArtiRpcObject:
         """
@@ -294,7 +305,7 @@ class ArtiRpcConn(_RpcBase):
             self._conn, msg.encode("utf-8"), byref(handle), byref(error)
         )
         self._handle_error(rv, error)
-        return ArtiRequestHandle(handle, self._rpc)
+        return ArtiRequestHandle(handle, self, self._rpc)
 
     def open_stream(
         self,
@@ -531,6 +542,9 @@ class ArtiRpcObject(_RpcBase):
         Return a helper that can be used to set meta-parameters
         on a request made with this object.
 
+        Currently recognized meta-parameters are "updates"
+        and "require": See rpc-meta-draft.md for more information.
+
         The wrapper will support `invoke` and `invoke_with_handle`,
         and will pass them any provided `params` given as an argument
         to this function as meta-request parameters.
@@ -651,12 +665,19 @@ class ArtiRpcResponse:
 class ArtiRequestHandle(_RpcBase):
     """
     Handle to a pending RPC request.
+
+    NOTE: Dropping this handle does not cancel the request.
+    If you want to cancel the request on the server side,
+    use the cancel method.
     """
 
     _handle: Ptr[FfiHandle]
+    _conn: ArtiRpcConn
+    _id: str
 
-    def __init__(self, handle: Ptr[FfiHandle], rpc):
+    def __init__(self, handle: Ptr[FfiHandle], conn: ArtiRpcConn, rpc):
         _RpcBase.__init__(self, rpc)
+        self._conn = conn
         self._handle = handle
 
     def __del__(self):
@@ -682,3 +703,17 @@ class ArtiRequestHandle(_RpcBase):
         expected_kind = ArtiRpcResponseKind(responsetype.value)
         assert response_obj.kind() == expected_kind
         return response_obj
+
+    def cancel(self):
+        """
+        Attempt to cancel this request.
+
+        This can fail if the request has alrady stopped,
+        or if it stops before we have a chance to cancel it.
+        """
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+        rv = self._rpc.arti_rpc_conn_cancel_handle(
+            self._conn._conn, self._handle, byref(error)
+        )
+
+        self._handle_error(rv, error)

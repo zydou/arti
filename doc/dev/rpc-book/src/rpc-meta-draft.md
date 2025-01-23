@@ -1023,6 +1023,18 @@ the cancellation request will return an error.
 but in both of these cases, we guarantee that
 the `rpc:cancel` method has had no effect.)
 
+If there have been multiple object requests with the same request ID,
+and those requests have been in-flight simultaneously,
+then it is not specified whether `rpc:cancel` will cancel one,
+both, or neither.
+
+> In general, users should avoid simultaneous requests with the same
+> request ID.
+
+Not all requests are cancellable.
+Methods which cannot be cancelled should be documented as such.
+
+> In Arti, only the rpc:cancel method is uncancellable.
 
 ### Authentication
 

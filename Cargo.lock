@@ -428,6 +428,7 @@ dependencies = [
  "tor-rpc-connect",
  "tor-rpcbase",
  "tor-rtcompat",
+ "tor-rtmock",
  "tracing",
  "typetag",
  "weak-table",

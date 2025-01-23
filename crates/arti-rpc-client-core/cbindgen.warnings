@@ -87,3 +87,4 @@ WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
 WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
 WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
 WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
+WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.

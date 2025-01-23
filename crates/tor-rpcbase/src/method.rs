@@ -51,6 +51,17 @@ pub trait DynMethod: std::fmt::Debug + Send + Downcast {
         let _ = obj_id;
         Err(crate::InvokeError::NoDispatchBypass)
     }
+
+    /// Return true if this method is safe to cancel.
+    ///
+    /// The default implementation returns true: all RPC methods should be cancel-safe and
+    /// and cancellable.
+    ///
+    /// In Arti currently, only the "cancel" method itself is marked as uncancellable,
+    /// to avoid deadlocks.
+    fn is_cancellable(&self) -> bool {
+        true
+    }
 }
 downcast_rs::impl_downcast!(DynMethod);
 
@@ -166,7 +177,13 @@ define_derive_deftly! {
     export DynMethod:
     const _: () = {
         ${if not(tmeta(rpc(bypass_method_dispatch))) {
-            impl $crate::DynMethod for $ttype {}
+            impl $crate::DynMethod for $ttype {
+                ${if tmeta(rpc(no_cancel)) {
+                    fn is_cancellable(&self) -> bool {
+                        false
+                    }
+                }}
+            }
         } else if tmeta(rpc(no_method_name)) {
             ${error "no_method_name is incompatible with bypass_method_dispatch."}
         }}

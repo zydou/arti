@@ -1,7 +1,7 @@
 //! RPC connection support, mainloop, and protocol implementation.
 
 pub(crate) mod auth;
-
+mod methods;
 use std::{
     collections::HashMap,
     io::Error as IoError,
@@ -21,7 +21,7 @@ use serde_json::error::Category as JsonErrorCategory;
 use tor_async_utils::{mpsc_channel_no_memquota, SinkExt as _};
 
 use crate::{
-    cancel::{Cancel, CancelHandle},
+    cancel::{self, Cancel, CancelHandle},
     err::RequestParseError,
     globalid::{GlobalId, MacKey},
     msgs::{BoxedResponse, FlexibleRequest, ReqMeta, Request, RequestId, ResponseBody},
@@ -90,7 +90,7 @@ struct Inner {
     // TODO: We have two options here for handling colliding IDs.  We can either turn
     // this into a multimap, or we can declare that cancelling a request only
     // cancels the most recent request sent with that ID.
-    inflight: HashMap<RequestId, CancelHandle>,
+    inflight: HashMap<RequestId, Option<CancelHandle>>,
 
     /// An object map used to look up most objects by ID, and keep track of
     /// which objects are owned by this connection.
@@ -243,9 +243,32 @@ impl Connection {
     }
 
     /// Register the request `id` as a cancellable request.
-    fn register_request(&self, id: RequestId, handle: CancelHandle) {
+    ///
+    /// If `handle` is none, register it as an uncancellable request.
+    fn register_request(&self, id: RequestId, handle: Option<CancelHandle>) {
         let mut inner = self.inner.lock().expect("lock poisoned");
         inner.inflight.insert(id, handle);
+    }
+
+    /// Try to cancel the request `id`.
+    ///
+    /// Return an error when `id` cannot be found, or cannot be cancelled.
+    /// (These cases are indistinguishable.)
+    fn cancel_request(&self, id: &RequestId) -> Result<(), CancelError> {
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        match inner.inflight.remove(id) {
+            Some(Some(handle)) => {
+                drop(inner);
+                handle.cancel()?;
+                Ok(())
+            }
+            Some(None) => {
+                // Put it back in case somebody tries again.
+                inner.inflight.insert(id.clone(), None);
+                Err(CancelError::CannotCancelRequest)
+            }
+            None => Err(CancelError::RequestNotFound),
+        }
     }
 
     /// Run in a loop, decoding JSON requests from `input` and
@@ -418,13 +441,23 @@ impl Connection {
             Box::pin(sink)
         };
 
+        let is_cancellable = method.is_cancellable();
+
         // Create `run_method_lowlevel` future, and make it cancellable.
         let fut = self.run_method_lowlevel(update_sender, obj, method, meta);
-        let (handle, fut) = Cancel::new(fut);
-        self.register_request(id.clone(), handle);
 
-        // Run the cancellable future to completion, and figure out how to respond.
-        let body = match fut.await {
+        // Optionally register the future as cancellable.  Then run it to completion.
+        let outcome = if is_cancellable {
+            let (handle, fut) = Cancel::new(fut);
+            self.register_request(id.clone(), Some(handle));
+            fut.await
+        } else {
+            self.register_request(id.clone(), None);
+            Ok(fut.await)
+        };
+
+        // Figure out how to respond.
+        let body = match outcome {
             Ok(Ok(value)) => ResponseBody::Success(value),
             // TODO: If we're going to box this, let's do so earlier.
             Ok(Err(err)) => {
@@ -451,6 +484,9 @@ impl Connection {
             .await;
 
         // Unregister the request.
+        //
+        // TODO: This may unregister a different request if the user sent
+        // in another request with the same ID.
         self.remove_request(&id);
     }
 
@@ -673,9 +709,63 @@ impl rpc::Context for Connection {
 #[derive(thiserror::Error, Clone, Debug, serde::Serialize)]
 #[error("RPC request was cancelled")]
 pub(crate) struct RequestCancelled;
-impl tor_error::HasKind for RequestCancelled {
-    fn kind(&self) -> tor_error::ErrorKind {
-        // TODO RPC: Can we do better here?
-        tor_error::ErrorKind::Other
+
+impl From<RequestCancelled> for RpcError {
+    fn from(_: RequestCancelled) -> Self {
+        RpcError::new(
+            "Request cancelled".into(),
+            rpc::RpcErrorKind::RequestCancelled,
+        )
+    }
+}
+
+/// An error given when we attempt to cancel an RPC request, but cannot.
+///
+#[derive(thiserror::Error, Clone, Debug, serde::Serialize)]
+pub(crate) enum CancelError {
+    /// We didn't find any request with the provided ID.
+    ///
+    /// Since we don't keep track of requests after they finish or are cancelled,
+    /// we cannot distinguish the cases where a request has finished,
+    /// where the request has been cancelled,
+    /// or where the request never existed.
+    /// Therefore we collapse them into a single error type.
+    #[error("RPC request not found")]
+    RequestNotFound,
+
+    /// This kind of request cannot be cancelled.
+    #[error("Uncancellable request")]
+    CannotCancelRequest,
+
+    /// We tried to cancel a request but found out it was already cancelled.
+    ///
+    /// This error should be impossible.
+    #[error("Request somehow cancelled twice!")]
+    AlreadyCancelled,
+}
+
+impl From<cancel::CannotCancel> for CancelError {
+    fn from(value: cancel::CannotCancel) -> Self {
+        use cancel::CannotCancel as CC;
+        use CancelError as CE;
+        match value {
+            CC::Cancelled => CE::AlreadyCancelled,
+            // We map "finished" to RequestNotFound since it is not in the general case
+            // distinguishable from it; see documentation on RequestNotFound.
+            CC::Finished => CE::RequestNotFound,
+        }
+    }
+}
+
+impl From<CancelError> for RpcError {
+    fn from(err: CancelError) -> Self {
+        use rpc::RpcErrorKind as REK;
+        use CancelError as CE;
+        let code = match err {
+            CE::RequestNotFound => REK::RequestError,
+            CE::CannotCancelRequest => REK::RequestError,
+            CE::AlreadyCancelled => REK::InternalError,
+        };
+        RpcError::new(err.to_string(), code)
     }
 }

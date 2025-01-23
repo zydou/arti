@@ -120,6 +120,13 @@ def _annotate_library(lib: ctypes.CDLL):
     lib.arti_rpc_conn_get_session_id.argtypes = [POINTER(ArtiRpcConn)]
     lib.arti_rpc_conn_get_session_id.restype = c_char_p
 
+    lib.arti_rpc_conn_cancel_handle.argtypes = [
+        POINTER(ArtiRpcConn),
+        POINTER(ArtiRpcHandle),
+        _ErrorOut,
+    ]
+    lib.arti_rpc_conn_cancel_handle.restype = _ArtiRpcStatus
+
     lib.arti_rpc_conn_builder_new.argtypes = [_BuilderOut, _ErrorOut]
     lib.arti_rpc_conn_builder_new.restype = _ArtiRpcStatus
 
