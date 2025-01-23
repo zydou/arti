@@ -127,12 +127,7 @@ pub use subcommands::proxy::run_proxy as run;
 /// Create a runtime for Arti to use.
 fn create_runtime() -> std::io::Result<impl Runtime> {
     cfg_if::cfg_if! {
-        if #[cfg(feature="rpc")] {
-            // TODO RPC: Because of
-            // https://gitlab.torproject.org/tpo/core/arti/-/issues/837 , we can
-            // currently define our RPC methods on TorClient<PreferredRuntime>.
-            use tor_rtcompat::PreferredRuntime as ChosenRuntime;
-        } else if #[cfg(all(feature="tokio", feature="native-tls"))] {
+        if #[cfg(all(feature="tokio", feature="native-tls"))] {
             use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
         } else if #[cfg(all(feature="tokio", feature="rustls"))] {
             use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
