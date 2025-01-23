@@ -1916,7 +1916,11 @@ impl Reactor {
                         );
                     }
                     if let Some(incomplete) = incomplete {
-                        debug!("{id}: Ignoring partial relay msg received after triggering shutdown: {incomplete:?}", id=self.unique_id);
+                        debug!(
+                            "{id}: Ignoring partial relay msg received after triggering shutdown: {:?}",
+                            incomplete,
+                            id=self.unique_id,
+                        );
                     }
                     return Ok(CellStatus::CleanShutdown);
                 }
