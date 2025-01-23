@@ -282,6 +282,9 @@ class RustIdent:
     def __eq__(self, other):
         return self.ident == other.ident
 
+    def __lt__(self, other):
+        return self.ident < other.ident
+
     def __hash__(self):
         return hash(self.ident)
 
@@ -422,7 +425,7 @@ class RpcUniverse:
         Write to `f` an index of all known RPC methods.
         """
         f.write(mdheader("### Method index", "idx:methods"))
-        for m, obj in self.methods.items():
+        for m, obj in sorted(self.methods.items()):
             m_str = m
             m_anchor = "method:" + m_str
             m_ident = obj["method_type"]
@@ -473,7 +476,7 @@ class RpcUniverse:
         """
         Write to `f` all per-method documentation.
         """
-        for m, obj in self.methods.items():
+        for m, obj in sorted(self.methods.items()):
             self.emit_single_method(f, m, obj)
 
     def emit_object_index(self, f):
@@ -482,7 +485,7 @@ class RpcUniverse:
         """
         f.write(mdheader("### Object index", "idx:objects"))
 
-        for o_name in self.object_types():
+        for o_name in sorted(self.object_types()):
             o_anchor = f"object:{o_name}"
             o_summary = doc_subject(self.get_doc(o_name))
             f.write(f"- [`{o_name}`](#{o_anchor}) — {o_summary}\n")
@@ -513,7 +516,7 @@ class RpcUniverse:
         """
         Write all per-object documentation to `f`.
         """
-        for o_name in self.object_types():
+        for o_name in sorted(self.object_types()):
             self.emit_single_object(f, o_name)
 
     def emit_docs(self, f):
