@@ -23,9 +23,9 @@ import subprocess
 import sys
 
 # What version of rustdoc json do we know?
-SUPPORTED_FORMAT_VERSION = 35
+SUPPORTED_FORMAT_VERSION = 38
 # What nightly do we know to provide that version?
-KNOWN_GOOD_NIGHTLY = "nightly-2024-10-22"
+KNOWN_GOOD_NIGHTLY = "nightly-2025-01-17"
 
 # Tricky bits, unsolved
 #   - Converting links in the md to be correct.
@@ -89,11 +89,8 @@ def load_methods_via_rpc():
     Return value is as for "x_list_all_rpc_methods".
     """
 
-    # TODO RPC: This isn't how connection strings will work in production
-    socket_path = os.path.expanduser("~/.local/run/arti/SOCKET")
-    connect_string = f"unix:{socket_path}"
     try:
-        connection = arti_rpc.ArtiRpcConn(connect_string)
+        connection = arti_rpc.ArtiRpcConn()
     except arti_rpc.ArtiRpcError as e:
         print(f"Cannot connect to Arti via RPC: {e}")
         print(
@@ -105,6 +102,21 @@ def load_methods_via_rpc():
     methods = connection.session().invoke("arti:x_list_all_rpc_methods")
     del connection  # TODO: Implement a connection.close(); Implement "with connection".
     return methods
+
+
+def add_additional_methods(methods):
+    """
+    Add entries for additional methods that are not ordinarily detected
+    `by arti:x_list_all_rpc_methods`.
+    """
+    # This one isn't detected because it applies to all objects.
+    # Eventually we may add a better way to solve this.
+    methods["methods"]["rpc:release"] = {
+        "applies_to_object_types": "*",
+        "method_type": "arti_rpcserver::objmap::methods::RpcRelease",
+        "output_type": "tor_rpcbase::Nil",
+        "update_type": None,
+    }
 
 
 def mdheader(s, anchor):
@@ -192,15 +204,53 @@ def extract_md_section(document, magic_heading=MAGIC_HEADING):
         document.children = new_children
 
 
-def recursively_fix_links(doc, linkfixer):
+def recursively_evaluate(doc, function):
     """
-    Run the function `linkfixer` on every markdown link inside `doc`.
+    Apply 'function' to doc, and recursively to every one of its children.
+
+    Does not apply 'function' to strings.
     """
-    for elt in doc.children:
+    function(doc)
+    if isinstance(doc.children, list):
+        for elt in doc.children:
+            recursively_evaluate(elt, function)
+
+
+def fix_rustdoc_links(doc):
+    """
+    Repair rustdoc links that marko can't otherwise detect.
+
+    The problematic links are those of the form `[foo](bar)`
+    where `bar` is a Rust identifier: Although we generate
+    link definitions for those `bar` elements, marko "normalizes"
+    their link labels, which throws off the parsing later on.
+    """
+    # Find every link def ("[foo]: https://...") in the document.
+    link_defs = dict()
+
+    def find_link_defs(elt):
+        if elt.get_type() == "LinkRefDef":
+            link_defs[elt.label] = elt.dest
+
+    recursively_evaluate(doc, find_link_defs)
+
+    # For every link, see if it looks like a broken link to a link
+    # def, and if so fix its target.  This effectively turns
+    # [text](UnnormalizedLabel) into [text](destination),
+    # which marko will render as [text][normalizedlabel].
+    def fix_link_target(elt):
         if elt.get_type() == "Link":
-            linkfixer(elt)
-        if isinstance(elt.children, list):
-            recursively_fix_links(elt, linkfixer)
+            dest_orig = elt.dest
+            normalized_dest = marko.helpers.normalize_label(dest_orig)
+            if (
+                not dest_orig.startswith("http")
+                and dest_orig not in link_defs
+                and normalized_dest in link_defs
+            ):
+
+                elt.dest = link_defs[normalized_dest]
+
+    recursively_evaluate(doc, fix_link_target)
 
 
 def adjust_doc(doc, link_table, outer_h_level=3):
@@ -213,7 +263,7 @@ def adjust_doc(doc, link_table, outer_h_level=3):
     - Increment or decrement the heading level so that the entire document
       nests within a heading of level outer_h_level.
 
-    - Adjust every link that we find. (TODO RPC: Implement!)
+    - Adjust every link that we find.
 
     Returns a string rendering of the document.
     """
@@ -247,10 +297,8 @@ def adjust_doc(doc, link_table, outer_h_level=3):
             elt.level += adjustment
 
     ####
-    # Make rustdoc links into something better.
-    #
-    # TODO: decide what to actually do here.
-    recursively_fix_links(document, lambda lnk: None)
+    # Make rustdoc links of the form [`foo`](RustId) actually work correctly.
+    fix_rustdoc_links(document)
 
     return MD.render(document)
 
@@ -285,6 +333,9 @@ class RustIdent:
     def __eq__(self, other):
         return self.ident == other.ident
 
+    def __lt__(self, other):
+        return self.ident < other.ident
+
     def __hash__(self):
         return hash(self.ident)
 
@@ -303,14 +354,17 @@ class RpcUniverse:
     # Fields
     #
     # methods: A map from method name dicts of `applies_to_object_types`,
-    #      `method_type`, `output_type`, and an optional `update_type`.
+    #      `method_type`, `output_type`, `universal`, and an optional `update_type`
     # delegations: A map from RustIdent for an RPC Object type to a
     #   list of the RustIdents which it can delegate to.
     # rustdoc: A map from crate to Rustdoc object.
     def __init__(self, method_list):
         self.methods = dict()
         for mname, minfo in method_list["methods"].items():
-            atypes = [RustIdent(t) for t in minfo["applies_to_object_types"]]
+            universal = "*" in minfo["applies_to_object_types"]
+            atypes = [
+                RustIdent(t) for t in minfo["applies_to_object_types"] if t != "*"
+            ]
             mtype = RustIdent(minfo["method_type"])
             otype = RustIdent(minfo["output_type"])
             if minfo["update_type"] is not None:
@@ -322,6 +376,7 @@ class RpcUniverse:
                 "method_type": mtype,
                 "output_type": otype,
                 "update_type": utype,
+                "universal": universal,
             }
 
         self.delegations = dict()
@@ -425,7 +480,7 @@ class RpcUniverse:
         Write to `f` an index of all known RPC methods.
         """
         f.write(mdheader("### Method index", "idx:methods"))
-        for m, obj in self.methods.items():
+        for m, obj in sorted(self.methods.items()):
             m_str = m
             m_anchor = "method:" + m_str
             m_ident = obj["method_type"]
@@ -464,11 +519,14 @@ class RpcUniverse:
         else:
             f.write("- (No incremental updates)\n")
 
-        f.write("- **Implemented by**\n")
-        for itype in obj["applies_to_object_types"]:
-            itype_url = self.get_rustdoc_url(itype)
-            anchor = f"object:{itype}"
-            f.write(f"    - [`{itype}`](#{anchor}) ([Rustdoc]({itype_url}))\n")
+        if obj["universal"]:
+            f.write("- **Implemented by all objects**\n")
+        else:
+            f.write("- **Implemented by**\n")
+            for itype in obj["applies_to_object_types"]:
+                itype_url = self.get_rustdoc_url(itype)
+                anchor = f"object:{itype}"
+                f.write(f"    - [`{itype}`](#{anchor}) ([Rustdoc]({itype_url}))\n")
 
         f.write("\n\n")
 
@@ -476,7 +534,7 @@ class RpcUniverse:
         """
         Write to `f` all per-method documentation.
         """
-        for m, obj in self.methods.items():
+        for m, obj in sorted(self.methods.items()):
             self.emit_single_method(f, m, obj)
 
     def emit_object_index(self, f):
@@ -485,7 +543,7 @@ class RpcUniverse:
         """
         f.write(mdheader("### Object index", "idx:objects"))
 
-        for o_name in self.object_types():
+        for o_name in sorted(self.object_types()):
             o_anchor = f"object:{o_name}"
             o_summary = doc_subject(self.get_doc(o_name))
             f.write(f"- [`{o_name}`](#{o_anchor}) — {o_summary}\n")
@@ -516,7 +574,7 @@ class RpcUniverse:
         """
         Write all per-object documentation to `f`.
         """
-        for o_name in self.object_types():
+        for o_name in sorted(self.object_types()):
             self.emit_single_object(f, o_name)
 
     def emit_docs(self, f):
@@ -651,6 +709,7 @@ def run(output, fmt="md"):
     )
 
     methods = load_methods_via_rpc()
+    add_additional_methods(methods)
     universe = RpcUniverse(methods)
 
     n_methods = len(methods["methods"])
