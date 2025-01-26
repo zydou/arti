@@ -298,8 +298,8 @@ mod test {
         }
         #[cfg(not(unix))]
         assert_matches!(
-            a.address(&resolv),
-            Err(CfgAddrError::NoUnixAddressSupport(_)),
+            a1.address(&resolv),
+            Err(CfgAddrError::NoUnixAddressSupport(_))
         );
     }
 
