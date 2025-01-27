@@ -258,17 +258,18 @@ impl Connect<Resolved> {
     /// Return this `Connect` only if its parts are valid and compatible.
     fn validate(self) -> Result<Self, ResolveError> {
         use general::SocketAddr::{Inet, Unix};
-        // TODO: Simplify.
-        let r = match (self.socket.as_ref(), &self.auth) {
-            (Inet(addr), _) if !addr.ip().is_loopback() => Err(ResolveError::AddressNotLoopback),
-            (Inet(_), Auth::None) => Err(ResolveError::AuthNotCompatible),
-            (_, Auth::Unrecognized(_)) => Err(ResolveError::AuthNotRecognized),
-            (Inet(_), Auth::Cookie { .. }) => Ok(self),
-            (Unix(_), _) => Ok(self),
-            (_, _) => Err(ResolveError::AddressTypeNotRecognized),
-        }?;
-        r.check_absolute_paths()?;
-        Ok(r)
+        match (self.socket.as_ref(), &self.auth) {
+            (Inet(addr), _) if !addr.ip().is_loopback() => {
+                return Err(ResolveError::AddressNotLoopback)
+            }
+            (Inet(_), Auth::None) => return Err(ResolveError::AuthNotCompatible),
+            (_, Auth::Unrecognized(_)) => return Err(ResolveError::AuthNotRecognized),
+            (Inet(_), Auth::Cookie { .. }) => {}
+            (Unix(_), _) => {}
+            (_, _) => return Err(ResolveError::AddressTypeNotRecognized),
+        };
+        self.check_absolute_paths()?;
+        Ok(self)
     }
 
     /// Return an error if some path in this `Connect` is not absolute.
