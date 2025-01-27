@@ -136,7 +136,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
                 )?)),
                 server_address: self.socket.as_str().to_owned(),
             },
-            crate::connpt::Auth::Unrecognized {} => return Err(ConnectError::UnsupportedAuthType),
+            crate::connpt::Auth::Unrecognized(_) => return Err(ConnectError::UnsupportedAuthType),
         };
 
         Ok(Listener {
