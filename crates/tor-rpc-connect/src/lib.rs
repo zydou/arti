@@ -75,7 +75,7 @@ pub trait HasClientErrorAction {
 }
 impl HasClientErrorAction for tor_config_path::CfgPathError {
     fn client_action(&self) -> ClientErrorAction {
-        // TODO RPC: Confirm that every variant of this means a configuration error
+        // Every variant of this means a configuration error
         // or an ill-formed TOML file.
         ClientErrorAction::Abort
     }
@@ -118,8 +118,6 @@ fn net_error_action(err: &std::io::Error) -> ClientErrorAction {
     match err.kind() {
         EK::ConnectionRefused => A::Decline,
         EK::ConnectionReset => A::Decline,
-        // TODO RPC: Are there other "decline" error types here?
-        //
         // TODO Rust 1.83; revisit once some of `io_error_more` is stabilized.
         // see https://github.com/rust-lang/rust/pull/128316
         _ => A::Abort,
@@ -144,7 +142,6 @@ impl HasClientErrorAction for fs_mistrust::Error {
             E::BadPermission(_, _, _) | E::BadOwner(_, _) => A::Decline,
             E::StepsExceeded | E::CurrentDirectory(_) => A::Abort,
 
-            // TODO RPC: Not sure about this one.
             E::BadType(_) => A::Abort,
 
             // These should be impossible for clients given how we use fs_mistrust in this crate.
