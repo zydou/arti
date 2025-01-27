@@ -209,7 +209,7 @@ define_derive_deftly! {
 }
 pub use derive_deftly_template_DynMethod;
 
-use crate::ObjectId;
+use crate::{is_valid_rpc_identifier, InvalidRpcIdentifier, ObjectId};
 
 /// Return true if `name` is the name of some method.
 pub fn is_method_name(name: &str) -> bool {
@@ -238,56 +238,6 @@ pub(crate) fn method_info_by_typeid(typeid: any::TypeId) -> Option<&'static Meth
     METHOD_INFO_BY_TYPEID.get(&typeid).copied()
 }
 
-/// Error representing an "invalid" RPC identifier.
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-#[cfg_attr(test, derive(Eq, PartialEq))]
-pub enum InvalidRpcIdentifier {
-    /// The method doesn't have a ':' to demarcate its namespace.
-    #[error("Method has no namespace separator")]
-    NoNamespace,
-
-    /// The method's namespace is not one we recognize.
-    #[error("Method has unrecognized namespace")]
-    UnrecognizedNamespace,
-
-    /// The method's name is not in snake_case.
-    #[error("Method name has unexpected format")]
-    BadMethodName,
-}
-
-/// Check whether `method` is an expected and well-formed RPC identifier.
-///
-/// (Examples of RPC identifiers are method names.)
-fn is_valid_rpc_identifier(
-    recognized_namespaces: &HashSet<&str>,
-    method: &str,
-) -> Result<(), InvalidRpcIdentifier> {
-    // Return true if scope is recognized.
-    let scope_ok = |s: &str| s.starts_with("x-") || recognized_namespaces.contains(&s);
-    /// Return true if name is in acceptable format.
-    fn name_ok(n: &str) -> bool {
-        let mut chars = n.chars();
-        let Some(first) = chars.next() else {
-            return false;
-        };
-        first.is_ascii_lowercase()
-            && chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
-    }
-    let (scope, name) = method
-        .split_once(':')
-        .ok_or(InvalidRpcIdentifier::NoNamespace)?;
-
-    if !scope_ok(scope) {
-        return Err(InvalidRpcIdentifier::UnrecognizedNamespace);
-    }
-    if !name_ok(name) {
-        return Err(InvalidRpcIdentifier::BadMethodName);
-    }
-
-    Ok(())
-}
-
 /// Check whether we have any method names that do not conform to our conventions.
 ///
 /// Violations of these conventions won't stop the RPC system from working, but they may result in
@@ -310,41 +260,4 @@ pub fn check_method_names<'a>(
                 .map(|e| (name, e))
         })
         .collect()
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn valid_method_names() {
-        let namespaces: HashSet<_> = ["arti", "wombat"].into_iter().collect();
-
-        for name in [
-            "arti:clone",
-            "arti:clone7",
-            "arti:clone_now",
-            "wombat:knish",
-            "x-foo:bar",
-        ] {
-            assert!(is_valid_rpc_identifier(&namespaces, name).is_ok());
-        }
-    }
-
-    #[test]
-    fn invalid_method_names() {
-        let namespaces: HashSet<_> = ["arti", "wombat"].into_iter().collect();
-        use InvalidRpcIdentifier as E;
-
-        for (name, expect_err) in [
-            ("arti-foo:clone", E::UnrecognizedNamespace),
-            ("fred", E::NoNamespace),
-            ("arti:", E::BadMethodName),
-            ("arti:7clone", E::BadMethodName),
-            ("arti:CLONE", E::BadMethodName),
-            ("arti:clone-now", E::BadMethodName),
-        ] {
-            assert_eq!(is_valid_rpc_identifier(&namespaces, name), Err(expect_err));
-        }
-    }
 }

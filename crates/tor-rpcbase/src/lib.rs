@@ -48,13 +48,13 @@ mod err;
 mod method;
 mod obj;
 
-use std::{convert::Infallible, sync::Arc};
+use std::{collections::HashSet, convert::Infallible, sync::Arc};
 
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::{RpcError, RpcErrorKind};
 pub use method::{
-    check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod,
-    InvalidRpcIdentifier, Method, NoUpdates, RpcMethod,
+    check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod, Method,
+    NoUpdates, RpcMethod,
 };
 pub use obj::{Object, ObjectArcExt, ObjectId};
 
@@ -270,6 +270,59 @@ pub struct SingleIdResponse {
     id: ObjectId,
 }
 
+/// Error representing an "invalid" RPC identifier.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub enum InvalidRpcIdentifier {
+    /// The method doesn't have a ':' to demarcate its namespace.
+    #[error("Identifier has no namespace separator")]
+    NoNamespace,
+
+    /// The method's namespace is not one we recognize.
+    #[error("Identifier has unrecognized namespace")]
+    UnrecognizedNamespace,
+
+    /// The method's name is not in snake_case.
+    #[error("Identifier name has unexpected format")]
+    BadIdName,
+}
+
+/// Check whether `method` is an expected and well-formed RPC identifier.
+///
+/// If `recognized_namespaces` is provided, only identifiers within those
+/// namespaces are accepted; otherwise, all namespaces are accepted.
+///
+/// (Examples of RPC identifiers are method names.)
+pub(crate) fn is_valid_rpc_identifier(
+    recognized_namespaces: &HashSet<&str>,
+    method: &str,
+) -> Result<(), InvalidRpcIdentifier> {
+    // Return true if scope is recognized.
+    let scope_ok = |s: &str| s.starts_with("x-") || recognized_namespaces.contains(&s);
+    /// Return true if name is in acceptable format.
+    fn name_ok(n: &str) -> bool {
+        let mut chars = n.chars();
+        let Some(first) = chars.next() else {
+            return false;
+        };
+        first.is_ascii_lowercase()
+            && chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+    }
+    let (scope, name) = method
+        .split_once(':')
+        .ok_or(InvalidRpcIdentifier::NoNamespace)?;
+
+    if !scope_ok(scope) {
+        return Err(InvalidRpcIdentifier::UnrecognizedNamespace);
+    }
+    if !name_ok(name) {
+        return Err(InvalidRpcIdentifier::BadIdName);
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -313,5 +366,37 @@ mod test {
             .unwrap()
             .unwrap();
         assert_eq!(r.v, "cygnets");
+    }
+
+    #[test]
+    fn valid_method_names() {
+        let namespaces: HashSet<_> = ["arti", "wombat"].into_iter().collect();
+
+        for name in [
+            "arti:clone",
+            "arti:clone7",
+            "arti:clone_now",
+            "wombat:knish",
+            "x-foo:bar",
+        ] {
+            assert!(is_valid_rpc_identifier(&namespaces, name).is_ok());
+        }
+    }
+
+    #[test]
+    fn invalid_method_names() {
+        let namespaces: HashSet<_> = ["arti", "wombat"].into_iter().collect();
+        use InvalidRpcIdentifier as E;
+
+        for (name, expect_err) in [
+            ("arti-foo:clone", E::UnrecognizedNamespace),
+            ("fred", E::NoNamespace),
+            ("arti:", E::BadIdName),
+            ("arti:7clone", E::BadIdName),
+            ("arti:CLONE", E::BadIdName),
+            ("arti:clone-now", E::BadIdName),
+        ] {
+            assert_eq!(is_valid_rpc_identifier(&namespaces, name), Err(expect_err));
+        }
     }
 }
