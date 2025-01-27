@@ -10,7 +10,9 @@
 //! other side of the circuit really has read all of the data that it's
 //! acknowledging.
 
+use std::array::TryFromSliceError;
 use std::collections::VecDeque;
+use std::result::Result as StdResult;
 
 use tor_cell::relaycell::RelayCmd;
 use tor_cell::relaycell::UnparsedRelayMsg;
@@ -43,6 +45,14 @@ impl Eq for CircTag {}
 impl PartialEq<[u8; 20]> for CircTag {
     fn eq(&self, other: &[u8; 20]) -> bool {
         crate::util::ct::bytes_eq(&self.0, &other[..])
+    }
+}
+
+impl TryFrom<&[u8]> for CircTag {
+    type Error = TryFromSliceError;
+
+    fn try_from(v: &[u8]) -> StdResult<Self, Self::Error> {
+        Ok(Self(v.try_into()?))
     }
 }
 

@@ -1395,13 +1395,8 @@ impl Reactor {
             .ok_or_else(|| Error::CircProto(format!("Couldn't find hop {}", hopnum.display())))?;
 
         let tag = match msg.into_tag() {
-            Some(v) => {
-                if let Ok(tag) = <[u8; 20]>::try_from(v) {
-                    tag.into()
-                } else {
-                    return Err(Error::CircProto("malformed tag on circuit sendme".into()));
-                }
-            }
+            Some(v) => CircTag::try_from(v.as_slice())
+                .map_err(|_| Error::CircProto("malformed tag on circuit sendme".into()))?,
             None => {
                 // Versions of Tor <=0.3.5 would omit a SENDME tag in this case;
                 // but we don't support those any longer.
