@@ -26,7 +26,7 @@ use crate::{Error, Result};
 //    still record the tags that we _would_ expect.
 //  - Second, this tag type could be different for each layer, if we
 //    eventually have an authenticator that isn't 20 bytes long.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_more::Into)]
 pub(crate) struct CircTag([u8; 20]);
 
 impl From<[u8; 20]> for CircTag {

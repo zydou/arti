@@ -27,7 +27,8 @@ use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
     streammap, CircParameters, CircuitRxReceiver, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
 };
-use crate::congestion::{sendme, CongestionControl, CongestionSignals};
+use crate::congestion::sendme::{self, CircTag};
+use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
@@ -71,8 +72,6 @@ use std::task::{Context, Poll};
 use crate::channel::{Channel, ChannelSender};
 use crate::circuit::path;
 use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
-#[cfg(test)]
-use crate::congestion::sendme::CircTag;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use derive_deftly::Deftly;
@@ -1834,7 +1833,7 @@ impl Reactor {
     fn decode_relay_cell(
         &mut self,
         cell: Relay,
-    ) -> Result<(HopNum, [u8; SENDME_TAG_LEN], RelayCellDecoderResult)> {
+    ) -> Result<(HopNum, CircTag, RelayCellDecoderResult)> {
         let mut body = cell.into_relay_body().into();
 
         // Decrypt the cell. If it's recognized, then find the
@@ -1863,7 +1862,7 @@ impl Reactor {
             .decode(body.into())
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
 
-        Ok((hopnum, tag, decode_res))
+        Ok((hopnum, tag.into(), decode_res))
     }
 
     /// React to a Relay or RelayEarly cell.
@@ -1888,7 +1887,7 @@ impl Reactor {
             // that SendmeEmitMinVersion is no more than 1.  If the authorities
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
-            let sendme = Sendme::new_tag(tag);
+            let sendme = Sendme::new_tag(tag.into());
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
             self.send_relay_cell(cx, hopnum, false, cell)?;
             // Inform congestion control of the SENDME we are sending. This is a circuit level one.
