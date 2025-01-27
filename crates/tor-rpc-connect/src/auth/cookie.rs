@@ -182,12 +182,9 @@ impl crate::HasClientErrorAction for CookieAccessError {
             E::Access(err) => err.client_action(),
             E::Io(err) => crate::fs_error_action(err.as_ref()),
             E::UnusablePath => A::Decline,
-            // Might just not be working; might be different version.
-            //
-            // TODO RPC: We should revisit this.  The spec says "If the cookie file is malformed,
-            // the client also aborts. but this means that the client needs to take measures
-            // to ensure that it never reads a partially written cookie file.
-            E::FileFormat => A::Decline,
+            // We use the banner to make sure that we never read the cookie file before it is ready,
+            // so we don't need to worry about a partially written file.
+            E::FileFormat => A::Abort,
         }
     }
 }
