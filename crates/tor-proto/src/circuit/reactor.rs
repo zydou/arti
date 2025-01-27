@@ -1837,7 +1837,7 @@ impl Reactor {
         // Make a copy of the authentication tag. TODO: I'd rather not
         // copy it, but I don't see a way around it right now.
         let tag = {
-            let mut tag_copy = [0_u8; 20];
+            let mut tag_copy = [0_u8; SENDME_TAG_LEN];
             // TODO(nickm): This could crash if the tag length changes.  We'll
             // have to refactor it then.
             tag_copy.copy_from_slice(tag);
