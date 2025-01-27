@@ -49,10 +49,12 @@ impl Cookie {
     pub fn load(path: &Path, mistrust: &Mistrust) -> Result<Cookie, CookieAccessError> {
         use std::io::Read;
 
-        // If this is successful, then we can safely open and read the file without TOCTOU issues.
-        mistrust.verifier().check(path)?;
+        let mut file = mistrust
+            .verifier()
+            .file_access()
+            .follow_final_links(true)
+            .open(path, fs::OpenOptions::new().read(true))?;
 
-        let mut file = fs::OpenOptions::new().read(true).open(path)?;
         let mut buf = [0_u8; COOKIE_PREFIX_LEN];
         file.read_exact(&mut buf)?;
         if &buf != COOKIE_PREFIX {
@@ -83,10 +85,12 @@ impl Cookie {
         // NOTE: We do not use the "write and rename" pattern here,
         // since it doesn't preserve file permissions.
         let parent = path.parent().ok_or(CookieAccessError::UnusablePath)?;
-        let dir = mistrust.verifier().make_secure_dir(parent)?;
-        // TODO RPC: This doesn't allow the file to be a symlink; we should fix that.
-        let mut file = dir.open(
-            path.file_name().ok_or(CookieAccessError::UnusablePath)?,
+        mistrust
+            .verifier()
+            .require_directory()
+            .make_directory(parent)?;
+        let mut file = mistrust.file_access().follow_final_links(true).open(
+            path,
             fs::OpenOptions::new()
                 .write(true)
                 .create(true)
