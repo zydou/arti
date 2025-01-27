@@ -2781,6 +2781,7 @@ for funding the development of Arti!
 [!1863]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1863
 [!1864]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1864
 [!1866]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1866
+[!1867]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1867
 [!1868]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1868
 [!1869]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1869
 [!1870]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1870
@@ -2811,6 +2812,7 @@ for funding the development of Arti!
 [!1897]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1897
 [!1898]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1898
 [!1899]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1899
+[!1900]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1900
 [!1901]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1901
 [!1902]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1902
 [!1903]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1903
@@ -2818,6 +2820,7 @@ for funding the development of Arti!
 [!1906]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1906
 [!1908]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1908
 [!1909]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1909
+[!1910]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1910
 [!1911]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1911
 [!1912]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1912
 [!1913]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1913
