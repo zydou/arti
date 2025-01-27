@@ -238,11 +238,11 @@ pub(crate) fn method_info_by_typeid(typeid: any::TypeId) -> Option<&'static Meth
     METHOD_INFO_BY_TYPEID.get(&typeid).copied()
 }
 
-/// Error representing an "invalid" method name.
+/// Error representing an "invalid" RPC identifier.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub enum InvalidMethodName {
+pub enum InvalidRpcIdentifier {
     /// The method doesn't have a ':' to demarcate its namespace.
     #[error("Method has no namespace separator")]
     NoNamespace,
@@ -256,11 +256,13 @@ pub enum InvalidMethodName {
     BadMethodName,
 }
 
-/// Check whether `method` is an expected and well-formed method name.
-fn is_valid_method_name(
+/// Check whether `method` is an expected and well-formed RPC identifier.
+///
+/// (Examples of RPC identifiers are method names.)
+fn is_valid_rpc_identifier(
     recognized_namespaces: &HashSet<&str>,
     method: &str,
-) -> Result<(), InvalidMethodName> {
+) -> Result<(), InvalidRpcIdentifier> {
     // Return true if scope is recognized.
     let scope_ok = |s: &str| s.starts_with("x-") || recognized_namespaces.contains(&s);
     /// Return true if name is in acceptable format.
@@ -274,13 +276,13 @@ fn is_valid_method_name(
     }
     let (scope, name) = method
         .split_once(':')
-        .ok_or(InvalidMethodName::NoNamespace)?;
+        .ok_or(InvalidRpcIdentifier::NoNamespace)?;
 
     if !scope_ok(scope) {
-        return Err(InvalidMethodName::UnrecognizedNamespace);
+        return Err(InvalidRpcIdentifier::UnrecognizedNamespace);
     }
     if !name_ok(name) {
-        return Err(InvalidMethodName::BadMethodName);
+        return Err(InvalidRpcIdentifier::BadMethodName);
     }
 
     Ok(())
@@ -297,13 +299,13 @@ fn is_valid_method_name(
 /// Returns a `Vec` of method names that violate our rules, along with the rules that they violate.
 pub fn check_method_names<'a>(
     additional_namespaces: impl IntoIterator<Item = &'a str>,
-) -> Vec<(&'static str, InvalidMethodName)> {
+) -> Vec<(&'static str, InvalidRpcIdentifier)> {
     let mut recognized_namespaces: HashSet<&str> = additional_namespaces.into_iter().collect();
     recognized_namespaces.extend(["arti", "rpc", "auth"]);
 
     iter_method_names()
         .filter_map(|name| {
-            is_valid_method_name(&recognized_namespaces, name)
+            is_valid_rpc_identifier(&recognized_namespaces, name)
                 .err()
                 .map(|e| (name, e))
         })
@@ -325,14 +327,14 @@ mod test {
             "wombat:knish",
             "x-foo:bar",
         ] {
-            assert!(is_valid_method_name(&namespaces, name).is_ok());
+            assert!(is_valid_rpc_identifier(&namespaces, name).is_ok());
         }
     }
 
     #[test]
     fn invalid_method_names() {
         let namespaces: HashSet<_> = ["arti", "wombat"].into_iter().collect();
-        use InvalidMethodName as E;
+        use InvalidRpcIdentifier as E;
 
         for (name, expect_err) in [
             ("arti-foo:clone", E::UnrecognizedNamespace),
@@ -342,7 +344,7 @@ mod test {
             ("arti:CLONE", E::BadMethodName),
             ("arti:clone-now", E::BadMethodName),
         ] {
-            assert_eq!(is_valid_method_name(&namespaces, name), Err(expect_err));
+            assert_eq!(is_valid_rpc_identifier(&namespaces, name), Err(expect_err));
         }
     }
 }

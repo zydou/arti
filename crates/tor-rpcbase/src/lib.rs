@@ -54,7 +54,7 @@ pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::{RpcError, RpcErrorKind};
 pub use method::{
     check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod,
-    InvalidMethodName, Method, NoUpdates, RpcMethod,
+    InvalidRpcIdentifier, Method, NoUpdates, RpcMethod,
 };
 pub use obj::{Object, ObjectArcExt, ObjectId};
 

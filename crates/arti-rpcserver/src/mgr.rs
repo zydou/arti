@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex, RwLock, Weak};
 
 use rand::Rng;
-use rpc::InvalidMethodName;
+use rpc::InvalidRpcIdentifier;
 use tor_rpcbase as rpc;
 use tracing::warn;
 use weak_table::WeakValueHashMap;
@@ -99,7 +99,7 @@ pub(crate) struct Inner {
 pub enum RpcMgrError {
     /// At least one method had an invalid name.
     #[error("Method {1} had an invalid name")]
-    InvalidMethodName(#[source] InvalidMethodName, String),
+    InvalidMethodName(#[source] InvalidRpcIdentifier, String),
 }
 
 /// An [`rpc::Object`], along with its associated [`rpc::Context`].
@@ -121,7 +121,7 @@ impl RpcMgr {
         let fatal_problem = problems
             .into_iter()
             // We don't treat UnrecognizedNamespace as fatal; somebody else might be extending our methods.
-            .find(|(_, err)| !matches!(err, InvalidMethodName::UnrecognizedNamespace));
+            .find(|(_, err)| !matches!(err, InvalidRpcIdentifier::UnrecognizedNamespace));
         if let Some((name, err)) = fatal_problem {
             return Err(RpcMgrError::InvalidMethodName(err, name.to_owned()));
         }
