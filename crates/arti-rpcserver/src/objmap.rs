@@ -6,17 +6,34 @@
 //! TODO RPC: Add an object diagram here once the implementation settles down.
 
 use std::any;
-use std::collections::HashMap;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use slotmap_careful::{Key as _, KeyData, SlotMap};
 use tor_rpcbase as rpc;
 
 pub(crate) mod methods;
+#[cfg(feature = "weakref")]
+mod weakrefs;
+
+/// Return the [`RawAddr`] of an arbitrary `Arc<T>`.
+#[cfg(any(test, feature = "weakref"))]
+fn raw_addr_of<T: ?Sized>(arc: &Arc<T>) -> RawAddr {
+    // I assure you, each one of these 'as'es was needed in the version of
+    // Rust I wrote them in.
+    RawAddr(Arc::as_ptr(arc) as *const () as usize)
+}
+
+/// Return the [`RawAddr`] of an arbitrary `Weak<T>`.
+#[cfg(any(test, feature = "weakref"))]
+fn raw_addr_of_weak<T: ?Sized>(arc: &std::sync::Weak<T>) -> RawAddr {
+    RawAddr(std::sync::Weak::as_ptr(arc) as *const () as usize)
+}
 
 slotmap_careful::new_key_type! {
-    pub(crate) struct WeakIdx;
     pub(crate) struct StrongIdx;
+    // TODO: Eventually, remove this if it stays unused long-term.
+    pub(crate) struct WeakIdx;
+
 }
 
 /// A mechanism to look up RPC `Objects` by their `ObjectId`.
@@ -31,7 +48,8 @@ pub(crate) struct ObjMap {
     /// * Every `entry` in this arena at position `idx` has a corresponding
     ///   entry in `reverse_map` entry such that
     ///   `reverse_map[entry.tagged_addr()] == idx`.
-    weak_arena: SlotMap<WeakIdx, WeakArenaEntry>,
+    #[cfg(feature = "weakref")]
+    weak_arena: SlotMap<WeakIdx, weakrefs::WeakArenaEntry>,
     /// Backwards reference to look up weak arena references by the underlying
     /// object identity.
     ///
@@ -39,22 +57,11 @@ pub(crate) struct ObjMap {
     /// * For every weak `(addr,idx)` entry in this map, there is a
     ///   corresponding ArenaEntry in `arena` such that
     ///   `arena[idx].tagged_addr() == addr`
-    reverse_map: HashMap<TaggedAddr, WeakIdx>,
+    #[cfg(feature = "weakref")]
+    reverse_map: std::collections::HashMap<TaggedAddr, WeakIdx>,
     /// Testing only: How many times have we tidied this map?
-    #[cfg(test)]
+    #[cfg(all(test, feature = "weakref"))]
     n_tidies: usize,
-}
-
-/// A single entry to a weak Object stored in the generational arena.
-///
-struct WeakArenaEntry {
-    /// The actual Arc or Weak reference for the object that we're storing here.
-    obj: Weak<dyn rpc::Object>,
-    ///
-    /// This contains a strong or weak reference, along with the object's true TypeId.
-    /// See the [`TaggedAddr`] for more info on
-    /// why this is needed.
-    id: any::TypeId,
 }
 
 /// The raw address of an object held in an Arc or Weak.
@@ -108,67 +115,11 @@ struct TaggedAddr {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) enum GenIdx {
     /// An index into the arena of weak references.
+    //
+    // TODO: Eventually, remove this if we don't build weak references.
     Weak(WeakIdx),
     /// An index into the arena of strong references
     Strong(StrongIdx),
-}
-
-/// Return the [`RawAddr`] of an arbitrary `Arc<T>`.
-fn raw_addr_of<T: ?Sized>(arc: &Arc<T>) -> RawAddr {
-    // I assure you, each one of these 'as'es was needed in the version of
-    // Rust I wrote them in.
-    RawAddr(Arc::as_ptr(arc) as *const () as usize)
-}
-
-/// Return the [`RawAddr`] of an arbitrary `Weak<T>`.
-fn raw_addr_of_weak<T: ?Sized>(arc: &Weak<T>) -> RawAddr {
-    RawAddr(Weak::as_ptr(arc) as *const () as usize)
-}
-
-impl WeakArenaEntry {
-    /// Create a new `WeakArenaEntry` for a weak reference.
-    fn new(object: &Arc<dyn rpc::Object>) -> Self {
-        let id = (**object).type_id();
-        Self {
-            obj: Arc::downgrade(object),
-            id,
-        }
-    }
-
-    /// Return true if this `ArenaEntry` is really present.
-    ///
-    /// Note that this function can produce false positives (if the entry's
-    /// last strong reference is dropped in another thread), but it can
-    /// never produce false negatives.
-    fn is_present(&self) -> bool {
-        // This is safe from false negatives because: if we can ever
-        // observe strong_count == 0, then there is no way for anybody
-        // else to "resurrect" the object.
-        self.obj.strong_count() > 0
-    }
-
-    /// Return a strong reference to the object in this entry, if possible.
-    fn strong(&self) -> Option<Arc<dyn rpc::Object>> {
-        Weak::upgrade(&self.obj)
-    }
-
-    /// Return the [`TaggedAddr`] that can be used to identify this entry's object.
-    fn tagged_addr(&self) -> TaggedAddr {
-        TaggedAddr {
-            addr: raw_addr_of_weak(&self.obj),
-            type_id: self.id,
-        }
-    }
-}
-
-impl TaggedAddr {
-    /// Return the `TaggedAddr` to uniquely identify `obj` over the course of
-    /// its existence.
-    fn for_object(obj: &Arc<dyn rpc::Object>) -> Self {
-        let type_id = (*obj).type_id();
-        let addr = raw_addr_of(obj);
-        TaggedAddr { addr, type_id }
-    }
 }
 
 /// Encoding functions for GenIdx.
@@ -256,79 +207,21 @@ impl ObjMap {
         Self::default()
     }
 
-    /// Reclaim unused space in this map's weak arena.
-    ///
-    /// This runs in `O(n)` time.
-    fn tidy(&mut self) {
-        #[cfg(test)]
-        {
-            self.n_tidies += 1;
-        }
-        self.weak_arena.retain(|index, entry| {
-            let present = entry.is_present();
-            if !present {
-                // For everything we are removing from the `arena`, we must also
-                // remove it from `reverse_map`.
-                let ptr = entry.tagged_addr();
-                let found = self.reverse_map.remove(&ptr);
-                debug_assert_eq!(found, Some(index));
-            }
-            present
-        });
-    }
-
-    /// If needed, clean the weak arena and resize it.
-    ///
-    /// (We call this whenever we're about to add an entry.  This ensures that
-    /// our insertion operations run in `O(1)` time.)
-    fn adjust_size(&mut self) {
-        // If we're about to fill the arena...
-        if self.weak_arena.len() >= self.weak_arena.capacity() {
-            // ... we delete any dead `Weak` entries.
-            self.tidy();
-            // Then, if the arena is still above half-full, we double the
-            // capacity of the arena.
-            //
-            // (We have to grow the arena this even if tidy() removed _some_
-            // entries, or else we might re-run tidy() too soon.  But we don't
-            // want to grow the arena if tidy() removed _most_ entries, or some
-            // normal usage patterns will lead to unbounded growth.)
-            if self.weak_arena.len() > self.weak_arena.capacity() / 2 {
-                self.weak_arena.reserve(self.weak_arena.capacity());
-            }
-        }
-    }
-
     /// Unconditionally insert a strong entry for `value` in self, and return its index.
     pub(crate) fn insert_strong(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
         GenIdx::Strong(self.strong_arena.insert(value))
     }
 
-    /// Ensure that there is a weak entry for `value` in self, and return an
-    /// index for it.
-    /// If there is no entry, create a weak entry.
-    #[allow(clippy::needless_pass_by_value)] // TODO: Decide whether to make this take a reference.
-    pub(crate) fn insert_weak(&mut self, value: Arc<dyn rpc::Object>) -> GenIdx {
-        let ptr = TaggedAddr::for_object(&value);
-        if let Some(idx) = self.reverse_map.get(&ptr) {
-            #[cfg(debug_assertions)]
-            match self.weak_arena.get(*idx) {
-                Some(entry) => debug_assert!(entry.tagged_addr() == ptr),
-                None => panic!("Found a dangling reference"),
-            }
-            return GenIdx::Weak(*idx);
-        }
-
-        self.adjust_size();
-        let idx = self.weak_arena.insert(WeakArenaEntry::new(&value));
-        self.reverse_map.insert(ptr, idx);
-        GenIdx::Weak(idx)
-    }
-
     /// Return the entry from this ObjMap for `idx`.
     pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
         match idx {
-            GenIdx::Weak(idx) => self.weak_arena.get(idx).and_then(WeakArenaEntry::strong),
+            #[cfg(feature = "weakref")]
+            GenIdx::Weak(idx) => self
+                .weak_arena
+                .get(idx)
+                .and_then(weakrefs::WeakArenaEntry::strong),
+            #[cfg(not(feature = "weakref"))]
+            GenIdx::Weak(_) => None,
             GenIdx::Strong(idx) => self.strong_arena.get(idx).cloned(),
         }
     }
@@ -336,6 +229,7 @@ impl ObjMap {
     /// Remove and return the entry at `idx`, if any.
     pub(crate) fn remove(&mut self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
         match idx {
+            #[cfg(feature = "weakref")]
             GenIdx::Weak(idx) => {
                 if let Some(entry) = self.weak_arena.remove(idx) {
                     let old_idx = self.reverse_map.remove(&entry.tagged_addr());
@@ -345,6 +239,8 @@ impl ObjMap {
                     None
                 }
             }
+            #[cfg(not(feature = "weakref"))]
+            GenIdx::Weak(_) => None,
             GenIdx::Strong(idx) => self.strong_arena.remove(idx),
         }
     }
@@ -352,19 +248,22 @@ impl ObjMap {
     /// Testing only: Assert that every invariant for this structure is met.
     #[cfg(test)]
     fn assert_okay(&self) {
-        for (index, entry) in self.weak_arena.iter() {
-            let ptr = entry.tagged_addr();
-            assert_eq!(self.reverse_map.get(&ptr), Some(&index));
-            assert_eq!(ptr, entry.tagged_addr());
-        }
+        #[cfg(feature = "weakref")]
+        {
+            for (index, entry) in self.weak_arena.iter() {
+                let ptr = entry.tagged_addr();
+                assert_eq!(self.reverse_map.get(&ptr), Some(&index));
+                assert_eq!(ptr, entry.tagged_addr());
+            }
 
-        for (ptr, idx) in self.reverse_map.iter() {
-            let entry = self
-                .weak_arena
-                .get(*idx)
-                .expect("Dangling pointer in reverse map");
+            for (ptr, idx) in self.reverse_map.iter() {
+                let entry = self
+                    .weak_arena
+                    .get(*idx)
+                    .expect("Dangling pointer in reverse map");
 
-            assert_eq!(&entry.tagged_addr(), ptr);
+                assert_eq!(&entry.tagged_addr(), ptr);
+            }
         }
     }
 }
@@ -412,6 +311,7 @@ mod test {
     #[repr(transparent)]
     struct Wrapper(ExampleObject);
 
+    #[cfg(feature = "weakref")]
     #[test]
     fn arc_to_addr() {
         let a1 = Arc::new("Hello world");
@@ -438,6 +338,7 @@ mod test {
         assert_ne!(raw_addr_of(&obj1), raw_addr_of(&a1));
     }
 
+    #[cfg(feature = "weakref")]
     #[test]
     fn obj_ptr() {
         let object = Arc::new(ExampleObject("Ten tons of flax".into()));
@@ -474,6 +375,7 @@ mod test {
             TaggedAddr::for_object(&object_dyn).addr,
             TaggedAddr::for_object(&wrapped_dyn).addr
         );
+        #[cfg(feature = "weakref")]
         assert_eq!(
             TaggedAddr::for_object(&wrapped_dyn).addr,
             raw_addr_of_weak(&wrapped_weak)
@@ -518,6 +420,7 @@ mod test {
         map.assert_okay();
     }
 
+    #[cfg(feature = "weakref")]
     #[test]
     fn strong_and_weak() {
         // Make sure that a strong object behaves like one, and so does a weak
@@ -554,6 +457,7 @@ mod test {
         map.assert_okay();
     }
 
+    #[cfg(feature = "weakref")]
     #[test]
     fn remove() {
         // Make sure that removing an object makes it go away.
@@ -575,6 +479,7 @@ mod test {
         assert!(map.lookup(id2).is_none());
     }
 
+    #[cfg(feature = "weakref")]
     #[test]
     fn duplicates() {
         // Make sure that inserting duplicate objects behaves right.
@@ -595,6 +500,7 @@ mod test {
         }
     }
 
+    #[cfg(feature = "weakref")]
     #[test]
     fn upgrade() {
         // Make sure that inserting an object as weak and strong (in either
@@ -620,6 +526,7 @@ mod test {
         assert_eq!(raw_addr_of(&out2), addr2);
     }
 
+    #[cfg(feature = "weakref")]
     #[test]
     fn tidy() {
         let mut map = ObjMap::new();

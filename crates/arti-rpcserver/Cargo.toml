@@ -27,6 +27,10 @@ full = [
     "slotmap-careful/full",
 ]
 describe-methods = ["tor-rpcbase/describe-methods"]
+experimental = ["weakref"]
+weakref = ["__is_experimental"]
+
+__is_experimental = []
 
 [dependencies]
 arti-client = { path = "../arti-client", version = "0.26.0", features = ["rpc"] }
