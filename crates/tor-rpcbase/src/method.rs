@@ -27,7 +27,7 @@ use once_cell::sync::Lazy;
 ///   which is presumably safe to call.
 /// * if you are linking a crate, you are already trusting that crate.
 pub trait DynMethod: std::fmt::Debug + Send + Downcast {
-    /// Invoke a method while bypassing the regular RPC method dispatch system.
+    /// Try to invoke a method while bypassing the regular RPC method dispatch system.
     ///
     /// For nearly all `DynMethod` types, this method will return
     /// `Err(InvokeError::NoDispatchBypass)`, indicating that the caller should fall through
@@ -37,11 +37,6 @@ pub trait DynMethod: std::fmt::Debug + Send + Downcast {
     /// where the correct behavior for the method
     /// does not depend at all on the _type_ of the object it's being invoked on,
     /// but instead the method is meant to manipulate the object reference itself.
-    ///
-    /// Should return an internal error if `bypass_method_dispatch()` is false.
-    //
-    // TODO RPC: Having this method tied to `bypass_method_dispatch`` is potentially error-prone.
-    //
     fn invoke_without_dispatch(
         &self,
         ctx: Arc<dyn crate::Context>,
