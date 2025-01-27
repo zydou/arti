@@ -1554,7 +1554,7 @@ for funding the development of Arti!
 - Stop build-testing the `gsoc2023/download-manager` example
   (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
   ([!2225], [#1471])
-- Fixes to test builds on MacOS,.
+- Fixes to test builds on MacOS.
   ([#1394], [!2226], [#1472], [!2234])
 - Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid ABI)
   ([#1480], [!2235], [!2236],
@@ -2728,17 +2728,14 @@ See `doc/OnionService.md` for instructions and caveats.
 - Hide the `OnionServiceState` type.
   ([!1946], [#1261])
 - Many internal cleanups including much triage of TODO comments in the code.
-  ([!1859], [!1862], [!1861], [!1868], [!1866], [!1863], [!1870], [!1874])
-  ([!1872], [!1869], [!1876] [!1867] [!1873], [!1877], [!1878], [!1875])
-  ([!1879], [!1882], [!1881], [!1880], [!1894], [!1888], [!1887], [!1896]).
-  ([!1864], [!1951])
+  ([!1859], [!1862], [!1861], [!1868], [!1866], [!1863], [!1870], [!1874], [!1872], [!1869], [!1876], [!1867], [!1873], [!1877], [!1878], [!1875], [!1879], [!1882], [!1881], [!1880], [!1894], [!1888], [!1887], [!1896], [!1864], [!1951])
 
 ### Other major new features in our Rust APIs
 
 - New `fslock-guard` crate for on-disk lockfiles which can be deleted,
   and which have a Rust API that returns a guard object.
-  [fslock!15](https://github.com/brunoczim/fslock/pull/15).
-  ([!1900], [!1910])- `tor-persist` has a `Slug` type which is used for nicknames, key
+  ([fslock!15], [!1900], [!1910])
+- `tor-persist` has a `Slug` type which is used for nicknames, key
   paths, etc., unifying the rules used for different kinds of name.
   ([!1912], [#1092], [#1193], [!1926], [!1929], [!1922], [!1933], [#1092]).
   ([!1931], [!1934])
@@ -2876,6 +2873,7 @@ for funding the development of Arti!
 [`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
 [`tor-hscrypto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hscrypto/index.html
 [`tor-netdir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/index.html
+[fslock!15]: https://github.com/brunoczim/fslock/pull/15
 [missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
 [other sponsors]: https://www.torproject.org/about/sponsors/
 
@@ -5304,7 +5302,7 @@ we believe that the quality of these features is good enough to be used.
 - `SocksHandshake` has been renamed to `SocksProxyHandshake`, to
   distinguish it from `SocksClientHandshake`. ([b08073c2d43d7be5])
 - Numerous changes to the bridge-related APIs introduced in 1.0.1.
-  ([!758], [#600], [!759]],. ([!780])
+  ([!758], [#600], [!759], [!780])
 - API changes to `tor-dirclient::Response`. ([!782])
 - Netinfo cell constructors have been renamed. ([!793])
 - The guard manager API no long accepts `NetDir` arguments to most of
@@ -6474,7 +6472,7 @@ Numerous other lower-level crates have breaking changes not noted here.
   perform various kinds of stress-testing on our implementation. It can
   simulate several kinds of failure and overload conditions; we've been
   using it to improve Arti's behavior when the network is broken or
-  misbehaving. ([#397], [!378], [!392], [!442]; see also. ([#329])
+  misbehaving. See also [#329]. ([#397], [!378], [!392], [!442])
 - The [`arti-bench`] tool now constructs streams in parallel and
   supports isolated circuits, so we can
   stress-test the performance of a simulated busy client. ([#380], [!384])
@@ -6510,11 +6508,11 @@ Numerous other lower-level crates have breaking changes not noted here.
 - Always send an "If-Modified-Since" header on consensus requests, since
   we wouldn't want a consensus that was far too old. ([#403], [!412])
 - Actually use the configuration for preemptive circuit construction.
-  Previously, we missed a place where we needed to copy it.  (Part of. ([!417])
+  Previously, we missed a place where we needed to copy it.  ([!417])
 - Backend support for collecting clock skew information; not yet
   used. ([#405], [!410])
 - Major refactoring for periodic events, to support an initial version of
-  "dormant mode.". ([!429])
+  "dormant mode." ([!429])
 - Remove most uses of `SystemTime::now`, in favor of calling the equivalent
   function on [`SleepProvider`]. ([#306], [!365])
 - Several bugs in the logic for retrying directory downloads
