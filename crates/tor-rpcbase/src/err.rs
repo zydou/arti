@@ -41,14 +41,20 @@ impl RpcError {
     ///
     /// Note that to conform with the spec, keyword must be a C identifier prefixed with a
     /// namespace, as in `rpc:missing_features`
-    pub fn set_datum<D>(&mut self, keyword: String, datum: D)
+    pub fn set_datum<D>(
+        &mut self,
+        keyword: String,
+        datum: D,
+    ) -> Result<(), crate::InvalidRpcIdentifier>
     where
         D: serde::Serialize + Send + 'static,
     {
-        // TODO RPC : enforce validity on `keyword`.
+        crate::is_valid_rpc_identifier(None, &keyword)?;
         self.data
             .get_or_insert_with(HashMap::new)
             .insert(keyword, Box::new(datum) as _);
+
+        Ok(())
     }
 
     /// Return true if this is an internal error.
@@ -278,7 +284,8 @@ mod test {
     fn create_error() {
         let mut e = RpcError::new("Example error".to_string(), RpcErrorKind::RequestError);
         e.set_kind(tor_error::ErrorKind::CacheCorrupted);
-        e.set_datum("rpc:example".to_string(), "Hello world".to_string());
+        e.set_datum("rpc:example".to_string(), "Hello world".to_string())
+            .unwrap();
         let serialized = serde_json::to_string(&e).unwrap();
         let expected = r#"
         {
