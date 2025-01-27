@@ -547,7 +547,8 @@ impl From<MissingFeaturesError> for RpcError {
             err.to_string(),
             tor_rpcbase::RpcErrorKind::FeatureNotPresent,
         );
-        e.set_datum("rpc:unsupported_features".to_string(), err.0);
+        e.set_datum("rpc:unsupported_features".to_string(), err.0)
+            .expect("invalid keyword");
         e
     }
 }
