@@ -295,11 +295,9 @@ pub enum InvalidRpcIdentifier {
 ///
 /// (Examples of RPC identifiers are method names.)
 pub(crate) fn is_valid_rpc_identifier(
-    recognized_namespaces: &HashSet<&str>,
+    recognized_namespaces: Option<&HashSet<&str>>,
     method: &str,
 ) -> Result<(), InvalidRpcIdentifier> {
-    // Return true if scope is recognized.
-    let scope_ok = |s: &str| s.starts_with("x-") || recognized_namespaces.contains(&s);
     /// Return true if name is in acceptable format.
     fn name_ok(n: &str) -> bool {
         let mut chars = n.chars();
@@ -313,8 +311,10 @@ pub(crate) fn is_valid_rpc_identifier(
         .split_once(':')
         .ok_or(InvalidRpcIdentifier::NoNamespace)?;
 
-    if !scope_ok(scope) {
-        return Err(InvalidRpcIdentifier::UnrecognizedNamespace);
+    if let Some(recognized_namespaces) = recognized_namespaces {
+        if !(scope.starts_with("x-") || recognized_namespaces.contains(scope)) {
+            return Err(InvalidRpcIdentifier::UnrecognizedNamespace);
+        }
     }
     if !name_ok(name) {
         return Err(InvalidRpcIdentifier::BadIdName);
@@ -379,7 +379,7 @@ mod test {
             "wombat:knish",
             "x-foo:bar",
         ] {
-            assert!(is_valid_rpc_identifier(&namespaces, name).is_ok());
+            assert!(is_valid_rpc_identifier(Some(&namespaces), name).is_ok());
         }
     }
 
@@ -396,7 +396,10 @@ mod test {
             ("arti:CLONE", E::BadIdName),
             ("arti:clone-now", E::BadIdName),
         ] {
-            assert_eq!(is_valid_rpc_identifier(&namespaces, name), Err(expect_err));
+            assert_eq!(
+                is_valid_rpc_identifier(Some(&namespaces), name),
+                Err(expect_err)
+            );
         }
     }
 }

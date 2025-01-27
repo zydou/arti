@@ -255,7 +255,7 @@ pub fn check_method_names<'a>(
 
     iter_method_names()
         .filter_map(|name| {
-            is_valid_rpc_identifier(&recognized_namespaces, name)
+            is_valid_rpc_identifier(Some(&recognized_namespaces), name)
                 .err()
                 .map(|e| (name, e))
         })
