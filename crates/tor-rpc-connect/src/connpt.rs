@@ -40,9 +40,6 @@ impl ParsedConnectPoint {
         resolver: &CfgPathResolver,
     ) -> Result<ResolvedConnectPoint, ResolveError> {
         use ConnectPointEnum as CPE;
-        // TODO RPC: Make sure that all paths are absolute after we resolve them.
-        //
-        // See also #1748, #1749.
         Ok(ResolvedConnectPoint(match &self.0 {
             CPE::Connect(connect) => CPE::Connect(connect.resolve(resolver)?),
             CPE::Builtin(builtin) => CPE::Builtin(builtin.clone()),
@@ -113,9 +110,9 @@ pub enum ResolveError {
     /// (This can only happen if somebody adds new variants to `general::SocketAddr`.)
     #[error("Address type not recognized")]
     AddressTypeNotRecognized,
-    /// Unix address was a relative path.
-    #[error("Unix address was not an absolute path")]
-    UnixAddressNotAbsolute,
+    /// The name of a file or unix socket address was a relative path.
+    #[error("Path was not absolute")]
+    PathNotAbsolute,
 }
 impl HasClientErrorAction for ResolveError {
     fn client_action(&self) -> crate::ClientErrorAction {
@@ -128,7 +125,7 @@ impl HasClientErrorAction for ResolveError {
             ResolveError::AuthNotCompatible => A::Abort,
             ResolveError::AuthNotRecognized => A::Decline,
             ResolveError::AddressTypeNotRecognized => A::Decline,
-            ResolveError::UnixAddressNotAbsolute => A::Abort,
+            ResolveError::PathNotAbsolute => A::Abort,
         }
     }
 }
@@ -261,14 +258,27 @@ impl Connect<Resolved> {
     /// Return this `Connect` only if its parts are valid and compatible.
     fn validate(self) -> Result<Self, ResolveError> {
         use general::SocketAddr::{Inet, Unix};
-        match (self.socket.as_ref(), &self.auth) {
+        // TODO: Simplify.
+        let r = match (self.socket.as_ref(), &self.auth) {
             (Inet(addr), _) if !addr.ip().is_loopback() => Err(ResolveError::AddressNotLoopback),
             (Inet(_), Auth::None) => Err(ResolveError::AuthNotCompatible),
             (_, Auth::Unrecognized(_)) => Err(ResolveError::AuthNotRecognized),
             (Inet(_), Auth::Cookie { .. }) => Ok(self),
             (Unix(_), _) => Ok(self),
             (_, _) => Err(ResolveError::AddressTypeNotRecognized),
+        }?;
+        r.check_absolute_paths()?;
+        Ok(r)
+    }
+
+    /// Return an error if some path in this `Connect` is not absolute.
+    fn check_absolute_paths(&self) -> Result<(), ResolveError> {
+        sockaddr_check_absolute(self.socket.as_ref())?;
+        if let Some(sa) = &self.socket_canonical {
+            sockaddr_check_absolute(sa.as_ref())?;
         }
+        self.auth.check_absolute_paths()?;
+        Ok(())
     }
 }
 
@@ -301,6 +311,23 @@ impl Auth<Unresolved> {
                 path: path.path(resolver)?,
             }),
             Auth::Unrecognized(x) => Ok(Auth::Unrecognized(x.clone())),
+        }
+    }
+}
+
+impl Auth<Resolved> {
+    /// Return an error if any path in `self` is not absolute..
+    fn check_absolute_paths(&self) -> Result<(), ResolveError> {
+        match self {
+            Auth::None => Ok(()),
+            Auth::Cookie { path } => {
+                if path.is_absolute() {
+                    Ok(())
+                } else {
+                    Err(ResolveError::PathNotAbsolute)
+                }
+            }
+            Auth::Unrecognized(_) => Ok(()),
         }
     }
 }
@@ -363,11 +390,6 @@ impl AddrWithStr<CfgAddr> {
         let AddrWithStr { string, addr } = self;
         let substituted = addr.substitutions_will_apply();
         let addr = addr.address(resolver)?;
-        if let Some(path) = addr.as_pathname() {
-            if !path.is_absolute() {
-                return Err(ResolveError::UnixAddressNotAbsolute);
-            }
-        }
         let string = if substituted {
             addr.try_to_string().ok_or(ResolveError::PathNotString)?
         } else {
@@ -386,6 +408,20 @@ where
         let addr = s.parse()?;
         let string = s.to_owned();
         Ok(Self { string, addr })
+    }
+}
+
+/// Return true if `s` is an absolute address.
+///
+/// All IP addresses are considered absolute.
+fn sockaddr_check_absolute(s: &general::SocketAddr) -> Result<(), ResolveError> {
+    match s {
+        general::SocketAddr::Inet(_) => Ok(()),
+        general::SocketAddr::Unix(sa) => match sa.as_pathname() {
+            Some(p) if !p.is_absolute() => Err(ResolveError::PathNotAbsolute),
+            _ => Ok(()),
+        },
+        _ => Err(ResolveError::AddressTypeNotRecognized),
     }
 }
 
