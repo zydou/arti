@@ -50,7 +50,6 @@ pub struct RpcConnBuilder {
 #[derive(Clone, Debug)]
 struct SearchEntry {
     /// The source telling us this entry.
-    #[allow(unused)] // XXXX
     source: ConnPtSource,
     /// The location to search.
     location: SearchLocation,
@@ -75,8 +74,19 @@ enum SearchLocation {
     },
 }
 
+/// Diagnostic: An explanation of where we found a connect point,
+/// and why we looked there.
+#[derive(Debug, Clone)]
+#[allow(unused)] // XXXX
+struct ConnPtDescription {
+    /// What told us to look in this location.
+    source: ConnPtSource,
+    /// Where we found the connect point.
+    location: ConnPtLocation,
+}
+
 /// Diagnostic: a source telling us where to look for a connect point.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 enum ConnPtSource {
     /// Found the search entry from an environment variable.
     #[allow(unused)] //XXXX
@@ -98,7 +108,7 @@ enum ConnPtLocation {
         /// The path as configured
         path: CfgPath,
         /// The expanded path.
-        expanded: PathBuf,
+        expanded: Option<PathBuf>,
     },
     /// We expanded a CfgPath to find a directory, and found the connect file
     /// within that directory
@@ -227,12 +237,13 @@ impl RpcConnBuilder {
         // the environment variable FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS.)
         let mistrust = Mistrust::default();
         let options = HashMap::new();
-        for entry in self
+        for (description, load_result) in self
             .all_entries()?
             .into_iter()
             .flat_map(|ent| ent.load(&resolver, &mistrust, &options))
         {
-            match entry.and_then(|e| try_connect(&e, &resolver, &mistrust)) {
+            let _ = description; // XXXX
+            match load_result.and_then(|e| try_connect(&e, &resolver, &mistrust)) {
                 Ok(conn) => return Ok(conn),
                 Err(e) => match e.client_action() {
                     ClientErrorAction::Abort => return Err(e),
@@ -306,39 +317,63 @@ impl SearchEntry {
         mistrust: &Mistrust,
         options: &'a HashMap<PathBuf, LoadOptions>,
     ) -> ConnPtIterator<'a> {
+        // Create a ConnPtDescription given a connect point's location, so we can describe
+        // an error origin.
+        let descr = |location| ConnPtDescription {
+            source: self.source,
+            location,
+        };
+
         match &self.location {
             SearchLocation::Literal(s) => ConnPtIterator::Singleton(
+                descr(ConnPtLocation::Literal(s.clone())),
                 // It's a literal entry, so we just try to parse it.
                 ParsedConnectPoint::from_str(s).map_err(|e| ConnectError::from(LoadError::from(e))),
             ),
             SearchLocation::Path {
-                path,
+                path: cfgpath,
                 is_default_entry,
             } => {
+                // Create a ConnPtDescription given an optional expanded path.
+                let descr_file = |expanded| {
+                    descr(ConnPtLocation::File {
+                        path: cfgpath.clone(),
+                        expanded,
+                    })
+                };
+
                 // It's a path, so we need to expand it...
-                let path = match path.path(resolver) {
+                let path = match cfgpath.path(resolver) {
                     Ok(p) => p,
                     Err(e) => {
-                        return ConnPtIterator::Singleton(Err(ConnectError::CannotResolvePath(e)))
+                        return ConnPtIterator::Singleton(
+                            descr_file(None),
+                            Err(ConnectError::CannotResolvePath(e)),
+                        )
                     }
                 };
                 if !path.is_absolute() {
                     if *is_default_entry {
                         return ConnPtIterator::Done;
                     } else {
-                        return ConnPtIterator::Singleton(Err(ConnectError::RelativeConnectFile));
+                        return ConnPtIterator::Singleton(
+                            descr_file(Some(path)),
+                            Err(ConnectError::RelativeConnectFile),
+                        );
                     }
                 }
                 // ..then try to load it as a directory...
                 match ParsedConnectPoint::load_dir(&path, mistrust, options) {
-                    Ok(iter) => ConnPtIterator::Dir(iter),
+                    Ok(iter) => ConnPtIterator::Dir(self.source, cfgpath.clone(), iter),
                     Err(LoadError::NotADirectory) => {
                         // ... and if that fails, try to load it as a file.
-                        ConnPtIterator::Singleton(
-                            ParsedConnectPoint::load_file(&path, mistrust).map_err(|e| e.into()),
-                        )
+                        let loaded =
+                            ParsedConnectPoint::load_file(&path, mistrust).map_err(|e| e.into());
+                        ConnPtIterator::Singleton(descr_file(Some(path)), loaded)
                     }
-                    Err(other) => ConnPtIterator::Singleton(Err(other.into())),
+                    Err(other) => {
+                        ConnPtIterator::Singleton(descr_file(Some(path)), Err(other.into()))
+                    }
                 }
             }
         }
@@ -395,27 +430,47 @@ const PATH_SEP_CHAR: char = {
 /// Iterator over connect points returned by PathEntry::load().
 enum ConnPtIterator<'a> {
     /// Iterator over a directory
-    Dir(tor_rpc_connect::load::ConnPointIterator<'a>),
+    Dir(
+        /// Origin of the directory
+        ConnPtSource,
+        /// The directory as configured
+        CfgPath,
+        /// Iterator over the elements loaded from the directory
+        tor_rpc_connect::load::ConnPointIterator<'a>,
+    ),
     /// A single connect point or error
-    Singleton(Result<ParsedConnectPoint, ConnectError>),
+    Singleton(ConnPtDescription, Result<ParsedConnectPoint, ConnectError>),
     /// An exhausted iterator
     Done,
 }
 
 impl<'a> Iterator for ConnPtIterator<'a> {
     // TODO RPC yield the pathbuf too, for better errors.
-    type Item = Result<ParsedConnectPoint, ConnectError>;
+    type Item = (ConnPtDescription, Result<ParsedConnectPoint, ConnectError>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut t = ConnPtIterator::Done;
         std::mem::swap(self, &mut t);
         match t {
-            ConnPtIterator::Dir(mut iter) => {
-                let next = iter.next().map(|(_path, res)| res.map_err(|e| e.into()));
-                *self = ConnPtIterator::Dir(iter);
-                next
+            ConnPtIterator::Dir(source, cfgpath, mut iter) => {
+                let next = iter
+                    .next()
+                    .map(|(path, res)| (path, res.map_err(|e| e.into())));
+                let Some((expanded, result)) = next else {
+                    *self = ConnPtIterator::Done;
+                    return None;
+                };
+                let description = ConnPtDescription {
+                    source,
+                    location: ConnPtLocation::WithinDir {
+                        path: cfgpath.clone(),
+                        expanded,
+                    },
+                };
+                *self = ConnPtIterator::Dir(source, cfgpath, iter);
+                Some((description, result))
             }
-            ConnPtIterator::Singleton(res) => Some(res),
+            ConnPtIterator::Singleton(desc, res) => Some((desc, res)),
             ConnPtIterator::Done => None,
         }
     }
