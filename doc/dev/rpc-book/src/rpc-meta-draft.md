@@ -892,18 +892,9 @@ in order to receive any other object IDs.
 
 The pre-authentication methods available on a connection are:
 
-auth:get_rpc_protocol
-: Ask Arti which version of the protocol is in use.
-
-auth:query
-: Ask Arti which authentication schemes are acceptable.
-
 auth:authenticate
 : Try to authenticate using a simple authentication
   methods.
-
-> At present (Sep 2024)
-> auth:get_rpc_protocol is deprecated.
 
 > TODO: Provide more information about these in greater detail.
 
@@ -1121,10 +1112,6 @@ The echo command will only work post-authentication.
 Here is an example session:
 
 ```
->>> {"id": "abc", "obj": "connection", "method": "auth:get_rpc_protocol", "params": {}}
-<<< {"id":"abc","result":{"version":"alpha"}}
->>> {"id": "abc", "obj": "connection", "method": "auth:query", "params": {}}
-<<< {"id":"abc","result":{"schemes":["auth:inherent"]}}
 >>> {"id": 3, "obj": "connection", "method": "auth:authenticate", "params": {"scheme": "auth:inherent"}}
 <<< {"id":3,"result":{"session":"2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au"}}
 >>> {"id": 4, "obj": "2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au", "method": "arti:x-echo", "params": {"msg": "Hello World"}}

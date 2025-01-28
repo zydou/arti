@@ -22,8 +22,6 @@ type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + S
 /// Shared state, configuration, and data for all RPC sessions.
 ///
 /// An RpcMgr knows how to listen for incoming RPC connections, and launch sessions based on them.
-///
-/// TODO RPC: Actually not all of the above functionality is implemented yet. But it should be.
 pub struct RpcMgr {
     /// A key that we use to ensure that identifiers are unforgeable.
     ///

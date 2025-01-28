@@ -131,9 +131,6 @@ pub(crate) type BoxedResponseSink =
     derive_more::Into,
     derive_more::AsRef,
 )]
-
-// TODO RPC: Document this, and make it participate in the Reader/Writer API
-// enough that we can stop referring to its internals elsewhere.
 pub(crate) struct ConnectionId([u8; 16]);
 
 impl ConnectionId {
