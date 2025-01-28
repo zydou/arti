@@ -8,7 +8,7 @@ are parenthesized and comma-separated.
 Ensures that each of these parenthesized links is preceded with
 appropriate punctuation, but not followed by a period.
 
-A special link is an MR link (like "!1234"), an issue link (like "#1234",
+A special link is an MR link (like "!1234"), an issue link (like "#1234"),
 or a commit link (like "1234ABCD").
 """
 
