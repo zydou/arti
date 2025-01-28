@@ -4,12 +4,7 @@
 //! on the special "connection" object, which gives you an RPC _session_ as a
 //! result.  The RPC session is the root for all other capabilities.
 
-use std::sync::Arc;
-
-use super::Connection;
-use derive_deftly::Deftly;
 use tor_rpcbase as rpc;
-use tor_rpcbase::templates::*;
 
 mod cookie;
 mod inherent;
@@ -36,54 +31,6 @@ enum AuthenticationScheme {
     /// Negotiation based on mutual proof of ability to read a file from disk.
     #[serde(rename = "auth:cookie")]
     Cookie,
-}
-
-/// Ask which authentication methods are supported.
-///
-/// This method can be invoked on a `Connection` pre-authentication;
-/// it's used to tell which methods are supported,
-/// and what parameters they require.
-#[derive(Debug, serde::Deserialize, Deftly)]
-#[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "auth:query"))]
-struct AuthQuery {}
-
-/// A list of supported authentication schemes and their parameters.
-#[derive(Debug, serde::Serialize)]
-struct SupportedAuth {
-    /// A list of the supported authentication schemes.
-    ///
-    /// TODO RPC: Actually, this should be able to contain strings _or_ maps,
-    /// where the maps are additional information about the parameters needed
-    /// for a particular scheme.  But I think that's a change we can make later
-    /// once we have a scheme that takes parameters.
-    ///
-    /// TODO RPC: Should we indicate which schemes get you additional privileges?
-    schemes: Vec<AuthenticationScheme>,
-}
-
-impl rpc::RpcMethod for AuthQuery {
-    type Output = SupportedAuth;
-    type Update = rpc::NoUpdates;
-}
-/// Implement `auth:AuthQuery` on a connection.
-async fn conn_authquery(
-    conn: Arc<Connection>,
-    _query: Box<AuthQuery>,
-    _ctx: Arc<dyn rpc::Context>,
-) -> Result<SupportedAuth, rpc::RpcError> {
-    use tor_rpc_connect::auth::RpcAuth;
-    let schemes = match &conn.require_auth {
-        RpcAuth::Inherent => vec![AuthenticationScheme::Inherent],
-        RpcAuth::Cookie { .. } => {
-            vec![AuthenticationScheme::Cookie]
-        }
-        _ => vec![],
-    };
-    Ok(SupportedAuth { schemes })
-}
-rpc::static_rpc_invoke_fn! {
-    conn_authquery;
 }
 
 /// An error during authentication.
