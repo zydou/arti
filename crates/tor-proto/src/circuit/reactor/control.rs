@@ -1,6 +1,8 @@
 //! Module providing [`CtrlMsg`].
 
-use super::{CircuitHandshake, CloseStreamBehavior, MetaCellHandler, ReactorResultChannel, SendRelayCell};
+use super::{
+    CircuitHandshake, CloseStreamBehavior, MetaCellHandler, ReactorResultChannel, SendRelayCell,
+};
 use crate::circuit::celltypes::CreateResponse;
 use crate::circuit::CircParameters;
 use crate::crypto::binding::CircuitBinding;

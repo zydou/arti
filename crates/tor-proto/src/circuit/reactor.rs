@@ -63,9 +63,9 @@ use {
 };
 
 use futures::channel::mpsc;
+use futures::lock::Mutex as AsyncMutex;
 use futures::StreamExt;
 use futures::{select_biased, FutureExt as _, SinkExt as _, Stream};
-use futures::lock::Mutex as AsyncMutex;
 use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
@@ -794,9 +794,7 @@ impl Reactor {
         sendable: &mut SometimesUnboundedSink<AnyChanCell, ChannelSender>,
     ) -> StdResult<(), ReactorError> {
         match cmd {
-            RunOnceCmd::Single(cmd) => {
-                return self.handle_single_run_once_cmd(cmd, sendable).await
-            }
+            RunOnceCmd::Single(cmd) => return self.handle_single_run_once_cmd(cmd, sendable).await,
             RunOnceCmd::Multiple(cmds) => {
                 // While we know `sendable` is ready to accept *one* cell,
                 // we can't be certain it will be able to accept *all* of the cells
@@ -1565,17 +1563,18 @@ impl Reactor {
                 /// Local type alias to ensure consistency below.
                 type Rcf = RelayCellFormatV0;
 
-                let (extender, cell) = CircuitExtender::<NtorClient, Tor1RelayCrypto<Rcf>, _, _>::begin(
-                    Rcf::FORMAT,
-                    peer_id,
-                    HandshakeType::NTOR,
-                    &public_key,
-                    linkspecs,
-                    params,
-                    &(),
-                    self,
-                    done,
-                )?;
+                let (extender, cell) =
+                    CircuitExtender::<NtorClient, Tor1RelayCrypto<Rcf>, _, _>::begin(
+                        Rcf::FORMAT,
+                        peer_id,
+                        HandshakeType::NTOR,
+                        &public_key,
+                        linkspecs,
+                        params,
+                        &(),
+                        self,
+                        done,
+                    )?;
                 self.set_meta_handler(Box::new(extender))?;
 
                 Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
@@ -1595,17 +1594,18 @@ impl Reactor {
                 // TODO: Set extensions, e.g. based on `params`.
                 let client_extensions = [];
 
-                let (extender, cell) = CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
-                    Rcf::FORMAT,
-                    peer_id,
-                    HandshakeType::NTOR_V3,
-                    &public_key,
-                    linkspecs,
-                    params,
-                    &client_extensions,
-                    self,
-                    done,
-                )?;
+                let (extender, cell) =
+                    CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
+                        Rcf::FORMAT,
+                        peer_id,
+                        HandshakeType::NTOR_V3,
+                        &public_key,
+                        linkspecs,
+                        params,
+                        &client_extensions,
+                        self,
+                        done,
+                    )?;
                 self.set_meta_handler(Box::new(extender))?;
 
                 Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
