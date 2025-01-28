@@ -30,9 +30,9 @@ LINK_RE = re.compile(
     r"""
      # Negative lookbehind assertion: Not preceeded by a nonspace.
      (?<!\S)
-     \[?
+     (\[?)
          ( \! \d+ | \# \d+ | [\da-fA-F]{7,40} )
-     \]?
+     (\]?)
     """,
     re.VERBOSE | re.DOTALL,
 )
@@ -84,6 +84,9 @@ ANY_SPACES = re.compile(
     re.VERBOSE | re.DOTALL,
 )
 
+# Things that look like links, but are not.
+NONLINKS = set(item.lower() for item in ["ed25519"])
+
 
 def bracket_links(s: str) -> str:
     """
@@ -98,7 +101,12 @@ def bracket_links(s: str) -> str:
     """
 
     def add_brackets(m: re.Match):
-        return "[{}]".format(m.group(1))
+        in_brackets = m.group(1) and m.group(3)
+        text = m.group(2)
+        if not in_brackets and text.lower() in NONLINKS:
+            return text
+        else:
+            return "[{}]".format(text)
 
     return LINK_RE.sub(add_brackets, s)
 
