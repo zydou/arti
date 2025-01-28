@@ -432,6 +432,22 @@ pub enum ProtoError {
     InternalRequestFailed(#[source] UnexpectedReply),
 }
 
+/// A set of errors encountered while trying to connect to the Arti process
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Unable to connect: {final_error}")] // TODO RPC #1650, #1826: better output.
+pub struct ConnectFailure {
+    /// A list of all the declined connect points we encountered, and how they failed.
+    declined: Vec<(builder::ConnPtDescription, ConnectError)>,
+    /// A description of where we found the final error (if it's an abort.)
+    final_desc: Option<builder::ConnPtDescription>,
+    /// The final error explaining why we couldn't connect.
+    ///
+    /// This is either an abort, an AllAttemptsDeclined, or an error that prevented the
+    /// search process from even beginning.
+    #[source]
+    pub(crate) final_error: ConnectError,
+}
+
 /// An error while trying to connect to the Arti process.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]

@@ -17,6 +17,8 @@ use tor_rpc_connect::{
 
 use crate::{conn::ConnectError, llconn, msgs::response::UnparsedResponse, RpcConn};
 
+use super::ConnectFailure;
+
 /// An error occurred while trying to construct or manipulate an [`RpcConnBuilder`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -77,8 +79,8 @@ enum SearchLocation {
 /// Diagnostic: An explanation of where we found a connect point,
 /// and why we looked there.
 #[derive(Debug, Clone)]
-#[allow(unused)] // XXXX
-struct ConnPtDescription {
+#[allow(unused)]
+pub(super) struct ConnPtDescription {
     /// What told us to look in this location.
     source: ConnPtSource,
     /// Where we found the connect point.
@@ -231,29 +233,43 @@ impl RpcConnBuilder {
     }
 
     /// Try to connect to an Arti process as specified by this Builder.
-    pub fn connect(&self) -> Result<RpcConn, ConnectError> {
+    pub fn connect(&self) -> Result<RpcConn, ConnectFailure> {
         let resolver = tor_config_path::arti_client_base_resolver();
         // TODO RPC: Make this configurable.  (Currently, you can override it with
         // the environment variable FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS.)
         let mistrust = Mistrust::default();
         let options = HashMap::new();
-        for (description, load_result) in self
-            .all_entries()?
+        let all_entries = self.all_entries().map_err(|e| ConnectFailure {
+            declined: vec![],
+            final_desc: None,
+            final_error: e,
+        })?;
+        let mut declined = Vec::new();
+        for (description, load_result) in all_entries
             .into_iter()
             .flat_map(|ent| ent.load(&resolver, &mistrust, &options))
         {
-            let _ = description; // XXXX
             match load_result.and_then(|e| try_connect(&e, &resolver, &mistrust)) {
                 Ok(conn) => return Ok(conn),
                 Err(e) => match e.client_action() {
-                    ClientErrorAction::Abort => return Err(e),
+                    ClientErrorAction::Abort => {
+                        return Err(ConnectFailure {
+                            declined,
+                            final_desc: Some(description),
+                            final_error: e,
+                        });
+                    }
                     ClientErrorAction::Decline => {
-                        // TODO RPC Log the error.
+                        declined.push((description, e));
                     }
                 },
             }
         }
-        Err(ConnectError::AllAttemptsDeclined)
+        Err(ConnectFailure {
+            declined,
+            final_desc: None,
+            final_error: ConnectError::AllAttemptsDeclined,
+        })
     }
 }
 
