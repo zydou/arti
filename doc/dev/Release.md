@@ -453,6 +453,11 @@ Each entry should contain a terse description of what changed,
 ending with a period.
 After that description, there is a list of reference links.
 
+Use the `maint/format_md_links` tool
+to ensure that all of the reference links
+are in brackets, comma-separated, and wrapped in parentheses.
+Make sure to check its output:
+As of 2025 Jan, it is fairly new.
 
 ## Reference links.
 
