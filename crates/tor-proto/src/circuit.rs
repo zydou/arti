@@ -1355,6 +1355,7 @@ mod test {
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
     use hex_literal::hex;
+    use reactor::SendRelayCell;
     use std::collections::{HashMap, VecDeque};
     use std::fmt::Debug;
     use std::time::Duration;
@@ -1703,11 +1704,11 @@ mod test {
             let (circ, _send) = newcirc(&rt, chan).await;
             let begindir = AnyRelayMsgOuter::new(None, AnyRelayMsg::BeginDir(Default::default()));
             circ.control
-                .unbounded_send(CtrlMsg::SendRelayCell {
+                .unbounded_send(CtrlMsg::SendRelayCell(SendRelayCell {
                     hop: 2.into(),
                     early: false,
                     cell: begindir,
-                })
+                }))
                 .unwrap();
 
             // Here's what we tried to put on the TLS channel.  Note that

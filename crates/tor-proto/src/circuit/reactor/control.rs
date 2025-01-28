@@ -23,6 +23,9 @@ use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::crypto::handshake::ntor::NtorPublicKey;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
+#[cfg(test)]
+use super::SendRelayCell;
+
 /// A message telling the reactor to do something.
 #[derive(educe::Educe)]
 #[educe(Debug)]
@@ -198,9 +201,5 @@ pub(crate) enum CtrlMsg {
     },
     /// (tests only) Send a raw relay cell with send_relay_cell().
     #[cfg(test)]
-    SendRelayCell {
-        hop: HopNum,
-        early: bool,
-        cell: AnyRelayMsgOuter,
-    },
+    SendRelayCell(SendRelayCell),
 }

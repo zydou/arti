@@ -1386,7 +1386,7 @@ impl Reactor {
                 });
             }
             #[cfg(test)]
-            CtrlMsg::SendRelayCell { hop, early, cell } => {
+            CtrlMsg::SendRelayCell(SendRelayCell { hop, early, cell }) => {
                 self.send_relay_cell(cx, hop, early, cell)?;
             }
         }
