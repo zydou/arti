@@ -118,18 +118,7 @@ pub trait Context: Send + Sync {
     /// Return an ObjectId for this object.
     fn register_owned(&self, object: Arc<dyn Object>) -> ObjectId;
 
-    /// Make sure that
-    /// this context contains a non-owning reference to `object`,
-    /// creating one if necessary.
-    ///
-    /// Return an ObjectId for this object.
-    ///
-    /// Note that this takes an Arc, since that's required in order to find a
-    /// working type Id for the target object.
-    ///
-    /// TODO RPC: We may need to change the above semantics and the name of this
-    /// function depending on how we decide to name and specify things.
-    fn register_weak(&self, object: Arc<dyn Object>) -> ObjectId;
+    // TODO: If we add weak references again, we may need a register_weak method here.
 
     /// Drop an owning reference to the object called `object` within this context.
     ///

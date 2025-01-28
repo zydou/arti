@@ -652,21 +652,6 @@ impl rpc::Context for Connection {
         }
     }
 
-    fn register_weak(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
-        let use_global_id = object.expose_outside_of_session();
-        let local_id = self
-            .inner
-            .lock()
-            .expect("Lock poisoned")
-            .objects
-            .insert_weak(object);
-        if use_global_id {
-            GlobalId::new(self.connection_id, local_id).encode(&self.global_id_mac_key)
-        } else {
-            local_id.encode()
-        }
-    }
-
     fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
         let removed_some = if id.as_ref() == Self::CONNECTION_OBJ_ID {
             self.inner
