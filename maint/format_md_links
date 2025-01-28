@@ -1,0 +1,255 @@
+#!/usr/bin/env python3
+
+"""
+Fix changelog markdown by wrapping "special links" in brackets,
+and by ensuring that lists of special links at the end of a paragraph
+are parenthesized and comma-separated.
+
+Ensures that each of these parenthesized links is preceded with
+appropriate punctuation, but not followed by a period.
+
+A special link is an MR link (like "!1234"), an issue link (like "#1234"),
+or a commit link (like "1234ABCD").
+"""
+
+# TODO: When you find yourself inclined to modify this, add more tests!
+
+import re
+import sys
+from collections.abc import Generator
+
+# Regular expression: Matches a single "special link",
+# possibly wrapped in brackets.
+#
+# There are 3 forms of special link:
+#   MR (!1234), issue (#1245), and commit (1234ABCDE)
+#
+# (Note that in practice, insisting on 7 characters for a commit link
+# is enough to ensure that we don't get false positives.)
+LINK_RE = re.compile(
+    r"""
+     # Negative lookbehind assertion: Not preceeded by a nonspace.
+     (?<!\S)
+     (\[?)
+         ( \! \d+ | \# \d+ | [\da-fA-F]{7,40} )
+     (\]?)
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+
+# Regular expression: matches zero or more "special links" at the end of a
+# string, possibly wrapped in parentheses.
+TRAILING_LINKS_RE = re.compile(
+    r"""
+    # Pre-parenthesis punctuation, followed by spaces.
+    # (We accept any sentence-ending punctuation, followed optionally
+    # by a `)` or `"`, since sentence-ending punctuation can go inside
+    # a parenthetical or quotation.)
+    ([\.\?\!][\)\"]?)?
+    (\s*)
+
+    # Optional opening parenthesis.
+    \(?
+
+    ((?:
+       \[
+           [^\]]+
+       \]
+       ,? \s*
+    )+)
+
+    # Optionally: trailing parenthesis, maybe followed by a bogus period.
+    (?: \)  [\ ]* \.? )?
+    # Trailing space - typically newlines.
+    (\s*)
+    $
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+# Regular expression: Used to split a list of "special links"
+DIVIDER_RE = re.compile(
+    r"""
+    \[ [^\]]* \]
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+# Regular expression: used to match spaces only.
+ANY_SPACES = re.compile(
+    r"""
+    \s+
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+# Things that look like links, but are not.
+NONLINKS = set(item.lower() for item in ["ed25519"])
+
+
+def bracket_links(s: str) -> str:
+    """
+    Wrap all of our the special link expressions expressions found in `s`
+    with [brackets].
+
+    >>> bracket_links("Hello world. !123 #456 abcdef12345")
+    'Hello world. [!123] [#456] [abcdef12345]'
+
+    >>> bracket_links("https://gitlab.torproject.org/abcdef12345")
+    'https://gitlab.torproject.org/abcdef12345'
+    """
+
+    def add_brackets(m: re.Match):
+        in_brackets = m.group(1) and m.group(3)
+        text = m.group(2)
+        if not in_brackets and text.lower() in NONLINKS:
+            return text
+        else:
+            return "[{}]".format(text)
+
+    return LINK_RE.sub(add_brackets, s)
+
+
+def really_changed(s1: str, s2: str) -> bool:
+    """
+    Return true if s1 and s2 have changes other than in nonempty
+    sequences of spaces.
+    """
+    s1 = ANY_SPACES.subn(" ", s1)[0]
+    s2 = ANY_SPACES.subn(" ", s2)[0]
+    return s1 != s2
+
+
+def parenthesize_links(s: str) -> str:
+    """
+    Ensure that the trailing bracketed special links in `s` are
+    wrapped with (parens) and (separated, with, commas).
+
+    Also removes any period-after-parentheses,
+    and ensures that there is punctuation before the parentheses.
+
+    >>> parenthesize_links("Hello [!234] world. [!123] [#456] [abcdef12345]")
+    'Hello [!234] world. ([!123], [#456], [abcdef12345])'
+
+    >>> parenthesize_links("Hello [!234] world. ([!123] [#456] [abcdef12345])")
+    'Hello [!234] world. ([!123], [#456], [abcdef12345])'
+    """
+
+    def add_parens_and_commas(m: re.Match):
+        punc = m.group(1)
+        sp1 = m.group(2)
+        links = m.group(3)
+        sp2 = m.group(4)
+
+        links = [link.group(0) for link in DIVIDER_RE.finditer(links)]
+        if links:
+            if not punc:
+                punc = "."
+
+            links = "({})".format(", ".join(links))
+
+            return f"{punc}{sp1}{links}{sp2}"
+        else:
+            return m.group(0)
+
+    outcome = TRAILING_LINKS_RE.subn(add_parens_and_commas, s, 1)[0]
+    if really_changed(s, outcome):
+        return outcome
+    else:
+        return s
+
+
+def paragraphs(s: str) -> Generator[str]:
+    r"""
+    Divide `s` into "paragraphs".  A paragraph can be indicated by
+    a markdown bullet item starting with `- `, or with a blank line
+    separating it from other paragraphs.
+
+    >>> s = "a\nb\nc\n\nd\ne\nf"
+    >>> list(paragraphs(s))
+    ['a\nb\nc\n\n', 'd\ne\nf\n']
+
+    >>> s = "a\n- b.\n- c\nd\n"
+    >>> list(paragraphs(s))
+    ['a\n', '- b.\n', '- c\n', 'd\n\n']
+
+    """
+
+    cur = []
+    graf_type = "none"
+    for line in s.split("\n"):
+        if line.strip() == "":
+            cur.append(line + "\n")
+            yield "".join(cur)
+            cur = []
+            graf_type = "none"
+
+        elif line.startswith("- "):
+            if cur:
+                yield "".join(cur)
+            cur = [line + "\n"]
+            graf_type = "list_item"
+
+        elif line.startswith(" "):
+            cur.append(line + "\n")
+
+        else:
+            if graf_type == "list_item":
+                if cur:
+                    yield "".join(cur)
+                    cur = []
+                graf_type = "other"
+            cur.append(line + "\n")
+
+    if cur:
+        yield "".join(cur)
+
+
+def process(s: str) -> str:
+    """
+    Perform all of this script's operations (q.v. toplevel docstring)
+    on a given string, and return the result.
+    """
+    output = []
+    # for item in paragraphs(s):
+    #    print(parenthesize_links(bracket_links(item)))
+
+    for item in paragraphs(s):
+        output.append(parenthesize_links(bracket_links(item)))
+
+    while output[-1] == "\n":
+        output = output[:-1]
+
+    return "".join(output)
+
+
+def run():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="format_md_links", description="format markdown links in our changelog"
+    )
+    parser.add_argument("filename")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="check that everything is up-to-date; make no changes",
+    )
+    args = parser.parse_args()
+
+    text = open(args.filename).read()
+    output = process(text)
+    if args.check:
+        if text == output:
+            print("No changes")
+        else:
+            print("Output would change; re-run without --check to make the changes")
+            sys.exit(1)
+    else:
+        with open(args.filename, "w") as out:
+            out.write(output)
+
+
+if __name__ == "__main__":
+    run()

@@ -159,9 +159,9 @@ to their target relays.
   and the  `CfgPath` and `CfgPathError` re-exports from `tor-config`.
   ([#1717], [!2593])
 - In `tor-config-path`, `CfgPath::path` now takes
-  a `CfgPathResolver` argument ([!2615]).
+  a `CfgPathResolver` argument. ([!2615])
 - In `tor-ptmgr`, `PtMgr::new` now takes
-  a `CfgPathResolver` argument ([!2615]).
+  a `CfgPathResolver` argument. ([!2615])
 - Moved the `NetdirProviderShutdown` error from `tor-hsservice`
   to `tor-netdir`. ([!2609])
 - `HsIdParseError` no longer has an `HasKind` implementation.
@@ -377,7 +377,7 @@ defined and implementation is proceeding.
  * **Enabled connecting to `.onion` addresses (Hidden Services) by
    default,** by making `allow_onion_addrs` default to `true` in the
    configuration.  (This is appropriate now that we have Vanguard support.)
-   [#1402], [!2506])
+   ([#1402], [!2506])
 
 ### Bugfixes
 
@@ -869,7 +869,7 @@ to 1.77, in accordance with our [MSRV policy].
 - New example: running an axum router as an onion service.
   ([!2445])
 - Add an example for an onion service's `reject` option to our
-  sample configuration ([!2458])
+  sample configuration. ([!2458])
 
 ### Infrastructure
 
@@ -1067,7 +1067,7 @@ the RPC subsystem, and relay infrastructure.
 - Refactor `KeyedFuturesUnordered` so that the underlying futures
   are accessible. ([!2321])
 - Allow access to the inner streams of `StreamPollSet`,
-  refactor `StreamMap` ([#1421], [!2326], [!2333]).
+  refactor `StreamMap`. ([#1421], [!2326], [!2333])
 - Make `GuardMgr` mandatory throughout our circuit management code.
   ([#1465], [!2339], [!2347])
 - Encapsulate flow-control into a separate object,
@@ -1115,7 +1115,7 @@ the RPC subsystem, and relay infrastructure.
 - Fix `arti_socket_closed` RPC test, which was previously flakey on OSX.
   ([#1510], [!2348])
 - Add an arti obfs4 managed pluggable transport client and a tor obfs4
-  server to the Shadow CI tests ([#1538], [!2355]).
+  server to the Shadow CI tests. ([#1538], [!2355])
 - Temporarily disable a flaky configuration watcher test. ([!2364])
 - Add circuit reactor test for stream handling fairness. ([!2365])
 - Rewrite the `hsc` tests using `InertTorClient`.
@@ -1554,7 +1554,7 @@ for funding the development of Arti!
 - Stop build-testing the `gsoc2023/download-manager` example
   (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
   ([!2225], [#1471])
-- Fixes to test builds on MacOS,
+- Fixes to test builds on MacOS.
   ([#1394], [!2226], [#1472], [!2234])
 - Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid ABI)
   ([#1480], [!2235], [!2236],
@@ -1745,7 +1745,7 @@ running or accessing onion services.
   ([!2143])
 - Based on difficulties encountered with earlier RPC development,
   add an improved facility for RPC methods that can be invoked internally
-  without serializing their inputs and outputs ([#1403], [!2152])
+  without serializing their inputs and outputs. ([#1403], [!2152])
 - Enforce consistent style and formatting on RPC method names. ([#823], [!2149])
 - Other miscellaneous lower-level improvements to the RPC type
   system. ([!2124], [!2140], [!2142])
@@ -2440,7 +2440,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
   `HsClientDescEncKeypairSpecifier::new`. ([!1998], [#1283])
 - In [`tor-hsrproxy`], add a `String` representing the error message to
   `ProxyConfigError::UnrecognizedTargetType`,
-  `ProxyConfigError::InvalidTargetAddr`, `ProxyConfigError::InvalidPort`
+  `ProxyConfigError::InvalidTargetAddr`, `ProxyConfigError::InvalidPort`.
   ([!1973], [#1266])
 - In [`tor-hsservice`], remove the unimplemented `max_concurrent_streams_per_circuit`
   configuration option from `OnionServiceConfigBuilder`.  We may implement and
@@ -2496,7 +2496,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Reword the [`tor-keymgr`] README for clarity. ([489a2555f28daa6d])
 - Update onion service documentation. ([!1994], [#1287])
 - Clarify the onion service configuration instructions from
-  `doc/OnionService.md`, remove unsupported "unix:" example ([!1972], [#1266])
+  `doc/OnionService.md`, remove unsupported "unix:" example. ([!1972], [#1266])
 
 ### Testing
 
@@ -2514,14 +2514,14 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Introduce a [`list_crates_publish`] script. ([b03e5d5e11c52faf])
 - Fix compilation with musl. ([!1961], [#1264])
 - Add `fixup-features` to the main workspace, make various improvements to
-  `fixup-features`, `check_toposort`, `list_crates` ([!1969], [#1263])
+  `fixup-features`, `check_toposort`, `list_crates`. ([!1969], [#1263])
 - Use `std::default::Default` instead of [educe]'s `Default` in a number of
   places in preparation for the upgrade to educe 0.5. ([!1975], [#1257])
 - Require the Fast and Stable flags as appropriate. ([!1976], [#1100])
 - Refactor and improve error hinting in [`arti`] and [`arti-client`]. ([!1986],
   [#1165])
 - Do not output ANSI escape codes when logging to file. ([!1999], [#1298])
-- Upgrade our dependency on [curve25519-dalek] from 4.1.1 to 4.1.2 ([!2000])
+- Upgrade our dependency on [curve25519-dalek] from 4.1.1 to 4.1.2. ([!2000])
 - Upgrade to the latest versions of [event-listener], [rusqlite],
   [async-broadcast], [signature], [config]. ([!2001], [!2004], [!2451])
 - Fix `ArtiPath` creation on Windows. ([!2012])
@@ -2728,20 +2728,16 @@ See `doc/OnionService.md` for instructions and caveats.
 - Hide the `OnionServiceState` type.
   ([!1946], [#1261])
 - Many internal cleanups including much triage of TODO comments in the code.
-  ([!1859], [!1862], [!1861], [!1868], [!1866], [!1863], [!1870], [!1874])
-  ([!1872], [!1869], [!1876] !1867 [!1873], [!1877], [!1878], [!1875])
-  ([!1879], [!1882], [!1881], [!1880], [!1894], [!1888], [!1887], [!1896])
-  ([!1864], [!1951])
+  ([!1859], [!1862], [!1861], [!1868], [!1866], [!1863], [!1870], [!1874], [!1872], [!1869], [!1876], [!1867], [!1873], [!1877], [!1878], [!1875], [!1879], [!1882], [!1881], [!1880], [!1894], [!1888], [!1887], [!1896], [!1864], [!1951])
 
 ### Other major new features in our Rust APIs
 
 - New `fslock-guard` crate for on-disk lockfiles which can be deleted,
   and which have a Rust API that returns a guard object.
-  [fslock!15](https://github.com/brunoczim/fslock/pull/15)
-  !1900 !1910
+  ([fslock!15], [!1900], [!1910])
 - `tor-persist` has a `Slug` type which is used for nicknames, key
   paths, etc., unifying the rules used for different kinds of name.
-  ([!1912], [#1092], [#1193], [!1926], [!1929], [!1922], [!1933], [#1092])
+  ([!1912], [#1092], [#1193], [!1926], [!1929], [!1922], [!1933], [#1092]).
   ([!1931], [!1934])
 - `tor-persist` has `StateDirectory` for handling persistent state
   relating to particular instances of a facility (used for hidden
@@ -2785,6 +2781,7 @@ for funding the development of Arti!
 [!1863]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1863
 [!1864]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1864
 [!1866]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1866
+[!1867]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1867
 [!1868]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1868
 [!1869]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1869
 [!1870]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1870
@@ -2815,6 +2812,7 @@ for funding the development of Arti!
 [!1897]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1897
 [!1898]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1898
 [!1899]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1899
+[!1900]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1900
 [!1901]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1901
 [!1902]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1902
 [!1903]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1903
@@ -2822,6 +2820,7 @@ for funding the development of Arti!
 [!1906]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1906
 [!1908]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1908
 [!1909]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1909
+[!1910]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1910
 [!1911]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1911
 [!1912]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1912
 [!1913]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1913
@@ -2877,6 +2876,7 @@ for funding the development of Arti!
 [`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
 [`tor-hscrypto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hscrypto/index.html
 [`tor-netdir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/index.html
+[fslock!15]: https://github.com/brunoczim/fslock/pull/15
 [missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
 [other sponsors]: https://www.torproject.org/about/sponsors/
 
@@ -2922,7 +2922,7 @@ for actual use.
 - Refactor key manager code to prevent the creation of invalid
   `KeySpecifier`s, and extend the `KeySpecifier` macro to also
   generate `KeyInfoExtractor` implementations for extracting
-  information out of `&KeyPath`s ([#1127], [f7772f127e895d96]).
+  information out of `&KeyPath`s. ([#1127], [f7772f127e895d96])
 - Add lower-level support for deleting expired keys and associated information.
   ([#1043], [!1784], [!1796])
 - Onion services can now be stopped, started, or reconfigured while
@@ -3118,7 +3118,7 @@ to 1.70, in accordance with our [MSRV policy].
 - Refactoring and refinement on the definitions of onion-service-related
   errors. ([!1718], [!1724], [!1750], [!1751], [!1779])
 - Add a "time-store" mechanism for (as correctly as possible) storing and loading
-  future timestamps, even in the presence of system clock skew ([!1723], [!1774])
+  future timestamps, even in the presence of system clock skew. ([!1723], [!1774])
 - Implement a replay-log backend to prevent INTRODUCE replay attacks
   against onion services. ([!1725])
 - Improved encoding for key-denotators in the key manager. ([#1063],
@@ -3136,7 +3136,7 @@ to 1.70, in accordance with our [MSRV policy].
   extension as appropriate. ([#723], [!1740])
 - Added conversion functions and initial persistence support for
   introduction point keys. ([!1756])
-- Start work on introduction point persistence. ([!1755], [!1765]).
+- Start work on introduction point persistence. ([!1755], [!1765])
 - Make a `Builder` type for key managers. ([#1114], [!1760])
 - Revert to our intended configuration format for onion service proxy rules.
   ([#1058], [!1771])
@@ -3347,7 +3347,7 @@ and we are missing other important security features.)
   including crates that change only when their dependencies get new
   versions, accidental inclusion of wildcard dependencies, and
   dependencies on unpublished crates.  ([!1646])
-- Clean up use of `after_script` in our CI to behave more sensibly
+- Clean up use of `after_script` in our CI to behave more sensibly.
   ([#1061], [!1663])
 
 
@@ -3482,7 +3482,7 @@ will see extensive testing, bugfixing, and refinement.
 - The descriptor publisher now includes correct retry and timing
   logic. ([!1592], [!1623])
 - The introduction point manager code is now able to integrate with
-  the descriptor publisher. ([!1575], [!1576], [!1577] [!1578], [!1603])
+  the descriptor publisher. ([!1575], [!1576], [!1577], [!1578], [!1603])
 - The descriptor publisher code is now integrated with the key
   management system. ([#1042], [!1615])
 - The introduction point manager is now integrated with the code that
@@ -3502,8 +3502,7 @@ will see extensive testing, bugfixing, and refinement.
   [!1590])
 - There is now a set of (not working yet!) APIs to actually launch and
   run onion services, by invoking the necessary pieces of the backend,
-  and pass requests back to the caller ([!1604], [!1608], [!1610],
-  [!1616], [!1620], [!1625])
+  and pass requests back to the caller. ([!1604], [!1608], [!1610], [!1616], [!1620], [!1625])
 
 
 ### Client features
@@ -3629,7 +3628,7 @@ high-level APIs to allow the user to actually turn it on.
 - Do not allow the user to set `bridges = true` without having
   configured any bridges.  Previously, this configuration was
   possible, and it caused arti to connect without using any
-  bridges. This is tracked as [TROVE-2023-002]. ([#1000], [!1481]).
+  bridges. This is tracked as [TROVE-2023-002]. ([#1000], [!1481])
 
 ### Breaking changes in lower-level crates
 
@@ -3876,8 +3875,7 @@ service.
 
 ### Onion service development
 
-- Continued improvements to our key manager infrastructure. ([#903], [#937],
-  [#939] [#954], [!1372], [!1398], [!1399], [!1404], [!1413], [!1421], [!1433])
+- Continued improvements to our key manager infrastructure. ([#903], [#937], [#939], [#954], [!1372], [!1398], [!1399], [!1404], [!1413], [!1421], [!1433])
 - Design work and API backend designs for implementing the service
   side of onion services. ([!1422], [!1429])
 - Rust implementations of the [HashX] ASIC-resistant hash function and
@@ -4247,7 +4245,7 @@ throughout the codebase.
   `AnyRelayMsg` rather than a cell, as does its associated `MsgHandler`
   API. ([#881], [#887], [!1232], [!1236])
 - Backend code to more readily display and redact relay
-  identities. ([#882], [!1233]).
+  identities. ([#882], [!1233])
 - `tor-proto` no longer gives an error when trying to use `SENDME`
   messages with a relay digest algorithm with an output length of other
   than 20.  ([!1242])
@@ -4466,7 +4464,7 @@ onion service client.
 - Additional design and specification about a key management system.
   ([!1185])
 - Finish, refactor, debug, and test the hs-ntor handshake used to
-  negotiate keys with onion services ([#865], [!1189])
+  negotiate keys with onion services. ([#865], [!1189])
 - Export the unencrypted portion of an INTRODUCE1 message as needed
   to implement the hs-ntor handshake. ([#866], [!1188])
 - Add support for adding the "virtual" hop for an onion service
@@ -4500,7 +4498,7 @@ onion service client.
 - The script that generates our Acknowledgments section now
   looks at various Git trailers in order to better acknowledge bug reporters.
   ([!1194])
-- Use the latest version of Shadow in our integration tests ([!1199])
+- Use the latest version of Shadow in our integration tests. ([!1199])
 
 ### Cleanups, minor features, and smaller bugfixes
 
@@ -4624,17 +4622,17 @@ few other inconsistently-named APIs.
   Previously, we had a bug where we only checked whether it was time
   to fetch a new consensus when we added a new microdescriptor from
   the network.  This bug could lead to Arti running for a while
-  with an expired directory. ([#802] [!1126])
+  with an expired directory. ([#802], [!1126])
 
 ### Breaking changes
 
 - We now require Rust 1.65 or later for all of our crates.
   This change is required so that we can work correctly with several
   of our dependencies, including the [`typetag`] crate which we
-  will need for RPC. ([#815] [!1131] [!1137])
+  will need for RPC. ([#815], [!1131], [!1137])
 - In all crates, rename `*ProtocolFailed` errors to `*ProtocolViolation`.
   This is a more correct name, but does potentially break API users
-  depending on the old versions. ([#804] [!1121] [!1132])
+  depending on the old versions. ([#804], [!1121], [!1132])
 
 
 ### Breaking changes in lower level crates
@@ -4652,22 +4650,20 @@ few other inconsistently-named APIs.
 - Added and refactored some APIs in `tor-netdir` to better support onion
   service HSDir rings. ([!1094])
 - Clean up APIs for creating encrypted onion service descriptors. ([!1097])
-- Support for downloading onion service descriptors on demand.  ([!1116]
-  [!1118])
+- Support for downloading onion service descriptors on demand.  ([!1116], [!1118])
 - Design an API and document on-disk behavior for a
   [key-management subsystem], to be used not
-  only for onion services, but eventually for other kinds of keys. ([#834]
-  [!1147])
+  only for onion services, but eventually for other kinds of keys. ([#834], [!1147])
 
 ### RPC/Embedding development
 
 - New specification for our capabilities-based RPC meta-protocol in
-  [`rpc-meta-draft`]. ([!1078] [!1107] [!1141])
+  [`rpc-meta-draft`]. ([!1078], [!1107], [!1141])
 - An incomplete work-in-progress implementation of our new RPC framework,
   with a capabilities-based JSON-encoded protocol that allows for
   RPC-visible methods to be implemented on objects throughout our
   codebase.  For now, it is off-by-default, and exposes nothing useful.
-  ([!1092] [!1136] [!1144] [!1148])
+  ([!1092], [!1136], [!1144], [!1148])
 
 ### Documentation
 
@@ -4680,11 +4676,11 @@ few other inconsistently-named APIs.
 ### Cleanups, minor features, and minor bugfixes
 
 - Improvements to [`TimerangeBound`] API. ([!1105])
-- Fix builds with several combinations of features. ([#801] [!1106])
+- Fix builds with several combinations of features. ([#801], [!1106])
 - Code to join an `AsyncRead` and `AsyncWrite` into a single object
   implementing both traits. ([!1115])
 - Expose the `MiddleOnly` flag on router status objects, for tools that want
-  it. ([#833] [!1145] [!1146])
+  it. ([#833], [!1145], [!1146])
 - Only run doctest for `BridgesConfig` when the `pt-client` feature
   is enabled; otherwise it will fail. ([#843], [!1166])
 - Refactoring in and around `RelayId`. ([!1156])
@@ -4795,7 +4791,7 @@ before elsewhere in our code.
 - Our onion service descriptor parsing code now validates the inner
   certificates embedded in the descriptors, for parity with C Tor's behavior.
   ([#744], [!1044])
-- Refactor responsibility for HS circuit management out of `CircMgr`
+- Refactor responsibility for HS circuit management out of `CircMgr`.
   ([!1047])
 - Revise APIs and outline implementations for the initial parts of a state
   manager and client implementation.  ([!1034], [!1086])
@@ -4853,8 +4849,7 @@ before elsewhere in our code.
   API. ([455a7a710917965f])
 - Enforce use of blinded keys in places where they are required. ([!1081])
 - Add accessors for the [`Blockage`] type, so other programs can
-  ask what has gone wrong with the connection to the network. ([#800],
-  [!1088]).
+  ask what has gone wrong with the connection to the network. ([#800], [!1088])
 
 
 ### Acknowledgments
@@ -5187,7 +5182,7 @@ our process below.
   ([889206cde4ef29d])
 - Our scripts now all indirect through `/usr/bin/env`, to support
   platforms that don't put `bash` in `/bin`. ([!988])
-- Clean up various warnings introduced in Rust 1.67 ([#748], [#749], [!992])
+- Clean up various warnings introduced in Rust 1.67. ([#748], [#749], [!992])
 - Numerous spelling fixes.
 
 
@@ -5310,7 +5305,7 @@ we believe that the quality of these features is good enough to be used.
 - `SocksHandshake` has been renamed to `SocksProxyHandshake`, to
   distinguish it from `SocksClientHandshake`. ([b08073c2d43d7be5])
 - Numerous changes to the bridge-related APIs introduced in 1.0.1.
-  ([!758], [#600], [!759]], [!780])
+  ([!758], [#600], [!759], [!780])
 - API changes to `tor-dirclient::Response`. ([!782])
 - Netinfo cell constructors have been renamed. ([!793])
 - The guard manager API no long accepts `NetDir` arguments to most of
@@ -5379,8 +5374,8 @@ we believe that the quality of these features is good enough to be used.
 - We now use the [Shadow] discrete event simulator to test Arti against a
   simulated Tor network in our CI tests. ([#174], [!634])
 - Fuzzing for SOCKS client implementations. ([dc55272602cbc9ff])
-- Fuzzing for more types of cells ([c41305d1100d9685])
-- Fuzzing for pluggable transport IPC ([!814])
+- Fuzzing for more types of cells. ([c41305d1100d9685])
+- Fuzzing for pluggable transport IPC. ([!814])
 - CI testing for more combinations of features. ([#303], [!775])
 - CI testing for more targets. ([#585], [!844])
 - Better reproducible builds, even on environments with small /dev/shm
@@ -5412,7 +5407,7 @@ we believe that the quality of these features is good enough to be used.
 - Improve display output for describing relays as channel targets, to provide
   a more useful summary, and avoid displaying too much information about
   guards. ([#647], [!868])
-- Better error reporting for some kinds of router descriptor parsing failures
+- Better error reporting for some kinds of router descriptor parsing failures.
   ([!870])
 - Numerous typo and comment fixes.
 
@@ -5878,8 +5873,7 @@ lower-level crates to interact more closely with the Tor protocols.
   are now fallible.  Previously they had no way to report errors.
   ([#513], [!623], [!640])
 - The [`tor-cert`] APIs have been tweaked to support more compact
-  internal representations and more idiomatic usage. ([#512], [!641],
-  [!643]).
+  internal representations and more idiomatic usage. ([#512], [!641], [!643])
 - The [`NetDirProvider`] API, and related APIs in [`tor-dirmgr`], have been
   changed to support returning network directories with varying timeliness
   requirements. ([#528], [!642])
@@ -6067,7 +6061,7 @@ Note that for the first time, we did _not_ have breaking changes in the
 - More unit tests in various places. ([!551], [!562])
 - We avoid initializing a `DataStream` if it would immediately be
   closed. ([!556])
-- We return a more useful error message for incorrect file permissions
+- We return a more useful error message for incorrect file permissions.
   ([!554])
 - The directory manager code now uses a refactored timing backend that
   knows how to respect dormant mode. ([#497], [!571])
@@ -6441,7 +6435,7 @@ Numerous other lower-level crates have breaking changes not noted here.
 - Arti now tolerates IPv6-only environments, by using a basic form of
   the [RFC 8305] "happy eyeballs" algorithm to try connections to
   relays' IPv4 and IPv6 addresses in parallel. ([!382])
-- New experimental APIs for modifying consensus objects ([!318], [!402])
+- New experimental APIs for modifying consensus objects. ([!318], [!402])
 - The `arti` crate now exists as a library, to better expose features
   like its top-level configuration logic. ([!403])
 - Arti now supports a `dns_port` to relay A, AAAA, and PTR requests over
@@ -6455,10 +6449,10 @@ Numerous other lower-level crates have breaking changes not noted here.
   part of their API. ([#415])
 - The logic for retrying failed guards has been revised to use
   the same decorrelated-jitter algorithm as directory requests, per
-  [proposal 336]. ([cb103e04cf4d9853], part of [#407], [!426])
+  [proposal 336]. ([cb103e04cf4d9853], part of. ([#407], [!426])
 - When all our guards have failed, we no longer retry them all
   aggressively, but rather assume that our net connection is down and
-  wait a while. ([eed1f06662366511], part of [#407], [!426])
+  wait a while. ([eed1f06662366511], part of. ([#407], [!426])
 - When running as a directory client, we now remember more information
   about the source of each request, so we can avoid caches that have
   failed. ([87a3f6b58a5e75f7])
@@ -6481,14 +6475,14 @@ Numerous other lower-level crates have breaking changes not noted here.
   perform various kinds of stress-testing on our implementation. It can
   simulate several kinds of failure and overload conditions; we've been
   using it to improve Arti's behavior when the network is broken or
-  misbehaving. ([#397], [!378], [!392], [!442]; see also [#329])
+  misbehaving. See also [#329]. ([#397], [!378], [!392], [!442])
 - The [`arti-bench`] tool now constructs streams in parallel and
   supports isolated circuits, so we can
   stress-test the performance of a simulated busy client. ([#380], [!384])
 - Reproducible build scripts now use Rust 1.59 and Alpine 3.15. ([#376],
   [!380])
 - Improved messages from reproducible build script. ([#378], [!383])
-- Scripts to launch chutney are now refactored and de-duplicated ([!396])
+- Scripts to launch chutney are now refactored and de-duplicated. ([!396])
 
 ### Documentation and Examples
 
@@ -6517,7 +6511,7 @@ Numerous other lower-level crates have breaking changes not noted here.
 - Always send an "If-Modified-Since" header on consensus requests, since
   we wouldn't want a consensus that was far too old. ([#403], [!412])
 - Actually use the configuration for preemptive circuit construction.
-  Previously, we missed a place where we needed to copy it.  (Part of [!417])
+  Previously, we missed a place where we needed to copy it.  ([!417])
 - Backend support for collecting clock skew information; not yet
   used. ([#405], [!410])
 - Major refactoring for periodic events, to support an initial version of
@@ -6676,7 +6670,7 @@ this September, will represent an even stronger API commitment.
 - You can configure an unbootstrapped TorClient object to automatically
   bootstrap itself the first time it's used. ([!322])
 - Arti now returns a webpage with an error message if you try to use its
-  SOCKS proxy as an HTTP proxy ([!348])
+  SOCKS proxy as an HTTP proxy. ([!348])
 - We now provide an [arti-hyper] crate for using Arti with the [hyper] HTTP
   library.  This is also good example code for showing how to integrate Arti
   with other tools. ([!342], [!355]]
@@ -6711,7 +6705,7 @@ this September, will represent an even stronger API commitment.
 ### Cleanups, minor features, and minor bugfixes
 
 - Stop using `:` as a path character; it's reserved on Windows. ([!277])
-- Avoid returning junk data from over-long directory downloads ([!271])
+- Avoid returning junk data from over-long directory downloads. ([!271])
 - Implement Debug and Display for many more types.
 - We no longer `deny(clippy::all)`; instead we only use
   `warn(clippy::all)` to prevent future clippy versions from breaking
@@ -7032,7 +7026,7 @@ release 0.1.0 (scheduled March 2022).
 ### Cleanups, minor features, and bugfixes
 
 - Huge refactoring of the `tor-proto` crate to conform more closely to the
-  reactor architecture, and reduce the need for locks. ([#205], [#217]).
+  reactor architecture, and reduce the need for locks. ([#205], [#217])
 - By default, `cargo build --release` now chooses a more aggressive set
   of optimization flags. ([!124])
   - Too many smaller fixes to list.
@@ -7093,9 +7087,9 @@ basic privacy.
 
 ### Infrastructure
 
-- Reproducible builds for Linux ([!69]), Windows ([!70]), and OSX ([!86]).
+- Reproducible builds for Linux ([!69]), Windows ([!70]), and OSX. ([!86])
 - Support for static binaries. ([!69])
-- Simple integration tests, using [chutney] ([!88]).
+- Simple integration tests, using [chutney]. ([!88])
 
 ### Cleanups, minor features, and bugfixes
 
@@ -7141,3 +7135,4 @@ Initial release, to reserve our crate names on crates.io.
 
 <!--@@ update-md-links split-heading-level 1 -->
 <!--@@ update-md-links section-blank-lines 3 -->
+
