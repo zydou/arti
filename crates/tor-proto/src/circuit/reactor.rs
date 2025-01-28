@@ -182,15 +182,6 @@ pub(super) struct CircHop {
     inbound: RelayCellDecoder,
 }
 
-/// An indicator on what we should do when we receive a cell for a circuit.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum CellStatus {
-    /// The circuit should stay open.
-    Continue,
-    /// Perform a clean shutdown on this circuit.
-    CleanShutdown,
-}
-
 /// One or more [`RunOnceCmdInner`] to run inside [`Reactor::run_once`].
 #[derive(From, Debug)]
 enum RunOnceCmd {
