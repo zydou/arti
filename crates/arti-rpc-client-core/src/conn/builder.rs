@@ -79,19 +79,27 @@ enum SearchLocation {
 /// Diagnostic: An explanation of where we found a connect point,
 /// and why we looked there.
 #[derive(Debug, Clone)]
-#[allow(unused)]
 pub(super) struct ConnPtDescription {
-    /// What told us to look in this location.
+    /// What told us to look in this location
     source: ConnPtSource,
     /// Where we found the connect point.
     location: ConnPtLocation,
+}
+
+impl std::fmt::Display for ConnPtDescription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "connect point in {}, from {}",
+            &self.location, &self.source
+        )
+    }
 }
 
 /// Diagnostic: a source telling us where to look for a connect point.
 #[derive(Clone, Copy, Debug)]
 enum ConnPtSource {
     /// Found the search entry from an environment variable.
-    #[allow(unused)] //XXXX
     EnvVar(&'static str),
     /// Application manually inserted the search entry.
     Application,
@@ -99,8 +107,17 @@ enum ConnPtSource {
     Default,
 }
 
+impl std::fmt::Display for ConnPtSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnPtSource::EnvVar(varname) => write!(f, "${}", varname),
+            ConnPtSource::Application => write!(f, "application"),
+            ConnPtSource::Default => write!(f, "default list"),
+        }
+    }
+}
+
 /// Diagnostic: Where we found a connect point.
-#[allow(unused)] //XXXX
 #[derive(Clone, Debug)]
 enum ConnPtLocation {
     /// The connect point was given as a literal string.
@@ -120,6 +137,36 @@ enum ConnPtLocation {
         /// The location of the file.
         expanded: PathBuf,
     },
+}
+
+impl std::fmt::Display for ConnPtLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Note: here we use Path::display(), which in other crates we forbid
+        // and use tor_basic_utils::PathExt::display_lossy().
+        //
+        // Here we make an exception, since arti-rpc-client-core is meant to have
+        // minimal dependencies on our other crates.
+        #[allow(clippy::disallowed_methods)]
+        match self {
+            ConnPtLocation::Literal(s) => write!(f, "literal string {:?}", s),
+            ConnPtLocation::File {
+                path,
+                expanded: Some(ex),
+            } => {
+                write!(f, "file {} [{}]", path, ex.display())
+            }
+            ConnPtLocation::File {
+                path,
+                expanded: None,
+            } => {
+                write!(f, "file {} [cannot expand]", path)
+            }
+
+            ConnPtLocation::WithinDir { path, expanded } => {
+                write!(f, "file {} in directory {}", expanded.display(), path)
+            }
+        }
+    }
 }
 
 impl RpcConnBuilder {
