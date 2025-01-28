@@ -22,13 +22,13 @@ from collections.abc import Generator
 # There are 3 forms of special link:
 #   MR (!1234), issue (#1245), and commit (1234ABCDE)
 #
-# (Note that in practice, insisting on 8 characters for a commit link
+# (Note that in practice, insisting on 7 characters for a commit link
 # is enough to ensure that we don't get false positives.)
 LINK_RE = re.compile(
     r"""
      (?<!\S)
      \[?
-         ( \! \d+ | \# \d+ | [\da-fA-F]{8,40} )
+         ( \! \d+ | \# \d+ | [\da-fA-F]{7,40} )
      \]?
     """,
     re.VERBOSE | re.DOTALL,
