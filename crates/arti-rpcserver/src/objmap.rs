@@ -504,7 +504,7 @@ mod test {
 
     #[test]
     fn map_basics() {
-        // Insert an object, make sure it only gets inserted once, and look it up.
+        // Insert an object, make sure it gets inserted twice, and look it up.
         let obj1 = Arc::new(ExampleObject("abcdef".to_string()));
         let mut map = ObjMap::new();
         map.assert_okay();
@@ -515,6 +515,13 @@ mod test {
         let obj_out2 = map.lookup(id2).unwrap();
         assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out1));
         assert_eq!(raw_addr_of(&obj1), raw_addr_of(&obj_out2));
+        map.assert_okay();
+
+        map.remove(id1);
+        assert!(map.lookup(id1).is_none());
+        let obj_out2b = map.lookup(id2).unwrap();
+        assert_eq!(raw_addr_of(&obj_out2), raw_addr_of(&obj_out2b));
+
         map.assert_okay();
     }
 

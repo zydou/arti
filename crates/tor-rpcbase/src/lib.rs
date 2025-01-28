@@ -116,9 +116,6 @@ pub trait Context: Send + Sync {
     /// Create an owning reference to `object` within this context.
     ///
     /// Return an ObjectId for this object.
-    ///
-    /// TODO RPC: We may need to change the above semantics and the name of this
-    /// function depending on how we decide to name and specify things.
     fn register_owned(&self, object: Arc<dyn Object>) -> ObjectId;
 
     /// Make sure that
@@ -136,9 +133,8 @@ pub trait Context: Send + Sync {
 
     /// Drop an owning reference to the object called `object` within this context.
     ///
-    /// This will return an error if `object` is not an owning reference.
-    ///
-    /// TODO RPC should this really return a LookupError?
+    /// This will return an error if `object` is not an owning reference,
+    /// or does not exist.
     fn release_owned(&self, object: &ObjectId) -> Result<(), LookupError>;
 
     /// Return a dispatch table that can be used to invoke other RPC methods.

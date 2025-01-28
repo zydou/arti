@@ -101,7 +101,6 @@ async fn get_client_on_session(
     ctx: Arc<dyn rpc::Context>,
 ) -> Result<rpc::SingleIdResponse, rpc::RpcError> {
     Ok(rpc::SingleIdResponse::from(
-        // TODO RPC: This relies (somewhat) on deduplication properties for register_owned.
         ctx.register_owned(session.client.clone().upcast_arc()),
     ))
 }
