@@ -12,6 +12,8 @@ A special link is an MR link (like "!1234"), an issue link (like "#1234"),
 or a commit link (like "1234ABCD").
 """
 
+# TODO: When you find yourself inclined to modify this, add more tests!
+
 import re
 import sys
 from collections.abc import Generator
@@ -198,7 +200,8 @@ def paragraphs(s: str) -> Generator[str]:
 
 def process(s: str) -> str:
     """
-    Perform the specified operation on a given string.
+    Perform all of this script's operations (q.v. toplevel docstring)
+    on a given string, and return the result.
     """
     output = []
     # for item in paragraphs(s):
