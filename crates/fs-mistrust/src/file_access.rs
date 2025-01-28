@@ -122,6 +122,10 @@ impl<'a> FileAccess<'a> {
     ///
     /// This option does not affect the handling of links that are _not_
     /// in the final position of the path.
+    ///
+    /// This option does not disable the regular `fs-mistrust` checks:
+    /// we still ensure that the link's target, and its location, are not
+    /// modifiable by an untrusted user.
     pub fn follow_final_links(mut self, follow: bool) -> Self {
         self.follow_final_links = follow;
         self
