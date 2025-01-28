@@ -40,9 +40,6 @@ impl rpc::RpcMethod for Authenticate {
 }
 
 /// Invoke the "authenticate" method on a connection.
-///
-/// TODO RPC: This behavior is wrong; we'll need to fix it to be all
-/// capabilities-like.
 async fn authenticate_connection(
     unauth: Arc<Connection>,
     method: Box<Authenticate>,
