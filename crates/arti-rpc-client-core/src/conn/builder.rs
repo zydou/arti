@@ -43,9 +43,22 @@ pub struct RpcConnBuilder {
     prepend_path_reversed: Vec<SearchEntry>,
 }
 
-/// A single searchable entry in the search path used to find connect points.
+/// A single entry in the search path used to find connect points.
+///
+/// Includes information on where we got this entry
+/// (environment variable, application, or default).
 #[derive(Clone, Debug)]
-enum SearchEntry {
+struct SearchEntry {
+    /// The source telling us this entry.
+    #[allow(unused)] // XXXX
+    source: ConnPtSource,
+    /// The location to search.
+    location: SearchLocation,
+}
+
+/// A single location in the search path used to find connect points.
+#[derive(Clone, Debug)]
+enum SearchLocation {
     /// A literal connect point entry to parse.
     Literal(String),
     /// A path to a connect file, or a directory full of connect files.
@@ -59,6 +72,41 @@ enum SearchEntry {
         /// Otherwise, this entry comes from the user or application,
         /// and relative paths should cause the connect attempt to abort.
         is_default_entry: bool,
+    },
+}
+
+/// Diagnostic: a source telling us where to look for a connect point.
+#[derive(Clone, Debug)]
+enum ConnPtSource {
+    /// Found the search entry from an environment variable.
+    #[allow(unused)] //XXXX
+    EnvVar(&'static str),
+    /// Application manually inserted the search entry.
+    Application,
+    /// The search entry was a built-in default
+    Default,
+}
+
+/// Diagnostic: Where we found a connect point.
+#[allow(unused)] //XXXX
+#[derive(Clone, Debug)]
+enum ConnPtLocation {
+    /// The connect point was given as a literal string.
+    Literal(String),
+    /// We expanded a CfgPath to find the location of a connect file on disk.
+    File {
+        /// The path as configured
+        path: CfgPath,
+        /// The expanded path.
+        expanded: PathBuf,
+    },
+    /// We expanded a CfgPath to find a directory, and found the connect file
+    /// within that directory
+    WithinDir {
+        /// The path of the directory as configured.
+        path: CfgPath,
+        /// The location of the file.
+        expanded: PathBuf,
     },
 }
 
@@ -91,7 +139,7 @@ impl RpcConnBuilder {
     ///
     /// This entry must be a literal connect point, expressed as a TOML table.
     pub fn prepend_literal_entry(&mut self, s: String) {
-        self.prepend_path_reversed.push(SearchEntry::Literal(s));
+        self.prepend_internal(SearchLocation::Literal(s));
     }
 
     /// Prepend a single path entry to the search path in this RpcConnBuilder.
@@ -106,7 +154,7 @@ impl RpcConnBuilder {
     /// they will be expanded according to the rules of [`CfgPath`],
     /// using the variables of [`tor_config_path::arti_client_base_resolver`].
     pub fn prepend_path(&mut self, p: String) {
-        self.prepend_path_reversed.push(SearchEntry::Path {
+        self.prepend_internal(SearchLocation::Path {
             path: CfgPath::new(p),
             is_default_entry: false,
         });
@@ -121,30 +169,44 @@ impl RpcConnBuilder {
     ///
     /// Variables in this entry will not be expanded.
     pub fn prepend_literal_path(&mut self, p: PathBuf) {
-        self.prepend_path_reversed.push(SearchEntry::Path {
+        self.prepend_internal(SearchLocation::Path {
             path: CfgPath::new_literal(p),
             is_default_entry: false,
+        });
+    }
+
+    /// Prepend the application-provided [`SearchLocation`] to the path.
+    fn prepend_internal(&mut self, location: SearchLocation) {
+        self.prepend_path_reversed.push(SearchEntry {
+            source: ConnPtSource::Application,
+            location,
         });
     }
 
     /// Return the list of default path entries that we search _after_
     /// all user-provided entries.
     fn default_path_entries() -> Vec<SearchEntry> {
-        use SearchEntry::*;
+        use SearchLocation::*;
+        let dflt = |location| SearchEntry {
+            source: ConnPtSource::Default,
+            location,
+        };
         let mut result = vec![
-            Path {
+            dflt(Path {
                 path: CfgPath::new("${ARTI_LOCAL_DATA}/rpc/connect.d/".to_owned()),
                 is_default_entry: true,
-            },
+            }),
             #[cfg(unix)]
-            Path {
+            dflt(Path {
                 path: CfgPath::new_literal("/etc/arti-rpc/connect.d/"),
                 is_default_entry: true,
-            },
-            Literal(tor_rpc_connect::USER_DEFAULT_CONNECT_POINT.to_owned()),
+            }),
+            dflt(Literal(
+                tor_rpc_connect::USER_DEFAULT_CONNECT_POINT.to_owned(),
+            )),
         ];
         if let Some(p) = tor_rpc_connect::SYSTEM_DEFAULT_CONNECT_POINT {
-            result.push(Literal(p.to_owned()));
+            result.push(dflt(Literal(p.to_owned())));
         }
         result
     }
@@ -244,12 +306,12 @@ impl SearchEntry {
         mistrust: &Mistrust,
         options: &'a HashMap<PathBuf, LoadOptions>,
     ) -> ConnPtIterator<'a> {
-        match self {
-            SearchEntry::Literal(s) => ConnPtIterator::Singleton(
+        match &self.location {
+            SearchLocation::Literal(s) => ConnPtIterator::Singleton(
                 // It's a literal entry, so we just try to parse it.
                 ParsedConnectPoint::from_str(s).map_err(|e| ConnectError::from(LoadError::from(e))),
             ),
-            SearchEntry::Path {
+            SearchLocation::Path {
                 path,
                 is_default_entry,
             } => {
@@ -283,34 +345,39 @@ impl SearchEntry {
     }
 
     /// Return a list of `SearchEntry` as specified in an environment variable with a given name.
-    fn from_env_var(s: &str) -> Result<Vec<Self>, ConnectError> {
-        match std::env::var(s) {
+    fn from_env_var(varname: &'static str) -> Result<Vec<Self>, ConnectError> {
+        match std::env::var(varname) {
             Ok(s) if s.is_empty() => Ok(vec![]),
-            Ok(s) => Self::from_env_string(&s),
+            Ok(s) => Self::from_env_string(varname, &s),
             Err(std::env::VarError::NotPresent) => Ok(vec![]),
             Err(_) => Err(ConnectError::BadEnvironment), // TODO RPC: Preserve more information?
         }
     }
 
-    /// Return a list of `SearchEntry` as specified in an environment variable with a given name.
-    fn from_env_string(s: &str) -> Result<Vec<Self>, ConnectError> {
+    /// Return a list of `SearchEntry` as specified in the value `s` from an envvar called `varname`.
+    fn from_env_string(varname: &'static str, s: &str) -> Result<Vec<Self>, ConnectError> {
         // TODO RPC: Possibly we should be using std::env::split_paths, if it behaves correctly
         // with our url-escaped entries.
         s.split(PATH_SEP_CHAR)
-            .map(Self::from_env_string_elt)
+            .map(|s| {
+                Ok(SearchEntry {
+                    source: ConnPtSource::EnvVar(varname),
+                    location: Self::from_env_string_elt(s)?,
+                })
+            })
             .collect()
     }
 
     /// Return a `SearchEntry` from a single entry within an environment variable.
-    fn from_env_string_elt(s: &str) -> Result<Self, ConnectError> {
+    fn from_env_string_elt(s: &str) -> Result<SearchLocation, ConnectError> {
         match s.bytes().next() {
-            Some(b'%') | Some(b'[') => Ok(Self::Literal(
+            Some(b'%') | Some(b'[') => Ok(SearchLocation::Literal(
                 percent_encoding::percent_decode_str(s)
                     .decode_utf8()
                     .map_err(|_| ConnectError::BadEnvironment)?
                     .into_owned(),
             )),
-            _ => Ok(Self::Path {
+            _ => Ok(SearchLocation::Path {
                 path: CfgPath::new(s.to_owned()),
                 is_default_entry: false,
             }),
