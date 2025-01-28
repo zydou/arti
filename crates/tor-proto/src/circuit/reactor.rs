@@ -1250,19 +1250,7 @@ impl Reactor {
                 handler,
                 sender,
             } => {
-                let outcome: Result<()> = (|| {
-                    if let Some(msg) = msg {
-                        let handler = handler
-                            .as_ref()
-                            .or(self.meta_handler.as_ref())
-                            .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
-                        self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
-                    }
-                    if let Some(handler) = handler {
-                        self.set_meta_handler(handler)?;
-                    }
-                    Ok(())
-                })();
+                let outcome: Result<()> = self.send_msg_and_install_handler(cx, msg, handler);
                 let _ = sender.send(outcome.clone()); // don't care if receiver goes away.
                 outcome?;
             }
@@ -1298,6 +1286,29 @@ impl Reactor {
                 self.send_relay_cell(cx, hop, early, cell)?;
             }
         }
+        Ok(())
+    }
+
+    /// Send the specified `msg`, and install the given meta-cell handler.
+    ///
+    /// Helper for handling [`CtrlMsg::SendMsgAndInstallHandler`].
+    fn send_msg_and_install_handler(
+        &mut self,
+        cx: &mut Context<'_>,
+        msg: Option<AnyRelayMsgOuter>,
+        handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
+    ) -> Result<()> {
+        if let Some(msg) = msg {
+            let handler = handler
+                .as_ref()
+                .or(self.meta_handler.as_ref())
+                .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
+            self.send_relay_cell(cx, handler.expected_hop(), false, msg)?;
+        }
+        if let Some(handler) = handler {
+            self.set_meta_handler(handler)?;
+        }
+
         Ok(())
     }
 
