@@ -82,7 +82,10 @@ release?" above.
 
 3. Write a changelog.
 
-   I start by running
+   I start by copying the [changelog template](./ChangelogTemplate.md),
+   and filling in the version and date.
+
+   Then I run
    `git log --topo-order --reverse arti-v${LAST_VERSION}..`,
    and writing a short summary of everything I find into
    new sections of the changelog.
@@ -97,6 +100,8 @@ release?" above.
 
    The script `maint/changelog-syntax-fiddle`
    can be helpful to write the cross-refernces more easily.
+
+   See below for our current [changelog style guide](#changelog-style).
 
 4. Finish the changelog.
 
@@ -390,3 +395,243 @@ since the last release.)
 8. Consider whether to make a blog post about the patch release.
 
 
+<div id="changelog-style">
+
+# Changelog style guide
+
+</div>
+
+> This guide is fairly rough;
+> it is mainly here to ensure that we get similar changelogs
+> no matter who is writing them.
+>
+> If this guide produces bad results, we should change it.
+
+## Goals and guidelines
+
+The CHANGELOG is meant to be read by downstream users and developers;
+try to describe things from their point of view,
+and emphasize the entries that they care about.
+
+Other people will read the CHANGELOG too:
+do not assume that the audience has extensive Tor experience,
+or knowledge of our inner workings.
+
+When writing a CHANGELOG,
+think about what users will most want to know,
+and make sure to describe the
+implications of things in terms of how the user experience will change,
+what they should look out for,
+what was the impact/risk from that bug you fixed,
+what new features they should try in this new version,
+and so on.
+
+The CHANGELOG is partly an advertisement
+for why users should want to upgrade,
+and partly a historical document
+so that people can go back to discover
+what features/bugs were present in which past versions.
+
+In times of excitement,
+the CHANGELOG may even get attention from the press.
+When possible, avoid phrases prone to misinterpretation or sensationalism.
+
+## Format
+
+Please use the [changelog template](ChangelogTemplate.md)
+as a rough guide to what pieces of each changelog go where.
+
+Every individual changelog entry should be a bullet-point,
+looking more or less like this:
+
+```
+- Arti can now [brew a pleasant cup of tea]. ([#9090], [#9091], [!9998],
+  [!9999])
+```
+
+Each entry should contain a terse description of what changed,
+ending with a period.
+After that description, there is a list of reference links.
+
+Use the `maint/format_md_links` tool
+to ensure that all of the reference links
+are in brackets, comma-separated, and wrapped in parentheses.
+Make sure to check its output:
+As of 2025 Jan, it is fairly new.
+
+## Reference links.
+
+The reference links are surrounded by parentheses;
+they are separated by commas.
+
+Reference links can be to tickets (`[#1234]`),
+merge requests (`[!1234]`),
+proposals (`[prop123]`),
+TROVE IDs (`[TROVE-2024-001]`),
+git commits (`[1ce40b6e4a43bab4]`),
+or other relevant references.
+They are intended to answer the question
+"where can I find out more?"
+
+Reference links should be grouped by type,
+then sorted by number.
+
+Use commit links only when a relevant MR is not present,
+or (rarely) when describing a particular commit individually.
+
+One changelog entry per merge request can be a good starting point;
+however, it is usually best to combine many merge requests into a single entry
+when they are logically combining to the same kind of development.
+The primary goal should be to structure the information for readability
+(including skim-reading) and comprehensibility,
+not to mirror the structure of the actual development work.
+It is also okay to make a changelog entry for a single commit
+when it does something interesting not covered by its MR.
+
+It is okay to refer to the same ticket or MR at multiple places
+in the changelog.
+
+It is okay to omit entries for MRs that do completely trivial actions
+(such as adjusting a single line of whitespace).
+
+We should usually omit entries for actions that we take routinely
+as part of the release process
+(such as running "cargo update" or removing "semver.md" files).
+As an exception, we _should_ document upgraded dependencies
+(as occur when we run "cargo upgrade").
+
+We should usually omit entries for actions that are nobody's business
+and do not affect Arti itself.
+(such as adjusting an entry in `.mailmap`).
+
+We should usually omit entries
+for fixing a bug or clean up a piece of code
+that didn't appear in any released version of Arti.
+Instead, we add the MR that fixes the code to the changelog entry
+in which the code was introduced.
+
+## Style (specific to Changelog)
+
+**Be terse.**
+
+Prefer grammatical structures
+in the following _declining_ order of preference:
+
+- Arti's new behavior, described in the present tense with "now".
+  ("Arti now requires Rust 1.77";
+  "`tor-bytes` now allows generic strings".)
+- Something that _we_ did, in the past tense, with no subject.
+  ("Removed support for Rust ≤1.76";
+  "Added generic-string support to `tor-bytes`".)
+- Something that Arti will now do,
+  in the imperative:
+  as if you were telling Arti to do it.
+  ("Don't support Rust ≤1.76";
+  "Support generic strings in `tor-bytes`".)
+- Bare noun phrases with no main verb,
+  if noun is something
+  newly done, added, or instituted.
+  ("New requirement for Rust 1.77";
+  "Generic string support in `tor-bytes`".)
+
+Try to avoid these grammatical structures:
+
+- Something that _we_ did described
+  with the present tense, imperative, or infinitive.
+  \[Sorry, these are hard to distinguish in English.\]
+  ("Add requirement for Rust 1.77",
+  "Tweak `tor-bytes` to support generic strings.")
+- Bare gerunds.
+  ("Requiring Rust version 1.77";
+  "Supporting generic strings in `tor-bytes`")
+- Passive voice.
+  ("Rust 1.77 now required";
+  "Generic strings now supported by `tor-bytes`.")
+- Something we did using the word "we".
+  ("We have added a rust 1.77 requirement";
+   "we made `tor-bytes` support generic strings").
+- Something that Arti now does, using the word "we".
+  ("We now require 1.77";
+  "we now support generic strings in `tor-bytes`.")
+- Bare noun phrases with no main verb,
+  if noun is **not** something
+  done, added, or instituted.
+  ("Bug in Rust 1.77";
+  "Performance in `tor-bytes`".)
+
+<!-- NOTE:  C tor changelog style prefers present-tense for changes,
+     and never past tense.  Our guidelines here reflect a change in that
+     rule.
+     TODO: Confirm that's what we want.
+ -->
+
+Avoid referring to the reader as "you";
+instead prefer the imperative.  ("To find out more, consult..."
+or "To enable this feature, use...")
+
+
+Be descriptive.
+Avoid bland entries like "general hacking on X" or "Work on Y".
+If you can't tell what an MR actually did,
+ask the author for help.
+
+For new features that people will want to try, link to instructions.
+(Alternatively, you can recapitulate the instructions
+if they are short and simple.)
+
+Prefer the section names from the template,
+when they are applicable.
+
+Mention configuration options by name in `monospace`.
+If they're rare or unusual, remind people what they're for.
+
+When fixing a bug, consider describing what the old undesired behavior was.
+("Previously, Arti could catch fire if you left it plugged in overnight.";
+"Fix a bug that made onion services slow.")
+If the bug was introduced in an identifiable version of Arti,
+use the parenthetical phrasing "(Bug first appeared in Arti 1.2.3)"
+
+## Style (general)
+
+Prefer US spelling ("behavior", "anonymize").
+
+"Arti" is capitalized except when it refers to the crate or the binary.
+
+Write the names of crates, functions, and classes
+in `monospace`.
+
+Prefer English ("for example/such as", "that is", "and so on")
+over Latin ("e.g.", "i.e.", "etc.").
+
+Try to use the "channel cell"/"relay message" terminology correctly.
+
+Say "onion service" not "hidden service"
+in user-facing documentation.
+
+Begin sentences with a capital letter.
+If a sentence would begin with an identifier
+that starts with a lowercase letter,
+make sure that the identifier is in `monospace`,
+and consider describing it so it does not start the sentence.
+(Not "tor-bytes is..." and not "Tor-bytes is...",
+but "`tor-bytes` is..." or "The `tor-bytes` crate is...".)
+It is not generally necessary necessary to linkify references to Rust APIs.
+
+Be careful when saying "connection";
+instead you might mean
+"channel", "circuit", "stream",
+"TCP connection", "TLS connection",
+or something else entirely.
+Use "connection" when you mean more than one kind of underlying thing,
+or when it is clearer to avoid giving specific technical detail.
+
+Say "relays", not "servers" or "nodes" or "tor relays".
+
+> “Substitute 'damn' every time you're inclined to write 'very;' your editor
+> will delete it and the writing will be just as it should be.” — Mark Twain
+
+An [em dash] is written as &emdash; or — or ---; never as a hyphen (`-`).
+It does not have spaces adjacent to it.
+You can often substitute a colon.
+
+[em dash]: https://en.wikipedia.org/wiki/Dash
