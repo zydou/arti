@@ -79,7 +79,7 @@ enum SearchLocation {
 /// Diagnostic: An explanation of where we found a connect point,
 /// and why we looked there.
 #[derive(Debug, Clone)]
-pub(super) struct ConnPtDescription {
+pub struct ConnPtDescription {
     /// What told us to look in this location
     source: ConnPtSource,
     /// Where we found the connect point.

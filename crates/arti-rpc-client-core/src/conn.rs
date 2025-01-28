@@ -20,7 +20,7 @@ mod connimpl;
 mod stream;
 
 use crate::util::Utf8CString;
-pub use builder::{BuilderError, RpcConnBuilder};
+pub use builder::{BuilderError, ConnPtDescription, RpcConnBuilder};
 pub use connimpl::RpcConn;
 use serde::{de::DeserializeOwned, Deserialize};
 pub use stream::StreamError;
@@ -446,6 +446,23 @@ pub struct ConnectFailure {
     /// search process from even beginning.
     #[source]
     pub(crate) final_error: ConnectError,
+}
+
+impl ConnectFailure {
+    /// If this attempt failed because of a fatal error that made a connect point attempt abort,
+    /// return a description of the origin of that connect point.
+    pub fn fatal_error_origin(&self) -> Option<&builder::ConnPtDescription> {
+        self.final_desc.as_ref()
+    }
+
+    /// For each connect attempt that failed nonfatally, return a description of the
+    /// origin of that connect point, and the error that caused it to fail.
+    pub fn declined_attempt_outcomes(
+        &self,
+    ) -> impl Iterator<Item = (&builder::ConnPtDescription, &ConnectError)> {
+        // Note: this map looks like a no-op, but isn't.
+        self.declined.iter().map(|(a, b)| (a, b))
+    }
 }
 
 /// An error while trying to connect to the Arti process.
