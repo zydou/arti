@@ -1,6 +1,6 @@
 //! Module providing [`CtrlMsg`].
 
-use super::{CircuitHandshake, CloseStreamBehavior, MetaCellHandler, ReactorResultChannel};
+use super::{CircuitHandshake, CloseStreamBehavior, MetaCellHandler, ReactorResultChannel, SendRelayCell};
 use crate::circuit::celltypes::CreateResponse;
 use crate::circuit::CircParameters;
 use crate::crypto::binding::CircuitBinding;
@@ -22,9 +22,6 @@ use oneshot_fused_workaround as oneshot;
 use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::crypto::handshake::ntor::NtorPublicKey;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
-
-#[cfg(test)]
-use super::SendRelayCell;
 
 /// A message telling the reactor to do something.
 #[derive(educe::Educe)]
@@ -182,8 +179,6 @@ pub(crate) enum CtrlMsg {
         /// The hop number the stream is on.
         hop_num: HopNum,
     },
-    /// Shut down the reactor.
-    Shutdown,
     /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
     #[cfg(test)]
     AddFakeHop {
@@ -199,7 +194,6 @@ pub(crate) enum CtrlMsg {
         hop: HopNum,
         done: ReactorResultChannel<(u32, Vec<CircTag>)>,
     },
-    /// (tests only) Send a raw relay cell with send_relay_cell().
-    #[cfg(test)]
+    ///  Send a raw relay cell with send_relay_cell().
     SendRelayCell(SendRelayCell),
 }

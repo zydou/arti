@@ -18,9 +18,8 @@ use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, UnparsedRelayMsg};
 use tor_error::internal;
 
-use std::task::Context;
-
 use crate::circuit::path;
+use crate::circuit::reactor::SendRelayCell;
 use crate::crypto::handshake::ntor::NtorClient;
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use tor_cell::relaycell::extend::NtorV3Extension;
@@ -78,7 +77,6 @@ where
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::blocks_in_conditions)]
     pub(super) fn begin(
-        cx: &mut Context<'_>,
         relay_cell_format: RelayCellFormat,
         peer_id: OwnedChanTarget,
         handshake_id: HandshakeType,
@@ -88,35 +86,32 @@ where
         client_aux_data: &impl Borrow<H::ClientAuxData>,
         reactor: &mut Reactor,
         done: ReactorResultChannel<()>,
-    ) -> Result<Self> {
+    ) -> Result<(Self, SendRelayCell)> {
         match (|| {
             let mut rng = rand::thread_rng();
             let unique_id = reactor.unique_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
-
             let n_hops = reactor.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
-
             trace!(
                 "{}: Extending circuit to hop {} with {:?}",
                 unique_id,
                 n_hops + 1,
                 linkspecs
             );
-
             let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
             let cell = AnyRelayMsgOuter::new(None, extend_msg.into());
-
-            // Send the message to the last hop...
-            reactor.send_relay_cell(
-                cx, hop, true, // use a RELAY_EARLY cell
+            // Prepare a message to send message to the last hop...
+            let cell = SendRelayCell {
+                hop,
+                early: true, // use a RELAY_EARLY cel
                 cell,
-            )?;
+            };
+
             trace!("{}: waiting for EXTENDED2 cell", unique_id);
             // ... and now we wait for a response.
-
-            Ok::<CircuitExtender<_, _, _, _>, Error>(Self {
+            let extender = Self {
                 peer_id,
                 state: Some(state),
                 params,
@@ -125,10 +120,12 @@ where
                 operation_finished: None,
                 phantom: Default::default(),
                 relay_cell_format,
-            })
+            };
+
+            Ok::<(CircuitExtender<_, _, _, _>, SendRelayCell), Error>((extender, cell))
         })() {
             Ok(mut result) => {
-                result.operation_finished = Some(done);
+                result.0.operation_finished = Some(done);
                 Ok(result)
             }
             Err(e) => {
@@ -203,7 +200,6 @@ where
     }
     fn handle_msg(
         &mut self,
-        _cx: &mut Context<'_>,
         msg: UnparsedRelayMsg,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition> {

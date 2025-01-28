@@ -997,7 +997,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
-                _conversation: ConversationInHandler<'_, '_, '_>,
+                _conversation: ConversationInHandler<'_>,
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 // The first message we expect is a RENDEZVOUS_ESTABALISHED.
@@ -1167,7 +1167,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
-                _conversation: ConversationInHandler<'_, '_, '_>,
+                _conversation: ConversationInHandler<'_>,
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 self.intro_ack_tx
