@@ -26,6 +26,7 @@ from collections.abc import Generator
 # is enough to ensure that we don't get false positives.)
 LINK_RE = re.compile(
     r"""
+     # Negative lookbehind assertion: Not preceeded by a nonspace.
      (?<!\S)
      \[?
          ( \! \d+ | \# \d+ | [\da-fA-F]{7,40} )
@@ -40,6 +41,9 @@ LINK_RE = re.compile(
 TRAILING_LINKS_RE = re.compile(
     r"""
     # Pre-parenthesis punctuation, followed by spaces.
+    # (We accept any sentence-ending punctuation, followed optionally
+    # by a `)` or `"`, since sentence-ending punctuation can go inside
+    # a parenthetical or quotation.)
     ([\.\?\!][\)\"]?)?
     (\s*)
 
