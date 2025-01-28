@@ -76,8 +76,8 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
     where
         R: NetStreamProvider<general::SocketAddr, Listener = tor_rtcompat::general::Listener>,
     {
+        // Create parent directory for socket if needed.
         if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref()) {
-            // TODO RPC: Revisit this and other uses of make_directory; do we really want to do so?
             mistrust.make_directory(sock_parent_dir)?;
         }
 
@@ -136,7 +136,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
                 )?)),
                 server_address: self.socket.as_str().to_owned(),
             },
-            crate::connpt::Auth::Unrecognized {} => return Err(ConnectError::UnsupportedAuthType),
+            crate::connpt::Auth::Unrecognized(_) => return Err(ConnectError::UnsupportedAuthType),
         };
 
         Ok(Listener {

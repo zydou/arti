@@ -66,17 +66,14 @@ impl ParsedConnectPoint {
     ///
     /// It is an error if `path` does not satisfy `mistrust`.
     pub fn load_file(path: &Path, mistrust: &Mistrust) -> Result<ParsedConnectPoint, LoadError> {
-        mistrust
+        Ok(mistrust
             .verifier()
             .require_file()
             .permit_readable()
-            .check(path)?;
-        // We don't need to worry about TOCTOU here: we already verified that nobody untrusted can
-        // change the permissions on `path`.
-
-        // TODO RPC: This is possibly inconsistent wrt symlink behavior.
-
-        Ok(fs::read_to_string(path)?.parse()?)
+            .file_access()
+            .follow_final_links(true)
+            .read_to_string(path)?
+            .parse()?)
     }
 }
 
@@ -139,11 +136,13 @@ fn load_dirent(
     }
     if !entry.file_type()?.is_file() {
         // Not a plain file: skip.
-        // TODO RPC: Should we try to accept symlinks here? `CheckDir` will reject them by default.
         return Ok(None);
     }
 
-    let contents = dir.read_to_string(name)?;
+    let contents = dir
+        .file_access()
+        .follow_final_links(true)
+        .read_to_string(name)?;
     Ok(Some(contents.parse()?))
 }
 

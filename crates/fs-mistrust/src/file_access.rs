@@ -21,7 +21,7 @@ use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result, Verif
 /// `FileAccess` is a separate type from `CheckedDir` and `Verifier`
 /// so that you can set options to control the behavior of how files are opened.
 ///
-/// Note: When we refer to a path "obeying the constraints" of this `FileAccess`,
+/// Note: When we refer to a path _"obeying the constraints"_ of this `FileAccess`,
 /// we mean:
 /// * If the `FileAccess` wraps a `CheckedDir`, the requirement that it is a relative path
 ///   containing no ".." elements,
@@ -90,7 +90,7 @@ impl<'a> FileAccess<'a> {
     }
     /// Return the location of `path` relative to this verifier.
     ///
-    /// Fails if `path` does not obey the constraints of this `FileAccess`,
+    /// Fails if `path` does not [obey the constraints](FileAccess) of this `FileAccess`,
     /// but does not do any permissions checking.
     fn location_unverified<'b>(&self, path: &'b Path) -> Result<Cow<'b, Path>> {
         Ok(match self.inner {
@@ -122,6 +122,10 @@ impl<'a> FileAccess<'a> {
     ///
     /// This option does not affect the handling of links that are _not_
     /// in the final position of the path.
+    ///
+    /// This option does not disable the regular `fs-mistrust` checks:
+    /// we still ensure that the link's target, and its location, are not
+    /// modifiable by an untrusted user.
     pub fn follow_final_links(mut self, follow: bool) -> Self {
         self.follow_final_links = follow;
         self
@@ -129,7 +133,7 @@ impl<'a> FileAccess<'a> {
 
     /// Open a file relative to this `FileAccess`, using a set of [`OpenOptions`].
     ///
-    /// `path` must be a path to the new file, obeying the constraints of this `FileAccess`.
+    /// `path` must be a path to the new file, [obeying the constraints](FileAccess) of this `FileAccess`.
     /// We check, but do not create, the file's parent directories.
     /// We check the file's permissions after opening it.
     ///
@@ -205,7 +209,7 @@ impl<'a> FileAccess<'a> {
     /// String, if possible.
     ///
     /// Return an error if `path` is absent, if its permissions are incorrect,
-    /// if it does not obey the constraints of this `FileAccess`,
+    /// if it does not [obey the constraints](FileAccess) of this `FileAccess`,
     /// or if its contents are not UTF-8.
     pub fn read_to_string<P: AsRef<Path>>(self, path: P) -> Result<String> {
         let path = path.as_ref();
@@ -220,7 +224,7 @@ impl<'a> FileAccess<'a> {
     /// vector of bytes, if possible.
     ///
     /// Return an error if `path` is absent, if its permissions are incorrect,
-    /// or if it does not obey the constraints of this `FileAccess`.
+    /// or if it does not [obey the constraints](FileAccess) of this `FileAccess`.
     pub fn read<P: AsRef<Path>>(self, path: P) -> Result<Vec<u8>> {
         let path = path.as_ref();
         let mut file = self.open(path, OpenOptions::new().read(true))?;
