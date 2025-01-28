@@ -76,6 +76,7 @@ use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use derive_deftly::Deftly;
+use derive_more::From;
 use safelog::sensitive as sv;
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::{AnyChanCell, CircId};
@@ -173,6 +174,109 @@ enum CellStatus {
     Continue,
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
+}
+
+/// One or more [`RunOnceCmdInner`] to run inside [`Reactor::run_once`].
+#[derive(From, Debug)]
+enum RunOnceCmd {
+    /// Run a single `RunOnceCmdInner` command.
+    Single(RunOnceCmdInner),
+    /// Run multiple `RunOnceCmdInner` commands.
+    //
+    // Note: this whole enum *could* be replaced with Vec<RunOnceCmdInner>,
+    // but most of the time we're only going to have *one* RunOnceCmdInner
+    // to run per run_once() loop. The enum enables us avoid the extra heap
+    // allocation for the `RunOnceCmd::Single` case.
+    Multiple(Vec<RunOnceCmdInner>),
+}
+
+/// Instructions for running something in the reactor loop.
+///
+/// Run at the end of [`Reactor::run_once`].
+//
+// TODO: many of the variants of this enum have an identical CtrlMsg counterpart.
+// We should consider making each variant a tuple variant and deduplicating the fields.
+#[derive(educe::Educe)]
+#[educe(Debug)]
+enum RunOnceCmdInner {
+    /// Send a RELAY cell.
+    Send {
+        /// The cell to send.
+        cell: SendRelayCell,
+        /// A channel for sending completion notifications.
+        done: Option<ReactorResultChannel<()>>,
+    },
+    /// Send a given control message on this circuit, and install a control-message handler to
+    /// receive responses.
+    #[cfg(feature = "send-control-msg")]
+    SendMsgAndInstallHandler {
+        /// The message to send, if any
+        msg: Option<AnyRelayMsgOuter>,
+        /// A message handler to install.
+        ///
+        /// If this is `None`, there must already be a message handler installed
+        #[educe(Debug(ignore))]
+        handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
+        /// A sender that we use to tell the caller that the message was sent
+        /// and the handler installed.
+        done: oneshot::Sender<Result<()>>,
+    },
+    /// Handle a SENDME message.
+    HandleSendMe {
+        /// The hop number.
+        hop: HopNum,
+        /// The SENDME message to handle.
+        sendme: Sendme,
+    },
+    /// Begin a stream with the provided hop in this circuit.
+    ///
+    /// Uses the provided stream ID, and sends the provided message to that hop.
+    BeginStream {
+        /// The cell to send.
+        cell: Result<(SendRelayCell, StreamId)>,
+        /// Oneshot channel to notify on completion, with the allocated stream ID.
+        done: ReactorResultChannel<StreamId>,
+    },
+    /// Close the specified stream.
+    CloseStream {
+        /// The hop number.
+        hop_num: HopNum,
+        /// The ID of the stream to close.
+        sid: StreamId,
+        /// The stream-closing behavior.
+        behav: CloseStreamBehavior,
+        /// The reason for closing the stream.
+        reason: streammap::TerminateReason,
+        /// A channel for sending completion notifications.
+        done: Option<ReactorResultChannel<()>>,
+    },
+    /// Perform a clean shutdown on this circuit.
+    CleanShutdown,
+}
+
+// Cmd for sending a relay cell.
+//
+// The contents of this struct are passed to `send_relay_cell`
+#[derive(educe::Educe)]
+#[educe(Debug)]
+pub(crate) struct SendRelayCell {
+    /// The hop number.
+    pub(crate) hop: HopNum,
+    /// Whether to use a RELAY_EARLY cell.
+    pub(crate) early: bool,
+    /// The cell to send.
+    pub(crate) cell: AnyRelayMsgOuter,
+}
+
+/// A [`RunOnceCmdInner`] command to execute at the end of [`Reactor::run_once`].
+#[derive(From, Debug)]
+enum SelectResult {
+    /// Run a single `RunOnceCmdInner` command.
+    Single(RunOnceCmdInner),
+    /// Handle a control message
+    HandleControl(CtrlMsg),
+    /// Handle an input message.
+    HandleCell(ClientCircChanMsg),
 }
 
 impl CircHop {
