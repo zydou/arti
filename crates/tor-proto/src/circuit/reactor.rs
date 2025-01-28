@@ -19,7 +19,7 @@
 pub(super) mod syncview;
 
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{EndSentStreamEnt, ShouldSendEnd, StreamEntMut};
+use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -27,11 +27,12 @@ use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
     streammap, CircParameters, CircuitRxReceiver, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
 };
-use crate::congestion::{sendme, CongestionControl, CongestionSignals};
+use crate::congestion::sendme::{self, CircTag};
+use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
-    OutboundClientLayer, RelayCellBody, Tor1RelayCrypto,
+    OutboundClientLayer, RelayCellBody, Tor1RelayCrypto, SENDME_TAG_LEN,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
@@ -47,10 +48,10 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
-use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
+use tor_cell::relaycell::msg::{AnyRelayMsg, End, Extend2, Extended2, Sendme, Truncated};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
-    RelayCmd, StreamId, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat,
+    RelayCellFormatTrait, RelayCellFormatV0, RelayCmd, StreamId, UnparsedRelayMsg,
 };
 use tor_error::internal;
 #[cfg(feature = "hs-service")]
@@ -71,15 +72,13 @@ use std::task::{Context, Poll};
 use crate::channel::{Channel, ChannelSender};
 use crate::circuit::path;
 use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
-#[cfg(test)]
-use crate::congestion::sendme::CircTag;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use derive_deftly::Deftly;
 use safelog::sensitive as sv;
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
-use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
+use tor_cell::chancell::{BoxedCellBody, ChanMsg};
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
@@ -494,7 +493,6 @@ where
             let mut rng = rand::thread_rng();
             let unique_id = reactor.unique_id;
 
-            use tor_cell::relaycell::msg::Extend2;
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
 
             let n_hops = reactor.crypto_out.n_layers();
@@ -550,7 +548,7 @@ where
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition> {
         let msg = msg
-            .decode::<tor_cell::relaycell::msg::Extended2>()
+            .decode::<Extended2>()
             .map_err(|e| Error::from_bytes_err(e, "extended2 message"))?
             .into_msg();
 
@@ -807,9 +805,7 @@ impl Reactor {
     ) {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
-        let path = Arc::new(path::Path::default());
-        let binding = Vec::new();
-        let mutable = Arc::new(Mutex::new(MutableState { path, binding }));
+        let mutable = Arc::new(Mutex::new(MutableState::default()));
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
@@ -1321,7 +1317,7 @@ impl Reactor {
         }
         if msg.cmd() == RelayCmd::TRUNCATED {
             let truncated = msg
-                .decode::<tor_cell::relaycell::msg::Truncated>()
+                .decode::<Truncated>()
                 .map_err(|e| Error::from_bytes_err(e, "truncated message"))?
                 .into_msg();
             let reason = truncated.reason();
@@ -1399,13 +1395,8 @@ impl Reactor {
             .ok_or_else(|| Error::CircProto(format!("Couldn't find hop {}", hopnum.display())))?;
 
         let tag = match msg.into_tag() {
-            Some(v) => {
-                if let Ok(tag) = <[u8; 20]>::try_from(v) {
-                    tag.into()
-                } else {
-                    return Err(Error::CircProto("malformed tag on circuit sendme".into()));
-                }
-            }
+            Some(v) => CircTag::try_from(v.as_slice())
+                .map_err(|_| Error::CircProto("malformed tag on circuit sendme".into()))?,
             None => {
                 // Versions of Tor <=0.3.5 would omit a SENDME tag in this case;
                 // but we don't support those any longer.
@@ -1450,6 +1441,30 @@ impl Reactor {
         Ok(())
     }
 
+    /// Encode `msg` and encrypt it, returning the resulting cell
+    /// and tag that should be expected for an authenticated SENDME sent
+    /// in response to that cell.
+    fn encode_relay_cell(
+        crypto_out: &mut OutboundClientCrypt,
+        hop: HopNum,
+        early: bool,
+        msg: AnyRelayMsgOuter,
+    ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
+        let mut body: RelayCellBody = msg
+            .encode(&mut rand::thread_rng())
+            .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
+            .into();
+        let tag = crypto_out.encrypt(&mut body, hop)?;
+        let msg = Relay::from(BoxedCellBody::from(body));
+        let msg = if early {
+            AnyChanMsg::RelayEarly(msg.into())
+        } else {
+            AnyChanMsg::Relay(msg)
+        };
+
+        Ok((msg, tag))
+    }
+
     /// Encode `msg`, encrypt it, and send it to the 'hop'th hop.
     ///
     /// If there is insufficient outgoing *circuit-level* or *stream-level*
@@ -1467,6 +1482,7 @@ impl Reactor {
         let stream_id = msg.stream_id();
         let hop_num = Into::<usize>::into(hop);
         let circhop = &mut self.hops[hop_num];
+
         // We need to apply stream-level flow control *before* encoding the message.
         if c_t_w {
             if let Some(stream_id) = stream_id {
@@ -1483,19 +1499,9 @@ impl Reactor {
                 ent.take_capacity_to_send(msg.msg())?;
             }
         }
-        let mut body: RelayCellBody = msg
-            .encode(&mut rand::thread_rng())
-            .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
-            .into();
-        let tag = self.crypto_out.encrypt(&mut body, hop)?;
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let msg = chancell::msg::Relay::from(BoxedCellBody::from(body));
-        let msg = if early {
-            AnyChanMsg::RelayEarly(msg.into())
-        } else {
-            AnyChanMsg::Relay(msg)
-        };
+        let (msg, tag) = Self::encode_relay_cell(&mut self.crypto_out, hop, early, msg)?;
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
@@ -1796,7 +1802,7 @@ impl Reactor {
     /// Helper: process a cell on a channel.  Most cells get ignored
     /// or rejected; a few get delivered to circuits.
     ///
-    /// Return true if we should exit.
+    /// Return `CellStatus::CleanShutdown` if we should exit.
     fn handle_cell(&mut self, cx: &mut Context<'_>, cell: ClientCircChanMsg) -> Result<CellStatus> {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
@@ -1817,8 +1823,12 @@ impl Reactor {
         }
     }
 
-    /// React to a Relay or RelayEarly cell.
-    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<CellStatus> {
+    /// Decode `cell`, returning its corresponding hop number, tag,
+    /// and decoded body.
+    fn decode_relay_cell(
+        &mut self,
+        cell: Relay,
+    ) -> Result<(HopNum, CircTag, RelayCellDecoderResult)> {
         let mut body = cell.into_relay_body().into();
 
         // Decrypt the cell. If it's recognized, then find the
@@ -1827,7 +1837,7 @@ impl Reactor {
         // Make a copy of the authentication tag. TODO: I'd rather not
         // copy it, but I don't see a way around it right now.
         let tag = {
-            let mut tag_copy = [0_u8; 20];
+            let mut tag_copy = [0_u8; SENDME_TAG_LEN];
             // TODO(nickm): This could crash if the tag length changes.  We'll
             // have to refactor it then.
             tag_copy.copy_from_slice(tag);
@@ -1847,6 +1857,13 @@ impl Reactor {
             .decode(body.into())
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
 
+        Ok((hopnum, tag.into(), decode_res))
+    }
+
+    /// React to a Relay or RelayEarly cell.
+    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<CellStatus> {
+        let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
+
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
 
         // Decrement the circuit sendme windows, and see if we need to
@@ -1865,7 +1882,7 @@ impl Reactor {
             // that SendmeEmitMinVersion is no more than 1.  If the authorities
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
-            let sendme = Sendme::new_tag(tag);
+            let sendme = Sendme::new_tag(tag.into());
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
             self.send_relay_cell(cx, hopnum, false, cell)?;
             // Inform congestion control of the SENDME we are sending. This is a circuit level one.
@@ -1884,7 +1901,7 @@ impl Reactor {
         while let Some(msg) = msgs.next() {
             let msg_status = self.handle_relay_msg(cx, hopnum, c_t_w, msg)?;
             match msg_status {
-                CellStatus::Continue => (),
+                CellStatus::Continue => continue,
                 CellStatus::CleanShutdown => {
                     for msg in msgs {
                         debug!(
@@ -1893,7 +1910,11 @@ impl Reactor {
                         );
                     }
                     if let Some(incomplete) = incomplete {
-                        debug!("{id}: Ignoring partial relay msg received after triggering shutdown: {incomplete:?}", id=self.unique_id);
+                        debug!(
+                            "{id}: Ignoring partial relay msg received after triggering shutdown: {:?}",
+                            incomplete,
+                            id=self.unique_id,
+                        );
                     }
                     return Ok(CellStatus::CleanShutdown);
                 }
@@ -1912,15 +1933,7 @@ impl Reactor {
     ) -> Result<CellStatus> {
         // If this msg wants/refuses to have a Stream ID, does it
         // have/not have one?
-        let cmd = msg.cmd();
-        let streamid = msg.stream_id();
-        if !cmd.accepts_streamid_val(streamid) {
-            return Err(Error::CircProto(format!(
-                "Invalid stream ID {} for relay command {}",
-                sv(StreamId::get_or_zero(streamid)),
-                msg.cmd()
-            )));
-        }
+        let streamid = msg_streamid(&msg)?;
 
         // If this doesn't have a StreamId, it's a meta cell,
         // not meant for a particular stream.
@@ -1933,40 +1946,9 @@ impl Reactor {
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         match hop.map.get_mut(streamid) {
             Some(StreamEntMut::Open(ent)) => {
-                // The stream for this message exists, and is open.
-
-                if msg.cmd() == RelayCmd::SENDME {
-                    let _sendme = msg
-                        .decode::<Sendme>()
-                        .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
-                        .into_msg();
-                    // We need to handle sendmes here, not in the stream's
-                    // recv() method, or else we'd never notice them if the
-                    // stream isn't reading.
-                    ent.put_for_incoming_sendme()?;
-                    return Ok(CellStatus::Continue);
-                }
-
                 let message_closes_stream =
-                    ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+                    Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
 
-                if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
-                    if e.is_full() {
-                        // If we get here, we either have a logic bug (!), or an attacker
-                        // is sending us more cells than we asked for via congestion control.
-                        return Err(Error::CircProto(format!(
-                            "Stream sink would block; received too many cells on stream ID {}",
-                            sv(streamid),
-                        )));
-                    }
-                    if e.is_disconnected() && cell_counts_toward_windows {
-                        // the other side of the stream has gone away; remember
-                        // that we received a cell that we couldn't queue for it.
-                        //
-                        // Later this value will be recorded in a half-stream.
-                        ent.dropped += 1;
-                    }
-                }
                 if message_closes_stream {
                     hop.map.ending_msg_received(streamid)?;
                 }
@@ -2008,6 +1990,50 @@ impl Reactor {
             }
         }
         Ok(CellStatus::Continue)
+    }
+
+    /// Deliver `msg` to the specified open stream entry `ent`.
+    fn deliver_msg_to_stream(
+        streamid: StreamId,
+        ent: &mut OpenStreamEnt,
+        cell_counts_toward_windows: bool,
+        msg: UnparsedRelayMsg,
+    ) -> Result<bool> {
+        // The stream for this message exists, and is open.
+
+        if msg.cmd() == RelayCmd::SENDME {
+            let _sendme = msg
+                .decode::<Sendme>()
+                .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
+                .into_msg();
+            // We need to handle sendmes here, not in the stream's
+            // recv() method, or else we'd never notice them if the
+            // stream isn't reading.
+            ent.put_for_incoming_sendme()?;
+            return Ok(false);
+        }
+
+        let message_closes_stream = ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+
+        if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
+            if e.is_full() {
+                // If we get here, we either have a logic bug (!), or an attacker
+                // is sending us more cells than we asked for via congestion control.
+                return Err(Error::CircProto(format!(
+                    "Stream sink would block; received too many cells on stream ID {}",
+                    sv(streamid),
+                )));
+            }
+            if e.is_disconnected() && cell_counts_toward_windows {
+                // the other side of the stream has gone away; remember
+                // that we received a cell that we couldn't queue for it.
+                //
+                // Later this value will be recorded in a half-stream.
+                ent.dropped += 1;
+            }
+        }
+
+        Ok(message_closes_stream)
     }
 
     /// A helper for handling incoming stream requests.
@@ -2170,6 +2196,23 @@ impl Reactor {
     }
 }
 
+/// Return the stream ID of `msg`, if it has one.
+///
+/// Returns `Ok(None)` if `msg` is a meta cell.
+fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
+    let cmd = msg.cmd();
+    let streamid = msg.stream_id();
+    if !cmd.accepts_streamid_val(streamid) {
+        return Err(Error::CircProto(format!(
+            "Invalid stream ID {} for relay command {}",
+            sv(StreamId::get_or_zero(streamid)),
+            msg.cmd()
+        )));
+    }
+
+    Ok(streamid)
+}
+
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 impl ConversationInHandler<'_, '_, '_> {
@@ -2183,7 +2226,7 @@ impl ConversationInHandler<'_, '_, '_> {
     //
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
-    pub fn send_message(&mut self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
+    pub fn send_message(&mut self, msg: AnyRelayMsg) -> Result<()> {
         let msg = tor_cell::relaycell::AnyRelayMsgOuter::new(None, msg);
 
         self.reactor

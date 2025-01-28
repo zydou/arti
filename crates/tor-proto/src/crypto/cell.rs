@@ -189,7 +189,7 @@ pub(crate) struct InboundClientCrypt {
 
 /// The length of the tag that we include (with this algorithm) in an
 /// authenticated SENDME message.
-const SENDME_TAG_LEN: usize = 20;
+pub(crate) const SENDME_TAG_LEN: usize = 20;
 
 impl OutboundClientCrypt {
     /// Return a new (empty) OutboundClientCrypt.
