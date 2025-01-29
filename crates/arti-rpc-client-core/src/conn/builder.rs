@@ -52,7 +52,7 @@ pub struct RpcConnBuilder {
 #[derive(Clone, Debug)]
 struct SearchEntry {
     /// The source telling us this entry.
-    source: ConnPtSource,
+    source: ConnPtOrigin,
     /// The location to search.
     location: SearchLocation,
 }
@@ -81,7 +81,7 @@ enum SearchLocation {
 #[derive(Debug, Clone)]
 pub struct ConnPtDescription {
     /// What told us to look in this location
-    source: ConnPtSource,
+    source: ConnPtOrigin,
     /// Where we found the connect point.
     location: ConnPtLocation,
 }
@@ -98,7 +98,7 @@ impl std::fmt::Display for ConnPtDescription {
 
 /// Diagnostic: a source telling us where to look for a connect point.
 #[derive(Clone, Copy, Debug)]
-enum ConnPtSource {
+enum ConnPtOrigin {
     /// Found the search entry from an environment variable.
     EnvVar(&'static str),
     /// Application manually inserted the search entry.
@@ -107,12 +107,12 @@ enum ConnPtSource {
     Default,
 }
 
-impl std::fmt::Display for ConnPtSource {
+impl std::fmt::Display for ConnPtOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConnPtSource::EnvVar(varname) => write!(f, "${}", varname),
-            ConnPtSource::Application => write!(f, "application"),
-            ConnPtSource::Default => write!(f, "default list"),
+            ConnPtOrigin::EnvVar(varname) => write!(f, "${}", varname),
+            ConnPtOrigin::Application => write!(f, "application"),
+            ConnPtOrigin::Default => write!(f, "default list"),
         }
     }
 }
@@ -240,7 +240,7 @@ impl RpcConnBuilder {
     /// Prepend the application-provided [`SearchLocation`] to the path.
     fn prepend_internal(&mut self, location: SearchLocation) {
         self.prepend_path_reversed.push(SearchEntry {
-            source: ConnPtSource::Application,
+            source: ConnPtOrigin::Application,
             location,
         });
     }
@@ -250,7 +250,7 @@ impl RpcConnBuilder {
     fn default_path_entries() -> Vec<SearchEntry> {
         use SearchLocation::*;
         let dflt = |location| SearchEntry {
-            source: ConnPtSource::Default,
+            source: ConnPtOrigin::Default,
             location,
         };
         let mut result = vec![
@@ -462,7 +462,7 @@ impl SearchEntry {
         s.split(PATH_SEP_CHAR)
             .map(|s| {
                 Ok(SearchEntry {
-                    source: ConnPtSource::EnvVar(varname),
+                    source: ConnPtOrigin::EnvVar(varname),
                     location: SearchLocation::from_env_string_elt(s)?,
                 })
             })
@@ -500,7 +500,7 @@ enum ConnPtIterator<'a> {
     /// Iterator over a directory
     Dir(
         /// Origin of the directory
-        ConnPtSource,
+        ConnPtOrigin,
         /// The directory as configured
         CfgPath,
         /// Iterator over the elements loaded from the directory
