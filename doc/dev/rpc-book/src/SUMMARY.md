@@ -4,7 +4,7 @@
 
 # Introduction
 
-- [A quick guide to Arti RPC](XXXX)
+- [The basic concepts](basic-concepts.md)
 
 # Specifications
 
