@@ -17,6 +17,8 @@ use tor_rpc_connect::{
 
 use crate::{conn::ConnectError, llconn, msgs::response::UnparsedResponse, RpcConn};
 
+use super::ConnectFailure;
+
 /// An error occurred while trying to construct or manipulate an [`RpcConnBuilder`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -43,9 +45,21 @@ pub struct RpcConnBuilder {
     prepend_path_reversed: Vec<SearchEntry>,
 }
 
-/// A single searchable entry in the search path used to find connect points.
+/// A single entry in the search path used to find connect points.
+///
+/// Includes information on where we got this entry
+/// (environment variable, application, or default).
 #[derive(Clone, Debug)]
-enum SearchEntry {
+struct SearchEntry {
+    /// The source telling us this entry.
+    source: ConnPtOrigin,
+    /// The location to search.
+    location: SearchLocation,
+}
+
+/// A single location in the search path used to find connect points.
+#[derive(Clone, Debug)]
+enum SearchLocation {
     /// A literal connect point entry to parse.
     Literal(String),
     /// A path to a connect file, or a directory full of connect files.
@@ -60,6 +74,102 @@ enum SearchEntry {
         /// and relative paths should cause the connect attempt to abort.
         is_default_entry: bool,
     },
+}
+
+/// Diagnostic: An explanation of where we found a connect point,
+/// and why we looked there.
+#[derive(Debug, Clone)]
+pub struct ConnPtDescription {
+    /// What told us to look in this location
+    source: ConnPtOrigin,
+    /// Where we found the connect point.
+    location: ConnPtLocation,
+}
+
+impl std::fmt::Display for ConnPtDescription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "connect point in {}, from {}",
+            &self.location, &self.source
+        )
+    }
+}
+
+/// Diagnostic: a source telling us where to look for a connect point.
+#[derive(Clone, Copy, Debug)]
+enum ConnPtOrigin {
+    /// Found the search entry from an environment variable.
+    EnvVar(&'static str),
+    /// Application manually inserted the search entry.
+    Application,
+    /// The search entry was a built-in default
+    Default,
+}
+
+impl std::fmt::Display for ConnPtOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnPtOrigin::EnvVar(varname) => write!(f, "${}", varname),
+            ConnPtOrigin::Application => write!(f, "application"),
+            ConnPtOrigin::Default => write!(f, "default list"),
+        }
+    }
+}
+
+/// Diagnostic: Where we found a connect point.
+#[derive(Clone, Debug)]
+enum ConnPtLocation {
+    /// The connect point was given as a literal string.
+    Literal(String),
+    /// We expanded a CfgPath to find the location of a connect file on disk.
+    File {
+        /// The path as configured
+        path: CfgPath,
+        /// The expanded path.
+        expanded: Option<PathBuf>,
+    },
+    /// We expanded a CfgPath to find a directory, and found the connect file
+    /// within that directory
+    WithinDir {
+        /// The path of the directory as configured.
+        path: CfgPath,
+        /// The location of the file.
+        file: PathBuf,
+    },
+}
+
+impl std::fmt::Display for ConnPtLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Note: here we use Path::display(), which in other crates we forbid
+        // and use tor_basic_utils::PathExt::display_lossy().
+        //
+        // Here we make an exception, since arti-rpc-client-core is meant to have
+        // minimal dependencies on our other crates.
+        #[allow(clippy::disallowed_methods)]
+        match self {
+            ConnPtLocation::Literal(s) => write!(f, "literal string {:?}", s),
+            ConnPtLocation::File {
+                path,
+                expanded: Some(ex),
+            } => {
+                write!(f, "file {} [{}]", path, ex.display())
+            }
+            ConnPtLocation::File {
+                path,
+                expanded: None,
+            } => {
+                write!(f, "file {} [cannot expand]", path)
+            }
+
+            ConnPtLocation::WithinDir {
+                path,
+                file: expanded,
+            } => {
+                write!(f, "file {} in directory {}", expanded.display(), path)
+            }
+        }
+    }
 }
 
 impl RpcConnBuilder {
@@ -91,7 +201,7 @@ impl RpcConnBuilder {
     ///
     /// This entry must be a literal connect point, expressed as a TOML table.
     pub fn prepend_literal_entry(&mut self, s: String) {
-        self.prepend_path_reversed.push(SearchEntry::Literal(s));
+        self.prepend_internal(SearchLocation::Literal(s));
     }
 
     /// Prepend a single path entry to the search path in this RpcConnBuilder.
@@ -106,7 +216,7 @@ impl RpcConnBuilder {
     /// they will be expanded according to the rules of [`CfgPath`],
     /// using the variables of [`tor_config_path::arti_client_base_resolver`].
     pub fn prepend_path(&mut self, p: String) {
-        self.prepend_path_reversed.push(SearchEntry::Path {
+        self.prepend_internal(SearchLocation::Path {
             path: CfgPath::new(p),
             is_default_entry: false,
         });
@@ -121,30 +231,44 @@ impl RpcConnBuilder {
     ///
     /// Variables in this entry will not be expanded.
     pub fn prepend_literal_path(&mut self, p: PathBuf) {
-        self.prepend_path_reversed.push(SearchEntry::Path {
+        self.prepend_internal(SearchLocation::Path {
             path: CfgPath::new_literal(p),
             is_default_entry: false,
+        });
+    }
+
+    /// Prepend the application-provided [`SearchLocation`] to the path.
+    fn prepend_internal(&mut self, location: SearchLocation) {
+        self.prepend_path_reversed.push(SearchEntry {
+            source: ConnPtOrigin::Application,
+            location,
         });
     }
 
     /// Return the list of default path entries that we search _after_
     /// all user-provided entries.
     fn default_path_entries() -> Vec<SearchEntry> {
-        use SearchEntry::*;
+        use SearchLocation::*;
+        let dflt = |location| SearchEntry {
+            source: ConnPtOrigin::Default,
+            location,
+        };
         let mut result = vec![
-            Path {
+            dflt(Path {
                 path: CfgPath::new("${ARTI_LOCAL_DATA}/rpc/connect.d/".to_owned()),
                 is_default_entry: true,
-            },
+            }),
             #[cfg(unix)]
-            Path {
+            dflt(Path {
                 path: CfgPath::new_literal("/etc/arti-rpc/connect.d/"),
                 is_default_entry: true,
-            },
-            Literal(tor_rpc_connect::USER_DEFAULT_CONNECT_POINT.to_owned()),
+            }),
+            dflt(Literal(
+                tor_rpc_connect::USER_DEFAULT_CONNECT_POINT.to_owned(),
+            )),
         ];
         if let Some(p) = tor_rpc_connect::SYSTEM_DEFAULT_CONNECT_POINT {
-            result.push(Literal(p.to_owned()));
+            result.push(dflt(Literal(p.to_owned())));
         }
         result
     }
@@ -159,28 +283,43 @@ impl RpcConnBuilder {
     }
 
     /// Try to connect to an Arti process as specified by this Builder.
-    pub fn connect(&self) -> Result<RpcConn, ConnectError> {
+    pub fn connect(&self) -> Result<RpcConn, ConnectFailure> {
         let resolver = tor_config_path::arti_client_base_resolver();
         // TODO RPC: Make this configurable.  (Currently, you can override it with
         // the environment variable FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS.)
         let mistrust = Mistrust::default();
         let options = HashMap::new();
-        for entry in self
-            .all_entries()?
+        let all_entries = self.all_entries().map_err(|e| ConnectFailure {
+            declined: vec![],
+            final_desc: None,
+            final_error: e,
+        })?;
+        let mut declined = Vec::new();
+        for (description, load_result) in all_entries
             .into_iter()
             .flat_map(|ent| ent.load(&resolver, &mistrust, &options))
         {
-            match entry.and_then(|e| try_connect(&e, &resolver, &mistrust)) {
+            match load_result.and_then(|e| try_connect(&e, &resolver, &mistrust)) {
                 Ok(conn) => return Ok(conn),
                 Err(e) => match e.client_action() {
-                    ClientErrorAction::Abort => return Err(e),
+                    ClientErrorAction::Abort => {
+                        return Err(ConnectFailure {
+                            declined,
+                            final_desc: Some(description),
+                            final_error: e,
+                        });
+                    }
                     ClientErrorAction::Decline => {
-                        // TODO RPC Log the error.
+                        declined.push((description, e));
                     }
                 },
             }
         }
-        Err(ConnectError::AllAttemptsDeclined)
+        Err(ConnectFailure {
+            declined,
+            final_desc: None,
+            final_error: ConnectError::AllAttemptsDeclined,
+        })
     }
 }
 
@@ -244,65 +383,96 @@ impl SearchEntry {
         mistrust: &Mistrust,
         options: &'a HashMap<PathBuf, LoadOptions>,
     ) -> ConnPtIterator<'a> {
-        match self {
-            SearchEntry::Literal(s) => ConnPtIterator::Singleton(
+        // Create a ConnPtDescription given a connect point's location, so we can describe
+        // an error origin.
+        let descr = |location| ConnPtDescription {
+            source: self.source,
+            location,
+        };
+
+        match &self.location {
+            SearchLocation::Literal(s) => ConnPtIterator::Singleton(
+                descr(ConnPtLocation::Literal(s.clone())),
                 // It's a literal entry, so we just try to parse it.
                 ParsedConnectPoint::from_str(s).map_err(|e| ConnectError::from(LoadError::from(e))),
             ),
-            SearchEntry::Path {
-                path,
+            SearchLocation::Path {
+                path: cfgpath,
                 is_default_entry,
             } => {
+                // Create a ConnPtDescription given an optional expanded path.
+                let descr_file = |expanded| {
+                    descr(ConnPtLocation::File {
+                        path: cfgpath.clone(),
+                        expanded,
+                    })
+                };
+
                 // It's a path, so we need to expand it...
-                let path = match path.path(resolver) {
+                let path = match cfgpath.path(resolver) {
                     Ok(p) => p,
                     Err(e) => {
-                        return ConnPtIterator::Singleton(Err(ConnectError::CannotResolvePath(e)))
+                        return ConnPtIterator::Singleton(
+                            descr_file(None),
+                            Err(ConnectError::CannotResolvePath(e)),
+                        )
                     }
                 };
                 if !path.is_absolute() {
                     if *is_default_entry {
                         return ConnPtIterator::Done;
                     } else {
-                        return ConnPtIterator::Singleton(Err(ConnectError::RelativeConnectFile));
+                        return ConnPtIterator::Singleton(
+                            descr_file(Some(path)),
+                            Err(ConnectError::RelativeConnectFile),
+                        );
                     }
                 }
                 // ..then try to load it as a directory...
                 match ParsedConnectPoint::load_dir(&path, mistrust, options) {
-                    Ok(iter) => ConnPtIterator::Dir(iter),
+                    Ok(iter) => ConnPtIterator::Dir(self.source, cfgpath.clone(), iter),
                     Err(LoadError::NotADirectory) => {
                         // ... and if that fails, try to load it as a file.
-                        ConnPtIterator::Singleton(
-                            ParsedConnectPoint::load_file(&path, mistrust).map_err(|e| e.into()),
-                        )
+                        let loaded =
+                            ParsedConnectPoint::load_file(&path, mistrust).map_err(|e| e.into());
+                        ConnPtIterator::Singleton(descr_file(Some(path)), loaded)
                     }
-                    Err(other) => ConnPtIterator::Singleton(Err(other.into())),
+                    Err(other) => {
+                        ConnPtIterator::Singleton(descr_file(Some(path)), Err(other.into()))
+                    }
                 }
             }
         }
     }
 
     /// Return a list of `SearchEntry` as specified in an environment variable with a given name.
-    fn from_env_var(s: &str) -> Result<Vec<Self>, ConnectError> {
-        match std::env::var(s) {
+    fn from_env_var(varname: &'static str) -> Result<Vec<Self>, ConnectError> {
+        match std::env::var(varname) {
             Ok(s) if s.is_empty() => Ok(vec![]),
-            Ok(s) => Self::from_env_string(&s),
+            Ok(s) => Self::from_env_string(varname, &s),
             Err(std::env::VarError::NotPresent) => Ok(vec![]),
             Err(_) => Err(ConnectError::BadEnvironment), // TODO RPC: Preserve more information?
         }
     }
 
-    /// Return a list of `SearchEntry` as specified in an environment variable with a given name.
-    fn from_env_string(s: &str) -> Result<Vec<Self>, ConnectError> {
+    /// Return a list of `SearchEntry` as specified in the value `s` from an envvar called `varname`.
+    fn from_env_string(varname: &'static str, s: &str) -> Result<Vec<Self>, ConnectError> {
         // TODO RPC: Possibly we should be using std::env::split_paths, if it behaves correctly
         // with our url-escaped entries.
         s.split(PATH_SEP_CHAR)
-            .map(Self::from_env_string_elt)
+            .map(|s| {
+                Ok(SearchEntry {
+                    source: ConnPtOrigin::EnvVar(varname),
+                    location: SearchLocation::from_env_string_elt(s)?,
+                })
+            })
             .collect()
     }
+}
 
-    /// Return a `SearchEntry` from a single entry within an environment variable.
-    fn from_env_string_elt(s: &str) -> Result<Self, ConnectError> {
+impl SearchLocation {
+    /// Return a `SearchLocation` from a single entry within an environment variable.
+    fn from_env_string_elt(s: &str) -> Result<SearchLocation, ConnectError> {
         match s.bytes().next() {
             Some(b'%') | Some(b'[') => Ok(Self::Literal(
                 percent_encoding::percent_decode_str(s)
@@ -328,27 +498,47 @@ const PATH_SEP_CHAR: char = {
 /// Iterator over connect points returned by PathEntry::load().
 enum ConnPtIterator<'a> {
     /// Iterator over a directory
-    Dir(tor_rpc_connect::load::ConnPointIterator<'a>),
+    Dir(
+        /// Origin of the directory
+        ConnPtOrigin,
+        /// The directory as configured
+        CfgPath,
+        /// Iterator over the elements loaded from the directory
+        tor_rpc_connect::load::ConnPointIterator<'a>,
+    ),
     /// A single connect point or error
-    Singleton(Result<ParsedConnectPoint, ConnectError>),
+    Singleton(ConnPtDescription, Result<ParsedConnectPoint, ConnectError>),
     /// An exhausted iterator
     Done,
 }
 
 impl<'a> Iterator for ConnPtIterator<'a> {
     // TODO RPC yield the pathbuf too, for better errors.
-    type Item = Result<ParsedConnectPoint, ConnectError>;
+    type Item = (ConnPtDescription, Result<ParsedConnectPoint, ConnectError>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut t = ConnPtIterator::Done;
         std::mem::swap(self, &mut t);
         match t {
-            ConnPtIterator::Dir(mut iter) => {
-                let next = iter.next().map(|(_path, res)| res.map_err(|e| e.into()));
-                *self = ConnPtIterator::Dir(iter);
-                next
+            ConnPtIterator::Dir(source, cfgpath, mut iter) => {
+                let next = iter
+                    .next()
+                    .map(|(path, res)| (path, res.map_err(|e| e.into())));
+                let Some((expanded, result)) = next else {
+                    *self = ConnPtIterator::Done;
+                    return None;
+                };
+                let description = ConnPtDescription {
+                    source,
+                    location: ConnPtLocation::WithinDir {
+                        path: cfgpath.clone(),
+                        file: expanded,
+                    },
+                };
+                *self = ConnPtIterator::Dir(source, cfgpath, iter);
+                Some((description, result))
             }
-            ConnPtIterator::Singleton(res) => Some(res),
+            ConnPtIterator::Singleton(desc, res) => Some((desc, res)),
             ConnPtIterator::Done => None,
         }
     }

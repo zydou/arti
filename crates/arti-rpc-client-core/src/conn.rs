@@ -20,7 +20,7 @@ mod connimpl;
 mod stream;
 
 use crate::util::Utf8CString;
-pub use builder::{BuilderError, RpcConnBuilder};
+pub use builder::{BuilderError, ConnPtDescription, RpcConnBuilder};
 pub use connimpl::RpcConn;
 use serde::{de::DeserializeOwned, Deserialize};
 pub use stream::StreamError;
@@ -430,6 +430,39 @@ pub enum ProtoError {
     /// We got a response to some internally generated request that wasn't what we expected.
     #[error("{0}")]
     InternalRequestFailed(#[source] UnexpectedReply),
+}
+
+/// A set of errors encountered while trying to connect to the Arti process
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Unable to connect: {final_error}")] // TODO RPC #1650, #1826: better output.
+pub struct ConnectFailure {
+    /// A list of all the declined connect points we encountered, and how they failed.
+    declined: Vec<(builder::ConnPtDescription, ConnectError)>,
+    /// A description of where we found the final error (if it's an abort.)
+    final_desc: Option<builder::ConnPtDescription>,
+    /// The final error explaining why we couldn't connect.
+    ///
+    /// This is either an abort, an AllAttemptsDeclined, or an error that prevented the
+    /// search process from even beginning.
+    #[source]
+    pub(crate) final_error: ConnectError,
+}
+
+impl ConnectFailure {
+    /// If this attempt failed because of a fatal error that made a connect point attempt abort,
+    /// return a description of the origin of that connect point.
+    pub fn fatal_error_origin(&self) -> Option<&builder::ConnPtDescription> {
+        self.final_desc.as_ref()
+    }
+
+    /// For each connect attempt that failed nonfatally, return a description of the
+    /// origin of that connect point, and the error that caused it to fail.
+    pub fn declined_attempt_outcomes(
+        &self,
+    ) -> impl Iterator<Item = (&builder::ConnPtDescription, &ConnectError)> {
+        // Note: this map looks like a no-op, but isn't.
+        self.declined.iter().map(|(a, b)| (a, b))
+    }
 }
 
 /// An error while trying to connect to the Arti process.
