@@ -12,7 +12,7 @@ This guide explains how to configure bridges with Arti but assumes that you alre
 
 ## Configuring bridges
 
-To add a bridge to arti, you can add a section like this to your to your [`arti.toml` configuration](/guides/cli-reference#congiuration-file), or to a file in your `arti.d` configuration directory.
+To add a bridge to arti, you can add a section like this to your to your [`arti.toml` configuration](/guides/cli-reference#configuration-file), or to a file in your `arti.d` configuration directory.
 
 ```
 [bridges]
