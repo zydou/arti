@@ -5,6 +5,7 @@
 # Introduction
 
 - [The basic concepts](basic-concepts.md)
+- [Getting started](getting-started.md)
 
 # Specifications
 
