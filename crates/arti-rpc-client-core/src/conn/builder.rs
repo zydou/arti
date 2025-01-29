@@ -460,22 +460,24 @@ impl SearchEntry {
             .map(|s| {
                 Ok(SearchEntry {
                     source: ConnPtSource::EnvVar(varname),
-                    location: Self::from_env_string_elt(s)?,
+                    location: SearchLocation::from_env_string_elt(s)?,
                 })
             })
             .collect()
     }
+}
 
-    /// Return a `SearchEntry` from a single entry within an environment variable.
+impl SearchLocation {
+    /// Return a `SearchLocation` from a single entry within an environment variable.
     fn from_env_string_elt(s: &str) -> Result<SearchLocation, ConnectError> {
         match s.bytes().next() {
-            Some(b'%') | Some(b'[') => Ok(SearchLocation::Literal(
+            Some(b'%') | Some(b'[') => Ok(Self::Literal(
                 percent_encoding::percent_decode_str(s)
                     .decode_utf8()
                     .map_err(|_| ConnectError::BadEnvironment)?
                     .into_owned(),
             )),
-            _ => Ok(SearchLocation::Path {
+            _ => Ok(Self::Path {
                 path: CfgPath::new(s.to_owned()),
                 is_default_entry: false,
             }),
