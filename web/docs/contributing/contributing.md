@@ -127,7 +127,7 @@ We make notes throughout the document in comments with strings like "FIXME" or "
 
 When we have TODOs that we want to fix prior to the release of a particular feature or milestone, we define a special TODO format. Right now, we have "TODO HS" (or "TODO hs") for things we intend to fix before we release support for Tor Hidden Services (.onion services).
 
-If you want to make a temporary change that should not to be merged, mark it with `XXX`. This will be spotted by the CI, preventing a mistaken merge.
+If you want to make a temporary change that should not to be merged, mark it with <code>XX&#88;X</code>. This will be spotted by the CI, preventing a mistaken merge.
 
 We have provided a list of features that we wish other crates had in a file called [`WANT_FROM_OTHER_CRATES`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/WANT_FROM_OTHER_CRATES), so that you can find a place to contribute even if you don't want to write new code.
 
