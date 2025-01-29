@@ -496,6 +496,7 @@ impl Reactor {
     /// [`CircId`] provided.
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
+    #[allow(clippy::type_complexity)] // TODO
     pub(super) fn new(
         channel: Arc<Channel>,
         channel_id: CircId,
