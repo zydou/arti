@@ -135,7 +135,7 @@ enum ConnPtLocation {
         /// The path of the directory as configured.
         path: CfgPath,
         /// The location of the file.
-        expanded: PathBuf,
+        file: PathBuf,
     },
 }
 
@@ -162,7 +162,10 @@ impl std::fmt::Display for ConnPtLocation {
                 write!(f, "file {} [cannot expand]", path)
             }
 
-            ConnPtLocation::WithinDir { path, expanded } => {
+            ConnPtLocation::WithinDir {
+                path,
+                file: expanded,
+            } => {
                 write!(f, "file {} in directory {}", expanded.display(), path)
             }
         }
@@ -529,7 +532,7 @@ impl<'a> Iterator for ConnPtIterator<'a> {
                     source,
                     location: ConnPtLocation::WithinDir {
                         path: cfgpath.clone(),
-                        expanded,
+                        file: expanded,
                     },
                 };
                 *self = ConnPtIterator::Dir(source, cfgpath, iter);
