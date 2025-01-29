@@ -1,10 +1,10 @@
 # Front matter
 
-- [XXXX]()
+- [About this documentation](README.md)
 
 # Introduction
 
-- [XXXX]()
+- [A quick guide to Arti RPC](XXXX)
 
 # Specifications
 
