@@ -627,6 +627,8 @@ data
   See "Anticipated use of error.data" below for more on how we
   plan to use this field.
 
+<a id="error-code"></a>
+
 code
 : A Number that indicates the error type that occurred according
   to the following table.

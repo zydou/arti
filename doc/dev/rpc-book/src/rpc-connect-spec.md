@@ -96,6 +96,8 @@ Any attempt to use a single entry will "succeed", "decline", or "abort":
   - If an attempt aborts, the search ends immediately with failure.
   - If an attempt declines, the search continues to the next entry.
 
+<a id="default-client-path"></a>
+
 By default, there is a single default built-in search path.
 Developers can extend this path via the RPC client API;
 users can extend this path via environment variables.
