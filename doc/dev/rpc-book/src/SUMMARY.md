@@ -6,6 +6,7 @@
 
 - [The basic concepts](basic-concepts.md)
 - [Getting started](getting-started.md)
+- [JSON encoding and protocol details](messages-and-json.md)
 
 # Specifications
 
