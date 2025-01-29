@@ -4,9 +4,12 @@ Type-based wrappers around our FFI functions.
 These types are responsible for providing a python-like API
 to the Arti RPC library.
 
-TODO RPC: NOTE that these APIs are still in flux;
-we will break them a lot before we declare them stable.
-Don't use them in production.
+Note: As of Jan 2025, this library, and the Arti RPC system,
+are still under active development.
+We believe that they are ready to try out, but it is likely
+that they still have bugs and design flaws that we'll need to fix.
+Please be ready to report issues at
+<https://gitlab.torproject.org/tpo/core/arti>.
 """
 
 # mypy: allow-redefinition
