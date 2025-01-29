@@ -812,13 +812,14 @@ impl Reactor {
                             }));
                         };
                         let msg = hop_map.take_ready_msg(sid).expect("msg disappeared");
+
+                        #[allow(unused)] // unused in non-debug builds
+                        let Some(StreamEntMut::Open(s)) = hop_map.get_mut(sid) else {
+                            panic!("Stream {sid} disappeared");
+                        };
+
                         debug_assert!(
-                            {
-                                let Some(StreamEntMut::Open(s)) = hop_map.get_mut(sid) else {
-                                    panic!("Stream {sid} disappeared");
-                                };
-                                s.can_send(&msg)
-                            },
+                            s.can_send(&msg),
                             "Stream {sid} produced a message it can't send: {msg:?}"
                         );
 
