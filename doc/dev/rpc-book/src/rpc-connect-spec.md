@@ -1,4 +1,4 @@
-# Opening a connection to Arti RPC
+# Connect points: Opening a connection to Arti RPC
 
 ## Scope and status
 

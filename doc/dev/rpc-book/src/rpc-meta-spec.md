@@ -1,4 +1,4 @@
-# Arti RPC protocol design
+# The Arti RPC protocol
 
 ## Preliminaries
 
