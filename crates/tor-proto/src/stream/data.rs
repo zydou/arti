@@ -482,8 +482,8 @@ impl DataStream {
     /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
     /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    pub fn ctrl(&self) -> &Arc<ClientDataStreamCtrl> {
-        &self.ctrl
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(&self.ctrl)
     }
 }
 
@@ -586,8 +586,8 @@ impl DataWriter {
     /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
     /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    pub fn ctrl(&self) -> &Arc<ClientDataStreamCtrl> {
-        &self.ctrl
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(&self.ctrl)
     }
 
     /// Helper for poll_flush() and poll_close(): Performs a flush, then
@@ -773,8 +773,8 @@ impl DataReader {
     /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
     /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    pub fn ctrl(&self) -> &Arc<ClientDataStreamCtrl> {
-        &self.ctrl
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(&self.ctrl)
     }
 }
 

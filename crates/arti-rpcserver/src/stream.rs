@@ -165,7 +165,11 @@ async fn oneshot_client_connect_with_prefs(
 
     // Pick the new state for this object, and install it.
     let new_obj = match &stream {
-        Ok(s) => Inner::Stream(s.ctrl().clone()),
+        Ok(s) => Inner::Stream(
+            s.client_stream_ctrl()
+                .expect("Created a client stream with no ClientDataStreamCtrl!?")
+                .clone(),
+        ),
         Err(_) => Inner::StreamFailed, // TODO RPC: Remember some error information here.
     };
     {
