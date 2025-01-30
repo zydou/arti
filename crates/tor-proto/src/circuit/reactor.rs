@@ -1253,13 +1253,6 @@ impl Reactor {
     /// check whether the channel is ready to receive messages (`self.channel.poll_ready`), and
     /// ideally use this to implement backpressure (such that you do not read from other sources
     /// that would send here while you know you're unable to forward the messages on).
-    ///
-    /// # Important
-    ///
-    /// Do not call this from a context where the chan_sender lock is held!
-    /// Doing so will result in an internal error, crashing the reactor,
-    /// because this function attempts to acquire the chan_sender lock immediately,
-    /// using [`AsyncMutex::try_lock`].
     async fn send_msg(&mut self, msg: AnyChanMsg) -> Result<()> {
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
         // Note: this future is always `Ready`, so await won't block.
