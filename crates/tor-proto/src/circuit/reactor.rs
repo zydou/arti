@@ -568,12 +568,7 @@ impl Reactor {
             return Ok(());
         }
 
-        // Note: We're cloning the mutex to use it in the select below
-        // (it helps avoid borrowing self as mutable more than once at a time).
-        // There should be no other clone, so locking should succeed immediately.
         let mut ready_streams = self.ready_streams_iterator();
-        // TODO: it would be nice if we could avoid cloning here
-        let time_prov = self.chan_sender.as_inner().time_provider().clone();
 
         // Note: We don't actually use the returned SinkSendable,
         // and continue writing to the SometimesUboundedSink :(
@@ -620,7 +615,7 @@ impl Reactor {
             Some(SelectResult::HandleControl(ctrl)) => {
                 self.handle_control(ctrl)?.map(RunOnceCmd::Single)
             }
-            Some(SelectResult::HandleCell(cell)) => self.handle_cell(cell, &time_prov)?,
+            Some(SelectResult::HandleCell(cell)) => self.handle_cell(cell)?,
         };
 
         if let Some(cmd) = cmd {
@@ -1697,15 +1692,11 @@ impl Reactor {
     /// or rejected; a few get delivered to circuits.
     ///
     /// Return `CellStatus::CleanShutdown` if we should exit.
-    fn handle_cell(
-        &mut self,
-        cell: ClientCircChanMsg,
-        time_prov: &tor_rtcompat::DynTimeProvider,
-    ) -> Result<Option<RunOnceCmd>> {
+    fn handle_cell(&mut self, cell: ClientCircChanMsg) -> Result<Option<RunOnceCmd>> {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
         match cell {
-            Relay(r) => self.handle_relay_cell(r, time_prov),
+            Relay(r) => self.handle_relay_cell(r),
             Destroy(d) => {
                 let reason = d.reason();
                 debug!(
@@ -1759,11 +1750,7 @@ impl Reactor {
     }
 
     /// React to a Relay or RelayEarly cell.
-    fn handle_relay_cell(
-        &mut self,
-        cell: Relay,
-        time_prov: &tor_rtcompat::DynTimeProvider,
-    ) -> Result<Option<RunOnceCmd>> {
+    fn handle_relay_cell(&mut self, cell: Relay) -> Result<Option<RunOnceCmd>> {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
@@ -1811,14 +1798,14 @@ impl Reactor {
 
         let (mut msgs, incomplete) = decode_res.into_parts();
         while let Some(msg) = msgs.next() {
-            let msg_status = self.handle_relay_msg(hopnum, c_t_w, msg, time_prov.clone())?;
+            let msg_status = self.handle_relay_msg(hopnum, c_t_w, msg)?;
 
             match msg_status {
                 None => continue,
                 Some(msg @ RunOnceCmdInner::CleanShutdown) => {
-                    for msg in msgs {
+                    for m in msgs {
                         debug!(
-                            "{id}: Ignoring relay msg received after triggering shutdown: {msg:?}",
+                            "{id}: Ignoring relay msg received after triggering shutdown: {m:?}",
                             id = self.unique_id
                         );
                     }
@@ -1847,7 +1834,6 @@ impl Reactor {
         hopnum: HopNum,
         cell_counts_toward_windows: bool,
         msg: UnparsedRelayMsg,
-        time_prov: tor_rtcompat::DynTimeProvider,
     ) -> Result<Option<RunOnceCmdInner>> {
         // If this msg wants/refuses to have a Stream ID, does it
         // have/not have one?
@@ -1884,7 +1870,7 @@ impl Reactor {
                 // response
                 hop_map.ending_msg_received(streamid)?;
                 drop(hop_map);
-                return self.handle_incoming_stream_request(msg, streamid, hopnum, time_prov);
+                return self.handle_incoming_stream_request(msg, streamid, hopnum);
             }
             Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
                 // We sent an end but maybe the other side hasn't heard.
@@ -1903,7 +1889,7 @@ impl Reactor {
             ) =>
             {
                 drop(hop_map);
-                return self.handle_incoming_stream_request(msg, streamid, hopnum, time_prov);
+                return self.handle_incoming_stream_request(msg, streamid, hopnum);
             }
             _ => {
                 // No stream wants this message, or ever did.
@@ -1966,7 +1952,6 @@ impl Reactor {
         msg: UnparsedRelayMsg,
         stream_id: StreamId,
         hop_num: HopNum,
-        time_prov: tor_rtcompat::DynTimeProvider,
     ) -> Result<Option<RunOnceCmdInner>> {
         use syncview::ClientCircSyncView;
         use tor_cell::relaycell::msg::EndReason;
@@ -2055,10 +2040,14 @@ impl Reactor {
 
         let memquota = StreamAccount::new(&self.memquota)?;
 
-        let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
-            .new_mq(time_prov.clone(), memquota.as_raw_account())?;
-        let (msg_tx, msg_rx) = MpscSpec::new(super::CIRCUIT_BUFFER_SIZE)
-            .new_mq(time_prov, memquota.as_raw_account())?;
+        let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER).new_mq(
+            self.chan_sender.as_inner().time_provider().clone(),
+            memquota.as_raw_account(),
+        )?;
+        let (msg_tx, msg_rx) = MpscSpec::new(super::CIRCUIT_BUFFER_SIZE).new_mq(
+            self.chan_sender.as_inner().time_provider().clone(),
+            memquota.as_raw_account(),
+        )?;
 
         let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
         let cmd_checker = DataCmdChecker::new_connected();
