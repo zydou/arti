@@ -60,7 +60,7 @@ const config = {
         title: '',
         logo: {
           alt: '',
-          src: 'https://tpo.pages.torproject.net/core/arti/arti_logo.png',
+          src: 'https://tpo.pages.torproject.net/core/arti/old/arti_logo.png',
         },
         items: [
           {
