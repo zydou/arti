@@ -130,8 +130,7 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
     ///
     /// You must `.await` this, but it will never block.
     /// (Its future is always `Ready`.)
-    #[allow(dead_code)] // TODO #1397 consider removing this then if it remains unused
-    async fn send_unbounded(mut self: Pin<&mut Self>, item: T) -> Result<(), S::Error> {
+    pub(crate) async fn send_unbounded(mut self: Pin<&mut Self>, item: T) -> Result<(), S::Error> {
         // Waker invariant: this is just a wrapper around `pollish_send_unbounded`
         let mut item = Some(item);
         future::poll_fn(move |cx| {

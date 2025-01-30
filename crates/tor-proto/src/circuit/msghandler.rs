@@ -10,8 +10,6 @@ use tor_cell::relaycell::{AnyRelayMsgOuter, RelayMsg, UnparsedRelayMsg};
 use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 
-use std::task::Context;
-
 use super::{ConversationInHandler, MetaCellDisposition};
 
 /// An object that checks whether incoming control messages are acceptable on a
@@ -42,7 +40,7 @@ pub trait MsgHandler {
     /// If this function returns an error, the circuit will be closed.
     fn handle_msg(
         &mut self,
-        conversation: ConversationInHandler<'_, '_, '_>,
+        conversation: ConversationInHandler<'_>,
         msg: AnyRelayMsg,
     ) -> Result<MetaCellDisposition>;
 }
@@ -70,7 +68,6 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
 
     fn handle_msg(
         &mut self,
-        cx: &mut Context<'_>,
         msg: UnparsedRelayMsg,
         reactor: &mut super::reactor::Reactor,
     ) -> Result<MetaCellDisposition> {
@@ -87,7 +84,6 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
         }
         let conversation = ConversationInHandler {
             reactor,
-            cx,
             hop_num: self.hop,
         };
         self.handler.handle_msg(conversation, msg)

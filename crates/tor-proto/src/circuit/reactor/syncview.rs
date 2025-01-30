@@ -29,7 +29,7 @@ impl<'a> ClientCircSyncView<'a> {
     pub fn n_open_streams(&self) -> usize {
         self.hops
             .iter()
-            .map(|hop| hop.map.n_open_streams())
+            .map(|hop| hop.map.lock().expect("lock poisoned").n_open_streams())
             // No need to worry about overflow; max streams per hop is U16_MAX
             .sum()
     }
