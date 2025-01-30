@@ -9,9 +9,10 @@ This project is built with Docusaurus, a modern static site generator.
 To run this project locally, you need to have [Node.js](https://nodejs.org/en/download/) installed on your machine. Once you have Node.js installed, clone the repository and execute the following commands.
 
 ```bash
-cd arti-doc-project-2023
-npm install
-npm start
+$ git clone https://gitlab.torproject.org/tpo/core/arti.git
+$ cd arti/web
+$ yarn install
+$ yarn run build
 ```
 
 These commands navigate into the project directory, install the docusaurus dependencies, and starts the website in a browser on the port `localhost:3000`.
