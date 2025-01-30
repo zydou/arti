@@ -475,6 +475,10 @@ impl DataStream {
     ///
     /// TODO RPC: Perhaps we should deprecate this in favor of `stream.ctrl().circuit()`.
     #[cfg(feature = "experimental-api")]
+    #[deprecated(
+        since = "0.27.0",
+        note = "Use client_stream_ctrl()?.circuit()? instead."
+    )]
     pub fn circuit(&self) -> &ClientCirc {
         &self.circuit
     }
