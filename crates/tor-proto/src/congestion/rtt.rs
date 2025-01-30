@@ -121,12 +121,12 @@ impl RoundtripTimeEstimator {
             self.clock_stalled.store(true, Ordering::SeqCst);
             true
         } else if self.can_crosscheck_with_current_estimate(in_slow_start) {
-            /// Discrepency ratio of a new RTT value that we allow against the current RTT in order
+            /// Discrepancy ratio of a new RTT value that we allow against the current RTT in order
             /// to declare if the clock has stalled or not. This value is taken from proposal 324
             /// section 2.1.1 CLOCK_HEURISTICS and has the same name as in C-tor.
-            const DELTA_DISCREPENCY_RATIO_MAX: u32 = 5000;
+            const DELTA_DISCREPANCY_RATIO_MAX: u32 = 5000;
             // If we have enough data, check the sanity of our measurement against our EWMA value.
-            if raw_rtt > self.ewma_rtt * DELTA_DISCREPENCY_RATIO_MAX {
+            if raw_rtt > self.ewma_rtt * DELTA_DISCREPANCY_RATIO_MAX {
                 // The clock significantly jumped forward.
                 //
                 // Don't update the global cache, though, since this is triggerable over the
@@ -134,7 +134,7 @@ impl RoundtripTimeEstimator {
                 //
                 // FIXME(eta): We should probably log something here?
                 true
-            } else if self.ewma_rtt > raw_rtt * DELTA_DISCREPENCY_RATIO_MAX {
+            } else if self.ewma_rtt > raw_rtt * DELTA_DISCREPANCY_RATIO_MAX {
                 // The clock might have stalled. We can't really make a decision just off this
                 // one measurement, though, so we'll use the stored stall value.
                 self.clock_stalled.load(Ordering::SeqCst)

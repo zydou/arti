@@ -30,7 +30,7 @@ pub enum BuilderError {
 
 /// Information about how to construct a connection to an Arti instance.
 //
-// TODO RPC: Once we have our formats more settled, add a link to a pice of documentation
+// TODO RPC: Once we have our formats more settled, add a link to a piece of documentation
 // explaining what a connect point is and how to make one.
 #[derive(Default, Clone, Debug)]
 pub struct RpcConnBuilder {
@@ -186,7 +186,7 @@ impl RpcConnBuilder {
     ///   - [`tor_rpc_connect::USER_DEFAULT_CONNECT_POINT`]
     ///   - [`tor_rpc_connect::SYSTEM_DEFAULT_CONNECT_POINT`] if present
     //
-    // TODO RPC: Once we have our formats more settled, add a link to a pice of documentation
+    // TODO RPC: Once we have our formats more settled, add a link to a piece of documentation
     // explaining what a connect point is and how to make one.
     pub fn new() -> Self {
         Self::default()

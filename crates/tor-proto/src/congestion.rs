@@ -15,7 +15,7 @@
 //! [`can_send`](CongestionControl::can_send) before else we'll risk leaving the circuit in a
 //! protocol violation state.
 //!
-//! Futhermore, as we receive and emit SENDMEs, it also has entry point for those two events in
+//! Furthermore, as we receive and emit SENDMEs, it also has entry point for those two events in
 //! order to update the state.
 
 #[cfg(any(test, feature = "testing"))]

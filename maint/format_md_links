@@ -28,7 +28,7 @@ from collections.abc import Generator
 # is enough to ensure that we don't get false positives.)
 LINK_RE = re.compile(
     r"""
-     # Negative lookbehind assertion: Not preceeded by a nonspace.
+     # Negative lookbehind assertion: Not preceded by a nonspace.
      (?<!\S)
      (\[?)
          ( \! \d+ | \# \d+ | [\da-fA-F]{7,40} )

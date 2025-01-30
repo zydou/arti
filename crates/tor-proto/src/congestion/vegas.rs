@@ -158,7 +158,7 @@ impl CongestionControlAlgorithm for Vegas {
         // we'll estimate a BDP value to bootstrap.
         self.bdp.update(&self.cwnd, rtt, &signals);
 
-        // Evalute if we changed state on the blocked chan. This is done in the BDP update function
+        // Evaluate if we changed state on the blocked chan. This is done in the BDP update function
         // in C-tor. Instead, we do it now after the update of the BDP value.
         if rtt.is_ready() {
             if signals.channel_blocked {
@@ -179,7 +179,7 @@ impl CongestionControlAlgorithm for Vegas {
 
         // Only run the algorithm if the RTT estimator is ready or we have a blocked channel.
         if !rtt.is_ready() && !self.is_blocked_on_chan {
-            // The inflight value can never be below a sendme_inc because everytime a cell is sent,
+            // The inflight value can never be below a sendme_inc because every time a cell is sent,
             // inflight is incremented and we only end up decrementing if we receive a valid
             // authenticated SENDME which is always after the sendme_inc value that we get that.
             debug_assert!(self.num_inflight >= self.cwnd.sendme_inc());

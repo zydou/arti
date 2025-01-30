@@ -1504,7 +1504,7 @@ mod test {
     #[traced_test]
     fn test_reset_expiry() {
         // Tests that things that should update the instance mtime do so,
-        // and that things that shouldhn't, don't.
+        // and that things that shouldn't, don't.
         //
         // For each test case, we:
         //   1. create a new subdirectory of our temp dir, making a new StateDirectory.
@@ -1609,7 +1609,7 @@ mod test {
 
         // Run a check with a prepared instance state
         //
-        // The preprepared instance:
+        // The prepared instance:
         //  - has an existing storage at key S_EXISTS
         //  - has an existing empty raw subdir at key R_EXISTS
         //  - has been acquired, so `acts` gets an handle

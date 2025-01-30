@@ -210,7 +210,7 @@ pub struct NetParameters {
     /// of gap allowed between inflight and cwnd, to still declare the cwnd full.
     pub cc_cwnd_full_gap: BoundedInt32<0, { i16::MAX as i32 }> = (4444)
         from "cc_cwnd_full_gap",
-    /// Vegas only. This paramter defines a low watermark in percent.
+    /// Vegas only. This parameter defines a low watermark in percent.
     pub cc_cwnd_full_minpct: Percentage<BoundedInt32<0, 100>> = (25)
         from "cc_cwnd_full_minpct",
     /// Vegas only. This parameter governs how often a cwnd must be full.

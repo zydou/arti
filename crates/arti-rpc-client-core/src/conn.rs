@@ -223,7 +223,7 @@ impl RpcConn {
     /// Use this method in cases where it's reasonable for Arti to sometimes return an RPC error:
     /// in other words, where it's not necessarily a programming error or version mismatch.
     ///
-    /// Don't use this for user-generated requests: it will misreport unexpeted replies
+    /// Don't use this for user-generated requests: it will misreport unexpected replies
     /// as internal errors.
     pub(crate) fn execute_internal<T: DeserializeOwned>(
         &self,

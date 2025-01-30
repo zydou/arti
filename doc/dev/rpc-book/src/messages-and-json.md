@@ -110,7 +110,7 @@ Every kind of response (result, error, or update) has an `id` field
 that exactly matches the `id` of the request it is in reply to.
 
 > This is not exactly true:
-> If an application sends Arti a request so misformed
+> If an application sends Arti a request so malformed
 > that Arti cannot determine the request's `id`,
 > then Arti will respond with an error
 > containing no `id` field,

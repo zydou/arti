@@ -79,7 +79,7 @@ pub struct VegasParams {
     /// of gap allowed between inflight and cwnd, to still declare the cwnd full.
     #[getter(as_copy)]
     cwnd_full_gap: u32,
-    /// This paramter defines a low watermark in percent.
+    /// This parameter defines a low watermark in percent.
     cwnd_full_min_pct: Percentage<u32>,
     /// This parameter governs how often a cwnd must be full.
     #[getter(as_copy)]

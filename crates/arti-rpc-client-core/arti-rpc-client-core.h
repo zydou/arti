@@ -615,7 +615,7 @@ ArtiRpcStatus arti_rpc_handle_wait(const ArtiRpcHandle *handle,
 /**
  * Release storage held by an `ArtiRpcHandle`.
  *
- * NOTE: This does not cancel the underlying request if it is still runnning.
+ * NOTE: This does not cancel the underlying request if it is still running.
  * To cancel a request, use `arti_rpc_conn_cancel_handle`.
  */
 void arti_rpc_handle_free(ArtiRpcHandle *handle);

@@ -26,7 +26,7 @@ use crate::RpcSession;
 ///
 /// This object is single-use: once a SOCKS request has referred to it,
 /// it cannot be used for any other SOCKS request.
-/// (Otherwise, it could not be useable interchangeably with the `DataStream` it creates.)
+/// (Otherwise, it could not be usable interchangeably with the `DataStream` it creates.)
 ///
 /// The ObjectID for this object can be used as the target of a SOCKS request.
 #[derive(Deftly)]

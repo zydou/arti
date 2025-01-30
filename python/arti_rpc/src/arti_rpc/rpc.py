@@ -729,7 +729,7 @@ class ArtiRequestHandle(_RpcBase):
         """
         Attempt to cancel this request.
 
-        This can fail if the request has alrady stopped,
+        This can fail if the request has already stopped,
         or if it stops before we have a chance to cancel it.
         """
         error = POINTER(arti_rpc.ffi.ArtiRpcError)()
