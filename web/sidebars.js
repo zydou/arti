@@ -74,6 +74,11 @@ const sidebars = {
       href: 'https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html'
     },
     {
+      type: 'link',
+      label: 'Arti Coverage Reports',
+      href: 'https://tpo.pages.torproject.net/core/arti/coverage/'
+    },
+    {
       type: 'category',
       label: 'Resources',
       items: [
