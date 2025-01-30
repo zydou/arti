@@ -292,7 +292,7 @@ impl MockExecutor {
     /// if it's desired to correlate with the debug output from `MockExecutor`.
     /// Most callers will want to ignore it.
     ///
-    /// This method is infalliable.  (The `MockExecutor` cannot be shut down.)
+    /// This method is infallible.  (The `MockExecutor` cannot be shut down.)
     pub fn spawn_identified(
         &self,
         desc: impl Display,

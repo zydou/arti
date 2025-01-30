@@ -446,7 +446,7 @@ pub unsafe extern "C" fn arti_rpc_handle_wait(
 
 /// Release storage held by an `ArtiRpcHandle`.
 ///
-/// NOTE: This does not cancel the underlying request if it is still runnning.
+/// NOTE: This does not cancel the underlying request if it is still running.
 /// To cancel a request, use `arti_rpc_conn_cancel_handle`.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]

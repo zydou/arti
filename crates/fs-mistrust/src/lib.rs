@@ -564,7 +564,7 @@ impl<'a> Verifier<'a> {
             error_iterator.collect()
         } else {
             let next = error_iterator.next();
-            drop(error_iterator); // so that "canonical" is no loner borrowed.
+            drop(error_iterator); // so that "canonical" is no longer borrowed.
             next
         };
 

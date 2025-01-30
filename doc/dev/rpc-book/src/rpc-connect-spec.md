@@ -281,7 +281,7 @@ the corresponding entry *aborts* the entire search process.
  - The connect file explicitly tells us to abort.
  - The specified address for connect file,
    or a file that the connect point mentions,
-   contains a misformed shell expansion string, like `unix:${foo`.
+   contains a malformed shell expansion string, like `unix:${foo`.
  - A filename within a connect point is not absolute.
 
 ## Interpreting connect points.

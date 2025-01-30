@@ -110,7 +110,7 @@ impl<'a> Reader<'a> {
     /// make sure to use [`Reader::from_slice`] instead of this method!
     /// This method is only for the outermost reader.
     ///
-    /// Failure to follow this warning may result in misformed messages
+    /// Failure to follow this warning may result in malformed messages
     /// being incorrectly reported as `Incomplete`.
     //
     // TODO this name is quite clumsy!
