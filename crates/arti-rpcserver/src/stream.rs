@@ -151,9 +151,24 @@ async fn oneshot_client_connect_with_prefs(
         .take_connector(Inner::Launching)
         .map_err(|e| Box::new(e) as _)?;
 
+    // Internally, we're going to tell tor-proto to make an optimistic stream.
+    // The only effect here is that the DataStream will be returned immediately by
+    // our invoke_special_method call, which would otherwise call `wait_for_connection`
+    // if the stream was _not_ originally optimistic.
+    //
+    // We use `was_optimistic` to remember whether the prefs was _originally_
+    // configured to give an optimistic stream,
+    // so that we know whether _we_ should do the `wait_for_connection``.
+    //
+    // From the POV of the SOCKS proxy code that is calling this function,
+    // it will still receive the requested optimistic or non-optimistic behavior,
+    // since the `wait_for_connection` call will still happen (or not happen)
+    // as requested, causing _this_ function to possibly wait.
+    //
+    // The only observable impact here is that this object
+    // will immediately transition to its new state,
+    // so that other RPC calls will see a `DataStreamCtrl` object.
     let was_optimistic = method.prefs.is_optimistic();
-    // We want this to be treated internally as an "optimistic" connection,
-    // so that inner connect_with_prefs() will return ASAP.
     method.prefs.optimistic();
 
     // Now, launch the connection.  Since we marked it as optimistic,
