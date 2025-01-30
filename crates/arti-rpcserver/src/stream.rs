@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tor_error::into_internal;
-use tor_proto::stream::DataStreamCtrl;
+use tor_proto::stream::ClientDataStreamCtrl;
 use tor_rpcbase::{self as rpc, templates::*};
 
 use crate::RpcSession;
@@ -58,8 +58,8 @@ enum Inner {
     /// Stream constructed; may or may not be connected.
     ///
     /// A stream does not exit this state.  Even if the stream is closed or fails,
-    /// its `DataStreamCtrl` remains until it is dropped.
-    Stream(Arc<DataStreamCtrl>),
+    /// its `ClientDataStreamCtrl` remains until it is dropped.
+    Stream(Arc<ClientDataStreamCtrl>),
 
     /// Stream was used for a resolve or resolve_ptr request; there is no underlying stream.
     ///
@@ -120,9 +120,9 @@ impl OneshotClient {
         }
     }
 
-    /// Return the `DataStreamCtrl` for this stream, if it has one.
+    /// Return the `ClientDataStreamCtrl` for this stream, if it has one.
     #[allow(dead_code)]
-    fn get_ctrl(&self) -> Option<Arc<DataStreamCtrl>> {
+    fn get_ctrl(&self) -> Option<Arc<ClientDataStreamCtrl>> {
         let inner = self.inner.lock().expect("poisoned lock");
         if let Inner::Stream(s) = &*inner {
             Some(s.clone())
