@@ -306,6 +306,33 @@ impl CircHop {
         }
     }
 
+    /// Start a stream. Creates an entry in the stream map with the given channels, and sends the
+    /// `message` to the provided hop.
+    fn begin_stream(
+        &mut self,
+        message: AnyRelayMsg,
+        sender: StreamMpscSender<UnparsedRelayMsg>,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
+        cmd_checker: AnyCmdChecker,
+    ) -> Result<(SendRelayCell, StreamId)> {
+        let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
+        let r = self.map.lock().expect("lock poisoned").add_ent(
+            sender,
+            rx,
+            send_window,
+            cmd_checker,
+        )?;
+        let cell = AnyRelayMsgOuter::new(Some(r), message);
+        Ok((
+            SendRelayCell {
+                hop: self.hop_num,
+                early: false,
+                cell,
+            },
+            r,
+        ))
+    }
+
     /// Close the stream associated with `id` because the stream was
     /// dropped.
     ///
@@ -1418,42 +1445,6 @@ impl Reactor {
         }
 
         Ok(msg)
-    }
-
-    /// Start a stream. Creates an entry in the stream map with the given channels, and sends the
-    /// `message` to the provided hop.
-    fn begin_stream(
-        &mut self,
-        hopnum: HopNum,
-        message: AnyRelayMsg,
-        sender: StreamMpscSender<UnparsedRelayMsg>,
-        rx: StreamMpscReceiver<AnyRelayMsg>,
-        cmd_checker: AnyCmdChecker,
-        done: ReactorResultChannel<StreamId>,
-    ) -> RunOnceCmdInner {
-        let res = (|| {
-            let hop = self
-                .hop_mut(hopnum)
-                .ok_or_else(|| Error::from(internal!("No such hop {}", hopnum.display())))?;
-            let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            let r = hop.map.lock().expect("lock poisoned").add_ent(
-                sender,
-                rx,
-                send_window,
-                cmd_checker,
-            )?;
-            let cell = AnyRelayMsgOuter::new(Some(r), message);
-            Ok((
-                SendRelayCell {
-                    hop: hopnum,
-                    early: false,
-                    cell,
-                },
-                r,
-            ))
-        })();
-
-        RunOnceCmdInner::BeginStream { cell: res, done }
     }
 
     /// Helper: process a cell on a channel.  Most cells get ignored

@@ -13,19 +13,20 @@ use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1R
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::stream::AnyCmdChecker;
-use crate::Result;
+use crate::{Error, Result};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0, StreamId,
     UnparsedRelayMsg,
 };
+use tor_error::internal;
 use tracing::trace;
 #[cfg(feature = "hs-service")]
 use {super::StreamReqSender, crate::stream::IncomingStreamRequestFilter};
 
 #[cfg(test)]
-use {crate::congestion::sendme::CircTag, crate::Error, tor_error::internal};
+use crate::congestion::sendme::CircTag;
 
 use oneshot_fused_workaround as oneshot;
 
@@ -311,15 +312,14 @@ impl<'a> ControlHandler<'a> {
                 done,
                 cmd_checker,
             } => {
-                // Infallible here, failure handled in run_once
-                Ok(Some(self.reactor.begin_stream(
-                    hop_num,
-                    message,
-                    sender,
-                    rx,
-                    cmd_checker,
-                    done,
-                )))
+                let Some(hop) = self.reactor.hop_mut(hop_num) else {
+                    return Err(Error::from(internal!(
+                        "{}: Attempting to send a BEGIN cell to an unknown hop {hop_num:?}",
+                        self.reactor.unique_id,
+                    )));
+                };
+                let cell = hop.begin_stream(message, sender, rx, cmd_checker);
+                Ok(Some(RunOnceCmdInner::BeginStream { cell, done }))
             }
             #[cfg(feature = "hs-service")]
             CtrlMsg::ClosePendingStream {
