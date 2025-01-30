@@ -743,18 +743,21 @@ pages:
   script:
     # Install tools needed.
     - maint/common/apt-install git
+    # Export report as website, while keeping the existing public page.
+    - git fetch
+    # Checkout the old website.
+    - git checkout origin/pages -- public
+    - mv public old-website
     # Build Docusaurus website.
     - cd web
     - yarn install
     - yarn run build
     - cd ..
     - mv web/build public
-    # Export report as website, while keeping the existing public page.
-    - git fetch
-    # Checkout the old website to /old of the webroot.
-    - git checkout origin/pages -- public/old
     # Add Coverage from previous job to the /coverage of the webroot.
     - mv coverage public/coverage
+    # Make the old site available under /old of the webroot.
+    - mv old-website public/old
   artifacts:
     paths:
       - public
