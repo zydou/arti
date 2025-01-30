@@ -108,10 +108,7 @@ use reactor::MetaCellHandler;
 
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub use {
-    msghandler::MsgHandler,
-    reactor::{ConversationInHandler, MetaCellDisposition},
-};
+pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
 
 /// MPSC queue relating to a stream (either inbound or outbound), sender
 pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
@@ -415,8 +412,6 @@ impl ClientCirc {
     ///  3. In your [`MsgHandler`], process the incoming messages.
     ///     You may respond by
     ///     sending additional messages
-    ///     (using the [`ConversationInHandler`] provided to `MsgHandler::handle_msg`,
-    ///     or, outside the handler using the `Conversation`)
     ///     When the protocol exchange is finished,
     ///     `MsgHandler::handle_msg` should return
     ///     [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
@@ -976,9 +971,6 @@ impl ClientCirc {
 ///
 /// This is obtained from [`ClientCirc::start_conversation`],
 /// and used to send messages to the last hop relay.
-///
-/// See also [`ConversationInHandler`], which is a type used for the same purpose
-/// but available only inside [`MsgHandler::handle_msg`].
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub struct Conversation<'r>(&'r ClientCirc);
@@ -1358,7 +1350,6 @@ mod test {
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
     use hex_literal::hex;
-    use reactor::SendRelayCell;
     use std::collections::{HashMap, VecDeque};
     use std::fmt::Debug;
     use std::time::Duration;
@@ -1696,37 +1687,6 @@ mod test {
     // next inbound message seems to come from hop next_msg_from
     async fn newcirc<R: Runtime>(rt: &R, chan: Arc<Channel>) -> (Arc<ClientCirc>, CircuitRxSender) {
         newcirc_ext(rt, chan, 2.into()).await
-    }
-
-    // Try sending a cell via send_relay_cell
-    #[traced_test]
-    #[test]
-    fn send_simple() {
-        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, mut rx, _sink) = working_fake_channel(&rt);
-            let (circ, _send) = newcirc(&rt, chan).await;
-            let begindir = AnyRelayMsgOuter::new(None, AnyRelayMsg::BeginDir(Default::default()));
-            circ.control
-                .unbounded_send(CtrlMsg::SendRelayCell(SendRelayCell {
-                    hop: 2.into(),
-                    early: false,
-                    cell: begindir,
-                }))
-                .unwrap();
-
-            // Here's what we tried to put on the TLS channel.  Note that
-            // we're using dummy relay crypto for testing convenience.
-            let rcvd = rx.next().await.unwrap();
-            assert_eq!(rcvd.circid(), Some(circ.peek_circid()));
-            let m = match rcvd.into_circid_and_msg().1 {
-                AnyChanMsg::Relay(r) => {
-                    AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
-                        .unwrap()
-                }
-                other => panic!("{:?}", other),
-            };
-            assert!(matches!(m.msg(), AnyRelayMsg::BeginDir(_)));
-        });
     }
 
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {

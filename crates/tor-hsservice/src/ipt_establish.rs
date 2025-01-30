@@ -848,11 +848,7 @@ struct IptMsgHandler {
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {
-    fn handle_msg(
-        &mut self,
-        _conversation: ConversationInHandler<'_>,
-        any_msg: AnyRelayMsg,
-    ) -> tor_proto::Result<MetaCellDisposition> {
+    fn handle_msg(&mut self, any_msg: AnyRelayMsg) -> tor_proto::Result<MetaCellDisposition> {
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             if let Some(tx) = self.established_tx.take() {
                 let _ = tx.send(Err(IptError::BadMessage(format!(

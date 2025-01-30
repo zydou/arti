@@ -204,8 +204,6 @@ pub(crate) enum CtrlMsg {
         hop: HopNum,
         done: ReactorResultChannel<(u32, Vec<CircTag>)>,
     },
-    ///  Send a raw relay cell with send_relay_cell().
-    SendRelayCell(SendRelayCell),
 }
 
 // A control message handler object. Keep a reference to the Reactor tying its lifetime to it.
@@ -385,10 +383,6 @@ impl<'a> ControlHandler<'a> {
                     done: Some(sender),
                 }))
             }
-            CtrlMsg::SendRelayCell(msg) => Ok(Some(RunOnceCmdInner::Send {
-                cell: msg,
-                done: None,
-            })),
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsgAndInstallHandler {
                 msg,

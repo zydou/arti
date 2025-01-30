@@ -296,23 +296,6 @@ impl CircHop {
     }
 }
 
-/// Handle to use during an ongoing protocol exchange with a circuit's last hop
-///
-/// This is passed to `MsgHandler::handle_msg`.
-///
-/// See also [`ConversationInHandler`], which is a type used for the same purpose
-/// but available to the caller of `start_conversation`
-//
-// This is the subset of the arguments to MetaCellHandler::handle_msg
-// which are needed to be able to call send_relay_cell.
-#[cfg(feature = "send-control-msg")]
-pub struct ConversationInHandler<'r> {
-    /// Reactor
-    pub(super) reactor: &'r mut Reactor,
-    /// Hop
-    pub(super) hop_num: HopNum,
-}
-
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
 /// progress.
 ///
@@ -398,8 +381,6 @@ pub struct Reactor {
     // and into a separate CmdMsg enum, and change this channel to receive
     // CmdMsgs instead of ().
     shutdown: mpsc::UnboundedReceiver<()>,
-    /// Sender for control messages for this reactor, sent by `ConversationInHandler` objects.
-    control_tx: mpsc::UnboundedSender<CtrlMsg>,
     /// The channel this circuit is attached to.
     channel: Arc<Channel>,
     /// Sender object used to actually send cells.
@@ -522,7 +503,6 @@ impl Reactor {
         let reactor = Reactor {
             control: control_rx,
             shutdown: shutdown_rx,
-            control_tx: control_tx.clone(),
             reactor_closed_tx,
             channel,
             chan_sender,
@@ -1929,41 +1909,6 @@ fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
     }
 
     Ok(streamid)
-}
-
-#[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-impl ConversationInHandler<'_> {
-    /// Send a protocol message as part of an ad-hoc exchange
-    ///
-    /// This is the within-[`MsgHandler`](super::MsgHandler)
-    /// counterpart to [`Conversation`](super::Conversation).
-    ///
-    /// It differs only in that the `send_message` function here
-    /// takes `&mut self`.
-    //
-    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
-    //   tor-proto interface.
-    pub async fn send_message(&mut self, msg: AnyRelayMsg) -> Result<()> {
-        let msg = tor_cell::relaycell::AnyRelayMsgOuter::new(None, msg);
-
-        let msg = SendRelayCell {
-            hop: self.hop_num,
-            early: false,
-            cell: msg,
-        };
-
-        // Note: in principle, we could call reactor.send_relay_cell() from here.
-        // However, centralizing the send_relay_cell() calls
-        // will (hopefully) enable us later down the line to impose e.g. bandwidth limits
-        // more easily.
-        Ok(self
-            .reactor
-            .control_tx
-            .send(CtrlMsg::SendRelayCell(msg))
-            .await
-            .map_err(|_| internal!("reactor control rx closed?"))?)
-    }
 }
 
 impl Drop for Reactor {

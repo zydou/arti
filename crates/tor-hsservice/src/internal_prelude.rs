@@ -107,7 +107,7 @@ pub(crate) use {
     tor_persist::state_dir::{
         ContainsInstanceStateGuard as _, InstanceRawSubdir, LockFileGuard, StateDirectory,
     },
-    tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition},
+    tor_proto::circuit::{ClientCirc, MetaCellDisposition},
     tor_proto::stream::DataStream,
     tor_rtcompat::SleepProvider,
     tor_rtcompat::{Runtime, SleepProviderExt as _},
