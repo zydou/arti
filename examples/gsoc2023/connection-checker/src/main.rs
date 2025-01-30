@@ -95,6 +95,7 @@ async fn build_circuit(tor_client: &TorClient<PreferredRuntime>, remote: &str) -
     info!("Attempting to build circuit...");
     match tor_client.connect(remote).await {
         Ok(stream) => {
+            #[allow(deprecated)]
             let circ = stream.circuit().path_ref();
             for node in circ.iter() {
                 println!("Node: {}", node);

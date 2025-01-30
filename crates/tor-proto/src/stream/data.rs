@@ -128,14 +128,14 @@ pub struct DataStream {
     /// DataWriterState, but for now we can't actually access that state all the time,
     /// since it might be inside a boxed future.
     ///
-    /// TODO: This is also redundant with the reference in `DataStreamCtrl`.
+    /// TODO: This is also redundant with the reference in `ClientDataStreamCtrl`.
     #[cfg(feature = "experimental-api")]
     circuit: Arc<ClientCirc>,
 
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<DataStreamCtrl>,
+    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
 }
 
 /// An object used to control and monitor a data stream.
@@ -148,7 +148,7 @@ pub struct DataStream {
 /// work correctly.
 #[cfg(feature = "stream-ctrl")]
 #[derive(Debug)]
-pub struct DataStreamCtrl {
+pub struct ClientDataStreamCtrl {
     /// The circuit to which this stream is attached.
     ///
     /// Note that the stream's reader and writer halves each contain a `StreamTarget`,
@@ -223,7 +223,7 @@ pub struct DataWriter {
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<DataStreamCtrl>,
+    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
 }
 
 /// The read half of a [`DataStream`], implementing [`futures::io::AsyncRead`].
@@ -254,13 +254,13 @@ pub struct DataReader {
     ///
     /// Exists to keep the account alive
     // If we liked, we could make this conditional on not(cfg(feature = "stream-ctrl"))
-    // since, DataStreamCtrl contains a StreamAccount clone too.  But that seems fragile.
+    // since, ClientDataStreamCtrl contains a StreamAccount clone too.  But that seems fragile.
     _memquota: StreamAccount,
 
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<DataStreamCtrl>,
+    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
 }
 
 /// Shared status flags for tracking the status of as `DataStream`.
@@ -329,22 +329,19 @@ restricted_msg! {
 }
 
 // TODO RPC: Should we also implement this trait for everything that holds a
-// DataStreamCtrl?
+// ClientDataStreamCtrl?
 #[cfg(feature = "stream-ctrl")]
-impl super::ctrl::ClientStreamCtrl for DataStreamCtrl {
+impl super::ctrl::ClientStreamCtrl for ClientDataStreamCtrl {
     fn circuit(&self) -> Option<Arc<ClientCirc>> {
         self.circuit.upgrade()
     }
 }
 
 #[cfg(feature = "stream-ctrl")]
-impl DataStreamCtrl {
-    /// Return true if the underlying stream is open. (That is, if it has
+impl ClientDataStreamCtrl {
+    /// Return true if the underlying stream is connected. (That is, if it has
     /// received a `CONNECTED` message, and has not been closed.)
-    //
-    // TODO RPC: Maybe this method belongs in ClientStreamCtrl; maybe others do
-    // as well!  We need to talk about moving them around.
-    pub fn is_open(&self) -> bool {
+    pub fn is_connected(&self) -> bool {
         let s = self.status.lock().expect("poisoned lock");
         s.received_connected && !(s.sent_end || s.received_end || s.received_err)
     }
@@ -393,7 +390,7 @@ impl DataStream {
             Arc::new(Mutex::new(data_stream_status))
         };
         #[cfg(feature = "stream-ctrl")]
-        let ctrl = Arc::new(DataStreamCtrl {
+        let ctrl = Arc::new(ClientDataStreamCtrl {
             circuit: Arc::downgrade(target.circuit()),
             status: status.clone(),
             _memquota: memquota.clone(),
@@ -478,15 +475,19 @@ impl DataStream {
     ///
     /// TODO RPC: Perhaps we should deprecate this in favor of `stream.ctrl().circuit()`.
     #[cfg(feature = "experimental-api")]
+    #[deprecated(
+        since = "0.27.0",
+        note = "Use client_stream_ctrl()?.circuit()? instead."
+    )]
     pub fn circuit(&self) -> &ClientCirc {
         &self.circuit
     }
 
-    /// Return a [`DataStreamCtrl`] object that can be used to monitor and
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
     /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    pub fn ctrl(&self) -> &Arc<DataStreamCtrl> {
-        &self.ctrl
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(&self.ctrl)
     }
 }
 
@@ -586,11 +587,11 @@ struct DataWriterImpl {
 }
 
 impl DataWriter {
-    /// Return a [`DataStreamCtrl`] object that can be used to monitor and
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
     /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    pub fn ctrl(&self) -> &Arc<DataStreamCtrl> {
-        &self.ctrl
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(&self.ctrl)
     }
 
     /// Helper for poll_flush() and poll_close(): Performs a flush, then
@@ -773,11 +774,11 @@ impl DataWriterImpl {
 }
 
 impl DataReader {
-    /// Return a [`DataStreamCtrl`] object that can be used to monitor and
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
     /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    pub fn ctrl(&self) -> &Arc<DataStreamCtrl> {
-        &self.ctrl
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(&self.ctrl)
     }
 }
 

@@ -40,6 +40,6 @@ pub use tor_cell::relaycell::msg::IpVersionPreference;
 
 #[cfg(feature = "stream-ctrl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "stream-ctrl")))]
-pub use {ctrl::ClientStreamCtrl, data::DataStreamCtrl};
+pub use {ctrl::ClientStreamCtrl, data::ClientDataStreamCtrl};
 
 pub(crate) use flow_control::StreamSendFlowControl;
