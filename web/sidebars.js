@@ -60,11 +60,6 @@ const sidebars = {
           type: 'category',
           label: 'For Developers',
           items: ['contributing/for-developers/project-status', 'contributing/for-developers/architecture', 'contributing/for-developers/config-options','contributing/for-developers/crates', 'contributing/for-developers/exposing-api', 'contributing/for-developers/testing', 'contributing/for-developers/logging']
-        },
-        {
-          type: 'link',
-          label: 'Public Development Meetings',
-          href: 'https://pad.riseup.net/p/arti-meeting-pad-keep'
         }
       ]
     },
