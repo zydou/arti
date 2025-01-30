@@ -34,9 +34,9 @@
  * This library _does not_ do the work of creating well-formed requests,
  * or interpreting the responses.
  *
- * (Note: Despite this library being exposed via a set of C functions,
+ * Despite this library being exposed via a set of C functions,
  * we don't actually expect you to use it from C.  It's probably a better
- * idea to wrap it in a higher-level language and then use it from there.)
+ * idea to wrap it in a higher-level language and then use it from there.
  *
  * The `arti_rpc` python package (available from the Arti git repository)
  * is one example of such a wrapper.
@@ -47,8 +47,13 @@
  *
  * First, you will need to have Arti running, and configured to use
  * rpc.  This will eventually be the default behavior, but for now,
- * make sure that arti was built using the `rpc` feature, and that
+ * make sure that arti was built using the `rpc` cargo feature, and that
  * the configuration option `rpc.enable` is set to true.
+ *
+ * (For more detailed instructions on how to do this,
+ * and for examples code,
+ * see the Arti RPC book.)
+ * (TODO Add link once there is one.)
  *
  * Your connection to Arti is represented by an `ArtiRpcConn *`.
  * To get one:

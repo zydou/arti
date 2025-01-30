@@ -43,7 +43,7 @@ header = """\
  * This library _does not_ do the work of creating well-formed requests,
  * or interpreting the responses.
  *
- * (Note: Despite this library being exposed via a set of C functions,
+ * Despite this library being exposed via a set of C functions,
  * we don't actually expect you to use it from C.  It's probably a better
  * idea to wrap it in a higher-level language and then use it from there.
  *
