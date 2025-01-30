@@ -755,7 +755,7 @@ pages:
     - cd ..
     - mv web/build public
     # Add Coverage from previous job to the /coverage of the webroot.
-    - mv coverage public/coverage
+    - mv coverage public
     # Make the old site available under /old of the webroot.
     - mv old-website public/old
   artifacts:
