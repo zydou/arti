@@ -63,7 +63,6 @@ use {
 };
 
 use futures::channel::mpsc;
-use futures::lock::Mutex as AsyncMutex;
 use futures::StreamExt;
 use futures::{select_biased, FutureExt as _, SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
@@ -406,7 +405,7 @@ pub struct Reactor {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    chan_sender: Arc<AsyncMutex<SometimesUnboundedSink<AnyChanCell, ChannelSender>>>,
+    chan_sender: SometimesUnboundedSink<AnyChanCell, ChannelSender>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
     /// finally dropped.
     ///
@@ -517,9 +516,7 @@ impl Reactor {
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
-        let chan_sender = Arc::new(AsyncMutex::new(SometimesUnboundedSink::new(
-            channel.sender(),
-        )));
+        let chan_sender = SometimesUnboundedSink::new(channel.sender());
 
         let reactor = Reactor {
             control: control_rx,
@@ -574,14 +571,9 @@ impl Reactor {
         // Note: We're cloning the mutex to use it in the select below
         // (it helps avoid borrowing self as mutable more than once at a time).
         // There should be no other clone, so locking should succeed immediately.
-        let chan_sender = Arc::clone(&self.chan_sender);
-        let mut chan_sender = chan_sender
-            .try_lock()
-            .ok_or_else(|| internal!("chan_sender mutex held by another task?!"))
-            .map_err(|e| ReactorError::Err(e.into()))?;
         let mut ready_streams = self.ready_streams_iterator();
         // TODO: it would be nice if we could avoid cloning here
-        let time_prov = chan_sender.as_inner().time_provider().clone();
+        let time_prov = self.chan_sender.as_inner().time_provider().clone();
 
         // Note: We don't actually use the returned SinkSendable,
         // and continue writing to the SometimesUboundedSink :(
@@ -590,7 +582,7 @@ impl Reactor {
                     let () = unwrap_or_shutdown!(self, res, "shutdown channel drop")?;
                     return self.handle_shutdown().map(|_| ());
                 },
-                res = chan_sender
+                res = self.chan_sender
                     .prepare_send_from(async {
                         select_biased! {
                             // Check whether we've got a control message pending.
@@ -631,22 +623,17 @@ impl Reactor {
             Some(SelectResult::HandleCell(cell)) => self.handle_cell(cell, &time_prov)?,
         };
 
-        let sendable = &mut chan_sender;
         if let Some(cmd) = cmd {
-            self.handle_run_once_cmd(cmd, sendable).await?;
+            self.handle_run_once_cmd(cmd).await?;
         }
 
         Ok(())
     }
 
     /// Handle a [`RunOnceCmd`].
-    async fn handle_run_once_cmd(
-        &mut self,
-        cmd: RunOnceCmd,
-        sendable: &mut SometimesUnboundedSink<AnyChanCell, ChannelSender>,
-    ) -> StdResult<(), ReactorError> {
+    async fn handle_run_once_cmd(&mut self, cmd: RunOnceCmd) -> StdResult<(), ReactorError> {
         match cmd {
-            RunOnceCmd::Single(cmd) => return self.handle_single_run_once_cmd(cmd, sendable).await,
+            RunOnceCmd::Single(cmd) => return self.handle_single_run_once_cmd(cmd).await,
             RunOnceCmd::Multiple(cmds) => {
                 // While we know `sendable` is ready to accept *one* cell,
                 // we can't be certain it will be able to accept *all* of the cells
@@ -654,7 +641,7 @@ impl Reactor {
                 // in its underlying SometimesUnboundedSink! That is OK, because
                 // RunOnceCmd::Multiple is only used for handling packed cells.
                 for cmd in cmds {
-                    self.handle_single_run_once_cmd(cmd, sendable).await?;
+                    self.handle_single_run_once_cmd(cmd).await?;
                 }
             }
         }
@@ -666,12 +653,11 @@ impl Reactor {
     async fn handle_single_run_once_cmd(
         &mut self,
         cmd: RunOnceCmdInner,
-        sendable: &mut SometimesUnboundedSink<AnyChanCell, ChannelSender>,
     ) -> StdResult<(), ReactorError> {
         match cmd {
             RunOnceCmdInner::Send { cell, done } => {
                 // TODO: check the cc window
-                let res = self.send_relay_cell(sendable, cell).await;
+                let res = self.send_relay_cell(cell).await;
                 if let Some(done) = done {
                     // Don't care if the receiver goes away
                     let _ = done.send(res.clone());
@@ -685,7 +671,7 @@ impl Reactor {
 
                 match cell {
                     Ok(Some(cell)) => {
-                        let outcome = self.send_relay_cell(sendable, cell).await;
+                        let outcome = self.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone());
                         outcome?;
@@ -704,7 +690,7 @@ impl Reactor {
             RunOnceCmdInner::BeginStream { cell, done } => {
                 match cell {
                     Ok((cell, stream_id)) => {
-                        let outcome = self.send_relay_cell(sendable, cell).await;
+                        let outcome = self.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone().map(|_| stream_id));
                         outcome?;
@@ -726,7 +712,7 @@ impl Reactor {
                 let res: Result<()> = async {
                     let res = self.close_stream(hop_num, sid, behav, reason)?;
                     if let Some(cell) = res {
-                        self.send_relay_cell(sendable, cell).await?;
+                        self.send_relay_cell(cell).await?;
                     }
 
                     Ok(())
@@ -741,7 +727,7 @@ impl Reactor {
             RunOnceCmdInner::HandleSendMe { hop, sendme } => {
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
-                let signals = Self::congestion_signals(sendable).await;
+                let signals = self.congestion_signals().await;
                 self.handle_sendme(hop, sendme, signals)?;
             }
             RunOnceCmdInner::CleanShutdown => {
@@ -839,13 +825,11 @@ impl Reactor {
     /// Return the congestion signals for this reactor. This is used by congestion control module.
     ///
     /// Note: This is only async because we need a Context to check the sink for readiness.
-    async fn congestion_signals(
-        chan_sender: &mut SometimesUnboundedSink<AnyChanCell, ChannelSender>,
-    ) -> CongestionSignals {
+    async fn congestion_signals(&mut self) -> CongestionSignals {
         futures::future::poll_fn(|cx| -> Poll<CongestionSignals> {
             Poll::Ready(CongestionSignals::new(
-                chan_sender.poll_ready_unpin_bool(cx).unwrap_or(false),
-                chan_sender.n_queued(),
+                self.chan_sender.poll_ready_unpin_bool(cx).unwrap_or(false),
+                self.chan_sender.n_queued(),
             ))
         })
         .await
@@ -919,7 +903,7 @@ impl Reactor {
 
         // TODO: maybe we don't need to flush here?
         // (we could let run_once() handle all the flushing)
-        self.chan_sender.lock().await.flush().await?;
+        self.chan_sender.flush().await?;
 
         Ok(())
     }
@@ -1282,13 +1266,9 @@ impl Reactor {
     /// because this function attempts to acquire the chan_sender lock immediately,
     /// using [`AsyncMutex::try_lock`].
     async fn send_msg(&mut self, msg: AnyChanMsg) -> Result<()> {
-        let mut chan_sender = self
-            .chan_sender
-            .try_lock()
-            .ok_or_else(|| internal!("chan_sender mutex held by another task?!"))?;
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
         // Note: this future is always `Ready`, so await won't block.
-        Pin::new(&mut *chan_sender).send_unbounded(cell).await?;
+        Pin::new(&mut self.chan_sender).send_unbounded(cell).await?;
         Ok(())
     }
 
@@ -1322,11 +1302,7 @@ impl Reactor {
     /// SENDME window, an error is returned instead.
     ///
     /// Does not check whether the cell is well-formed or reasonable.
-    async fn send_relay_cell(
-        &mut self,
-        sendable: &mut SometimesUnboundedSink<AnyChanCell, ChannelSender>,
-        msg: SendRelayCell,
-    ) -> Result<()> {
+    async fn send_relay_cell(&mut self, msg: SendRelayCell) -> Result<()> {
         let SendRelayCell {
             hop,
             early,
@@ -1365,7 +1341,7 @@ impl Reactor {
         }
 
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
-        Pin::new(sendable).send_unbounded(cell).await?;
+        Pin::new(&mut self.chan_sender).send_unbounded(cell).await?;
 
         Ok(())
     }
