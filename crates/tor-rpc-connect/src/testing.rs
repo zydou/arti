@@ -1,6 +1,9 @@
 //! Helper functionality for writing tests within the `tor-rpc-connect` crate.
 
-use std::{os::unix::fs::PermissionsExt, path::PathBuf};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+use std::path::PathBuf;
 
 use fs_mistrust::Mistrust;
 use tempfile::TempDir;
