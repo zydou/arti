@@ -203,10 +203,6 @@ pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
 /// the proxy code sends a SOCKS reply indicating success,
 /// and links the returned `DataStream` with the application's incoming socket,
 /// copying data back and forth.
-/// (The `DataStream`` need not actually be connected at this point;
-/// an in-progress connection will work fine.
-/// Tor calls such streams, which report readiness before receiving a CONNECTED,
-/// "optimistic".)
 ///
 /// If instead this method returns an error,
 /// the error is either used to generate a SOCKS error code,

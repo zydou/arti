@@ -147,7 +147,7 @@ struct AuthInterpretation {
 /// the [`ConnectWithPrefs`](arti_client::rpc::ConnectWithPrefs) special method.
 ///
 /// Right now, there are two general kinds of objects that implement this method:
-/// client-like objects, and stream-like objects.
+/// client-like objects, and one-shot clients.
 ///
 /// A client-like object is either a `TorClient` or an RPC `Session`.
 /// It knows about and it is capable of opening multiple data streams.
@@ -158,19 +158,14 @@ struct AuthInterpretation {
 /// An application gets a TorClient by asking the session for one,
 /// or for asking a TorClient to give you a new variant clone of itself.
 ///
-/// A stream-like object is an `arti_rpcserver::stream::RpcDataStream`.
-/// It is created from a client-like object, but represents a single data stream.
+/// A one-shot client is an `arti_rpcserver::stream::OneshotClient`.
+/// It is created from a client-like object, but can only be used for a single data stream.
 /// When created, it it not yet connected or trying to connect to anywhere:
 /// the act of using it as the target Object for a SOCKS connection causes
 /// it to begin connecting.
-/// (You can also think of this as a single-use client,
-/// which once used, becomes interchangeable with the DataStream it created.)
-/// (TODO: We may wish to change this vocabulary.
-/// We may wish to call this a "stream handle", for instance?)
 ///
-/// An application gets an RpcDataStream by calling `arti:new_stream_handle
-/// on any client-like object.  Currently, this always creates an RpcDataStream
-/// that makes optimistic connections; See #1583.
+/// An application gets a `OneShotClient` by calling `arti:new_oneshot_client`
+/// on any client-like object.
 ///
 /// ## The SOCKS protocol
 ///
