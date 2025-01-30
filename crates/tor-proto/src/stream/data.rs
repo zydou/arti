@@ -339,12 +339,9 @@ impl super::ctrl::ClientStreamCtrl for ClientDataStreamCtrl {
 
 #[cfg(feature = "stream-ctrl")]
 impl ClientDataStreamCtrl {
-    /// Return true if the underlying stream is open. (That is, if it has
+    /// Return true if the underlying stream is connected. (That is, if it has
     /// received a `CONNECTED` message, and has not been closed.)
-    //
-    // TODO RPC: Maybe this method belongs in ClientStreamCtrl; maybe others do
-    // as well!  We need to talk about moving them around.
-    pub fn is_open(&self) -> bool {
+    pub fn is_connected(&self) -> bool {
         let s = self.status.lock().expect("poisoned lock");
         s.received_connected && !(s.sent_end || s.received_end || s.received_err)
     }
