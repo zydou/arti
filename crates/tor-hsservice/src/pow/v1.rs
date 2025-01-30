@@ -5,21 +5,23 @@
 //! * <https://spec.torproject.org/hspow-spec/v1-equix.html>
 
 use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
+    collections::{BinaryHeap, HashMap},
+    sync::{Arc, Mutex, RwLock},
+    task::Waker,
     time::{Duration, SystemTime},
 };
 
 use arrayvec::ArrayVec;
-use futures::channel::mpsc;
 use futures::task::SpawnExt;
-use futures::SinkExt;
+use futures::{channel::mpsc, Stream};
+use futures::{SinkExt, StreamExt};
 use rand::{CryptoRng, RngCore};
 use tor_basic_utils::RngExt as _;
+use tor_cell::relaycell::hs::pow::{v1::ProofOfWorkV1, ProofOfWork};
 use tor_checkable::timed::TimerangeBound;
 use tor_hscrypto::{
     pk::HsBlindIdKey,
-    pow::v1::{Effort, Instance, Seed, SeedHead, Verifier},
+    pow::v1::{Effort, Instance, Seed, SeedHead, Solution, SolutionErrorV1, Verifier},
     time::TimePeriod,
 };
 use tor_keymgr::KeyMgr;
@@ -27,7 +29,7 @@ use tor_netdoc::doc::hsdesc::pow::{v1::PowParamsV1, PowParams};
 use tor_persist::hsnickname::HsNickname;
 use tor_rtcompat::Runtime;
 
-use crate::{BlindIdPublicKeySpecifier, StartupError};
+use crate::{rend_handshake, BlindIdPublicKeySpecifier, RendRequest, StartupError};
 
 use super::NewPowManager;
 
@@ -40,7 +42,6 @@ struct State<R> {
     ///
     /// The [`ArrayVec`] contains the current and previous seed, and the [`SystemTime`] is when the
     /// current seed will expire.
-    // TODO POW: where do we get rid of old TPs?
     seeds: HashMap<TimePeriod, SeedsForTimePeriod>,
 
     /// Verifiers for all the seeds that exist in `seeds`.
@@ -75,7 +76,23 @@ struct SeedsForTimePeriod {
 
     /// When the current seed will expire.
     next_expiration_time: SystemTime,
-    // TODO POW: Maybe we should keep the HsBlindId for this TP here?
+}
+
+#[derive(Debug)]
+#[allow(unused)]
+/// A PoW solve was invalid.
+///
+/// While this contains the reason for the failure, we probably just want to use that for
+/// debugging, we shouldn't make any logical decisions based on what the particular error was.
+pub(crate) enum PowSolveError {
+    /// Seed head was not recognized, it may be expired.
+    InvalidSeedHead,
+    /// We have already seen a solve with this nonce
+    NonceAlreadyUsed,
+    /// The bytes given as a solution do not form a valid Equi-X puzzle
+    InvalidEquixSolution(SolutionErrorV1),
+    /// The solution given was invalid.
+    InvalidSolve(tor_hscrypto::pow::Error),
 }
 
 /// How soon before a seed's expiration time we should rotate it and publish a new seed.
@@ -108,7 +125,6 @@ impl<R: Runtime> PowManager<R> {
     /// Create a new [`PowManager`].
     #[allow(clippy::new_ret_no_self)]
     pub(crate) fn new(runtime: R, nickname: HsNickname, keymgr: Arc<KeyMgr>) -> NewPowManager<R> {
-        let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
         let (publisher_update_tx, publisher_update_rx) =
             mpsc::channel(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
@@ -119,9 +135,12 @@ impl<R: Runtime> PowManager<R> {
             publisher_update_tx,
             verifiers: HashMap::new(),
             suggested_effort: Effort::zero(),
-            runtime,
+            runtime: runtime.clone(),
         };
         let pow_manager = Arc::new(PowManager(RwLock::new(state)));
+
+        let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
+        let rend_req_rx = RendRequestReceiver::new(runtime, pow_manager.clone(), rend_req_rx);
 
         NewPowManager {
             pow_manager,
@@ -181,25 +200,22 @@ impl<R: Runtime> PowManager<R> {
 
     /// Make a ner [`Verifier`] for a given [`TimePeriod`] and [`Seed`].
     ///
+    /// If a key is not available for this TP, returns None.
+    ///
     /// This takes individual agruments instead of `&self` to avoid getting into any trouble with
     /// locking.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the [HsBlindIdKey``] for the requested [`TimePeriod`] is not in the [`KeyMgr`].
     fn make_verifier(
         keymgr: &Arc<KeyMgr>,
         nickname: HsNickname,
         time_period: TimePeriod,
         seed: Seed,
-    ) -> Verifier {
+    ) -> Option<Verifier> {
         let blind_id_spec = BlindIdPublicKeySpecifier::new(nickname, time_period);
         let blind_id_key = keymgr
             .get::<HsBlindIdKey>(&blind_id_spec)
-            .expect("KeyMgr error!")
-            .expect("Don't have HS blind ID!");
+            .expect("KeyMgr error!")?;
         let instance = Instance::new(blind_id_key.id(), seed);
-        Verifier::new(instance)
+        Some(Verifier::new(instance))
     }
 
     /// Calculate a time when we want to rotate a seed, slightly before it expires, in order to
@@ -231,6 +247,7 @@ impl<R: Runtime> PowManager<R> {
 
         let mut update_times = vec![];
         let mut updated_tps = vec![];
+        let mut expired_tps = vec![];
 
         let mut publisher_update_tx = {
             // TODO POW: get rng from the right place...
@@ -247,8 +264,20 @@ impl<R: Runtime> PowManager<R> {
 
                 if rotation_time <= SystemTime::now() {
                     let seed = Seed::new(&mut rng, None);
-                    let verifier =
-                        Self::make_verifier(&keymgr, nickname.clone(), *time_period, seed.clone());
+                    let verifier = match Self::make_verifier(
+                        &keymgr,
+                        nickname.clone(),
+                        *time_period,
+                        seed.clone(),
+                    ) {
+                        Some(verifier) => verifier,
+                        None => {
+                            // We use not having a key for a given TP as the signal that we should
+                            // stop keeping track of seeds for that TP.
+                            expired_tps.push(*time_period);
+                            continue;
+                        }
+                    };
 
                     let expired_seed = if info.seeds.is_full() {
                         info.seeds.pop_at(0)
@@ -270,6 +299,14 @@ impl<R: Runtime> PowManager<R> {
                     updated_tps.push(*time_period);
 
                     tracing::debug!(time_period = ?time_period, "Rotated PoW seed");
+                }
+            }
+
+            for time_period in expired_tps {
+                if let Some(seeds) = state.seeds.remove(&time_period) {
+                    for seed in seeds.seeds {
+                        state.verifiers.remove(&seed.head());
+                    }
                 }
             }
 
@@ -341,7 +378,8 @@ impl<R: Runtime> PowManager<R> {
                     state.nickname.clone(),
                     time_period,
                     seed.clone(),
-                );
+                )
+                .expect("HsBlindIdKey not found for TimePeriod");
                 state.verifiers.insert(seed.head(), verifier);
 
                 (seed, next_expiration_time)
@@ -352,5 +390,183 @@ impl<R: Runtime> PowManager<R> {
             TimerangeBound::new(seed, ..expiration),
             suggested_effort,
         ))
+    }
+
+    /// Verify a PoW solve.
+    fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError> {
+        let state = self.0.read().expect("Lock poisoned");
+        let verifier = match state.verifiers.get(&solve.seed_head()) {
+            Some(verifier) => verifier,
+            None => return Err(PowSolveError::InvalidSeedHead),
+        };
+
+        // TODO POW: replay check!!!
+
+        let solution = match Solution::try_from_bytes(
+            solve.nonce().clone(),
+            solve.effort(),
+            solve.seed_head(),
+            solve.solution(),
+        ) {
+            Ok(solution) => solution,
+            Err(err) => return Err(PowSolveError::InvalidEquixSolution(err)),
+        };
+
+        match verifier.check(&solution) {
+            Ok(()) => Ok(()),
+            Err(err) => Err(PowSolveError::InvalidSolve(err)),
+        }
+    }
+}
+
+/// Wrapper around [`RendRequest`] that implements [`std::cmp::Ord`] to sort by [`Effort`].
+#[derive(Debug)]
+struct RendRequestOrdByEffort {
+    /// The underlying request.
+    request: RendRequest,
+    /// The proof-of-work options, if given.
+    pow: Option<ProofOfWorkV1>,
+}
+
+impl RendRequestOrdByEffort {
+    /// Create a new [`RendRequestOrdByEffort`].
+    fn new(request: RendRequest) -> Result<Self, rend_handshake::IntroRequestError> {
+        let pow = match request
+            .intro_request()?
+            .intro_payload()
+            .proof_of_work_extension()
+            .cloned()
+        {
+            Some(ProofOfWork::V1(pow)) => Some(pow),
+            None | Some(_) => None,
+        };
+
+        Ok(Self { request, pow })
+    }
+}
+
+impl Ord for RendRequestOrdByEffort {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
+        let other_effort = other
+            .pow
+            .as_ref()
+            .map_or(Effort::zero(), |pow| pow.effort());
+        self_effort.cmp(&other_effort)
+    }
+}
+
+impl PartialOrd for RendRequestOrdByEffort {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for RendRequestOrdByEffort {
+    fn eq(&self, other: &Self) -> bool {
+        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
+        let other_effort = other
+            .pow
+            .as_ref()
+            .map_or(Effort::zero(), |pow| pow.effort());
+        self_effort == other_effort
+    }
+}
+
+impl Eq for RendRequestOrdByEffort {}
+
+/// Implements [`Stream`] for incoming [`RendRequest`]s, using a priority queue system to dequeue
+/// high-[`Effort`] requests first.
+///
+/// This is implemented on top of a [`mpsc::Receiver`]. There is a thread that dequeues from the
+/// [`mpsc::Receiver`], checks the PoW solve, and if it is correct, adds it to a [`BinaryHeap`],
+/// which the [`Stream`] implementation reads from.
+///
+/// This is not particularly optimized — queueing and dequeuing use a [`Mutex`], so there may be
+/// some contention there. It's possible there may be some fancy lockless (or more optimized)
+/// priorty queue that we could use, but we should properly benchmark things before trying to make
+/// a optimization like that.
+#[derive(Clone)]
+pub(crate) struct RendRequestReceiver(Arc<Mutex<RendRequestReceiverInner>>);
+
+/// Inner implementation for [`RendRequestReceiver`].
+struct RendRequestReceiverInner {
+    /// Internal priority queue of requests.
+    queue: BinaryHeap<RendRequestOrdByEffort>,
+
+    /// Waker to inform async readers when there is a new message on the queue.
+    waker: Option<Waker>,
+}
+
+impl RendRequestReceiver {
+    /// Create a new [`RendRequestReceiver`].
+    fn new<R: Runtime>(
+        runtime: R,
+        pow_manager: Arc<PowManager<R>>,
+        inner_receiver: mpsc::Receiver<RendRequest>,
+    ) -> Self {
+        let receiver = RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
+            queue: BinaryHeap::new(),
+            waker: None,
+        })));
+        let receiver_clone = receiver.clone();
+        let accept_thread = runtime.clone().spawn_blocking(move || {
+            receiver_clone.accept_loop(&runtime, &pow_manager, inner_receiver);
+        });
+        drop(accept_thread);
+        receiver
+    }
+
+    /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW sovles, and
+    /// enqueue onto the priority queue.
+    fn accept_loop<R: Runtime>(
+        self,
+        runtime: &R,
+        pow_manager: &Arc<PowManager<R>>,
+        mut receiver: mpsc::Receiver<RendRequest>,
+    ) {
+        loop {
+            let rend_request = runtime
+                .reenter_block_on(receiver.next())
+                .expect("Other side of RendRequest queue hung up");
+            let rend_request = match RendRequestOrdByEffort::new(rend_request) {
+                Ok(rend_request) => rend_request,
+                Err(err) => {
+                    tracing::trace!(?err, "Error processing RendRequest");
+                    continue;
+                }
+            };
+
+            if let Some(ref pow) = rend_request.pow {
+                if let Err(err) = pow_manager.check_solve(pow) {
+                    tracing::debug!(?err, "PoW verification failed");
+                    continue;
+                }
+            }
+
+            let mut inner = self.0.lock().expect("Lock poisened");
+            inner.queue.push(rend_request);
+            if let Some(waker) = &inner.waker {
+                waker.wake_by_ref();
+            }
+        }
+    }
+}
+
+impl Stream for RendRequestReceiver {
+    type Item = RendRequest;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let mut inner = self.get_mut().0.lock().expect("Lock poisened");
+        match inner.queue.pop() {
+            Some(item) => std::task::Poll::Ready(Some(item.request)),
+            None => {
+                inner.waker = Some(cx.waker().clone());
+                std::task::Poll::Pending
+            }
+        }
     }
 }
