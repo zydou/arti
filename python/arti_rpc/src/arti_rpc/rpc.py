@@ -347,12 +347,6 @@ class ArtiRpcConn(_RpcBase):
         not directly to your destination.
         Therefore, passing it to functions like `getpeername()`
         may give unexpected results.
-
-        If `want_stream_id` is set
-        (or if Arti is configured to return streams optimistically),
-        the data stream may still be connecting
-        when this request returns.
-        (TODO RPC: Document how to wait for it)
         """
         hostname: bytes = hostname.encode("utf-8")
         isolation: bytes = isolation.encode("utf-8")

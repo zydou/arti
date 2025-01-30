@@ -169,8 +169,7 @@ struct AuthInterpretation {
 /// We may wish to call this a "stream handle", for instance?)
 ///
 /// An application gets an RpcDataStream by calling `arti:new_stream_handle
-/// on any client-like object.  Currently, this always creates an RpcDataStream
-/// that makes optimistic connections; See #1583.
+/// on any client-like object
 ///
 /// ## The SOCKS protocol
 ///

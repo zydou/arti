@@ -561,12 +561,6 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
 /// Therefore, passing it to functions like `getpeername()`
 /// may give unexpected results.
 ///
-/// If `stream_id_out` is provided
-/// (or if Arti is configured to return streams optimistically),
-/// the data stream may still be connecting
-/// when this request returns.
-/// (TODO RPC: Document how to wait for it)
-///
 /// If `stream_id_out` is provided,
 /// the caller is responsible for releasing the ObjectId;
 /// Arti will not deallocate it even when the stream is closed.
