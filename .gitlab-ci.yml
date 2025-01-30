@@ -739,12 +739,22 @@ pages:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
   stage: deploy
+  image: node:lts
   script:
+    # Install tools needed.
     - maint/common/apt-install git
-    # Export report as website, while keeping the existing public page
+    # Build Docusaurus website.
+    - cd web
+    - yarn install
+    - yarn run build
+    - cd ..
+    - mv web/build public
+    # Export report as website, while keeping the existing public page.
     - git fetch
-    - git checkout origin/pages -- public/
-    - mv coverage public/
+    # Checkout the old website to /old of the webroot.
+    - git checkout origin/pages -- public/old
+    # Add Coverage from previous job to the /coverage of the webroot.
+    - mv coverage public/coverage
   artifacts:
     paths:
       - public
