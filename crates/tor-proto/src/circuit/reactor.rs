@@ -155,6 +155,10 @@ impl Default for CloseStreamBehavior {
 
 /// Represents the reactor's view of a single hop.
 pub(super) struct CircHop {
+    /// Reactor unique ID. Used for logging.
+    unique_id: UniqId,
+    /// Hop number in the path.
+    hop_num: HopNum,
     /// Map from stream IDs to streams.
     ///
     /// We store this with the reactor instead of the circuit, since the
@@ -287,12 +291,55 @@ enum SelectResult {
 
 impl CircHop {
     /// Create a new hop.
-    pub(super) fn new(format: RelayCellFormat, params: &CircParameters) -> Self {
+    pub(super) fn new(
+        unique_id: UniqId,
+        hop_num: HopNum,
+        format: RelayCellFormat,
+        params: &CircParameters,
+    ) -> Self {
         CircHop {
+            unique_id,
+            hop_num,
             map: Arc::new(Mutex::new(streammap::StreamMap::new())),
             ccontrol: CongestionControl::new(&params.ccontrol),
             inbound: RelayCellDecoder::new(format),
         }
+    }
+
+    /// Close the stream associated with `id` because the stream was
+    /// dropped.
+    ///
+    /// If we have not already received an END cell on this stream, send one.
+    /// If no END cell is specified, an END cell with the reason byte set to
+    /// REASON_MISC will be sent.
+    fn close_stream(
+        &mut self,
+        id: StreamId,
+        message: CloseStreamBehavior,
+        why: streammap::TerminateReason,
+    ) -> Result<Option<SendRelayCell>> {
+        let should_send_end = self.map.lock().expect("lock poisoned").terminate(id, why)?;
+        trace!(
+            "{}: Ending stream {}; should_send_end={:?}",
+            self.unique_id,
+            id,
+            should_send_end
+        );
+        // TODO: I am about 80% sure that we only send an END cell if
+        // we didn't already get an END cell.  But I should double-check!
+        if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
+            (should_send_end, message)
+        {
+            let end_cell = AnyRelayMsgOuter::new(Some(id), end_message.into());
+            let cell = SendRelayCell {
+                hop: self.hop_num,
+                early: false,
+                cell: end_cell,
+            };
+
+            return Ok(Some(cell));
+        }
+        Ok(None)
     }
 }
 
@@ -686,11 +733,12 @@ impl Reactor {
                 done,
             } => {
                 let res: Result<()> = async {
-                    let res = self.close_stream(hop_num, sid, behav, reason)?;
-                    if let Some(cell) = res {
-                        self.send_relay_cell(cell).await?;
+                    if let Some(hop) = self.hop_mut(hop_num) {
+                        let res = hop.close_stream(sid, behav, reason)?;
+                        if let Some(cell) = res {
+                            self.send_relay_cell(cell).await?;
+                        }
                     }
-
                     Ok(())
                 }
                 .await;
@@ -1096,7 +1144,8 @@ impl Reactor {
         binding: Option<CircuitBinding>,
         params: &CircParameters,
     ) {
-        let hop = CircHop::new(format, params);
+        let hop_num = (self.hops.len() as u8).into();
+        let hop = CircHop::new(self.unique_id, hop_num, format, params);
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
@@ -1405,51 +1454,6 @@ impl Reactor {
         })();
 
         RunOnceCmdInner::BeginStream { cell: res, done }
-    }
-
-    /// Close the stream associated with `id` because the stream was
-    /// dropped.
-    ///
-    /// If we have not already received an END cell on this stream, send one.
-    /// If no END cell is specified, an END cell with the reason byte set to
-    /// REASON_MISC will be sent.
-    fn close_stream(
-        &mut self,
-        hopnum: HopNum,
-        id: StreamId,
-        message: CloseStreamBehavior,
-        why: streammap::TerminateReason,
-    ) -> Result<Option<SendRelayCell>> {
-        // Mark the stream as closing.
-        let hop = self.hop_mut(hopnum).ok_or_else(|| {
-            Error::from(internal!(
-                "Tried to close a stream on a hop {:?} that wasn't there?",
-                hopnum
-            ))
-        })?;
-
-        let should_send_end = hop.map.lock().expect("lock poisoned").terminate(id, why)?;
-        trace!(
-            "{}: Ending stream {}; should_send_end={:?}",
-            self.unique_id,
-            id,
-            should_send_end
-        );
-        // TODO: I am about 80% sure that we only send an END cell if
-        // we didn't already get an END cell.  But I should double-check!
-        if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
-            (should_send_end, message)
-        {
-            let end_cell = AnyRelayMsgOuter::new(Some(id), end_message.into());
-            let cell = SendRelayCell {
-                hop: hopnum,
-                early: false,
-                cell: end_cell,
-            };
-
-            return Ok(Some(cell));
-        }
-        Ok(None)
     }
 
     /// Helper: process a cell on a channel.  Most cells get ignored
