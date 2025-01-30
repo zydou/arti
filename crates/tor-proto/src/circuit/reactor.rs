@@ -34,7 +34,7 @@ use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt, OutboundClientLayer,
-    RelayCellBody, Tor1RelayCrypto, SENDME_TAG_LEN,
+    RelayCellBody, SENDME_TAG_LEN,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
@@ -45,6 +45,7 @@ use crate::util::err::ReactorError;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{Error, Result};
+use control::ControlHandler;
 use futures::stream::FuturesUnordered;
 use std::borrow::Borrow;
 use std::mem::size_of;
@@ -52,8 +53,8 @@ use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, Truncated};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat,
-    RelayCellFormatTrait, RelayCellFormatV0, RelayCmd, StreamId, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
+    StreamId, UnparsedRelayMsg,
 };
 use tor_error::internal;
 #[cfg(feature = "hs-service")]
@@ -88,7 +89,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 use tracing::{debug, trace, warn};
 
-use extender::{CircuitExtender, HandshakeAuxDataHandler};
+use extender::HandshakeAuxDataHandler;
 
 pub(super) use control::CtrlMsg;
 
@@ -612,9 +613,9 @@ impl Reactor {
         let cmd = match cmd {
             None => None,
             Some(SelectResult::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
-            Some(SelectResult::HandleControl(ctrl)) => {
-                self.handle_control(ctrl)?.map(RunOnceCmd::Single)
-            }
+            Some(SelectResult::HandleControl(ctrl)) => ControlHandler::new(self)
+                .handle(ctrl)?
+                .map(RunOnceCmd::Single),
             Some(SelectResult::HandleCell(cell)) => self.handle_cell(cell)?,
         };
 
@@ -1360,216 +1361,6 @@ impl Reactor {
             Err(Error::from(internal!(
                 "Tried to install a BEGIN cell handler before the old one was gone."
             )))
-        }
-    }
-
-    /// Handle a CtrlMsg other than Create and Shutdown.
-    fn handle_control(&mut self, msg: CtrlMsg) -> Result<Option<RunOnceCmdInner>> {
-        trace!("{}: reactor received {:?}", self.unique_id, msg);
-        match msg {
-            // This is handled earlier, since it requires blocking.
-            CtrlMsg::Create { .. } => panic!("got a CtrlMsg::Create in handle_control"),
-            CtrlMsg::ExtendNtor {
-                peer_id,
-                public_key,
-                linkspecs,
-                params,
-                done,
-            } => {
-                // ntor handshake only supports V0.
-                /// Local type alias to ensure consistency below.
-                type Rcf = RelayCellFormatV0;
-
-                let (extender, cell) =
-                    CircuitExtender::<NtorClient, Tor1RelayCrypto<Rcf>, _, _>::begin(
-                        Rcf::FORMAT,
-                        peer_id,
-                        HandshakeType::NTOR,
-                        &public_key,
-                        linkspecs,
-                        params,
-                        &(),
-                        self,
-                        done,
-                    )?;
-                self.set_meta_handler(Box::new(extender))?;
-
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
-            }
-            #[cfg(feature = "ntor_v3")]
-            CtrlMsg::ExtendNtorV3 {
-                peer_id,
-                public_key,
-                linkspecs,
-                params,
-                done,
-            } => {
-                // TODO #1067: support negotiating other formats.
-                /// Local type alias to ensure consistency below.
-                type Rcf = RelayCellFormatV0;
-
-                // TODO: Set extensions, e.g. based on `params`.
-                let client_extensions = [];
-
-                let (extender, cell) =
-                    CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
-                        Rcf::FORMAT,
-                        peer_id,
-                        HandshakeType::NTOR_V3,
-                        &public_key,
-                        linkspecs,
-                        params,
-                        &client_extensions,
-                        self,
-                        done,
-                    )?;
-                self.set_meta_handler(Box::new(extender))?;
-
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
-            }
-            #[cfg(feature = "hs-common")]
-            #[allow(unreachable_code)]
-            CtrlMsg::ExtendVirtual {
-                relay_cell_format: format,
-                cell_crypto,
-                params,
-                done,
-            } => {
-                let (outbound, inbound, binding) = cell_crypto;
-
-                // TODO HS: Perhaps this should describe the onion service, or
-                // describe why the virtual hop was added, or something?
-                let peer_id = path::HopDetail::Virtual;
-
-                self.add_hop(format, peer_id, outbound, inbound, binding, &params);
-                let _ = done.send(Ok(()));
-                Ok(None)
-            }
-            CtrlMsg::BeginStream {
-                hop_num,
-                message,
-                sender,
-                rx,
-                done,
-                cmd_checker,
-            } => {
-                // Infallible here, failure handled in run_once
-                Ok(Some(self.begin_stream(
-                    hop_num,
-                    message,
-                    sender,
-                    rx,
-                    cmd_checker,
-                    done,
-                )))
-            }
-            #[cfg(feature = "hs-service")]
-            CtrlMsg::ClosePendingStream {
-                hop_num,
-                stream_id,
-                message,
-                done,
-            } => Ok(Some(RunOnceCmdInner::CloseStream {
-                hop_num,
-                sid: stream_id,
-                behav: message,
-                reason: streammap::TerminateReason::ExplicitEnd,
-                done: Some(done),
-            })),
-            #[cfg(feature = "hs-service")]
-            CtrlMsg::AwaitStreamRequest {
-                cmd_checker,
-                incoming_sender,
-                hop_num,
-                done,
-                filter,
-            } => {
-                // TODO: At some point we might want to add a CtrlMsg for
-                // de-registering the handler.  See comments on `allow_stream_requests`.
-                let handler = IncomingStreamRequestHandler {
-                    incoming_sender,
-                    cmd_checker,
-                    hop_num,
-                    filter,
-                };
-
-                let ret = self.set_incoming_stream_req_handler(handler);
-                let _ = done.send(ret); // don't care if the corresponding receiver goes away.
-
-                Ok(None)
-            }
-            CtrlMsg::SendSendme { stream_id, hop_num } => {
-                let sendme = Sendme::new_empty();
-                let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
-                let cell = SendRelayCell {
-                    hop: hop_num,
-                    early: false,
-                    cell,
-                };
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
-            }
-            #[cfg(feature = "send-control-msg")]
-            CtrlMsg::SendMsg {
-                hop_num,
-                msg,
-                sender,
-            } => {
-                let cell = AnyRelayMsgOuter::new(None, msg);
-                let cell = SendRelayCell {
-                    hop: hop_num,
-                    early: false,
-                    cell,
-                };
-                Ok(Some(RunOnceCmdInner::Send {
-                    cell,
-                    done: Some(sender),
-                }))
-            }
-            CtrlMsg::SendRelayCell(msg) => Ok(Some(RunOnceCmdInner::Send {
-                cell: msg,
-                done: None,
-            })),
-            #[cfg(feature = "send-control-msg")]
-            CtrlMsg::SendMsgAndInstallHandler {
-                msg,
-                handler,
-                sender,
-            } => Ok(Some(RunOnceCmdInner::SendMsgAndInstallHandler {
-                msg,
-                handler,
-                done: sender,
-            })),
-            #[cfg(test)]
-            CtrlMsg::AddFakeHop {
-                relay_cell_format,
-                fwd_lasthop,
-                rev_lasthop,
-                params,
-                done,
-            } => {
-                self.handle_add_fake_hop(
-                    relay_cell_format,
-                    fwd_lasthop,
-                    rev_lasthop,
-                    &params,
-                    done,
-                );
-
-                Ok(None)
-            }
-            #[cfg(test)]
-            CtrlMsg::QuerySendWindow { hop, done } => {
-                let _ = done.send(if let Some(hop) = self.hop_mut(hop) {
-                    Ok(hop.ccontrol.send_window_and_expected_tags())
-                } else {
-                    Err(Error::from(internal!(
-                        "received QuerySendWindow for unknown hop {}",
-                        hop.display()
-                    )))
-                });
-
-                Ok(None)
-            }
         }
     }
 
