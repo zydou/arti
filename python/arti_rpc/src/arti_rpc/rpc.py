@@ -4,9 +4,12 @@ Type-based wrappers around our FFI functions.
 These types are responsible for providing a python-like API
 to the Arti RPC library.
 
-TODO RPC: NOTE that these APIs are still in flux;
-we will break them a lot before we declare them stable.
-Don't use them in production.
+Note: As of Jan 2025, this library, and the Arti RPC system,
+are still under active development.
+We believe that they are ready to try out, but it is likely
+that they still have bugs and design flaws that we'll need to fix.
+Please be ready to report issues at
+<https://gitlab.torproject.org/tpo/core/arti>.
 """
 
 # mypy: allow-redefinition
@@ -330,8 +333,26 @@ class ArtiRpcConn(_RpcBase):
         If `want_stream_id` is true, then we register the resulting data stream
         as an RPC object, and return it along with the resulting socket.
 
-        Caveats: TODO RPC.  Copy-paste the caveats from arti-rpc-client-core,
-        once they have stabilized.
+        # Important caveats
+
+        When possible, use a hostname rather than an IP address.
+        If you *must* use an IP address, make sure that you have not gotten it
+        by a non-anonymous DNS lookup.
+        (Calling `gethostname()` or `getaddrinfo()` directly
+        would lose anonymity: they inform the user's DNS server,
+        and possibly many other parties, about the target address
+        you are trying to visit.)
+
+        The resulting socket will actually be a TCP connection to Arti,
+        not directly to your destination.
+        Therefore, passing it to functions like `getpeername()`
+        may give unexpected results.
+
+        If `want_stream_id` is set
+        (or if Arti is configured to return streams optimistically),
+        the data stream may still be connecting
+        when this request returns.
+        (TODO RPC: Document how to wait for it)
         """
         hostname: bytes = hostname.encode("utf-8")
         isolation: bytes = isolation.encode("utf-8")

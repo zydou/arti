@@ -1,13 +1,11 @@
-# Arti RPC protocol design
+# The Arti RPC protocol
 
 ## Preliminaries
 
 ### Document status
 
 This document is a work in progress.
-It describes our RPC system as we've designed it,
-but it includes some pieces that are not yet built,
-or not yet built correctly.
+It describes our RPC system as we've designed it.
 
 Where possible,
 we'll try to describe what is implemented
@@ -57,9 +55,6 @@ an in-process socketpair,
 or a pre-established shared secret.
 Sessions should not normally cross the network.
 If they do, they must use TLS.)
-
-> At present (Sep 2024)
-> only unix domain sockets are implemented.
 
 Different sessions cannot access one another's status:
 they cannot ordinarily list each other's circuits,
@@ -179,7 +174,7 @@ will not be reused.
 > NOTE: Previously we referred to strong IDs as "handles"
 > and weak IDs as "references", but we did not do so consistently.
 >
-> At present (Sep 2024)
+> At present (Jan 2025)
 > the RPC system supports weak IDs, but doesn't yet generate any.
 
 An Object ID never changes from strong to weak,
@@ -188,7 +183,8 @@ Instead, functions that downgrade or upgrade Object IDs
 return a new Object ID.
 
 > At present (Sep 2024),
-> downgrade and upgrade aren't implemented.
+> there are no weak IDs,
+> so downgrade and upgrade aren't implemented.
 
 A strong Object ID can be "owning" or "non-owning".
 If an Object ID "owns" its object,
@@ -627,6 +623,8 @@ data
   See "Anticipated use of error.data" below for more on how we
   plan to use this field.
 
+<a id="error-code"></a>
+
 code
 : A Number that indicates the error type that occurred according
   to the following table.
@@ -961,12 +959,10 @@ When we are specifying a request, we list the following.
 
 ## A list of requests
 
-> At present (Sep 2024),
-> the request methods described in this section aren't implemented.
-> We'll probably remove this section (or most of it)
-> and replace it with better API documentation or plans.
+This section lists some requests with additional semantics
+not currently covered in their reference documentation.
 
-...
+This text should all, eventually, be merged into the reference documentation.
 
 ### Cancellation
 
@@ -1027,101 +1023,8 @@ Methods which cannot be cancelled should be documented as such.
 
 > In Arti, only the rpc:cancel method is uncancellable.
 
-### Authentication
-
-...
-
-> Also authorization, "get instance"
-
-
-### Requests that apply to most Objects
-
-...
-
-> get type
-
-> get status / info.
-
-> set status / info
-
-### Checking bootstrap status
-
-...
-
-> session.bootstrap Object, supports get status
-
-### Instance operations
-
-> Shut down
-
-> Get configuration
-
-> Set configuration
-
-
-
-### Opening data streams
-
-...
-
-> session.connect()
->     takes target
->     takes circuit, optionally?
->     isolation
->     hs-credential
->     returns ... hm. Does it return a connection object with token that you can connect to
->           immediately, or a request that you can observe that eventually
->           gives you a connection?
-
-
-
-### Working with onion services
-
-...
-
-> session.hsclient?
->     configure [service]
-
-
-> session.hsservices. [...]
->     create
->     provision
->     reconfigure
->     getstatus
-
-
-
 ## Appendix
 
-> At present (Sep 2024), this section is outdated.
-> Once the API is more stable, we'll generate and include an updated trace.
-
-Experimenting with Arti
-
-We have a limited implementation of this protocol in Arti right now,
-on an experimental basis.
-It only works on Unix, with `tokio`.
-To try it, enable the `rpc` Cargo feature on the `arti` crate,
-and then connect to `~/.arti-rpc-TESTING/PIPE`.  (You can use
-`nc -U` to do this.)
-
-Right now only two commands are supported:
-Authenticating and an echo command.
-The echo command will only work post-authentication.
-
-Here is an example session:
-
-```
->>> {"id": 3, "obj": "connection", "method": "auth:authenticate", "params": {"scheme": "auth:inherent"}}
-<<< {"id":3,"result":{"session":"2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au"}}
->>> {"id": 4, "obj": "2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au", "method": "arti:x-echo", "params": {"msg": "Hello World"}}
-<<< {"id":4,"result":{"msg":"Hello World"}}
-```
-
-Note that the server will currently close your connection
-at the first sign of invalid JSON.
-
-Please don't expect the final implementation to work this way!
 
 ### Client implementation strategies
 

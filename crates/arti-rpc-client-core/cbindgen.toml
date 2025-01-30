@@ -10,8 +10,27 @@ header = """\
 /**
  * # Arti RPC core library header.
  *
- * (TODO RPC: This is still a work in progress; please don't rely on it
- * being the final API.)
+ * ## Implementation status
+ *
+ * Note: As of Jan 2025, this library, and the Arti RPC system,
+ * are still under active development.
+ * We believe that they are ready to try out, but it is likely
+ * that they still have bugs and design flaws that we'll need to fix.
+ * Please be ready to report issues at
+ * <https://gitlab.torproject.org/tpo/core/arti>.
+ *
+ * We will make an effort to keep API compatibility over time,
+ * but it's possible that we'll need to break things in small ways.
+ * If we do, we will note them in our changelog and our announcements.
+ *
+ * For now, the Arti RPC interface itself provides only limited
+ * functionality.  We will add support for more features over time.
+ *
+ * ## Who should use this library
+ *
+ * You should use this library if you want to write a program that controls Arti
+ * via its RPC interface, and you don't want to write an implementation of the RPC
+ * protocol from scratch.
  *
  * ## What this library does
  *
@@ -24,23 +43,46 @@ header = """\
  * This library _does not_ do the work of creating well-formed requests,
  * or interpreting the responses.
  *
- * (Note: Despite this library being exposed via a set of C functions,
+ * Despite this library being exposed via a set of C functions,
  * we don't actually expect you to use it from C.  It's probably a better
- * idea to wrap it in a higher-level language and then use it from there.)
+ * idea to wrap it in a higher-level language and then use it from there.
+ *
+ * The `arti_rpc` python package (available from the Arti git repository)
+ * is one example of such a wrapper.
  *
  * ## Using this library
  *
- * TODO RPC Explain better.
+ * ### Making a connection to Arti
  *
- * Your connection to Arti is represented by an `ArtiRpcConn *`.  Use
- * `arti_rpc_connect()` to create one of these.
+ * First, you will need to have Arti running, and configured to use
+ * rpc.  This will eventually be the default behavior, but for now,
+ * make sure that arti was built using the `rpc` cargo feature, and that
+ * the configuration option `rpc.enable` is set to true.
+ *
+ * (For more detailed instructions on how to do this,
+ * and for examples code,
+ * see the Arti RPC book.)
+ * (TODO Add link once there is one.)
+ *
+ * Your connection to Arti is represented by an `ArtiRpcConn *`.
+ * To get one:
+ * - Call `arti_rpc_conn_builder_new()` to make an `ArtiRpcConnBuilder`.
+ * - Configure the `ArtiRpcConnBuilder` as needed,
+ *   to tell it where to find Arti.
+ *   (If you configured Arti as described above,
+ *   and you're running as the same user,
+ *   then no additional configuration should be necessary.)
+ * - Call `arti_rpc_conn_builder_connect()` to try to connect to Arti.
+ *
+ * <!-- TODO: We'll want to have documentation about connect points,
+ *  but it won't go here. -->
  *
  * Once you have a connection, you can sent Arti various requests in
- * JSON format.  See (TODO RPC: Add a link to a list of comments.)
+ * JSON format.  These requests have documentation of their own;
+ * We'll add a link to it once we've figured out where to host it.
+ *
  * Use `arti_rpc_execute()` to send a simple request; the function will
  * return when the request succeeds, or fails.
- *
- * TODO: Explain handles and other APIs once I add those APIs.
  *
  * Except when noted otherwise, all functions in this library are thread-safe.
  *

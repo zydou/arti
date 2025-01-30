@@ -1,0 +1,24 @@
+[book]
+authors = ["The Tor Project"]
+language = "en"
+multilingual = false
+title = "Arti RPC"
+
+[build]
+
+[preprocessor]
+
+[output.html]
+git-repository-url="https://gitlab.torproject.org/tpo/core/arti"
+smart-punctuation = true
+
+# Note: Install mdbook-linkcheck to make this work.
+[output.linkcheck]
+warning-policy = "error"
+# We effectively disable checking link destinations by excluding
+# all links (`.*`).
+#
+# We're only using linkcheck to validate that reference-style links have *some*
+# definition in the markdown, ensuring that *some* link will be generated. We
+# validate that those links are correct using a separate tool (`bin/check_links`)
+exclude = [ '.*' ]
