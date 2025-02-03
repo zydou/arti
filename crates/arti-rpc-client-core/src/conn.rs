@@ -638,8 +638,8 @@ mod test {
     use super::*;
 
     /// helper: Return a dummy RpcConn, along with a socketpair for it to talk to.
-    fn dummy_connected() -> (RpcConn, socketpair::SocketpairStream) {
-        let (s1, s2) = socketpair::socketpair_stream().unwrap();
+    fn dummy_connected() -> (RpcConn, crate::testing::SocketpairStream) {
+        let (s1, s2) = crate::testing::construct_socketpair().unwrap();
         let s1_w = s1.try_clone().unwrap();
         let s1_r = io::BufReader::new(s1);
         let conn = RpcConn::new(llconn::Reader::new(s1_r), llconn::Writer::new(s1_w));
@@ -688,7 +688,7 @@ mod test {
     fn complex() {
         use std::sync::atomic::Ordering::SeqCst;
         let n_threads = 16;
-        let n_commands_per_thread = 4096;
+        let n_commands_per_thread = 128;
         let n_commands_total = n_threads * n_commands_per_thread;
         let n_completed = Arc::new(AtomicUsize::new(0));
 

@@ -181,7 +181,7 @@ mod test {
 
     #[test]
     fn write_success() {
-        let (r, w) = socketpair::socketpair_stream().unwrap();
+        let (r, w) = crate::testing::construct_socketpair().unwrap();
         let mut w = Writer::new(w);
         let mut r = io::BufReader::new(r);
 

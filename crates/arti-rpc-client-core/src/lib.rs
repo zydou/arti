@@ -52,6 +52,8 @@ pub mod llconn;
 mod msgs;
 #[macro_use]
 mod util;
+#[cfg(test)]
+mod testing;
 
 pub use conn::{
     BuilderError, ConnPtDescription, ConnectError, ConnectFailure, ProtoError, RpcConn,
