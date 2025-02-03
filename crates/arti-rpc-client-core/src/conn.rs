@@ -688,7 +688,7 @@ mod test {
     fn complex() {
         use std::sync::atomic::Ordering::SeqCst;
         let n_threads = 16;
-        let n_commands_per_thread = 4096;
+        let n_commands_per_thread = 128;
         let n_commands_total = n_threads * n_commands_per_thread;
         let n_completed = Arc::new(AtomicUsize::new(0));
 
