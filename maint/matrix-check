@@ -94,11 +94,11 @@ def test_crate_config(crate, features, allow_empty=False):
 
 
 def test_crate(crate):
-    if crate in ["fs-mistrust", "tor-config"]:
+    if crate.name in ["fs-mistrust", "tor-config"]:
         # these tests do not pass as of now. Skipping them.
         return
 
-    crate_path = dir_of_crate(crate)
+    crate_path = dir_of_crate(crate.name)
     toml_path = os.path.join(crate_path, "Cargo.toml")
     t = toml.decoder.load(toml_path)
     features = t.get("features") or {}
@@ -113,23 +113,23 @@ def test_crate(crate):
     # no features; don't test if it would already be tested by normal tests
     if len(features) != 0:
         # arti does not work: it requires an executor
-        if crate not in ["arti"]:
-            test_crate_config(crate, [], True)
+        if crate.name not in ["arti"]:
+            test_crate_config(crate.name, [], True)
     # default
-    test_crate_config(crate, default)
+    test_crate_config(crate.name, default)
     # full
-    test_crate_config(crate, full)
+    test_crate_config(crate.name, full)
     # all
-    test_crate_config(crate, all_features)
+    test_crate_config(crate.name, all_features)
 
-    for combination in supplementary_targets.get(crate, []):
-        test_crate_config(crate, combination)
+    for combination in supplementary_targets.get(crate.name, []):
+        test_crate_config(crate.name, combination)
     # TODO test random combination?
 
 
 def main():
     for crate in list_crates.list_crates():
-        test_crate(crate.name)
+        test_crate(crate)
 
 
 if __name__ == "__main__":
