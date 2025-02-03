@@ -9,13 +9,6 @@ from subprocess import run
 
 TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
 os.chdir(TOPDIR)
-CRATEDIRS = [
-    os.path.join(TOPDIR, "crates"),
-    os.path.join(TOPDIR, "maint"),
-    os.path.join(TOPDIR, "examples/gsoc2023"),
-    os.path.join(TOPDIR, "examples/hyper"),
-    os.path.join(TOPDIR, "examples/axum"),
-]
 
 # some tests don't compile on every combination 😐
 # also test is way slower than check
@@ -62,14 +55,6 @@ def take(dic, key):
     return None
 
 
-def dir_of_crate(crate):
-    for d in CRATEDIRS:
-        dd = os.path.join(d, crate)
-        if os.path.exists(dd):
-            return dd
-    return None
-
-
 def test_crate_config(crate, features, allow_empty=False):
     if features is None:
         return
@@ -98,8 +83,7 @@ def test_crate(crate):
         # these tests do not pass as of now. Skipping them.
         return
 
-    crate_path = dir_of_crate(crate.name)
-    toml_path = os.path.join(crate_path, "Cargo.toml")
+    toml_path = os.path.join(crate.subdir, "Cargo.toml")
     t = toml.decoder.load(toml_path)
     features = t.get("features") or {}
 
