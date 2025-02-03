@@ -1791,7 +1791,7 @@ mod test {
 
             let extended2 = relaymsg::Extended2::new(reply).into();
             sink.send(rmsg_to_ccmsg(None, extended2)).await.unwrap();
-            sink // gotta keep the sink alive, or the reactor will exit.
+            (sink, rx) // gotta keep the sink and receiver alive, or the reactor will exit.
         };
 
         let (circ, _) = futures::join!(extend_fut, reply_fut);
