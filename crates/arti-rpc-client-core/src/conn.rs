@@ -637,9 +637,39 @@ mod test {
 
     use super::*;
 
+    #[cfg(not(windows))]
+    type SStream = socketpair::SocketpairStream;
+    #[cfg(windows)]
+    type SStream = std::net::TcpStream;
+
+    /// helper. construct a socketpair.
+    fn construct_socketpair() -> (SStream, SStream) {
+        #[cfg(not(windows))]
+        {
+            socketpair::socketpair_stream().unwrap()
+        }
+        #[cfg(windows)]
+        {
+            // Alas, we can't use the socketpair crate on Windows!  It creates a named pipe,
+            // which for whatever reason *does not work the same as a socket!*
+            //
+            // We have to use this nonsense instead.  It will cause these tests to fail on
+            // some absurdly restrictive windows firewalls; that's a price we can afford.
+            //
+            // For details see
+            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2758#note_3155460
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let addr = listener.local_addr().unwrap();
+            let s1 = std::net::TcpStream::connect(addr).unwrap();
+            let (s2, s2_addr) = listener.accept().unwrap();
+            assert_eq!(s1.local_addr().unwrap(), s2_addr);
+            (s1, s2)
+        }
+    }
+
     /// helper: Return a dummy RpcConn, along with a socketpair for it to talk to.
-    fn dummy_connected() -> (RpcConn, socketpair::SocketpairStream) {
-        let (s1, s2) = socketpair::socketpair_stream().unwrap();
+    fn dummy_connected() -> (RpcConn, SStream) {
+        let (s1, s2) = construct_socketpair();
         let s1_w = s1.try_clone().unwrap();
         let s1_r = io::BufReader::new(s1);
         let conn = RpcConn::new(llconn::Reader::new(s1_r), llconn::Writer::new(s1_w));
