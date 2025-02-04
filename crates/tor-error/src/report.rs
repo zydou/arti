@@ -50,7 +50,7 @@ where
 
 /// Helper type for reporting errors that are concrete implementors of `StdError`
 ///
-/// This is an opaque type, only constructable via the `ErrorExt` helper trait
+/// This is an opaque type, only constructable via the [`ErrorReport`] helper trait
 /// and only usable via its `AsRef` implementation.
 //
 // We need this because Rust's trait object handling rules, and provided AsRef impls,
@@ -87,6 +87,12 @@ impl<E: StdError + Sized + 'static> ErrorReport for E {
 impl Sealed for dyn StdError + Send + Sync {}
 /// Implementation for `anyhow::Error`, which derefs to `dyn StdError`.
 impl ErrorReport for dyn StdError + Send + Sync {
+    fn report(&self) -> Report<ReportHelper> {
+        Report(ReportHelper(self))
+    }
+}
+impl Sealed for dyn StdError + 'static {}
+impl ErrorReport for dyn StdError + 'static {
     fn report(&self) -> Report<ReportHelper> {
         Report(ReportHelper(self))
     }

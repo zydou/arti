@@ -43,7 +43,7 @@ pub(crate) struct ValidatedResponse {
 #[non_exhaustive]
 pub(crate) enum DecodeResponseError {
     /// We couldn't decode a response as json.
-    #[error("Arti sent a message that didn't conform to the RPC protocol: {0}")]
+    #[error("Arti sent a message that didn't conform to the RPC protocol")]
     JsonProtocolViolation(#[source] Arc<serde_json::Error>),
 
     /// There was something (other than json encoding) wrong with a response.
@@ -52,7 +52,7 @@ pub(crate) enum DecodeResponseError {
 
     /// We decoded the response, but rather than having an `id`,
     /// it had an error message from Arti with no id.  We treat this as fatal.
-    #[error("Arti reported a fatal error: {0:?}")]
+    #[error("Arti reported a fatal error: {0}")]
     Fatal(ErrorResponse),
 }
 define_from_for_arc!( serde_json::Error => DecodeResponseError [JsonProtocolViolation] );

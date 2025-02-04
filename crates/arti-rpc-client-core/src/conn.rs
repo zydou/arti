@@ -365,13 +365,13 @@ impl RequestHandle {
 #[non_exhaustive]
 pub enum ShutdownError {
     /// Io error occurred while reading.
-    #[error("Unable to read response: {0}")]
+    #[error("Unable to read response")]
     Read(#[source] Arc<io::Error>),
     /// Io error occurred while writing.
-    #[error("Unable to write request: {0}")]
+    #[error("Unable to write request")]
     Write(#[source] Arc<io::Error>),
     /// Something was wrong with Arti's responses; this is a protocol violation.
-    #[error("Arti sent a message that didn't conform to the RPC protocol: {0}")]
+    #[error("Arti sent a message that didn't conform to the RPC protocol: {0:?}")]
     ProtocolViolated(String),
     /// Arti has told us that we violated the protocol somehow.
     #[error("Arti reported a fatal error: {0:?}")]
@@ -400,11 +400,11 @@ impl From<crate::msgs::response::DecodeResponseError> for ShutdownError {
 #[non_exhaustive]
 pub enum ProtoError {
     /// The RPC connection failed, or was closed by the other side.
-    #[error("RPC connection is shut down: {0}")]
+    #[error("RPC connection is shut down")]
     Shutdown(#[from] ShutdownError),
 
     /// There was a problem in the request we tried to send.
-    #[error("Invalid request: {0}")]
+    #[error("Invalid request")]
     InvalidRequest(#[from] InvalidRequestError),
 
     /// We tried to send a request with an ID that was already pending.
@@ -424,7 +424,7 @@ pub enum ProtoError {
     /// We got an internal error while trying to encode an RPC request.
     ///
     /// (This should be impossible.)
-    #[error("Internal error while encoding request: {0}")]
+    #[error("Internal error while encoding request")]
     CouldNotEncode(#[source] Arc<serde_json::Error>),
 
     /// We got a response to some internally generated request that wasn't what we expected.
@@ -434,7 +434,6 @@ pub enum ProtoError {
 
 /// A set of errors encountered while trying to connect to the Arti process
 #[derive(Clone, Debug, thiserror::Error)]
-#[error("Unable to connect: {final_error}")] // TODO RPC #1650, #1826: better output.
 pub struct ConnectFailure {
     /// A list of all the declined connect points we encountered, and how they failed.
     declined: Vec<(builder::ConnPtDescription, ConnectError)>,
@@ -446,6 +445,25 @@ pub struct ConnectFailure {
     /// search process from even beginning.
     #[source]
     pub(crate) final_error: ConnectError,
+}
+
+impl std::fmt::Display for ConnectFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Unable to connect")?;
+        if !self.declined.is_empty() {
+            write!(
+                f,
+                " ({} attempts failed{})",
+                self.declined.len(),
+                if matches!(self.final_error, ConnectError::AllAttemptsDeclined) {
+                    ""
+                } else {
+                    " before fatal error"
+                }
+            )?;
+        }
+        Ok(())
+    }
 }
 
 impl ConnectFailure {
@@ -463,6 +481,41 @@ impl ConnectFailure {
         // Note: this map looks like a no-op, but isn't.
         self.declined.iter().map(|(a, b)| (a, b))
     }
+
+    /// Return a helper type to format this error, and all of its internal errors recursively.
+    ///
+    /// Unlike [`tor_error::Report`], this method includes not only fatal errors, but also
+    /// information about connect attempts that failed nonfatally.
+    pub fn display_verbose(&self) -> ConnectFailureVerboseFmt<'_> {
+        ConnectFailureVerboseFmt(self)
+    }
+}
+
+/// Helper type to format a ConnectFailure along with all of its internal errors,
+/// including non-fatal errors.
+#[derive(Debug, Clone)]
+pub struct ConnectFailureVerboseFmt<'a>(&'a ConnectFailure);
+
+impl<'a> std::fmt::Display for ConnectFailureVerboseFmt<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use tor_error::ErrorReport as _;
+        writeln!(f, "{}:", self.0)?;
+        for (idx, (origin, error)) in self.0.declined_attempt_outcomes().enumerate() {
+            writeln!(f, "  {}. {}: {}", idx + 1, origin, error.report())?;
+        }
+        if let Some(origin) = self.0.fatal_error_origin() {
+            writeln!(
+                f,
+                "  {}. [FATAL] {}: {}",
+                self.0.declined.len() + 1,
+                origin,
+                self.0.final_error.report()
+            )?;
+        } else {
+            writeln!(f, "  - {}", self.0.final_error.report())?;
+        }
+        Ok(())
+    }
 }
 
 /// An error while trying to connect to the Arti process.
@@ -473,16 +526,16 @@ pub enum ConnectError {
     #[error("Cannot parse connect points from environment variable")]
     BadEnvironment,
     /// We were unable to load and/or parse a given connect point.
-    #[error("Unable to load and parse connect point: {0}")]
+    #[error("Unable to load and parse connect point")]
     CannotParse(#[from] tor_rpc_connect::load::LoadError),
     /// The path used to specify a connect file couldn't be resolved.
-    #[error("Unable to resolve connect point path: {0}")]
+    #[error("Unable to resolve connect point path")]
     CannotResolvePath(#[source] tor_config_path::CfgPathError),
     /// A parsed connect point couldn't be resolved.
-    #[error("Unable to resolve connect point: {0}")]
+    #[error("Unable to resolve connect point")]
     CannotResolveConnectPoint(#[from] tor_rpc_connect::ResolveError),
     /// IO error while connecting to Arti.
-    #[error("Unable to make a connection: {0}")]
+    #[error("Unable to make a connection")]
     CannotConnect(#[from] tor_rpc_connect::ConnectError),
     /// Opened a connection, but didn't get a banner message.
     ///
@@ -498,16 +551,16 @@ pub enum ConnectError {
     #[error("Connect file was given as a relative path.")]
     RelativeConnectFile,
     /// One of our authentication messages received an error.
-    #[error("Received an error while trying to authenticate: {0:?}")]
+    #[error("Received an error while trying to authenticate: {0}")]
     AuthenticationFailed(ErrorResponse),
     /// The connect point uses an RPC authentication type we don't support.
     #[error("Authentication type is not supported")]
     AuthenticationNotSupported,
     /// We couldn't decode one of the responses we got.
-    #[error("Message not in expected format: {0:?}")]
+    #[error("Message not in expected format")]
     BadMessage(#[source] Arc<serde_json::Error>),
     /// A protocol error occurred during negotiations.
-    #[error("Error while negotiating with Arti: {0}")]
+    #[error("Error while negotiating with Arti")]
     ProtoError(#[from] ProtoError),
     /// The server thinks it is listening on an address where we don't expect to find it.
     /// This can be misconfiguration or an attempted MITM attack.
@@ -576,15 +629,14 @@ impl HasClientErrorAction for ProtoError {
 /// This could be due to a bug in this library, a bug in Arti,
 /// or a compatibility issue between the two.
 #[derive(Clone, Debug, thiserror::Error)]
-#[error(
-    "In response to our request {request:?}, Arti gave the unexpected reply {reply:?}: {problem}"
-)]
+#[error("In response to our request {request:?}, Arti gave the unexpected reply {reply:?}")]
 pub struct UnexpectedReply {
     /// The request we sent.
     request: String,
     /// The response we got.
     reply: String,
     /// What was wrong with the response.
+    #[source]
     problem: UnexpectedReplyProblem,
 }
 

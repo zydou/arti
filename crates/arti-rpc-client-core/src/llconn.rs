@@ -99,14 +99,14 @@ impl Writer {
 #[non_exhaustive]
 pub enum SendRequestError {
     /// An IO error occurred while sending a request.
-    #[error("Unable to send request: {0}")]
-    Io(Arc<io::Error>),
+    #[error("Unable to send request")]
+    Io(#[source] Arc<io::Error>),
     /// We found a problem in the JSON while sending a request.
-    #[error("Invalid Json request: {0}")]
+    #[error("Invalid Json request")]
     InvalidRequest(#[from] InvalidRequestError),
     /// Internal error while re-encoding request.  Should be impossible.
     #[error("Unable to re-encode request after parsing it‽")]
-    ReEncode(Arc<serde_json::Error>),
+    ReEncode(#[source] Arc<serde_json::Error>),
 }
 define_from_for_arc!( io::Error => SendRequestError [Io] );
 

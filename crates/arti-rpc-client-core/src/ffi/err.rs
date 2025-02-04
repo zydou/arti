@@ -213,9 +213,21 @@ pub(crate) trait IntoFfiError: Display + Sized {
     fn as_error(&self) -> Option<&(dyn StdError + 'static)>;
     /// Return a message for this error.
     ///
-    /// By default, returns the Display of this error.
+    /// By default, uses the Display of this error, and of its sources, to build a string.
+    /// The format and content of this string is not specified, and is not guaranteed
+    /// to remain stable.
     fn message(&self) -> String {
-        self.to_string()
+        use tor_error::ErrorReport as _;
+        match self.as_error() {
+            Some(e) => {
+                let msg = e.report().to_string();
+                // Note: Having to strip the prefix here is somewhat annoying.
+                msg.strip_prefix("error: ")
+                    .map(str::to_string)
+                    .unwrap_or_else(|| msg)
+            }
+            None => self.to_string(),
+        }
     }
     /// Return the OS error code (if any) underlying this error.
     ///
@@ -349,7 +361,6 @@ impl IntoFfiError for tor_rpc_connect::ConnectError {
     }
 }
 
-// TODO RPC #1650: Better output.
 impl IntoFfiError for crate::conn::ConnectFailure {
     fn status(&self) -> FfiStatus {
         self.final_error.status()
@@ -357,6 +368,10 @@ impl IntoFfiError for crate::conn::ConnectFailure {
 
     fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
         Some(self)
+    }
+
+    fn message(&self) -> String {
+        self.display_verbose().to_string()
     }
 }
 

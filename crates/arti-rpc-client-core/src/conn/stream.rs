@@ -25,15 +25,15 @@ pub enum StreamError {
     RpcMethods(#[from] super::ProtoError),
 
     /// We weren't able to find a working proxy address.
-    #[error("Request for proxy info rejected")]
+    #[error("Request for proxy info rejected: {0}")]
     ProxyInfoRejected(ErrorResponse),
 
     /// We weren't able to register a new stream ID.
-    #[error("Request for new stream ID rejected")]
+    #[error("Request for new stream ID rejected: {0}")]
     NewStreamRejected(ErrorResponse),
 
     /// We weren't able to release a new stream ID.
-    #[error("Request for new stream ID rejected")]
+    #[error("Request for new stream ID rejected: {0}")]
     StreamReleaseRejected(ErrorResponse),
 
     /// Tried to open a stream on an unauthenticated RPC connection.
