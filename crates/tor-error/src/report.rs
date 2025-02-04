@@ -91,6 +91,12 @@ impl ErrorReport for dyn StdError + Send + Sync {
         Report(ReportHelper(self))
     }
 }
+impl Sealed for dyn StdError + 'static {}
+impl ErrorReport for dyn StdError + 'static {
+    fn report(&self) -> Report<ReportHelper> {
+        Report(ReportHelper(self))
+    }
+}
 
 /// Defines `AsRef<dyn StdError + 'static>` for a type implementing [`StdError`]
 ///
