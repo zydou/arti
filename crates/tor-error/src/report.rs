@@ -50,7 +50,7 @@ where
 
 /// Helper type for reporting errors that are concrete implementors of `StdError`
 ///
-/// This is an opaque type, only constructable via the `ErrorExt` helper trait
+/// This is an opaque type, only constructable via the [`ErrorReport`] helper trait
 /// and only usable via its `AsRef` implementation.
 //
 // We need this because Rust's trait object handling rules, and provided AsRef impls,
