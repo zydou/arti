@@ -3,18 +3,19 @@
 // TODO: perhaps this shouldn't live in tor-config? But it doesn't seem substantial enough to have
 // its own crate, and it can't live in e.g. tor-basic-utils, because it depends on tor-rtcompat.
 
+#![allow(unused)] // XXXX
+
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use tor_rtcompat::Runtime;
 
 use amplify::Getters;
-use futures::lock::Mutex;
 use notify::{EventKind, Watcher};
 use postage::watch;
 
@@ -233,15 +234,8 @@ impl<R: Runtime> FileWatcherBuilder<R> {
         let event_sender = move |event: notify::Result<notify::Event>| {
             let event = handle_event(event, &watching_dirs);
             if let Some(event) = event {
-                // It *should* be alright to block_on():
-                //   * on all platforms, the `RecommendedWatcher`'s event_handler is called from a
-                //     separate thread
-                //   * notify's own async_monitor example uses block_on() to run async code in the
-                //     event handler
                 // NB!  This can lose events!  See the internal warning comment on `Event`
-                runtime.block_on(async {
-                    let _ = tx.0.lock().await.send(event).await;
-                });
+                *tx.0.lock().expect("poisoned").borrow_mut() = event;
             }
         };
 
