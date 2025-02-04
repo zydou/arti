@@ -424,7 +424,7 @@ mod tests {
             #[cfg(unix)]
             fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).unwrap();
 
-            fs::write(key_path, OPENSSH_ED25519).unwrap();
+            fs::write(key_path, ED25519_OPENSSH).unwrap();
         }
 
         (key_store, keystore_dir)
@@ -577,7 +577,7 @@ mod tests {
         assert!(key_store.list().unwrap().is_empty());
 
         // Insert the key
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
+        let key = UnparsedOpenSshKey::new(ED25519_OPENSSH.into(), PathBuf::from("/test/path"));
         let erased_kp = key
             .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();
@@ -655,7 +655,7 @@ mod tests {
         assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
 
         // Insert another key
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
+        let key = UnparsedOpenSshKey::new(ED25519_OPENSSH.into(), PathBuf::from("/test/path"));
         let erased_kp = key
             .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();

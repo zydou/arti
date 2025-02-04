@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn wrong_key_type() {
         let key_type = KeyType::Ed25519Keypair;
-        let key = UnparsedOpenSshKey::new(OPENSSH_DSA.into(), PathBuf::from("/test/path"));
+        let key = UnparsedOpenSshKey::new(DSA_OPENSSH.into(), PathBuf::from("/test/path"));
         let err = key
             .parse_ssh_format_erased(&key_type)
             .map(|_| "<type erased key>")
@@ -174,7 +174,7 @@ mod tests {
 
         test_parse_ssh_format_erased!(
             Ed25519Keypair,
-            OPENSSH_DSA,
+            DSA_OPENSSH,
             err = format!(
                 "Unexpected OpenSSH key type: wanted {}, found {}",
                 SshKeyAlgorithm::Ed25519,
@@ -187,34 +187,34 @@ mod tests {
     fn invalid_ed25519_key() {
         test_parse_ssh_format_erased!(
             Ed25519Keypair,
-            OPENSSH_ED25519_BAD,
+            ED25519_OPENSSH_BAD,
             err = "Failed to parse OpenSSH with type Ed25519Keypair"
         );
 
         test_parse_ssh_format_erased!(
             Ed25519Keypair,
-            OPENSSH_ED25519_PUB_BAD,
+            ED25519_OPENSSH_BAD_PUB,
             err = "Failed to parse OpenSSH with type Ed25519Keypair"
         );
 
         test_parse_ssh_format_erased!(
             Ed25519PublicKey,
-            OPENSSH_ED25519_PUB_BAD,
+            ED25519_OPENSSH_BAD_PUB,
             err = "Failed to parse OpenSSH with type Ed25519PublicKey"
         );
     }
 
     #[test]
     fn ed25519_key() {
-        test_parse_ssh_format_erased!(Ed25519Keypair, OPENSSH_ED25519, ed25519::Keypair);
-        test_parse_ssh_format_erased!(Ed25519PublicKey, OPENSSH_ED25519_PUB, ed25519::PublicKey);
+        test_parse_ssh_format_erased!(Ed25519Keypair, ED25519_OPENSSH, ed25519::Keypair);
+        test_parse_ssh_format_erased!(Ed25519PublicKey, ED25519_OPENSSH_PUB, ed25519::PublicKey);
     }
 
     #[test]
     fn invalid_expanded_ed25519_key() {
         test_parse_ssh_format_erased!(
             Ed25519ExpandedKeypair,
-            OPENSSH_EXP_ED25519_BAD,
+            ED25519_EXPANDED_OPENSSH_BAD,
             err = "Failed to parse OpenSSH with type Ed25519ExpandedKeypair"
         );
     }
@@ -223,13 +223,13 @@ mod tests {
     fn expanded_ed25519_key() {
         test_parse_ssh_format_erased!(
             Ed25519ExpandedKeypair,
-            OPENSSH_EXP_ED25519,
+            ED25519_EXPANDED_OPENSSH,
             ed25519::ExpandedKeypair
         );
 
         test_parse_ssh_format_erased!(
             Ed25519PublicKey,
-            OPENSSH_EXP_ED25519_PUB, // using ed25519-expanded for public keys doesn't make sense
+            ED25519_EXPANDED_OPENSSH_PUB, // using ed25519-expanded for public keys doesn't make sense
             err = "Failed to parse OpenSSH with type Ed25519PublicKey"
         );
     }
@@ -238,30 +238,30 @@ mod tests {
     fn x25519_key() {
         test_parse_ssh_format_erased!(
             X25519StaticKeypair,
-            OPENSSH_X25519,
+            X25519_OPENSSH,
             curve25519::StaticKeypair
         );
 
-        test_parse_ssh_format_erased!(X25519PublicKey, OPENSSH_X25519_PUB, curve25519::PublicKey);
+        test_parse_ssh_format_erased!(X25519PublicKey, X25519_OPENSSH_PUB, curve25519::PublicKey);
     }
 
     #[test]
     fn invalid_x25519_key() {
         test_parse_ssh_format_erased!(
             X25519StaticKeypair,
-            OPENSSH_X25519_UNKNOWN_ALGORITHM,
+            X25519_OPENSSH_UNKNOWN_ALGORITHM,
             err = "Unexpected OpenSSH key type: wanted X25519, found pangolin@torproject.org"
         );
 
         test_parse_ssh_format_erased!(
             X25519PublicKey,
-            OPENSSH_X25519_UNKNOWN_ALGORITHM, // Note: this is a private key
+            X25519_OPENSSH_UNKNOWN_ALGORITHM, // Note: this is a private key
             err = "Failed to parse OpenSSH with type X25519PublicKey"
         );
 
         test_parse_ssh_format_erased!(
             X25519PublicKey,
-            OPENSSH_X25519_PUB_UNKNOWN_ALGORITHM,
+            X25519_OPENSSH_UNKNOWN_ALGORITHM_PUB,
             err = "Unexpected OpenSSH key type: wanted X25519, found armadillo@torproject.org"
         );
     }

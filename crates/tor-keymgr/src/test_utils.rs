@@ -38,48 +38,48 @@ where
 #[cfg(test)]
 pub(crate) mod ssh_keys {
     /// An Ed25519 keypair
-    pub(crate) const OPENSSH_ED25519: &str = include_str!("../testdata/ed25519_openssh.private");
+    pub(crate) const ED25519_OPENSSH: &str = include_str!("../testdata/ed25519_openssh.private");
 
     /// An Ed25519 public key
-    pub(crate) const OPENSSH_ED25519_PUB: &str = include_str!("../testdata/ed25519_openssh.public");
+    pub(crate) const ED25519_OPENSSH_PUB: &str = include_str!("../testdata/ed25519_openssh.public");
 
     /// An Ed25519 keypair that fails to parse.
-    pub(crate) const OPENSSH_ED25519_BAD: &str =
+    pub(crate) const ED25519_OPENSSH_BAD: &str =
         include_str!("../testdata/ed25519_openssh_bad.private");
 
     /// An Ed25519 public key that fails to parse.
-    pub(crate) const OPENSSH_ED25519_PUB_BAD: &str =
+    pub(crate) const ED25519_OPENSSH_BAD_PUB: &str =
         include_str!("../testdata/ed25519_openssh_bad.public");
 
     /// An expanded Ed25519 keypair.
-    pub(crate) const OPENSSH_EXP_ED25519: &str =
+    pub(crate) const ED25519_EXPANDED_OPENSSH: &str =
         include_str!("../testdata/ed25519_expanded_openssh.private");
 
     /// A public key using the ed25519-expanded@spec.torproject.org algorithm.
     ///
     /// Not valid because Ed25519 public keys can't be "expanded".
-    pub(crate) const OPENSSH_EXP_ED25519_PUB: &str =
+    pub(crate) const ED25519_EXPANDED_OPENSSH_PUB: &str =
         include_str!("../testdata/ed25519_expanded_openssh.public");
 
     /// An expanded Ed25519 keypair that fails to parse.
-    pub(crate) const OPENSSH_EXP_ED25519_BAD: &str =
+    pub(crate) const ED25519_EXPANDED_OPENSSH_BAD: &str =
         include_str!("../testdata/ed25519_expanded_openssh_bad.private");
 
     /// A DSA keypair.
-    pub(crate) const OPENSSH_DSA: &str = include_str!("../testdata/dsa_openssh.private");
+    pub(crate) const DSA_OPENSSH: &str = include_str!("../testdata/dsa_openssh.private");
 
     /// A X25519 keypair.
-    pub(crate) const OPENSSH_X25519: &str = include_str!("../testdata/x25519_openssh.private");
+    pub(crate) const X25519_OPENSSH: &str = include_str!("../testdata/x25519_openssh.private");
 
     /// A X25519 public key.
-    pub(crate) const OPENSSH_X25519_PUB: &str = include_str!("../testdata/x25519_openssh.public");
+    pub(crate) const X25519_OPENSSH_PUB: &str = include_str!("../testdata/x25519_openssh.public");
 
     /// An invalid keypair using the pangolin@torproject.org algorithm.
-    pub(crate) const OPENSSH_X25519_UNKNOWN_ALGORITHM: &str =
+    pub(crate) const X25519_OPENSSH_UNKNOWN_ALGORITHM: &str =
         include_str!("../testdata/x25519_openssh_unknown_algorithm.private");
 
     /// An invalid public key using the armadillo@torproject.org algorithm.
-    pub(crate) const OPENSSH_X25519_PUB_UNKNOWN_ALGORITHM: &str =
+    pub(crate) const X25519_OPENSSH_UNKNOWN_ALGORITHM_PUB: &str =
         include_str!("../testdata/x25519_openssh_unknown_algorithm.public");
 }
 
