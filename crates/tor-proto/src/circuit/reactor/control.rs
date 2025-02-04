@@ -11,7 +11,7 @@ use crate::circuit::{path, streammap, CircParameters};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 #[cfg(feature = "ntor_v3")]
-use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
+use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::{Error, Result};
 use tor_cell::chancell::msg::HandshakeType;
@@ -23,7 +23,10 @@ use tor_cell::relaycell::{
 use tor_error::internal;
 use tracing::trace;
 #[cfg(feature = "hs-service")]
-use {super::StreamReqSender, crate::stream::IncomingStreamRequestFilter};
+use {
+    super::StreamReqSender, crate::circuit::reactor::IncomingStreamRequestHandler,
+    crate::stream::IncomingStreamRequestFilter,
+};
 
 #[cfg(test)]
 use crate::congestion::sendme::CircTag;
