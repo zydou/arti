@@ -434,7 +434,6 @@ pub enum ProtoError {
 
 /// A set of errors encountered while trying to connect to the Arti process
 #[derive(Clone, Debug, thiserror::Error)]
-#[error("Unable to connect.")] // TODO RPC #1650, #1826: better output.
 pub struct ConnectFailure {
     /// A list of all the declined connect points we encountered, and how they failed.
     declined: Vec<(builder::ConnPtDescription, ConnectError)>,
@@ -446,6 +445,25 @@ pub struct ConnectFailure {
     /// search process from even beginning.
     #[source]
     pub(crate) final_error: ConnectError,
+}
+
+impl std::fmt::Display for ConnectFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Unable to connect")?;
+        if !self.declined.is_empty() {
+            write!(
+                f,
+                " ({} attempts failed{})",
+                self.declined.len(),
+                if matches!(self.final_error, ConnectError::AllAttemptsDeclined) {
+                    ""
+                } else {
+                    " before fatal error"
+                }
+            )?;
+        }
+        Ok(())
+    }
 }
 
 impl ConnectFailure {
@@ -462,6 +480,41 @@ impl ConnectFailure {
     ) -> impl Iterator<Item = (&builder::ConnPtDescription, &ConnectError)> {
         // Note: this map looks like a no-op, but isn't.
         self.declined.iter().map(|(a, b)| (a, b))
+    }
+
+    /// Return a helper type to format this error, and all of its internal errors recursively.
+    ///
+    /// Unlike [`tor_error::Report`], this method includes not only fatal errors, but also
+    /// information about connect attempts that failed nonfatally.
+    pub fn display_verbose(&self) -> ConnectFailureVerboseFmt<'_> {
+        ConnectFailureVerboseFmt(self)
+    }
+}
+
+/// Helper type to format a ConnectFailure along with all of its internal errors,
+/// including non-fatal errors.
+#[derive(Debug, Clone)]
+pub struct ConnectFailureVerboseFmt<'a>(&'a ConnectFailure);
+
+impl<'a> std::fmt::Display for ConnectFailureVerboseFmt<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use tor_error::ErrorReport as _;
+        writeln!(f, "{}:", self.0)?;
+        for (idx, (origin, error)) in self.0.declined_attempt_outcomes().enumerate() {
+            writeln!(f, "  {}. {}: {}", idx + 1, origin, error.report())?;
+        }
+        if let Some(origin) = self.0.fatal_error_origin() {
+            writeln!(
+                f,
+                "  {}. [FATAL] {}: {}",
+                self.0.declined.len() + 1,
+                origin,
+                self.0.final_error.report()
+            )?;
+        } else {
+            writeln!(f, "  - {}", self.0.final_error.report())?;
+        }
+        Ok(())
     }
 }
 

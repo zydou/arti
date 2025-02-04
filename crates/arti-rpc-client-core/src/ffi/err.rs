@@ -361,7 +361,6 @@ impl IntoFfiError for tor_rpc_connect::ConnectError {
     }
 }
 
-// TODO RPC #1650: Better output.
 impl IntoFfiError for crate::conn::ConnectFailure {
     fn status(&self) -> FfiStatus {
         self.final_error.status()
@@ -369,6 +368,10 @@ impl IntoFfiError for crate::conn::ConnectFailure {
 
     fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
         Some(self)
+    }
+
+    fn message(&self) -> String {
+        self.display_verbose().to_string()
     }
 }
 
