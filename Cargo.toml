@@ -83,6 +83,7 @@ members = [
     "examples/hyper/hyper-http-client-example",
     "examples/hyper/hyper-http-hs-example",
     "examples/axum/axum-hello-world",
+    "examples/download-manager",
 ]
 
 resolver = "2"

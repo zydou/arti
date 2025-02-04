@@ -1,0 +1,29 @@
+[package]
+name = "download-manager"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Download the Tor Browser using multiple tor connections."
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+publish = false
+
+[dependencies]
+anyhow = { version = "1.0.95" }
+arti-client = { path = "../../crates/arti-client" }
+clap = { version = "4.5.26", features = ["derive"] }
+futures = { version = "0.3.31" }
+hex = "0.4"
+http-body-util = { version = "0.1.0" }
+hyper = { version = "1.5.2", features = ["client", "http1"] }
+hyper-util = { version = "0.1.1", features = ["tokio"] }
+sha2 = { version = "0.10.8" }
+tokio = { version = "1.43.0", features = [
+    "macros",
+    "rt-multi-thread",
+    "net",
+    "fs",
+] }
+tokio-native-tls = "0.3.1"
+tor-rtcompat = { path = "../../crates/tor-rtcompat" }
+tracing = { version = "0.1.41" }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
