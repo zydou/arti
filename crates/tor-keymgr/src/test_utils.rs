@@ -37,50 +37,91 @@ where
 /// OpenSSH keys used for testing.
 #[cfg(test)]
 pub(crate) mod ssh_keys {
-    /// An Ed25519 keypair
-    pub(crate) const ED25519_OPENSSH: &str = include_str!("../testdata/ed25519_openssh.private");
-
-    /// An Ed25519 public key
-    pub(crate) const ED25519_OPENSSH_PUB: &str = include_str!("../testdata/ed25519_openssh.public");
-
-    /// An Ed25519 keypair that fails to parse.
-    pub(crate) const ED25519_OPENSSH_BAD: &str =
-        include_str!("../testdata/ed25519_openssh_bad.private");
-
-    /// An Ed25519 public key that fails to parse.
-    pub(crate) const ED25519_OPENSSH_BAD_PUB: &str =
-        include_str!("../testdata/ed25519_openssh_bad.public");
-
-    /// An expanded Ed25519 keypair.
-    pub(crate) const ED25519_EXPANDED_OPENSSH: &str =
-        include_str!("../testdata/ed25519_expanded_openssh.private");
-
-    /// A public key using the ed25519-expanded@spec.torproject.org algorithm.
+    /// Helper macro for defining test key constants.
     ///
-    /// Not valid because Ed25519 public keys can't be "expanded".
-    pub(crate) const ED25519_EXPANDED_OPENSSH_PUB: &str =
-        include_str!("../testdata/ed25519_expanded_openssh.public");
+    /// Defines constants for the public and private key files
+    /// specified in the `PUB` and `PRIV` lists, respectively.
+    ///
+    /// The entries from the `PUB` and `PRIV` lists must specify the documentation of the constant,
+    /// and the basename of the file to include (`include_str`) from "../testdata".
+    /// The path of each key file is built like so:
+    ///
+    ///   * `PUB` keys: `../testdata/<BASENAME>.public`
+    ///   * `PRIV` keys: `../testdata/<BASENAME>.private`
+    ///
+    /// The names of the constants are derived from the basename:
+    ///   * for `PUB` entries, the name is the uppercased basename, followed by `_PUB`
+    ///   * for `PRIV` entries, the name is the uppercased basename
+    macro_rules! define_key_consts {
+        (
+            PUB => { $($(#[ $docs_and_attrs:meta ])* $basename:literal,)* },
+            PRIV => { $($(#[ $docs_and_attrs_priv:meta ])* $basename_priv:literal,)* }
+        ) => {
+            $(
+                paste::paste! {
+                    define_key_consts!(
+                        $(#[ $docs_and_attrs ])*
+                        [< $basename:upper _PUB >], $basename, ".public"
+                    );
+                }
+            )*
 
-    /// An expanded Ed25519 keypair that fails to parse.
-    pub(crate) const ED25519_EXPANDED_OPENSSH_BAD: &str =
-        include_str!("../testdata/ed25519_expanded_openssh_bad.private");
+            $(
+                paste::paste! {
+                    define_key_consts!(
+                        $(#[ $docs_and_attrs_priv ])*
+                        [< $basename_priv:upper >], $basename_priv, ".private"
+                    );
+                }
+            )*
+        };
 
-    /// A DSA keypair.
-    pub(crate) const DSA_OPENSSH: &str = include_str!("../testdata/dsa_openssh.private");
+        (
+            $($(#[ $docs_and_attrs:meta ])*
+            $const_name:ident, $basename:literal, $extension:literal)*
+        ) => {
+            $(
+                $(#[ $docs_and_attrs ])*
+                pub(crate) const $const_name: &str =
+                    include_str!(concat!("../testdata/", $basename, $extension));
+            )*
+        }
+    }
 
-    /// A X25519 keypair.
-    pub(crate) const X25519_OPENSSH: &str = include_str!("../testdata/x25519_openssh.private");
-
-    /// A X25519 public key.
-    pub(crate) const X25519_OPENSSH_PUB: &str = include_str!("../testdata/x25519_openssh.public");
-
-    /// An invalid keypair using the pangolin@torproject.org algorithm.
-    pub(crate) const X25519_OPENSSH_UNKNOWN_ALGORITHM: &str =
-        include_str!("../testdata/x25519_openssh_unknown_algorithm.private");
-
-    /// An invalid public key using the armadillo@torproject.org algorithm.
-    pub(crate) const X25519_OPENSSH_UNKNOWN_ALGORITHM_PUB: &str =
-        include_str!("../testdata/x25519_openssh_unknown_algorithm.public");
+    define_key_consts! {
+        // Public key constants
+        PUB => {
+            /// An Ed25519 public key.
+            "ed25519_openssh",
+            /// An Ed25519 public key that fails to parse.
+            "ed25519_openssh_bad",
+            /// A public key using the ed25519-expanded@spec.torproject.org algorithm.
+            ///
+            /// Not valid because Ed25519 public keys can't be "expanded".
+            "ed25519_expanded_openssh",
+            /// A X25519 public key.
+            "x25519_openssh",
+            /// An invalid public key using the armadillo@torproject.org algorithm.
+            "x25519_openssh_unknown_algorithm",
+        },
+        // Keypair constants
+        PRIV => {
+            /// An Ed25519 keypair.
+            "ed25519_openssh",
+            /// An Ed25519 keypair that fails to parse.
+            "ed25519_openssh_bad",
+            /// An expanded Ed25519 keypair.
+            "ed25519_expanded_openssh",
+            /// An expanded Ed25519 keypair that fails to parse.
+            "ed25519_expanded_openssh_bad",
+            /// A DSA keypair.
+            "dsa_openssh",
+            /// A X25519 keypair.
+            "x25519_openssh",
+            /// An invalid keypair using the pangolin@torproject.org algorithm.
+            "x25519_openssh_unknown_algorithm",
+        }
+    }
 }
 
 /// A module exporting a key specifier used for testing.
