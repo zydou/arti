@@ -73,10 +73,19 @@ impl FileWatcher {
 }
 
 /// Event possibly triggering a configuration reload
+//
+// WARNING!
+//
+// Simply adding new, more specific, events, to this struct, would be wrong.
+// This is because internally, we transmit the events via a postage::watch,
+// which means that receivers might not receive all events!
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
     /// Some files may have been modified.
+    ///
+    /// This is semantically equivalent to `Rescan`, since in neither case
+    /// do we say *which* files may have been changed.
     FileChanged,
     /// Some filesystem events may have been missed.
     Rescan,
@@ -229,6 +238,7 @@ impl<R: Runtime> FileWatcherBuilder<R> {
                 //     separate thread
                 //   * notify's own async_monitor example uses block_on() to run async code in the
                 //     event handler
+                // NB!  This can lose events!  See the internal warning comment on `Event`
                 runtime.block_on(async {
                     let _ = tx.0.lock().await.send(event).await;
                 });
