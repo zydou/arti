@@ -3,11 +3,10 @@
 // TODO: perhaps this shouldn't live in tor-config? But it doesn't seem substantial enough to have
 // its own crate, and it can't live in e.g. tor-basic-utils, because it depends on tor-rtcompat.
 
-#![allow(unused)] // XXXX
-
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::io;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -19,7 +18,7 @@ use amplify::Getters;
 use notify::{EventKind, Watcher};
 use postage::watch;
 
-use futures::{SinkExt as _, Stream, StreamExt as _};
+use futures::{Stream, StreamExt as _};
 
 /// `Result` whose `Err` is [`FileWatcherBuildError`].
 pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
@@ -94,8 +93,12 @@ pub enum Event {
 
 /// Builder used to configure a [`FileWatcher`] before it starts watching for changes.
 pub struct FileWatcherBuilder<R: Runtime> {
-    /// The runtime.
-    runtime: R,
+    /// The runtime.  We used to use this.
+    ///
+    /// TODO get rid of this, but after we decide whether to keep using postage::watch.
+    /// See the Warning note on Event.
+    #[allow(dead_code)]
+    runtime: PhantomData<R>,
     /// The list of directories that we're currently watching.
     ///
     /// Each directory has a set of filters that indicates whether a given notify::Event
@@ -132,9 +135,9 @@ impl DirEventFilter {
 
 impl<R: Runtime> FileWatcherBuilder<R> {
     /// Create a `FileWatcherBuilder`
-    pub fn new(runtime: R) -> Self {
+    pub fn new(_runtime: R) -> Self {
         FileWatcherBuilder {
-            runtime,
+            runtime: PhantomData,
             watching_dirs: HashMap::new(),
         }
     }
@@ -229,7 +232,6 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     /// This helps mitigate the event loss that occurs if the watched files are modified between
     /// the time they are initially loaded and the time when the watcher is set up.
     pub fn start_watching(self, tx: FileEventSender) -> Result<FileWatcher> {
-        let runtime = self.runtime;
         let watching_dirs = self.watching_dirs.clone();
         let event_sender = move |event: notify::Result<notify::Event>| {
             let event = handle_event(event, &watching_dirs);
