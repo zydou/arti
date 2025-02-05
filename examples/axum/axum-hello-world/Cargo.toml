@@ -12,7 +12,7 @@ anyhow = "1.0.75"
 arti-client = { path = "../../../crates/arti-client", features = [
     "onion-service-service",
 ] }
-axum = { version = "0.7.5", features = ["tracing"] }
+axum = { version = "0.8.1", features = ["tracing"] }
 futures = "0.3.14"
 hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1.1", features = ["tokio"] }
