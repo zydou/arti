@@ -69,6 +69,9 @@ mod hash {
     /// We only keep 128 bits; see note above in the module documentation about why
     /// this is okay.
     pub(super) fn hash(s: &[u8]) -> [u8; MESSAGE_LEN] {
+        /// If we change MESSAGE_LEN, this function will need to change.
+        const _: () = assert!(MESSAGE_LEN == 16);
+
         // I'm choosing kangaroo-twelve for its speed. This doesn't affect
         // compatibility, so it's okay to use something a bit odd, since we can
         // change it later if we want.
