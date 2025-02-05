@@ -79,7 +79,7 @@ pub(crate) trait ReplayLogType {
     fn message_bytes(message: &Self::Message) -> [u8; MESSAGE_LEN];
 
     /// Parse a filename into [`Self::Name`].
-    fn parse_log_leafname(leaf: &OsStr) -> Result<(Self::Name, &str), Cow<'static, str>>;
+    fn parse_log_leafname(leaf: &OsStr) -> Result<Self::Name, Cow<'static, str>>;
 }
 
 /// Persistent state file, and associated data
@@ -287,7 +287,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
     ///
     /// Otherwise returns an error explaining why it isn't,
     /// as a plain string (for logging).
-    pub(crate) fn parse_log_leafname(leaf: &OsStr) -> Result<(T::Name, &str), Cow<'static, str>> {
+    pub(crate) fn parse_log_leafname(leaf: &OsStr) -> Result<T::Name, Cow<'static, str>> {
         T::parse_log_leafname(leaf)
     }
 }
@@ -389,13 +389,13 @@ mod test {
             message.clone()
         }
 
-        fn parse_log_leafname(leaf: &OsStr) -> Result<(IptLocalId, &str), Cow<'static, str>> {
+        fn parse_log_leafname(leaf: &OsStr) -> Result<IptLocalId, Cow<'static, str>> {
             let leaf = leaf.to_str().ok_or("not proper unicode")?;
             let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
             let lid: IptLocalId = lid
                 .parse()
                 .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
-            Ok((lid, leaf))
+            Ok(lid)
         }
     }
 

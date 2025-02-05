@@ -1385,8 +1385,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             let leaf = ent.file_name();
             // Try to identify this replay logfile (including its IptLocalId)
             match IptReplayLog::parse_log_leafname(&leaf) {
-                Ok((lid, _)) if all_ipts.contains(&lid) => continue,
-                Ok((_lid, leaf)) => trace!("deleting replay log for old IPT: {leaf}"),
+                Ok(lid) if all_ipts.contains(&lid) => continue,
+                Ok(_) => trace!(
+                    leaf = leaf.to_string_lossy().as_ref(),
+                    "deleting replay log for old IPT"
+                ),
                 Err(bad) => info!(
                     "deleting garbage in IPT replay log dir: {} ({})",
                     leaf.to_string_lossy(),
