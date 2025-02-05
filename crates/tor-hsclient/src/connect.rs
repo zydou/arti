@@ -41,9 +41,7 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
-use tor_proto::circuit::{
-    CircParameters, ClientCirc, ConversationInHandler, MetaCellDisposition, MsgHandler,
-};
+use tor_proto::circuit::{CircParameters, ClientCirc, MetaCellDisposition, MsgHandler};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
 use crate::pow::HsPowClient;
@@ -997,7 +995,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
-                _conversation: ConversationInHandler<'_>,
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 // The first message we expect is a RENDEZVOUS_ESTABALISHED.
@@ -1167,7 +1164,6 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         impl MsgHandler for Handler {
             fn handle_msg(
                 &mut self,
-                _conversation: ConversationInHandler<'_>,
                 msg: AnyRelayMsg,
             ) -> Result<MetaCellDisposition, tor_proto::Error> {
                 self.intro_ack_tx
