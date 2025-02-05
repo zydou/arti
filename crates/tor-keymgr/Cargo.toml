@@ -48,7 +48,7 @@ data-encoding = { version = "2.3.1", optional = true }
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
-downcast-rs = "1.2.0"
+downcast-rs = "2.0.1"
 dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.8.2", features = ["serde", "walkdir"] }
 glob-match = "0.2.1"
