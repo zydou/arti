@@ -891,6 +891,21 @@ impl Reactor {
                 let cmd = unwrap_or_shutdown!(self, res, "shutdown channel drop")?;
                 match cmd {
                     CtrlCmd::Shutdown => return self.handle_shutdown().map(|_| ()),
+                    #[cfg(test)]
+                    CtrlCmd::AddFakeHop {
+                        relay_cell_format: format,
+                        fwd_lasthop,
+                        rev_lasthop,
+                        params,
+                        done,
+                    } => {
+                        self.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
+                        return Ok(())
+                    },
+                    _ => {
+                        trace!("reactor shutdown due to unexpected command: {:?}", cmd);
+                        return Err(Error::CircProto(format!("Unexpected control {cmd:?} on client circuit")).into());
+                    }
                 }
             },
             res = self.control.next() => unwrap_or_shutdown!(self, res, "control drop")?,
@@ -905,17 +920,6 @@ impl Reactor {
             } => {
                 self.handle_create(recv_created, handshake, &params, done)
                     .await
-            }
-            #[cfg(test)]
-            CtrlMsg::AddFakeHop {
-                relay_cell_format: format,
-                fwd_lasthop,
-                rev_lasthop,
-                params,
-                done,
-            } => {
-                self.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
-                Ok(())
             }
             _ => {
                 trace!("reactor shutdown due to unexpected cell: {:?}", msg);

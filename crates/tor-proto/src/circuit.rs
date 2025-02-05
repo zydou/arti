@@ -562,8 +562,8 @@ impl ClientCirc {
             MpscSpec::new(INCOMING_BUFFER).new_mq(time_prov, self.memquota.as_raw_account())?;
         let (tx, rx) = oneshot::channel();
 
-        self.control
-            .unbounded_send(CtrlMsg::AwaitStreamRequest {
+        self.command
+            .unbounded_send(CtrlCmd::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
                 hop_num,
@@ -728,14 +728,14 @@ impl ClientCirc {
         let BoxedClientLayer { fwd, back, binding } = protocol.construct_layers(role, seed)?;
 
         let (tx, rx) = oneshot::channel();
-        let message = CtrlMsg::ExtendVirtual {
+        let message = CtrlCmd::ExtendVirtual {
             relay_cell_format,
             cell_crypto: (fwd, back, binding),
             params,
             done: tx,
         };
 
-        self.control
+        self.command
             .unbounded_send(message)
             .map_err(|_| Error::CircuitClosed)?;
 
@@ -1669,8 +1669,8 @@ mod test {
         for idx in 0_u8..3 {
             let params = CircParameters::default();
             let (tx, rx) = oneshot::channel();
-            circ.control
-                .unbounded_send(CtrlMsg::AddFakeHop {
+            circ.command
+                .unbounded_send(CtrlCmd::AddFakeHop {
                     relay_cell_format,
                     fwd_lasthop: idx == 2,
                     rev_lasthop: idx == u8::from(next_msg_from),
@@ -2135,8 +2135,8 @@ mod test {
             // Make sure that the circuit is indeed expecting the right sendmes
             {
                 let (tx, rx) = oneshot::channel();
-                circ.control
-                    .unbounded_send(CtrlMsg::QuerySendWindow {
+                circ.command
+                    .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
                         done: tx,
                     })
@@ -2183,8 +2183,8 @@ mod test {
             // window is updated.
             {
                 let (tx, rx) = oneshot::channel();
-                circ.control
-                    .unbounded_send(CtrlMsg::QuerySendWindow {
+                circ.command
+                    .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
                         done: tx,
                     })
