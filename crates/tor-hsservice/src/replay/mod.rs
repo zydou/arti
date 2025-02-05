@@ -35,6 +35,9 @@ pub(crate) struct ReplayLog<T> {
     /// If is is `None`, this RelayLog is ephemeral.
     file: Option<PersistFile>,
     /// [`PhantomData`] so rustc doesn't complain about the unused type param.
+    ///
+    /// This type represents the type of data that we're storing, as well as the type of the
+    /// key/name for that data.
     replay_log_type: PhantomData<T>,
 }
 
@@ -43,7 +46,7 @@ pub(crate) type IptReplayLog = ReplayLog<ipt::IptReplayLogType>;
 
 /// The length of the [`ReplayLogType::MAGIC`] constant.
 ///
-// TODO: If Rust's const generic support was better we wouldn't need this at all.
+// TODO: If Rust's constant expressions supported generics we wouldn't need this at all.
 const MAGIC_LEN: usize = 32;
 
 /// The length of the message that we store on disk, in bytes.
@@ -62,7 +65,7 @@ pub(crate) trait ReplayLogType {
     /// The name of this item, used for the log filename.
     type Name;
 
-    /// The time of the messages that we are ensuring the uniqueness of.
+    /// The type of the messages that we are ensuring the uniqueness of.
     type Message;
 
     /// A magic string that we put at the start of each log file, to make sure that
