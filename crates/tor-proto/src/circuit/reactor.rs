@@ -45,7 +45,7 @@ use crate::util::err::ReactorError;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{Error, Result};
-use control::ControlHandler;
+use control::{CommandHandler, ControlHandler};
 use futures::stream::FuturesUnordered;
 use std::borrow::Borrow;
 use std::mem::size_of;
@@ -91,6 +91,7 @@ use tracing::{debug, trace, warn};
 
 use extender::HandshakeAuxDataHandler;
 
+pub(super) use control::CtrlCmd;
 pub(super) use control::CtrlMsg;
 
 /// Initial value for outbound flow-control window on streams.
@@ -441,20 +442,15 @@ pub struct Reactor {
     /// This channel is polled in [`Reactor::run_once`], but only if the `chan_sender` sink
     /// is ready to accept cells.
     control: mpsc::UnboundedReceiver<CtrlMsg>,
-    /// Receiver for shutdown messages for this reactor, sent by `ClientCirc` objects.
+    /// Receiver for command messages for this reactor, sent by `ClientCirc` objects.
     ///
     /// This channel is polled in [`Reactor::run_once`].
     ///
-    /// NOTE: this is a separate channel from `control`, because shutdown messages
-    /// are higher priority and need to be handled even if the `chan_sender` is not
+    /// NOTE: this is a separate channel from `control`, because some messages
+    /// have higher priority and need to be handled even if the `chan_sender` is not
     /// ready (whereas `control` messages are not read until the `chan_sender` sink
     /// is ready to accept cells).
-    ///
-    // If it turns out there are other control messages that need to be handled
-    // regardless of `chan_sender` readiness, we should split those out of CtrlMsg
-    // and into a separate CmdMsg enum, and change this channel to receive
-    // CmdMsgs instead of ().
-    shutdown: mpsc::UnboundedReceiver<()>,
+    command: mpsc::UnboundedReceiver<CtrlCmd>,
     /// The channel this circuit is attached to.
     channel: Arc<Channel>,
     /// Sender object used to actually send cells.
@@ -561,13 +557,13 @@ impl Reactor {
     ) -> (
         Self,
         mpsc::UnboundedSender<CtrlMsg>,
-        mpsc::UnboundedSender<()>,
+        mpsc::UnboundedSender<CtrlCmd>,
         oneshot::Receiver<void::Void>,
         Arc<Mutex<MutableState>>,
     ) {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
-        let (shutdown_tx, shutdown_rx) = mpsc::unbounded();
+        let (command_tx, command_rx) = mpsc::unbounded();
         let mutable = Arc::new(Mutex::new(MutableState::default()));
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
@@ -576,7 +572,7 @@ impl Reactor {
 
         let reactor = Reactor {
             control: control_rx,
-            shutdown: shutdown_rx,
+            command: command_rx,
             reactor_closed_tx,
             channel,
             chan_sender,
@@ -593,7 +589,7 @@ impl Reactor {
             memquota,
         };
 
-        (reactor, control_tx, shutdown_tx, reactor_closed_rx, mutable)
+        (reactor, control_tx, command_tx, reactor_closed_rx, mutable)
     }
 
     /// Launch the reactor, and run until the circuit closes or we
@@ -628,9 +624,9 @@ impl Reactor {
         // Note: We don't actually use the returned SinkSendable,
         // and continue writing to the SometimesUboundedSink :(
         let (cmd, _sendable) = select_biased! {
-                res = self.shutdown.next() => {
-                    let () = unwrap_or_shutdown!(self, res, "shutdown channel drop")?;
-                    return self.handle_shutdown().map(|_| ());
+                res = self.command.next() => {
+                    let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
+                    return CommandHandler::new(self).handle(cmd);
                 },
                 res = self.chan_sender
                     .prepare_send_from(async {
@@ -891,9 +887,11 @@ impl Reactor {
     /// Returns an error if an unexpected `CtrlMsg` is received.
     async fn wait_for_create(&mut self) -> StdResult<(), ReactorError> {
         let msg = select_biased! {
-            res = self.shutdown.next() => {
-                let () = unwrap_or_shutdown!(self, res, "shutdown channel drop")?;
-                return self.handle_shutdown().map(|_| ());
+            res = self.command.next() => {
+                let cmd = unwrap_or_shutdown!(self, res, "shutdown channel drop")?;
+                match cmd {
+                    CtrlCmd::Shutdown => return self.handle_shutdown().map(|_| ()),
+                }
             },
             res = self.control.next() => unwrap_or_shutdown!(self, res, "control drop")?,
         };

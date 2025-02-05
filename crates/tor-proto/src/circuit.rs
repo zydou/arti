@@ -68,6 +68,7 @@ use crate::stream::{
 };
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
+use reactor::CtrlCmd;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::{
     chancell::{self, msg::AnyChanMsg, CircId},
@@ -170,8 +171,8 @@ pub struct ClientCirc {
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
-    /// Channel to send shutdown requests to the reactor.
-    shutdown: mpsc::UnboundedSender<()>,
+    /// Channel to send commands to the reactor.
+    command: mpsc::UnboundedSender<CtrlCmd>,
     /// The channel that this ClientCirc is connected to and using to speak with
     /// its first hop.
     ///
@@ -921,7 +922,7 @@ impl ClientCirc {
     /// with a circuit: the circuit should close on its own once nothing
     /// is using it any more.
     pub fn terminate(&self) {
-        let _ = self.shutdown.unbounded_send(());
+        let _ = self.command.unbounded_send(CtrlCmd::Shutdown);
     }
 
     /// Called when a circuit-level protocol error has occurred and the
@@ -1025,14 +1026,14 @@ impl PendingClientCirc {
         unique_id: UniqId,
         memquota: CircuitAccount,
     ) -> (PendingClientCirc, reactor::Reactor) {
-        let (reactor, control_tx, shutdown_tx, reactor_closed_rx, mutable) =
+        let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel.clone(), id, unique_id, input, memquota.clone());
 
         let circuit = ClientCirc {
             mutable,
             unique_id,
             control: control_tx,
-            shutdown: shutdown_tx,
+            command: command_tx,
             reactor_closed_rx: reactor_closed_rx.shared(),
             channel,
             #[cfg(test)]

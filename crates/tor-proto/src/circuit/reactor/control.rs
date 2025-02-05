@@ -6,7 +6,7 @@ use super::{
 };
 use crate::circuit::celltypes::CreateResponse;
 use crate::circuit::reactor::extender::CircuitExtender;
-use crate::circuit::reactor::NtorClient;
+use crate::circuit::reactor::{NtorClient, ReactorError};
 use crate::circuit::{path, streammap, CircParameters};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
@@ -36,6 +36,8 @@ use oneshot_fused_workaround as oneshot;
 use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::crypto::handshake::ntor::NtorPublicKey;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
+
+use std::result::Result as StdResult;
 
 /// A message telling the reactor to do something.
 #[derive(educe::Educe)]
@@ -427,6 +429,37 @@ impl<'a> ControlHandler<'a> {
 
                 Ok(None)
             }
+        }
+    }
+}
+
+/// A message telling the reactor to do something.
+#[derive(educe::Educe)]
+#[educe(Debug)]
+pub(crate) enum CtrlCmd {
+    /// Shut down the reactor.
+    Shutdown,
+}
+
+// A command message handler object. Keep a reference to the Reactor tying its lifetime to it.
+//
+// The `handle()` function is how a message is handled.
+pub(crate) struct CommandHandler<'a> {
+    /// Reference to the reactor of this
+    reactor: &'a mut Reactor,
+}
+
+impl<'a> CommandHandler<'a> {
+    /// Constructor.
+    pub(crate) fn new(reactor: &'a mut Reactor) -> Self {
+        Self { reactor }
+    }
+
+    /// Process a command message.
+    pub(crate) fn handle(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
+        trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
+        match msg {
+            CtrlCmd::Shutdown => Err(ReactorError::Shutdown),
         }
     }
 }
