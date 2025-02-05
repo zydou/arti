@@ -663,9 +663,9 @@ impl Reactor {
         let cmd = match cmd {
             None => None,
             Some(SelectResult::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
-            Some(SelectResult::HandleControl(ctrl)) => ControlHandler::new(self)
-                .handle(ctrl)?
-                .map(RunOnceCmd::Single),
+            Some(SelectResult::HandleControl(ctrl)) => {
+                Some(RunOnceCmd::Single(ControlHandler::new(self).handle(ctrl)?))
+            }
             Some(SelectResult::HandleCell(cell)) => self.handle_cell(cell)?,
         };
 

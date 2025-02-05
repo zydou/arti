@@ -181,7 +181,7 @@ impl<'a> ControlHandler<'a> {
     }
 
     /// Process a control message.
-    pub(crate) fn handle(&mut self, msg: CtrlMsg) -> Result<Option<RunOnceCmdInner>> {
+    pub(crate) fn handle(&mut self, msg: CtrlMsg) -> Result<RunOnceCmdInner> {
         trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
         match msg {
             // This is handled earlier, since it requires blocking.
@@ -211,7 +211,7 @@ impl<'a> ControlHandler<'a> {
                     )?;
                 self.reactor.set_meta_handler(Box::new(extender))?;
 
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
+                Ok(RunOnceCmdInner::Send { cell, done: None })
             }
             #[cfg(feature = "ntor_v3")]
             CtrlMsg::ExtendNtorV3 {
@@ -242,7 +242,7 @@ impl<'a> ControlHandler<'a> {
                     )?;
                 self.reactor.set_meta_handler(Box::new(extender))?;
 
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
+                Ok(RunOnceCmdInner::Send { cell, done: None })
             }
             CtrlMsg::BeginStream {
                 hop_num,
@@ -259,7 +259,7 @@ impl<'a> ControlHandler<'a> {
                     )));
                 };
                 let cell = hop.begin_stream(message, sender, rx, cmd_checker);
-                Ok(Some(RunOnceCmdInner::BeginStream { cell, done }))
+                Ok(RunOnceCmdInner::BeginStream { cell, done })
             }
             #[cfg(feature = "hs-service")]
             CtrlMsg::ClosePendingStream {
@@ -267,13 +267,13 @@ impl<'a> ControlHandler<'a> {
                 stream_id,
                 message,
                 done,
-            } => Ok(Some(RunOnceCmdInner::CloseStream {
+            } => Ok(RunOnceCmdInner::CloseStream {
                 hop_num,
                 sid: stream_id,
                 behav: message,
                 reason: streammap::TerminateReason::ExplicitEnd,
                 done: Some(done),
-            })),
+            }),
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
@@ -282,7 +282,7 @@ impl<'a> ControlHandler<'a> {
                     early: false,
                     cell,
                 };
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
+                Ok(RunOnceCmdInner::Send { cell, done: None })
             }
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsg {
@@ -296,21 +296,21 @@ impl<'a> ControlHandler<'a> {
                     early: false,
                     cell,
                 };
-                Ok(Some(RunOnceCmdInner::Send {
+                Ok(RunOnceCmdInner::Send {
                     cell,
                     done: Some(sender),
-                }))
+                })
             }
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsgAndInstallHandler {
                 msg,
                 handler,
                 sender,
-            } => Ok(Some(RunOnceCmdInner::SendMsgAndInstallHandler {
+            } => Ok(RunOnceCmdInner::SendMsgAndInstallHandler {
                 msg,
                 handler,
                 done: sender,
-            })),
+            }),
         }
     }
 }
