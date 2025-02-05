@@ -60,7 +60,7 @@ pub(crate) mod ssh_keys {
             $(
                 paste::paste! {
                     define_key_consts!(
-                        $(#[ $docs_and_attrs ])*
+                        @ $(#[ $docs_and_attrs ])*
                         [< $basename:upper _PUB >], $basename, ".public"
                     );
                 }
@@ -69,7 +69,7 @@ pub(crate) mod ssh_keys {
             $(
                 paste::paste! {
                     define_key_consts!(
-                        $(#[ $docs_and_attrs_priv ])*
+                        @ $(#[ $docs_and_attrs_priv ])*
                         [< $basename_priv:upper >], $basename_priv, ".private"
                     );
                 }
@@ -77,7 +77,7 @@ pub(crate) mod ssh_keys {
         };
 
         (
-            $($(#[ $docs_and_attrs:meta ])*
+            @ $($(#[ $docs_and_attrs:meta ])*
             $const_name:ident, $basename:literal, $extension:literal)*
         ) => {
             $(
