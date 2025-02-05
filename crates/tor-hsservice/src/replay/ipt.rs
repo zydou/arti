@@ -1,6 +1,6 @@
 //! Code for a replay log for [`Introduce2`] messages.
 
-use super::{ReplayLogType, MAGIC_LEN, MESSAGE_LEN, REPLAY_LOG_SUFFIX};
+use super::{ReplayLogType, MAGIC_LEN, OUTPUT_LEN, REPLAY_LOG_SUFFIX};
 use crate::internal_prelude::*;
 use hash::hash;
 use tor_cell::relaycell::msg::Introduce2;
@@ -20,7 +20,7 @@ impl ReplayLogType for IptReplayLogType {
         format!("{name}{REPLAY_LOG_SUFFIX}")
     }
 
-    fn message_bytes(message: &Introduce2) -> [u8; MESSAGE_LEN] {
+    fn transform_message(message: &Introduce2) -> [u8; OUTPUT_LEN] {
         // This line here is really subtle!  The decision of _what object_
         // to check for replays is critical to making sure that the
         // introduction point cannot do replays by modifying small parts of
@@ -62,15 +62,15 @@ impl ReplayLogType for IptReplayLogType {
 /// `KP_hss_ntor` key to do anything with it. A second preimage attack just
 /// gives another message we won't accept.
 mod hash {
-    use super::MESSAGE_LEN;
+    use super::OUTPUT_LEN;
 
     /// Compute a hash from a given bytestring.
     ///
     /// We only keep 128 bits; see note above in the module documentation about why
     /// this is okay.
-    pub(super) fn hash(s: &[u8]) -> [u8; MESSAGE_LEN] {
-        /// If we change MESSAGE_LEN, this function will need to change.
-        const _: () = assert!(MESSAGE_LEN == 16);
+    pub(super) fn hash(s: &[u8]) -> [u8; OUTPUT_LEN] {
+        /// If we change OUTPUT_LEN, this function will need to change.
+        const _: () = assert!(OUTPUT_LEN == 16);
 
         // I'm choosing kangaroo-twelve for its speed. This doesn't affect
         // compatibility, so it's okay to use something a bit odd, since we can
@@ -78,7 +78,7 @@ mod hash {
         use digest::{ExtendableOutput, Update};
         use k12::KangarooTwelve;
         let mut d = KangarooTwelve::default();
-        let mut output = [0; MESSAGE_LEN];
+        let mut output = [0; OUTPUT_LEN];
         d.update(s);
         d.finalize_xof_into(&mut output);
         output

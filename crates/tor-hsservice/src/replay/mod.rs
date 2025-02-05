@@ -55,7 +55,7 @@ const MAGIC_LEN: usize = 32;
 /// to disk.
 ///
 // TODO: Once const generics are good, this should be a associated constant for ReplayLogType.
-pub(crate) const MESSAGE_LEN: usize = 16;
+pub(crate) const OUTPUT_LEN: usize = 16;
 
 /// A trait to represent a set of types that ReplayLog can be used with.
 pub(crate) trait ReplayLogType {
@@ -76,7 +76,7 @@ pub(crate) trait ReplayLogType {
     fn format_filename(name: &Self::Name) -> String;
 
     /// Convert [`Self::Message`] to bytes that will be stored in the log.
-    fn message_bytes(message: &Self::Message) -> [u8; MESSAGE_LEN];
+    fn transform_message(message: &Self::Message) -> [u8; OUTPUT_LEN];
 
     /// Parse a filename into [`Self::Name`].
     fn parse_log_leafname(leaf: &OsStr) -> Result<Self::Name, Cow<'static, str>>;
@@ -183,7 +183,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
         let mut seen = data::Filter::new();
         let mut r = BufReader::new(file);
         loop {
-            let mut msg = [0_u8; MESSAGE_LEN];
+            let mut msg = [0_u8; OUTPUT_LEN];
             match r.read_exact(&mut msg) {
                 Ok(()) => {
                     let _ = seen.test_and_add(&msg); // ignore error.
@@ -213,7 +213,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
     /// `current_len` should have come from `file.metadata()`.
     // If the file's length is not an even multiple of MESSAGE_LEN after the MAGIC, truncate it.
     fn truncate_to_multiple(file: &mut File, current_len: u64) -> io::Result<()> {
-        let excess = (current_len - T::MAGIC.len() as u64) % (MESSAGE_LEN as u64);
+        let excess = (current_len - T::MAGIC.len() as u64) % (OUTPUT_LEN as u64);
         if excess != 0 {
             file.set_len(current_len - excess)?;
         }
@@ -228,7 +228,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
     ///
     /// Otherwise, return `Ok(())`.
     pub(crate) fn check_for_replay(&mut self, message: &T::Message) -> Result<(), ReplayError> {
-        let h = T::message_bytes(message);
+        let h = T::transform_message(message);
         self.seen.test_and_add(&h)?;
         if let Some(f) = self.file.as_mut() {
             (|| {
@@ -298,7 +298,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
 ///
 /// We isolate this code to make it easier to replace.
 mod data {
-    use super::{ReplayError, MESSAGE_LEN};
+    use super::{ReplayError, OUTPUT_LEN};
     use growable_bloom_filter::GrowableBloom;
 
     /// A probabilistic membership filter.
@@ -318,7 +318,7 @@ mod data {
         /// Try to add `msg` to this filter if it isn't already there.
         ///
         /// Return Ok(()) or Err(AlreadySeen).
-        pub(super) fn test_and_add(&mut self, msg: &[u8; MESSAGE_LEN]) -> Result<(), ReplayError> {
+        pub(super) fn test_and_add(&mut self, msg: &[u8; OUTPUT_LEN]) -> Result<(), ReplayError> {
             if self.0.insert(&msg[..]) {
                 Ok(())
             } else {
@@ -377,7 +377,7 @@ mod test {
 
     impl ReplayLogType for TestReplayLogType {
         type Name = IptLocalId;
-        type Message = [u8; MESSAGE_LEN];
+        type Message = [u8; OUTPUT_LEN];
 
         const MAGIC: &'static [u8; MAGIC_LEN] = b"<tor test replay>\n\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
@@ -385,7 +385,7 @@ mod test {
             format!("{name}{REPLAY_LOG_SUFFIX}")
         }
 
-        fn message_bytes(message: &[u8; MESSAGE_LEN]) -> [u8; MESSAGE_LEN] {
+        fn transform_message(message: &[u8; OUTPUT_LEN]) -> [u8; OUTPUT_LEN] {
             message.clone()
         }
 
@@ -399,7 +399,7 @@ mod test {
         }
     }
 
-    fn rand_msg<R: Rng>(rng: &mut R) -> [u8; MESSAGE_LEN] {
+    fn rand_msg<R: Rng>(rng: &mut R) -> [u8; OUTPUT_LEN] {
         rng.gen()
     }
 
@@ -484,7 +484,7 @@ mod test {
             let path = dir.join(format!("hss/allium/iptreplay/{}.bin", IptLocalId::dummy(1)));
             let file = OpenOptions::new().write(true).open(path).unwrap();
             // Make sure that the file has the length we expect.
-            let expected_len = MAGIC_LEN + MESSAGE_LEN * group_1.len();
+            let expected_len = MAGIC_LEN + OUTPUT_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
             file.set_len((expected_len - 7) as u64).unwrap();
         });
@@ -658,7 +658,7 @@ mod test {
             #[allow(clippy::identity_op)]
             let mk_msg = |phase: u8, i: usize| {
                 let i = u32::try_from(i).unwrap();
-                let mut msg = [0_u8; MESSAGE_LEN];
+                let mut msg = [0_u8; OUTPUT_LEN];
                 msg[0] = phase;
                 msg[1] = phase;
                 msg[4] = (i >> 24) as _;
@@ -669,8 +669,8 @@ mod test {
             };
 
             // Number of hashes we can write to the file before failure occurs
-            const CAN_DO: usize = (ALLOW + BUF - MAGIC_LEN) / MESSAGE_LEN;
-            dbg!(MAGIC_LEN, MESSAGE_LEN, BUF, ALLOW, CAN_DO);
+            const CAN_DO: usize = (ALLOW + BUF - MAGIC_LEN) / OUTPUT_LEN;
+            dbg!(MAGIC_LEN, OUTPUT_LEN, BUF, ALLOW, CAN_DO);
 
             // Record of the hashes that TestReplayLog tells us were OK and not replays;
             // ie, which it therefore ought to have recorded.
