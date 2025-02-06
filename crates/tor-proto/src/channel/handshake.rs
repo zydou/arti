@@ -1,6 +1,6 @@
 //! Implementations for the channel handshake
 
-use asynchronous_codec as futures_codec;
+use asynchronous_codec;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
@@ -257,7 +257,7 @@ impl<
         // AsyncRead/AsyncWrite aspects of the tls, and just treat it
         // as a stream and a sink for cells.
         let codec = ChannelCodec::<HandshakeMsg, HandshakeMsg>::new(link_protocol);
-        let mut tls = futures_codec::Framed::new(self.tls, codec);
+        let mut tls = asynchronous_codec::Framed::new(self.tls, codec);
 
         // Read until we have the netinfo cells.
         let mut certs: Option<msg::Certs> = None;
@@ -892,7 +892,7 @@ pub(super) mod test {
         let clock_skew = ClockSkew::None;
         UnverifiedChannel {
             link_protocol: 4,
-            tls: futures_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
+            tls: asynchronous_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
             certs_cell: certs,
             netinfo_cell,
             clock_skew,
@@ -1154,7 +1154,7 @@ pub(super) mod test {
             let peer_addr = "127.1.1.2:443".parse().unwrap();
             let ver = VerifiedChannel {
                 link_protocol: 4,
-                tls: futures_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
+                tls: asynchronous_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
                 unique_id: UniqId::new(),
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,

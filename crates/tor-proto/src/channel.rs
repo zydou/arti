@@ -102,7 +102,7 @@ pub use testing_exports::*;
 #[cfg(not(feature = "testing"))]
 use testing_exports::*;
 
-use asynchronous_codec as futures_codec;
+use asynchronous_codec;
 use futures::channel::mpsc;
 use futures::io::{AsyncRead, AsyncWrite};
 use oneshot_fused_workaround as oneshot;
@@ -155,7 +155,7 @@ pub(crate) type OpenChanCellS2C = ChanCell<OpenChanMsgS2C>;
 /// Type alias: A Sink and Stream that transforms a TLS connection into
 /// a cell-based communication mechanism.
 type CellFrame<T> =
-    futures_codec::Framed<T, crate::channel::codec::ChannelCodec<OpenChanMsgS2C, AnyChanMsg>>;
+    asynchronous_codec::Framed<T, crate::channel::codec::ChannelCodec<OpenChanMsgS2C, AnyChanMsg>>;
 
 /// An open client channel, ready to send and receive Tor cells.
 ///
