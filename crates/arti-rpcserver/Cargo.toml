@@ -25,6 +25,7 @@ full = [
     "describe-methods",
     "oneshot-fused-workaround/full",
     "slotmap-careful/full",
+    "tor-rpc-connect/full",
 ]
 describe-methods = ["tor-rpcbase/describe-methods"]
 experimental = ["weakref"]

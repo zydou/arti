@@ -26,6 +26,7 @@ full = [
     "tor-persist/full",
     "tor-basic-utils/full",
     "tor-config-path/full",
+    "tor-bytes/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
