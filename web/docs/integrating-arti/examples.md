@@ -14,7 +14,7 @@ The following are sample projects built with Arti.
 
 - [**Connection checker**][connection-checker] attempts to check connectivity to the Tor network through a variety of ways.
 
-[download-manager]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/examples/gsoc2023/download-manager
+[download-manager]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/examples/download-manager
 [pt-proxy]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/examples/gsoc2023/pt-proxy
 [dns-resolver]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/examples/gsoc2023/dns-resolver
 [connection-checker]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/examples/gsoc2023/connection-checker
