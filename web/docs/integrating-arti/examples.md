@@ -6,7 +6,7 @@ title: Sample Code
 
 The following are sample projects built with Arti.
 
-- [**Download Manager**][download-manager] is a small download manager prototype which can connect to the Tor network and get a copy of the Tor browser from there.
+- [**Download Manager**][download-manager] is a small download manager prototype which can download Tor Browser using Arti. This demonstrates how to make TLS-encrypted HTTP requests over the Tor network.
 
 - [**Pt-proxy**][pt-proxy] provides an interface to run the obfs4 pluggable transport in a standalone manner, ie, instead of using obfs4 to connect to the Tor network, we can use it to connect to the Internet directly.
 
