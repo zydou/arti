@@ -59,7 +59,7 @@ See also what other projects are writing about Lunar:
   `ToEncodableCert::Cert` replaced with `::ParsedCert` and `::EncodableCert`;
   `ToEncodableCert::validate` now takes a `Self::ParsedCert`
   and returns `Self`;
-  `ToEncodableCert::From_encodableCert` removed.
+  `ToEncodableCert::from_encodableCert` removed.
   !2672
 - `tor-proto`: `StreamOps` trait now has a (defaulted) `new_handle` function;
   any wrapper implementing `StreamOps` should also wrap it.
