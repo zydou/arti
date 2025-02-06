@@ -1,6 +1,6 @@
 //! Module providing [`CircuitExtender`].
 
-use super::{MetaCellDisposition, MetaCellHandler, Reactor, ReactorResultChannel};
+use super::{Circuit, MetaCellDisposition, MetaCellHandler, Reactor, ReactorResultChannel};
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
@@ -92,7 +92,7 @@ where
             let unique_id = reactor.unique_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
-            let n_hops = reactor.crypto_out.n_layers();
+            let n_hops = reactor.circuits.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(
                 "{}: Extending circuit to hop {} with {:?}",
@@ -142,7 +142,7 @@ where
     fn extend_circuit(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Reactor,
+        reactor: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
         let msg = msg
             .decode::<Extended2>()
@@ -201,7 +201,7 @@ where
     fn handle_msg(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Reactor,
+        reactor: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
         let status = self.extend_circuit(msg, reactor);
 

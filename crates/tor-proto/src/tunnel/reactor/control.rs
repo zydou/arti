@@ -329,9 +329,10 @@ impl<'a> ControlHandler<'a> {
                 done,
                 cmd_checker,
             } => {
-                let cell = self
-                    .reactor
-                    .begin_stream(hop_num, message, sender, rx, cmd_checker)?;
+                let cell =
+                    self.reactor
+                        .circuits
+                        .begin_stream(hop_num, message, sender, rx, cmd_checker)?;
                 Ok(RunOnceCmdInner::BeginStream { cell, done })
             }
             #[cfg(feature = "hs-service")]
@@ -410,6 +411,7 @@ impl<'a> ControlHandler<'a> {
                 let peer_id = path::HopDetail::Virtual;
 
                 self.reactor
+                    .circuits
                     .add_hop(format, peer_id, outbound, inbound, binding, &params);
                 let _ = done.send(Ok(()));
 
@@ -448,7 +450,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                self.reactor.handle_add_fake_hop(
+                self.reactor.circuits.handle_add_fake_hop(
                     relay_cell_format,
                     fwd_lasthop,
                     rev_lasthop,
@@ -460,7 +462,7 @@ impl<'a> ControlHandler<'a> {
             }
             #[cfg(test)]
             CtrlCmd::QuerySendWindow { hop, done } => {
-                let _ = done.send(if let Some(hop) = self.reactor.hop_mut(hop) {
+                let _ = done.send(if let Some(hop) = self.reactor.circuits.hop_mut(hop) {
                     Ok(hop.ccontrol.send_window_and_expected_tags())
                 } else {
                     Err(Error::from(internal!(

@@ -65,7 +65,7 @@ impl<T: MsgHandler + Send> super::reactor::MetaCellHandler for UserMsgHandler<T>
     fn handle_msg(
         &mut self,
         msg: UnparsedRelayMsg,
-        _reactor: &mut super::reactor::Reactor,
+        _reactor: &mut super::reactor::Circuit,
     ) -> Result<MetaCellDisposition> {
         let cell: AnyRelayMsgOuter = msg.decode().map_err(|err| Error::BytesErr {
             object: "cell for message handler",
