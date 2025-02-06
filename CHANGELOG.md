@@ -3,6 +3,257 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# UNRELEASED - CONTAINS CHANGES UP TO d271ceb3514394b53959619aef1ec13212e80a23
+
+TODO - also, not yet in the final ([...], [...]) format.
+
+Arti 1.4.0 offers a new [RPC interface], continues work on the relay
+implementation, includes an overhaul of the [in-tree
+documentation](https://tpo.pages.torproject.net/core/arti/).
+
+## Dedication
+
+The Arti 1.4.0 release is dedicated to the memory of Jérémy Bobbio
+(1982-2024), known in our community as Lunar. Lunar was a Tor volunteer, free
+software hacker, and community organizer.
+
+Inside Tor, Lunar will be remembered for leading the efforts around Tor's old
+Weekly News newsletter, but also for caring deeply about both the organization
+the people around the organization.
+
+Outside of Tor, Lunar worked on highly successful free software projects such
+as the Debian project and helped build the infrastructure and tooling around
+the Reproducible Builds project, a project that continues to benefit the
+broader ecosystem.
+
+Lunar will be deeply missed, both in our community and in the many other communities he participated in.
+
+See also what other projects are writing about Lunar:
+
+- [The Debian Project](https://www.debian.org/News/2024/20241119)
+- [lunar.anargeek.net](https://lunar.anargeek.net/)
+- [Linux Weekly News](https://lwn.net/Articles/997775/)
+- [The Reproducible Builds Project](https://reproducible-builds.org/news/2024/11/14/reproducible-builds-mourns-the-passing-of-lunar/)
+
+## Changes in this release
+
+### Breaking changes
+
+- `Runtime` now implies `SpawnBlocking` with `spawn_blocking`.
+  Out-of-tree implementors of `Runtime` will need to change.
+  !2678
+
+### Major features
+
+- Arti's [RPC interface] is now ready for use.
+  Arti RPC is the replacement for C Tor's [control port]
+  with many improvements.
+  (At present the available *functionality*, offered over RPC, is limited.)
+
+### Breaking changes in lower-level crates
+
+- `tor-chanmgr`: `AbstractChannel` now has a `reparameterize_kist()` method.
+  !2706
+- `tor-key-forge`: `ErasedKey` is now `Box<dyn ItemType>`;
+  `EncodableItem::item_type()` moved to `ItemType`;
+  `ToEncodableCert::Cert` replaced with `::ParsedCert` and `::EncodableCert`;
+  `ToEncodableCert::validate` now takes a `Self::ParsedCert`
+  and returns `Self`;
+  `ToEncodableCert::From_encodableCert` removed.
+  !2672
+- `tor-proto`: `StreamOps` trait now has a (defaulted) `new_handle` function;
+  any wrapper implementing `StreamOps` should also wrap it.
+  !2706
+- `tor-proto`: stream types are now required to implement `StreamOps`.
+  !2706
+- `tor-rtcompat`: in many traits, stream types must now implement `StreamOps`.
+  !2706
+- `tor-proto`: `ConversationInHandler` now only has one lifetime parameter;
+  and `::send_message` is now `async`.
+  !2747
+
+### Relay development
+
+- Major refactoring of the circuit reactor, to use `select!`, lifting it from
+  async Rust's low-level "poll" to "async fn".
+  !2747
+  !2733
+  #1816
+  !2720
+  !2760
+  #1832
+- Improved CLI and add config loading.
+  !2699
+  #1736
+  !2709
+- High-level certificate types (implementing `ToEncodableCert`)
+  in `tor-relay-crypto`
+  !2672
+  #1777
+- Initial [KIST] support (Linux-only) in `tor-proto`.
+  !2706
+  #1728
+  #1728
+  #1729
+  #1730
+- Congestion control (prop324)
+  !2675 
+  #534
+- Apply the standard lint block.
+  !2708
+
+### RPC development
+
+- Cookie authentication
+  !2702
+  #1529
+  !2716
+- Fixed the remaining outstanding TODOs in the RPC code.
+  !2740
+  !2743
+  !2745
+  !2737
+  !2731
+- Improved names for many type and methods:
+  `MethodNotFound` to `NoSuchMethod`
+  !2714
+  #1500
+  ;
+  `new_stream_handle` to `new_oneshot_client`
+  !2715
+  #1664
+  ;
+  make `Params`/`Reply` structs consistent. 
+  !2729
+  #1586
+  !2732
+- Implement request cancellation.
+  !2722 
+  #818
+- Fix portability problems on Windows.
+  !2761
+  #1831
+  !2713
+  #1798
+  !2756
+  !2718 
+- Move support for weak references behind an experimental feature,
+  and clean up some related comments.
+  !2742
+  #868
+  !2741
+- Improve and write a bunch of RPC documentation.
+  !2748
+  #1520
+  #1527
+  #1296
+- Fixes and maintenance on rpc-docs-tool.
+  !2736
+  #1520
+  #1708
+- No longer generate internal errors for expected situations.
+  !2730
+- Tolerate nonexistence of a the connect point directory. 
+  !2735
+- Improve error outputs, including the origin of each failed connect attempt.
+  !2766
+  #1650
+  #1826
+  !2744
+  #1826
+- `fs-mistrust`: New facilities for file access 
+  !2707
+  #1746
+- Clarify and fix some issues surrounding relative paths. 
+  !2712
+  #1748
+  #1749
+- Tweaked `tor-proto` `StreamCtrl` APIs to better support use with RPC.
+  !2755
+- Document stream optimism. 
+  !2753 
+  #1583
+- Specify the RPC connection banner format
+  !2700
+  #1753
+
+### Hidden services development
+
+- Update plan for Proof of Work DoS prevention, `service-side-pow.md`.
+  !2701
+
+### Documentation
+
+- Rewrite download manager example 
+  !2725
+  #1471
+  #1386
+- `arti`: Add `restricted-discovery` to the list of experimental
+  features in the crate documentation.
+  !2719
+  #1808
+- `tor-config`: clarify that `ConfigurationSources::set_mistrust`is
+  unrelated to the paths defined within the configuration file itself,
+  and reference `storage.permissions.dangerously_trust_everyone`:
+  !2727
+- Integrate the Docusaurus-based documentation overhaul
+  (aka [`arti-doc-project-2023`]) into `arti.git/web/`
+  and deploy it to <https://tpo.pages.torproject.net/core/arti/>.
+  !2746
+  !2752
+  !2754
+  !2757
+
+### Cleanups, minor features, and bugfixes
+
+- Fix `watch_configuration = true`.  Previously this caused an infinite loop
+  and was not useable.
+  #1794
+  !2696
+- `tor-circmgr`: Add trace log on circuit build timeout. 
+  !2698
+- `tor-proto`: Make `Channel::wait_for_close` non-experimental.
+  !2666
+- Fix non-Unix build and test failures
+  !2615
+  !2738
+  #1809
+  !2717
+- Fix many typos
+  !2751
+
+### Testing
+
+- `tor-rtmock`: Fix misleading task lists from `MockExecutor` when panicking
+  due to stall and tasks unstick each other in `Drop`.
+  !2682
+- `tor-proto`: Fix flaky test `invalid_circ_sendme` by using
+  `MockExecutor` and replacing `sleep()` with `advance_until_stalled()`.
+  !2721
+
+### Infrastructure
+
+- `maint/matrix-check`: properly find the crate subdir.
+  !2762
+- Un-ignore [RUSTSEC-2024-0421] as we no longer use an affected `hickory`
+  !2693
+  #1773
+- Update our main CI image (`RECENT_RUST_IMAGE`) to 1.83. 
+  !2694
+- Better instructions for handling new MPL-licensed dependencies.
+  !2726
+- Style guide for this changelog, and small script to help format it.
+  !2739
+  !2616
+
+[KIST]: https://blog.torproject.org/kist-and-tell-tors-new-traffic-scheduling-feature/
+[RPC interface]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/doc/dev/rpc-book/src
+[RUSTSEC-2024-0421]: https://rustsec.org/advisories/RUSTSEC-2024-0421.html
+[`arti-doc-project-2023`]: https://gitlab.torproject.org/tpo/core/arti-doc-project-2023/
+[control port]: https://spec.torproject.org/control-spec/index.html
+
+
+
 # Arti 1.3.2 — 7 January 2025
 
 Arti 1.3.2 continues development on RPC,
