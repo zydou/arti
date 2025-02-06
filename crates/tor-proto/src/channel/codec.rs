@@ -1,11 +1,11 @@
-//! Wrap tor_cell::...:::ChannelCodec for use with the futures_codec
+//! Wrap tor_cell::...:::ChannelCodec for use with the asynchronous_codec
 //! crate.
 use std::{io::Error as IoError, marker::PhantomData};
 
 use futures::{AsyncRead, AsyncWrite};
 use tor_cell::chancell::{codec, ChanCell, ChanMsg};
 
-use asynchronous_codec as futures_codec;
+use asynchronous_codec;
 use bytes::BytesMut;
 
 /// An error from a ChannelCodec.
@@ -29,7 +29,7 @@ pub(crate) enum CodecError {
 }
 
 /// Asynchronous wrapper around ChannelCodec in tor_cell, with implementation
-/// for use with futures_codec.
+/// for use with asynchronous_codec.
 ///
 /// This type lets us wrap a TLS channel (or some other secure
 /// AsyncRead+AsyncWrite type) as a Sink and a Stream of ChanCell, so we can
@@ -69,7 +69,7 @@ impl<IN, OUT> ChannelCodec<IN, OUT> {
     }
 }
 
-impl<IN, OUT> futures_codec::Encoder for ChannelCodec<IN, OUT>
+impl<IN, OUT> asynchronous_codec::Encoder for ChannelCodec<IN, OUT>
 where
     OUT: ChanMsg,
 {
@@ -84,7 +84,7 @@ where
     }
 }
 
-impl<IN, OUT> futures_codec::Decoder for ChannelCodec<IN, OUT>
+impl<IN, OUT> asynchronous_codec::Decoder for ChannelCodec<IN, OUT>
 where
     IN: ChanMsg,
 {
@@ -96,11 +96,11 @@ where
     }
 }
 
-/// Consume a [`Framed`](futures_codec::Framed) codec user, and produce one that
+/// Consume a [`Framed`](asynchronous_codec::Framed) codec user, and produce one that
 /// sends and receives different message types.
 pub(crate) fn change_message_types<T, IN, OUT, IN2, OUT2>(
-    framed: futures_codec::Framed<T, ChannelCodec<IN, OUT>>,
-) -> futures_codec::Framed<T, ChannelCodec<IN2, OUT2>>
+    framed: asynchronous_codec::Framed<T, ChannelCodec<IN, OUT>>,
+) -> asynchronous_codec::Framed<T, ChannelCodec<IN2, OUT2>>
 where
     T: AsyncRead + AsyncWrite,
     IN: ChanMsg,
@@ -108,7 +108,7 @@ where
     IN2: ChanMsg,
     OUT2: ChanMsg,
 {
-    futures_codec::Framed::from_parts(
+    asynchronous_codec::Framed::from_parts(
         framed
             .into_parts()
             .map_codec(ChannelCodec::change_message_types),
@@ -127,7 +127,7 @@ pub(crate) mod test {
     use tor_cell::chancell::msg::AnyChanMsg;
     use tor_rtcompat::StreamOps;
 
-    use super::{futures_codec, ChannelCodec};
+    use super::{asynchronous_codec, ChannelCodec};
     use tor_cell::chancell::{msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
 
     /// Helper type for reading and writing bytes to/from buffers.
@@ -188,8 +188,8 @@ pub(crate) mod test {
 
     fn frame_buf(
         mbuf: MsgBuf,
-    ) -> futures_codec::Framed<MsgBuf, ChannelCodec<AnyChanMsg, AnyChanMsg>> {
-        futures_codec::Framed::new(mbuf, ChannelCodec::new(4))
+    ) -> asynchronous_codec::Framed<MsgBuf, ChannelCodec<AnyChanMsg, AnyChanMsg>> {
+        asynchronous_codec::Framed::new(mbuf, ChannelCodec::new(4))
     }
 
     #[test]
