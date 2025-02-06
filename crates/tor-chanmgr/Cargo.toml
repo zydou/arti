@@ -31,7 +31,7 @@ full = [
     "tor-units/full",
     "tor-async-utils/full",
     "oneshot-fused-workaround/full",
-    "tor-memquota/full",
+    "tor-memquota/full", "caret/full",
 ]
 
 pt-client = ["tor-linkspec/pt-client"]

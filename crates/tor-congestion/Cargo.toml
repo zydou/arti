@@ -15,3 +15,6 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 publish = false
 
 [dependencies]
+
+[features]
+full = []

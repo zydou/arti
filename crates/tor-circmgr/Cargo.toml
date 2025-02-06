@@ -37,7 +37,7 @@ full = [
     "tor-protover/full",
     "tor-relay-selection/full",
     "oneshot-fused-workaround/full",
-    "tor-memquota/full",
+    "tor-memquota/full", "tor-units/full",
 ]
 specific-relay = []
 vanguards = ["tor-guardmgr/vanguards"]

@@ -15,7 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 full = [
     "tor-error/full",
-    "tor-llcrypto/full", "tor-cert/full",
+    "tor-llcrypto/full", "tor-cert/full", "tor-bytes/full", "tor-checkable/full",
 ]
 
 __is_nonadditive = []
