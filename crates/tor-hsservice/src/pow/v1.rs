@@ -119,14 +119,18 @@ const _: () = assert!(
 );
 
 /// Depth of the queue used to signal the publisher that it needs to update a given time period.
+///
+/// 32 is likely way larger than we need but the messages are tiny so we might as well.
 const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
 
 impl<R: Runtime> PowManager<R> {
     /// Create a new [`PowManager`].
     #[allow(clippy::new_ret_no_self)]
     pub(crate) fn new(runtime: R, nickname: HsNickname, keymgr: Arc<KeyMgr>) -> NewPowManager<R> {
+        // This queue is extremely small, and we only make one of it per onion service, so it's
+        // fine to not use memquota tracking.
         let (publisher_update_tx, publisher_update_rx) =
-            mpsc::channel(PUBLISHER_UPDATE_QUEUE_DEPTH);
+            crate::mpsc_channel_no_memquota(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
         let state = State {
             seeds: HashMap::new(),
