@@ -35,7 +35,9 @@ full = [
     "tor-hscrypto?/full",
     "tor-log-ratelim/full",
     "oneshot-fused-workaround/full",
-    "tor-memquota/full", "slotmap-careful/full", "caret/full",
+    "tor-memquota/full",
+    "slotmap-careful/full",
+    "caret/full",
 ]
 
 experimental = ["experimental-api", "ntor_v3", "stream-ctrl", "testing", "bench"]

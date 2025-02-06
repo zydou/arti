@@ -18,7 +18,9 @@ full = [
     "tor-key-forge/full",
     "tor-keymgr/full",
     "tor-error/full",
-    "tor-persist/full", "tor-checkable/full", "tor-llcrypto/full",
+    "tor-persist/full",
+    "tor-checkable/full",
+    "tor-llcrypto/full",
 ]
 
 [dependencies]
