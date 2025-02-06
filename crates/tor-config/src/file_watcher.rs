@@ -6,19 +6,19 @@
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::io;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use tor_rtcompat::Runtime;
 
 use amplify::Getters;
-use futures::lock::Mutex;
 use notify::{EventKind, Watcher};
 use postage::watch;
 
-use futures::{SinkExt as _, Stream, StreamExt as _};
+use futures::{Stream, StreamExt as _};
 
 /// `Result` whose `Err` is [`FileWatcherBuildError`].
 pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
@@ -73,10 +73,19 @@ impl FileWatcher {
 }
 
 /// Event possibly triggering a configuration reload
+//
+// WARNING!
+//
+// Simply adding new, more specific, events, to this struct, would be wrong.
+// This is because internally, we transmit the events via a postage::watch,
+// which means that receivers might not receive all events!
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
     /// Some files may have been modified.
+    ///
+    /// This is semantically equivalent to `Rescan`, since in neither case
+    /// do we say *which* files may have been changed.
     FileChanged,
     /// Some filesystem events may have been missed.
     Rescan,
@@ -84,8 +93,12 @@ pub enum Event {
 
 /// Builder used to configure a [`FileWatcher`] before it starts watching for changes.
 pub struct FileWatcherBuilder<R: Runtime> {
-    /// The runtime.
-    runtime: R,
+    /// The runtime.  We used to use this.
+    ///
+    /// TODO get rid of this, but after we decide whether to keep using postage::watch.
+    /// See the Warning note on Event.
+    #[allow(dead_code)]
+    runtime: PhantomData<R>,
     /// The list of directories that we're currently watching.
     ///
     /// Each directory has a set of filters that indicates whether a given notify::Event
@@ -122,9 +135,9 @@ impl DirEventFilter {
 
 impl<R: Runtime> FileWatcherBuilder<R> {
     /// Create a `FileWatcherBuilder`
-    pub fn new(runtime: R) -> Self {
+    pub fn new(_runtime: R) -> Self {
         FileWatcherBuilder {
-            runtime,
+            runtime: PhantomData,
             watching_dirs: HashMap::new(),
         }
     }
@@ -219,19 +232,12 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     /// This helps mitigate the event loss that occurs if the watched files are modified between
     /// the time they are initially loaded and the time when the watcher is set up.
     pub fn start_watching(self, tx: FileEventSender) -> Result<FileWatcher> {
-        let runtime = self.runtime;
         let watching_dirs = self.watching_dirs.clone();
         let event_sender = move |event: notify::Result<notify::Event>| {
             let event = handle_event(event, &watching_dirs);
             if let Some(event) = event {
-                // It *should* be alright to block_on():
-                //   * on all platforms, the `RecommendedWatcher`'s event_handler is called from a
-                //     separate thread
-                //   * notify's own async_monitor example uses block_on() to run async code in the
-                //     event handler
-                runtime.block_on(async {
-                    let _ = tx.0.lock().await.send(event).await;
-                });
+                // NB!  This can lose events!  See the internal warning comment on `Event`
+                *tx.0.lock().expect("poisoned").borrow_mut() = event;
             }
         };
 
