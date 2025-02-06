@@ -77,6 +77,34 @@ impl Seed {
     }
 }
 
+impl std::fmt::Display for Seed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+/// Error when converting a string to a [`Seed`].
+#[non_exhaustive]
+pub enum ParseSeedError {
+    /// The string was not a valid hex string.
+    InvalidHex(hex::FromHexError),
+    /// The string was not the correct length for a [`Seed`].
+    InvalidLength,
+}
+
+impl std::str::FromStr for Seed {
+    type Err = ParseSeedError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = hex::decode(s).map_err(ParseSeedError::InvalidHex)?;
+        Ok(Seed(
+            bytes
+                .try_into()
+                .map_err(|_| ParseSeedError::InvalidLength)?,
+        ))
+    }
+}
+
 /// Length of a seed prefix used to identify the entire seed
 pub const SEED_HEAD_LEN: usize = 4;
 
