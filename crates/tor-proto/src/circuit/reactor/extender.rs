@@ -244,10 +244,7 @@ pub(super) trait HandshakeAuxDataHandler: ClientHandshake {
 
 #[cfg(feature = "ntor_v3")]
 impl HandshakeAuxDataHandler for NtorV3Client {
-    fn handle_server_aux_data(
-        _params: &CircParameters,
-        data: &Vec<NtorV3Extension>,
-    ) -> Result<()> {
+    fn handle_server_aux_data(_params: &CircParameters, data: &Vec<NtorV3Extension>) -> Result<()> {
         // There are currently no accepted server extensions,
         // particularly since we don't request any extensions yet.
         if !data.is_empty() {
@@ -260,20 +257,14 @@ impl HandshakeAuxDataHandler for NtorV3Client {
 }
 
 impl HandshakeAuxDataHandler for NtorClient {
-    fn handle_server_aux_data(
-        _params: &CircParameters,
-        _data: &(),
-    ) -> Result<()> {
+    fn handle_server_aux_data(_params: &CircParameters, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }
 }
 
 impl HandshakeAuxDataHandler for CreateFastClient {
-    fn handle_server_aux_data(
-        _params: &CircParameters,
-        _data: &(),
-    ) -> Result<()> {
+    fn handle_server_aux_data(_params: &CircParameters, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }
