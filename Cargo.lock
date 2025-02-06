@@ -6067,6 +6067,7 @@ dependencies = [
  "humantime",
  "inventory",
  "itertools 0.14.0",
+ "paste",
  "rand",
  "serde",
  "serde_json",
