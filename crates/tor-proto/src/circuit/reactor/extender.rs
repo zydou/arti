@@ -166,7 +166,7 @@ where
 
         // Handle auxiliary data returned from the server, e.g. validating that
         // requested extensions have been acknowledged.
-        H::handle_server_aux_data(reactor, &self.params, &server_aux_data)?;
+        H::handle_server_aux_data(&self.params, &server_aux_data)?;
 
         let layer = L::construct(keygen)?;
 
@@ -237,7 +237,6 @@ pub(super) trait HandshakeAuxDataHandler: ClientHandshake {
     /// Handle auxiliary handshake data returned when creating or extending a
     /// circuit.
     fn handle_server_aux_data(
-        reactor: &mut Reactor,
         params: &CircParameters,
         data: &<Self as ClientHandshake>::ServerAuxData,
     ) -> Result<()>;
@@ -246,7 +245,6 @@ pub(super) trait HandshakeAuxDataHandler: ClientHandshake {
 #[cfg(feature = "ntor_v3")]
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(
-        _reactor: &mut Reactor,
         _params: &CircParameters,
         data: &Vec<NtorV3Extension>,
     ) -> Result<()> {
@@ -263,7 +261,6 @@ impl HandshakeAuxDataHandler for NtorV3Client {
 
 impl HandshakeAuxDataHandler for NtorClient {
     fn handle_server_aux_data(
-        _reactor: &mut Reactor,
         _params: &CircParameters,
         _data: &(),
     ) -> Result<()> {
@@ -274,7 +271,6 @@ impl HandshakeAuxDataHandler for NtorClient {
 
 impl HandshakeAuxDataHandler for CreateFastClient {
     fn handle_server_aux_data(
-        _reactor: &mut Reactor,
         _params: &CircParameters,
         _data: &(),
     ) -> Result<()> {

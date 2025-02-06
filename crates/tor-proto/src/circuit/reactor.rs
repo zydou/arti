@@ -1048,7 +1048,7 @@ impl Reactor {
         let relay_handshake = wrap.decode_chanmsg(reply)?;
         let (server_msg, keygen) = H::client2(state, relay_handshake)?;
 
-        H::handle_server_aux_data(self, params, &server_msg)?;
+        H::handle_server_aux_data(params, &server_msg)?;
 
         let relay_cell_format = cell_protocol.relay_cell_format();
         let BoxedClientLayer { fwd, back, binding } =
