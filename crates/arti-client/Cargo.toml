@@ -142,7 +142,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 dyn-clone = { version = "1.0.11", optional = true }
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.2", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.4", features = ["serde"] }
 futures = "0.3.14"
 hostname-validator = "1.1.1"
 humantime = "2"

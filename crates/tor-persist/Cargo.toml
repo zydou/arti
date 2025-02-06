@@ -35,7 +35,7 @@ amplify = { version = "4", default-features = false, features = ["derive"], opti
 derive-deftly = "0.14"
 derive_more = { version = "1.0.0", features = ["full"] }
 filetime = { version = "0.2", default-features = false }
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.2", features = ["walkdir"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.4", features = ["walkdir"] }
 fslock-guard = { path = "../fslock-guard", version = "0.2.1", optional = true }
 futures = "0.3.14"
 itertools = "0.14.0"
