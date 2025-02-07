@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED - CONTAINS CHANGES UP TO d271ceb3514394b53959619aef1ec13212e80a23
+# UNRELEASED
 
 TODO - also, not yet in the final (\[...], \[...]) format.
 
@@ -82,6 +82,8 @@ See also what other projects are writing about Lunar:
   !2720
   !2760
   #1832
+  !2768
+  !2765
 - Improved CLI and add config loading.
   !2699
   #1736
@@ -177,10 +179,12 @@ See also what other projects are writing about Lunar:
   !2700
   #1753
 
-### Hidden services development
+### Other development
 
 - Update plan for Proof of Work DoS prevention, `service-side-pow.md`.
   !2701
+- Design notes for implementation of [Conflux].
+  !2750
 
 ### Documentation
 
@@ -219,6 +223,11 @@ See also what other projects are writing about Lunar:
   !2738
   #1809
   !2717
+- Replace an async `Mutex` with a sync one in file watcher.
+  !2763
+- Remove confusing `use asynchronous_codec as futures_codec`
+  #1690
+  !2769
 - Fix many typos
   !2751
 
@@ -230,6 +239,9 @@ See also what other projects are writing about Lunar:
 - `tor-proto`: Fix flaky test `invalid_circ_sendme` by using
   `MockExecutor` and replacing `sleep()` with `advance_until_stalled()`.
   !2721
+- More uniform handling of some test key data.
+  !2764
+  #1396
 
 ### Infrastructure
 
