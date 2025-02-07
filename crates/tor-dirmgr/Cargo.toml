@@ -65,7 +65,7 @@ derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.6"
 event-listener = "5"
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.4" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.9.0" }
 fslock = { version = "0.2.0" }
 futures = "0.3.14"
 hex = "0.4"

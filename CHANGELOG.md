@@ -71,6 +71,8 @@ See also what other projects are writing about Lunar:
 - `tor-proto`: `ConversationInHandler` now only has one lifetime parameter;
   and `::send_message` is now `async`.
   !2747
+- `fs-mistrust`: A few methods now take `&self` rather than `self`.
+  !2707
 
 ### Relay development
 
