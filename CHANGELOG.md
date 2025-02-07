@@ -99,7 +99,7 @@ See also what other projects are writing about Lunar:
   #1729
   #1730
 - Congestion control.
-  [prop324]
+  [proposal 324]
   !2675 
   #534
 - Apply the standard lint block.
