@@ -172,9 +172,76 @@ pub(crate) enum CtrlMsg {
     },
 }
 
-// A control message handler object. Keep a reference to the Reactor tying its lifetime to it.
-//
-// The `process()` function is how a message is handled.
+/// A message telling the reactor to do something.
+///
+/// The difference between this and [`CtrlMsg`] is that `CtrlCmd`s
+/// are handled even if the reactor's `chan_sender` is not ready to receive cells.
+/// Another difference is that `CtrlCmd`s never cause cells to sent on the channel,
+/// while `CtrlMsg`s potentially do: `CtrlMsg`s are mapped to [`RunOnceCmdInner`] commands,
+/// some of which instruct the reactor to send cells down the channel.
+#[derive(educe::Educe)]
+#[educe(Debug)]
+pub(crate) enum CtrlCmd {
+    /// Shut down the reactor.
+    Shutdown,
+    /// Extend the circuit by one hop, in response to an out-of-band handshake.
+    ///
+    /// (This is used for onion services, where the negotiation takes place in
+    /// INTRODUCE and RENDEZVOUS messages.)
+    #[cfg(feature = "hs-common")]
+    ExtendVirtual {
+        /// Which relay cell format to use for this hop.
+        relay_cell_format: RelayCellFormat,
+        /// The cryptographic algorithms and keys to use when communicating with
+        /// the newly added hop.
+        #[educe(Debug(ignore))]
+        cell_crypto: (
+            Box<dyn OutboundClientLayer + Send>,
+            Box<dyn InboundClientLayer + Send>,
+            Option<CircuitBinding>,
+        ),
+        /// A set of parameters used to configure this hop.
+        params: CircParameters,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
+    },
+    /// Begin accepting streams on this circuit.
+    #[cfg(feature = "hs-service")]
+    AwaitStreamRequest {
+        /// A channel for sending information about an incoming stream request.
+        incoming_sender: StreamReqSender,
+        /// A `CmdChecker` to keep track of which message types are acceptable.
+        cmd_checker: AnyCmdChecker,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<()>,
+        /// The hop that is allowed to create streams.
+        hop_num: HopNum,
+        /// A filter used to check requests before passing them on.
+        #[educe(Debug(ignore))]
+        #[cfg(feature = "hs-service")]
+        filter: Box<dyn IncomingStreamRequestFilter>,
+    },
+    /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
+    #[cfg(test)]
+    AddFakeHop {
+        relay_cell_format: RelayCellFormat,
+        fwd_lasthop: bool,
+        rev_lasthop: bool,
+        params: CircParameters,
+        done: ReactorResultChannel<()>,
+    },
+    /// (tests only) Get the send window and expected tags for a given hop.
+    #[cfg(test)]
+    QuerySendWindow {
+        hop: HopNum,
+        done: ReactorResultChannel<(u32, Vec<CircTag>)>,
+    },
+}
+
+/// A control message handler object. Keep a reference to the Reactor tying its lifetime to it.
+///
+/// Its `handle_msg` and `handle_cmd` handlers decide how messages and commands,
+/// respectively, are handled.
 pub(crate) struct ControlHandler<'a> {
     /// Reference to the reactor of this
     reactor: &'a mut Reactor,
@@ -186,8 +253,8 @@ impl<'a> ControlHandler<'a> {
         Self { reactor }
     }
 
-    /// Process a control message.
-    pub(crate) fn handle(&mut self, msg: CtrlMsg) -> Result<RunOnceCmdInner> {
+    /// Handle a control message.
+    pub(super) fn handle_msg(&mut self, msg: CtrlMsg) -> Result<RunOnceCmdInner> {
         trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
         match msg {
             // This is handled earlier, since it requires blocking.
@@ -322,92 +389,9 @@ impl<'a> ControlHandler<'a> {
             }
         }
     }
-}
 
-/// A message telling the reactor to do something.
-///
-/// The difference between this and [`CtrlMsg`] is that `CtrlCmd`s
-/// are handled even if the reactor's `chan_sender` is not ready to receive cells.
-/// Another difference is that `CtrlCmd`s never cause cells to sent on the channel,
-/// while `CtrlMsg`s potentially do: `CtrlMsg`s are mapped to [`RunOnceCmdInner`] commands,
-/// some of which instruct the reactor to send cells down the channel.
-#[derive(educe::Educe)]
-#[educe(Debug)]
-pub(crate) enum CtrlCmd {
-    /// Shut down the reactor.
-    Shutdown,
-    /// Extend the circuit by one hop, in response to an out-of-band handshake.
-    ///
-    /// (This is used for onion services, where the negotiation takes place in
-    /// INTRODUCE and RENDEZVOUS messages.)
-    #[cfg(feature = "hs-common")]
-    ExtendVirtual {
-        /// Which relay cell format to use for this hop.
-        relay_cell_format: RelayCellFormat,
-        /// The cryptographic algorithms and keys to use when communicating with
-        /// the newly added hop.
-        #[educe(Debug(ignore))]
-        cell_crypto: (
-            Box<dyn OutboundClientLayer + Send>,
-            Box<dyn InboundClientLayer + Send>,
-            Option<CircuitBinding>,
-        ),
-        /// A set of parameters used to configure this hop.
-        params: CircParameters,
-        /// Oneshot channel to notify on completion.
-        done: ReactorResultChannel<()>,
-    },
-    /// Begin accepting streams on this circuit.
-    #[cfg(feature = "hs-service")]
-    AwaitStreamRequest {
-        /// A channel for sending information about an incoming stream request.
-        incoming_sender: StreamReqSender,
-        /// A `CmdChecker` to keep track of which message types are acceptable.
-        cmd_checker: AnyCmdChecker,
-        /// Oneshot channel to notify on completion.
-        done: ReactorResultChannel<()>,
-        /// The hop that is allowed to create streams.
-        hop_num: HopNum,
-        /// A filter used to check requests before passing them on.
-        #[educe(Debug(ignore))]
-        #[cfg(feature = "hs-service")]
-        filter: Box<dyn IncomingStreamRequestFilter>,
-    },
-    /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
-    #[cfg(test)]
-    AddFakeHop {
-        relay_cell_format: RelayCellFormat,
-        fwd_lasthop: bool,
-        rev_lasthop: bool,
-        params: CircParameters,
-        done: ReactorResultChannel<()>,
-    },
-    /// (tests only) Get the send window and expected tags for a given hop.
-    #[cfg(test)]
-    QuerySendWindow {
-        hop: HopNum,
-        done: ReactorResultChannel<(u32, Vec<CircTag>)>,
-    },
-}
-
-/// A [`CtrlCmd`] handler object. Keeps a reference to the Reactor tying its lifetime to it.
-///
-/// The `handle()` function is how a message is handled.
-//
-// TODO: perhaps we can fold this type's impl into `ControlHandler`?
-pub(crate) struct CommandHandler<'a> {
-    /// Reference to the reactor of this
-    reactor: &'a mut Reactor,
-}
-
-impl<'a> CommandHandler<'a> {
-    /// Constructor.
-    pub(crate) fn new(reactor: &'a mut Reactor) -> Self {
-        Self { reactor }
-    }
-
-    /// Process a command message.
-    pub(crate) fn handle(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
+    /// Handle a control command.
+    pub(super) fn handle_cmd(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
         trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
         match msg {
             CtrlCmd::Shutdown => Err(ReactorError::Shutdown),
