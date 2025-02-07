@@ -270,12 +270,16 @@ the [Bureau of Democracy, Human Rights and Labor],
 and our [other sponsors]
 for funding the development of Arti!
 
-
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
 [KIST]: https://blog.torproject.org/kist-and-tell-tors-new-traffic-scheduling-feature/
 [RPC interface]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/doc/dev/rpc-book/src
 [RUSTSEC-2024-0421]: https://rustsec.org/advisories/RUSTSEC-2024-0421.html
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`arti-doc-project-2023`]: https://gitlab.torproject.org/tpo/core/arti-doc-project-2023/
 [control port]: https://spec.torproject.org/control-spec/index.html
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[proposal 324]: https://spec.torproject.org/proposals/324-rtt-congestion-control.html
 
 
 
