@@ -41,7 +41,7 @@ See also what other projects are writing about Lunar:
 
 - `Runtime` now implies `SpawnBlocking` with `spawn_blocking`.
   Out-of-tree implementors of `Runtime` will need to change.
-  !2678
+  ([!2678])
 
 ### Major features
 
@@ -53,24 +53,24 @@ See also what other projects are writing about Lunar:
 ### Breaking changes in lower-level crates
 
 - `tor-chanmgr`: `AbstractChannel` now has a `reparameterize_kist()` method.
-  !2706
+  ([!2706])
 - `tor-key-forge`: `ErasedKey` is now `Box<dyn ItemType>`;
   `EncodableItem::item_type()` moved to `ItemType`;
   `ToEncodableCert::Cert` replaced with `::ParsedCert` and `::EncodableCert`;
   `ToEncodableCert::validate` now takes a `Self::ParsedCert`
   and returns `Self`;
   `ToEncodableCert::from_encodableCert` removed.
-  !2672
+  ([!2672])
 - `tor-proto`: `StreamOps` trait now has a (defaulted) `new_handle` function;
   any wrapper implementing `StreamOps` should also wrap it.
-  !2706
+  ([!2706])
 - `tor-proto`: stream types are now required to implement `StreamOps`.
-  !2706
+  ([!2706])
 - `tor-rtcompat`: in many traits, stream types must now implement `StreamOps`.
-  !2706
+  ([!2706])
 - `tor-proto`: `ConversationInHandler` now only has one lifetime parameter;
   and `::send_message` is now `async`.
-  !2747
+  ([!2747])
 - `fs-mistrust`: A few methods now take `&self` rather than `self`.
   !2707
 
@@ -78,188 +78,127 @@ See also what other projects are writing about Lunar:
 
 - Major refactoring of the circuit reactor, to use `select!`, lifting it from
   async Rust's low-level "poll" to "async fn".
-  !2747
-  !2733
-  #1816
-  !2720
-  !2760
-  #1832
-  !2768
-  !2765
+  ([!2747], [!2733], [#1816], [!2720], [!2760], [#1832], [!2768], [!2765])
 - Improved CLI and add config loading.
-  !2699
-  #1736
-  !2709
+  ([!2699], [#1736], [!2709])
 - High-level certificate types (implementing `ToEncodableCert`)
   in `tor-relay-crypto`.
-  !2672
-  #1777
+  ([!2672], [#1777])
 - Initial [KIST] support (Linux-only) in `tor-proto`.
-  !2706
-  #1728
-  #1728
-  #1729
-  #1730
+  ([!2706], [#1728], [#1728], [#1729], [#1730])
 - Congestion control.
   [proposal 324]
-  !2675 
-  #534
+  ([!2675], [#534])
 - Apply the standard lint block.
-  !2708
+  ([!2708])
 
 ### RPC development
 
 - Cookie authentication.
-  !2702
-  #1529
-  !2716
+  ([!2702], [#1529], [!2716])
 - Fixed the remaining outstanding TODOs in the RPC code.
-  !2740
-  !2743
-  !2745
-  !2737
-  !2731
+  ([!2740], [!2743], [!2745], [!2737], [!2731])
 - Improved names for many type and methods:
   `MethodNotFound` to `NoSuchMethod`
-  !2714
-  #1500
+  ([!2714], [#1500])
   ;
   `new_stream_handle` to `new_oneshot_client`
-  !2715
-  #1664
+  ([!2715], [#1664])
   ;
-  make `Params`/`Reply` structs consistent. 
-  !2729
-  #1586
-  !2732
+  make `Params`/`Reply` structs consistent.
+  ([!2729], [#1586], [!2732])
 - Implement request cancellation.
-  !2722 
-  #818
+  ([!2722], [#818])
 - Fix portability problems on Windows.
-  !2761
-  #1831
-  !2713
-  #1798
-  !2756
-  !2718 
+  ([!2761], [#1831], [!2713], [#1798], [!2756], [!2718])
 - Move support for weak references behind an experimental feature,
   and clean up some related comments.
-  !2742
-  #868
-  !2741
+  ([!2742], [#868], [!2741])
 - Improve and write a bunch of RPC documentation.
-  !2748
-  #1520
-  #1527
-  #1296
+  ([!2748], [#1520], [#1527], [#1296])
 - Fixes and maintenance on rpc-docs-tool.
-  !2736
-  #1520
-  #1708
+  ([!2736], [#1520], [#1708])
 - No longer generate internal errors for expected situations.
-  !2730
-- Tolerate nonexistence of a the connect point directory. 
-  !2735
+  ([!2730])
+- Tolerate nonexistence of a the connect point directory.
+  ([!2735])
 - Improve error outputs, including the origin of each failed connect attempt.
-  !2766
-  #1650
-  #1826
-  !2744
-  #1826
+  ([!2766], [#1650], [#1826], [!2744], [#1826])
 - `fs-mistrust`: New facilities for file access.
-  !2707
-  #1746
-- Clarify and fix some issues surrounding relative paths. 
-  !2712
-  #1748
-  #1749
+  ([!2707], [#1746])
+- Clarify and fix some issues surrounding relative paths.
+  ([!2712], [#1748], [#1749])
 - Tweaked `tor-proto` `StreamCtrl` APIs to better support use with RPC.
-  !2755
-- Document stream optimism. 
-  !2753 
-  #1583
+  ([!2755])
+- Document stream optimism.
+  ([!2753], [#1583])
 - Specify the RPC connection banner format.
-  !2700
-  #1753
+  ([!2700], [#1753])
 
 ### Other development
 
 - Update plan for Proof of Work DoS prevention, `service-side-pow.md`.
-  !2701
+  ([!2701])
 - Design notes for implementation of [Conflux].
-  !2750
+  ([!2750])
 
 ### Documentation
 
 - Rewrite download manager example.
-  !2725
-  #1471
-  #1386
+  ([!2725], [#1471], [#1386])
 - `arti`: Add `restricted-discovery` to the list of experimental
   features in the crate documentation.
-  !2719
-  #1808
+  ([!2719], [#1808])
 - `tor-config`: clarify that `ConfigurationSources::set_mistrust`is
   unrelated to the paths defined within the configuration file itself,
   and reference `storage.permissions.dangerously_trust_everyone`.
-  !2727
+  ([!2727])
 - Integrate the Docusaurus-based documentation overhaul
   (aka [`arti-doc-project-2023`]) into `arti.git/web/`
   and deploy it to <https://tpo.pages.torproject.net/core/arti/>.
-  !2746
-  !2752
-  !2754
-  !2757
+  ([!2746], [!2752], [!2754], [!2757])
 
 ### Cleanups, minor features, and bugfixes
 
 - Fix `watch_configuration = true`.  Previously this caused an infinite loop
   and was not useable.
-  #1794
-  !2696
-- `tor-circmgr`: Add trace log on circuit build timeout. 
-  !2698
+  ([#1794], [!2696])
+- `tor-circmgr`: Add trace log on circuit build timeout.
+  ([!2698])
 - `tor-proto`: Make `Channel::wait_for_close` non-experimental.
-  !2666
+  ([!2666])
 - Fix non-Unix build and test failures.
-  !2615
-  !2738
-  #1809
-  !2717
+  ([!2615], [!2738], [#1809], [!2717])
 - Replace an async `Mutex` with a sync one in file watcher.
-  !2763
+  ([!2763])
 - Remove confusing `use asynchronous_codec as futures_codec`
-  #1690
-  !2769
+  ([#1690], [!2769])
 - Fix many typos.
-  !2751
+  ([!2751])
 
 ### Testing
 
 - `tor-rtmock`: Fix misleading task lists from `MockExecutor` when panicking
   due to stall and tasks unstick each other in `Drop`.
-  !2682
+  ([!2682])
 - `tor-proto`: Fix flaky test `invalid_circ_sendme` by using
   `MockExecutor` and replacing `sleep()` with `advance_until_stalled()`.
-  !2721
+  ([!2721])
 - More uniform handling of some test key data.
-  !2764
-  #1396
+  ([!2764], [#1396])
 
 ### Infrastructure
 
 - `maint/matrix-check`: properly find the crate subdir.
-  !2762
+  ([!2762])
 - Un-ignore [RUSTSEC-2024-0421] as we no longer use an affected `hickory`.
-  !2693
-  #1773
-- Update our main CI image (`RECENT_RUST_IMAGE`) to 1.83. 
-  !2694
+  ([!2693], [#1773])
+- Update our main CI image (`RECENT_RUST_IMAGE`) to 1.83.
+  ([!2694])
 - Better instructions for handling new MPL-licensed dependencies.
-  !2726
+  ([!2726])
 - Style guide for this changelog, and small script to help format it.
-  !2739
-  !2616
+  ([!2739], [!2616])
 
 ### Acknowledgments
 
