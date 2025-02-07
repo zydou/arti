@@ -259,6 +259,18 @@ See also what other projects are writing about Lunar:
   !2739
   !2616
 
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Dimitris Apostolou, hhamud, Neel Chauhan and tidely.
+
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+
 [KIST]: https://blog.torproject.org/kist-and-tell-tors-new-traffic-scheduling-feature/
 [RPC interface]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/doc/dev/rpc-book/src
 [RUSTSEC-2024-0421]: https://rustsec.org/advisories/RUSTSEC-2024-0421.html
