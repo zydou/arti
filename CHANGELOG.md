@@ -89,7 +89,7 @@ See also what other projects are writing about Lunar:
   #1736
   !2709
 - High-level certificate types (implementing `ToEncodableCert`)
-  in `tor-relay-crypto`
+  in `tor-relay-crypto`.
   !2672
   #1777
 - Initial [KIST] support (Linux-only) in `tor-proto`.
@@ -98,7 +98,8 @@ See also what other projects are writing about Lunar:
   #1728
   #1729
   #1730
-- Congestion control (prop324)
+- Congestion control.
+  [prop324]
   !2675 
   #534
 - Apply the standard lint block.
@@ -106,7 +107,7 @@ See also what other projects are writing about Lunar:
 
 ### RPC development
 
-- Cookie authentication
+- Cookie authentication.
   !2702
   #1529
   !2716
@@ -163,7 +164,7 @@ See also what other projects are writing about Lunar:
   #1826
   !2744
   #1826
-- `fs-mistrust`: New facilities for file access 
+- `fs-mistrust`: New facilities for file access.
   !2707
   #1746
 - Clarify and fix some issues surrounding relative paths. 
@@ -175,7 +176,7 @@ See also what other projects are writing about Lunar:
 - Document stream optimism. 
   !2753 
   #1583
-- Specify the RPC connection banner format
+- Specify the RPC connection banner format.
   !2700
   #1753
 
@@ -188,7 +189,7 @@ See also what other projects are writing about Lunar:
 
 ### Documentation
 
-- Rewrite download manager example 
+- Rewrite download manager example.
   !2725
   #1471
   #1386
@@ -198,7 +199,7 @@ See also what other projects are writing about Lunar:
   #1808
 - `tor-config`: clarify that `ConfigurationSources::set_mistrust`is
   unrelated to the paths defined within the configuration file itself,
-  and reference `storage.permissions.dangerously_trust_everyone`:
+  and reference `storage.permissions.dangerously_trust_everyone`.
   !2727
 - Integrate the Docusaurus-based documentation overhaul
   (aka [`arti-doc-project-2023`]) into `arti.git/web/`
@@ -218,7 +219,7 @@ See also what other projects are writing about Lunar:
   !2698
 - `tor-proto`: Make `Channel::wait_for_close` non-experimental.
   !2666
-- Fix non-Unix build and test failures
+- Fix non-Unix build and test failures.
   !2615
   !2738
   #1809
@@ -228,7 +229,7 @@ See also what other projects are writing about Lunar:
 - Remove confusing `use asynchronous_codec as futures_codec`
   #1690
   !2769
-- Fix many typos
+- Fix many typos.
   !2751
 
 ### Testing
@@ -247,7 +248,7 @@ See also what other projects are writing about Lunar:
 
 - `maint/matrix-check`: properly find the crate subdir.
   !2762
-- Un-ignore [RUSTSEC-2024-0421] as we no longer use an affected `hickory`
+- Un-ignore [RUSTSEC-2024-0421] as we no longer use an affected `hickory`.
   !2693
   #1773
 - Update our main CI image (`RECENT_RUST_IMAGE`) to 1.83. 
