@@ -21,7 +21,7 @@ caret = { path = "../caret", version = "0.5.0" }
 cfg-if = "1.0.0"
 derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
-fs-mistrust = { version = "0.8.4", path = "../fs-mistrust" }
+fs-mistrust = { version = "0.9.0", path = "../fs-mistrust" }
 paste = { version = "1", optional = true }
 percent-encoding = "2.3.1"
 rand = "0.8.5"
