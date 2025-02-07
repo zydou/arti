@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED - CONTAINS CHANGES UP TO d271ceb3514394b53959619aef1ec13212e80a23
+# Arti 1.4.0 — 7 February 2025
 
 TODO - also, not yet in the final (\[...], \[...]) format.
 
@@ -84,12 +84,14 @@ See also what other projects are writing about Lunar:
   !2720
   !2760
   #1832
+  !2768
+  !2765
 - Improved CLI and add config loading.
   !2699
   #1736
   !2709
 - High-level certificate types (implementing `ToEncodableCert`)
-  in `tor-relay-crypto`
+  in `tor-relay-crypto`.
   !2672
   #1777
 - Initial [KIST] support (Linux-only) in `tor-proto`.
@@ -98,7 +100,8 @@ See also what other projects are writing about Lunar:
   #1728
   #1729
   #1730
-- Congestion control (prop324)
+- Congestion control.
+  [proposal 324]
   !2675 
   #534
 - Apply the standard lint block.
@@ -106,7 +109,7 @@ See also what other projects are writing about Lunar:
 
 ### RPC development
 
-- Cookie authentication
+- Cookie authentication.
   !2702
   #1529
   !2716
@@ -163,7 +166,7 @@ See also what other projects are writing about Lunar:
   #1826
   !2744
   #1826
-- `fs-mistrust`: New facilities for file access 
+- `fs-mistrust`: New facilities for file access.
   !2707
   #1746
 - Clarify and fix some issues surrounding relative paths. 
@@ -175,18 +178,20 @@ See also what other projects are writing about Lunar:
 - Document stream optimism. 
   !2753 
   #1583
-- Specify the RPC connection banner format
+- Specify the RPC connection banner format.
   !2700
   #1753
 
-### Hidden services development
+### Other development
 
 - Update plan for Proof of Work DoS prevention, `service-side-pow.md`.
   !2701
+- Design notes for implementation of [Conflux].
+  !2750
 
 ### Documentation
 
-- Rewrite download manager example 
+- Rewrite download manager example.
   !2725
   #1471
   #1386
@@ -196,7 +201,7 @@ See also what other projects are writing about Lunar:
   #1808
 - `tor-config`: clarify that `ConfigurationSources::set_mistrust`is
   unrelated to the paths defined within the configuration file itself,
-  and reference `storage.permissions.dangerously_trust_everyone`:
+  and reference `storage.permissions.dangerously_trust_everyone`.
   !2727
 - Integrate the Docusaurus-based documentation overhaul
   (aka [`arti-doc-project-2023`]) into `arti.git/web/`
@@ -216,12 +221,17 @@ See also what other projects are writing about Lunar:
   !2698
 - `tor-proto`: Make `Channel::wait_for_close` non-experimental.
   !2666
-- Fix non-Unix build and test failures
+- Fix non-Unix build and test failures.
   !2615
   !2738
   #1809
   !2717
-- Fix many typos
+- Replace an async `Mutex` with a sync one in file watcher.
+  !2763
+- Remove confusing `use asynchronous_codec as futures_codec`
+  #1690
+  !2769
+- Fix many typos.
   !2751
 
 ### Testing
@@ -232,12 +242,15 @@ See also what other projects are writing about Lunar:
 - `tor-proto`: Fix flaky test `invalid_circ_sendme` by using
   `MockExecutor` and replacing `sleep()` with `advance_until_stalled()`.
   !2721
+- More uniform handling of some test key data.
+  !2764
+  #1396
 
 ### Infrastructure
 
 - `maint/matrix-check`: properly find the crate subdir.
   !2762
-- Un-ignore [RUSTSEC-2024-0421] as we no longer use an affected `hickory`
+- Un-ignore [RUSTSEC-2024-0421] as we no longer use an affected `hickory`.
   !2693
   #1773
 - Update our main CI image (`RECENT_RUST_IMAGE`) to 1.83. 
@@ -248,11 +261,27 @@ See also what other projects are writing about Lunar:
   !2739
   !2616
 
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Dimitris Apostolou, hhamud, Neel Chauhan and tidely.
+
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
 [KIST]: https://blog.torproject.org/kist-and-tell-tors-new-traffic-scheduling-feature/
 [RPC interface]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/doc/dev/rpc-book/src
 [RUSTSEC-2024-0421]: https://rustsec.org/advisories/RUSTSEC-2024-0421.html
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`arti-doc-project-2023`]: https://gitlab.torproject.org/tpo/core/arti-doc-project-2023/
 [control port]: https://spec.torproject.org/control-spec/index.html
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[proposal 324]: https://spec.torproject.org/proposals/324-rtt-congestion-control.html
 
 
 
