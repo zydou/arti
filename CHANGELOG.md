@@ -87,8 +87,7 @@ See also what other projects are writing about Lunar:
 - Initial [KIST] support (Linux-only) in `tor-proto`.
   ([!2706], [#1728], [#1728], [#1729], [#1730])
 - Congestion control.
-  [proposal 324]
-  ([!2675], [#534])
+  ([proposal 324], [!2675], [#534])
 - Apply the standard lint block.
   ([!2708])
 
@@ -100,11 +99,9 @@ See also what other projects are writing about Lunar:
   ([!2740], [!2743], [!2745], [!2737], [!2731])
 - Improved names for many type and methods:
   `MethodNotFound` to `NoSuchMethod`
-  ([!2714], [#1500])
-  ;
+  ([!2714], [#1500]);
   `new_stream_handle` to `new_oneshot_client`
-  ([!2715], [#1664])
-  ;
+  ([!2715], [#1664]);
   make `Params`/`Reply` structs consistent.
   ([!2729], [#1586], [!2732])
 - Implement request cancellation.
