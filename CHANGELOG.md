@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED
+# Arti 1.4.0 — 7 February 2025
 
 TODO - also, not yet in the final (\[...], \[...]) format.
 
