@@ -301,12 +301,20 @@ impl OnionService {
             .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
+        let pow_nonce_dir = state_handle
+            .raw_subdir("pow_nonces")
+            .map_err(StartupError::StateDirectoryInaccessible)?;
         let NewPowManager {
             pow_manager,
             rend_req_tx,
             rend_req_rx,
             publisher_update_rx,
-        } = PowManager::new(runtime.clone(), nickname.clone(), keymgr.clone());
+        } = PowManager::new(
+            runtime.clone(),
+            nickname.clone(),
+            pow_nonce_dir,
+            keymgr.clone(),
+        );
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));

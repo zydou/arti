@@ -26,10 +26,13 @@ use tor_hscrypto::{
 };
 use tor_keymgr::KeyMgr;
 use tor_netdoc::doc::hsdesc::pow::{v1::PowParamsV1, PowParams};
-use tor_persist::hsnickname::HsNickname;
+use tor_persist::{hsnickname::HsNickname, state_dir::InstanceRawSubdir};
 use tor_rtcompat::Runtime;
 
-use crate::{rend_handshake, BlindIdPublicKeySpecifier, RendRequest, StartupError};
+use crate::{
+    rend_handshake, replay::PowNonceReplayLog, BlindIdPublicKeySpecifier, RendRequest, ReplayError,
+    StartupError,
+};
 
 use super::NewPowManager;
 
@@ -45,12 +48,15 @@ struct State<R> {
     seeds: HashMap<TimePeriod, SeedsForTimePeriod>,
 
     /// Verifiers for all the seeds that exist in `seeds`.
-    verifiers: HashMap<SeedHead, Verifier>,
+    verifiers: HashMap<SeedHead, (Verifier, Mutex<PowNonceReplayLog>)>,
 
     /// The nickname for this hidden service.
     ///
     /// We need this so we can get the blinded keys from the [`KeyMgr`].
     nickname: HsNickname,
+
+    /// Directory used to store nonce replay log.
+    instance_dir: InstanceRawSubdir,
 
     /// Key manager.
     keymgr: Arc<KeyMgr>,
@@ -88,7 +94,7 @@ pub(crate) enum PowSolveError {
     /// Seed head was not recognized, it may be expired.
     InvalidSeedHead,
     /// We have already seen a solve with this nonce
-    NonceAlreadyUsed,
+    NonceReplay(ReplayError),
     /// The bytes given as a solution do not form a valid Equi-X puzzle
     InvalidEquixSolution(SolutionErrorV1),
     /// The solution given was invalid.
@@ -126,7 +132,12 @@ const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
 impl<R: Runtime> PowManager<R> {
     /// Create a new [`PowManager`].
     #[allow(clippy::new_ret_no_self)]
-    pub(crate) fn new(runtime: R, nickname: HsNickname, keymgr: Arc<KeyMgr>) -> NewPowManager<R> {
+    pub(crate) fn new(
+        runtime: R,
+        nickname: HsNickname,
+        instance_dir: InstanceRawSubdir,
+        keymgr: Arc<KeyMgr>,
+    ) -> NewPowManager<R> {
         // This queue is extremely small, and we only make one of it per onion service, so it's
         // fine to not use memquota tracking.
         let (publisher_update_tx, publisher_update_rx) =
@@ -135,6 +146,7 @@ impl<R: Runtime> PowManager<R> {
         let state = State {
             seeds: HashMap::new(),
             nickname,
+            instance_dir,
             keymgr,
             publisher_update_tx,
             verifiers: HashMap::new(),
@@ -294,7 +306,7 @@ impl<R: Runtime> PowManager<R> {
                     update_times.push(info.next_expiration_time);
 
                     // Make a note to add the new verifier and remove the old one.
-                    new_verifiers.push((seed.head(), verifier));
+                    new_verifiers.push((seed, verifier));
                     if let Some(expired_seed) = expired_seed {
                         expired_verifiers.push(expired_seed.head());
                     }
@@ -314,8 +326,12 @@ impl<R: Runtime> PowManager<R> {
                 }
             }
 
-            for (seed_head, verifier) in new_verifiers {
-                state.verifiers.insert(seed_head, verifier);
+            for (seed, verifier) in new_verifiers {
+                let replay_log = Mutex::new(
+                    PowNonceReplayLog::new_logged(&state.instance_dir, &seed)
+                        .expect("Couldn't make ReplayLog."),
+                );
+                state.verifiers.insert(seed.head(), (verifier, replay_log));
             }
 
             for seed_head in expired_verifiers {
@@ -384,7 +400,11 @@ impl<R: Runtime> PowManager<R> {
                     seed.clone(),
                 )
                 .expect("HsBlindIdKey not found for TimePeriod");
-                state.verifiers.insert(seed.head(), verifier);
+                let replay_log = Mutex::new(
+                    PowNonceReplayLog::new_logged(&state.instance_dir, &seed)
+                        .expect("Couldn't make ReplayLog."),
+                );
+                state.verifiers.insert(seed.head(), (verifier, replay_log));
 
                 (seed, next_expiration_time)
             }
@@ -398,13 +418,28 @@ impl<R: Runtime> PowManager<R> {
 
     /// Verify a PoW solve.
     fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError> {
+        // TODO POW: This puts the nonce in the replay structure before we check if the solve is
+        // valid, which could be a problem — a potential attack would be to send a large number of
+        // invalid solves with the hope of causing collisions with valid requests. This is probably
+        // highly impractical, but we should think through it before stabilizing PoW.
+        {
+            let state = self.0.write().expect("Lock poisoned");
+            let mut replay_log = match state.verifiers.get(&solve.seed_head()) {
+                Some((_, replay_log)) => replay_log.lock().expect("Lock poisoned"),
+                None => return Err(PowSolveError::InvalidSeedHead),
+            };
+            replay_log
+                .check_for_replay(solve.nonce())
+                .map_err(PowSolveError::NonceReplay)?;
+        }
+
+        // TODO: Once RwLock::downgrade is stabilized, it would make sense to use it here...
+
         let state = self.0.read().expect("Lock poisoned");
         let verifier = match state.verifiers.get(&solve.seed_head()) {
-            Some(verifier) => verifier,
+            Some((verifier, _)) => verifier,
             None => return Err(PowSolveError::InvalidSeedHead),
         };
-
-        // TODO POW: replay check!!!
 
         let solution = match Solution::try_from_bytes(
             solve.nonce().clone(),

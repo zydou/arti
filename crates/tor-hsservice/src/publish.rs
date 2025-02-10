@@ -480,12 +480,24 @@ mod test {
                 responses_for_hsdir: Arc::new(Mutex::new(Default::default())),
             };
 
+            let temp_dir = test_temp_dir!();
+            let state_dir = temp_dir.subdir_untracked("state_dir");
+            let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
+            let state_dir = StateDirectory::new(state_dir, &mistrust).unwrap();
+            let state_handle = state_dir.acquire_instance(&nickname).unwrap();
+            let pow_nonce_dir = state_handle.raw_subdir("pow_nonces").unwrap();
+
             let NewPowManager {
                 pow_manager,
                 rend_req_tx: _,
                 rend_req_rx: _,
                 publisher_update_rx: update_from_pow_manager_rx,
-            } = PowManager::new(runtime.clone(), nickname.clone(), keymgr.clone());
+            } = PowManager::new(
+                runtime.clone(),
+                nickname.clone(),
+                pow_nonce_dir,
+                keymgr.clone(),
+            );
             let mut status_rx = status_tx.subscribe();
             let publisher: Publisher<MockRuntime, MockReactorState<_>> = Publisher::new(
                 runtime.clone(),

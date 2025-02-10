@@ -6,7 +6,7 @@ use std::sync::Arc;
 use futures::channel::mpsc;
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::KeyMgr;
-use tor_persist::hsnickname::HsNickname;
+use tor_persist::{hsnickname::HsNickname, state_dir::InstanceRawSubdir};
 use tor_rtcompat::Runtime;
 
 use crate::{RendRequest, StartupError};
@@ -26,6 +26,7 @@ impl<R: Runtime> PowManager<R> {
     pub(crate) fn new(
         _runtime: R,
         _nickname: HsNickname,
+        _instance_dir: InstanceRawSubdir,
         _keymgr: Arc<KeyMgr>,
     ) -> NewPowManager<R> {
         let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
