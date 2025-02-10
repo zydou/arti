@@ -12,12 +12,9 @@
 //! make sure that our replay logs are already persistent.  We do this by using
 //! a file on disk.
 
+mod ipt;
+
 use crate::internal_prelude::*;
-
-use hash::{hash, H, HASH_LEN};
-
-// This has rather a generic name.
-use tor_cell::relaycell::msg::Introduce2;
 
 /// A probabilistic data structure to record fingerprints of observed Introduce2
 /// messages.
@@ -30,13 +27,59 @@ use tor_cell::relaycell::msg::Introduce2;
 /// will waste disk and memory.
 ///
 /// False positives are allowed, to conserve on space.
-pub(crate) struct ReplayLog {
+pub(crate) struct ReplayLog<T> {
     /// The inner probabilistic data structure.
     seen: data::Filter,
     /// Persistent state file etc., if we're persistent
     ///
     /// If is is `None`, this RelayLog is ephemeral.
     file: Option<PersistFile>,
+    /// [`PhantomData`] so rustc doesn't complain about the unused type param.
+    ///
+    /// This type represents the type of data that we're storing, as well as the type of the
+    /// key/name for that data.
+    replay_log_type: PhantomData<T>,
+}
+
+/// A [`ReplayLog`] for [`Introduce2`](tor_cell::relaycell::msg::Introduce2) messages.
+pub(crate) type IptReplayLog = ReplayLog<ipt::IptReplayLogType>;
+
+/// The length of the [`ReplayLogType::MAGIC`] constant.
+///
+// TODO: If Rust's constant expressions supported generics we wouldn't need this at all.
+const MAGIC_LEN: usize = 32;
+
+/// The length of the message that we store on disk, in bytes.
+///
+/// If the message is longer than this, then we will need to hash or truncate it before storing it
+/// to disk.
+///
+// TODO: Once const generics are good, this should be a associated constant for ReplayLogType.
+pub(crate) const OUTPUT_LEN: usize = 16;
+
+/// A trait to represent a set of types that ReplayLog can be used with.
+pub(crate) trait ReplayLogType {
+    // TODO: It would be nice to encode the directory name as a associated constant here, rather
+    // than having the external code pass it in to us.
+
+    /// The name of this item, used for the log filename.
+    type Name;
+
+    /// The type of the messages that we are ensuring the uniqueness of.
+    type Message;
+
+    /// A magic string that we put at the start of each log file, to make sure that
+    /// we don't confuse this file format with others.
+    const MAGIC: &'static [u8; MAGIC_LEN];
+
+    /// Convert [`Self::Name`] to a [`String`]
+    fn format_filename(name: &Self::Name) -> String;
+
+    /// Convert [`Self::Message`] to bytes that will be stored in the log.
+    fn transform_message(message: &Self::Message) -> [u8; OUTPUT_LEN];
+
+    /// Parse a filename into [`Self::Name`].
+    fn parse_log_leafname(leaf: &OsStr) -> Result<Self::Name, Cow<'static, str>>;
 }
 
 /// Persistent state file, and associated data
@@ -48,7 +91,7 @@ pub(crate) struct PersistFile {
     file: BufWriter<File>,
     /// Whether we had a possible partial write
     ///
-    /// See the comment inside [`ReplayLog::check_inner`].
+    /// See the comment inside [`ReplayLog::check_for_replay`].
     /// `Ok` means all is well.
     /// `Err` means we may have written partial data to the actual file,
     /// and need to make sure we're back at a record boundary.
@@ -60,22 +103,22 @@ pub(crate) struct PersistFile {
     lock: Arc<LockFileGuard>,
 }
 
-/// A magic string that we put at the start of each log file, to make sure that
-/// we don't confuse this file format with others.
-const MAGIC: &[u8; 32] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
-
-/// Replay log files are `<IPTLOCALID>.bin`
+/// Replay log files have a `.bin` suffix.
+///
+/// The name of the file is determined by [`ReplayLogType::format_filename`].
 const REPLAY_LOG_SUFFIX: &str = ".bin";
 
-impl ReplayLog {
+impl<T: ReplayLogType> ReplayLog<T> {
     /// Create a new ReplayLog not backed by any data storage.
     #[allow(dead_code)] // TODO #1186 Remove once something uses ReplayLog.
     pub(crate) fn new_ephemeral() -> Self {
         Self {
             seen: data::Filter::new(),
             file: None,
+            replay_log_type: PhantomData,
         }
     }
+
     /// Create a ReplayLog backed by the file at a given path.
     ///
     /// If the file already exists, load its contents and append any new
@@ -91,9 +134,9 @@ impl ReplayLog {
     /// resolve to the same file.
     pub(crate) fn new_logged(
         dir: &InstanceRawSubdir,
-        lid: &IptLocalId,
+        name: &T::Name,
     ) -> Result<Self, CreateIptError> {
-        let leaf = format!("{lid}{REPLAY_LOG_SUFFIX}");
+        let leaf = T::format_filename(name);
         let path = dir.as_path().join(leaf);
         let lock_guard = dir.raw_lock_guard();
 
@@ -122,11 +165,11 @@ impl ReplayLog {
         // read it.
         let file_len = file.metadata()?.len();
         if file_len == 0 {
-            file.write_all(MAGIC)?;
+            file.write_all(T::MAGIC)?;
         } else {
-            let mut m = [0_u8; MAGIC.len()];
+            let mut m = [0_u8; MAGIC_LEN];
             file.read_exact(&mut m)?;
-            if &m != MAGIC {
+            if &m != T::MAGIC {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     LogContentError::UnrecognizedFormat,
@@ -140,10 +183,10 @@ impl ReplayLog {
         let mut seen = data::Filter::new();
         let mut r = BufReader::new(file);
         loop {
-            let mut h = [0_u8; HASH_LEN];
-            match r.read_exact(&mut h) {
+            let mut msg = [0_u8; OUTPUT_LEN];
+            match r.read_exact(&mut msg) {
                 Ok(()) => {
-                    let _ = seen.test_and_add(&H(h)); // ignore error.
+                    let _ = seen.test_and_add(&msg); // ignore error.
                 }
                 Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
                 Err(e) => return Err(e),
@@ -161,52 +204,32 @@ impl ReplayLog {
         Ok(Self {
             seen,
             file: Some(file),
+            replay_log_type: PhantomData,
         })
     }
 
     /// Truncate `file` to contain a whole number of records
     ///
     /// `current_len` should have come from `file.metadata()`.
-    // If the file's length is not an even multiple of HASH_LEN after the MAGIC, truncate it.
+    // If the file's length is not an even multiple of MESSAGE_LEN after the MAGIC, truncate it.
     fn truncate_to_multiple(file: &mut File, current_len: u64) -> io::Result<()> {
-        let excess = (current_len - MAGIC.len() as u64) % (HASH_LEN as u64);
+        let excess = (current_len - T::MAGIC.len() as u64) % (OUTPUT_LEN as u64);
         if excess != 0 {
             file.set_len(current_len - excess)?;
         }
         Ok(())
     }
 
-    /// Test whether we have already seen `introduce`.
+    /// Test whether we have already seen `message`.
     ///
     /// If we have seen it, return `Err(ReplayError::AlreadySeen)`.  (Since this
     /// is a probabilistic data structure, there is a chance of returning this
     /// error even if we have we have _not_ seen this particular message)
     ///
     /// Otherwise, return `Ok(())`.
-    pub(crate) fn check_for_replay(&mut self, introduce: &Introduce2) -> Result<(), ReplayError> {
-        let h = hash(
-            // This line here is really subtle!  The decision of _what object_
-            // to check for replays is critical to making sure that the
-            // introduction point cannot do replays by modifying small parts of
-            // the replayed object.  So we don't check the header; instead, we
-            // check the encrypted body.  This in turn works only because the
-            // encryption format is non-malleable: modifying the encrypted
-            // message has negligible probability of making a message that can
-            // be decrypted.
-            //
-            // (Ancient versions of onion services used a malleable encryption
-            // format here, which made replay detection even harder.
-            // Fortunately, we don't have that problem in the current protocol)
-            introduce.encrypted_body(),
-        );
-        self.check_inner(&h)
-    }
-
-    /// Implementation helper: test whether we have already seen `h`.
-    ///
-    /// Return values are as for `check_for_replay`
-    fn check_inner(&mut self, h: &H) -> Result<(), ReplayError> {
-        self.seen.test_and_add(h)?;
+    pub(crate) fn check_for_replay(&mut self, message: &T::Message) -> Result<(), ReplayError> {
+        let h = T::transform_message(message);
+        self.seen.test_and_add(&h)?;
         if let Some(f) = self.file.as_mut() {
             (|| {
                 // If write_all fails, it might have written part of the data;
@@ -237,7 +260,7 @@ impl ReplayLog {
                 }
                 f.needs_resynch = Err(());
 
-                f.file.write_all(&h.0[..])?;
+                f.file.write_all(&h[..])?;
 
                 f.needs_resynch = Ok(());
 
@@ -260,59 +283,12 @@ impl ReplayLog {
     /// Tries to parse a filename in the replay logs directory
     ///
     /// If the leafname refers to a file that would be created by
-    /// [`ReplayLog::new_logged`], returns the `IptLocalId`.
+    /// [`ReplayLog::new_logged`], returns the name as a Rust type.
     ///
     /// Otherwise returns an error explaining why it isn't,
     /// as a plain string (for logging).
-    pub(crate) fn parse_log_leafname(
-        leaf: &OsStr,
-    ) -> Result<(IptLocalId, &str), Cow<'static, str>> {
-        let leaf = leaf.to_str().ok_or("not proper unicode")?;
-        let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
-        let lid: IptLocalId = lid
-            .parse()
-            .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
-        Ok((lid, leaf))
-    }
-}
-
-/// Implementation code for pre-hashing our inputs.
-///
-/// We do this because we don't actually want to record the entirety of each
-/// encrypted introduction request.
-///
-/// We aren't terribly concerned about collision resistance: accidental
-/// collision don't matter, since we are okay with a false-positive rate.
-/// Intentional collisions are also okay, since the only impact of generating
-/// one would be that you could make an introduce2 message _of your own_ get
-/// rejected.
-///
-/// The impact of preimages is also not so bad. If somebody can reconstruct the
-/// original message, they still get an encrypted object, and need the
-/// `KP_hss_ntor` key to do anything with it. A second preimage attack just
-/// gives another message we won't accept.
-mod hash {
-    /// Length of the internal hash.
-    ///
-    /// We only keep 128 bits; see note above in the module documentation about why
-    /// this is okay.
-    pub(super) const HASH_LEN: usize = 16;
-
-    /// The hash of an input.
-    pub(super) struct H(pub(super) [u8; HASH_LEN]);
-
-    /// Compute a hash from a given bytestring.
-    pub(super) fn hash(s: &[u8]) -> H {
-        // I'm choosing kangaroo-twelve for its speed. This doesn't affect
-        // compatibility, so it's okay to use something a bit odd, since we can
-        // change it later if we want.
-        use digest::{ExtendableOutput, Update};
-        use k12::KangarooTwelve;
-        let mut d = KangarooTwelve::default();
-        let mut output = H([0; HASH_LEN]);
-        d.update(s);
-        d.finalize_xof_into(&mut output.0);
-        output
+    pub(crate) fn parse_log_leafname(leaf: &OsStr) -> Result<T::Name, Cow<'static, str>> {
+        T::parse_log_leafname(leaf)
     }
 }
 
@@ -322,7 +298,7 @@ mod hash {
 ///
 /// We isolate this code to make it easier to replace.
 mod data {
-    use super::ReplayError;
+    use super::{ReplayError, OUTPUT_LEN};
     use growable_bloom_filter::GrowableBloom;
 
     /// A probabilistic membership filter.
@@ -338,11 +314,12 @@ mod data {
             let est_insertions = 100_000;
             Filter(GrowableBloom::new(desired_error_prob, est_insertions))
         }
-        /// Try to add `h` to this filter if it isn't already there.
+
+        /// Try to add `msg` to this filter if it isn't already there.
         ///
         /// Return Ok(()) or Err(AlreadySeen).
-        pub(super) fn test_and_add(&mut self, h: &super::H) -> Result<(), ReplayError> {
-            if self.0.insert(&h.0[..]) {
+        pub(super) fn test_and_add(&mut self, msg: &[u8; OUTPUT_LEN]) -> Result<(), ReplayError> {
+            if self.0.insert(&msg[..]) {
                 Ok(())
             } else {
                 Err(ReplayError::AlreadySeen)
@@ -394,79 +371,98 @@ mod test {
     use rand::Rng;
     use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
 
-    fn rand_h<R: Rng>(rng: &mut R) -> H {
-        H(rng.gen())
+    struct TestReplayLogType;
+
+    type TestReplayLog = ReplayLog<TestReplayLogType>;
+
+    impl ReplayLogType for TestReplayLogType {
+        type Name = IptLocalId;
+        type Message = [u8; OUTPUT_LEN];
+
+        const MAGIC: &'static [u8; MAGIC_LEN] = b"<tor test replay>\n\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+
+        fn format_filename(name: &IptLocalId) -> String {
+            format!("{name}{REPLAY_LOG_SUFFIX}")
+        }
+
+        fn transform_message(message: &[u8; OUTPUT_LEN]) -> [u8; OUTPUT_LEN] {
+            message.clone()
+        }
+
+        fn parse_log_leafname(leaf: &OsStr) -> Result<IptLocalId, Cow<'static, str>> {
+            let leaf = leaf.to_str().ok_or("not proper unicode")?;
+            let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
+            let lid: IptLocalId = lid
+                .parse()
+                .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
+            Ok(lid)
+        }
     }
 
-    #[test]
-    fn hash_basics() {
-        let a = hash(b"123");
-        let b = hash(b"123");
-        let c = hash(b"1234");
-        assert_eq!(a.0, b.0);
-        assert_ne!(a.0, c.0);
+    fn rand_msg<R: Rng>(rng: &mut R) -> [u8; OUTPUT_LEN] {
+        rng.gen()
     }
 
-    /// Basic tests on an ephemeral ReplayLog.
+    /// Basic tests on an ephemeral IptReplayLog.
     #[test]
     fn simple_usage() {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
-        let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
-        let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
+        let group_1: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
+        let group_2: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
 
-        let mut log = ReplayLog::new_ephemeral();
+        let mut log = TestReplayLog::new_ephemeral();
         // Add everything in group 1.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         // Make sure that everything in group 1 is still there.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_err());
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_err());
         }
         // Make sure that group 2 is detected as not-there.
-        for h in &group_2 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_2 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
     }
 
     const TEST_TEMP_SUBDIR: &str = "replaylog";
 
-    fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<ReplayLog> {
+    fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<TestReplayLog> {
         dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
             let inst = mk_state_instance(&dir, "allium");
             let raw = inst.raw_subdir("iptreplay").unwrap();
-            ReplayLog::new_logged(&raw, &IptLocalId::dummy(1)).unwrap()
+            TestReplayLog::new_logged(&raw, &IptLocalId::dummy(1)).unwrap()
         })
     }
 
-    /// Basic tests on an persistent ReplayLog.
+    /// Basic tests on an persistent IptReplayLog.
     #[test]
     fn logging_basics() {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
-        let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
-        let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
+        let group_1: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
+        let group_2: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
 
         let dir = test_temp_dir!();
         let mut log = create_logged(&dir);
         // Add everything in group 1, then close and reload.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         let mut log = create_logged(&dir);
         // Make sure everything in group 1 is still there.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_err());
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_err());
         }
         // Now add everything in group 2, then close and reload.
-        for h in &group_2 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_2 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
-        for h in group_1.iter().chain(group_2.iter()) {
-            assert!(log.check_inner(h).is_err());
+        for msg in group_1.iter().chain(group_2.iter()) {
+            assert!(log.check_for_replay(msg).is_err());
         }
     }
 
@@ -474,13 +470,13 @@ mod test {
     #[test]
     fn test_truncated() {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
-        let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
-        let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
+        let group_1: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
+        let group_2: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
 
         let dir = test_temp_dir!();
         let mut log = create_logged(&dir);
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         // Truncate the file by 7 bytes.
@@ -488,30 +484,30 @@ mod test {
             let path = dir.join(format!("hss/allium/iptreplay/{}.bin", IptLocalId::dummy(1)));
             let file = OpenOptions::new().write(true).open(path).unwrap();
             // Make sure that the file has the length we expect.
-            let expected_len = MAGIC.len() + HASH_LEN * group_1.len();
+            let expected_len = MAGIC_LEN + OUTPUT_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
             file.set_len((expected_len - 7) as u64).unwrap();
         });
         // Now, reload the log. We should be able to recover every non-truncated
         // item...
         let mut log = create_logged(&dir);
-        for h in &group_1[..group_1.len() - 1] {
-            assert!(log.check_inner(h).is_err());
+        for msg in &group_1[..group_1.len() - 1] {
+            assert!(log.check_for_replay(msg).is_err());
         }
         // But not the last one, which we truncated.  (Checking will add it, though.)
         assert!(
-            log.check_inner(&group_1[group_1.len() - 1]).is_ok(),
+            log.check_for_replay(&group_1[group_1.len() - 1]).is_ok(),
             "False positive"
         );
         // Now add everything in group 2, then close and reload.
-        for h in &group_2 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_2 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
-        for h in group_1.iter().chain(group_2.iter()) {
-            assert!(log.check_inner(h).is_err());
+        for msg in group_1.iter().chain(group_2.iter()) {
+            assert!(log.check_for_replay(msg).is_err());
         }
     }
 
@@ -621,7 +617,7 @@ mod test {
         // This test is quite complicated.
         //
         // We want to test partial writes.  We could perhaps have done this by
-        // parameterising ReplayLog so it could have something other than File,
+        // parameterising IptReplayLog so it could have something other than File,
         // but that would probably leak into the public API.
         //
         // Instead, we cause *actual* partial writes.  We use the Unix setrlimit
@@ -633,7 +629,7 @@ mod test {
             let path = dir.join("test.log");
             let lock = LockFileGuard::lock(dir.join("dummy.lock")).unwrap();
             let lock = Arc::new(lock);
-            let mut rl = ReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
+            let mut rl = TestReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
 
             const BUF: usize = 8192; // BufWriter default; if that changes, test will break
 
@@ -658,33 +654,33 @@ mod test {
                 other => panic!("expected EFBUG, got {other:?}"),
             };
 
-            // Generate a distinct Hash given a phase and a counter
+            // Generate a distinct message given a phase and a counter
             #[allow(clippy::identity_op)]
-            let mk_h = |phase: u8, i: usize| {
+            let mk_msg = |phase: u8, i: usize| {
                 let i = u32::try_from(i).unwrap();
-                let mut h = [0_u8; HASH_LEN];
-                h[0] = phase;
-                h[1] = phase;
-                h[4] = (i >> 24) as _;
-                h[5] = (i >> 16) as _;
-                h[6] = (i >> 8) as _;
-                h[7] = (i >> 0) as _;
-                H(h)
+                let mut msg = [0_u8; OUTPUT_LEN];
+                msg[0] = phase;
+                msg[1] = phase;
+                msg[4] = (i >> 24) as _;
+                msg[5] = (i >> 16) as _;
+                msg[6] = (i >> 8) as _;
+                msg[7] = (i >> 0) as _;
+                msg
             };
 
             // Number of hashes we can write to the file before failure occurs
-            const CAN_DO: usize = (ALLOW + BUF - MAGIC.len()) / HASH_LEN;
-            dbg!(MAGIC.len(), HASH_LEN, BUF, ALLOW, CAN_DO);
+            const CAN_DO: usize = (ALLOW + BUF - MAGIC_LEN) / OUTPUT_LEN;
+            dbg!(MAGIC_LEN, OUTPUT_LEN, BUF, ALLOW, CAN_DO);
 
-            // Record of the hashes that ReplayLog tells us were OK and not replays;
+            // Record of the hashes that TestReplayLog tells us were OK and not replays;
             // ie, which it therefore ought to have recorded.
             let mut gave_ok = Vec::new();
 
             set_ulimit(ALLOW);
 
             for i in 0..CAN_DO {
-                let h = mk_h(b'y', i);
-                rl.check_inner(&h).unwrap();
+                let h = mk_msg(b'y', i);
+                rl.check_for_replay(&h).unwrap();
                 gave_ok.push(h);
             }
 
@@ -696,7 +692,7 @@ mod test {
 
             for i in 0..2 {
                 eprintln!("expecting EFBIG {i}");
-                demand_efbig(rl.check_inner(&mk_h(b'n', i)).unwrap_err());
+                demand_efbig(rl.check_for_replay(&mk_msg(b'n', i)).unwrap_err());
                 let md = fs::metadata(&path).unwrap();
                 assert_eq!(md.len(), u64::try_from(ALLOW).unwrap());
             }
@@ -707,8 +703,8 @@ mod test {
             // Now we should be able to recover.  We write two more hashes.
             for i in 0..2 {
                 eprintln!("recovering {i}");
-                let h = mk_h(b'r', i);
-                rl.check_inner(&h).unwrap();
+                let h = mk_msg(b'r', i);
+                rl.check_for_replay(&h).unwrap();
                 gave_ok.push(h);
             }
 
@@ -718,12 +714,12 @@ mod test {
             drop(rl);
 
             // Reopen the log - reading in the written data.
-            // We can then check that everything the earlier ReplayLog
+            // We can then check that everything the earlier IptReplayLog
             // claimed to have written, is indeed recorded.
 
-            let mut rl = ReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
-            for h in &gave_ok {
-                match rl.check_inner(h) {
+            let mut rl = TestReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
+            for msg in &gave_ok {
+                match rl.check_for_replay(msg) {
                     Err(ReplayError::AlreadySeen) => {}
                     other => panic!("expected AlreadySeen, got {other:?}"),
                 }
