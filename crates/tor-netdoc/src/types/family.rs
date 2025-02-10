@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use crate::types::misc::LongIdent;
 use crate::util::intern::InternCache;
-use crate::{Error, Result};
+use crate::{Error, NetdocErrorKind, Pos, Result};
+use base64ct::Encoding;
+use tor_llcrypto::pk::ed25519::{Ed25519Identity, ED25519_ID_LEN};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// Information about a relay family.
@@ -84,6 +86,66 @@ impl std::str::FromStr for RelayFamily {
     }
 }
 
+/// An identifier representing a relay family.
+///
+/// In the ["happy families"](https://spec.torproject.org/proposals/321) scheme,
+/// microdescriptors will no longer have to contain a list of relay members,
+/// but will instead contain these identifiers.
+///
+/// If two relays have a `RelayFamilyId` in common, they belong to the same family.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum RelayFamilyId {
+    /// An identifier derived from an Ed25519 relay family key. (`KP_familyid_ed`)
+    Ed25519(Ed25519Identity),
+    /// An unrecognized string.
+    Unrecognized(String),
+}
+
+/// Prefix for a RelayFamilyId derived from an ed25519 `KP_familyid_ed`.
+const ED25519_ID_PREFIX: &str = "ed25519:";
+
+impl std::str::FromStr for RelayFamilyId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let mut buf = [0_u8; ED25519_ID_LEN];
+        if let Some(s) = s.strip_prefix(ED25519_ID_PREFIX) {
+            if let Ok(decoded) = base64ct::Base64Unpadded::decode(s, &mut buf) {
+                if let Some(ed_id) = Ed25519Identity::from_bytes(decoded) {
+                    return Ok(RelayFamilyId::Ed25519(ed_id));
+                }
+            }
+            return Err(NetdocErrorKind::BadArgument
+                .with_msg("Invalid ed25519 family ID")
+                .at_pos(Pos::at(s)));
+        }
+        Ok(RelayFamilyId::Unrecognized(s.to_string()))
+    }
+}
+
+impl std::fmt::Display for RelayFamilyId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RelayFamilyId::Ed25519(id) => write!(f, "{}{}", ED25519_ID_PREFIX, id),
+            RelayFamilyId::Unrecognized(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+impl PartialOrd for RelayFamilyId {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(Ord::cmp(self, other))
+    }
+}
+impl Ord for RelayFamilyId {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // We sort RelayFamilyId values by string representation.
+        // This is not super-efficient, but we don't need to do it very often.
+        Ord::cmp(&self.to_string(), &other.to_string())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -99,6 +161,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use std::str::FromStr;
+
     use super::*;
     use crate::Result;
     #[test]
@@ -150,5 +214,21 @@ mod test {
         assert!(!family.contains(&key));
         family.push(key);
         assert!(family.contains(&key));
+    }
+
+    #[test]
+    fn family_ids() {
+        let ed_str_rep = "ed25519:7sToQRuge1bU2hS0CG0ViMndc4m82JhO4B4kdrQey80";
+        let ed_id = RelayFamilyId::from_str(ed_str_rep).unwrap();
+        assert!(matches!(ed_id, RelayFamilyId::Ed25519(_)));
+        assert_eq!(ed_id.to_string().as_str(), ed_str_rep);
+
+        let other_str_rep = "hello-world";
+        let other_id = RelayFamilyId::from_str(other_str_rep).unwrap();
+        assert!(matches!(other_id, RelayFamilyId::Unrecognized(_)));
+        assert_eq!(other_id.to_string().as_str(), other_str_rep);
+
+        assert_eq!(ed_id, ed_id);
+        assert_ne!(ed_id, other_id);
     }
 }
