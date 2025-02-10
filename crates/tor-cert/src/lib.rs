@@ -133,6 +133,10 @@ caret_int! {
         /// meant to be a cross certificate, with the signing and signed keys
         /// reversed.
         HS_IP_CC_SIGNING = 0x0B,
+
+        /// For relays: family key certifying membership of a relay
+        /// by signing its identity.
+        FAMILY_V_IDENTITY = 0x0C,
     }
 }
 
