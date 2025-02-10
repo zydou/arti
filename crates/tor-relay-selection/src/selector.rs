@@ -413,7 +413,7 @@ mod test {
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_linkspec::{HasRelayIds, RelayId};
-    use tor_netdir::{Relay, SubnetConfig};
+    use tor_netdir::{FamilyRules, Relay, SubnetConfig};
 
     use super::*;
     use crate::{
@@ -530,6 +530,8 @@ mod test {
 
     #[test]
     fn relax() {
+        let all_families = FamilyRules::all_family_info();
+
         let nd = testnet();
         let id_4: RelayId = "$0404040404040404040404040404040404040404".parse().unwrap();
         let r4 = nd.by_id(&id_4).unwrap();
@@ -540,8 +542,11 @@ mod test {
             subnet_config: SubnetConfig::new(1, 1),
         };
         let exclude_relays = vec![r4];
-        let exclude_everyone =
-            RelayExclusion::exclude_relays_in_same_family(&very_silly_cfg, exclude_relays);
+        let exclude_everyone = RelayExclusion::exclude_relays_in_same_family(
+            &very_silly_cfg,
+            exclude_relays,
+            all_families,
+        );
 
         let mut sel = RelaySelector::new(usage.clone(), exclude_everyone.clone());
         let mut rng = testing_rng();

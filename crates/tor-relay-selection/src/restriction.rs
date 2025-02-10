@@ -3,7 +3,7 @@
 #[cfg(feature = "geoip")]
 use tor_geoip::HasCountryCode;
 use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds, RelayIdSet};
-use tor_netdir::{NetDir, Relay, SubnetConfig};
+use tor_netdir::{FamilyRules, NetDir, Relay, SubnetConfig};
 use tor_netdoc::types::policy::AddrPortPattern;
 
 use crate::{LowLevelRelayPredicate, RelaySelectionConfig, RelayUsage};
@@ -187,6 +187,8 @@ pub struct RelayExclusion<'a> {
     /// The configuration to use when deciding whether two addresses are in the
     /// same subnet.
     subnet_config: SubnetConfig,
+    /// The rules to use when deciding whether two relays are in the same family.
+    family_rules: FamilyRules,
 }
 
 /// Helper: wraps `Vec[Relay]`, but implements Debug.
@@ -216,6 +218,7 @@ impl<'a> RelayExclusion<'a> {
             exclude_subnets: Vec::new(),
             exclude_relay_families: RelayList(Vec::new()),
             subnet_config: SubnetConfig::no_addresses_match(),
+            family_rules: FamilyRules::ignore_declared_families(),
         }
     }
 
@@ -254,7 +257,11 @@ impl<'a> RelayExclusion<'a> {
         netdir: &'a NetDir,
     ) -> Self {
         if let Some(r) = netdir.by_ids(ct) {
-            return Self::exclude_relays_in_same_family(cfg, vec![r]);
+            return Self::exclude_relays_in_same_family(
+                cfg,
+                vec![r],
+                FamilyRules::from(netdir.params()),
+            );
         }
 
         let exclude_ids = ct.identities().map(|id_ref| id_ref.to_owned()).collect();
@@ -280,10 +287,12 @@ impl<'a> RelayExclusion<'a> {
     pub fn exclude_relays_in_same_family(
         cfg: &RelaySelectionConfig,
         relays: Vec<Relay<'a>>,
+        family_rules: FamilyRules,
     ) -> Self {
         RelayExclusion {
             exclude_relay_families: RelayList(relays),
             subnet_config: cfg.subnet_config,
+            family_rules,
             ..RelayExclusion::no_relays_excluded()
         }
     }
@@ -298,6 +307,7 @@ impl<'a> RelayExclusion<'a> {
             exclude_subnets: exclude_addr_families,
             exclude_relay_families,
             subnet_config,
+            family_rules,
         } = other;
         self.exclude_ids
             .extend(exclude_ids.iter().map(|id_ref| id_ref.to_owned()));
@@ -307,6 +317,7 @@ impl<'a> RelayExclusion<'a> {
             .0
             .extend_from_slice(&exclude_relay_families.0[..]);
         self.subnet_config = self.subnet_config.union(subnet_config);
+        self.family_rules = self.family_rules.union(family_rules);
     }
 
     /// Return a string describing why we rejected the relays that _don't_ match
@@ -432,6 +443,7 @@ mod test {
 
     #[test]
     fn exclude_families() {
+        let all_families = FamilyRules::all_family_info();
         let nd = testnet();
         let id_0: RelayId = "$0000000000000000000000000000000000000000".parse().unwrap();
         let id_5: RelayId = "ed25519:BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU"
@@ -458,6 +470,7 @@ mod test {
             &RelayExclusion::exclude_relays_in_same_family(
                 &cfg_no_subnet,
                 excluding_relays.clone(),
+                all_families,
             ),
         );
         let p = |r: &Relay<'_>| !r.identities().any(|id| expect_excluded_ids.contains(id));
@@ -487,7 +500,7 @@ mod test {
 
         let (yes, no) = split_netdir(
             &nd,
-            &RelayExclusion::exclude_relays_in_same_family(&cfg(), excluding_relays),
+            &RelayExclusion::exclude_relays_in_same_family(&cfg(), excluding_relays, all_families),
         );
         for r in &no {
             dbg!(r.rsa_identity().unwrap());

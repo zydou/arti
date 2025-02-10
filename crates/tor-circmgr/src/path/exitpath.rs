@@ -214,7 +214,7 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::TestConfig;
     use tor_linkspec::{HasRelayIds, RelayIds};
-    use tor_netdir::{testnet, SubnetConfig};
+    use tor_netdir::{testnet, FamilyRules, SubnetConfig};
     use tor_persist::TestingStateMgr;
     use tor_relay_selection::LowLevelRelayPredicate;
     use tor_rtcompat::SleepProvider;
@@ -224,6 +224,7 @@ mod test {
             &self,
             other: &MaybeOwnedRelay<'_>,
             subnet_config: SubnetConfig,
+            family_rules: FamilyRules,
         ) -> bool {
             use MaybeOwnedRelay as M;
             match (self, other) {
@@ -235,15 +236,19 @@ mod test {
                     };
                     // This use of "low_level_predicate_permits_relay" is okay because
                     // because we're in tests.
-                    RelayExclusion::exclude_relays_in_same_family(&cfg, vec![a.clone()])
-                        .low_level_predicate_permits_relay(b)
+                    RelayExclusion::exclude_relays_in_same_family(
+                        &cfg,
+                        vec![a.clone()],
+                        family_rules,
+                    )
+                    .low_level_predicate_permits_relay(b)
                 }
                 (a, b) => !subnet_config.any_addrs_in_same_subnet(a, b),
             }
         }
     }
 
-    fn assert_exit_path_ok(relays: &[MaybeOwnedRelay<'_>]) {
+    fn assert_exit_path_ok(relays: &[MaybeOwnedRelay<'_>], family_rules: FamilyRules) {
         assert_eq!(relays.len(), 3);
 
         let r1 = &relays[0];
@@ -259,15 +264,16 @@ mod test {
         assert!(!r2.same_relay_ids(r3));
 
         let subnet_config = SubnetConfig::default();
-        assert!(r1.can_share_circuit(r2, subnet_config));
-        assert!(r2.can_share_circuit(r3, subnet_config));
-        assert!(r1.can_share_circuit(r3, subnet_config));
+        assert!(r1.can_share_circuit(r2, subnet_config, family_rules));
+        assert!(r2.can_share_circuit(r3, subnet_config, family_rules));
+        assert!(r1.can_share_circuit(r3, subnet_config, family_rules));
     }
 
     #[test]
     fn by_ports() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let mut rng = testing_rng();
+            let family_rules = FamilyRules::all_family_info();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let ports = vec![TargetPort::ipv4(443), TargetPort::ipv4(1119)];
             let dirinfo = (&netdir).into();
@@ -286,7 +292,7 @@ mod test {
                 assert_same_path_when_owned(&path);
 
                 if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..]);
+                    assert_exit_path_ok(&p[..], family_rules);
                     let exit = match &p[2] {
                         MaybeOwnedRelay::Relay(r) => r,
                         MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
@@ -303,6 +309,7 @@ mod test {
     fn any_exit() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let mut rng = testing_rng();
+            let family_rules = FamilyRules::all_family_info();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let dirinfo = (&netdir).into();
             let statemgr = TestingStateMgr::new();
@@ -318,7 +325,7 @@ mod test {
                     .unwrap();
                 assert_same_path_when_owned(&path);
                 if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..]);
+                    assert_exit_path_ok(&p[..], family_rules);
                     let exit = match &p[2] {
                         MaybeOwnedRelay::Relay(r) => r,
                         MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
@@ -391,6 +398,7 @@ mod test {
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let family_rules = FamilyRules::all_family_info();
             let mut rng = testing_rng();
             let dirinfo = (&netdir).into();
             let statemgr = TestingStateMgr::new();
@@ -413,7 +421,7 @@ mod test {
                 assert_eq!(path.len(), 3);
                 assert_same_path_when_owned(&path);
                 if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..]);
+                    assert_exit_path_ok(&p[..], family_rules);
                     distinct_guards.insert(RelayIds::from_relay_ids(&p[0]));
                     distinct_mid.insert(RelayIds::from_relay_ids(&p[1]));
                     distinct_exit.insert(RelayIds::from_relay_ids(&p[2]));
