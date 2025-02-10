@@ -13,6 +13,7 @@ use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1R
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
+use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
@@ -164,6 +165,11 @@ pub(crate) enum CtrlMsg {
         /// The hop number the stream is on.
         hop_num: HopNum,
     },
+    /// Get the clock skew claimed by the first hop of the circuit.
+    FirstHopClockSkew {
+        /// Oneshot channel to return the clock skew.
+        answer: oneshot::Sender<ClockSkew>,
+    },
 }
 
 // A control message handler object. Keep a reference to the Reactor tying its lifetime to it.
@@ -311,6 +317,9 @@ impl<'a> ControlHandler<'a> {
                 handler,
                 done: sender,
             }),
+            CtrlMsg::FirstHopClockSkew { answer } => {
+                Ok(RunOnceCmdInner::FirstHopClockSkew { answer })
+            }
         }
     }
 }

@@ -66,6 +66,7 @@ use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
 };
+use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
 use reactor::CtrlCmd;
@@ -367,6 +368,19 @@ impl ClientCirc {
     /// path.
     pub fn channel(&self) -> &Channel {
         &self.channel
+    }
+
+    /// Get the clock skew claimed by the first hop of the circuit.
+    ///
+    /// See [`Channel::clock_skew()`].
+    pub async fn first_hop_clock_skew(&self) -> Result<ClockSkew> {
+        let (tx, rx) = oneshot::channel();
+
+        self.control
+            .unbounded_send(CtrlMsg::FirstHopClockSkew { answer: tx })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)
     }
 
     /// Return a reference to this circuit's memory quota account
