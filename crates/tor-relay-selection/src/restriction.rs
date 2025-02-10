@@ -349,12 +349,9 @@ impl<'a> LowLevelRelayPredicate for RelayExclusion<'a> {
             return false;
         }
 
-        if self
-            .exclude_relay_families
-            .0
-            .iter()
-            .any(|r| relays_in_same_extended_family(&self.subnet_config, relay, r))
-        {
+        if self.exclude_relay_families.0.iter().any(|r| {
+            relays_in_same_extended_family(&self.subnet_config, relay, r, self.family_rules)
+        }) {
             return false;
         }
 
@@ -369,8 +366,10 @@ fn relays_in_same_extended_family(
     subnet_config: &SubnetConfig,
     r1: &Relay<'_>,
     r2: &Relay<'_>,
+    family_rules: FamilyRules,
 ) -> bool {
-    r1.low_level_details().in_same_family(r2) || subnet_config.any_addrs_in_same_subnet(r1, r2)
+    r1.low_level_details().in_same_family(r2, family_rules)
+        || subnet_config.any_addrs_in_same_subnet(r1, r2)
 }
 
 #[cfg(test)]
@@ -390,6 +389,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use tor_linkspec::RelayId;
+    use tor_netdir::testnet::construct_custom_netdir;
 
     use super::*;
     use crate::testing::{cfg, split_netdir, testnet};
@@ -441,10 +441,9 @@ mod test {
         assert!(no.iter().all(|r| !p(r)));
     }
 
-    #[test]
-    fn exclude_families() {
-        let all_families = FamilyRules::all_family_info();
-        let nd = testnet();
+    /// Helper for testing family exclusions.  Requires a netdir where,
+    /// for every N, relays 2N and 2N+1 are in a family.
+    fn exclude_families_impl(nd: &NetDir, family_rules: FamilyRules) {
         let id_0: RelayId = "$0000000000000000000000000000000000000000".parse().unwrap();
         let id_5: RelayId = "ed25519:BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU"
             .parse()
@@ -466,11 +465,11 @@ mod test {
         };
 
         let (yes, no) = split_netdir(
-            &nd,
+            nd,
             &RelayExclusion::exclude_relays_in_same_family(
                 &cfg_no_subnet,
                 excluding_relays.clone(),
-                all_families,
+                family_rules,
             ),
         );
         let p = |r: &Relay<'_>| !r.identities().any(|id| expect_excluded_ids.contains(id));
@@ -499,8 +498,8 @@ mod test {
             .collect();
 
         let (yes, no) = split_netdir(
-            &nd,
-            &RelayExclusion::exclude_relays_in_same_family(&cfg(), excluding_relays, all_families),
+            nd,
+            &RelayExclusion::exclude_relays_in_same_family(&cfg(), excluding_relays, family_rules),
         );
         for r in &no {
             dbg!(r.rsa_identity().unwrap());
@@ -513,6 +512,37 @@ mod test {
         assert!(yes.iter().all(p));
 
         assert!(no.iter().all(|r| { !p(r) }));
+    }
+
+    #[test]
+    fn exclude_families_by_list() {
+        exclude_families_impl(
+            &testnet(),
+            *FamilyRules::ignore_declared_families().use_family_lists(true),
+        );
+    }
+
+    #[test]
+    fn exclude_families_by_id() {
+        // Here we construct a network that matches our default testnet,
+        // but without any family lists.
+        // Instead we use "happy family" IDs to match the families from that default testnest.
+        let netdir = construct_custom_netdir(|pos, nb, _| {
+            // Clear the family list.
+            nb.md.family("".parse().unwrap());
+            // This will create an "Unrecognized" family id such that
+            // pos:N  will be shared by nodes in positions 2N and 2N+1.
+            let fam_id = format!("pos:{}", pos / 2);
+            nb.md.add_family_id(fam_id.parse().unwrap());
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
+        exclude_families_impl(
+            &netdir,
+            *FamilyRules::ignore_declared_families().use_family_ids(true),
+        );
     }
 
     #[test]

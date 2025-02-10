@@ -36,7 +36,7 @@ use std::sync::Arc;
 use tor_linkspec::HasRelayIds;
 use tor_netdoc::{doc::netstatus, types::policy::PortPolicy};
 
-use crate::{Relay, SubnetConfig};
+use crate::{FamilyRules, Relay, SubnetConfig};
 
 /// A view for lower-level details about a [`Relay`].
 ///
@@ -96,11 +96,27 @@ impl<'a> RelayDetails<'a> {
     /// Return true if both relays are in the same family.
     ///
     /// (Every relay is considered to be in the same family as itself.)
-    pub fn in_same_family(&self, other: &Relay<'_>) -> bool {
+    pub fn in_same_family(&self, other: &Relay<'_>, family_rules: FamilyRules) -> bool {
+        #![allow(clippy::collapsible_if)] // I prefer this style here.
         if self.0.same_relay_ids(other) {
             return true;
         }
-        self.0.md.family().contains(other.rsa_id()) && other.md.family().contains(self.0.rsa_id())
+        if family_rules.use_family_lists {
+            if self.0.md.family().contains(other.rsa_id())
+                && other.md.family().contains(self.0.rsa_id())
+            {
+                return true;
+            }
+        }
+        if family_rules.use_family_ids {
+            let my_ids = self.0.md.family_ids();
+            let their_ids = other.md.family_ids();
+            if my_ids.iter().any(|my_id| their_ids.contains(my_id)) {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Return true if there are any ports for which this Relay can be

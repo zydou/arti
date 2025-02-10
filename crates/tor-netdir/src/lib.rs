@@ -250,7 +250,6 @@ impl SubnetConfig {
 ///
 /// Derived from network parameters.
 #[derive(Clone, Copy, Debug)]
-#[allow(unused)]
 pub struct FamilyRules {
     /// If true, we use family information from lists of family members.
     use_family_lists: bool,
@@ -2429,6 +2428,7 @@ mod test {
         )
         .unwrap();
         let subnet_config = SubnetConfig::default();
+        let all_family_info = FamilyRules::all_family_info();
         let mut dir = PartialNetDir::new(consensus, None);
         for md in microdescs.into_iter() {
             let wanted = dir.add_microdesc(md.clone());
@@ -2478,14 +2478,14 @@ mod test {
         assert!(!r3.low_level_details().policies_allow_some_port());
         assert!(r10.low_level_details().policies_allow_some_port());
 
-        assert!(r0.low_level_details().in_same_family(&r0));
-        assert!(r0.low_level_details().in_same_family(&r1));
-        assert!(r1.low_level_details().in_same_family(&r0));
-        assert!(r1.low_level_details().in_same_family(&r1));
-        assert!(!r0.low_level_details().in_same_family(&r2));
-        assert!(!r2.low_level_details().in_same_family(&r0));
-        assert!(r2.low_level_details().in_same_family(&r2));
-        assert!(r2.low_level_details().in_same_family(&r3));
+        assert!(r0.low_level_details().in_same_family(&r0, all_family_info));
+        assert!(r0.low_level_details().in_same_family(&r1, all_family_info));
+        assert!(r1.low_level_details().in_same_family(&r0, all_family_info));
+        assert!(r1.low_level_details().in_same_family(&r1, all_family_info));
+        assert!(!r0.low_level_details().in_same_family(&r2, all_family_info));
+        assert!(!r2.low_level_details().in_same_family(&r0, all_family_info));
+        assert!(r2.low_level_details().in_same_family(&r2, all_family_info));
+        assert!(r2.low_level_details().in_same_family(&r3, all_family_info));
 
         assert!(r0.low_level_details().in_same_subnet(&r10, &subnet_config));
         assert!(r10.low_level_details().in_same_subnet(&r10, &subnet_config));
