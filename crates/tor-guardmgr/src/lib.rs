@@ -1688,6 +1688,15 @@ impl FirstHop {
         }
     }
 
+    /// Return true if this guard is a bridge.
+    pub fn is_bridge(&self) -> bool {
+        match &self.sample {
+            #[cfg(feature = "bridge-client")]
+            Some(s) if s.universe_type() == UniverseType::BridgeSet => true,
+            _ => false,
+        }
+    }
+
     /// If possible, return a view of this object that can be used to build a circuit.
     pub fn as_circ_target(&self) -> Option<&OwnedCircTarget> {
         match &self.inner {
