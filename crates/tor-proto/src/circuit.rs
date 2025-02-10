@@ -88,6 +88,7 @@ use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
 use crate::congestion::sendme::StreamRecvWindow;
+use crate::DynTimeProvider;
 use futures::{FutureExt as _, SinkExt as _};
 use std::net::IpAddr;
 use std::pin::Pin;
@@ -196,6 +197,8 @@ pub struct ClientCirc {
     circid: CircId,
     /// Memory quota account
     memquota: CircuitAccount,
+    /// Time provider
+    time_provider: DynTimeProvider,
 }
 
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
@@ -556,7 +559,7 @@ impl ClientCirc {
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
-        let time_prov = self.channel().time_provider().clone();
+        let time_prov = self.time_provider.clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
         let (incoming_sender, incoming_receiver) =
             MpscSpec::new(INCOMING_BUFFER).new_mq(time_prov, self.memquota.as_raw_account())?;
@@ -757,7 +760,7 @@ impl ClientCirc {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
-        let time_prov = self.channel().time_provider().clone();
+        let time_prov = self.time_provider.clone();
 
         let hop_num = self
             .mutable
@@ -1028,6 +1031,7 @@ impl PendingClientCirc {
     ) -> (PendingClientCirc, reactor::Reactor) {
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel.clone(), id, unique_id, input, memquota.clone());
+        let time_provider = channel.time_provider().clone();
 
         let circuit = ClientCirc {
             mutable,
@@ -1039,6 +1043,7 @@ impl PendingClientCirc {
             #[cfg(test)]
             circid: id,
             memquota,
+            time_provider,
         };
 
         let pending = PendingClientCirc {
