@@ -66,6 +66,7 @@ use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
 };
+use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
 use reactor::CtrlCmd;
@@ -174,20 +175,6 @@ pub struct ClientCirc {
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// Channel to send commands to the reactor.
     command: mpsc::UnboundedSender<CtrlCmd>,
-    /// The channel that this ClientCirc is connected to and using to speak with
-    /// its first hop.
-    ///
-    /// # Warning
-    ///
-    /// Don't use this field to send or receive any data, or perform any network
-    /// operations for this circuit!  All network operations should be done by
-    /// the circuit reactor.
-    ///
-    /// TODO: This limitation strongly suggests that we have made a mistake somewhere, and should
-    /// not be holding this field in this structure.  Or maybe the object that lets us send/receive
-    /// from a channel should be separate from Channel itself, like how StreamTarget is separate
-    /// from Circuit.
-    channel: Arc<Channel>,
     /// A future that resolves to Cancelled once the reactor is shut down,
     /// meaning that the circuit is closed.
     #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
@@ -360,13 +347,17 @@ impl ClientCirc {
         self.mutable.lock().expect("poisoned_lock").path.clone()
     }
 
-    /// Return a reference to the channel that this circuit is connected to.
+    /// Get the clock skew claimed by the first hop of the circuit.
     ///
-    /// A client circuit is always connected to some relay via a [`Channel`].
-    /// That relay has to be the same relay as the first hop in the client's
-    /// path.
-    pub fn channel(&self) -> &Channel {
-        &self.channel
+    /// See [`Channel::clock_skew()`].
+    pub async fn first_hop_clock_skew(&self) -> Result<ClockSkew> {
+        let (tx, rx) = oneshot::channel();
+
+        self.control
+            .unbounded_send(CtrlMsg::FirstHopClockSkew { answer: tx })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)
     }
 
     /// Return a reference to this circuit's memory quota account
@@ -1029,9 +1020,9 @@ impl PendingClientCirc {
         unique_id: UniqId,
         memquota: CircuitAccount,
     ) -> (PendingClientCirc, reactor::Reactor) {
-        let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
-            Reactor::new(channel.clone(), id, unique_id, input, memquota.clone());
         let time_provider = channel.time_provider().clone();
+        let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
+            Reactor::new(channel, id, unique_id, input, memquota.clone());
 
         let circuit = ClientCirc {
             mutable,
@@ -1039,7 +1030,6 @@ impl PendingClientCirc {
             control: control_tx,
             command: command_tx,
             reactor_closed_rx: reactor_closed_rx.shared(),
-            channel,
             #[cfg(test)]
             circid: id,
             memquota,

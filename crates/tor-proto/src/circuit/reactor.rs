@@ -42,6 +42,7 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::ReactorError;
+use crate::util::skew::ClockSkew;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{Error, Result};
@@ -260,6 +261,11 @@ enum RunOnceCmdInner {
         reason: streammap::TerminateReason,
         /// A channel for sending completion notifications.
         done: Option<ReactorResultChannel<()>>,
+    },
+    /// Get the clock skew claimed by the first hop of the circuit.
+    FirstHopClockSkew {
+        /// Oneshot channel to return the clock skew.
+        answer: oneshot::Sender<ClockSkew>,
     },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
@@ -776,6 +782,10 @@ impl Reactor {
                 // future which *should* resolve immediately
                 let signals = self.congestion_signals().await;
                 self.handle_sendme(hop, sendme, signals)?;
+            }
+            RunOnceCmdInner::FirstHopClockSkew { answer } => {
+                // don't care if the sender goes away
+                let _ = answer.send(self.channel.clock_skew());
             }
             RunOnceCmdInner::CleanShutdown => {
                 trace!("{}: reactor shutdown due to handled cell", self.unique_id);

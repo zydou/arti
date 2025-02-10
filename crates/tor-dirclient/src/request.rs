@@ -17,7 +17,9 @@ type Result<T> = std::result::Result<T, crate::err::RequestError>;
 
 use base64ct::{Base64Unpadded, Encoding as _};
 use std::borrow::Cow;
+use std::future::Future;
 use std::iter::FromIterator;
+use std::pin::Pin;
 use std::time::{Duration, SystemTime};
 
 use itertools::Itertools;
@@ -28,6 +30,10 @@ use crate::AnonymizedRequest;
 /// Declare an inaccessible public type.
 pub(crate) mod sealed {
     use super::{AnonymizedRequest, ClientCirc, Result};
+
+    use std::future::Future;
+    use std::pin::Pin;
+
     /// Sealed trait to help implement [`Requestable`](super::Requestable): not
     /// visible outside this crate, so we can change its methods however we like.
     pub trait RequestableInner: Send + Sync {
@@ -57,9 +63,12 @@ pub(crate) mod sealed {
 
         /// Return an error if there is some problem with the provided circuit that
         /// would keep it from being used for this request.
-        fn check_circuit(&self, circ: &ClientCirc) -> Result<()> {
+        fn check_circuit<'a>(
+            &self,
+            circ: &'a ClientCirc,
+        ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
             let _ = circ;
-            Ok(())
+            Box::pin(async { Ok(()) })
         }
 
         /// Return a value to say whether this request must be anonymized.
@@ -274,19 +283,25 @@ impl sealed::RequestableInner for ConsensusRequest {
         false
     }
 
-    fn check_circuit(&self, circ: &ClientCirc) -> Result<()> {
-        use tor_proto::ClockSkew::*;
-        // This is the clock skew _according to the directory_.
-        let skew = circ.channel().clock_skew();
-        match (&self.skew_limit, &skew) {
-            (Some(SkewLimit { max_slow, .. }), Slow(slow)) if slow > max_slow => {
-                Err(RequestError::TooMuchClockSkew)
+    fn check_circuit<'a>(
+        &self,
+        circ: &'a ClientCirc,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
+        let skew_limit = self.skew_limit.clone();
+        Box::pin(async move {
+            use tor_proto::ClockSkew::*;
+            // This is the clock skew _according to the directory_.
+            let skew = circ.first_hop_clock_skew().await?;
+            match (&skew_limit, &skew) {
+                (Some(SkewLimit { max_slow, .. }), Slow(slow)) if slow > max_slow => {
+                    Err(RequestError::TooMuchClockSkew)
+                }
+                (Some(SkewLimit { max_fast, .. }), Fast(fast)) if fast > max_fast => {
+                    Err(RequestError::TooMuchClockSkew)
+                }
+                (_, _) => Ok(()),
             }
-            (Some(SkewLimit { max_fast, .. }), Fast(fast)) if fast > max_fast => {
-                Err(RequestError::TooMuchClockSkew)
-            }
-            (_, _) => Ok(()),
-        }
+        })
     }
 
     fn anonymized(&self) -> AnonymizedRequest {
