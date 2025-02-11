@@ -24,4 +24,5 @@ $CARGO update \
       -p tap:1.0.0 \
       -p event-listener:3.0.0 \
       -p paste:1.0.0 \
-      -p ring:0.16.15
+      -p ring:0.16.15 \
+      -p yoke:0.6.0
