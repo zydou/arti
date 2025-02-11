@@ -46,7 +46,7 @@ use crate::util::skew::ClockSkew;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{Error, Result};
-use control::{CommandHandler, ControlHandler};
+use control::ControlHandler;
 use futures::stream::FuturesUnordered;
 use std::borrow::Borrow;
 use std::mem::size_of;
@@ -632,7 +632,7 @@ impl Reactor {
         let (cmd, _sendable) = select_biased! {
                 res = self.command.next() => {
                     let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
-                    return CommandHandler::new(self).handle(cmd);
+                    return ControlHandler::new(self).handle_cmd(cmd);
                 },
                 res = self.chan_sender
                     .prepare_send_from(async {
@@ -669,9 +669,9 @@ impl Reactor {
         let cmd = match cmd {
             None => None,
             Some(SelectResult::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
-            Some(SelectResult::HandleControl(ctrl)) => {
-                Some(RunOnceCmd::Single(ControlHandler::new(self).handle(ctrl)?))
-            }
+            Some(SelectResult::HandleControl(ctrl)) => Some(RunOnceCmd::Single(
+                ControlHandler::new(self).handle_msg(ctrl)?,
+            )),
             Some(SelectResult::HandleCell(cell)) => self.handle_cell(cell)?,
         };
 
