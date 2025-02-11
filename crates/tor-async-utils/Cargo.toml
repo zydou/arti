@@ -13,7 +13,7 @@ categories = ["rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-derive-deftly = "0.14"
+derive-deftly = "1.0"
 educe = "0.4.6"
 futures = "0.3.14"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }

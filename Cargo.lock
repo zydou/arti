@@ -205,7 +205,7 @@ dependencies = [
  "async-ctrlc",
  "cfg-if",
  "clap",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "derive_more",
  "dialoguer",
@@ -286,7 +286,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "cfg-if",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "derive_more",
  "dyn-clone",
@@ -302,7 +302,7 @@ dependencies = [
  "rand",
  "safelog",
  "serde",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "thiserror 2.0.11",
  "tokio",
@@ -356,7 +356,7 @@ dependencies = [
  "rand",
  "safelog",
  "serde",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.11",
  "tor-chanmgr",
  "tor-config",
@@ -407,7 +407,7 @@ dependencies = [
  "asynchronous-codec",
  "base64ct",
  "bytes",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "erased-serde",
  "futures",
@@ -1575,7 +1575,17 @@ version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f9bc3564f74be6c35d49a7efee54380d7946ccc631323067f33fabb9246027"
 dependencies = [
- "derive-deftly-macros",
+ "derive-deftly-macros 0.14.2",
+ "heck",
+]
+
+[[package]]
+name = "derive-deftly"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39502f680ea10252d02b2809e56239acb3aa68d3659c0e0171ade79c04c48086"
+dependencies = [
+ "derive-deftly-macros 1.0.0",
  "heck",
 ]
 
@@ -1586,13 +1596,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1b84d32b18d9a256d81e4fec2e4cfd0ab6dde5e5ff49be1713ae0adbd0060c2"
 dependencies = [
  "heck",
- "indexmap 2.7.1",
- "itertools 0.13.0",
+ "indexmap 1.9.3",
+ "itertools 0.10.5",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
  "sha3",
- "strum",
+ "strum 0.26.3",
+ "syn 2.0.98",
+ "void",
+]
+
+[[package]]
+name = "derive-deftly-macros"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c964673dd1023a358bbc0090f6761aee64dddbd21bc7fa91853e92201110e8f"
+dependencies = [
+ "heck",
+ "indexmap 1.9.3",
+ "itertools 0.10.5",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "sha3",
+ "strum 0.27.0",
  "syn 2.0.98",
  "void",
 ]
@@ -3030,15 +3058,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -4039,7 +4058,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b94fdf3867b7f2889a736f0022ea9386766280d2cca4bdbe41629ada9e4f3b8f"
 dependencies = [
- "derive-deftly",
+ "derive-deftly 0.14.2",
  "libc",
  "paste",
  "thiserror 1.0.69",
@@ -5052,7 +5071,16 @@ version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 dependencies = [
- "strum_macros",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "strum"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce1475c515a4f03a8a7129bb5228b81a781a86cb0b3fbbc19e1c556d491a401f"
+dependencies = [
+ "strum_macros 0.27.0",
 ]
 
 [[package]]
@@ -5060,6 +5088,19 @@ name = "strum_macros"
 version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.98",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9688894b43459159c82bfa5a5fa0435c19cbe3c9b427fa1dd7b1ce0c279b18a7"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -5401,7 +5442,7 @@ dependencies = [
 name = "tor-async-utils"
 version = "0.27.0"
 dependencies = [
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "educe",
  "futures",
  "futures-await-test",
@@ -5441,7 +5482,7 @@ name = "tor-bytes"
 version = "0.27.0"
 dependencies = [
  "bytes",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "digest",
  "educe",
  "getrandom 0.2.15",
@@ -5461,7 +5502,7 @@ dependencies = [
  "bitflags 2.8.0",
  "bytes",
  "caret",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "educe",
  "hex",
@@ -5606,7 +5647,7 @@ version = "0.27.0"
 dependencies = [
  "amplify",
  "cfg-if",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "educe",
  "either",
@@ -5623,7 +5664,7 @@ dependencies = [
  "serde-value",
  "serde_ignored",
  "serde_json",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "test-temp-dir",
  "thiserror 2.0.11",
@@ -5731,7 +5772,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "signature",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "thiserror 2.0.11",
  "time",
@@ -5768,7 +5809,7 @@ dependencies = [
  "paste",
  "retry-error",
  "static_assertions",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.11",
  "tracing",
  "tracing-test",
@@ -5815,7 +5856,7 @@ version = "0.27.0"
 dependencies = [
  "amplify",
  "base64ct",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "derive_more",
  "dyn-clone",
@@ -5834,7 +5875,7 @@ dependencies = [
  "safelog",
  "serde",
  "serde_json",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "thiserror 2.0.11",
  "toml",
@@ -5861,7 +5902,7 @@ name = "tor-hsclient"
 version = "0.27.0"
 dependencies = [
  "async-trait",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "educe",
  "either",
@@ -5874,7 +5915,7 @@ dependencies = [
  "retry-error",
  "safelog",
  "slotmap-careful",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.11",
  "tokio",
  "tor-async-utils",
@@ -5911,7 +5952,7 @@ dependencies = [
  "blake2",
  "cipher",
  "data-encoding",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "digest",
  "equix",
@@ -5940,7 +5981,7 @@ dependencies = [
 name = "tor-hsrproxy"
 version = "0.27.0"
 dependencies = [
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "futures",
  "oneshot-fused-workaround",
@@ -5971,7 +6012,7 @@ dependencies = [
  "async-trait",
  "base64ct",
  "cfg-if",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "derive_more",
  "digest",
@@ -5996,7 +6037,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "slotmap-careful",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "test-temp-dir",
  "thiserror 2.0.11",
@@ -6033,7 +6074,7 @@ dependencies = [
 name = "tor-key-forge"
 version = "0.27.0"
 dependencies = [
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "downcast-rs",
  "paste",
@@ -6057,7 +6098,7 @@ dependencies = [
  "arrayvec",
  "cfg-if",
  "data-encoding",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "derive_more",
  "downcast-rs",
@@ -6098,7 +6139,7 @@ dependencies = [
  "base64ct",
  "by_address",
  "caret",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "derive_more",
  "hex",
@@ -6108,7 +6149,7 @@ dependencies = [
  "serde",
  "serde_test",
  "serde_with",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.11",
  "tor-basic-utils",
  "tor-bytes",
@@ -6128,7 +6169,7 @@ dependencies = [
  "ctr",
  "curve25519-dalek",
  "der-parser",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "digest",
  "ed25519-dalek",
@@ -6175,7 +6216,7 @@ dependencies = [
 name = "tor-memquota"
 version = "0.27.0"
 dependencies = [
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "dyn-clone",
  "educe",
@@ -6222,7 +6263,7 @@ dependencies = [
  "rand",
  "serde",
  "static_assertions",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.11",
  "time",
  "tor-basic-utils",
@@ -6292,7 +6333,7 @@ version = "0.27.0"
 dependencies = [
  "amplify",
  "anyhow",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "filetime",
  "fs-mistrust",
@@ -6331,7 +6372,7 @@ dependencies = [
  "coarsetime",
  "cpu-time",
  "criterion",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_builder_fork_arti",
  "derive_more",
  "digest",
@@ -6420,7 +6461,7 @@ dependencies = [
 name = "tor-relay-crypto"
 version = "0.27.0"
 dependencies = [
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "humantime",
  "tor-cert",
@@ -6480,7 +6521,7 @@ name = "tor-rpcbase"
 version = "0.27.0"
 dependencies = [
  "assert-impl",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "downcast-rs",
  "erased-serde",
@@ -6538,7 +6579,7 @@ version = "0.27.0"
 dependencies = [
  "amplify",
  "async-trait",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "educe",
  "futures",
@@ -6550,7 +6591,7 @@ dependencies = [
  "priority-queue",
  "rand",
  "slotmap-careful",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.11",
  "tor-basic-utils",
  "tor-error",
@@ -6569,7 +6610,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "caret",
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "educe",
  "hex-literal",
  "safelog",
@@ -6583,7 +6624,7 @@ dependencies = [
 name = "tor-units"
 version = "0.27.0"
 dependencies = [
- "derive-deftly",
+ "derive-deftly 1.0.0",
  "derive_more",
  "float-cmp",
  "thiserror 2.0.11",
@@ -7333,9 +7374,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86e376c75f4f43f44db463cf729e0d3acbf954d13e22c51e26e4c264b4ab545f"
+checksum = "59690dea168f2198d1a3b0cac23b8063efcd11012f10ae4698f284808c8ef603"
 dependencies = [
  "memchr",
 ]
