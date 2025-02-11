@@ -306,21 +306,25 @@ pub(crate) enum ReactorError {
     /// The reactor should shut down without an error, since all is well.
     Shutdown,
 }
+
 impl From<Error> for ReactorError {
     fn from(e: Error) -> ReactorError {
         ReactorError::Err(e)
     }
 }
+
 impl From<ChannelClosed> for ReactorError {
     fn from(e: ChannelClosed) -> ReactorError {
         ReactorError::Err(e.into())
     }
 }
+
 impl From<Bug> for ReactorError {
     fn from(e: Bug) -> ReactorError {
         ReactorError::Err(e.into())
     }
 }
+
 #[cfg(test)]
 impl ReactorError {
     /// Tests only: assert that this is an Error, and return it.
