@@ -23,7 +23,7 @@ full = ["proxy-handshake", "client-handshake", "caret/full", "tor-bytes/full", "
 amplify = { version = "4", default-features = false, features = ["derive"] }
 arbitrary = { version = "1.0.1", optional = true, features = ["derive"] }
 caret = { path = "../caret", version = "0.5.0" }
-derive-deftly = "1.0"
+derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
 educe = "0.4.6"
 safelog = { path = "../safelog", version = "0.4.2" }
 subtle = "2"

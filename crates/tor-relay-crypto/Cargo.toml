@@ -24,7 +24,7 @@ full = [
 ]
 
 [dependencies]
-derive-deftly = "1.0"
+derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
 derive_more = { version = "1.0.0", features = ["full"] }
 humantime = "2"
 tor-cert = { path = "../tor-cert", version = "0.27.0", features = ["encode"] }
