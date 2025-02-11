@@ -13,6 +13,8 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use caret::caret_int;
 use rand::{CryptoRng, Rng};
 
+#[cfg(feature = "conflux")]
+pub mod conflux;
 pub mod extend;
 #[cfg(feature = "hs")]
 pub mod hs;

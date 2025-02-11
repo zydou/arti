@@ -20,6 +20,10 @@ use tor_memquota::{derive_deftly_template_HasMemoryCost, memory_cost_structural_
 
 use bitflags::bitflags;
 
+#[cfg(feature = "conflux")]
+#[cfg_attr(docsrs, doc(cfg(feature = "conflux")))]
+pub use super::conflux::{ConfluxLink, ConfluxLinked, ConfluxLinkedAck, ConfluxSwitch};
+
 #[cfg(feature = "hs")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs")))]
 pub use super::hs::{
@@ -76,6 +80,18 @@ pub enum AnyRelayMsg : RelayMsg {
     /// UDP stream data
     [feature = "experimental-udp"]
     Datagram,
+    /// Link circuits together at the receiving endpoint
+    [feature = "conflux"]
+    ConfluxLink,
+    /// Confirm that the circuits were linked
+    [feature = "conflux"]
+    ConfluxLinked,
+    /// Acknowledge the linkage of the circuits, for RTT measurement.
+    [feature = "conflux"]
+    ConfluxLinkedAck,
+    /// Switch to another leg in an already linked circuit construction.
+    [feature = "conflux"]
+    ConfluxSwitch,
     /// Establish Introduction
     [feature = "hs"]
     EstablishIntro,
@@ -1306,3 +1322,6 @@ msg_impl_relaymsg!(
     RendezvousEstablished,
     IntroduceAck,
 );
+
+#[cfg(feature = "conflux")]
+msg_impl_relaymsg!(ConfluxSwitch);
