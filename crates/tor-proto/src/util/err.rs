@@ -2,7 +2,7 @@
 use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tor_cell::relaycell::{msg::EndReason, StreamId};
-use tor_error::{ErrorKind, HasKind};
+use tor_error::{Bug, ErrorKind, HasKind};
 use tor_linkspec::RelayIdType;
 
 /// An error type for the tor-proto crate.
@@ -313,6 +313,11 @@ impl From<Error> for ReactorError {
 }
 impl From<ChannelClosed> for ReactorError {
     fn from(e: ChannelClosed) -> ReactorError {
+        ReactorError::Err(e.into())
+    }
+}
+impl From<Bug> for ReactorError {
+    fn from(e: Bug) -> ReactorError {
         ReactorError::Err(e.into())
     }
 }
