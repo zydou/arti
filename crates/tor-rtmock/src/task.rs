@@ -1095,6 +1095,15 @@ mod test {
     #[cfg(not(miri))] // trace! asks for the time, which miri doesn't support
     use tracing_test::traced_test;
 
+    fn various_mock_executors() -> impl Iterator<Item = MockExecutor> {
+        // This duplicates the part of the logic in MockRuntime::test_with_various which
+        // relates to MockExecutor, because we don't have a MockRuntime::builder.
+        // The only parameter to MockExecutor is its scheduling policy, so this seems fine.
+        SchedulingPolicy::iter().map(|scheduling| {
+            MockExecutor::with_scheduling(scheduling)
+        })
+    }
+
     #[cfg_attr(not(miri), traced_test)]
     #[test]
     fn simple() {
@@ -1228,11 +1237,7 @@ mod test {
             }
         }
 
-        // This duplicates the part of the logic in MockRuntime::test_with_various which
-        // relates to MockExecutor, because we don't have a MockRuntime::builder.
-        // The only parameter to MockExecutor is its scheduling policy, so this seems fine.
-        for scheduling in SchedulingPolicy::iter() {
-            let runtime = MockExecutor::with_scheduling(scheduling);
+        for runtime in various_mock_executors() {
             runtime.block_on(async {
                 runtime.spawn_identified("trapper", {
                     let runtime = runtime.clone();
