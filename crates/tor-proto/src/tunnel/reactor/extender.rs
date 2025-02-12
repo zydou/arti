@@ -92,7 +92,10 @@ where
             let unique_id = reactor.unique_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
-            let n_hops = reactor.circuits.crypto_out.n_layers();
+            let circ = reactor.circuits.single_leg().map_err(|_| {
+                tor_error::internal!("cannot extend circuit with more than one leg?!")
+            })?;
+            let n_hops = circ.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(
                 "{}: Extending circuit to hop {} with {:?}",

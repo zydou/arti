@@ -22,6 +22,7 @@ use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0, StreamId,
     UnparsedRelayMsg,
 };
+use tor_error::Bug;
 use tracing::trace;
 #[cfg(feature = "hs-service")]
 use {
@@ -168,7 +169,7 @@ pub(crate) enum CtrlMsg {
     /// Get the clock skew claimed by the first hop of the circuit.
     FirstHopClockSkew {
         /// Oneshot channel to return the clock skew.
-        answer: oneshot::Sender<ClockSkew>,
+        answer: oneshot::Sender<StdResult<ClockSkew, Bug>>,
     },
 }
 
@@ -329,13 +330,10 @@ impl<'a> ControlHandler<'a> {
                 done,
                 cmd_checker,
             } => {
-                let cell = self.reactor.circuits.begin_stream(
-                    hop_num,
-                    message,
-                    sender,
-                    rx,
-                    cmd_checker,
-                )?;
+                // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
+                // Currently, we always begin streams on the primary leg
+                let circ = self.reactor.circuits.primary_leg()?;
+                let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
                 Ok(RunOnceCmdInner::BeginStream { cell, done })
             }
             #[cfg(feature = "hs-service")]
@@ -344,13 +342,17 @@ impl<'a> ControlHandler<'a> {
                 stream_id,
                 message,
                 done,
-            } => Ok(RunOnceCmdInner::CloseStream {
-                hop_num,
-                sid: stream_id,
-                behav: message,
-                reason: streammap::TerminateReason::ExplicitEnd,
-                done: Some(done),
-            }),
+            } => {
+                // TODO(conflux): what to do if there are multiple legs?
+                // The hop_num won't be enough to identify the hop the stream is with
+                Ok(RunOnceCmdInner::CloseStream {
+                    hop_num,
+                    sid: stream_id,
+                    behav: message,
+                    reason: streammap::TerminateReason::ExplicitEnd,
+                    done: Some(done),
+                })
+            }
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
@@ -413,8 +415,11 @@ impl<'a> ControlHandler<'a> {
                 // describe why the virtual hop was added, or something?
                 let peer_id = path::HopDetail::Virtual;
 
+                // TODO(conflux): the error should probably be sent via the done channel?
+                // (it should probably not crash the reactor)
                 self.reactor
                     .circuits
+                    .single_leg()?
                     .add_hop(format, peer_id, outbound, inbound, binding, &params);
                 let _ = done.send(Ok(()));
 
@@ -453,7 +458,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                self.reactor.circuits.handle_add_fake_hop(
+                self.reactor.circuits.single_leg()?.handle_add_fake_hop(
                     relay_cell_format,
                     fwd_lasthop,
                     rev_lasthop,
@@ -465,14 +470,16 @@ impl<'a> ControlHandler<'a> {
             }
             #[cfg(test)]
             CtrlCmd::QuerySendWindow { hop, done } => {
-                let _ = done.send(if let Some(hop) = self.reactor.circuits.hop_mut(hop) {
-                    Ok(hop.ccontrol.send_window_and_expected_tags())
-                } else {
-                    Err(Error::from(internal!(
-                        "received QuerySendWindow for unknown hop {}",
-                        hop.display()
-                    )))
-                });
+                let _ = done.send(
+                    if let Some(hop) = self.reactor.circuits.single_leg()?.hop_mut(hop) {
+                        Ok(hop.ccontrol.send_window_and_expected_tags())
+                    } else {
+                        Err(Error::from(internal!(
+                            "received QuerySendWindow for unknown hop {}",
+                            hop.display()
+                        )))
+                    },
+                );
 
                 Ok(())
             }

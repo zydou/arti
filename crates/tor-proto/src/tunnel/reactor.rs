@@ -48,6 +48,7 @@ use crate::util::skew::ClockSkew;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{Error, Result};
+use conflux::ConfluxSet;
 use control::ControlHandler;
 use futures::stream::FuturesUnordered;
 use std::borrow::Borrow;
@@ -268,7 +269,7 @@ enum RunOnceCmdInner {
     /// Get the clock skew claimed by the first hop of the circuit.
     FirstHopClockSkew {
         /// Oneshot channel to return the clock skew.
-        answer: oneshot::Sender<ClockSkew>,
+        answer: oneshot::Sender<StdResult<ClockSkew, Bug>>,
     },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
@@ -485,8 +486,7 @@ pub struct Reactor {
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: oneshot::Sender<void::Void>,
     /// The circuit leg
-    // TODO(conflux): support more than one leg
-    circuits: Circuit,
+    circuits: ConfluxSet,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// Handlers, shared with `Circuit`.
@@ -636,7 +636,7 @@ impl Reactor {
         };
 
         let reactor = Reactor {
-            circuits: circuit_leg,
+            circuits: ConfluxSet::new(circuit_leg),
             control: control_rx,
             command: command_rx,
             reactor_closed_tx,
@@ -668,13 +668,32 @@ impl Reactor {
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
-        if self.circuits.hops.is_empty() {
+        // If this is a single path circuit, we need to wait until the first hop
+        // is created before doing anything else
+        if self.circuits.len() == 1 && self.circuits.single_leg()?.hops.is_empty() {
             self.wait_for_create().await?;
 
             return Ok(());
         }
 
-        let mut ready_streams = self.circuits.ready_streams_iterator();
+        // TODO(conflux): support adding and linking circuits
+        // TODO(conflux): support switching the primary leg
+
+        // TODO(conflux): read from *all* the circuits, not just the primary
+        //
+        // Note: this is a big TODO, and will likely involve factoring out the
+        // chan_sender.prepare_send_from() call into a function on Circuit.
+        // Each Circuit will have its own control channel, for handling control
+        // messages meant for it (I imagine some/all CtrlMsgs will have a LegId
+        // field, and that the reactor will redirect the CtrlMsg to the appropriate
+        // Circuit's control channel?). Putting the control channel (which will
+        // probably receive a CtrlMsgInner type) inside the Circuit should enable
+        // us to lift the prepare_send_from() into a Circuit function, that will
+        // get called from ConfluxSet::poll_all_name_tbd() that can be used in
+        // this select_biased! to select between the channel readiness of *all*
+        // underlying circuits.
+        let primary_leg = self.circuits.primary_leg()?;
+        let mut ready_streams = primary_leg.ready_streams_iterator();
 
         // Note: We don't actually use the returned SinkSendable,
         // and continue writing to the SometimesUboundedSink :(
@@ -683,7 +702,7 @@ impl Reactor {
                     let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
                     return ControlHandler::new(self).handle_cmd(cmd);
                 },
-                res = self.circuits.chan_sender
+                res = primary_leg.chan_sender
                     .prepare_send_from(async {
                         select_biased! {
                             // Check whether we've got a control message pending.
@@ -692,7 +711,7 @@ impl Reactor {
                                 Ok::<_, ReactorError>(Some(SelectResult::HandleControl(msg)))
                             },
                             // Check whether we've got an input message pending.
-                            ret = self.circuits.input.next() => {
+                            ret = primary_leg.input.next().fuse() => {
                                 let cell = unwrap_or_shutdown!(self, ret, "input drop")?;
                                 Ok(Some(SelectResult::HandleCell(cell)))
                             },
@@ -722,7 +741,12 @@ impl Reactor {
                 ControlHandler::new(self).handle_msg(ctrl)?,
             )),
             Some(SelectResult::HandleCell(cell)) => {
-                self.circuits.handle_cell(&mut self.cell_handlers, cell)?
+                // TODO(conflux): put the LegId of the circuit the cell was received on
+                // inside HandleCell
+                //let circ = self.circuits.leg(leg_id)?;
+
+                let circ = self.circuits.primary_leg()?;
+                circ.handle_cell(&mut self.cell_handlers, cell)?
             }
         };
 
@@ -760,7 +784,9 @@ impl Reactor {
         match cmd {
             RunOnceCmdInner::Send { cell, done } => {
                 // TODO: check the cc window
-                let res = self.circuits.send_relay_cell(cell).await;
+
+                // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
+                let res = self.circuits.primary_leg()?.send_relay_cell(cell).await;
                 if let Some(done) = done {
                     // Don't care if the receiver goes away
                     let _ = done.send(res.clone());
@@ -774,7 +800,8 @@ impl Reactor {
 
                 match cell {
                     Ok(Some(cell)) => {
-                        let outcome = self.circuits.send_relay_cell(cell).await;
+                        // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
+                        let outcome = self.circuits.primary_leg()?.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone());
                         outcome?;
@@ -790,10 +817,14 @@ impl Reactor {
                     }
                 }
             }
+            // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
+            // Currently, we always begin streams on the primary leg
             RunOnceCmdInner::BeginStream { cell, done } => {
                 match cell {
                     Ok((cell, stream_id)) => {
-                        let outcome = self.circuits.send_relay_cell(cell).await;
+                        // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
+                        // (currently it is an error to use BeginStream on a multipath tunnel)
+                        let outcome = self.circuits.single_leg()?.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone().map(|_| stream_id));
                         outcome?;
@@ -812,10 +843,10 @@ impl Reactor {
                 reason,
                 done,
             } => {
-                let res: Result<()> = self
-                    .circuits
-                    .close_stream(hop_num, sid, behav, reason)
-                    .await;
+                // TODO(conflux): currently, it is an error to use CloseStream
+                // with a multi-path circuit.
+                let leg = self.circuits.single_leg()?;
+                let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason).await;
 
                 if let Some(done) = done {
                     // don't care if the sender goes away
@@ -823,14 +854,21 @@ impl Reactor {
                 }
             }
             RunOnceCmdInner::HandleSendMe { hop, sendme } => {
+                // TODO(#1860): do not use stream-level sendme if conflux is enabled!!!
+                let leg = self.circuits.single_leg()?;
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
-                let signals = self.circuits.congestion_signals().await;
-                self.circuits.handle_sendme(hop, sendme, signals)?;
+                let signals = leg.congestion_signals().await;
+                leg.handle_sendme(hop, sendme, signals)?;
             }
             RunOnceCmdInner::FirstHopClockSkew { answer } => {
+                let res = self
+                    .circuits
+                    .single_leg()
+                    .map(|leg| leg.channel.clock_skew());
+
                 // don't care if the sender goes away
-                let _ = answer.send(self.circuits.channel.clock_skew());
+                let _ = answer.send(res);
             }
             RunOnceCmdInner::CleanShutdown => {
                 trace!("{}: reactor shutdown due to handled cell", self.unique_id);
@@ -858,7 +896,7 @@ impl Reactor {
                         params,
                         done,
                     } => {
-                        self.circuits.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
+                        self.circuits.single_leg()?.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
                         return Ok(())
                     },
                     _ => {
@@ -877,8 +915,10 @@ impl Reactor {
                 params,
                 done,
             } => {
-                self.circuits
-                    .handle_create(recv_created, handshake, &params, done)
+                // TODO(conflux): instead of crashing the reactor, it might be better
+                // to send the error via the done channel instead
+                let legs = self.circuits.single_leg()?;
+                legs.handle_create(recv_created, handshake, &params, done)
                     .await
             }
             _ => {
