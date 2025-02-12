@@ -522,7 +522,7 @@ impl MockExecutor {
     fn execute_until_first_stall(&self, mut main_fut: MainFuture) {
         trace!("MockExecutor execute_until_first_stall ...");
         'outer: loop {
-            // Take a `Awake` task off `awake` and make it `Polling`
+            // Take a `Awake` task off `awake` and make it `Asleep`
             let (id, mut fut) = 'inner: loop {
                 let mut data = self.data.lock();
                 let Some(id) = data.schedule() else {
