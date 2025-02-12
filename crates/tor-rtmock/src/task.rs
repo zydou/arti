@@ -345,7 +345,11 @@ impl MockExecutor {
 
 impl Data {
     /// Insert a task given its `TaskFutureInfo` and return its `TaskId`.
-    fn insert_task(&mut self, desc: String, fut: TaskFutureInfo) -> TaskId {
+    fn insert_task(
+        &mut self,
+        desc: String,
+        fut: TaskFutureInfo,
+    ) -> TaskId {
         let state = Awake;
         let id = self.tasks.insert(Task {
             state,
@@ -985,7 +989,11 @@ impl Debug for DebugDump<'_> {
 // See `impl Debug for Data` for notes on the output
 impl Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let Task { desc, state, fut } = self;
+        let Task {
+            desc,
+            state,
+            fut,
+        } = self;
         write!(f, "{:?}", desc)?;
         write!(f, "=")?;
         match fut {
