@@ -165,6 +165,10 @@ struct Task {
     /// For debugging output
     desc: String,
     /// Has this been woken via a waker?  (And is it in `Data.awake`?)
+    ///
+    /// **Set to `Awake` only by [`Task::set_awake`]**,
+    /// preserving the invariant that
+    /// every `Awake` task is in [`Data.awake`](struct.Data.html#structfield.awake).
     state: TaskState,
     /// The actual future (or a placeholder for it)
     ///
@@ -626,17 +630,12 @@ impl ActualWaker {
             return;
         };
         let mut data = data.lock();
+        let data = &mut *data;
         trace!("MockExecutor {:?} wake", &self.id);
         let Some(task) = data.tasks.get_mut(self.id) else {
             return;
         };
-        match task.state {
-            Awake => {}
-            Asleep(_) => {
-                task.state = Awake;
-                data.awake.push_back(self.id);
-            }
-        }
+        task.set_awake(self.id, &mut data.awake);
     }
 }
 
@@ -719,6 +718,19 @@ impl Shared {
     /// Convenience method which panics on poison
     fn lock(&self) -> MutexGuard<Data> {
         self.data.lock().expect("data lock poisoned")
+    }
+}
+
+impl Task {
+    /// Set task `id` to `Awake` and arrange that it will be polled.
+    fn set_awake(&mut self, id: TaskId, data_awake: &mut VecDeque<TaskId>) {
+        match self.state {
+            Awake => {}
+            Asleep(_) => {
+                self.state = Awake;
+                data_awake.push_back(id);
+            }
+        }
     }
 }
 
