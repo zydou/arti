@@ -16,6 +16,7 @@
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
 
+mod conflux;
 mod control;
 mod create;
 mod extender;

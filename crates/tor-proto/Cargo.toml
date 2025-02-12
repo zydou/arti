@@ -72,6 +72,7 @@ derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.6"
 futures = "0.3.14"
+futures-util = "0.3.31"
 hkdf = "0.12.0"
 hmac = "0.12.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
