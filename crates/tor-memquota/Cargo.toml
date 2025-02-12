@@ -12,7 +12,7 @@ categories = ["memory-management"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-derive-deftly = "0.14"
+derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
 derive_more = { version = "1.0.0", features = ["full"] }
 dyn-clone = "1.0.17"
 educe = "0.4.6"
