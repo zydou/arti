@@ -72,12 +72,17 @@ type MainFuture<'m> = Pin<&'m mut dyn Future<Output = ()>>;
 pub struct MockExecutor {
     /// Mutable state
     #[educe(Debug(ignore))]
-    data: ArcMutexData,
+    data: Arc<Shared>, // XXXX this field name is wrong, rename it to `shared`
 }
 
-/// Mutable state, wrapper type mostly so we can provide `.lock()`
-#[derive(Clone, Default)]
-struct ArcMutexData(Arc<Mutex<Data>>);
+/// Shared state
+///
+/// This is always within an `Arc`.
+#[derive(Default)]
+struct Shared {
+    /// Shared state
+    data: Mutex<Data>,
+}
 
 /// Task id, module to hide `Ti` alias
 mod task_id {
@@ -203,7 +208,7 @@ struct ActualWaker {
     /// The Waker mustn't to hold a strong reference to the executor,
     /// since typically a task holds a future that holds a Waker,
     /// and the executor holds the task - so that would be a cycle.
-    data: Weak<Mutex<Data>>,
+    data: Weak<Shared>,
 
     /// Which task this is
     id: TaskId,
@@ -250,7 +255,7 @@ struct ProgressingUntilStalled {
 struct ProgressUntilStalledFuture {
     /// Executor's state; this future's state is in `.progressing_until_stalled`
     #[educe(Debug(ignore))]
-    data: ArcMutexData,
+    data: Arc<Shared>,
 }
 
 //---------- creation ----------
@@ -273,8 +278,11 @@ impl MockExecutor {
 
 impl From<Data> for MockExecutor {
     fn from(data: Data) -> MockExecutor {
+        let shared = Shared {
+            data: Mutex::new(data),
+        };
         MockExecutor {
-            data: ArcMutexData(Arc::new(Mutex::new(data))),
+            data: Arc::new(shared),
         }
     }
 }
@@ -539,7 +547,7 @@ impl MockExecutor {
 
             // Poll the selected task
             let waker = ActualWaker {
-                data: Arc::downgrade(&self.data.0),
+                data: Arc::downgrade(&self.data),
                 id,
             }
             .new_waker();
@@ -605,8 +613,8 @@ impl Data {
 
 impl ActualWaker {
     /// Obtain a strong reference to the executor's data
-    fn upgrade_data(&self) -> Option<ArcMutexData> {
-        Some(ArcMutexData(self.data.upgrade()?))
+    fn upgrade_data(&self) -> Option<Arc<Shared>> {
+        self.data.upgrade()
     }
 
     /// Wake the task corresponding to this `ActualWaker`
@@ -705,12 +713,12 @@ impl MockExecutor {
     }
 }
 
-impl ArcMutexData {
+impl Shared {
     /// Lock and obtain the guard
     ///
     /// Convenience method which panics on poison
     fn lock(&self) -> MutexGuard<Data> {
-        self.0.lock().expect("data lock poisoned")
+        self.data.lock().expect("data lock poisoned")
     }
 }
 
