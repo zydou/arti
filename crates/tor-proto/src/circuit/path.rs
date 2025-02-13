@@ -12,7 +12,7 @@ use crate::crypto::cell::HopNum;
 /// This enum is not public; we want the freedom to change it as we see fit.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(super) enum HopDetail {
+pub(crate) enum HopDetail {
     /// A hop built through a known relay or a set of externally provided
     /// linkspecs.
     ///

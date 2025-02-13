@@ -44,10 +44,10 @@ mod handshake;
 
 #[cfg(feature = "send-control-msg")]
 mod msghandler;
-mod path;
+pub(super) mod path;
 pub(crate) mod reactor;
 mod streammap;
-mod unique_id;
+pub(crate) mod unique_id;
 
 use crate::channel::Channel;
 use crate::circuit::celltypes::*;
@@ -171,9 +171,9 @@ pub struct ClientCirc {
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
-    control: mpsc::UnboundedSender<CtrlMsg>,
+    pub(super) control: mpsc::UnboundedSender<CtrlMsg>,
     /// Channel to send commands to the reactor.
-    command: mpsc::UnboundedSender<CtrlCmd>,
+    pub(super) command: mpsc::UnboundedSender<CtrlCmd>,
     /// A future that resolves to Cancelled once the reactor is shut down,
     /// meaning that the circuit is closed.
     #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
@@ -190,13 +190,13 @@ pub struct ClientCirc {
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
 #[derive(Educe, Default)]
 #[educe(Debug)]
-struct MutableState {
+pub(super) struct MutableState {
     /// Information about this circuit's path.
     ///
     /// This is stored in an Arc so that we can cheaply give a copy of it to
     /// client code; when we need to add a hop (which is less frequent) we use
     /// [`Arc::make_mut()`].
-    path: Arc<path::Path>,
+    pub(super) path: Arc<path::Path>,
 
     /// Circuit binding keys [q.v.][`CircuitBinding`] information for each hop
     /// in the circuit's path.
@@ -206,7 +206,7 @@ struct MutableState {
     /// code to assume that a `CircuitBinding` _must_ exist, so I'm making this
     /// an `Option`.
     #[educe(Debug(ignore))]
-    binding: Vec<Option<CircuitBinding>>,
+    pub(super) binding: Vec<Option<CircuitBinding>>,
 }
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.

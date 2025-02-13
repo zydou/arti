@@ -115,7 +115,7 @@ type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
 
 /// A handshake type, to be used when creating circuit hops.
 #[derive(Clone, Debug)]
-pub(super) enum CircuitHandshake {
+pub(crate) enum CircuitHandshake {
     /// Use the CREATE_FAST handshake.
     CreateFast,
     /// Use the ntor handshake.
@@ -387,7 +387,7 @@ impl CircHop {
 ///
 /// To get around this problem, the reactor can send some cells, and then make one of these
 /// `MetaCellHandler` objects, which will be run when the reply arrives.
-pub(super) trait MetaCellHandler: Send {
+pub(crate) trait MetaCellHandler: Send {
     /// The hop we're expecting the message to come from. This is compared against the hop
     /// from which we actually receive messages, and an error is thrown if the two don't match.
     fn expected_hop(&self) -> HopNum;
@@ -520,11 +520,11 @@ pub struct Reactor {
 #[cfg(feature = "hs-service")]
 #[derive(Debug, Deftly)]
 #[derive_deftly(HasMemoryCost)]
-pub(super) struct StreamReqInfo {
+pub(crate) struct StreamReqInfo {
     /// The [`IncomingStreamRequest`].
-    pub(super) req: IncomingStreamRequest,
+    pub(crate) req: IncomingStreamRequest,
     /// The ID of the stream being requested.
-    pub(super) stream_id: StreamId,
+    pub(crate) stream_id: StreamId,
     /// The [`HopNum`].
     //
     // TODO: When we add support for exit relays, we need to turn this into an Option<HopNum>.
@@ -532,16 +532,16 @@ pub(super) struct StreamReqInfo {
     //
     // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
     // incoming stream request from two separate hops.  (There is only one that's valid.)
-    pub(super) hop_num: HopNum,
+    pub(crate) hop_num: HopNum,
     /// A channel for receiving messages from this stream.
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate
-    pub(super) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
+    pub(crate) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
     /// A channel for sending messages to be sent on this stream.
     #[deftly(has_memory_cost(indirect_size = "size_of::<AnyRelayMsg>()"))] // estimate
-    pub(super) msg_tx: StreamMpscSender<AnyRelayMsg>,
+    pub(crate) msg_tx: StreamMpscSender<AnyRelayMsg>,
     /// The memory quota account to be used for this stream
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate (it contains an Arc)
-    pub(super) memquota: StreamAccount,
+    pub(crate) memquota: StreamAccount,
 }
 
 /// Data required for handling an incoming stream request.
