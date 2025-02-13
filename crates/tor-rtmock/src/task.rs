@@ -57,6 +57,8 @@ type MainFuture<'m> = Pin<&'m mut dyn Future<Output = ()>>;
 ///
 /// It will usually be used as part of a `MockRuntime`.
 ///
+/// To run futures, call [`BlockOn::block_on`],
+///
 /// # Restricted environment
 ///
 /// Tests run with this executor must not attempt to block
@@ -69,7 +71,13 @@ type MainFuture<'m> = Pin<&'m mut dyn Future<Output = ()>>;
 ///
 /// # Panics
 ///
-/// This executor will malfunction or panic if reentered.
+/// The executor will panic
+/// if the toplevel future (passed to `block_on`)
+/// doesn't complete (without externally blocking),
+/// but instead waits for something.
+///
+/// The executor will malfunction or panic if reentered.
+/// (Eg, if `block_on` is reentered.)
 #[derive(Clone, Default, Educe)]
 #[educe(Debug)]
 pub struct MockExecutor {
@@ -456,16 +464,6 @@ impl SpawnBlocking for MockExecutor {
 //---------- block_on ----------
 
 impl BlockOn for MockExecutor {
-    /// Run `fut` to completion, synchronously
-    ///
-    /// # Panics
-    ///
-    /// Might malfunction or panic if:
-    ///
-    /// * The provided future doesn't complete (without externally blocking),
-    ///    but instead waits for something.
-    ///
-    /// * The `MockExecutor` is reentered.  (Eg, `block_on` is reentered.)
     fn block_on<F>(&self, input_fut: F) -> F::Output
     where
         F: Future,
