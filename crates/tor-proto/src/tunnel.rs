@@ -15,13 +15,15 @@ use oneshot_fused_workaround as oneshot;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use tor_error::bad_api_usage;
+use tor_linkspec::OwnedChanTarget;
 
 use crate::circuit::UniqId;
 use crate::crypto::cell::HopNum;
 use crate::stream::StreamRateLimit;
 use crate::{Error, Result};
-use circuit::ClientCirc;
 use circuit::StreamMpscSender;
+use circuit::{ClientCirc, Path};
 use reactor::{CtrlMsg, FlowCtrlMsg};
 
 use postage::watch;
@@ -74,6 +76,87 @@ impl TunnelScopedCircId {
     /// Return the [`UniqId`].
     pub(crate) fn unique_id(&self) -> UniqId {
         self.circ_id
+    }
+}
+
+/// A low-level client tunnel API.
+///
+/// This is a communication channel to the tunnel reactor, which manages 1 or more circuits.
+///
+/// Note: the tor-circmgr crates wrap this type in specialized *Tunnel types exposing only the
+/// desired subset of functionality depending on purpose and path size.
+///
+/// Some API calls are for single path and some for multi path. A check with the underlying reactor
+/// is done preventing for instance multi path calls to be used on a single path. Top level types
+/// should prevent this and thus this object should never be used directly.
+#[derive(Debug)]
+#[allow(dead_code)] // TODO(conflux)
+pub struct ClientTunnel {
+    /// The underlying handle to the reactor.
+    circ: ClientCirc,
+}
+
+impl ClientTunnel {
+    /// Return a handle to the `ClientCirc` of this `ClientTunnel`, if the tunnel is a single
+    /// circuit tunnel.
+    ///
+    /// Returns an error if the tunnel has more than one circuit.
+    pub fn as_single_circ(&self) -> Result<&ClientCirc> {
+        if self.circ.is_multi_path {
+            return Err(bad_api_usage!("Single circuit getter on multi path tunnel"))?;
+        }
+        Ok(&self.circ)
+    }
+
+    /// Return the channel target of the first hop.
+    ///
+    /// Can only be used for single path tunnel.
+    pub fn first_hop(&self) -> Result<OwnedChanTarget> {
+        self.as_single_circ()?.first_hop()
+    }
+
+    /// Return true if the circuit reactor is closed meaning the circuit is unusable for both
+    /// receiving or sending.
+    pub fn is_closed(&self) -> bool {
+        self.circ.is_closing()
+    }
+
+    /// Return the number of hops this tunnel as. Fail for a multi path.
+    pub fn n_hops(&self) -> Result<usize> {
+        self.as_single_circ()?.n_hops()
+    }
+
+    /// Return a [`Path`] object describing all the hops in this circuit.
+    pub fn path_ref(&self) -> Result<Arc<Path>> {
+        self.circ.path_ref()
+    }
+
+    /// Return a process-unique identifier for this tunnel.
+    ///
+    /// Returns the reactor unique ID of the main reactor.
+    pub fn unique_id(&self) -> UniqId {
+        self.circ.unique_id()
+    }
+
+    /// Return a future that will resolve once the underlying circuit reactor has closed.
+    ///
+    /// Note that this method does not itself cause the tunnel to shut down.
+    pub fn wait_for_close(
+        self: &Arc<Self>,
+    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        self.circ.wait_for_close()
+    }
+
+    // TODO(conflux)
+}
+
+// TODO(conflux): We will likely need to enforce some invariants here, for example that the `circ`
+// has the expected (non-zero) number of hops.
+impl TryFrom<ClientCirc> for ClientTunnel {
+    type Error = Error;
+
+    fn try_from(circ: ClientCirc) -> std::result::Result<Self, Self::Error> {
+        Ok(Self { circ })
     }
 }
 

@@ -85,6 +85,8 @@ pub use crate::crypto::binding::CircuitBinding;
 pub use crate::memquota::StreamAccount;
 pub use crate::tunnel::circuit::unique_id::UniqId;
 
+use super::ClientTunnel;
+
 #[cfg(feature = "hs-service")]
 use {
     crate::stream::{IncomingCmdChecker, IncomingStream},
@@ -190,6 +192,16 @@ pub struct ClientCirc {
     memquota: CircuitAccount,
     /// Time provider
     time_provider: DynTimeProvider,
+    /// Indicate if this reactor is a multi path or not. This is flagged at the very first
+    /// LinkCircuit seen and never changed after.
+    ///
+    /// We can't just look at the number of legs because a multi path tunnel could have 1 leg only
+    /// because the other(s) have collapsed.
+    ///
+    /// This is very important because it allows to make a quick efficient safety check by the
+    /// circmgr higher level tunnel type without locking the mutable state or using the command
+    /// channel.
+    pub(super) is_multi_path: bool,
 }
 
 /// The mutable state of a tunnel, shared between [`ClientCirc`] and [`Reactor`].
@@ -613,6 +625,11 @@ impl CircParameters {
 }
 
 impl ClientCirc {
+    /// Convert this `ClientCirc` into a single circuit [`ClientTunnel`].
+    pub fn into_tunnel(self) -> Result<ClientTunnel> {
+        self.try_into()
+    }
+
     /// Return a description of the first hop of this circuit.
     ///
     /// # Panics
@@ -1471,6 +1488,7 @@ impl PendingClientCirc {
             circid: id,
             memquota,
             time_provider,
+            is_multi_path: false,
         };
 
         let pending = PendingClientCirc {
