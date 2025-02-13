@@ -3,9 +3,10 @@
 use bitvec::prelude::*;
 
 use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
-use crate::circuit::reactor::CloseStreamBehavior;
-use crate::circuit::{ClientCircSyncView, StreamTarget};
+use crate::circuit::ClientCircSyncView;
 use crate::memquota::StreamAccount;
+use crate::tunnel::reactor::CloseStreamBehavior;
+use crate::tunnel::StreamTarget;
 use crate::{Error, Result};
 use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;

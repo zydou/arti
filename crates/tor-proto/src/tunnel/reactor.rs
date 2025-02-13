@@ -22,12 +22,6 @@ mod extender;
 pub(super) mod syncview;
 
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
-use super::MutableState;
-use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
-use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
-use crate::circuit::unique_id::UniqId;
-use crate::circuit::{streammap, CircParameters, CircuitRxReceiver};
 use crate::congestion::sendme::{self, CircTag};
 use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
@@ -40,6 +34,14 @@ use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::{AnyCmdChecker, StreamStatus};
+use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
+use crate::tunnel::circuit::unique_id::UniqId;
+use crate::tunnel::circuit::MutableState;
+use crate::tunnel::circuit::{CircParameters, CircuitRxReceiver};
+use crate::tunnel::streammap::{
+    self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
+};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
@@ -73,10 +75,10 @@ use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
 use crate::channel::{Channel, ChannelSender};
-use crate::circuit::path;
-use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
+use crate::tunnel::circuit::path;
+use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use derive_deftly::Deftly;
 use derive_more::From;
 use safelog::sensitive as sv;
@@ -1007,9 +1009,9 @@ impl Reactor {
         params: &CircParameters,
         done: ReactorResultChannel<()>,
     ) {
-        use crate::circuit::test::DummyCrypto;
+        use crate::tunnel::circuit::test::DummyCrypto;
 
-        let dummy_peer_id = crate::circuit::OwnedChanTarget::builder()
+        let dummy_peer_id = tor_linkspec::OwnedChanTarget::builder()
             .ed_identity([4; 32].into())
             .rsa_identity([5; 20].into())
             .build()
@@ -1942,5 +1944,5 @@ impl Drop for Reactor {
 
 #[cfg(test)]
 mod test {
-    // Tested in [`crate::circuit::test`].
+    // Tested in [`crate::tunnel::circuit::test`].
 }

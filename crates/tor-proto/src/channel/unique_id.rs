@@ -48,14 +48,14 @@ impl CircUniqIdContext {
         CircUniqIdContext { next_circ_id: 0 }
     }
     /// Construct a new, unique-ish circuit UniqId
-    pub(super) fn next(&mut self, unique_id: UniqId) -> crate::circuit::UniqId {
+    pub(super) fn next(&mut self, unique_id: UniqId) -> crate::tunnel::circuit::UniqId {
         let circ_unique_id = self.next_circ_id;
         self.next_circ_id += 1;
         assert!(
             self.next_circ_id != 0,
             "Exhausted the unique circuit ID namespace on a channel"
         );
-        crate::circuit::UniqId::new(unique_id.0, circ_unique_id)
+        crate::tunnel::circuit::UniqId::new(unique_id.0, circ_unique_id)
     }
 }
 

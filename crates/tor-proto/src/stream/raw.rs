@@ -1,12 +1,12 @@
 //! Declare the lowest level of stream: a stream that operates on raw
 //! cells.
 
-use crate::circuit::StreamTarget;
 use crate::congestion::sendme;
+use crate::tunnel::StreamTarget;
 use crate::{Error, Result};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
-use crate::circuit::StreamMpscReceiver;
+use crate::tunnel::circuit::StreamMpscReceiver;
 use futures::stream::StreamExt;
 
 /// The read part of a stream on a particular circuit.

@@ -1,14 +1,14 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{MetaCellDisposition, MetaCellHandler, Reactor, ReactorResultChannel};
-use crate::circuit::unique_id::UniqId;
-use crate::circuit::CircParameters;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
+use crate::tunnel::circuit::unique_id::UniqId;
+use crate::tunnel::circuit::CircParameters;
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
@@ -18,10 +18,10 @@ use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, UnparsedRelayMsg};
 use tor_error::internal;
 
-use crate::circuit::path;
-use crate::circuit::reactor::SendRelayCell;
 use crate::crypto::handshake::ntor::NtorClient;
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
+use crate::tunnel::circuit::path;
+use crate::tunnel::reactor::SendRelayCell;
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 use tracing::trace;

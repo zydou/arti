@@ -10,7 +10,7 @@ use tor_cell::relaycell::{AnyRelayMsgOuter, RelayMsg, UnparsedRelayMsg};
 use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 
-use super::MetaCellDisposition;
+use crate::tunnel::reactor::MetaCellDisposition;
 
 /// An object that checks whether incoming control messages are acceptable on a
 /// circuit, and delivers them to a client if so.
@@ -42,7 +42,7 @@ pub trait MsgHandler {
 }
 
 /// Wrapper for `MsgHandler` to implement `MetaCellHandler`
-pub(super) struct UserMsgHandler<T> {
+pub(crate) struct UserMsgHandler<T> {
     /// From which hop to we expect to get messages?
     hop: HopNum,
     /// The handler itself.
@@ -52,7 +52,7 @@ pub(super) struct UserMsgHandler<T> {
 impl<T> UserMsgHandler<T> {
     /// Create a new UserMsgHandler to be the MetaCellHandler for incoming
     /// control messages a given circuit.
-    pub(super) fn new(hop: HopNum, handler: T) -> Self {
+    pub(crate) fn new(hop: HopNum, handler: T) -> Self {
         Self { hop, handler }
     }
 }
