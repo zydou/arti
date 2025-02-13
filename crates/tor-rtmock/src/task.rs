@@ -1100,6 +1100,7 @@ mod test {
         // relates to MockExecutor, because we don't have a MockRuntime::builder.
         // The only parameter to MockExecutor is its scheduling policy, so this seems fine.
         SchedulingPolicy::iter().map(|scheduling| {
+            eprintln!("===== MockExecutor::with_scheduling({scheduling:?}) =====");
             MockExecutor::with_scheduling(scheduling)
         })
     }
