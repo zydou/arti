@@ -40,12 +40,13 @@
 //! The connection-checker is experimental, not for production use. It's
 //! intended for experimental purposes, providing insights into
 //! connection methods.
-use anyhow::Result;
+use anyhow::{Error, Result};
 use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, CfgPath, Reconfigure};
 use arti_client::{TorClient, TorClientConfig};
 use clap::Parser;
 use tor_error::ErrorReport;
+use tor_proto::stream::ClientStreamCtrl as _;
 use tor_rtcompat::PreferredRuntime;
 use tracing::{error, info};
 
@@ -91,20 +92,24 @@ const MEEK_BRIDGE_LINE: &str = include_str!("../bridges/bridge_meek.txt");
 /// Note that due to the way Tor works, other requests may use a different
 /// path than the one we obtain using this function, so this is mostly
 /// for demonstration purposes.
-async fn build_circuit(tor_client: &TorClient<PreferredRuntime>, remote: &str) -> bool {
+async fn build_circuit(tor_client: &TorClient<PreferredRuntime>, remote: &str) -> Result<()> {
     info!("Attempting to build circuit...");
     match tor_client.connect(remote).await {
         Ok(stream) => {
-            #[allow(deprecated)]
-            let circ = stream.circuit().path_ref();
+            let circuit = stream
+                .client_stream_ctrl()
+                .ok_or_else(|| Error::msg("failed to get client stream ctrl?!"))?
+                .circuit()
+                .ok_or_else(|| Error::msg("failed to get client circuit?!"))?;
+            let circ = circuit.path_ref();
             for node in circ.iter() {
                 println!("Node: {}", node);
             }
-            true
+            Ok(())
         }
         Err(e) => {
             eprintln!("{}", e.report());
-            false
+            Err(e.into())
         }
     }
 }
@@ -139,8 +144,8 @@ async fn test_connection_via_config(
     println!("Testing {}...", msg);
     match isolated.reconfigure(&config, Reconfigure::WarnOnFailures) {
         Ok(_) => match build_circuit(&isolated, remote_url).await {
-            true => println!("{} successful!", msg),
-            false => println!("{} FAILED", msg),
+            Ok(_) => println!("{} successful!", msg),
+            Err(_) => println!("{} FAILED", msg),
         },
         Err(e) => {
             error!("{}", e.report());
