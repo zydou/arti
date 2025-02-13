@@ -119,18 +119,20 @@ use task_id::Ti as TaskId;
 /// So we cannot store that future in `Data` because `Data` is `'static`.
 /// Instead, this main task future is passed as an argument down the call stack.
 /// In the data structure we simply store a placeholder, `TaskFutureInfo::Main`.
-#[derive(Default)]
+#[derive(Default, derive_more::Debug)]
 struct Data {
     /// Tasks
     ///
     /// Includes tasks spawned with `spawn`,
     /// and also the future passed to `block_on`.
+    #[debug("{:?}", DebugTasks(self, || tasks.keys()))]
     tasks: DenseSlotMap<TaskId, Task>,
 
     /// `awake` lists precisely: tasks that are `Awake`, plus maybe stale `TaskId`s
     ///
     /// Tasks are pushed onto the *back* when woken,
     /// so back is the most recently woken.
+    #[debug("{:?}", DebugTasks(self, || awake.iter().cloned()))]
     awake: VecDeque<TaskId>,
 
     /// If a future from `progress_until_stalled` exists
@@ -1000,6 +1002,30 @@ impl Debug for Task {
 }
 
 /// Helper: `Debug`s as a list of tasks, given the `Data` for lookups and a list of the ids
+///
+/// `Task`s in `Data` are printed as `Ti(ID)"SPEC"=FLAGS"`.
+///
+/// `FLAGS` are:
+///
+///  * `P`: this task is being polled (its `TaskFutureInfo` is absent)
+///  * `f`: this is a normal task with a future and its future is present in `Data`
+///  * `m`: this is the main task from `block_on`
+///
+///  * `W`: the task is awake
+///  * `s<n>`: the task is asleep, and `<n>` is the number of recorded sleeping locations
+//
+// We do it this way because the naive dump from derive is very expansive
+// and makes it impossible to see the wood for the trees.
+// This very compact representation it easier to find a task of interest in the output.
+//
+// This is implemented in `impl Debug for Task`.
+//
+//
+// rustc doesn't think automatically-derived Debug impls count for whether a thing is used.
+// This has caused quite some fallout.  https://github.com/rust-lang/rust/pull/85200
+// I think derive_more emits #[automatically_derived], so that even though we use this
+// in our Debug impl, that construction is unused.
+#[allow(dead_code)]
 struct DebugTasks<'d, F>(&'d Data, F);
 
 // See `impl Debug for Data` for notes on the output
@@ -1018,39 +1044,6 @@ where
             }
         }
         Ok(())
-    }
-}
-
-/// `Task`s in `Data` are printed as `Ti(ID)"SPEC"=FLAGS"`.
-///
-/// `FLAGS` are:
-///
-///  * `P`: this task is being polled (its `TaskFutureInfo` is absent)
-///  * `f`: this is a normal task with a future and its future is present in `Data`
-///  * `m`: this is the main task from `block_on`
-///
-///  * `W`: the task is awake
-///  * `s<n>`: the task is asleep, and `<n>` is the number of recorded sleeping locations
-//
-// We do it this way because the naive dump from derive is very expansive
-// and makes it impossible to see the wood for the trees.
-// This very compact representation it easier to find a task of interest in the output.
-//
-// This is implemented in `impl Debug for Task`.
-impl Debug for Data {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let Data {
-            tasks,
-            awake,
-            progressing_until_stalled: pus,
-            scheduling,
-        } = self;
-        let mut s = f.debug_struct("Data");
-        s.field("tasks", &DebugTasks(self, || tasks.keys()));
-        s.field("awake", &DebugTasks(self, || awake.iter().cloned()));
-        s.field("p.u.s", pus);
-        s.field("scheduling", scheduling);
-        s.finish()
     }
 }
 
