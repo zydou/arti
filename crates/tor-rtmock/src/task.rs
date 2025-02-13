@@ -72,7 +72,7 @@ type MainFuture<'m> = Pin<&'m mut dyn Future<Output = ()>>;
 pub struct MockExecutor {
     /// Mutable state
     #[educe(Debug(ignore))]
-    data: Arc<Shared>, // XXXX this field name is wrong, rename it to `shared`
+    shared: Arc<Shared>,
 }
 
 /// Shared state
@@ -255,7 +255,7 @@ struct ProgressingUntilStalled {
 struct ProgressUntilStalledFuture {
     /// Executor's state; this future's state is in `.progressing_until_stalled`
     #[educe(Debug(ignore))]
-    data: Arc<Shared>,
+    shared: Arc<Shared>,
 }
 
 //---------- creation ----------
@@ -282,7 +282,7 @@ impl From<Data> for MockExecutor {
             data: Mutex::new(data),
         };
         MockExecutor {
-            data: Arc::new(shared),
+            shared: Arc::new(shared),
         }
     }
 }
@@ -332,7 +332,7 @@ impl MockExecutor {
     /// Convenience method for use by `spawn_identified` and `spawn_obj`.
     /// The future passed to `block_on` is not handled here.
     fn spawn_internal(&self, desc: String, fut: TaskFuture) -> TaskId {
-        let mut data = self.data.lock();
+        let mut data = self.shared.lock();
         data.insert_task(desc, TaskFutureInfo::Normal(fut))
     }
 }
@@ -419,7 +419,7 @@ impl BlockOn for MockExecutor {
             pin_mut!(run_store_fut);
 
             let main_id = self
-                .data
+                .shared
                 .lock()
                 .insert_task("main".into(), TaskFutureInfo::Main);
             trace!("MockExecutor {main_id:?} is task for block_on");
@@ -449,7 +449,7 @@ impl BlockOn for MockExecutor {
             // If value was Some, then this closure is dropped without being called,
             // which drops the future after it has yielded the value, which is correct.
             {
-                let mut data = self.data.lock();
+                let mut data = self.shared.lock();
                 data.debug_dump();
             }
             drop(input_fut);
@@ -478,7 +478,7 @@ impl MockExecutor {
 
             // Handle `progressing_until_stalled`
             let pus_waker = {
-                let mut data = self.data.lock();
+                let mut data = self.shared.lock();
                 let pus = &mut data.progressing_until_stalled;
                 trace!("MockExecutor execute_to_completion PUS={:?}", &pus);
                 let Some(pus) = pus else {
@@ -498,7 +498,7 @@ impl MockExecutor {
                     .expect("ProgressUntilStalledFuture not ever polled!");
                 drop(data);
                 let waker_copy = waker.clone();
-                let mut data = self.data.lock();
+                let mut data = self.shared.lock();
 
                 let pus = &mut data.progressing_until_stalled;
                 if let Some(double) = mem::replace(
@@ -532,7 +532,7 @@ impl MockExecutor {
         'outer: loop {
             // Take a `Awake` task off `awake` and make it `Asleep`
             let (id, mut fut) = 'inner: loop {
-                let mut data = self.data.lock();
+                let mut data = self.shared.lock();
                 let Some(id) = data.schedule() else {
                     break 'outer;
                 };
@@ -547,7 +547,7 @@ impl MockExecutor {
 
             // Poll the selected task
             let waker = ActualWaker {
-                data: Arc::downgrade(&self.data),
+                data: Arc::downgrade(&self.shared),
                 id,
             }
             .new_waker();
@@ -561,7 +561,7 @@ impl MockExecutor {
             // Deal with the returned `Poll`
             let _fut_drop_late;
             {
-                let mut data = self.data.lock();
+                let mut data = self.shared.lock();
                 let task = data
                     .tasks
                     .get_mut(id)
@@ -654,7 +654,7 @@ impl MockExecutor {
     ///
     /// Must be called and awaited within a future being run by `self`.
     pub fn progress_until_stalled(&self) -> impl Future<Output = ()> {
-        let mut data = self.data.lock();
+        let mut data = self.shared.lock();
         assert!(
             data.progressing_until_stalled.is_none(),
             "progress_until_stalled called more than once"
@@ -665,7 +665,7 @@ impl MockExecutor {
             waker: None,
         });
         ProgressUntilStalledFuture {
-            data: self.data.clone(),
+            shared: self.shared.clone(),
         }
     }
 }
@@ -675,7 +675,7 @@ impl Future for ProgressUntilStalledFuture {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<()> {
         let waker = cx.waker().clone();
-        let mut data = self.data.lock();
+        let mut data = self.shared.lock();
         let pus = data.progressing_until_stalled.as_mut();
         trace!("MockExecutor progress_until_stalled polling... {:?}", &pus);
         let pus = pus.expect("ProgressingUntilStalled missing");
@@ -686,7 +686,7 @@ impl Future for ProgressUntilStalledFuture {
 
 impl Drop for ProgressUntilStalledFuture {
     fn drop(&mut self) {
-        self.data.lock().progressing_until_stalled = None;
+        self.shared.lock().progressing_until_stalled = None;
     }
 }
 
@@ -709,7 +709,7 @@ impl MockExecutor {
     /// [`block_on`](MockExecutor::block_on)
     /// (perhaps via [`MockRuntime::test_with_various`](crate::MockRuntime::test_with_various)).
     pub fn n_tasks(&self) -> usize {
-        self.data.lock().tasks.len()
+        self.shared.lock().tasks.len()
     }
 }
 
@@ -933,7 +933,7 @@ impl MockExecutor {
     /// **Backtrace salience (possible spurious traces)** -
     /// see [`.debug_dump()`](MockExecutor::debug_dump).
     pub fn as_debug_dump(&self) -> DebugDump {
-        let data = self.data.lock();
+        let data = self.shared.lock();
         DebugDump(Either::Right(data))
     }
 }
