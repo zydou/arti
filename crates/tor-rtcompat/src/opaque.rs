@@ -29,7 +29,7 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
-    impl $crate::traits::BlockOn for $t {
+    impl $crate::traits::ToplevelBlockOn for $t {
         #[inline]
         fn block_on<F: futures::Future>(&self, future: F) -> F::Output {
             self.$member.block_on(future)

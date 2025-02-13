@@ -20,7 +20,7 @@ use tor_general_addr::unix;
 /// * [`CoarseTimeProvider`] for a cheaper but less accurate notion of time.
 /// * [`NetStreamProvider`] to launch and accept network connections.
 /// * [`TlsProvider`] to launch TLS connections.
-/// * [`BlockOn`] to block on a future and run it to completion
+/// * [`ToplevelBlockOn`] to block on a top-level future and run it to completion
 ///   (This may become optional in the future, if/when we add WASM
 ///   support).
 ///
@@ -52,7 +52,7 @@ pub trait Runtime:
     + Send
     + Spawn
     + SpawnBlocking
-    + BlockOn
+    + ToplevelBlockOn // XXXX remove from Runtime
     + Clone
     + SleepProvider
     + CoarseTimeProvider
@@ -70,7 +70,7 @@ impl<T> Runtime for T where
         + Send
         + Spawn
         + SpawnBlocking
-        + BlockOn
+        + ToplevelBlockOn // XXXX remove from Runtime
         + Clone
         + SleepProvider
         + CoarseTimeProvider
@@ -149,8 +149,8 @@ pub trait CoarseTimeProvider: Clone + Send + Sync + 'static {
     fn now_coarse(&self) -> crate::coarse_time::CoarseInstant;
 }
 
-/// Trait for a runtime that can block on a future.
-pub trait BlockOn: Clone + Send + Sync + 'static {
+/// Trait for a runtime that can be entered to block on a toplevel future.
+pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
     /// Run `future` until it is ready, and return its output.
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }

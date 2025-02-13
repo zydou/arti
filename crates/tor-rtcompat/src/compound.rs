@@ -14,7 +14,7 @@ use tor_general_addr::unix;
 
 /// A runtime made of several parts, each of which implements one trait-group.
 ///
-/// The `SpawnR` component should implements [`Spawn`] and [`BlockOn`];
+/// The `SpawnR` component should implement [`Spawn`] and [`ToplevelBlockOn`];
 /// the `SleepR` component should implement [`SleepProvider`];
 /// the `CoarseTimeR` component should implement [`CoarseTimeProvider`];
 /// the `TcpR` component should implement [`NetStreamProvider`] for [`net::SocketAddr`];
@@ -117,10 +117,10 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> BlockOn
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> ToplevelBlockOn
     for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
-    SpawnR: BlockOn,
+    SpawnR: ToplevelBlockOn,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,

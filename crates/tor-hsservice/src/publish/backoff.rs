@@ -247,7 +247,7 @@ mod tests {
     use std::sync::RwLock;
 
     use oneshot_fused_workaround as oneshot;
-    use tor_rtcompat::{BlockOn, SleepProvider};
+    use tor_rtcompat::{ToplevelBlockOn, SleepProvider};
     use tor_rtmock::MockRuntime;
 
     const SHORT_DELAY: Duration = Duration::from_millis(10);

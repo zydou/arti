@@ -35,7 +35,7 @@ use tracing::{error, trace};
 
 use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
-use tor_rtcompat::{BlockOn, SpawnBlocking};
+use tor_rtcompat::{ToplevelBlockOn, SpawnBlocking};
 
 use Poll::*;
 use TaskState::*;
@@ -53,11 +53,11 @@ type MainFuture<'m> = Pin<&'m mut dyn Future<Output = ()>>;
 /// For test cases which don't actually wait for anything in the real world.
 ///
 /// This is the executor.
-/// It implements [`Spawn`] and [`BlockOn`]
+/// It implements [`Spawn`] and [`ToplevelBlockOn`]
 ///
 /// It will usually be used as part of a `MockRuntime`.
 ///
-/// To run futures, call [`BlockOn::block_on`],
+/// To run futures, call [`ToplevelBlockOn::block_on`]
 ///
 /// # Restricted environment
 ///
@@ -467,7 +467,7 @@ impl SpawnBlocking for MockExecutor {
 
 //---------- block_on ----------
 
-impl BlockOn for MockExecutor {
+impl ToplevelBlockOn for MockExecutor {
     fn block_on<F>(&self, input_fut: F) -> F::Output
     where
         F: Future,
@@ -814,7 +814,9 @@ impl MockExecutor {
     ///  * Only a Subthread can re-enter the async context from sync code:
     ///    this must be done with
     ///    using [`subthread_block_on_future`](MockExecutor::subthread_block_on_future).
-    ///    (Re-entering the executor with [`block_on`](BlockOn::block_on) is not allowed.)
+    ///    (Re-entering the executor with
+    ///    [`block_on`](tor_rtcompat::ToplevelBlockOn::block_on)
+    ///    is not allowed.)
     ///  * If async tasks want to suspend waiting for synchronous code,
     ///    the synchronous code must run on a Subthread.
     ///    This allows the `MockExecutor` to know when

@@ -540,7 +540,7 @@ mod test {
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
     use test_temp_dir::test_temp_dir;
-    use tor_rtcompat::BlockOn as _;
+    use tor_rtcompat::ToplevelBlockOn as _;
 
     fn test_intro_point() -> Ipt {
         use tor_netdoc::doc::hsdesc::test_data;

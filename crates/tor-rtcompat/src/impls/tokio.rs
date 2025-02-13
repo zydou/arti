@@ -329,7 +329,7 @@ impl From<async_executors::TokioTp> for TokioRuntimeHandle {
     }
 }
 
-impl BlockOn for TokioRuntimeHandle {
+impl ToplevelBlockOn for TokioRuntimeHandle {
     #[track_caller]
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         self.handle.block_on(f)

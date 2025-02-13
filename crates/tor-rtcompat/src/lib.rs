@@ -67,7 +67,7 @@ pub mod unix;
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 use std::io;
 pub use traits::{
-    BlockOn, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
+    ToplevelBlockOn, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
     NoOpStreamOpsHandle, Runtime, SleepProvider, SpawnBlocking, StreamOps, TlsProvider,
     UdpProvider, UdpSocket, UnsupportedStreamOp,
 };

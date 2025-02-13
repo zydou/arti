@@ -39,7 +39,7 @@ define_derive_deftly! {
         }
     }
 
-    impl <$tgens> BlockOn for $ttype {
+    impl <$tgens> ToplevelBlockOn for $ttype {
         fn block_on<F: Future>(&self, future: F) -> F::Output {
             self.$fname.block_on(future)
         }
@@ -162,7 +162,7 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::net::SocketAddr;
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
-        unimpl::FakeListener, unimpl::FakeStream, BlockOn, CoarseInstant, CoarseTimeProvider,
+        unimpl::FakeListener, unimpl::FakeStream, ToplevelBlockOn, CoarseInstant, CoarseTimeProvider,
         NetStreamProvider, Runtime, SleepProvider, SpawnBlocking, TlsProvider, UdpProvider,
     };
 }
