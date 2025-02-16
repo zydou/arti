@@ -122,16 +122,6 @@ pub struct DataStream {
     w: DataWriter,
     /// Underlying reader for this stream
     r: DataReader,
-    /// A handle for the underlying circuit.
-    ///
-    /// TODO: This is redundant with the reference in `StreamTarget` inside
-    /// DataWriterState, but for now we can't actually access that state all the time,
-    /// since it might be inside a boxed future.
-    ///
-    /// TODO: This is also redundant with the reference in `ClientDataStreamCtrl`.
-    #[cfg(feature = "experimental-api")]
-    circuit: Arc<ClientCirc>,
-
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
@@ -395,8 +385,6 @@ impl DataStream {
             status: status.clone(),
             _memquota: memquota.clone(),
         });
-        #[cfg(feature = "experimental-api")]
-        let circuit = target.circuit().clone();
         let r = DataReader {
             state: Some(DataReaderState::Ready(DataReaderImpl {
                 s: reader,
@@ -425,8 +413,6 @@ impl DataStream {
         DataStream {
             w,
             r,
-            #[cfg(feature = "experimental-api")]
-            circuit,
             #[cfg(feature = "stream-ctrl")]
             ctrl,
         }
@@ -463,24 +449,6 @@ impl DataStream {
                 state
             )))
         }
-    }
-
-    /// Return a reference to this stream's circuit?
-    ///
-    /// This is an experimental API; it is not covered by semver guarantee. It
-    /// is likely to change or disappear in a future release.
-    ///
-    /// TODO: Should there be an AttachedToCircuit trait that we use for all
-    /// client stream types?  Should this return an Option<&ClientCirc>?
-    ///
-    /// TODO RPC: Perhaps we should deprecate this in favor of `stream.ctrl().circuit()`.
-    #[cfg(feature = "experimental-api")]
-    #[deprecated(
-        since = "0.27.0",
-        note = "Use client_stream_ctrl()?.circuit()? instead."
-    )]
-    pub fn circuit(&self) -> &ClientCirc {
-        &self.circuit
     }
 
     /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
