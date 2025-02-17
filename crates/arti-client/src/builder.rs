@@ -128,7 +128,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// [`create_unbootstrapped`](Self::create_unbootstrapped).
     ///
     /// (This difference in default behavior is meant to avoid unintentional blocking.
-    /// If you call this method, subsequent calls to `crate_bootstrapped` may block
+    /// If you call this method, subsequent calls to `create_bootstrapped` may block
     /// the current thread.)
     ///
     /// The provided timeout value may not be larger than [`MAX_LOCAL_RESOURCE_TIMEOUT`].
