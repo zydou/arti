@@ -17,6 +17,7 @@
 //!    `consume_checked_msg()`.
 
 mod control;
+mod create;
 mod extender;
 pub(super) mod syncview;
 
@@ -27,7 +28,7 @@ use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
-    streammap, CircParameters, CircuitRxReceiver, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
+    streammap, CircParameters, CircuitRxReceiver,
 };
 use crate::congestion::sendme::{self, CircTag};
 use crate::congestion::{CongestionControl, CongestionSignals};
@@ -90,6 +91,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 use tracing::{debug, trace, warn};
 
+use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
 
 pub(super) use control::CtrlCmd;
