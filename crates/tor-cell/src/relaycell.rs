@@ -13,6 +13,8 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use caret::caret_int;
 use rand::{CryptoRng, Rng};
 
+#[cfg(feature = "conflux")]
+pub mod conflux;
 pub mod extend;
 #[cfg(feature = "hs")]
 pub mod hs;
@@ -64,6 +66,15 @@ caret_int! {
         CONNECTED_UDP = 17,
         /// UDP: Data on a UDP stream.
         DATAGRAM = 18,
+
+        /// CONFLUX: Link circuits together at the receiving endpoint.
+        CONFLUX_LINK = 19,
+        /// CONFLUX: Confirm that the circuits were linked.
+        CONFLUX_LINKED = 20,
+        /// CONFLUX: Acknowledge the linkage of the circuits, for RTT measurement.
+        CONFLUX_LINKED_ACK = 21,
+        /// CONFLUX: Switch to another leg in an already linked circuit construction.
+        CONFLUX_SWITCH = 22,
 
         /// HS: establish an introduction point.
         ESTABLISH_INTRO = 32,
@@ -124,6 +135,10 @@ impl RelayCmd {
             | RelayCmd::DROP
             | RelayCmd::EXTEND2
             | RelayCmd::EXTENDED2
+            | RelayCmd::CONFLUX_LINK
+            | RelayCmd::CONFLUX_LINKED
+            | RelayCmd::CONFLUX_LINKED_ACK
+            | RelayCmd::CONFLUX_SWITCH
             | RelayCmd::ESTABLISH_INTRO
             | RelayCmd::ESTABLISH_RENDEZVOUS
             | RelayCmd::INTRODUCE1

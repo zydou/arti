@@ -13,11 +13,13 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+conflux = ["__is_experimental"]
 
 experimental = [
     "experimental-udp",
     "hs",
     "hs-pow-full",
+    "conflux",
     "testing",
 ]
 # Enable experimental UDP support.
