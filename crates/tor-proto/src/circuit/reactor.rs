@@ -27,9 +27,7 @@ use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::circuit::unique_id::UniqId;
-use crate::circuit::{
-    streammap, CircParameters, CircuitRxReceiver,
-};
+use crate::circuit::{streammap, CircParameters, CircuitRxReceiver};
 use crate::congestion::sendme::{self, CircTag};
 use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
