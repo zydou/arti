@@ -486,6 +486,7 @@ mod test {
             let state_dir = StateDirectory::new(state_dir, &mistrust).unwrap();
             let state_handle = state_dir.acquire_instance(&nickname).unwrap();
             let pow_nonce_dir = state_handle.raw_subdir("pow_nonces").unwrap();
+            let pow_manager_storage_handle = state_handle.storage_handle("pow_manager").unwrap();
 
             let NewPowManager {
                 pow_manager,
@@ -497,7 +498,9 @@ mod test {
                 nickname.clone(),
                 pow_nonce_dir,
                 keymgr.clone(),
-            );
+                pow_manager_storage_handle,
+            )
+            .unwrap();
             let mut status_rx = status_tx.subscribe();
             let publisher: Publisher<MockRuntime, MockReactorState<_>> = Publisher::new(
                 runtime.clone(),

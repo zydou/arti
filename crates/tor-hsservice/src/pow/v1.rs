@@ -16,6 +16,7 @@ use futures::task::SpawnExt;
 use futures::{channel::mpsc, Stream};
 use futures::{SinkExt, StreamExt};
 use rand::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use tor_basic_utils::RngExt as _;
 use tor_cell::relaycell::hs::pow::{v1::ProofOfWorkV1, ProofOfWork};
 use tor_checkable::timed::TimerangeBound;
@@ -26,7 +27,10 @@ use tor_hscrypto::{
 };
 use tor_keymgr::KeyMgr;
 use tor_netdoc::doc::hsdesc::pow::{v1::PowParamsV1, PowParams};
-use tor_persist::{hsnickname::HsNickname, state_dir::InstanceRawSubdir};
+use tor_persist::{
+    hsnickname::HsNickname,
+    state_dir::{InstanceRawSubdir, StorageHandle},
+};
 use tor_rtcompat::Runtime;
 
 use crate::{
@@ -67,12 +71,15 @@ struct State<R> {
     /// Runtime
     runtime: R,
 
+    /// Handle for storing state we need to persist to disk.
+    storage_handle: StorageHandle<PowManagerStateRecord>,
+
     /// Queue to tell the publisher to re-upload a descriptor for a given TP, since we've rotated
     /// that seed.
     publisher_update_tx: mpsc::Sender<TimePeriod>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 /// Information about the current and previous [`Seed`] for a given [`TimePeriod`].
 struct SeedsForTimePeriod {
     /// The previous and current [`Seed`].
@@ -99,6 +106,28 @@ pub(crate) enum PowSolveError {
     InvalidEquixSolution(SolutionErrorV1),
     /// The solution given was invalid.
     InvalidSolve(tor_hscrypto::pow::Error),
+}
+
+/// On-disk record of [`PowManager`] state.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct PowManagerStateRecord {
+    /// Seeds for each time period.
+    ///
+    /// Conceptually, this is a map between TimePeriod and SeedsForTimePeriod, but since TimePeriod
+    /// can't be serialized to a string, it's not very simple to use serde to serialize it like
+    /// that, so we instead store it as a list of tuples, and convert it to/from the map when
+    /// saving/loading.
+    seeds: Vec<(TimePeriod, SeedsForTimePeriod)>,
+    // TODO POW: suggested_effort / etc should be serialized
+}
+
+impl<R: Runtime> State<R> {
+    /// Make a [`PowManagerStateRecord`] for this state.
+    pub(crate) fn to_record(&self) -> PowManagerStateRecord {
+        PowManagerStateRecord {
+            seeds: self.seeds.clone().into_iter().collect(),
+        }
+    }
 }
 
 /// How soon before a seed's expiration time we should rotate it and publish a new seed.
@@ -137,14 +166,19 @@ impl<R: Runtime> PowManager<R> {
         nickname: HsNickname,
         instance_dir: InstanceRawSubdir,
         keymgr: Arc<KeyMgr>,
-    ) -> NewPowManager<R> {
+        storage_handle: StorageHandle<PowManagerStateRecord>,
+    ) -> Result<NewPowManager<R>, StartupError> {
+        let on_disk_state = storage_handle.load().map_err(StartupError::LoadState)?;
+        let seeds = on_disk_state.map_or(vec![], |on_disk_state| on_disk_state.seeds);
+        let seeds = seeds.into_iter().collect();
+
         // This queue is extremely small, and we only make one of it per onion service, so it's
         // fine to not use memquota tracking.
         let (publisher_update_tx, publisher_update_rx) =
             crate::mpsc_channel_no_memquota(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
         let state = State {
-            seeds: HashMap::new(),
+            seeds,
             nickname,
             instance_dir,
             keymgr,
@@ -152,18 +186,19 @@ impl<R: Runtime> PowManager<R> {
             verifiers: HashMap::new(),
             suggested_effort: Effort::zero(),
             runtime: runtime.clone(),
+            storage_handle,
         };
         let pow_manager = Arc::new(PowManager(RwLock::new(state)));
 
         let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
         let rend_req_rx = RendRequestReceiver::new(runtime, pow_manager.clone(), rend_req_rx);
 
-        NewPowManager {
+        Ok(NewPowManager {
             pow_manager,
             rend_req_tx,
             rend_req_rx: Box::pin(rend_req_rx),
             publisher_update_rx,
-        }
+        })
     }
 
     /// Launch background task to rotate seeds.
@@ -338,6 +373,12 @@ impl<R: Runtime> PowManager<R> {
                 state.verifiers.remove(&seed_head);
             }
 
+            let record = state.to_record();
+            state
+                .storage_handle
+                .store(&record)
+                .expect("Couldn't save state");
+
             state.publisher_update_tx.clone()
         };
 
@@ -405,6 +446,12 @@ impl<R: Runtime> PowManager<R> {
                         .expect("Couldn't make ReplayLog."),
                 );
                 state.verifiers.insert(seed.head(), (verifier, replay_log));
+
+                let record = state.to_record();
+                state
+                    .storage_handle
+                    .store(&record)
+                    .expect("Couldn't save state");
 
                 (seed, next_expiration_time)
             }

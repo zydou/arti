@@ -3,6 +3,7 @@
 use crate::pk::HsBlindId;
 use crate::pow::v1::err::SolutionErrorV1;
 use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
 
 /// Effort setting, a u32 value with linear scale
@@ -52,7 +53,9 @@ impl Effort {
 pub const SEED_LEN: usize = 32;
 
 /// The random portion of a challenge, distributed through HsDir
-#[derive(derive_more::AsRef, derive_more::From, Debug, Clone, Eq, PartialEq)]
+#[derive(
+    derive_more::AsRef, derive_more::From, Deserialize, Serialize, Debug, Clone, Eq, PartialEq,
+)]
 pub struct Seed([u8; SEED_LEN]);
 
 impl Seed {

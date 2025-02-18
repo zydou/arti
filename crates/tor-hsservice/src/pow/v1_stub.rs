@@ -4,9 +4,13 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use futures::channel::mpsc;
+use serde::{Deserialize, Serialize};
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::KeyMgr;
-use tor_persist::{hsnickname::HsNickname, state_dir::InstanceRawSubdir};
+use tor_persist::{
+    hsnickname::HsNickname,
+    state_dir::{InstanceRawSubdir, StorageHandle},
+};
 use tor_rtcompat::Runtime;
 
 use crate::{RendRequest, StartupError};
@@ -22,17 +26,21 @@ pub(crate) struct PowManager<R> {
     runtime: PhantomData<R>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct PowManagerStateRecord;
+
 impl<R: Runtime> PowManager<R> {
     pub(crate) fn new(
         _runtime: R,
         _nickname: HsNickname,
         _instance_dir: InstanceRawSubdir,
         _keymgr: Arc<KeyMgr>,
-    ) -> NewPowManager<R> {
+        _storage_handle: StorageHandle<PowManagerStateRecord>,
+    ) -> Result<NewPowManager<R>, StartupError> {
         let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
         let (publisher_update_tx, publisher_update_rx) = mpsc::channel(1);
 
-        NewPowManager {
+        Ok(NewPowManager {
             pow_manager: Arc::new(PowManager {
                 publisher_update_tx,
                 runtime: PhantomData,
@@ -40,7 +48,7 @@ impl<R: Runtime> PowManager<R> {
             rend_req_tx,
             rend_req_rx: Box::pin(rend_req_rx),
             publisher_update_rx,
-        }
+        })
     }
 
     pub(crate) fn launch(self: Arc<Self>) -> Result<(), StartupError> {

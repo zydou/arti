@@ -301,6 +301,9 @@ impl OnionService {
             .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
+        let pow_manager_storage_handle = state_handle
+            .storage_handle("pow_manager")
+            .map_err(StartupError::StateDirectoryInaccessible)?;
         let pow_nonce_dir = state_handle
             .raw_subdir("pow_nonces")
             .map_err(StartupError::StateDirectoryInaccessible)?;
@@ -314,7 +317,8 @@ impl OnionService {
             nickname.clone(),
             pow_nonce_dir,
             keymgr.clone(),
-        );
+            pow_manager_storage_handle,
+        )?;
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
