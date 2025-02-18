@@ -70,9 +70,8 @@ use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
 use reactor::CtrlCmd;
-use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::{
-    chancell::{self, msg::AnyChanMsg, CircId},
+    chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
 };
 
@@ -1149,60 +1148,6 @@ impl PendingClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
         Ok(self.circ)
-    }
-}
-
-/// An object that can put a given handshake into a ChanMsg for a CREATE*
-/// cell, and unwrap a CREATED* cell.
-trait CreateHandshakeWrap {
-    /// Construct an appropriate ChanMsg to hold this kind of handshake.
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg;
-    /// Decode a ChanMsg to an appropriate handshake value, checking
-    /// its type.
-    fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>>;
-}
-
-/// A CreateHandshakeWrap that generates CREATE_FAST and handles CREATED_FAST.
-struct CreateFastWrap;
-
-impl CreateHandshakeWrap for CreateFastWrap {
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {
-        chancell::msg::CreateFast::new(bytes).into()
-    }
-    fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>> {
-        use CreateResponse::*;
-        match msg {
-            CreatedFast(m) => Ok(m.into_handshake()),
-            Destroy(_) => Err(Error::CircRefused(
-                "Relay replied to CREATE_FAST with DESTROY.",
-            )),
-            _ => Err(Error::CircProto(format!(
-                "Relay replied to CREATE_FAST with unexpected cell: {}",
-                msg
-            ))),
-        }
-    }
-}
-
-/// A CreateHandshakeWrap that generates CREATE2 and handles CREATED2
-struct Create2Wrap {
-    /// The handshake type to put in the CREATE2 cell.
-    handshake_type: HandshakeType,
-}
-impl CreateHandshakeWrap for Create2Wrap {
-    fn to_chanmsg(&self, bytes: Vec<u8>) -> AnyChanMsg {
-        chancell::msg::Create2::new(self.handshake_type, bytes).into()
-    }
-    fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>> {
-        use CreateResponse::*;
-        match msg {
-            Created2(m) => Ok(m.into_body()),
-            Destroy(_) => Err(Error::CircRefused("Relay replied to CREATE2 with DESTROY.")),
-            _ => Err(Error::CircProto(format!(
-                "Relay replied to CREATE2 with unexpected cell {}",
-                msg
-            ))),
-        }
     }
 }
 
