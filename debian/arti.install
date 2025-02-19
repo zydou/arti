@@ -1,0 +1,2 @@
+debian/arti.toml etc/arti
+debian/systemd/arti.service lib/systemd/system

@@ -3,11 +3,11 @@ Section: net
 Priority: optional
 Maintainer: NoisyCoil <noisycoil@tutanota.com>
 Build-Depends:
-  debhelper-compat (= 13),
+  debhelper (>= 10),
   rustc:native,
   cargo:native,
   libstd-rust-dev,
-  pkgconf,
+  pkgconf | pkg-config,
   ca-certificates,
   libssl-dev,
   libsqlite3-dev,

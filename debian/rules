@@ -62,12 +62,16 @@ CARGO_BUILD_FLAGS += $(addprefix -p ,$(CARGO_BUILD_BINS))
 CARGO_TEST_FLAGS = $(CARGO_TARGET_FLAGS) --workspace --locked --no-fail-fast --verbose
 CARGO_TEST_FLAGS += --lib --bins $(CARGO_TEST_EXCLUDE_FLAGS)
 
+ifeq ($(DEB_HOST_ARCH_OS),linux)
+        dhoptions += --with systemd
+endif
+
 %:
-	dh $@
+	dh $@ $(dhoptions)
 
 override_dh_auto_clean:
 	dh_auto_clean
-	rm -rf $(CURDIR)/target $(CARGO_HOME) $(CARGO_TARGET_DIR)
+	rm -rf $(CURDIR)/target $(CARGO_HOME) $(CARGO_TARGET_DIR) debian/arti.toml
 
 override_dh_auto_configure:
 	install -D -m 0644 $(CURDIR)/debian/config.toml $(CARGO_HOME)/config.toml
@@ -86,13 +90,23 @@ override_dh_auto_build-arch:
 # TODO: tests must currently be disabled when cross compiling. However, one could
 # define a 'cross-test' build profile to optionally execute tests using qemu
 override_dh_auto_test-arch:
+ifeq ($(filter nocheck,$(DEB_BUILD_PROFILES)),)
 	$(CARGO) test $(CARGO_TEST_FLAGS)
+endif
 
 override_dh_auto_install:
 	for bin in $(CARGO_BUILD_BINS); do \
 		install -D -m 0755 $(CARGO_BIN_DIR)/$$bin $(CURDIR)/debian/$(DEB_SOURCE)/usr/bin/$$bin; \
 	done
+	cp crates/arti/src/arti-example-config.toml debian/arti.toml
+	sed -ri 's/^#state_dir.+/state_dir = "\~\/data"/' debian/arti.toml
+	sed -ri 's/^#cache_dir.+/cache_dir = "\~\/cache"/' debian/arti.toml
 	dh_auto_install
 
 override_dh_compress:
 	dh_compress -Xarti-example-config.toml
+
+override_dh_strip:
+ifeq ($(filter nostrip,$(DEB_BUILD_OPTIONS)),)
+	dh_strip
+endif
