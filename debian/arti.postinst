@@ -1,0 +1,55 @@
+#!/bin/sh
+
+set -e
+
+setupdir () {
+	if ! [ -d "/var/$1/arti" ]; then
+		mkdir "/var/$1/arti"
+		which restorecon >/dev/null 2>&1 && restorecon "/var/$1/arti"
+		chown "$3" "/var/$1/arti"
+		chmod "$2" "/var/$1/arti"
+	fi
+}
+
+case "$1" in
+	configure)
+		# checking _arti account
+		pwent=$(getent passwd _arti)
+		uid=$(echo "$pwent" | cut -d ":" -f 3)
+		home=$(echo "$pwent" | cut -d ":" -f 6)
+
+		# If the uid exists, then the account is there and we can do
+		# the sanit(ar)y checks. Otherwise, we can safely create it.
+
+		if [ "$uid" ]; then
+			if [ "$home" = "/var/lib/arti" ]; then
+				:
+				#echo "_arti homedir check: ok"
+			else
+				echo "WARNING: _arti account has an unexpected home directory!"
+				echo "It should be '/var/lib/arti', but it is '$home'."
+				echo "Removing the _arti user might fix this issue."
+				echo "This installation of Arti will continue, but systemd"
+				echo "and apparmor rules must be manually fixed if a"
+				echo "non-standard home directory is used."
+			fi
+		else
+			adduser --quiet \
+				--force-badname \
+				--system \
+				--disabled-password \
+				--home /var/lib/arti \
+				--no-create-home \
+				--shell /bin/false \
+				--group \
+				_arti
+		fi
+
+		setupdir "lib" "02700" "_arti:_arti"
+		setupdir "log" "02750" "_arti:adm"
+	;;
+esac
+
+#DEBHELPER#
+
+exit 0
