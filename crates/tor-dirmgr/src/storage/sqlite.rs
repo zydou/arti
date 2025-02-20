@@ -304,6 +304,8 @@ impl SqliteStore {
     ///
     /// Return `Ok(None)` if the file for the blob was not found on disk;
     /// returns an error in other cases.
+    ///
+    /// (See [`blob_consistency`] for information on why the blob might be absent.)
     fn read_blob(&self, path: &str) -> Result<Option<InputString>> {
         let file = match self.blob_dir.open(path, OpenOptions::new().read(true)) {
             Ok(file) => file,
@@ -332,6 +334,8 @@ impl SqliteStore {
     ///
     /// Return a SavedBlobHandle that describes where the blob is, and which
     /// can be used either to commit the blob or delete it.
+    ///
+    /// See [`blob_consistency`] for more information on guarantees.
     fn save_blob_internal(
         &mut self,
         contents: &[u8],
@@ -401,6 +405,9 @@ impl SqliteStore {
     }
 
     /// Remove the blob with name `fname`, but do not give an error on failure.
+    ///
+    /// See [`blob_consistency`]: we should call this only having first ensured
+    /// that the blob is removed from the ExtDocs table.
     fn remove_blob_or_warn<P: AsRef<Path>>(&self, fname: P) {
         let fname = fname.as_ref();
         if let Err(e) = self.blob_dir.remove_file(fname) {
@@ -410,7 +417,7 @@ impl SqliteStore {
 
     /// Delete any blob files that are old enough, and not mentioned in the ExtDocs table.
     ///
-    /// There shouldn't actually be any, but we don't want to let our cache grow infinitely
+    /// There shouldn't typically be any, but we don't want to let our cache grow infinitely
     /// if we have a bug.
     fn remove_unreferenced_blobs(
         &self,
@@ -539,6 +546,8 @@ impl Store for SqliteStore {
         };
 
         tx.commit()?;
+        // Now that the transaction has been committed, these blobs are
+        // unreferenced in the ExtDocs table, and we can remove them from disk.
         let mut remove_blob_files: HashSet<_> = expired_blobs.iter().collect();
         remove_blob_files.extend(remove_consensus_blobs.iter());
 
@@ -576,7 +585,7 @@ impl Store for SqliteStore {
         };
 
         if let Some((_va, _vu, filename)) = rv {
-            // TODO: If the cache is corrupt (because this blob is missing), and the cache has not yet
+            // TODO blobs: If the cache is inconsistent (because this blob is _vanished_), and the cache has not yet
             // been cleaned, this may fail to find the latest consensus that we actually have.
             self.read_blob(&filename)
         } else {
@@ -870,6 +879,9 @@ struct SavedBlobHandle<'a> {
     /// "digesttype-hexstr".
     digeststr: String,
     /// An 'unlinker' for the blob file.
+    //
+    // TODO blobs: we want to tie the decision to remove this file
+    // to the decision about whether to rollback the transaction.
     unlinker: Unlinker,
 }
 
