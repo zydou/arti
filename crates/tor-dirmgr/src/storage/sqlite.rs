@@ -364,12 +364,7 @@ impl SqliteStore {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(INSERT_EXTDOC, params![digeststr, expires, doctype, fname])?;
 
-        Ok(SavedBlobHandle {
-            tx,
-            fname,
-            digeststr,
-            unlinker,
-        })
+        Ok(SavedBlobHandle::new(tx, fname, digeststr, unlinker))
     }
 
     /// Save a blob to disk and commit it.
@@ -383,15 +378,8 @@ impl SqliteStore {
         expires: OffsetDateTime,
     ) -> Result<String> {
         let h = self.save_blob_internal(contents, doctype, digest_type, digest, expires)?;
-        let SavedBlobHandle {
-            tx,
-            digeststr,
-            fname,
-            unlinker,
-        } = h;
-        let _ = digeststr;
-        tx.commit()?;
-        unlinker.forget();
+        let fname = h.fname().to_string();
+        h.commit()?;
         Ok(fname)
     }
 
@@ -661,7 +649,7 @@ impl Store for SqliteStore {
             &sha3_of_whole[..],
             expires,
         )?;
-        h.tx.execute(
+        h.tx().execute(
             INSERT_CONSENSUS,
             params![
                 valid_after,
@@ -670,11 +658,10 @@ impl Store for SqliteStore {
                 flavor.name(),
                 pending,
                 hex::encode(sha3_of_signed),
-                h.digeststr
+                h.digest_string()
             ],
         )?;
-        h.tx.commit()?;
-        h.unlinker.forget();
+        h.commit()?;
         Ok(())
     }
     fn mark_consensus_usable(&mut self, cmeta: &ConsensusMeta) -> Result<()> {
@@ -868,21 +855,57 @@ impl Store for SqliteStore {
 }
 
 /// Handle to a blob that we have saved to disk but not yet committed to
-/// the database.
+/// the database, and the database transaction where we added a reference to it.
+///
+/// Used to either commit or roll back the blob.
+#[must_use]
 struct SavedBlobHandle<'a> {
     /// Transaction we're using to add the blob to the ExtDocs table.
     tx: Transaction<'a>,
     /// Filename for the file, with respect to the blob directory.
-    #[allow(unused)]
     fname: String,
     /// Declared digest string for this blob. Of the format
     /// "digesttype-hexstr".
     digeststr: String,
     /// An 'unlinker' for the blob file.
-    //
-    // TODO blobs: we want to tie the decision to remove this file
-    // to the decision about whether to rollback the transaction.
     unlinker: Unlinker,
+}
+
+impl<'a> SavedBlobHandle<'a> {
+    /// Construct a SavedBlobHandle from its parts.
+    fn new(tx: Transaction<'a>, fname: String, digeststr: String, unlinker: Unlinker) -> Self {
+        Self {
+            tx,
+            fname,
+            digeststr,
+            unlinker,
+        }
+    }
+
+    /// Return a reference to the underlying database transaction.
+    fn tx(&self) -> &Transaction<'a> {
+        &self.tx
+    }
+    /// Return the digest string of the saved blob.
+    /// Other tables use this as a foreign key into ExtDocs.digest
+    fn digest_string(&self) -> &str {
+        self.digeststr.as_ref()
+    }
+    /// Return the filename of this blob within the blob directory.
+    #[allow(unused)] // used for testing.
+    fn fname(&self) -> &str {
+        self.fname.as_ref()
+    }
+    /// Commit the relevant database transaction.
+    fn commit(self) -> Result<()> {
+        // The blob has been written to disk, so it is safe to
+        // commit the transaction.
+        // If the commit fails, self.unlinker will remove the blob.
+        self.tx.commit()?;
+        // If we reach this point, we don't want to remove the file.
+        self.unlinker.forget();
+        Ok(())
+    }
 }
 
 /// Handle to a file which we might have to delete.
