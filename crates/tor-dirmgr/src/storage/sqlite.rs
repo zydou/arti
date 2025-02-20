@@ -50,6 +50,83 @@ pub(crate) struct SqliteStore {
     lockfile: Option<fslock::LockFile>,
 }
 
+/// # Some notes on blob consistency, and the lack thereof.
+///
+/// We store large documents (currently, consensuses) in separate files,
+/// called "blobs",
+/// outside of the the sqlite database.
+/// We do this for performance reasons: for large objects,
+/// mmap is far more efficient than sqlite in RAM and CPU.
+///
+/// In the sqlite database, we keep track of our blobs
+/// using the ExtDocs table.
+/// This scheme makes it possible for the blobs and the table
+/// get out of sync.
+///
+/// In summary:
+///   - _Vanished_ blobs (ones present only in ExtDocs) are possible;
+///     we try to tolerate them.
+///   - _Orphaned_ blobs (ones present only on the disk) are possible;
+///     we try to tolerate them.
+///   - _Corrupted_ blobs (ones with the wrong contents) are possible
+///     but (we hope) unlikely;
+///     we do not currently try to tolerate them.
+///
+/// In more detail:
+///
+/// Here are the practices we use when _writing_ blobs:
+///
+/// - We always create a blob before updating the ExtDocs table,
+///   and remove an entry from the ExtDocs before deleting the blob.
+/// - If we decide to roll back the transaction that adds the row to ExtDocs,
+///   we delete the blob after doing so.
+/// - We use [`CheckedDir::write_and_replace`] to store blobs,
+///   so a half-formed blob shouldn't be common.
+///   (We assume that "close" and "rename" are serialized by the OS,
+///   so that _if_ the rename happens, the file is completely written.)
+/// - Blob filenames include a digest of the file contents,
+///   so collisions are unlikely.
+///
+/// Here are the practices we use when _deleting_ blobs:
+/// - First, we drop the row from the ExtDocs table.
+///   Only then do we delete the file.
+///
+/// These practices can result in _orphaned_ blobs
+/// (ones with no row in the ExtDoc table),
+/// or in _half-written_ blobs files with tempfile names
+/// (which also have no row in the ExtDoc table).
+/// This happens if we crash at the wrong moment.
+/// Such blobs can be safely removed;
+/// we do so in [`SqliteStore::remove_unreferenced_blobs`].
+///
+/// Despite our efforts, _vanished_ blobs
+/// (entries in the ExtDoc table with no corresponding file)
+/// are also possible.  They could happen for these reasons:
+/// - The filesystem might not serialize or sync things in a way that's
+///   consistent with the DB.
+/// - An automatic process might remove random cache files.
+/// - The user might run around deleting things to free space.
+///
+/// We try to tolerate vanished blobs.
+///
+/// _Corrupted_ blobs are also possible.  They can happen on FS corruption,
+/// or on somebody messing around with the cache directory manually.
+/// We do not attempt to tolerate corrupted blobs.
+///
+/// ## On trade-offs
+///
+/// TODO: The practices described above are more likely
+/// to create _orphaned_ blobs than _vanished_ blobs.
+/// We initially made this trade-off decision on the mistaken theory
+/// that we could avoid vanished blobs entirely.
+/// We _may_ want to revisit this choice,
+/// on the rationale that we can respond to vanished blobs as soon as we notice they're gone,
+/// whereas we can only handle orphaned blobs with a periodic cleanup.
+/// On the other hand, since we need to handle both cases,
+/// it may not matter very much in practice.
+#[allow(unused)]
+mod blob_consistency {}
+
 impl SqliteStore {
     /// Construct or open a new SqliteStore at some location on disk.
     /// The provided location must be a directory, or a possible
