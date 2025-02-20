@@ -519,6 +519,44 @@ pub struct Reactor {
     memquota: CircuitAccount,
 }
 
+/// A circuit "leg" from a tunnel.
+///
+/// Regular (non-multipath) circuits have a single leg.
+/// Conflux (multipath) circuits have `N` (usually, `N = 2`).
+pub(crate) struct Circuit {
+    /// The channel this circuit is attached to.
+    channel: Arc<Channel>,
+    /// Sender object used to actually send cells.
+    ///
+    /// NOTE: Control messages could potentially add unboundedly to this, although that's
+    ///       not likely to happen (and isn't triggereable from the network, either).
+    chan_sender: SometimesUnboundedSink<AnyChanCell, ChannelSender>,
+    /// Input stream, on which we receive ChanMsg objects from this circuit's
+    /// channel.
+    // TODO: could use a SPSC channel here instead.
+    input: CircuitRxReceiver,
+    /// The cryptographic state for this circuit for inbound cells.
+    /// This object is divided into multiple layers, each of which is
+    /// shared with one hop of the circuit.
+    crypto_in: InboundClientCrypt,
+    /// The cryptographic state for this circuit for outbound cells.
+    crypto_out: OutboundClientCrypt,
+    /// List of hops state objects used by the reactor
+    hops: Vec<CircHop>,
+    /// Mutable information about this circuit, shared with
+    /// [`ClientCirc`](super::ClientCirc).
+    ///
+    // TODO(conflux)/TODO(#1840): this belongs in the Reactor
+    mutable: Arc<Mutex<MutableState>>,
+    /// This circuit's identifier on the upstream channel.
+    channel_id: CircId,
+    /// An identifier for logging about this reactor's circuit.
+    unique_id: UniqId,
+    /// Memory quota account
+    #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
+    memquota: CircuitAccount,
+}
+
 /// Information about an incoming stream request.
 #[cfg(feature = "hs-service")]
 #[derive(Debug, Deftly)]
