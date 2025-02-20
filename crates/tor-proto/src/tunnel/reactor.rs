@@ -720,7 +720,9 @@ impl Reactor {
             Some(SelectResult::HandleControl(ctrl)) => Some(RunOnceCmd::Single(
                 ControlHandler::new(self).handle_msg(ctrl)?,
             )),
-            Some(SelectResult::HandleCell(cell)) => self.circuits.handle_cell(&mut self.cell_handlers, cell)?,
+            Some(SelectResult::HandleCell(cell)) => {
+                self.circuits.handle_cell(&mut self.cell_handlers, cell)?
+            }
         };
 
         if let Some(cmd) = cmd {
@@ -809,7 +811,10 @@ impl Reactor {
                 reason,
                 done,
             } => {
-                let res: Result<()> = self.circuits.close_stream(hop_num, sid, behav, reason).await;
+                let res: Result<()> = self
+                    .circuits
+                    .close_stream(hop_num, sid, behav, reason)
+                    .await;
 
                 if let Some(done) = done {
                     // don't care if the sender goes away
@@ -1033,7 +1038,11 @@ impl Circuit {
     /// or rejected; a few get delivered to circuits.
     ///
     /// Return `CellStatus::CleanShutdown` if we should exit.
-    fn handle_cell(&mut self, handlers: &mut CellHandlers, cell: ClientCircChanMsg) -> Result<Option<RunOnceCmd>> {
+    fn handle_cell(
+        &mut self,
+        handlers: &mut CellHandlers,
+        cell: ClientCircChanMsg,
+    ) -> Result<Option<RunOnceCmd>> {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
         match cell {
@@ -1091,7 +1100,11 @@ impl Circuit {
     }
 
     /// React to a Relay or RelayEarly cell.
-    fn handle_relay_cell(&mut self, handlers: &mut CellHandlers, cell: Relay) -> Result<Option<RunOnceCmd>> {
+    fn handle_relay_cell(
+        &mut self,
+        handlers: &mut CellHandlers,
+        cell: Relay,
+    ) -> Result<Option<RunOnceCmd>> {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);

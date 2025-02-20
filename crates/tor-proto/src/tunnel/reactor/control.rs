@@ -329,10 +329,13 @@ impl<'a> ControlHandler<'a> {
                 done,
                 cmd_checker,
             } => {
-                let cell =
-                    self.reactor
-                        .circuits
-                        .begin_stream(hop_num, message, sender, rx, cmd_checker)?;
+                let cell = self.reactor.circuits.begin_stream(
+                    hop_num,
+                    message,
+                    sender,
+                    rx,
+                    cmd_checker,
+                )?;
                 Ok(RunOnceCmdInner::BeginStream { cell, done })
             }
             #[cfg(feature = "hs-service")]
