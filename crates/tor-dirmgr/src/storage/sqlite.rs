@@ -259,12 +259,12 @@ impl SqliteStore {
         &mut self,
         contents: &[u8],
         doctype: &str,
-        dtype: &str,
+        digest_type: &str,
         digest: &[u8],
         expires: OffsetDateTime,
     ) -> Result<SavedBlobHandle<'_>> {
         let digest = hex::encode(digest);
-        let digeststr = format!("{}-{}", dtype, digest);
+        let digeststr = format!("{}-{}", digest_type, digest);
         let fname = format!("{}_{}", doctype, digeststr);
 
         let full_path = self.blob_dir.join(&fname)?;
@@ -297,11 +297,11 @@ impl SqliteStore {
         &mut self,
         contents: &[u8],
         doctype: &str,
-        dtype: &str,
+        digest_type: &str,
         digest: &[u8],
         expires: OffsetDateTime,
     ) -> Result<String> {
-        let h = self.save_blob_internal(contents, doctype, dtype, digest, expires)?;
+        let h = self.save_blob_internal(contents, doctype, digest_type, digest, expires)?;
         let SavedBlobHandle {
             tx,
             digeststr,
@@ -875,14 +875,14 @@ const INSTALL_V0_SCHEMA: &str = "
 
   -- Keeps track of external blobs on disk.
   CREATE TABLE ExtDocs (
-    -- Records a digest of the file contents, in the form 'dtype-hexstr'
+    -- Records a digest of the file contents, in the form '<digest_type>-hexstr'
     digest TEXT PRIMARY KEY NOT NULL,
     -- When was this file created?
     created DATE NOT NULL,
     -- After what time will this file definitely be useless?
     expires DATE NOT NULL,
     -- What is the type of this file? Currently supported are 'con_<flavor>'.
-    --   (Before tor-dirmgr 0.24.0, we would erroneously record 'con_flavor' as 'sha3-256';
+    --   (Before tor-dirmgr ~0.28.0, we would erroneously record 'con_flavor' as 'sha3-256';
     --   Nothing depended on this yet, but will be used in the future
     --   as we add more large-document types.)
     type TEXT NOT NULL,
