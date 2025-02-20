@@ -322,6 +322,8 @@ impl<'a> ControlHandler<'a> {
 
                 Ok(RunOnceCmdInner::Send { cell, done: None })
             }
+            // TODO(conflux): this should specify which leg this stream is on
+            // (currently we assume it's the primary leg)
             CtrlMsg::BeginStream {
                 hop_num,
                 message,
@@ -336,6 +338,8 @@ impl<'a> ControlHandler<'a> {
                 let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
                 Ok(RunOnceCmdInner::BeginStream { cell, done })
             }
+            // TODO(conflux): this should specify which leg this stream is on
+            // (currently we assume it's the primary leg)
             #[cfg(feature = "hs-service")]
             CtrlMsg::ClosePendingStream {
                 hop_num,
@@ -353,6 +357,8 @@ impl<'a> ControlHandler<'a> {
                     done: Some(done),
                 })
             }
+            // TODO(conflux): this should specify which leg to send the msg on
+            // (currently we send it down the primary leg)
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
@@ -363,6 +369,8 @@ impl<'a> ControlHandler<'a> {
                 };
                 Ok(RunOnceCmdInner::Send { cell, done: None })
             }
+            // TODO(conflux): this should specify which leg to send the msg on
+            // (currently we send it down the primary leg)
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsg {
                 hop_num,
@@ -380,6 +388,8 @@ impl<'a> ControlHandler<'a> {
                     done: Some(sender),
                 })
             }
+            // TODO(conflux): this should specify which leg to send the msg on
+            // (currently we send it down the primary leg)
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsgAndInstallHandler {
                 msg,
