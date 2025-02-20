@@ -421,6 +421,14 @@ pub(super) enum MetaCellDisposition {
     // But right now we don't need that.
 }
 
+slotmap_careful::new_key_type! {
+    /// A unique identifier for a circuit leg.
+    ///
+    /// After the circuit is torn down, its `LegId` becomes invalid.
+    /// The same `LegId` won't be reused for a future circuit.
+    pub(crate) struct LegId;
+}
+
 /// Unwrap the specified [`Option`], returning a [`ReactorError::Shutdown`] if it is `None`.
 ///
 /// This is a macro instead of a function to work around borrowck errors
