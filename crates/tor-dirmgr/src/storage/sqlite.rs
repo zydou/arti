@@ -857,10 +857,16 @@ impl Store for SqliteStore {
 /// Handle to a blob that we have saved to disk but not yet committed to
 /// the database, and the database transaction where we added a reference to it.
 ///
-/// Used to either commit or roll back the blob.
+/// Used to either commit the blob (by calling [`SavedBlobHandle::commit`]),
+/// or roll it back (by dropping the [`SavedBlobHandle`] without committing it.)
 #[must_use]
 struct SavedBlobHandle<'a> {
     /// Transaction we're using to add the blob to the ExtDocs table.
+    ///
+    /// Note that struct fields are dropped in declaration order,
+    /// so when we drop an uncommitted SavedBlobHandle,
+    /// we roll back the transaction before we delete the file.
+    /// (In practice, either order would be fine.)
     tx: Transaction<'a>,
     /// Filename for the file, with respect to the blob directory.
     fname: String,
