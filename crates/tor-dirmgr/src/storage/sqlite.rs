@@ -28,7 +28,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
+use rusqlite::{params, OpenFlags, OptionalExtension};
 use time::OffsetDateTime;
 use tracing::{trace, warn};
 
@@ -343,13 +343,13 @@ impl SqliteStore {
         digest_type: &str,
         digest: &[u8],
         expires: OffsetDateTime,
-    ) -> Result<SavedBlobHandle<'_>> {
+    ) -> Result<blob_handle::SavedBlobHandle<'_>> {
         let digest = hex::encode(digest);
         let digeststr = format!("{}-{}", digest_type, digest);
         let fname = format!("{}_{}", doctype, digeststr);
 
         let full_path = self.blob_dir.join(&fname)?;
-        let unlinker = Unlinker::new(&full_path);
+        let unlinker = blob_handle::Unlinker::new(&full_path);
         self.blob_dir
             .write_and_replace(&fname, contents)
             .map_err(|e| match e {
@@ -364,7 +364,9 @@ impl SqliteStore {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(INSERT_EXTDOC, params![digeststr, expires, doctype, fname])?;
 
-        Ok(SavedBlobHandle::new(tx, fname, digeststr, unlinker))
+        Ok(blob_handle::SavedBlobHandle::new(
+            tx, fname, digeststr, unlinker,
+        ))
     }
 
     /// Save a blob to disk and commit it.
@@ -854,13 +856,22 @@ impl Store for SqliteStore {
     }
 }
 
-/// Handle to a blob that we have saved to disk but not yet committed to
+
+/// Functionality related to uncommitted blobs.
+mod blob_handle {
+use std::path::{Path, PathBuf};
+
+use crate::Result;
+use rusqlite::Transaction;
+
+/// Handle to a blob that we have saved to disk but
+/// not yet committed to
 /// the database, and the database transaction where we added a reference to it.
 ///
 /// Used to either commit the blob (by calling [`SavedBlobHandle::commit`]),
 /// or roll it back (by dropping the [`SavedBlobHandle`] without committing it.)
 #[must_use]
-struct SavedBlobHandle<'a> {
+pub(super) struct SavedBlobHandle<'a> {
     /// Transaction we're using to add the blob to the ExtDocs table.
     ///
     /// Note that struct fields are dropped in declaration order,
@@ -879,7 +890,12 @@ struct SavedBlobHandle<'a> {
 
 impl<'a> SavedBlobHandle<'a> {
     /// Construct a SavedBlobHandle from its parts.
-    fn new(tx: Transaction<'a>, fname: String, digeststr: String, unlinker: Unlinker) -> Self {
+    pub(super) fn new(
+        tx: Transaction<'a>,
+        fname: String,
+        digeststr: String,
+        unlinker: Unlinker,
+    ) -> Self {
         Self {
             tx,
             fname,
@@ -889,21 +905,21 @@ impl<'a> SavedBlobHandle<'a> {
     }
 
     /// Return a reference to the underlying database transaction.
-    fn tx(&self) -> &Transaction<'a> {
+    pub(super) fn tx(&self) -> &Transaction<'a> {
         &self.tx
     }
     /// Return the digest string of the saved blob.
     /// Other tables use this as a foreign key into ExtDocs.digest
-    fn digest_string(&self) -> &str {
+    pub(super) fn digest_string(&self) -> &str {
         self.digeststr.as_ref()
     }
     /// Return the filename of this blob within the blob directory.
     #[allow(unused)] // used for testing.
-    fn fname(&self) -> &str {
+    pub(super) fn fname(&self) -> &str {
         self.fname.as_ref()
     }
     /// Commit the relevant database transaction.
-    fn commit(self) -> Result<()> {
+    pub(super) fn commit(self) -> Result<()> {
         // The blob has been written to disk, so it is safe to
         // commit the transaction.
         // If the commit fails, self.unlinker will remove the blob.
@@ -918,14 +934,14 @@ impl<'a> SavedBlobHandle<'a> {
 ///
 /// When this handle is dropped, the file gets deleted, unless you have
 /// first called [`Unlinker::forget`].
-struct Unlinker {
+pub(super) struct Unlinker {
     /// The location of the file to remove, or None if we shouldn't
     /// remove it.
     p: Option<PathBuf>,
 }
 impl Unlinker {
     /// Make a new Unlinker for a given filename.
-    fn new<P: AsRef<Path>>(p: P) -> Self {
+    pub(super) fn new<P: AsRef<Path>>(p: P) -> Self {
         Unlinker {
             p: Some(p.as_ref().to_path_buf()),
         }
@@ -942,6 +958,7 @@ impl Drop for Unlinker {
             let _ignore_err = std::fs::remove_file(p);
         }
     }
+}
 }
 
 /// Convert a hexadecimal sha3-256 digest from the database into an array.
