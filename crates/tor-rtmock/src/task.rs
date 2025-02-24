@@ -204,11 +204,11 @@ struct Task {
     /// The actual future (or a placeholder for it)
     ///
     /// May be `None` because we've temporarily moved it out so we can poll it,
-    /// or if this is a subthread task which is currently running sync code
+    /// or if this is a Subthread task which is currently running sync code
     /// (in which case we're blocked in the executor waiting to be
     /// woken up by [`thread_context_switch`](Shared::thread_context_switch).
     fut: Option<TaskFutureInfo>,
-    /// Is this task actually a subthread?
+    /// Is this task actually a [`Subthread`](MockExecutor::subthread_spawn)?
     ///
     /// Subthread tasks do not end when `fut` is `Ready` -
     /// instead, `fut` is `Some` when the thread is within `subthread_block_on_future`.
@@ -303,9 +303,11 @@ struct ProgressUntilStalledFuture {
     shared: Arc<Shared>,
 }
 
-/// Identifies a thread we know about - the executor thread, or a subthread
+/// Identifies a thread we know about - the executor thread, or a Subthread
 ///
 /// Not related to `std::thread::ThreadId`.
+///
+/// See [`spawn_subthread`](MockExecutor::subthread_spawn) for definition of a Subthread.
 ///
 /// This being a thread-local and not scoped by which `MockExecutor` we're talking about
 /// means that we can't cope if there are multiple `MockExecutor`s involved in the same thread.
@@ -316,12 +318,14 @@ enum ThreadDescriptor {
     #[debug("Exe")]
     #[default]
     Executor,
-    /// This task, which is a subthread.
+    /// This task, which is a Subthread.
     #[debug("{_0:?}")]
     Subthread(TaskId),
 }
 
-/// Marker indicating that this task is a subthread, not an async task.
+/// Marker indicating that this task is a Subthread, not an async task.
+///
+/// See [`spawn_subthread`](MockExecutor::subthread_spawn) for definition of a Subthread.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct IsSubthread;
 
@@ -662,9 +666,9 @@ impl MockExecutor {
                         _fut_drop_late = fut;
                     }
                     (Ready(()), Some(IsSubthread)) => {
-                        trace!("MockExecutor {id:?} -> Ready, waking subthread");
+                        trace!("MockExecutor {id:?} -> Ready, waking Subthread");
                         // Task was blocking on the future given to .subthread_block_on_future().
-                        // That future has completed and stored its result where the subthread
+                        // That future has completed and stored its result where the Subthread
                         // can see it.  Now we need to wake up that thread, and let it run
                         // until it blocks again.
                         //
@@ -677,7 +681,7 @@ impl MockExecutor {
                             ThreadDescriptor::Subthread(id),
                         );
 
-                        // Now, if the subthread still exists, that's because it's waiting
+                        // Now, if the Subthread still exists, that's because it's waiting
                         // in subthread_block_on_future again, in which case `fut` is `Some`.
                         // Or it might have ended, in which case it's not in `tasks` any more.
                         // We can go back to scheduling futures.
@@ -784,15 +788,15 @@ impl Drop for ProgressUntilStalledFuture {
 //---------- (sub)threads ----------
 
 impl MockExecutor {
-    /// Spawn a "subthread", for processing in a sync context
+    /// Spawn a "Subthread", for processing in a sync context
     ///
-    /// `call` will be run on a separate thread, called a "subthread".
+    /// `call` will be run on a separate thread, called a "Subthread".
     ///
     /// But it will **not run concurrently** with the executor,
-    /// nor with other subthreads.
-    /// So subthreads are somewhat like coroutines.
+    /// nor with other Subthreads.
+    /// So Subthreads are somewhat like coroutines.
     ///
-    /// `call` must be capable of making progress without waiting for any other subthreads.
+    /// `call` must be capable of making progress without waiting for any other Subthreads.
     /// `call` may wait for async futures, using
     /// [`subthread_block_on_future`](MockExecutor::subthread_block_on_future).
     ///
@@ -811,7 +815,7 @@ impl MockExecutor {
     /// (Like `std::thread::spawn()` does.)
     ///
     /// `MockExecutor`s will malfunction or panic if
-    /// any executor invocation method (eg `block_on`) is called on a subthread.
+    /// any executor invocation method (eg `block_on`) is called on a Subthread.
     pub fn subthread_spawn<T: Send + 'static>(
         &self,
         desc: impl Display,
@@ -821,10 +825,10 @@ impl MockExecutor {
         let (output_tx, output_rx) = oneshot::channel();
 
         // NB: we don't know which thread we're on!
-        // In principle we might be on another subthread.
+        // In principle we might be on another Subthread.
         // So we can't context switch here.  That would be very confusing.
         //
-        // Instead, we prepare the new subthread as follows:
+        // Instead, we prepare the new Subthread as follows:
         //   - There is a task in the executor
         //   - The task is ready to be polled, whenever the executor decides to
         //   - The thread starts running right away, but immediately waits until it is scheduled
@@ -853,21 +857,21 @@ impl MockExecutor {
         }
 
         output_rx.map(|r| {
-            r.unwrap_or_else(|_: Canceled| panic!("subthread cancelled but should be impossible!"))
+            r.unwrap_or_else(|_: Canceled| panic!("Subthread cancelled but should be impossible!"))
         })
     }
 
-    /// Call an async `Future` from a subthread
+    /// Call an async `Future` from a Subthread
     ///
-    /// Blocks the subthread, and arranges to run async tasks,
+    /// Blocks the Subthread, and arranges to run async tasks,
     /// including `fut`, until `fut` completes.
     ///
-    /// `fut` is polled on the executor thread, not on the subthread.
+    /// `fut` is polled on the executor thread, not on the Subthread.
     ///
     /// # Panics, abuse, and malfunctions
     ///
     /// `subthread_block_on_future` will malfunction or panic
-    /// if called on a thread that isn't a subthread from the same `MockExecutor`
+    /// if called on a thread that isn't a Subthread from the same `MockExecutor`
     /// (ie a thread made with [`spawn_subthread`](MockExecutor::subthread_spawn)).
     ///
     /// If `fut` itself panics, the executor will panic.
@@ -899,7 +903,7 @@ impl MockExecutor {
         {
             let mut data = self.shared.lock();
             let data_ = &mut *data;
-            let task = data_.tasks.get_mut(id).expect("subthread task vanished!");
+            let task = data_.tasks.get_mut(id).expect("Subthread task vanished!");
             task.fut = Some(fut);
             task.set_awake(id, &mut data_.awake);
 
@@ -916,7 +920,7 @@ impl MockExecutor {
 }
 
 impl Shared {
-    /// Main entrypoint function for a subthread
+    /// Main entrypoint function for a Subthread
     ///
     /// Entered on a new `std::thread` thread created by
     /// [`subthread_spawn`](MockExecutor::subthread_spawn).
@@ -961,7 +965,7 @@ impl Shared {
             let mut data = self.lock();
 
             // Never poll this task again (so never schedule this thread)
-            let _: Task = data.tasks.remove(id).expect("subthread task vanished!");
+            let _: Task = data.tasks.remove(id).expect("Subthread task vanished!");
 
             // Tell the executor it is scheduled now.
             // We carry on exiting, in parallel (holding the data lock).
@@ -1359,7 +1363,7 @@ impl Debug for Task {
 ///
 /// `FLAGS` are:
 ///
-///  * `T`: this task is for a subthread (from subthread_spawn).
+///  * `T`: this task is for a Subthread (from subthread_spawn).
 ///  * `P`: this task is being polled (its `TaskFutureInfo` is absent)
 ///  * `f`: this is a normal task with a future and its future is present in `Data`
 ///  * `m`: this is the main task from `block_on`
