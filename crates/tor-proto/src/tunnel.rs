@@ -17,11 +17,42 @@ use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 use circuit::ClientCirc;
 use circuit::{handshake, StreamMpscSender, CIRCUIT_BUFFER_SIZE};
-use reactor::CtrlMsg;
+use reactor::{CtrlMsg, LegId};
 
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::StreamId;
+
+// TODO(#1857): Make this pub and not `allow(dead_code)`.
+/// A precise position in a tunnel.
+#[allow(dead_code)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum HopLocation {
+    /// A specific position in a tunnel.
+    #[cfg(not(feature = "conflux"))]
+    Hop(HopNum),
+    /// A specific position in a tunnel.
+    #[cfg(feature = "conflux")]
+    Leg((LegId, HopNum)),
+    /// The join point of a multi-path tunnel.
+    #[cfg(feature = "conflux")]
+    JoinPoint,
+}
+
+// TODO(#1857): Make this pub and not `allow(dead_code)`.
+/// A position in a tunnel.
+#[allow(dead_code)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum TargetHop {
+    /// A specific position in a tunnel.
+    Hop(HopLocation),
+    /// The last hop of a tunnel.
+    ///
+    /// This should be used only when you don't care about what specific hop is used.
+    /// Some tunnels may be extended or truncated,
+    /// which means that the "last hop" may change at any time.
+    LastHop,
+}
 
 /// Internal handle, used to implement a stream on a particular circuit.
 ///
