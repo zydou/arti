@@ -800,6 +800,37 @@ impl MockExecutor {
     /// `call` may wait for async futures, using
     /// [`subthread_block_on_future`](MockExecutor::subthread_block_on_future).
     ///
+    /// Subthreads may be used for cpubound activity,
+    /// or synchronous IO (such as large volumes of disk activity),
+    /// provided that the synchronous code will reliably make progress,
+    /// without waiting (directly or indirectly) for any async task or Subthread -
+    /// except via `subthread_block_on_future`.
+    ///
+    /// # Subthreads vs raw `std::thread` threads
+    ///
+    /// Programs using `MockExecutor` may use `std::thread` threads directly.
+    /// However, this is not recommended.  There are severe limitations:
+    ///
+    ///  * Only a Subthread can re-enter the async context from sync code:
+    ///    this must be done with
+    ///    using [`subthread_block_on_future`](MockExecutor::subthread_block_on_future).
+    ///    (Re-entering the executor with [`block_on`](BlockOn::block_on) is not allowed.)
+    ///  * If async tasks want to suspend waiting for synchronous code,
+    ///    the synchronous code must run on a Subthread.
+    ///    This allows the `MockExecutor` to know when
+    ///    that synchronous code is still making progress.
+    ///    (This is needed for
+    ///    [`progress_until_stalled`](MockExecutor::progress_until_stalled)
+    ///    and the facilities which use it, such as
+    ///    [`MockRuntime::advance_until_stalled`](crate::MockRuntime::advance_until_stalled).)
+    ///  * Subthreads never run concurrently -
+    ///    they only run as scheduled deterministically by the `MockExecutor`.
+    ///    So using Subthreads eliminates a source of test nonndeterminism.
+    ///    (Execution order is still varied due to explicitly varying the scheduling policy.)
+    ///
+    /// **TODO [\#1835](https://gitlab.torproject.org/tpo/core/arti/-/issues/1835)**:
+    /// Currently the traits in `tor_rtcompat` do not support proper usage very well.
+    ///
     /// # Panics, abuse, and malfunctions
     ///
     /// If `call` panics and unwinds, `spawn_subthread` yields `Err`.
