@@ -509,14 +509,20 @@ pub struct Reactor {
     unique_id: UniqId,
     /// This circuit's identifier on the upstream channel.
     channel_id: CircId,
+    /// Handlers, shared with `Circuit`.
+    cell_handlers: CellHandlers,
+    /// Memory quota account
+    #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
+    memquota: CircuitAccount,
+}
+
+/// Cell handlers, shared between the Reactor and its underlying `Circuit`s.
+struct CellHandlers {
     /// A handler for a meta cell, together with a result channel to notify on completion.
     meta_handler: Option<Box<dyn MetaCellHandler + Send>>,
     /// A handler for incoming stream requests.
     #[cfg(feature = "hs-service")]
     incoming_stream_req_handler: Option<IncomingStreamRequestHandler>,
-    /// Memory quota account
-    #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
-    memquota: CircuitAccount,
 }
 
 /// A circuit "leg" from a tunnel.
@@ -633,6 +639,12 @@ impl Reactor {
 
         let chan_sender = SometimesUnboundedSink::new(channel.sender());
 
+        let cell_handlers = CellHandlers {
+            meta_handler: None,
+            #[cfg(feature = "hs-service")]
+            incoming_stream_req_handler: None,
+        };
+
         let reactor = Reactor {
             control: control_rx,
             command: command_rx,
@@ -645,10 +657,8 @@ impl Reactor {
             unique_id,
             channel_id,
             crypto_out,
-            meta_handler: None,
-            #[cfg(feature = "hs-service")]
-            incoming_stream_req_handler: None,
             mutable: mutable.clone(),
+            cell_handlers,
             memquota,
         };
 
@@ -1301,7 +1311,7 @@ impl Reactor {
         // TODO: that means that service-introduction circuits will need
         // a different implementation, but that should be okay. We'll work
         // something out.
-        if let Some(mut handler) = self.meta_handler.take() {
+        if let Some(mut handler) = self.cell_handlers.meta_handler.take() {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message
                 let ret = handler.handle_msg(msg, self);
@@ -1313,7 +1323,7 @@ impl Reactor {
                 match ret {
                     #[cfg(feature = "send-control-msg")]
                     Ok(MetaCellDisposition::Consumed) => {
-                        self.meta_handler = Some(handler);
+                        self.cell_handlers.meta_handler = Some(handler);
                         Ok(None)
                     }
                     Ok(MetaCellDisposition::ConversationFinished) => Ok(None),
@@ -1324,7 +1334,7 @@ impl Reactor {
             } else {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
-                self.meta_handler = Some(handler);
+                self.cell_handlers.meta_handler = Some(handler);
                 Err(Error::CircProto(format!(
                     "Unexpected {} cell from hop {} on client circuit",
                     msg.cmd(),
@@ -1460,35 +1470,6 @@ impl Reactor {
         Ok(())
     }
 
-    /// Try to install a given meta-cell handler to receive any unusual cells on
-    /// this circuit, along with a result channel to notify on completion.
-    fn set_meta_handler(&mut self, handler: Box<dyn MetaCellHandler + Send>) -> Result<()> {
-        if self.meta_handler.is_none() {
-            self.meta_handler = Some(handler);
-            Ok(())
-        } else {
-            Err(Error::from(internal!(
-                "Tried to install a meta-cell handler before the old one was gone."
-            )))
-        }
-    }
-
-    /// Try to install a given cell handler on this circuit.
-    #[cfg(feature = "hs-service")]
-    fn set_incoming_stream_req_handler(
-        &mut self,
-        handler: IncomingStreamRequestHandler,
-    ) -> Result<()> {
-        if self.incoming_stream_req_handler.is_none() {
-            self.incoming_stream_req_handler = Some(handler);
-            Ok(())
-        } else {
-            Err(Error::from(internal!(
-                "Tried to install a BEGIN cell handler before the old one was gone."
-            )))
-        }
-    }
-
     /// Prepare a `SendRelayCell` request, and install the given meta-cell handler.
     fn prepare_msg_and_install_handler(
         &mut self,
@@ -1499,7 +1480,7 @@ impl Reactor {
             .map(|msg| {
                 let handler = handler
                     .as_ref()
-                    .or(self.meta_handler.as_ref())
+                    .or(self.cell_handlers.meta_handler.as_ref())
                     .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
                 Ok::<_, crate::Error>(SendRelayCell {
                     hop: handler.expected_hop(),
@@ -1510,7 +1491,7 @@ impl Reactor {
             .transpose()?;
 
         if let Some(handler) = handler {
-            self.set_meta_handler(handler)?;
+            self.cell_handlers.set_meta_handler(handler)?;
         }
 
         Ok(msg)
@@ -1788,7 +1769,7 @@ impl Reactor {
 
         // We need to construct this early so that we don't double-borrow &mut self
 
-        let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
+        let Some(handler) = self.cell_handlers.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
                 "Cannot handle BEGIN cells on this circuit".into(),
             ));
@@ -1955,6 +1936,37 @@ impl Reactor {
     /// Return the hop corresponding to `hopnum`, if there is one.
     fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
         self.hops.get_mut(Into::<usize>::into(hopnum))
+    }
+}
+
+impl CellHandlers {
+    /// Try to install a given meta-cell handler to receive any unusual cells on
+    /// this circuit, along with a result channel to notify on completion.
+    fn set_meta_handler(&mut self, handler: Box<dyn MetaCellHandler + Send>) -> Result<()> {
+        if self.meta_handler.is_none() {
+            self.meta_handler = Some(handler);
+            Ok(())
+        } else {
+            Err(Error::from(internal!(
+                "Tried to install a meta-cell handler before the old one was gone."
+            )))
+        }
+    }
+
+    /// Try to install a given cell handler on this circuit.
+    #[cfg(feature = "hs-service")]
+    fn set_incoming_stream_req_handler(
+        &mut self,
+        handler: IncomingStreamRequestHandler,
+    ) -> Result<()> {
+        if self.incoming_stream_req_handler.is_none() {
+            self.incoming_stream_req_handler = Some(handler);
+            Ok(())
+        } else {
+            Err(Error::from(internal!(
+                "Tried to install a BEGIN cell handler before the old one was gone."
+            )))
+        }
     }
 }
 
