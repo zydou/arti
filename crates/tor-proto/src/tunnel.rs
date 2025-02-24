@@ -23,6 +23,35 @@ use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::StreamId;
 
+// TODO(#1857): Make this pub and not `allow(dead_code)`.
+/// A precise position in a tunnel.
+#[allow(dead_code)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum HopLocation {
+    // TODO(#1857): The `Hop` variant should become `Leg((LegId, HopNum))`.
+    // It doesn't make sense to do this yet since the reactor doesn't yet have a concept of tunnel legs.
+    /// A specific position in a circuit.
+    Hop(HopNum),
+    // TODO(#1857): Add a `JoinPoint` variant.
+    // It doesn't make sense to do this yet since it's only applicable to multi-path tunnels,
+    // and the reactor doesn't yet have a concept of a multi-path tunnel.
+}
+
+// TODO(#1857): Make this pub and not `allow(dead_code)`.
+/// A position in a tunnel.
+#[allow(dead_code)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum TargetHop {
+    /// A specific position in a tunnel.
+    Hop(HopLocation),
+    /// The last hop of a tunnel.
+    ///
+    /// This should be used only when you don't care about what specific hop is used.
+    /// Some tunnels may be extended or truncated,
+    /// which means that the "last hop" may change at any time.
+    LastHop,
+}
+
 /// Internal handle, used to implement a stream on a particular circuit.
 ///
 /// The reader and the writer for a stream should hold a `StreamTarget` for the stream;
