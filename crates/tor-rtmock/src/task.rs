@@ -857,7 +857,7 @@ impl MockExecutor {
         })
     }
 
-    /// Call a an async `Future` from a subthread
+    /// Call an async `Future` from a subthread
     ///
     /// Blocks the subthread, and arranges to run async tasks,
     /// including `fut`, until `fut` completes.
