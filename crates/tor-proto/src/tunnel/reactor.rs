@@ -58,7 +58,7 @@ use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
     StreamId, UnparsedRelayMsg,
 };
-use tor_error::internal;
+use tor_error::{internal, Bug};
 #[cfg(feature = "hs-service")]
 use {
     crate::stream::{DataCmdChecker, IncomingStreamRequest, IncomingStreamRequestFilter},
@@ -828,16 +828,7 @@ impl Reactor {
                 reason,
                 done,
             } => {
-                let res: Result<()> = async {
-                    if let Some(hop) = self.hop_mut(hop_num) {
-                        let res = hop.close_stream(sid, behav, reason)?;
-                        if let Some(cell) = res {
-                            self.send_relay_cell(cell).await?;
-                        }
-                    }
-                    Ok(())
-                }
-                .await;
+                let res: Result<()> = self.close_stream(hop_num, sid, behav, reason).await;
 
                 if let Some(done) = done {
                     // don't care if the sender goes away
@@ -1936,6 +1927,42 @@ impl Reactor {
     /// Return the hop corresponding to `hopnum`, if there is one.
     fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
         self.hops.get_mut(Into::<usize>::into(hopnum))
+    }
+
+    /// Begin a stream with the provided hop in this circuit.
+    fn begin_stream(
+        &mut self,
+        hop_num: HopNum,
+        message: AnyRelayMsg,
+        sender: StreamMpscSender<UnparsedRelayMsg>,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
+        cmd_checker: AnyCmdChecker,
+    ) -> StdResult<Result<(SendRelayCell, StreamId)>, Bug> {
+        let Some(hop) = self.hop_mut(hop_num) else {
+            return Err(internal!(
+                "{}: Attempting to send a BEGIN cell to an unknown hop {hop_num:?}",
+                self.unique_id,
+            ));
+        };
+
+        Ok(hop.begin_stream(message, sender, rx, cmd_checker))
+    }
+
+    /// Close the specified stream
+    async fn close_stream(
+        &mut self,
+        hop_num: HopNum,
+        sid: StreamId,
+        behav: CloseStreamBehavior,
+        reason: streammap::TerminateReason,
+    ) -> Result<()> {
+        if let Some(hop) = self.hop_mut(hop_num) {
+            let res = hop.close_stream(sid, behav, reason)?;
+            if let Some(cell) = res {
+                self.send_relay_cell(cell).await?;
+            }
+        }
+        Ok(())
     }
 }
 
