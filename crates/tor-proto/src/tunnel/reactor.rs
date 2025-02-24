@@ -176,9 +176,9 @@ pub(super) struct CircHop {
     /// this wouldn't be possible, because it would mean holding multiple
     /// mutable references to `self` (the reactor). Note, however,
     /// that there should never be any contention on this mutex:
-    /// we never create more than one [`Reactor::ready_streams_iterator`] stream
+    /// we never create more than one [`Circuit::ready_streams_iterator`] stream
     /// at a time, and we never clone/lock the hop's `StreamMap` outside of
-    ///[`Reactor::ready_streams_iterator`].
+    /// [`Circuit::ready_streams_iterator`].
     ///
     // TODO: encapsulate the Vec<CircHop> into a separate CircHops structure,
     // and hide its internals from the Reactor. The CircHops implementation
@@ -1877,7 +1877,7 @@ impl Circuit {
     /// of its highest priority stream.
     ///
     /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
-    /// To avoid contention, never create more than one [`Reactor::ready_streams_iterator`]
+    /// To avoid contention, never create more than one [`Circuit::ready_streams_iterator`]
     /// stream at a time!
     fn ready_streams_iterator(&self) -> impl Stream<Item = Result<RunOnceCmdInner>> {
         self.hops
