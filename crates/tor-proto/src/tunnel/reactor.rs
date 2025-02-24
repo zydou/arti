@@ -430,6 +430,7 @@ pub(super) enum MetaCellDisposition {
 //
 // TODO(#1857): make this pub
 #[allow(unused)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LegId(pub(crate) LegIdKey);
 
 slotmap_careful::new_key_type! {

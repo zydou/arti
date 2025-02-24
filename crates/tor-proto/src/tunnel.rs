@@ -17,7 +17,7 @@ use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 use circuit::ClientCirc;
 use circuit::{handshake, StreamMpscSender, CIRCUIT_BUFFER_SIZE};
-use reactor::CtrlMsg;
+use reactor::{CtrlMsg, LegId};
 
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
@@ -28,13 +28,15 @@ use tor_cell::relaycell::StreamId;
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) enum HopLocation {
-    // TODO(#1857): The `Hop` variant should become `Leg((LegId, HopNum))`.
-    // It doesn't make sense to do this yet since the reactor doesn't yet have a concept of tunnel legs.
-    /// A specific position in a circuit.
+    /// A specific position in a tunnel.
+    #[cfg(not(feature = "conflux"))]
     Hop(HopNum),
-    // TODO(#1857): Add a `JoinPoint` variant.
-    // It doesn't make sense to do this yet since it's only applicable to multi-path tunnels,
-    // and the reactor doesn't yet have a concept of a multi-path tunnel.
+    /// A specific position in a tunnel.
+    #[cfg(feature = "conflux")]
+    Leg((LegId, HopNum)),
+    /// The join point of a multi-path tunnel.
+    #[cfg(feature = "conflux")]
+    JoinPoint,
 }
 
 // TODO(#1857): Make this pub and not `allow(dead_code)`.
