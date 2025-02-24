@@ -4,6 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use derive_builder::Builder;
 use fs_mistrust::Mistrust;
 use serde::{Deserialize, Serialize};
+use std::io::IsTerminal as _;
 use std::path::Path;
 use std::str::FromStr;
 use tor_config::impl_standard_builder;
@@ -160,11 +161,16 @@ where
         .map(|s| filt_from_str_verbose(s, "--log-level command line parameter"))
         .or_else(|| filt_from_opt_str(&config.console, "logging.console").transpose())
         .unwrap_or_else(|| Ok(Targets::from_str("debug").expect("bad default")))?;
+    let use_color = std::io::stdout().is_terminal();
     // We used to suppress safe-logging on the console, but we removed that
     // feature: we cannot be certain that the console really is volatile. Even
     // if isatty() returns true on the console, we can't be sure that the
     // terminal isn't saving backlog to disk or something like that.
-    Ok(fmt::Layer::default().with_timer(timer).with_filter(filter))
+    Ok(fmt::Layer::default()
+        .with_ansi(use_color)
+        .with_timer(timer)
+        .with_writer(std::io::stdout) // we make this explicit, to match with use_color.
+        .with_filter(filter))
 }
 
 /// Try to construct a tracing [`Layer`] for logging to journald, if one is
