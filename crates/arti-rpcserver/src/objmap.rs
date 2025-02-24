@@ -587,7 +587,7 @@ mod test {
         fn test_roundtrip(a: u32, b: u32, rng: &mut tor_basic_utils::test_rng::TestingRng) {
             let a: u64 = a.into();
             let b: u64 = b.into();
-            let data = KeyData::from_ffi((a << 33) | 1_u64 << 32 | b);
+            let data = KeyData::from_ffi((a << 33) | (1_u64 << 32) | b);
             let idx = if rng.gen_bool(0.5) {
                 GenIdx::Strong(StrongIdx::from(data))
             } else {
