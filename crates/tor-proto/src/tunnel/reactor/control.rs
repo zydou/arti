@@ -283,7 +283,9 @@ impl<'a> ControlHandler<'a> {
                         self.reactor,
                         done,
                     )?;
-                self.reactor.cell_handlers.set_meta_handler(Box::new(extender))?;
+                self.reactor
+                    .cell_handlers
+                    .set_meta_handler(Box::new(extender))?;
 
                 Ok(RunOnceCmdInner::Send { cell, done: None })
             }
@@ -314,7 +316,9 @@ impl<'a> ControlHandler<'a> {
                         self.reactor,
                         done,
                     )?;
-                self.reactor.cell_handlers.set_meta_handler(Box::new(extender))?;
+                self.reactor
+                    .cell_handlers
+                    .set_meta_handler(Box::new(extender))?;
 
                 Ok(RunOnceCmdInner::Send { cell, done: None })
             }
@@ -433,7 +437,10 @@ impl<'a> ControlHandler<'a> {
                     filter,
                 };
 
-                let ret = self.reactor.cell_handlers.set_incoming_stream_req_handler(handler);
+                let ret = self
+                    .reactor
+                    .cell_handlers
+                    .set_incoming_stream_req_handler(handler);
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
 
                 Ok(())
