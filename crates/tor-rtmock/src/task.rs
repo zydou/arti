@@ -792,7 +792,7 @@ impl MockExecutor {
     ///
     /// `call` will be run on a separate thread, called a "Subthread".
     ///
-    /// But it will **not run concurrently** with the executor,
+    /// But it will **not run simultaneously** with the executor,
     /// nor with other Subthreads.
     /// So Subthreads are somewhat like coroutines.
     ///
@@ -823,7 +823,7 @@ impl MockExecutor {
     ///    [`progress_until_stalled`](MockExecutor::progress_until_stalled)
     ///    and the facilities which use it, such as
     ///    [`MockRuntime::advance_until_stalled`](crate::MockRuntime::advance_until_stalled).)
-    ///  * Subthreads never run concurrently -
+    ///  * Subthreads never run in parallel -
     ///    they only run as scheduled deterministically by the `MockExecutor`.
     ///    So using Subthreads eliminates a source of test nonndeterminism.
     ///    (Execution order is still varied due to explicitly varying the scheduling policy.)
