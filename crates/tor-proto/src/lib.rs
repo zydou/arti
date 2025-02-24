@@ -52,11 +52,11 @@
 #[cfg(feature = "bench")]
 pub mod bench_utils;
 pub mod channel;
-pub mod circuit;
 mod congestion;
 mod crypto;
 pub mod memquota;
 pub mod stream;
+pub(crate) mod tunnel;
 mod util;
 
 pub use util::err::{Error, ResolveError};
@@ -65,6 +65,7 @@ pub use util::skew::ClockSkew;
 pub use channel::params::ChannelPaddingInstructions;
 pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
+pub use tunnel::circuit;
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;

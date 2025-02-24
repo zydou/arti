@@ -1,9 +1,9 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
-use crate::circuit::halfstream::HalfStream;
-use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::congestion::sendme;
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
+use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::tunnel::halfstream::HalfStream;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;
@@ -21,7 +21,7 @@ use tor_error::{bad_api_usage, internal};
 
 use rand::Rng;
 
-use crate::circuit::reactor::RECV_WINDOW_INIT;
+use crate::tunnel::reactor::RECV_WINDOW_INIT;
 use tracing::debug;
 
 /// Entry for an open stream
@@ -486,7 +486,7 @@ pub(super) enum TerminateReason {
     /// corresponding senders were all dropped.
     StreamTargetClosed,
     /// Closing a stream because we were explicitly told to end it via
-    /// [`StreamTarget::close_pending`](crate::circuit::StreamTarget::close_pending).
+    /// [`StreamTarget::close_pending`](crate::tunnel::StreamTarget::close_pending).
     ExplicitEnd,
 }
 
@@ -514,7 +514,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::circuit::test::fake_mpsc;
+    use crate::tunnel::circuit::test::fake_mpsc;
     use crate::{congestion::sendme::StreamSendWindow, stream::DataCmdChecker};
 
     #[test]

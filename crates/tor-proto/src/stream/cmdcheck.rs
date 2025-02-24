@@ -20,14 +20,14 @@ pub(crate) enum StreamStatus {
 ///
 /// These checks are called from the circuit reactor code, which runs in its own
 /// task. The reactor code continues calling these checks we have sent our own
-/// END cell on the stream.  See `crate::circuit::halfstream` for more
+/// END cell on the stream.  See `crate::tunnel::circuit::halfstream` for more
 /// information.
 ///
 /// NOTE: The checking DOES NOT take SENDME messages into account; those are
 /// handled separately.  Neither of the methods on this trait will ever be
 /// passed a SENDME message.
 ///
-/// See [`circuit::reactor`](crate::circuit::reactor) for more information on
+/// See [`circuit::reactor`](crate::tunnel::reactor) for more information on
 /// how these checks relate to other checks performed on incoming messages.
 pub(crate) trait CmdChecker: std::fmt::Debug {
     /// Look at a message `msg` and decide whether it can be handled on this

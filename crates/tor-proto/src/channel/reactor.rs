@@ -9,7 +9,7 @@
 use super::circmap::{CircEnt, CircMap};
 use super::OpenChanCellS2C;
 use crate::channel::OpenChanMsgS2C;
-use crate::circuit::halfcirc::HalfCirc;
+use crate::tunnel::circuit::halfcirc::HalfCirc;
 use crate::util::err::ReactorError;
 use crate::util::oneshot_broadcast;
 use crate::{Error, Result};
@@ -37,7 +37,7 @@ use std::sync::Arc;
 use crate::channel::{
     codec::CodecError, kist::KistParams, padding, params::*, unique_id, ChannelDetails, CloseInfo,
 };
-use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
+use crate::tunnel::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -80,7 +80,7 @@ pub enum CtrlMsg {
         /// Channel to send other messages from this circuit down.
         sender: CircuitRxSender,
         /// Oneshot channel to send the new circuit's identifiers down.
-        tx: ReactorResultChannel<(CircId, crate::circuit::UniqId)>,
+        tx: ReactorResultChannel<(CircId, crate::tunnel::circuit::UniqId)>,
     },
     /// Enable/disable/reconfigure channel padding
     ///
@@ -509,8 +509,8 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::{ClosedUnexpectedly, UniqId};
-    use crate::circuit::CircParameters;
     use crate::fake_mpsc;
+    use crate::tunnel::circuit::CircParameters;
     use crate::util::fake_mq;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
@@ -726,7 +726,7 @@ pub(crate) mod test {
     #[test]
     fn deliver_relay() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::circuit::celltypes::ClientCircChanMsg;
+            use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
             use oneshot_fused_workaround as oneshot;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
@@ -814,7 +814,7 @@ pub(crate) mod test {
     #[test]
     fn deliver_destroy() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::circuit::celltypes::*;
+            use crate::tunnel::circuit::celltypes::*;
             use oneshot_fused_workaround as oneshot;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);

@@ -35,41 +35,34 @@
 
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
-mod halfstream;
 
 #[cfg(feature = "hs-common")]
 pub mod handshake;
 #[cfg(not(feature = "hs-common"))]
-mod handshake;
+pub(crate) mod handshake;
 
-#[cfg(feature = "send-control-msg")]
-mod msghandler;
-mod path;
-pub(crate) mod reactor;
-mod streammap;
-mod unique_id;
+pub(super) mod path;
+pub(crate) mod unique_id;
 
 use crate::channel::Channel;
-use crate::circuit::celltypes::*;
-use crate::circuit::reactor::{
-    CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
-};
-pub use crate::circuit::unique_id::UniqId;
 use crate::congestion::params::CongestionControlParams;
-pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
-pub use crate::memquota::StreamAccount;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
 };
+use crate::tunnel::circuit::celltypes::*;
+use crate::tunnel::reactor::CtrlCmd;
+use crate::tunnel::reactor::{
+    CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
+};
+use crate::tunnel::StreamTarget;
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
-use reactor::CtrlCmd;
 use tor_cell::{
     chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -78,10 +71,14 @@ use tor_cell::{
 use tor_error::{internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 
+pub use crate::crypto::binding::CircuitBinding;
+pub use crate::memquota::StreamAccount;
+pub use crate::tunnel::circuit::unique_id::UniqId;
+
 #[cfg(feature = "hs-service")]
 use {
-    crate::circuit::reactor::StreamReqInfo,
     crate::stream::{IncomingCmdChecker, IncomingStream},
+    crate::tunnel::reactor::StreamReqInfo,
 };
 
 use futures::channel::mpsc;
@@ -89,28 +86,25 @@ use oneshot_fused_workaround as oneshot;
 
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::DynTimeProvider;
-use futures::{FutureExt as _, SinkExt as _};
+use futures::FutureExt as _;
 use std::net::IpAddr;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use tor_async_utils::SinkCloseChannel as _;
-use tor_cell::relaycell::StreamId;
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
-// use std::time::Duration;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
+
 pub use path::{Path, PathEntry};
-pub use reactor::syncview::ClientCircSyncView;
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
 #[cfg(feature = "send-control-msg")]
-use reactor::MetaCellHandler;
+use {crate::tunnel::msghandler::UserMsgHandler, crate::tunnel::reactor::MetaCellHandler};
 
+pub use crate::tunnel::reactor::syncview::ClientCircSyncView;
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub use {msghandler::MsgHandler, reactor::MetaCellDisposition};
+pub use {crate::tunnel::msghandler::MsgHandler, crate::tunnel::reactor::MetaCellDisposition};
 
 /// MPSC queue relating to a stream (either inbound or outbound), sender
 pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
@@ -171,9 +165,9 @@ pub struct ClientCirc {
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
-    control: mpsc::UnboundedSender<CtrlMsg>,
+    pub(super) control: mpsc::UnboundedSender<CtrlMsg>,
     /// Channel to send commands to the reactor.
-    command: mpsc::UnboundedSender<CtrlCmd>,
+    pub(super) command: mpsc::UnboundedSender<CtrlCmd>,
     /// A future that resolves to Cancelled once the reactor is shut down,
     /// meaning that the circuit is closed.
     #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
@@ -190,13 +184,13 @@ pub struct ClientCirc {
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
 #[derive(Educe, Default)]
 #[educe(Debug)]
-struct MutableState {
+pub(super) struct MutableState {
     /// Information about this circuit's path.
     ///
     /// This is stored in an Arc so that we can cheaply give a copy of it to
     /// client code; when we need to add a hop (which is less frequent) we use
     /// [`Arc::make_mut()`].
-    path: Arc<path::Path>,
+    pub(super) path: Arc<path::Path>,
 
     /// Circuit binding keys [q.v.][`CircuitBinding`] information for each hop
     /// in the circuit's path.
@@ -206,7 +200,7 @@ struct MutableState {
     /// code to assume that a `CircuitBinding` _must_ exist, so I'm making this
     /// an `Option`.
     #[educe(Debug(ignore))]
-    binding: Vec<Option<CircuitBinding>>,
+    pub(super) binding: Vec<Option<CircuitBinding>>,
 }
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
@@ -250,28 +244,6 @@ impl CircParameters {
             ccontrol,
         }
     }
-}
-
-/// Internal handle, used to implement a stream on a particular circuit.
-///
-/// The reader and the writer for a stream should hold a `StreamTarget` for the stream;
-/// the reader should additionally hold an `mpsc::Receiver` to get
-/// relay messages for the stream.
-///
-/// When all the `StreamTarget`s for a stream are dropped, the Reactor will
-/// close the stream by sending an END message to the other side.
-/// You can close a stream earlier by using [`StreamTarget::close`]
-/// or [`StreamTarget::close_pending`].
-#[derive(Clone, Debug)]
-pub(crate) struct StreamTarget {
-    /// Which hop of the circuit this stream is with.
-    hop_num: HopNum,
-    /// Reactor ID for this stream.
-    stream_id: StreamId,
-    /// Channel to send cells down.
-    tx: StreamMpscSender<AnyRelayMsg>,
-    /// Reference to the circuit that this stream is on.
-    circ: Arc<ClientCirc>,
 }
 
 impl ClientCirc {
@@ -467,7 +439,7 @@ impl ClientCirc {
         reply_handler: impl MsgHandler + Send + 'static,
         hop_num: HopNum,
     ) -> Result<Conversation<'_>> {
-        let handler = Box::new(msghandler::UserMsgHandler::new(hop_num, reply_handler));
+        let handler = Box::new(UserMsgHandler::new(hop_num, reply_handler));
         let conversation = Conversation(self);
         conversation.send_internal(msg, Some(handler)).await?;
         Ok(conversation)
@@ -965,6 +937,9 @@ impl ClientCirc {
 ///
 /// This is obtained from [`ClientCirc::start_conversation`],
 /// and used to send messages to the last hop relay.
+//
+// TODO(conflux): this should use ClientTunnel, and it should be moved into
+// the tunnel module.
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub struct Conversation<'r>(&'r ClientCirc);
@@ -983,7 +958,7 @@ impl Conversation<'_> {
     /// Send a `SendMsgAndInstallHandler` to the reactor and wait for the outcome
     ///
     /// The guts of `start_conversation` and `Conversation::send_msg`
-    async fn send_internal(
+    pub(crate) async fn send_internal(
         &self,
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
         handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
@@ -1018,7 +993,7 @@ impl PendingClientCirc {
         input: CircuitRxReceiver,
         unique_id: UniqId,
         memquota: CircuitAccount,
-    ) -> (PendingClientCirc, reactor::Reactor) {
+    ) -> (PendingClientCirc, crate::tunnel::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel, id, unique_id, input, memquota.clone());
@@ -1151,103 +1126,6 @@ impl PendingClientCirc {
     }
 }
 
-impl StreamTarget {
-    /// Deliver a relay message for the stream that owns this StreamTarget.
-    ///
-    /// The StreamTarget will set the correct stream ID and pick the
-    /// right hop, but will not validate that the message is well-formed
-    /// or meaningful in context.
-    pub(crate) async fn send(&mut self, msg: AnyRelayMsg) -> Result<()> {
-        self.tx.send(msg).await.map_err(|_| Error::CircuitClosed)?;
-        Ok(())
-    }
-
-    /// Close the pending stream that owns this StreamTarget, delivering the specified
-    /// END message (if any)
-    ///
-    /// The stream is closed by sending a [`CtrlMsg::ClosePendingStream`] message to the reactor.
-    ///
-    /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
-    ///
-    /// The StreamTarget will set the correct stream ID and pick the
-    /// right hop, but will not validate that the message is well-formed
-    /// or meaningful in context.
-    ///
-    /// Note that in many cases, the actual contents of an END message can leak unwanted
-    /// information. Please consider carefully before sending anything but an
-    /// [`End::new_misc()`](tor_cell::relaycell::msg::End::new_misc) message over a `ClientCirc`.
-    /// (For onion services, we send [`DONE`](tor_cell::relaycell::msg::EndReason::DONE) )
-    ///
-    /// In addition to sending the END message, this function also ensures
-    /// the state of the stream map entry of this stream is updated
-    /// accordingly.
-    ///
-    /// Normally, you shouldn't need to call this function, as streams are implicitly closed by the
-    /// reactor when their corresponding `StreamTarget` is dropped. The only valid use of this
-    /// function is for closing pending incoming streams (a stream is said to be pending if we have
-    /// received the message initiating the stream but have not responded to it yet).
-    ///
-    /// **NOTE**: This function should be called at most once per request.
-    /// Calling it twice is an error.
-    #[cfg(feature = "hs-service")]
-    pub(crate) fn close_pending(
-        &self,
-        message: reactor::CloseStreamBehavior,
-    ) -> Result<oneshot::Receiver<Result<()>>> {
-        let (tx, rx) = oneshot::channel();
-
-        self.circ
-            .control
-            .unbounded_send(CtrlMsg::ClosePendingStream {
-                stream_id: self.stream_id,
-                hop_num: self.hop_num,
-                message,
-                done: tx,
-            })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        Ok(rx)
-    }
-
-    /// Queue a "close" for the stream corresponding to this StreamTarget.
-    ///
-    /// Unlike `close_pending`, this method does not allow the caller to provide an `END` message.
-    ///
-    /// Once this method has been called, no more messages may be sent with [`StreamTarget::send`],
-    /// on this `StreamTarget`` or any clone of it.
-    /// The reactor *will* try to flush any already-send messages before it closes the stream.
-    ///
-    /// You don't need to call this method if the stream is closing because all of its StreamTargets
-    /// have been dropped.
-    pub(crate) fn close(&mut self) {
-        Pin::new(&mut self.tx).close_channel();
-    }
-
-    /// Called when a circuit-level protocol error has occurred and the
-    /// circuit needs to shut down.
-    pub(crate) fn protocol_error(&mut self) {
-        self.circ.protocol_error();
-    }
-
-    /// Send a SENDME cell for this stream.
-    pub(crate) fn send_sendme(&mut self) -> Result<()> {
-        self.circ
-            .control
-            .unbounded_send(CtrlMsg::SendSendme {
-                stream_id: self.stream_id,
-                hop_num: self.hop_num,
-            })
-            .map_err(|_| Error::CircuitClosed)?;
-        Ok(())
-    }
-
-    /// Return a reference to the circuit that this `StreamTarget` is using.
-    #[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
-    pub(crate) fn circuit(&self) -> &Arc<ClientCirc> {
-        &self.circ
-    }
-}
-
 /// Convert a [`ResolvedVal`] into a Result, based on whether or not
 /// it represents an error.
 fn resolvedval_to_result(val: ResolvedVal) -> Result<ResolvedVal> {
@@ -1260,7 +1138,7 @@ fn resolvedval_to_result(val: ResolvedVal) -> Result<ResolvedVal> {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -2307,7 +2185,7 @@ mod test {
         fn disposition(
             &mut self,
             _ctx: &crate::stream::IncomingStreamRequestContext<'_>,
-            _circ: &ClientCircSyncView<'_>,
+            _circ: &crate::tunnel::reactor::syncview::ClientCircSyncView<'_>,
         ) -> Result<crate::stream::IncomingStreamRequestDisposition> {
             Ok(crate::stream::IncomingStreamRequestDisposition::Accept)
         }

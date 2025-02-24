@@ -4,15 +4,16 @@ use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
 };
-use crate::circuit::celltypes::CreateResponse;
-use crate::circuit::reactor::extender::CircuitExtender;
-use crate::circuit::reactor::{NtorClient, ReactorError};
-use crate::circuit::{path, streammap, CircParameters};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
+use crate::tunnel::circuit::celltypes::CreateResponse;
+use crate::tunnel::circuit::{path, CircParameters};
+use crate::tunnel::reactor::extender::CircuitExtender;
+use crate::tunnel::reactor::{NtorClient, ReactorError};
+use crate::tunnel::streammap;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use tor_cell::chancell::msg::HandshakeType;
@@ -25,8 +26,8 @@ use tor_error::internal;
 use tracing::trace;
 #[cfg(feature = "hs-service")]
 use {
-    super::StreamReqSender, crate::circuit::reactor::IncomingStreamRequestHandler,
-    crate::stream::IncomingStreamRequestFilter,
+    super::StreamReqSender, crate::stream::IncomingStreamRequestFilter,
+    crate::tunnel::reactor::IncomingStreamRequestHandler,
 };
 
 #[cfg(test)]
@@ -34,8 +35,8 @@ use crate::congestion::sendme::CircTag;
 
 use oneshot_fused_workaround as oneshot;
 
-use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::crypto::handshake::ntor::NtorPublicKey;
+use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;

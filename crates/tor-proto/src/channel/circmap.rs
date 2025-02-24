@@ -7,8 +7,8 @@ use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
 
-use crate::circuit::halfcirc::HalfCirc;
-use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
+use crate::tunnel::circuit::halfcirc::HalfCirc;
+use crate::tunnel::circuit::{celltypes::CreateResponse, CircuitRxSender};
 
 use oneshot_fused_workaround as oneshot;
 

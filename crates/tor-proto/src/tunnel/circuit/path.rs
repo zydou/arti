@@ -12,7 +12,7 @@ use crate::crypto::cell::HopNum;
 /// This enum is not public; we want the freedom to change it as we see fit.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(super) enum HopDetail {
+pub(crate) enum HopDetail {
     /// A hop built through a known relay or a set of externally provided
     /// linkspecs.
     ///
@@ -22,7 +22,7 @@ pub(super) enum HopDetail {
     /// backward-compatible way, so it doesn't need to happen right now.
     Relay(OwnedChanTarget),
     /// A hop built using
-    /// [`extend_virtual`](crate::circuit::ClientCirc::extend_virtual).
+    /// [`extend_virtual`](crate::tunnel::circuit::ClientCirc::extend_virtual).
     ///
     /// TODO: Perhaps we'd like to remember something about what the virtual hop
     /// represents?
@@ -106,7 +106,7 @@ impl Path {
     }
 
     /// Add a hop to this path.
-    pub(super) fn push_hop(&mut self, target: HopDetail) {
+    pub(crate) fn push_hop(&mut self, target: HopDetail) {
         self.hops.push(PathEntry { inner: target });
     }
 
