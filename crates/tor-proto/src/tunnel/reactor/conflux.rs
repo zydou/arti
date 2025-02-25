@@ -2,7 +2,9 @@
 
 use slotmap_careful::SlotMap;
 
-use tor_error::{internal, Bug};
+use tor_error::{bad_api_usage, internal, Bug};
+
+use crate::util::err::ReactorError;
 
 use super::{Circuit, LegIdKey};
 
@@ -76,5 +78,25 @@ impl ConfluxSet {
     /// Return whether this conflux set is empty.
     pub(super) fn is_empty(&self) -> bool {
         self.legs.len() == 0
+    }
+
+    /// Remove the specified leg from this conflux set.
+    ///
+    /// Returns an error if the given leg doesn't exist in the set,
+    /// or if after removing the leg the set is depleted (empty).
+    pub(super) fn remove(&mut self, leg: LegIdKey) -> Result<(), ReactorError> {
+        let _: Circuit = self
+            .legs
+            .remove(leg)
+            .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
+
+        // TODO(conflux): if leg == primary_leg, reassign the next best leg to primary_leg
+
+        if self.legs.is_empty() {
+            // The last circuit in the set has just died, so the reactor should exit.
+            return Err(ReactorError::Shutdown);
+        }
+
+        Ok(())
     }
 }
