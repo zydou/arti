@@ -737,9 +737,9 @@ impl Reactor {
         let cmd = match cmd {
             None => None,
             Some(SelectResult::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
-            Some(SelectResult::HandleControl(ctrl)) => Some(RunOnceCmd::Single(
-                ControlHandler::new(self).handle_msg(ctrl)?,
-            )),
+            Some(SelectResult::HandleControl(ctrl)) => ControlHandler::new(self)
+                .handle_msg(ctrl)?
+                .map(RunOnceCmd::Single),
             Some(SelectResult::HandleCell(cell)) => {
                 // TODO(conflux): put the LegId of the circuit the cell was received on
                 // inside HandleCell

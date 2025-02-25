@@ -255,11 +255,30 @@ impl<'a> ControlHandler<'a> {
     }
 
     /// Handle a control message.
-    pub(super) fn handle_msg(&mut self, msg: CtrlMsg) -> Result<RunOnceCmdInner> {
+    pub(super) fn handle_msg(&mut self, msg: CtrlMsg) -> Result<Option<RunOnceCmdInner>> {
         trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
         match msg {
             // This is handled earlier, since it requires blocking.
-            CtrlMsg::Create { .. } => panic!("got a CtrlMsg::Create in handle_control"),
+            CtrlMsg::Create { done, .. } => {
+                if self.reactor.circuits.len() == 1 {
+                    // This should've been handled in Reactor::run_once()
+                    // (ControlHandler::handle_msg() is never called before wait_for_create()).
+                    debug_assert!(!self.reactor.circuits.single_leg()?.hops.is_empty());
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot create first hop twice"
+                    )
+                    .into()));
+                } else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot create first hop on multipath tunnel"
+                    )
+                    .into()));
+                }
+
+                Ok(None)
+            }
             CtrlMsg::ExtendNtor {
                 peer_id,
                 public_key,
@@ -287,7 +306,7 @@ impl<'a> ControlHandler<'a> {
                     .cell_handlers
                     .set_meta_handler(Box::new(extender))?;
 
-                Ok(RunOnceCmdInner::Send { cell, done: None })
+                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
             }
             #[cfg(feature = "ntor_v3")]
             CtrlMsg::ExtendNtorV3 {
@@ -320,7 +339,7 @@ impl<'a> ControlHandler<'a> {
                     .cell_handlers
                     .set_meta_handler(Box::new(extender))?;
 
-                Ok(RunOnceCmdInner::Send { cell, done: None })
+                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
             }
             // TODO(conflux): this should specify which leg this stream is on
             // (currently we assume it's the primary leg)
@@ -336,7 +355,7 @@ impl<'a> ControlHandler<'a> {
                 // Currently, we always begin streams on the primary leg
                 let circ = self.reactor.circuits.primary_leg()?;
                 let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
-                Ok(RunOnceCmdInner::BeginStream { cell, done })
+                Ok(Some(RunOnceCmdInner::BeginStream { cell, done }))
             }
             // TODO(conflux): this should specify which leg this stream is on
             // (currently we assume it's the primary leg)
@@ -349,13 +368,13 @@ impl<'a> ControlHandler<'a> {
             } => {
                 // TODO(conflux): what to do if there are multiple legs?
                 // The hop_num won't be enough to identify the hop the stream is with
-                Ok(RunOnceCmdInner::CloseStream {
+                Ok(Some(RunOnceCmdInner::CloseStream {
                     hop_num,
                     sid: stream_id,
                     behav: message,
                     reason: streammap::TerminateReason::ExplicitEnd,
                     done: Some(done),
-                })
+                }))
             }
             // TODO(conflux): this should specify which leg to send the msg on
             // (currently we send it down the primary leg)
@@ -367,7 +386,7 @@ impl<'a> ControlHandler<'a> {
                     early: false,
                     cell,
                 };
-                Ok(RunOnceCmdInner::Send { cell, done: None })
+                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
             }
             // TODO(conflux): this should specify which leg to send the msg on
             // (currently we send it down the primary leg)
@@ -383,10 +402,10 @@ impl<'a> ControlHandler<'a> {
                     early: false,
                     cell,
                 };
-                Ok(RunOnceCmdInner::Send {
+                Ok(Some(RunOnceCmdInner::Send {
                     cell,
                     done: Some(sender),
-                })
+                }))
             }
             // TODO(conflux): this should specify which leg to send the msg on
             // (currently we send it down the primary leg)
@@ -395,13 +414,13 @@ impl<'a> ControlHandler<'a> {
                 msg,
                 handler,
                 sender,
-            } => Ok(RunOnceCmdInner::SendMsgAndInstallHandler {
+            } => Ok(Some(RunOnceCmdInner::SendMsgAndInstallHandler {
                 msg,
                 handler,
                 done: sender,
-            }),
+            })),
             CtrlMsg::FirstHopClockSkew { answer } => {
-                Ok(RunOnceCmdInner::FirstHopClockSkew { answer })
+                Ok(Some(RunOnceCmdInner::FirstHopClockSkew { answer }))
             }
         }
     }
