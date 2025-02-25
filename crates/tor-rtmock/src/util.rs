@@ -28,14 +28,14 @@ define_derive_deftly! {
         }
     }
 
-    impl <$tgens> SpawnBlocking for $ttype {
-        type Handle<T: Send + 'static> = <$ftype as SpawnBlocking>::Handle<T>;
+    impl <$tgens> Blocking for $ttype {
+        type ThreadHandle<T: Send + 'static> = <$ftype as Blocking>::ThreadHandle<T>;
 
-        fn spawn_blocking<F, T>(&self, f: F) -> <$ftype as SpawnBlocking>::Handle<T>
+        fn spawn_thread<F, T>(&self, f: F) -> <$ftype as Blocking>::ThreadHandle<T>
         where
             F: FnOnce() -> T + Send + 'static,
             T: Send + 'static {
-            self.$fname.spawn_blocking(f)
+            self.$fname.spawn_thread(f)
         }
     }
 
@@ -163,7 +163,7 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
         unimpl::FakeListener, unimpl::FakeStream, ToplevelBlockOn, CoarseInstant, CoarseTimeProvider,
-        NetStreamProvider, Runtime, SleepProvider, SpawnBlocking, TlsProvider, UdpProvider,
+        NetStreamProvider, Runtime, SleepProvider, Blocking, TlsProvider, UdpProvider,
     };
 }
 

@@ -35,7 +35,7 @@ use tracing::{error, trace};
 
 use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
-use tor_rtcompat::{ToplevelBlockOn, SpawnBlocking};
+use tor_rtcompat::{ToplevelBlockOn, Blocking};
 
 use Poll::*;
 use TaskState::*;
@@ -444,10 +444,10 @@ impl Spawn for MockExecutor {
     }
 }
 
-impl SpawnBlocking for MockExecutor {
-    type Handle<T: Send + 'static> = Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
+impl Blocking for MockExecutor {
+    type ThreadHandle<T: Send + 'static> = Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
 
-    fn spawn_blocking<F, T>(&self, f: F) -> Self::Handle<T>
+    fn spawn_thread<F, T>(&self, f: F) -> Self::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
@@ -455,7 +455,7 @@ impl SpawnBlocking for MockExecutor {
         // For the mock executor, everything runs on the same thread.
         // If we need something more complex in the future, we can change this.
         let (tx, rx) = oneshot::channel();
-        self.spawn_identified("spawn_blocking".to_string(), async move {
+        self.spawn_identified("spawn_thread".to_string(), async move {
             match tx.send(f()) {
                 Ok(()) => (),
                 Err(_) => panic!("Failed to send future's output, did future panic?"),
@@ -1581,17 +1581,17 @@ mod test {
 
     #[cfg_attr(not(miri), traced_test)]
     #[test]
-    fn spawn_blocking() {
+    fn spawn_thread() {
         let runtime = MockExecutor::default();
 
         runtime.block_on({
             let runtime = runtime.clone();
             async move {
-                let task_1 = runtime.spawn_blocking(|| 42);
-                let task_2 = runtime.spawn_blocking(|| 99);
+                let thr_1 = runtime.spawn_thread(|| 42);
+                let thr_2 = runtime.spawn_thread(|| 99);
 
-                assert_eq!(task_2.await, 99);
-                assert_eq!(task_1.await, 42);
+                assert_eq!(thr_2.await, 99);
+                assert_eq!(thr_1.await, 42);
             }
         });
     }

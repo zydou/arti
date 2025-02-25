@@ -68,7 +68,7 @@ pub mod unix;
 use std::io;
 pub use traits::{
     ToplevelBlockOn, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
-    NoOpStreamOpsHandle, Runtime, SleepProvider, SpawnBlocking, StreamOps, TlsProvider,
+    NoOpStreamOpsHandle, Runtime, SleepProvider, Blocking, StreamOps, TlsProvider,
     UdpProvider, UdpSocket, UnsupportedStreamOp,
 };
 

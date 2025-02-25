@@ -93,10 +93,10 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> SpawnBlocking
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> Blocking
     for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
-    SpawnR: SpawnBlocking,
+    SpawnR: Blocking,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
@@ -104,16 +104,16 @@ where
     TlsR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
 {
-    type Handle<T: Send + 'static> = SpawnR::Handle<T>;
+    type ThreadHandle<T: Send + 'static> = SpawnR::ThreadHandle<T>;
 
     #[inline]
     #[track_caller]
-    fn spawn_blocking<F, T>(&self, f: F) -> SpawnR::Handle<T>
+    fn spawn_thread<F, T>(&self, f: F) -> SpawnR::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
-        self.inner.spawn.spawn_blocking(f)
+        self.inner.spawn.spawn_thread(f)
     }
 }
 
