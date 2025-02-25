@@ -298,6 +298,8 @@ enum SelectResult {
     HandleControl(CtrlMsg),
     /// Handle an input message.
     HandleCell(ClientCircChanMsg),
+    /// Remove the specified circuit leg.
+    RemoveLeg(LegIdKey),
 }
 
 impl CircHop {
@@ -779,6 +781,10 @@ impl Reactor {
 
                 let circ = self.circuits.primary_leg_mut()?;
                 circ.handle_cell(&mut self.cell_handlers, cell)?
+            }
+            Some(SelectResult::RemoveLeg(leg_id)) => {
+                self.circuits.remove(leg_id)?;
+                None
             }
         };
 
