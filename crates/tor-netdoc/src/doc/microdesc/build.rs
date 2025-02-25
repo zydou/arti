@@ -5,7 +5,7 @@
 
 use super::Microdesc;
 
-use crate::types::family::RelayFamily;
+use crate::types::family::{RelayFamily, RelayFamilyId};
 use crate::types::policy::PortPolicy;
 use crate::{BuildError as Error, BuildResult as Result, Error as ParseError};
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -29,6 +29,8 @@ pub struct MicrodescBuilder {
     ///
     /// See [`Microdesc::family`].
     family: RelayFamily,
+    /// See [`Microdesc::family_ids`]
+    family_ids: Vec<RelayFamilyId>,
     /// See [`Microdesc::ipv4_policy`]
     ipv4_policy: PortPolicy,
     /// See [`Microdesc::ipv6_policy`]
@@ -43,6 +45,7 @@ impl MicrodescBuilder {
         MicrodescBuilder {
             ntor_onion_key: None,
             family: RelayFamily::new(),
+            family_ids: Vec::new(),
             ipv4_policy: PortPolicy::new_reject_all(),
             ipv6_policy: PortPolicy::new_reject_all(),
             ed25519_id: None,
@@ -70,6 +73,12 @@ impl MicrodescBuilder {
     /// By default, this family is empty.
     pub fn family(&mut self, family: RelayFamily) -> &mut Self {
         self.family = family;
+        self
+    }
+
+    /// Add `id` as a family ID for this relay.
+    pub fn add_family_id(&mut self, id: RelayFamilyId) -> &mut Self {
+        self.family_ids.push(id);
         self
     }
 
@@ -138,6 +147,7 @@ impl MicrodescBuilder {
             sha256,
             ntor_onion_key,
             family: self.family.clone().intern(),
+            family_ids: self.family_ids.clone(),
             ipv4_policy: self.ipv4_policy.clone().intern(),
             ipv6_policy: self.ipv6_policy.clone().intern(),
             ed25519_id,

@@ -588,6 +588,16 @@ pub struct NetParameters {
     // so an upper bound of i32::MAX is good enough for our purposes.
     pub kist_tcp_notsent_lowat: BoundedInt32<1, {i32::MAX}> = (1)
         from  "kist-tcp-notsent-lowat",
+
+    /// If true, we use lists of family members
+    /// when making decisions about which relays belong to the same family.
+    pub use_family_lists: BoundedInt32<0,1> = (1)
+        from "use-family-lists",
+
+    /// If true, we use lists of family IDs
+    /// when making decisions about which relays belong to the same family.
+    pub use_family_ids: BoundedInt32<0,1> = (1)
+        from "use-family-ids",
 }
 
 }

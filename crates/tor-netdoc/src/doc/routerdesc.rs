@@ -35,7 +35,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::family::RelayFamily;
+use crate::types::family::{RelayFamily, RelayFamilyId};
 use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
@@ -46,8 +46,9 @@ use ll::pk::ed25519::Ed25519Identity;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 use std::{net, time};
+use tor_cert::CertType;
 use tor_checkable::{signed, timed, Timebound};
-use tor_error::internal;
+use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -172,6 +173,9 @@ pub struct RouterDesc {
     /// same family, they shouldn't be used in the same circuit.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     family: Arc<RelayFamily>,
+    /// Declared (and proven) family IDs for this relay. If two relays
+    /// share a family ID, they shouldn't be used in the same circuit.
+    family_ids: Vec<RelayFamilyId>,
     /// Software and version that this relay says it's running.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     platform: Option<RelayPlatform>,
@@ -227,6 +231,7 @@ decl_keyword! {
         "contact" => CONTACT,
         "extra-info-digest" => EXTRA_INFO_DIGEST,
         "family" => FAMILY,
+        "family-cert" => FAMILY_CERT,
         "fingerprint" => FINGERPRINT,
         "hibernating" => HIBERNATING,
         "identity-ed25519" => IDENTITY_ED25519,
@@ -303,6 +308,7 @@ static ROUTER_BODY_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     rules.add(POLICY.rule().may_repeat().args(1..));
     rules.add(IPV6_POLICY.rule().args(2..));
     rules.add(FAMILY.rule().args(1..));
+    rules.add(FAMILY_CERT.rule().obj_required().may_repeat());
     rules.add(CACHES_EXTRA_INFO.rule().no_args());
     rules.add(OR_ADDRESS.rule().may_repeat().args(1..));
     rules.add(TUNNELLED_DIR_SERVER.rule());
@@ -407,6 +413,16 @@ impl RouterDesc {
             .map(|a| net::SocketAddr::new(a.into(), self.orport))
             .into_iter()
             .chain(self.ipv6addr.map(net::SocketAddr::from))
+    }
+
+    /// Return the declared family of this descriptor.
+    pub fn family(&self) -> Arc<RelayFamily> {
+        Arc::clone(&self.family)
+    }
+
+    /// Return the authenticated family IDs of this descriptor.
+    pub fn family_ids(&self) -> &[RelayFamilyId] {
+        &self.family_ids[..]
     }
 
     /// Helper: tokenize `s`, and divide it into three validated sections.
@@ -694,6 +710,32 @@ impl RouterDesc {
             family.intern()
         };
 
+        // Family ids (for "happy families")
+        let family_certs: Vec<tor_cert::UncheckedCert> = body
+            .slice(FAMILY_CERT)
+            .iter()
+            .map(|ent| {
+                ent.parse_obj::<UnvalidatedEdCert>("FAMILY CERT")?
+                    .check_cert_type(CertType::FAMILY_V_IDENTITY)?
+                    .check_subject_key_is(identity_cert.peek_signing_key())?
+                    .into_unchecked()
+                    .should_have_signing_key()
+                    .map_err(|e| {
+                        EK::BadObjectVal
+                            .with_msg("missing public key")
+                            .at_pos(ent.pos())
+                            .with_source(e)
+                    })
+            })
+            .collect::<Result<_>>()?;
+
+        let mut family_ids: Vec<_> = family_certs
+            .iter()
+            .map(|cert| RelayFamilyId::Ed25519(*cert.peek_signing_key()))
+            .collect();
+        family_ids.sort();
+        family_ids.dedup();
+
         // or-address
         // Extract at most one ipv6 address from the list.  It's not great,
         // but it's what Tor does.
@@ -766,11 +808,20 @@ impl RouterDesc {
 
         let identity_cert = identity_cert.dangerously_assume_timely();
         let crosscert_cert = crosscert_cert.dangerously_assume_timely();
-        let expirations = &[
+        let mut expirations = vec![
             published + time::Duration::new(ROUTER_EXPIRY_SECONDS, 0),
             identity_cert.expiry(),
             crosscert_cert.expiry(),
         ];
+
+        for cert in family_certs {
+            let (inner, sig) = cert.dangerously_split().map_err(into_internal!(
+                "Missing a public key that was previously there."
+            ))?;
+            signatures.push(Box::new(sig));
+            expirations.push(inner.dangerously_assume_timely().expiry());
+        }
+
         // Unwrap is safe here because `expirations` array is not empty
         #[allow(clippy::unwrap_used)]
         let expiry = *expirations.iter().min().unwrap();
@@ -794,6 +845,7 @@ impl RouterDesc {
             is_dircache,
             is_extrainfo_cache,
             family,
+            family_ids,
             platform,
             ipv4_policy,
             ipv6_policy: ipv6_policy.intern(),
@@ -924,6 +976,8 @@ mod test {
     use super::*;
     const TESTDATA: &str = include_str!("../../testdata/routerdesc1.txt");
     const TESTDATA2: &str = include_str!("../../testdata/routerdesc2.txt");
+    // Generated with a patched C tor to include "happy family" IDs.
+    const TESTDATA3: &str = include_str!("../../testdata/routerdesc3.txt");
 
     fn read_bad(fname: &str) -> String {
         use std::fs;
@@ -1122,5 +1176,27 @@ mod test {
         let p = "arti 0.0.0".parse::<RelayPlatform>();
         assert!(p.is_ok());
         assert_eq!(p.unwrap(), RelayPlatform::Other("arti 0.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_family_ids() -> Result<()> {
+        use tor_checkable::{SelfSigned, Timebound};
+        let rd = RouterDesc::parse(TESTDATA3)?
+            .check_signature()?
+            .dangerously_assume_timely();
+
+        assert_eq!(
+            rd.family_ids(),
+            &[
+                "ed25519:7sToQRuge1bU2hS0CG0ViMndc4m82JhO4B4kdrQey80"
+                    .parse()
+                    .unwrap(),
+                "ed25519:szHUS3ItRd9uk85b1UVnOZx1gg4B0266jCpbuIMNjcM"
+                    .parse()
+                    .unwrap(),
+            ]
+        );
+
+        Ok(())
     }
 }

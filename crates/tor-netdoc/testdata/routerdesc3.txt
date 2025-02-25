@@ -1,0 +1,62 @@
+router Fred 10.3.2.1 9005 0 0
+identity-ed25519
+-----BEGIN ED25519 CERT-----
+AQQAB19aAdrDHryhWdKD+DQf2Q1/oc2Vv17Mq2V/eVJmLmflavvjAQAgBACrcmDy
+Dtq4IImQND8LmVSyC0KwvYHIJWvrqwxw1BdQzJMEjqGrbbK73KVou3lU6CYXipEe
+hH73Ape5FN8n9jjpFCXRetZ0EpSoxsmocvHJVeDtn6nwvX09cAu4c+HP0g8=
+-----END ED25519 CERT-----
+master-key-ed25519 q3Jg8g7auCCJkDQ/C5lUsgtCsL2ByCVr66sMcNQXUMw
+platform Tor 0.4.9.1-alpha-dev on Linux
+proto Conflux=1 Cons=1-2 Desc=1-3 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-3 Padding=2 Relay=2-4
+published 1970-01-01 00:00:05
+fingerprint 1D61 24B5 ADCA 2669 0D13 2138 D841 8EE9 AD7A 63DD
+uptime 0
+bandwidth 3000 3000 3000
+onion-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBALKowzZN8UZXm1UFNVpvEtWWfzXjqcNq8h1HqrvwMJQyHxl/OSSH0tuX
+U1fhFT4CasJkw+rbX8SMhHFFDJF2A9glUt2n3p4Z5icTOYySq9eKzBe8OD+1eqyP
+Il5iygcxBYNOkIt+NijgrWiXWyDxUizjBB6rmiDpBJ2aEGjPszKpAgMBAAE=
+-----END RSA PUBLIC KEY-----
+signing-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAMO3ZXrcA+PclKppGCh9TOG0H6mubTAgji4fLF87GelggQs5bnPdQeaS
+v4HgP42J/mMinSLpbg5LhL5gd7AqwOxe9cpEhbvwrM63ot7gkj2tJqs2PLlokqSx
+ZBEAssKbE/8F2iVoEWoXd8g8Pn5nG7wRKDGGQRAjintrBSncTvfRAgMBAAE=
+-----END RSA PUBLIC KEY-----
+onion-key-crosscert
+-----BEGIN CROSSCERT-----
+NlwARcGvOII4FDKd7rE9cTpxDZd9J0+n7T9UZStyA+k8UFbxNG9DCyFJIMw+nzq1
+5us+AF7/57QJcWGPv7jjyiFe42dRrjgHXzlFeTbkAx11zoOjjy2S4q5OBglcexpN
+QtF7S/UFwqfcudbFR/lwhKOLieqzZewI1JV9GhCUHK0=
+-----END CROSSCERT-----
+ntor-onion-key-crosscert 1
+-----BEGIN ED25519 CERT-----
+AQoAAAKhAatyYPIO2rggiZA0PwuZVLILQrC9gcgla+urDHDUF1DMAMGYTR6AFk6I
+3/FveXRgZ6xY0AqJTUqkZevI5dUOZM0xRKN25VxG8UaPRVfxCThKIxk9mWs6ciuR
+waMygI1J8AE=
+-----END ED25519 CERT-----
+hidden-service-dir
+family-cert
+-----BEGIN FAMILY CERT-----
+AQwAAALRAatyYPIO2rggiZA0PwuZVLILQrC9gcgla+urDHDUF1DMAQAgBACzMdRL
+ci1F326TzlvVRWc5nHWCDgHTbrqMKlu4gw2Nw7Fhj/JiuG1fT4PrdNjKibVti4zz
+pzFkHD7tNKIEGjpxsz5FiewGNesf9eg+oMJGcQ7mnR+XNTtvGN/n4diLqw0=
+-----END FAMILY CERT-----
+family-cert
+-----BEGIN FAMILY CERT-----
+AQwAAALRAatyYPIO2rggiZA0PwuZVLILQrC9gcgla+urDHDUF1DMAQAgBADuxOhB
+G6B7VtTaFLQIbRWIyd1zibzYmE7gHiR2tB7Lzf/wEJzgAK3azakvpikflEC6biNc
+wu7p8nbejPfB6jMe0ZxpXjP7YfR9m9j6pfwWlmhwVoCKJIUFtOC9O2EfKg4=
+-----END FAMILY CERT-----
+ntor-onion-key fxZNGRosypedQSNvc1TgL5bh9CGfsnfMCop1O8ZPWi0
+accept *:80
+reject 18.0.0.0/8:24
+tunnelled-dir-server
+router-sig-ed25519 DVYaT6azSAF+yq0IAC6labtY5ZkKBimxeXkVbWZ03yOOLODZw4SN7F86slI/OgDRDvVJheHW2Ic7cSJW8B9oBg
+router-signature
+-----BEGIN SIGNATURE-----
+EnBL05asqRUAXlc9dElRv3qomk68xbDAqI5exEH9Vtl73K9SJPPV9kDy5SKINfC2
+l/zDqCtq8qBEC97OKi3wUmPwSPQHZu3dleux40Lfi0U8WOaxel7yVq3I77fmkvNJ
+oDxmFt2OmCRwIp3AI6YdcDy7Jyez7CNTfUYWm3ZHQwY=
+-----END SIGNATURE-----
