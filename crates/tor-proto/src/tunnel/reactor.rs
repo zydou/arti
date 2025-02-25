@@ -68,6 +68,7 @@ use {
 };
 
 use futures::channel::mpsc;
+use futures::lock::Mutex as AsyncMutex;
 use futures::StreamExt;
 use futures::{select_biased, FutureExt as _, SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
@@ -84,7 +85,7 @@ use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use derive_deftly::Deftly;
 use derive_more::From;
 use safelog::sensitive as sv;
-use tor_async_utils::{SinkPrepareExt as _, SinkTrySend as _, SinkTrySendError as _};
+use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
 use tor_linkspec::RelayIds;
@@ -534,8 +535,18 @@ pub(crate) struct Circuit {
     chan_sender: SometimesUnboundedSink<AnyChanCell, ChannelSender>,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
+    ///
+    /// IMPORTANT: to avoid locking up the reactor, there should never be contention
+    /// on this lock. Currently, this lock is only ever acquired inside
+    /// [`ConfluxSet::circuit_action`].
+    ///
+    /// TODO(conflux): perhaps we should restrict the visibility of the Circuit internals?
+    /// If we moved it to the conflux module, for example, the input channel
+    /// would be unreachable inside this module, thereby making it easier
+    /// to validate and enforce the non-contention invariant described above.
+    ///
     // TODO: could use a SPSC channel here instead.
-    input: CircuitRxReceiver,
+    input: Arc<AsyncMutex<CircuitRxReceiver>>,
     /// The cryptographic state for this circuit for inbound cells.
     /// This object is divided into multiple layers, each of which is
     /// shared with one hop of the circuit.
@@ -643,7 +654,7 @@ impl Reactor {
         let circuit_leg = Circuit {
             channel,
             chan_sender,
-            input,
+            input: Arc::new(AsyncMutex::new(input)),
             crypto_in: InboundClientCrypt::new(),
             hops: vec![],
             unique_id,
@@ -713,62 +724,35 @@ impl Reactor {
         // TODO(conflux): support adding and linking circuits
         // TODO(conflux): support switching the primary leg
 
-        // TODO(conflux): read from *all* the circuits, not just the primary
-        //
-        // Note: this is a big TODO, and will likely involve factoring out the
-        // chan_sender.prepare_send_from() call into a function on Circuit.
-        // Each Circuit will have its own control channel, for handling control
-        // messages meant for it (I imagine some/all CtrlMsgs will have a LegId
-        // field, and that the reactor will redirect the CtrlMsg to the appropriate
-        // Circuit's control channel?). Putting the control channel (which will
-        // probably receive a CtrlMsgInner type) inside the Circuit should enable
-        // us to lift the prepare_send_from() into a Circuit function, that will
-        // get called from ConfluxSet::poll_all_name_tbd() that can be used in
-        // this select_biased! to select between the channel readiness of *all*
-        // underlying circuits.
-        let primary_leg = self.circuits.primary_leg_mut()?;
-        let mut ready_streams = primary_leg.ready_streams_iterator();
+        let mut circs = self.circuits.circuit_action();
 
-        // Note: We don't actually use the returned SinkSendable,
-        // and continue writing to the SometimesUboundedSink :(
-        let (cmd, _sendable) = select_biased! {
+        let action = select_biased! {
                 res = self.command.next() => {
                     let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
+                    // Drop circs so we can borrow self mutably.
+                    drop(circs);
                     return ControlHandler::new(self).handle_cmd(cmd);
                 },
-                res = primary_leg.chan_sender
-                    .prepare_send_from(async {
-                        select_biased! {
-                            // Check whether we've got a control message pending.
-                            ret = self.control.next() => {
-                                let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
-                                Ok::<_, ReactorError>(Some(SelectResult::HandleControl(msg)))
-                            },
-                            // Check whether we've got an input message pending.
-                            ret = primary_leg.input.next().fuse() => {
-                                let cell = unwrap_or_shutdown!(self, ret, "input drop")?;
-                                Ok(Some(SelectResult::HandleCell(cell)))
-                            },
-                            ret = ready_streams.next().fuse() => {
-                                match ret {
-                                    Some(cmd) => {
-                                        let cmd = cmd?;
-                                        Ok(Some(SelectResult::Single(cmd)))
-                                    },
-                                    None => {
-                                        // There are no ready streams (for example, they may all be
-                                        // blocked due to congestion control), so there is nothing
-                                        // to do.
-                                        Ok(None)
-                                    }
-                                }
-                            }
-                        }
-                    }) => res?,
+                // Check whether we've got a control message pending.
+                //
+                // Note: unfortunately, reading from control here means we might start
+                // handling control messages before our chan_senders are ready.
+                // With the current design, this is inevitable: we can't know which circuit leg
+                // a control message is meant for without first reading the control message from
+                // the channel, and at that point, we can't know for sure whether that particular
+                // circuit is ready for sending.
+                ret = self.control.next() => {
+                    let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
+                    Some(SelectResult::HandleControl(msg))
+                },
+                res = circs.next().fuse() => {
+                    unwrap_or_shutdown!(self, res, "empty conflux set")???
+                }
         };
-        let cmd = cmd?;
 
-        let cmd = match cmd {
+        drop(circs);
+
+        let cmd = match action {
             None => None,
             Some(SelectResult::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
             Some(SelectResult::HandleControl(ctrl)) => ControlHandler::new(self)
