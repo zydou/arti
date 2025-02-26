@@ -11,10 +11,10 @@ use tor_error::{bad_api_usage, internal, Bug};
 
 use crate::util::err::ReactorError;
 
-use super::{Circuit, LegIdKey, SelectResult};
+use super::{Circuit, CircuitAction, LegIdKey};
 
 /// Type alias for the result of [`ConfluxSet::circuit_action`].
-type CircuitActionResult = Result<Option<SelectResult>, crate::Error>;
+type CircuitActionResult = Result<Option<CircuitAction>, crate::Error>;
 
 /// A set of linked conflux circuits.
 pub(super) struct ConfluxSet {
@@ -108,7 +108,7 @@ impl ConfluxSet {
         Ok(())
     }
 
-    /// Returns a stream of [`SelectResult`] messages,
+    /// Returns a stream of [`CircuitAction`] messages,
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
     ///
     /// IMPORTANT: this stream locks the input mutexes of each leg,
@@ -140,15 +140,15 @@ impl ConfluxSet {
                         // Check whether we've got an input message pending.
                         ret = input.next().fuse() => {
                             let Some(cell) = ret else {
-                                return Ok(Some(SelectResult::RemoveLeg(leg_id)));
+                                return Ok(Some(CircuitAction::RemoveLeg(leg_id)));
                             };
 
-                            Ok(Some(SelectResult::HandleCell(cell)))
+                            Ok(Some(CircuitAction::HandleCell(cell)))
                         },
                         ret = ready_streams.next().fuse() => {
                             match ret {
                                 Some(cmd) => {
-                                    cmd.map(|cmd| Some(SelectResult::Single(cmd)))
+                                    cmd.map(|cmd| Some(CircuitAction::Single(cmd)))
                                 },
                                 None => {
                                     // There are no ready streams (for example, they may all be

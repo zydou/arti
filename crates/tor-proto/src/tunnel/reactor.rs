@@ -290,9 +290,9 @@ pub(crate) struct SendRelayCell {
     pub(crate) cell: AnyRelayMsgOuter,
 }
 
-/// A [`RunOnceCmdInner`] command to execute at the end of [`Reactor::run_once`].
+/// A command to execute at the end of [`Reactor::run_once`].
 #[derive(From, Debug)]
-enum SelectResult {
+enum CircuitAction {
     /// Run a single `RunOnceCmdInner` command.
     Single(RunOnceCmdInner),
     /// Handle a control message
@@ -743,7 +743,7 @@ impl Reactor {
                 // circuit is ready for sending.
                 ret = self.control.next() => {
                     let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
-                    Some(SelectResult::HandleControl(msg))
+                    Some(CircuitAction::HandleControl(msg))
                 },
                 res = circs.next().fuse() => {
                     unwrap_or_shutdown!(self, res, "empty conflux set")???
@@ -754,11 +754,11 @@ impl Reactor {
 
         let cmd = match action {
             None => None,
-            Some(SelectResult::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
-            Some(SelectResult::HandleControl(ctrl)) => ControlHandler::new(self)
+            Some(CircuitAction::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
+            Some(CircuitAction::HandleControl(ctrl)) => ControlHandler::new(self)
                 .handle_msg(ctrl)?
                 .map(RunOnceCmd::Single),
-            Some(SelectResult::HandleCell(cell)) => {
+            Some(CircuitAction::HandleCell(cell)) => {
                 // TODO(conflux): put the LegId of the circuit the cell was received on
                 // inside HandleCell
                 //let circ = self.circuits.leg(leg_id)?;
@@ -766,7 +766,7 @@ impl Reactor {
                 let circ = self.circuits.primary_leg_mut()?;
                 circ.handle_cell(&mut self.cell_handlers, cell)?
             }
-            Some(SelectResult::RemoveLeg(leg_id)) => {
+            Some(CircuitAction::RemoveLeg(leg_id)) => {
                 self.circuits.remove(leg_id)?;
                 None
             }
