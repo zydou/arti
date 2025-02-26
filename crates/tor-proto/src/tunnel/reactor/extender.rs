@@ -1,6 +1,6 @@
 //! Module providing [`CircuitExtender`].
 
-use super::{Circuit, MetaCellDisposition, MetaCellHandler, Reactor, ReactorResultChannel};
+use super::{Circuit, MetaCellDisposition, MetaCellHandler, ReactorResultChannel};
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
@@ -84,17 +84,14 @@ where
         linkspecs: Vec<EncodedLinkSpec>,
         params: CircParameters,
         client_aux_data: &impl Borrow<H::ClientAuxData>,
-        reactor: &mut Reactor,
+        circ: &mut Circuit,
         done: ReactorResultChannel<()>,
     ) -> Result<(Self, SendRelayCell)> {
         match (|| {
             let mut rng = rand::thread_rng();
-            let unique_id = reactor.unique_id;
+            let unique_id = circ.unique_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
-            let circ = reactor.circuits.single_leg().map_err(|_| {
-                tor_error::internal!("cannot extend circuit with more than one leg?!")
-            })?;
             let n_hops = circ.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(

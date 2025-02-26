@@ -286,7 +286,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                if self.reactor.circuits.len() > 1 {
+                let Ok(circ) = self.reactor.circuits.single_leg() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -294,7 +294,7 @@ impl<'a> ControlHandler<'a> {
                     .into()));
 
                     return Ok(None);
-                }
+                };
 
                 // ntor handshake only supports V0.
                 /// Local type alias to ensure consistency below.
@@ -309,7 +309,7 @@ impl<'a> ControlHandler<'a> {
                         linkspecs,
                         params,
                         &(),
-                        self.reactor,
+                        circ,
                         done,
                     )?;
                 self.reactor
@@ -326,7 +326,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                if self.reactor.circuits.len() > 1 {
+                let Ok(circ) = self.reactor.circuits.single_leg() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -334,7 +334,7 @@ impl<'a> ControlHandler<'a> {
                     .into()));
 
                     return Ok(None);
-                }
+                };
 
                 // TODO #1067: support negotiating other formats.
                 /// Local type alias to ensure consistency below.
@@ -352,7 +352,7 @@ impl<'a> ControlHandler<'a> {
                         linkspecs,
                         params,
                         &client_extensions,
-                        self.reactor,
+                        circ,
                         done,
                     )?;
                 self.reactor
