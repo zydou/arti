@@ -10,7 +10,7 @@ use std::future::Future;
 use std::io::{self, Write as _};
 use std::iter;
 use std::mem;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{catch_unwind, panic_any, AssertUnwindSafe};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
@@ -316,6 +316,9 @@ struct ProgressUntilStalledFuture {
 /// That's OK (and documented).
 #[derive(Copy, Clone, Eq, PartialEq, derive_more::Debug)]
 enum ThreadDescriptor {
+    /// Foreign - neither the (running) executor, nor a Subthread
+    #[debug("FOREIGN")]
+    Foreign,
     /// The executor.
     #[debug("Exe")]
     Executor,
@@ -333,7 +336,7 @@ struct IsSubthread;
 thread_local! {
     /// Identifies this thread.
     pub static THREAD_DESCRIPTOR: Cell<ThreadDescriptor> = const {
-        Cell::new(ThreadDescriptor::Executor)
+        Cell::new(ThreadDescriptor::Foreign)
     };
 }
 
@@ -613,8 +616,25 @@ impl MockExecutor {
     /// Might malfunction or panic if called reentrantly
     fn execute_until_first_stall(&self, main_fut: MainFuture) {
         trace!("MockExecutor execute_until_first_stall ...");
-        self.executor_main_loop(main_fut);
-        trace!("MockExecutor execute_until_first_stall done.");
+
+        assert_eq!(
+            THREAD_DESCRIPTOR.get(),
+            ThreadDescriptor::Foreign,
+            "MockExecutor executor re-entered"
+        );
+        THREAD_DESCRIPTOR.set(ThreadDescriptor::Executor);
+
+        let r = catch_unwind(AssertUnwindSafe(|| self.executor_main_loop(main_fut)));
+
+        THREAD_DESCRIPTOR.set(ThreadDescriptor::Foreign);
+
+        match r {
+            Ok(()) => trace!("MockExecutor execute_until_first_stall done."),
+            Err(e) => {
+                trace!("MockExecutor executor, or async task, panicked!");
+                panic_any(e)
+            }
+        }
     }
 
     /// Keep polling tasks until `awake` is empty (inner, executor main loop)
@@ -945,8 +965,11 @@ impl MockExecutor {
 
         let id = match THREAD_DESCRIPTOR.get() {
             ThreadDescriptor::Subthread(id) => id,
-            ThreadDescriptor::Executor => panic!(
-                "subthread_block_on_future called on thread not spawned with spawn_subthread"
+            ThreadDescriptor::Executor => {
+                panic!("subthread_block_on_future called from MockExecutor thread (async task?)")
+            }
+            ThreadDescriptor::Foreign => panic!(
+    "subthread_block_on_future called on foreign thread (not spawned with spawn_subthread)"
             ),
         };
         trace!("MockExecutor thread {id:?}, subthread_block_on_future...");

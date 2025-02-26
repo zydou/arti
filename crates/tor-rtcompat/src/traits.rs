@@ -176,7 +176,6 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
     /// from multiple threads simultaneously.
     ///
     /// (`tor_rtmock::MockExecutor`'s implementation will often detect violations.)
-    // ^ XXXX have threads be Foreign or None by default in rtmock, and make that true
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
 
