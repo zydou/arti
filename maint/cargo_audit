@@ -27,11 +27,16 @@ IGNORE=(
     --ignore RUSTSEC-2023-0071
     # instant is unmaintained.
     #
-    # This was fixed upstream in
-    # https://github.com/notify-rs/notify/pull/652
-    # but we're waiting for notify to cut a release.
+    # The current dependency path is:
+    # arti -> signal-hook-async-std -> futures-lite -> fastrand -> instant
     #
-    # Ignoring while we are waiting for the notify version bump
+    # The 'signal-hook-async-std' lib hasn't been updated in three years and depends on `futures-lite = "~1"`.
+    # The latest 'futures-lite' 2.6.0 uses a version of 'fastrand' that does not depend on instant.
+    #
+    # We should consider trying to upstream patches for 'signal-hook-async-std',
+    # or remove arti's dependence on it.
+    #
+    # https://gitlab.torproject.org/tpo/core/arti/-/issues/1867
     --ignore RUSTSEC-2024-0384
 )
 
