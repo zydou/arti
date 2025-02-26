@@ -67,8 +67,8 @@ pub mod unix;
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 use std::io;
 pub use traits::{
-    ToplevelBlockOn, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
-    NoOpStreamOpsHandle, Runtime, SleepProvider, Blocking, StreamOps, TlsProvider,
+    Blocking, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
+    NoOpStreamOpsHandle, Runtime, SleepProvider, StreamOps, TlsProvider, ToplevelBlockOn,
     ToplevelRuntime, UdpProvider, UdpSocket, UnsupportedStreamOp,
 };
 
@@ -364,8 +364,8 @@ macro_rules! test_with_one_runtime {
 ))]
 mod test {
     #![allow(clippy::unwrap_used, clippy::unnecessary_wraps)]
-    use crate::ToplevelRuntime;
     use crate::SleepProviderExt;
+    use crate::ToplevelRuntime;
 
     use crate::traits::*;
 

@@ -181,8 +181,8 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::net::SocketAddr;
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
-        unimpl::FakeListener, unimpl::FakeStream, ToplevelBlockOn, CoarseInstant, CoarseTimeProvider,
-        NetStreamProvider, Runtime, SleepProvider, Blocking, TlsProvider, UdpProvider,
+        unimpl::FakeListener, unimpl::FakeStream, Blocking, CoarseInstant, CoarseTimeProvider,
+        NetStreamProvider, Runtime, SleepProvider, TlsProvider, ToplevelBlockOn, UdpProvider,
     };
 }
 

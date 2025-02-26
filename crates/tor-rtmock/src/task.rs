@@ -35,7 +35,7 @@ use tracing::{error, trace};
 
 use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
-use tor_rtcompat::{ToplevelBlockOn, Blocking};
+use tor_rtcompat::{Blocking, ToplevelBlockOn};
 
 use Poll::*;
 use TaskState::*;
@@ -445,7 +445,8 @@ impl Spawn for MockExecutor {
 }
 
 impl Blocking for MockExecutor {
-    type ThreadHandle<T: Send + 'static> = Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
+    type ThreadHandle<T: Send + 'static> =
+        Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
 
     fn spawn_thread<F, T>(&self, f: F) -> Self::ThreadHandle<T>
     where

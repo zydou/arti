@@ -1,7 +1,7 @@
 //! Entry points for use with Tokio runtimes.
 use crate::impls::tokio::TokioRuntimeHandle as Handle;
 
-use crate::{ToplevelBlockOn, CompoundRuntime, RealCoarseTimeProvider};
+use crate::{CompoundRuntime, RealCoarseTimeProvider, ToplevelBlockOn};
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 
 #[cfg(feature = "native-tls")]
