@@ -398,6 +398,8 @@ impl<'a> ControlHandler<'a> {
             }
             // TODO(conflux): this should specify which leg to send the msg on
             // (currently we send it down the primary leg)
+            //
+            // TODO(#1860): remove stream-level sendme support
             CtrlMsg::SendSendme { stream_id, hop_num } => {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
