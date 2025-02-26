@@ -127,6 +127,15 @@ where
     {
         self.inner.spawn.reenter_block_on(future)
     }
+
+    #[track_caller]
+    fn blocking_io<F, T>(&self, f: F) -> impl futures::Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        self.inner.spawn.blocking_io(f)
+    }
 }
 
 impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> ToplevelBlockOn

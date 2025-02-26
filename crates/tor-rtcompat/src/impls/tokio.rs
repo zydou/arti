@@ -352,6 +352,16 @@ impl Blocking for TokioRuntimeHandle {
     fn reenter_block_on<F: Future>(&self, future: F) -> F::Output {
         self.handle.block_on(future)
     }
+
+    #[track_caller]
+    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        let r = tokio_crate::task::block_in_place(f);
+        std::future::ready(r)
+    }
 }
 
 impl futures::task::Spawn for TokioRuntimeHandle {

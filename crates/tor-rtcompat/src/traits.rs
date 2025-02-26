@@ -196,7 +196,6 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
 /// for these operations.
 ///
 /// Use [`blocking_io`](Blocking::blocking_io)
-// XXXX this function doesn't exist yet
 /// when the blocking code is usually expected to be fast,
 /// and/or you will be switching back and forth a lot
 /// between sync and async contexts.
@@ -301,7 +300,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// ### Panics
     ///
     /// Must only be called on a thread made with `Blocking::spawn_thread`.
-    /// **Not** allowed within [`blocking_io`](Blocking::block_in_place).
+    /// **Not** allowed within [`blocking_io`](Blocking::blocking_io).
     ///
     /// Otherwise it may malfunction or panic.
     /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
@@ -309,6 +308,56 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     where
         F: Future + Send + 'static,
         F::Output: Send + 'static;
+
+    /// Perform some blocking IO from an async future
+    ///
+    /// Call the blocking function `f`, informing the async executor
+    /// that we are going to perform blocking IO.
+    ///
+    /// This is a usually-faster, but simpler, alternative to [`Blocking::spawn_thread`].
+    ///
+    /// Its API can be more convenient than `spawn_thread`.
+    /// `blocking_is` is intended to be more performant than `spawn_thread`
+    /// when called repeatedly (ie, when switching quickly between sync and async).
+    ///
+    /// See [`Blocking`]'s trait-level docs for more information about
+    /// the performance properties, and on choosing between `blocking_io`
+    /// and `spawn_thread`.
+    /// (Avoid using `blocking_io` for CPU-intensive work.)
+    ///
+    /// ### Limitations
+    ///
+    ///  * `f` may **not** call [`Blocking::reenter_block_on`], so:
+    ///  * `f` cannot execute any futures.
+    ///    If this is needed, break up `f` into smaller pieces so that the
+    ///    futures can be awaited outside the call to `blocking_io`,
+    ///    or use `spawn_thread` for the whole activity.
+    ///  * `f` *may* be called on the calling thread when `blocking_io` is called,
+    ///    on an executor thread when the returned future is polled,
+    ///    or a different thread.
+    ///  * Not suitable for CPU-intensive work; use `spawn_thread` for that.
+    ///  * Performance better than using `spawn_thread` each time is not guaranteed.
+    ///
+    /// ### Panics
+    ///
+    /// `Blocking::block_in_place` may only be called from within
+    /// a task or future being polled by this `Runtime`.
+    ///
+    /// Otherwise it may malfunction or panic.
+    /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
+    // ^ XXXX that needs special code in tor-rtmodk
+    ///
+    /// ### Fallback (provided) implementation
+    ///
+    /// The fallback implementation is currently used with `async_std`.
+    /// It spawns a thread with `spawn_thread`, once for each `blocking_io` call.
+    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        self.spawn_thread(f)
+    }
 }
 
 /// Trait providing additional operations on network sockets.
