@@ -946,8 +946,8 @@ impl Reactor {
             } => {
                 // TODO(conflux): instead of crashing the reactor, it might be better
                 // to send the error via the done channel instead
-                let legs = self.circuits.single_leg()?;
-                legs.handle_create(recv_created, handshake, &params, done)
+                let leg = self.circuits.single_leg()?;
+                leg.handle_create(recv_created, handshake, &params, done)
                     .await
             }
             _ => {
