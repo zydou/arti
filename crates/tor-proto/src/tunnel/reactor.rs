@@ -698,7 +698,11 @@ impl Reactor {
 
         // If this is a single path circuit, we need to wait until the first hop
         // is created before doing anything else
-        if self.circuits.single_leg_mut().is_ok_and(|c| c.hops.is_empty()) {
+        if self
+            .circuits
+            .single_leg_mut()
+            .is_ok_and(|c| c.hops.is_empty())
+        {
             self.wait_for_create().await?;
 
             return Ok(());
