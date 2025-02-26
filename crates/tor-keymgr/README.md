@@ -24,9 +24,12 @@ The following key store implementations are provided:
 * [`ArtiNativeKeystore`]: an on-disk store that stores keys in OpenSSH format.
   It does not currently support keys that have a passphrase. Passphrase support
   will be added in the future (see [#902]).
-* (not yet implemented) C Tor key store: an on-disk store that is
-  backwards-compatible with C Tor (new keys are stored in the format used by C
-  Tor, and any existing keys are expected to be in this format too).
+* [`CTorServiceKeystore`] (experimental): an on-disk keystore providing
+  read-only access to the hidden service keys rooted at a given
+  `HiddenServiceDirectory` directory (see `HiddenServiceDirectory` in `tor(1)`).
+* [`CTorClientKeystore`]  (experimental): an on-disk keystore providing
+  read-only access to the client restricted discovery keys rooted at a given
+  `ClientOnionAuthDir` directory (see `ClientOnionAuthDir` in `tor(1)`).
 
 In the future we plan to also support HSM-based key stores.
 
