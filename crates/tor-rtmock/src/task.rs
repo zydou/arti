@@ -452,7 +452,7 @@ impl SpawnBlocking for MockExecutor {
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
-        // For the mock executor, everything goes on the same threadpool.
+        // For the mock executor, everything runs on the same thread.
         // If we need something more complex in the future, we can change this.
         let (tx, rx) = oneshot::channel();
         self.spawn_identified("spawn_blocking".to_string(), async move {
