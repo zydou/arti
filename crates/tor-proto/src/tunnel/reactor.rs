@@ -686,7 +686,7 @@ impl Reactor {
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
         // If this is a single path circuit, we need to wait until the first hop
         // is created before doing anything else
-        if self.circuits.len() == 1 && self.circuits.single_leg()?.hops.is_empty() {
+        if self.circuits.single_leg().is_ok_and(|c| c.hops.is_empty()) {
             self.wait_for_create().await?;
 
             return Ok(());
