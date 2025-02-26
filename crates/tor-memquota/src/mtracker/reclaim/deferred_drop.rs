@@ -49,13 +49,13 @@ impl<'m> GuardWithDeferredDrop<'m> {
     }
 }
 
-impl Deref for GuardWithDeferredDrop<'_> {
+impl std::ops::Deref for GuardWithDeferredDrop<'_> {
     type Target = State;
     fn deref(&self) -> &State {
         self.guard.as_ref().expect("deref after drop")
     }
 }
-impl DerefMut for GuardWithDeferredDrop<'_> {
+impl std::ops::DerefMut for GuardWithDeferredDrop<'_> {
     fn deref_mut(&mut self) -> &mut State {
         self.deref_mut_both().0
     }

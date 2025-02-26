@@ -27,7 +27,7 @@ __is_experimental = []
 backtrace = []
 
 [dependencies]
-derive_more = { version = "1.0.0", features = ["full"] }
+derive_more = { version = "2.0.1", features = ["full"] }
 futures = { version = "0.3", optional = true }
 once_cell = "1"
 paste = "1"

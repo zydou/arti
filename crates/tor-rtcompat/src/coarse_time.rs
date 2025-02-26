@@ -132,6 +132,7 @@ macro_rules! impl_add_sub { { $($AddSub:ident),* $(,)? } => { paste! { $(
     }
     impl std::ops::[< $AddSub Assign >]<CoarseDuration> for CoarseInstant {
         fn [< $AddSub:lower _assign >](&mut self, rhs: CoarseDuration) {
+            use std::ops::$AddSub;
             *self = self.[< $AddSub:lower >](rhs);
         }
     }

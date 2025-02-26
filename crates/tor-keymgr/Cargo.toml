@@ -48,7 +48,7 @@ cfg-if = "1.0.0"
 data-encoding = { version = "2.3.1", optional = true }
 derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = { version = "1.0.0", features = ["full"] }
+derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
 dyn-clone = "1.0.11"
 fs-mistrust = { path = "../fs-mistrust", version = "0.9.0", features = ["serde", "walkdir"] }
