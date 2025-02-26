@@ -32,8 +32,8 @@ full = [
 anyhow = "1.0.23"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = { version = "1.0.0", features = ["full"] }
-directories = "5"
+derive_more = { version = "2.0.1", features = ["full"] }
+directories = "6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.9.0", features = ["serde"] }
 once_cell = "1"
 rand = "0.8.5"

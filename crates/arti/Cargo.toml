@@ -129,7 +129,7 @@ humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.14.0"
 libc = "0.2"
-notify = { version = "7", default-features = false, features = ["macos_kqueue"] }
+notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
 paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rlimit = "0.10.1"
@@ -169,7 +169,7 @@ visibility = { version = "0.1.0", optional = true }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.27.0", default-features = false, features = [
     "testing",
 ] }
-derive_more = { version = "1.0.0", features = ["full"] }
+derive_more = { version = "2.0.1", features = ["full"] }
 itertools = "0.14.0"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 regex = { version = "1", default-features = false, features = ["std"] }

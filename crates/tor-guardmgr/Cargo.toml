@@ -57,7 +57,7 @@ amplify = { version = "4", default-features = false, features = ["derive"] }
 base64ct = "1.5.1"
 derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
-derive_more = { version = "1.0.0", features = ["full"] }
+derive_more = { version = "2.0.1", features = ["full"] }
 dyn-clone = "1.0.4"
 educe = "0.4.6"
 futures = "0.3.14"

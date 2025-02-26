@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use derive_more::{From, Into};
+use derive_more::From;
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
