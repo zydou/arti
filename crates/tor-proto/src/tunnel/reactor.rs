@@ -882,7 +882,8 @@ impl Reactor {
                 }
             }
             RunOnceCmdInner::HandleSendMe { hop, sendme } => {
-                // TODO(#1860): do not use stream-level sendme if conflux is enabled!!!
+                // TODO(conflux): this should specify which leg of the circuit the SENDME
+                // came on
                 let leg = self.circuits.single_leg()?;
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
