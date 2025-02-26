@@ -727,27 +727,27 @@ impl Reactor {
         let mut circs = self.circuits.circuit_action();
 
         let action = select_biased! {
-                res = self.command.next() => {
-                    let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
-                    // Drop circs so we can borrow self mutably.
-                    drop(circs);
-                    return ControlHandler::new(self).handle_cmd(cmd);
-                },
-                // Check whether we've got a control message pending.
-                //
-                // Note: unfortunately, reading from control here means we might start
-                // handling control messages before our chan_senders are ready.
-                // With the current design, this is inevitable: we can't know which circuit leg
-                // a control message is meant for without first reading the control message from
-                // the channel, and at that point, we can't know for sure whether that particular
-                // circuit is ready for sending.
-                ret = self.control.next() => {
-                    let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
-                    Some(CircuitAction::HandleControl(msg))
-                },
-                res = circs.next().fuse() => {
-                    unwrap_or_shutdown!(self, res, "empty conflux set")???
-                }
+            res = self.command.next() => {
+                let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
+                // Drop circs so we can borrow self mutably.
+                drop(circs);
+                return ControlHandler::new(self).handle_cmd(cmd);
+            },
+            // Check whether we've got a control message pending.
+            //
+            // Note: unfortunately, reading from control here means we might start
+            // handling control messages before our chan_senders are ready.
+            // With the current design, this is inevitable: we can't know which circuit leg
+            // a control message is meant for without first reading the control message from
+            // the channel, and at that point, we can't know for sure whether that particular
+            // circuit is ready for sending.
+            ret = self.control.next() => {
+                let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
+                Some(CircuitAction::HandleControl(msg))
+            },
+            res = circs.next().fuse() => {
+                unwrap_or_shutdown!(self, res, "empty conflux set")???
+            }
         };
 
         drop(circs);
