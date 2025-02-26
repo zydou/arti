@@ -8,7 +8,7 @@ use futures::{AsyncRead, AsyncWrite};
 use futures_rustls::rustls;
 use rustls::client::danger;
 use rustls::{CertificateError, Error as TLSError};
-use rustls_pki_types::{CertificateDer as Certificate, ServerName};
+use rustls_pki_types::{CertificateDer, ServerName};
 
 use std::{
     io::{self, Error as IoError, Result as IoResult},
@@ -168,8 +168,8 @@ struct Verifier {}
 impl danger::ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
-        end_entity: &Certificate,
-        _roots: &[Certificate],
+        end_entity: &CertificateDer,
+        _roots: &[CertificateDer],
         _server_name: &ServerName,
         _ocsp_response: &[u8],
         _now: rustls_pki_types::UnixTime,
@@ -199,7 +199,7 @@ impl danger::ServerCertVerifier for Verifier {
     fn verify_tls12_signature(
         &self,
         message: &[u8],
-        cert: &Certificate,
+        cert: &CertificateDer,
         dss: &rustls::DigitallySignedStruct,
     ) -> Result<danger::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
@@ -222,7 +222,7 @@ impl danger::ServerCertVerifier for Verifier {
     fn verify_tls13_signature(
         &self,
         message: &[u8],
-        cert: &Certificate,
+        cert: &CertificateDer,
         dss: &rustls::DigitallySignedStruct,
     ) -> Result<danger::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
@@ -241,7 +241,9 @@ impl danger::ServerCertVerifier for Verifier {
 }
 
 /// Parse a `rustls::Certificate` as an `x509_signature::X509Certificate`, if possible.
-fn get_cert<'a>(c: &'a Certificate<'a>) -> Result<x509_signature::X509Certificate<'a>, TLSError> {
+fn get_cert<'a>(
+    c: &'a CertificateDer<'a>,
+) -> Result<x509_signature::X509Certificate<'a>, TLSError> {
     x509_signature::parse_certificate(c.as_ref())
         .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
 }
