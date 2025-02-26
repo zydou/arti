@@ -2,7 +2,7 @@
 //! for byte-oriented communication.
 
 use crate::{Error, Result};
-use futures::future::BoxFuture;
+use static_assertions::assert_impl_all;
 use tor_cell::relaycell::msg::EndReason;
 use tor_cell::relaycell::RelayCmd;
 
@@ -127,6 +127,7 @@ pub struct DataStream {
     #[cfg(feature = "stream-ctrl")]
     ctrl: std::sync::Arc<ClientDataStreamCtrl>,
 }
+assert_impl_all! { DataStream: Send, Sync}
 
 /// An object used to control and monitor a data stream.
 ///
@@ -514,6 +515,9 @@ impl TokioAsyncWrite for DataStream {
     }
 }
 
+/// Helper type: Like BoxFuture, but also requires that the future be Sync.
+type BoxSyncFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + Sync + 'a>>;
+
 /// An enumeration for the state of a DataWriter.
 ///
 /// We have to use an enum here because, for as long as we're waiting
@@ -529,8 +533,8 @@ enum DataWriterState {
     Ready(DataWriterImpl),
     /// The writer is flushing a cell.
     Flushing(
-        #[educe(Debug(method = "skip_fmt"))]
-        Pin<Box<dyn Future<Output = (DataWriterImpl, Result<()>)> + Send>>,
+        #[educe(Debug(method = "skip_fmt"))] //
+        BoxSyncFuture<'static, (DataWriterImpl, Result<()>)>,
     ),
 }
 
@@ -575,7 +579,7 @@ impl DataWriter {
         let state = self.state.take().expect("Missing state in DataWriter");
 
         // TODO: this whole function is a bit copy-pasted.
-        let mut future: BoxFuture<_> = match state {
+        let mut future: BoxSyncFuture<_> = match state {
             DataWriterState::Ready(imp) => {
                 if imp.n_pending == 0 {
                     // Nothing to flush!
@@ -771,8 +775,8 @@ enum DataReaderState {
     /// The reader is currently fetching a cell: this future is the
     /// progress it is making.
     ReadingCell(
-        #[educe(Debug(method = "skip_fmt"))]
-        Pin<Box<dyn Future<Output = (DataReaderImpl, Result<()>)> + Send>>,
+        #[educe(Debug(method = "skip_fmt"))] //
+        BoxSyncFuture<'static, (DataReaderImpl, Result<()>)>,
     ),
 }
 
