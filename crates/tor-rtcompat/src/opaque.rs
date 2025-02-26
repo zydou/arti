@@ -27,6 +27,15 @@ macro_rules! implement_opaque_runtime {
         {
             self.$member.spawn_thread(f)
         }
+
+        #[inline]
+        fn reenter_block_on<F>(&self, future: F) -> F::Output
+        where
+            F: futures::Future + Send + 'static,
+            F::Output: Send + 'static
+        {
+            self.$member.reenter_block_on(future)
+        }
     }
 
     impl $crate::traits::ToplevelBlockOn for $t {

@@ -37,6 +37,14 @@ define_derive_deftly! {
             T: Send + 'static {
             self.$fname.spawn_thread(f)
         }
+
+        fn reenter_block_on<F>(&self, future: F) -> F::Output
+        where
+            F: Future + Send + 'static,
+            F::Output: Send + 'static
+        {
+            self.$fname.reenter_block_on(future)
+        }
     }
 
     impl <$tgens> ToplevelBlockOn for $ttype {

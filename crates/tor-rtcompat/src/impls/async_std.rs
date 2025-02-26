@@ -232,4 +232,8 @@ impl Blocking for async_executors::AsyncStd {
     {
         async_executors::SpawnBlocking::spawn_blocking(&self, f)
     }
+
+    fn reenter_block_on<F: Future>(&self, f: F) -> F::Output {
+        async_executors::AsyncStd::block_on(f)
+    }
 }

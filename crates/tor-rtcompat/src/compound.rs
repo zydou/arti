@@ -8,13 +8,15 @@ use crate::{CoarseInstant, CoarseTimeProvider};
 use async_trait::async_trait;
 use educe::Educe;
 use futures::{future::FutureObj, task::Spawn};
+use std::future::Future;
 use std::io::Result as IoResult;
 use std::time::{Instant, SystemTime};
 use tor_general_addr::unix;
 
 /// A runtime made of several parts, each of which implements one trait-group.
 ///
-/// The `SpawnR` component should implement [`Spawn`] and [`ToplevelBlockOn`];
+/// The `SpawnR` component should implement [`Spawn`], [`Blocking`] and maybe [`ToplevelBlockOn`];
+// XXXX SpawnR is rather a bad name for what is becoming a portmanteau.
 /// the `SleepR` component should implement [`SleepProvider`];
 /// the `CoarseTimeR` component should implement [`CoarseTimeProvider`];
 /// the `TcpR` component should implement [`NetStreamProvider`] for [`net::SocketAddr`];
@@ -114,6 +116,16 @@ where
         T: Send + 'static,
     {
         self.inner.spawn.spawn_thread(f)
+    }
+
+    #[inline]
+    #[track_caller]
+    fn reenter_block_on<F>(&self, future: F) -> F::Output
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        self.inner.spawn.reenter_block_on(future)
     }
 }
 

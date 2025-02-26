@@ -69,7 +69,7 @@ use std::io;
 pub use traits::{
     ToplevelBlockOn, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
     NoOpStreamOpsHandle, Runtime, SleepProvider, Blocking, StreamOps, TlsProvider,
-    UdpProvider, UdpSocket, UnsupportedStreamOp,
+    ToplevelRuntime, UdpProvider, UdpSocket, UnsupportedStreamOp,
 };
 
 pub use coarse_time::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};

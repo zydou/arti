@@ -85,6 +85,14 @@ impl<T> Runtime for T where
 {
 }
 
+/// A runtime that we can use to run Tor as a client.
+/// * [`ToplevelBlockOn`] to block on a top-level future and run it to completion
+///   (This may become optional in the future, if/when we add WASM
+///   support).
+///
+pub trait ToplevelRuntime: Runtime + ToplevelBlockOn {}
+impl<T: Runtime + ToplevelBlockOn> ToplevelRuntime for T {}
+
 /// Trait for a runtime that can wait until a timer has expired.
 ///
 /// Every `SleepProvider` also implements
@@ -152,8 +160,23 @@ pub trait CoarseTimeProvider: Clone + Send + Sync + 'static {
 }
 
 /// Trait for a runtime that can be entered to block on a toplevel future.
+///
+/// This trait is *not* implied by `Runtime`, only by `ToplevelRuntime`.
+/// `ToplevelRuntime` is available at the toplevel of each program,
+/// typically, where a concrete async executor is selected.
 pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
     /// Run `future` until it is ready, and return its output.
+    ///
+    /// # Not reentrant!
+    ///
+    /// There should be one call to `block_on`,
+    /// at the toplevel of the program (or test case).
+    ///
+    /// `block_on` may not function correctly if is called
+    /// from multiple threads simultaneously.
+    ///
+    /// (`tor_rtmock::MockExecutor`'s implementation will often detect violations.)
+    // ^ XXXX have threads be Foreign or None by default in rtmock, and make that true
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
 
@@ -237,11 +260,10 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///  * Spawn the thread with `SpawnThread::spawn_thread`.
     ///  * On that thread, receive work items from from the async environment
     ///    using async inter-task facilities (eg `mpsc::channel`),
-    ///    called via [`reneter_block_on`].
-    // XXXX that function doesn't exist yet
+    ///    called via [`reenter_block_on`](Blocking::reenter_block_on).
     ///  * Return answers with async inter-task facilities, calling either
     ///    a non-blocking immediate send (eg `[try_send`])
-    ///    or an async send call via [`reneter_block_on`].
+    ///    or an async send call via `reneter_block_on`.
     ///
     /// ### CPU-intensive work
     ///
@@ -268,6 +290,25 @@ pub trait Blocking: Clone + Send + Sync + 'static {
 
     /// Future from `spawn_thread`
     type ThreadHandle<T: Send + 'static>: Future<Output = T>;
+
+    /// Block on a future, from within `Blocking::spawn_thread`
+    ///
+    /// Reenters the executor, blocking this thread until `future` is `Ready`.
+    ///
+    /// See [`spawn_thread`](Blocking::spawn_thread) and
+    /// [`Blocking`]'s trait-level docs for more details.
+    ///
+    /// ### Panics
+    ///
+    /// Must only be called on a thread made with `Blocking::spawn_thread`.
+    /// **Not** allowed within [`blocking_io`](Blocking::block_in_place).
+    ///
+    /// Otherwise it may malfunction or panic.
+    /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
+    fn reenter_block_on<F>(&self, future: F) -> F::Output
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static;
 }
 
 /// Trait providing additional operations on network sockets.

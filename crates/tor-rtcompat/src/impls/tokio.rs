@@ -347,6 +347,11 @@ impl Blocking for TokioRuntimeHandle {
     {
         async_executors::BlockingHandle::tokio(self.handle.spawn_blocking(f))
     }
+
+    #[track_caller]
+    fn reenter_block_on<F: Future>(&self, future: F) -> F::Output {
+        self.handle.block_on(future)
+    }
 }
 
 impl futures::task::Spawn for TokioRuntimeHandle {

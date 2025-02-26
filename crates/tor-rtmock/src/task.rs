@@ -463,6 +463,14 @@ impl Blocking for MockExecutor {
         });
         rx.map(Box::new(|m| m.expect("Failed to receive future's output")))
     }
+
+    fn reenter_block_on<F>(&self, future: F) -> F::Output
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        self.subthread_block_on_future(future)
+    }
 }
 
 //---------- block_on ----------
