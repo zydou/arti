@@ -448,11 +448,9 @@ impl Spawn for MockExecutor {
     }
 }
 
-impl Blocking for MockExecutor {
-    type ThreadHandle<T: Send + 'static> =
-        Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
-
-    fn spawn_thread<F, T>(&self, f: F) -> Self::ThreadHandle<T>
+impl MockExecutor {
+    /// Implementation of `spawn_thread` and `blocking_io`
+    fn spawn_thread_inner<F, T>(&self, f: F) -> <Self as Blocking>::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
@@ -467,6 +465,19 @@ impl Blocking for MockExecutor {
             }
         });
         rx.map(Box::new(|m| m.expect("Failed to receive future's output")))
+    }
+}
+
+impl Blocking for MockExecutor {
+    type ThreadHandle<T: Send + 'static> =
+        Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
+
+    fn spawn_thread<F, T>(&self, f: F) -> Self::ThreadHandle<T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        self.spawn_thread_inner(f)
     }
 
     fn reenter_block_on<F>(&self, future: F) -> F::Output
