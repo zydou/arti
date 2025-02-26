@@ -610,9 +610,18 @@ impl MockExecutor {
     /// # Panics
     ///
     /// Might malfunction or panic if called reentrantly
-    #[allow(clippy::cognitive_complexity)]
-    fn execute_until_first_stall(&self, mut main_fut: MainFuture) {
+    fn execute_until_first_stall(&self, main_fut: MainFuture) {
         trace!("MockExecutor execute_until_first_stall ...");
+        self.executor_main_loop(main_fut);
+        trace!("MockExecutor execute_until_first_stall done.");
+    }
+
+    /// Keep polling tasks until `awake` is empty (inner, executor main loop)
+    ///
+    /// This is only called from [`MockExecutor::execute_until_first_stall`],
+    /// so it could also be called `execute_until_first_stall_inner`.
+    #[allow(clippy::cognitive_complexity)]
+    fn executor_main_loop(&self, mut main_fut: MainFuture) {
         'outer: loop {
             // Take a `Awake` task off `awake` and make it `Asleep`
             let (id, mut fut) = 'inner: loop {
@@ -702,7 +711,6 @@ impl MockExecutor {
                 }
             }
         }
-        trace!("MockExecutor execute_until_first_stall done.");
     }
 }
 
