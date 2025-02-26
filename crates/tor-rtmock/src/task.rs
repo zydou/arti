@@ -135,7 +135,8 @@ use task_id::Ti as TaskId;
 /// So we cannot store that future in `Data` because `Data` is `'static`.
 /// Instead, this main task future is passed as an argument down the call stack.
 /// In the data structure we simply store a placeholder, `TaskFutureInfo::Main`.
-#[derive(Default, derive_more::Debug)]
+#[derive(Educe, derive_more::Debug)]
+#[educe(Default)]
 struct Data {
     /// Tasks
     ///
@@ -168,6 +169,7 @@ struct Data {
     ///
     ///  1. no-one but the named thread is allowed to modify this field.
     ///  2. after modifying this field, signal `thread_condvar`
+    #[educe(Default(expression = "ThreadDescriptor::Executor"))]
     thread_to_run: ThreadDescriptor,
 }
 
@@ -312,11 +314,10 @@ struct ProgressUntilStalledFuture {
 /// This being a thread-local and not scoped by which `MockExecutor` we're talking about
 /// means that we can't cope if there are multiple `MockExecutor`s involved in the same thread.
 /// That's OK (and documented).
-#[derive(Default, Copy, Clone, Eq, PartialEq, derive_more::Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, derive_more::Debug)]
 enum ThreadDescriptor {
     /// The executor.
     #[debug("Exe")]
-    #[default]
     Executor,
     /// This task, which is a Subthread.
     #[debug("{_0:?}")]

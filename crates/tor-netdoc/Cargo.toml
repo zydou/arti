@@ -92,7 +92,7 @@ cipher = { version = "0.4.1", features = ["zeroize"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
-educe = "0.4.6"
+educe = "0.4.22"
 hex = "0.4"
 hex-literal = { version = "0.4", optional = true }
 humantime = "2"

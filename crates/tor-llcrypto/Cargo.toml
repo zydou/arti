@@ -46,7 +46,7 @@ derive-deftly = { version = "1.0.0", optional = true }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
 ed25519-dalek = { version = "2.1", features = ["batch", "hazmat"] }
-educe = "0.4.6"
+educe = "0.4.22"
 hex = "0.4"
 openssl = { version = "0.10.48", optional = true }
 rand_core = "0.6.2"

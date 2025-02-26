@@ -63,7 +63,7 @@ base64ct = "1.5.1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
-educe = "0.4.6"
+educe = "0.4.22"
 event-listener = "5"
 fs-mistrust = { path = "../fs-mistrust", version = "0.9.0" }
 fslock = { version = "0.2.0" }
