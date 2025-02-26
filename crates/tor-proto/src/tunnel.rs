@@ -62,7 +62,7 @@ pub(crate) enum TargetHop {
 #[derive(Clone, Debug)]
 pub(crate) struct StreamTarget {
     /// Which hop of the circuit this stream is with.
-    hop_num: HopNum,
+    hop: HopLocation,
     /// Reactor ID for this stream.
     stream_id: StreamId,
     /// Channel to send cells down.
@@ -121,7 +121,7 @@ impl StreamTarget {
             .control
             .unbounded_send(CtrlMsg::ClosePendingStream {
                 stream_id: self.stream_id,
-                hop_num: self.hop_num,
+                hop: self.hop,
                 message,
                 done: tx,
             })
@@ -156,7 +156,7 @@ impl StreamTarget {
             .control
             .unbounded_send(CtrlMsg::SendSendme {
                 stream_id: self.stream_id,
-                hop_num: self.hop_num,
+                hop: self.hop,
             })
             .map_err(|_| Error::CircuitClosed)?;
         Ok(())

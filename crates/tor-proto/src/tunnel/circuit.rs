@@ -534,6 +534,19 @@ impl ClientCirc {
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
+        // TODO(conflux): Support tunnels with more than one leg. This requires a different approach
+        // to `CellHandlers`, as they can't be shared between the tunnel reactor and the circuits.
+        let legs = self.legs().await?;
+        if legs.len() != 1 {
+            return Err(internal!(
+                "Cannot allow stream requests on tunnel with {} legs",
+                legs.len()
+            )
+            .into());
+        }
+        let (leg_id, _path) = &legs[0];
+        let leg_id = *leg_id;
+
         let time_prov = self.time_provider.clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
         let (incoming_sender, incoming_receiver) =
@@ -575,7 +588,7 @@ impl ClientCirc {
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
                 tx: msg_tx,
-                hop_num,
+                hop: HopLocation::Hop((leg_id, hop_num)),
                 stream_id,
             };
 
@@ -734,16 +747,9 @@ impl ClientCirc {
     ) -> Result<(StreamReader, StreamTarget, StreamAccount)> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
+        let hop = TargetHop::LastHop;
 
         let time_prov = self.time_provider.clone();
-
-        let hop_num = self
-            .mutable
-            .lock()
-            .expect("poisoned lock")
-            .path
-            .last_hop_num()
-            .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
 
         let memquota = StreamAccount::new(self.mq_account())?;
         let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
@@ -754,7 +760,7 @@ impl ClientCirc {
 
         self.control
             .unbounded_send(CtrlMsg::BeginStream {
-                hop_num,
+                hop,
                 message: begin_msg,
                 sender,
                 rx: msg_rx,
@@ -763,12 +769,12 @@ impl ClientCirc {
             })
             .map_err(|_| Error::CircuitClosed)?;
 
-        let stream_id = rx.await.map_err(|_| Error::CircuitClosed)??;
+        let (stream_id, hop) = rx.await.map_err(|_| Error::CircuitClosed)??;
 
         let target = StreamTarget {
             circ: self.clone(),
             tx: msg_tx,
-            hop_num,
+            hop,
             stream_id,
         };
 

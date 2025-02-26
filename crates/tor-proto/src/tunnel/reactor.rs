@@ -42,7 +42,7 @@ use control::ControlHandler;
 use std::mem::size_of;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, StreamId, UnparsedRelayMsg};
-use tor_error::{internal, Bug};
+use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
 use futures::channel::mpsc;
 use futures::StreamExt;
@@ -175,13 +175,17 @@ enum RunOnceCmdInner {
     BeginStream {
         /// The cell to send.
         cell: Result<(SendRelayCell, StreamId)>,
+        /// The location of the hop on the tunnel. We don't use this (and `Circuit`s shouldn't need
+        /// to worry about legs anyways), but need it so that we can pass it back in `done` to the
+        /// caller.
+        hop: HopLocation,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
-        done: ReactorResultChannel<StreamId>,
+        done: ReactorResultChannel<(StreamId, HopLocation)>,
     },
     /// Close the specified stream.
     CloseStream {
         /// The hop number.
-        hop_num: HopNum,
+        hop: HopLocation,
         /// The ID of the stream to close.
         sid: StreamId,
         /// The stream-closing behavior.
@@ -629,7 +633,7 @@ impl Reactor {
             }
             // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
             // Currently, we always begin streams on the primary leg
-            RunOnceCmdInner::BeginStream { cell, done } => {
+            RunOnceCmdInner::BeginStream { cell, hop, done } => {
                 match cell {
                     Ok((cell, stream_id)) => {
                         // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
@@ -637,7 +641,7 @@ impl Reactor {
                         let (_id, leg) = self.circuits.single_leg_mut()?;
                         let outcome = leg.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
-                        let _ = done.send(outcome.clone().map(|_| stream_id));
+                        let _ = done.send(outcome.clone().map(|_| (stream_id, hop)));
                         outcome?;
                     }
                     Err(e) => {
@@ -648,15 +652,37 @@ impl Reactor {
                 }
             }
             RunOnceCmdInner::CloseStream {
-                hop_num,
+                hop,
                 sid,
                 behav,
                 reason,
                 done,
             } => {
-                // TODO(conflux): currently, it is an error to use CloseStream
-                // with a multi-path circuit.
-                let (_id, leg) = self.circuits.single_leg_mut()?;
+                let result = (move || {
+                    // this is needed to force the closure to be FnOnce rather than FnMut :(
+                    let self_ = self;
+                    let (leg_id, hop_num) = self_
+                        .resolve_hop_location(hop)
+                        .map_err(into_bad_api_usage!("Could not resolve {hop:?}"))?;
+                    let leg = self_
+                        .circuits
+                        .leg_mut(leg_id)
+                        .ok_or(bad_api_usage!("No leg for id {:?}", leg_id))?;
+                    Ok::<_, Bug>((leg, hop_num))
+                })();
+
+                let (leg, hop_num) = match result {
+                    Ok(x) => x,
+                    Err(e) => {
+                        if let Some(done) = done {
+                            // don't care if the sender goes away
+                            let e = into_bad_api_usage!("Could not resolve {hop:?}")(e);
+                            let _ = done.send(Err(e.into()));
+                        }
+                        return Ok(());
+                    }
+                };
+
                 let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason).await;
 
                 if let Some(done) = done {
