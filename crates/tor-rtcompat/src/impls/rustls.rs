@@ -5,10 +5,12 @@ use crate::StreamOps;
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use futures_rustls::rustls;
+use futures_rustls::rustls::client::WebPkiServerVerifier;
+use futures_rustls::rustls::{self, RootCertStore};
 use rustls::client::danger;
 use rustls::{CertificateError, Error as TLSError};
 use rustls_pki_types::{CertificateDer, ServerName};
+use webpki::EndEntityCert; // this is actually rustls_webpki.
 
 use std::{
     io::{self, Error as IoError, Result as IoResult},
@@ -135,7 +137,9 @@ impl RustlsProvider {
         // handshake.
         let config = futures_rustls::rustls::client::ClientConfig::builder()
             .dangerous()
-            .with_custom_certificate_verifier(std::sync::Arc::new(Verifier {}))
+            .with_custom_certificate_verifier(std::sync::Arc::new(Verifier::from_cert_der(
+                LETSENCRYPT_ROOT,
+            )))
             .with_no_client_auth();
 
         RustlsProvider {
@@ -150,20 +154,40 @@ impl Default for RustlsProvider {
     }
 }
 
-/// A [`rustls::client::danger::ServerCertVerifier`] based on the [`x509_signature`] crate.
+/// A [`rustls::client::danger::ServerCertVerifier`] based on the Rustls's [`WebPkiServerVerifier`].
 ///
 /// This verifier is necessary since Tor relays doesn't participate in the web
 /// browser PKI, and as such their certificates won't check out as valid ones.
 ///
-/// What's more, the `webpki` crate rejects most of Tor's certificates as
-/// unparsable because they do not contain any extensions: That means we need to
-/// replace the TLS-handshake signature checking functions too, since otherwise
-/// `rustls` would  think all the certificates were invalid.
-///
-/// Fortunately, the p2p people have provided `x509_signature` for this
-/// purpose.
+/// We enforce that the certificate itself has correctly authenticated the TLS
+/// connection, but nothing else.
 #[derive(Clone, Debug)]
-struct Verifier {}
+struct Verifier(Arc<WebPkiServerVerifier>);
+
+/// Root certificate for Let's Encrypt, downloaded 27 February 2025.
+/// We don't actually use this certificate for anything here!
+/// We only have it here because the WebPkiServerVerifier
+/// requires that the RootCertStore is nonempty.
+///
+/// The presence of this certificate should be considered a kludge.
+const LETSENCRYPT_ROOT: &[u8] = include_bytes!("letsencrypt-isrg-root-x2.der");
+
+impl Verifier {
+    /// Construct a Verifier from a dummy root certificate, which will not actually be used.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the certificate is not parseable.
+    fn from_cert_der(cert: &[u8]) -> Self {
+        let mut root_certs = RootCertStore::empty();
+        let der = CertificateDer::from_slice(cert);
+        root_certs
+            .add(der)
+            .expect("Unable to add dummy root-certificate for rustls.");
+        let bld = WebPkiServerVerifier::builder(Arc::new(root_certs));
+        Self(bld.build().expect("Could not build default verifier!"))
+    }
+}
 
 impl danger::ServerCertVerifier for Verifier {
     fn verify_server_cert(
@@ -185,13 +209,18 @@ impl danger::ServerCertVerifier for Verifier {
         // well-formedness should get checked below in one of the
         // verify_*_signature functions.  But this check is cheap, so let's
         // leave it in.
-        let _cert = get_cert(end_entity)?;
+        let _cert: EndEntityCert<'_> = end_entity
+            .try_into()
+            .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadEncoding))?;
 
-        // Note that we don't even check timeliness: Tor uses the presented
+        // Note that we don't even check timeliness or key usage: Tor uses the presented
         // relay certificate just as a container for the relay's public link
         // key.  Actual timeliness checks will happen later, on the certificates
         // that authenticate this one, when we process the relay's CERTS cell in
         // `tor_proto::channel::handshake`.
+        //
+        // (This is what makes it safe for us _not_ to call
+        // EndEntityCert::verify_for_usage.)
 
         Ok(danger::ServerCertVerified::assertion())
     }
@@ -202,21 +231,7 @@ impl danger::ServerCertVerifier for Verifier {
         cert: &CertificateDer,
         dss: &rustls::DigitallySignedStruct,
     ) -> Result<danger::HandshakeSignatureValid, TLSError> {
-        let cert = get_cert(cert)?;
-        let scheme = convert_scheme(dss.scheme)?;
-
-        // NOTE:
-        //
-        // We call `check_signature` here rather than `check_tls12_signature`.
-        // That means that we're allowing the other side to use signature
-        // algorithms that aren't actually supported by TLS 1.2.
-        //
-        // It turns out, apparently, unless my experiments are wrong,  that
-        // OpenSSL will happily use PSS with TLS 1.2.  At least, it seems to do
-        // so when invoked via native_tls in the test code for this crate.
-        cert.check_signature(scheme, message, dss.signature())
-            .map(|_| danger::HandshakeSignatureValid::assertion())
-            .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
+        self.0.verify_tls12_signature(message, cert, dss)
     }
 
     fn verify_tls13_signature(
@@ -225,63 +240,18 @@ impl danger::ServerCertVerifier for Verifier {
         cert: &CertificateDer,
         dss: &rustls::DigitallySignedStruct,
     ) -> Result<danger::HandshakeSignatureValid, TLSError> {
-        let cert = get_cert(cert)?;
-        let scheme = convert_scheme(dss.scheme)?;
-
-        cert.check_tls13_signature(scheme, message, dss.signature())
-            .map(|_| danger::HandshakeSignatureValid::assertion())
-            .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
+        self.0.verify_tls13_signature(message, cert, dss)
     }
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        rustls::crypto::ring::default_provider()
-            .signature_verification_algorithms
-            .supported_schemes()
+        self.0.supported_verify_schemes()
     }
-}
 
-/// Parse a `rustls::Certificate` as an `x509_signature::X509Certificate`, if possible.
-fn get_cert<'a>(
-    c: &'a CertificateDer<'a>,
-) -> Result<x509_signature::X509Certificate<'a>, TLSError> {
-    x509_signature::parse_certificate(c.as_ref())
-        .map_err(|_| TLSError::InvalidCertificate(CertificateError::BadSignature))
-}
-
-/// Convert from the signature scheme type used in `rustls` to the one used in
-/// `x509_signature`.
-///
-/// (We can't just use the x509_signature crate's "rustls" feature to have it
-/// use the same enum from `rustls`, because it seems to be on a different
-/// version from the rustls we want.)
-fn convert_scheme(
-    scheme: rustls::SignatureScheme,
-) -> Result<x509_signature::SignatureScheme, TLSError> {
-    use rustls::SignatureScheme as R;
-    use x509_signature::SignatureScheme as X;
-
-    // Yes, we do allow PKCS1 here.  That's fine in practice when PKCS1 is only
-    // used (as in TLS 1.2) for signatures; the attacks against correctly
-    // implemented PKCS1 make sense only when it's used for encryption.
-    Ok(match scheme {
-        R::RSA_PKCS1_SHA256 => X::RSA_PKCS1_SHA256,
-        R::ECDSA_NISTP256_SHA256 => X::ECDSA_NISTP256_SHA256,
-        R::RSA_PKCS1_SHA384 => X::RSA_PKCS1_SHA384,
-        R::ECDSA_NISTP384_SHA384 => X::ECDSA_NISTP384_SHA384,
-        R::RSA_PKCS1_SHA512 => X::RSA_PKCS1_SHA512,
-        R::RSA_PSS_SHA256 => X::RSA_PSS_SHA256,
-        R::RSA_PSS_SHA384 => X::RSA_PSS_SHA384,
-        R::RSA_PSS_SHA512 => X::RSA_PSS_SHA512,
-        R::ED25519 => X::ED25519,
-        R::ED448 => X::ED448,
-        _ => {
-            // Either `x509-signature` crate doesn't support these (nor should it really), or
-            // rustls itself doesn't.
-            return Err(TLSError::PeerIncompatible(
-                rustls::PeerIncompatible::NoSignatureSchemesInCommon,
-            ));
-        }
-    })
+    fn root_hint_subjects(&self) -> Option<&[rustls::DistinguishedName]> {
+        // We don't actually want to send any DNs for our root certs,
+        // since they aren't real.
+        None
+    }
 }
 
 #[cfg(test)]
@@ -301,28 +271,28 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    /// A certificate returned by a C Tor relay implementation.
+    ///
+    /// We want to have a test for this, since some older versions of `webpki`
+    /// rejected C Tor's certificates as unparsable because they did not contain
+    /// any extensions.  Back then, we had to use `x509_signature`,
+    /// which now appears unmaintained.
+    const TOR_CERTIFICATE: &[u8] = include_bytes!("./tor-generated.der");
+
+    /// An expired certificate generated using C tor.
+    /// We use this to make sure that we can build a verifier using an expired root cert;
+    /// if we can't, then our verifier code above will stop working when its baked-in
+    /// (unused) letsencrypt certificate expires in 2035.
+    const EXPIRED_TOR_CERTIFICATE: &[u8] = include_bytes!("./tor-generated-expired.der");
+
     #[test]
-    fn test_cvt_scheme() {
-        use rustls::SignatureScheme as R;
-        use x509_signature::SignatureScheme as X;
+    fn basic_tor_cert() {
+        let der = CertificateDer::from_slice(TOR_CERTIFICATE);
+        let _cert = EndEntityCert::try_from(&der).unwrap();
+    }
 
-        macro_rules! check_cvt {
-            { $id:ident } =>
-            { assert_eq!(convert_scheme(R::$id).unwrap(), X::$id); }
-        }
-
-        check_cvt!(RSA_PKCS1_SHA256);
-        check_cvt!(RSA_PKCS1_SHA384);
-        check_cvt!(RSA_PKCS1_SHA512);
-        check_cvt!(ECDSA_NISTP256_SHA256);
-        check_cvt!(ECDSA_NISTP384_SHA384);
-        check_cvt!(RSA_PSS_SHA256);
-        check_cvt!(RSA_PSS_SHA384);
-        check_cvt!(RSA_PSS_SHA512);
-        check_cvt!(ED25519);
-        check_cvt!(ED448);
-
-        assert!(convert_scheme(R::RSA_PKCS1_SHA1).is_err());
-        assert!(convert_scheme(R::Unknown(0x1337)).is_err());
+    #[test]
+    fn verifier_with_expired_root_cert() {
+        let _verifier = Verifier::from_cert_der(EXPIRED_TOR_CERTIFICATE);
     }
 }
