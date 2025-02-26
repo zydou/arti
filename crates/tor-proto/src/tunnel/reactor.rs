@@ -684,6 +684,18 @@ impl Reactor {
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
+        // If all the circuits are closed, shut down the reactor
+        //
+        // TODO(conflux): we might need to rethink this behavior
+        if self.circuits.is_empty() {
+            trace!(
+                "{}: Circuit reactor shutting down: all circuits have closed",
+                self.unique_id
+            );
+
+            return Err(ReactorError::Shutdown);
+        }
+
         // If this is a single path circuit, we need to wait until the first hop
         // is created before doing anything else
         if self.circuits.single_leg().is_ok_and(|c| c.hops.is_empty()) {

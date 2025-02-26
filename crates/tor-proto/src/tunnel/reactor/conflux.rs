@@ -69,8 +69,12 @@ impl ConfluxSet {
     }
 
     /// Return the number of legs in this conflux set.
-    #[allow(unused)]
     pub(super) fn len(&self) -> usize {
         self.legs.len()
+    }
+
+    /// Return whether this conflux set is empty.
+    pub(super) fn is_empty(&self) -> bool {
+        self.legs.len() == 0
     }
 }
