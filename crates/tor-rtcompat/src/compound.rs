@@ -15,8 +15,7 @@ use tor_general_addr::unix;
 
 /// A runtime made of several parts, each of which implements one trait-group.
 ///
-/// The `SpawnR` component should implement [`Spawn`], [`Blocking`] and maybe [`ToplevelBlockOn`];
-// XXXX SpawnR is rather a bad name for what is becoming a portmanteau.
+/// The `TaskR` component should implement [`Spawn`], [`Blocking`] and maybe [`ToplevelBlockOn`];
 /// the `SleepR` component should implement [`SleepProvider`];
 /// the `CoarseTimeR` component should implement [`CoarseTimeProvider`];
 /// the `TcpR` component should implement [`NetStreamProvider`] for [`net::SocketAddr`];
@@ -29,18 +28,18 @@ use tor_general_addr::unix;
 /// new runtime from pieces.
 #[derive(Educe)]
 #[educe(Clone)] // #[derive(Clone)] wrongly infers Clone bounds on the generic parameters
-pub struct CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> {
+pub struct CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> {
     /// The actual collection of Runtime objects.
     ///
     /// We wrap this in an Arc rather than requiring that each item implement
     /// Clone, though we could change our minds later on.
-    inner: Arc<Inner<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>>,
+    inner: Arc<Inner<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>>,
 }
 
 /// A collection of objects implementing that traits that make up a [`Runtime`]
-struct Inner<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> {
+struct Inner<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> {
     /// A `Spawn` and `BlockOn` implementation.
-    spawn: SpawnR,
+    spawn: TaskR,
     /// A `SleepProvider` implementation.
     sleep: SleepR,
     /// A `CoarseTimeProvider`` implementation.
@@ -55,12 +54,12 @@ struct Inner<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> {
     udp: UdpR,
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
-    CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+    CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 {
     /// Construct a new CompoundRuntime from its components.
     pub fn new(
-        spawn: SpawnR,
+        spawn: TaskR,
         sleep: SleepR,
         coarse_time: CoarseTimeR,
         tcp: TcpR,
@@ -83,10 +82,10 @@ impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> Spawn
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> Spawn
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
-    SpawnR: Spawn,
+    TaskR: Spawn,
 {
     #[inline]
     #[track_caller]
@@ -95,10 +94,10 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> Blocking
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> Blocking
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
-    SpawnR: Blocking,
+    TaskR: Blocking,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
@@ -106,11 +105,11 @@ where
     TlsR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
 {
-    type ThreadHandle<T: Send + 'static> = SpawnR::ThreadHandle<T>;
+    type ThreadHandle<T: Send + 'static> = TaskR::ThreadHandle<T>;
 
     #[inline]
     #[track_caller]
-    fn spawn_thread<F, T>(&self, f: F) -> SpawnR::ThreadHandle<T>
+    fn spawn_thread<F, T>(&self, f: F) -> TaskR::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
@@ -138,10 +137,10 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> ToplevelBlockOn
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> ToplevelBlockOn
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
-    SpawnR: ToplevelBlockOn,
+    TaskR: ToplevelBlockOn,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
@@ -156,11 +155,11 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> SleepProvider
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> SleepProvider
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     SleepR: SleepProvider,
-    SpawnR: Clone + Send + Sync + 'static,
+    TaskR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
     UnixR: Clone + Send + Sync + 'static,
@@ -185,12 +184,12 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> CoarseTimeProvider
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> CoarseTimeProvider
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     CoarseTimeR: CoarseTimeProvider,
     SleepR: Clone + Send + Sync + 'static,
-    SpawnR: Clone + Send + Sync + 'static,
+    TaskR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
     UnixR: Clone + Send + Sync + 'static,
@@ -204,11 +203,11 @@ where
 }
 
 #[async_trait]
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> NetStreamProvider<net::SocketAddr>
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> NetStreamProvider<net::SocketAddr>
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     TcpR: NetStreamProvider<net::SocketAddr>,
-    SpawnR: Send + Sync + 'static,
+    TaskR: Send + Sync + 'static,
     SleepR: Send + Sync + 'static,
     CoarseTimeR: Send + Sync + 'static,
     TcpR: Send + Sync + 'static,
@@ -232,11 +231,11 @@ where
 }
 
 #[async_trait]
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> NetStreamProvider<unix::SocketAddr>
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> NetStreamProvider<unix::SocketAddr>
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     UnixR: NetStreamProvider<unix::SocketAddr>,
-    SpawnR: Send + Sync + 'static,
+    TaskR: Send + Sync + 'static,
     SleepR: Send + Sync + 'static,
     CoarseTimeR: Send + Sync + 'static,
     TcpR: Send + Sync + 'static,
@@ -259,15 +258,15 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR, S> TlsProvider<S>
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR, S> TlsProvider<S>
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     TcpR: NetStreamProvider,
     TlsR: TlsProvider<S>,
     UnixR: Clone + Send + Sync + 'static,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
-    SpawnR: Clone + Send + Sync + 'static,
+    TaskR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
     S: StreamOps,
 {
@@ -285,8 +284,8 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> std::fmt::Debug
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> std::fmt::Debug
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompoundRuntime").finish_non_exhaustive()
@@ -294,11 +293,11 @@ impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> std::fmt::Debug
 }
 
 #[async_trait]
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> UdpProvider
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+impl<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> UdpProvider
+    for CompoundRuntime<TaskR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     UdpR: UdpProvider,
-    SpawnR: Send + Sync + 'static,
+    TaskR: Send + Sync + 'static,
     SleepR: Send + Sync + 'static,
     CoarseTimeR: Send + Sync + 'static,
     TcpR: Send + Sync + 'static,
