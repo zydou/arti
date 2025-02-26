@@ -485,7 +485,23 @@ pub struct Reactor {
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: oneshot::Sender<void::Void>,
-    /// The circuit leg
+    /// A set of circuits that form a tunnel.
+    ///
+    /// Contains 1 or more circuits.
+    ///
+    /// Circuits may be added to this set throughout the lifetime of the reactor.
+    //
+    // TODO(conflux): add a control command for adding a circuit leg,
+    // and update these docs to explain how legs are added
+    ///
+    /// Sometimes, the reactor will remove circuits from this set,
+    /// for example if the `LINKED` message takes too long to arrive,
+    /// or if congestion control negotiation fails.
+    /// The reactor will continue running with the remaining circuits.
+    /// It will shut down if *all* the circuits are removed.
+    ///
+    // TODO(conflux): document all the reasons why the reactor might
+    // chose to tear down a circuit or tunnel (timeouts, protocol violations, etc.)
     circuits: ConfluxSet,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
