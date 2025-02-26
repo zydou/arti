@@ -277,7 +277,6 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///
     /// Otherwise it may malfunction or panic.
     /// (`tor_rtmock::MockExecutor`'s implementation will usually detect violations.)
-    // ^ XXXX have threads be Foreign or None by default in rtmock, and make that true
     ///
     /// If `f` panics, `ThreadHandle` will also panic when polled
     /// (perhaps using `resume_unwind`).
@@ -344,7 +343,6 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///
     /// Otherwise it may malfunction or panic.
     /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
-    // ^ XXXX that needs special code in tor-rtmodk
     ///
     /// ### Fallback (provided) implementation
     ///

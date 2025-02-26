@@ -20,6 +20,7 @@ use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
 
+use assert_matches::assert_matches;
 use educe::Educe;
 use itertools::Either;
 use itertools::{chain, izip};
@@ -477,6 +478,11 @@ impl Blocking for MockExecutor {
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
+        assert_matches!(
+            THREAD_DESCRIPTOR.get(),
+            ThreadDescriptor::Executor | ThreadDescriptor::Subthread(_),
+ "MockExecutor::spawn_thread_io only allowed from future or subthread, being run by this executor"
+        );
         self.spawn_thread_inner(f)
     }
 
@@ -486,6 +492,19 @@ impl Blocking for MockExecutor {
         F::Output: Send + 'static,
     {
         self.subthread_block_on_future(future)
+    }
+
+    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        assert_eq!(
+            THREAD_DESCRIPTOR.get(),
+            ThreadDescriptor::Executor,
+            "MockExecutor::blocking_io only allowed from future being polled by this executor"
+        );
+        self.spawn_thread_inner(f)
     }
 }
 
