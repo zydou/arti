@@ -263,7 +263,7 @@ impl<'a> ControlHandler<'a> {
                 if self.reactor.circuits.len() == 1 {
                     // This should've been handled in Reactor::run_once()
                     // (ControlHandler::handle_msg() is never called before wait_for_create()).
-                    debug_assert!(!self.reactor.circuits.single_leg()?.hops.is_empty());
+                    debug_assert!(!self.reactor.circuits.single_leg_mut()?.hops.is_empty());
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot create first hop twice"
@@ -286,7 +286,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let Ok(circ) = self.reactor.circuits.single_leg() else {
+                let Ok(circ) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -326,7 +326,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let Ok(circ) = self.reactor.circuits.single_leg() else {
+                let Ok(circ) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -373,7 +373,7 @@ impl<'a> ControlHandler<'a> {
             } => {
                 // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
                 // Currently, we always begin streams on the primary leg
-                let circ = self.reactor.circuits.primary_leg()?;
+                let circ = self.reactor.circuits.primary_leg_mut()?;
                 let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
                 Ok(Some(RunOnceCmdInner::BeginStream { cell, done }))
             }
@@ -470,7 +470,7 @@ impl<'a> ControlHandler<'a> {
                 // (it should probably not crash the reactor)
                 self.reactor
                     .circuits
-                    .single_leg()?
+                    .single_leg_mut()?
                     .add_hop(format, peer_id, outbound, inbound, binding, &params);
                 let _ = done.send(Ok(()));
 
@@ -509,7 +509,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                self.reactor.circuits.single_leg()?.handle_add_fake_hop(
+                self.reactor.circuits.single_leg_mut()?.handle_add_fake_hop(
                     relay_cell_format,
                     fwd_lasthop,
                     rev_lasthop,
@@ -522,7 +522,7 @@ impl<'a> ControlHandler<'a> {
             #[cfg(test)]
             CtrlCmd::QuerySendWindow { hop, done } => {
                 let _ = done.send(
-                    if let Some(hop) = self.reactor.circuits.single_leg()?.hop_mut(hop) {
+                    if let Some(hop) = self.reactor.circuits.single_leg_mut()?.hop_mut(hop) {
                         Ok(hop.ccontrol.send_window_and_expected_tags())
                     } else {
                         Err(Error::from(internal!(

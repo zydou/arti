@@ -27,7 +27,7 @@ impl ConfluxSet {
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
-    pub(super) fn single_leg(&mut self) -> Result<&mut Circuit, Bug> {
+    pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, Bug> {
         if self.legs.is_empty() {
             Err(internal!("tried to get circuit leg before creating it?!"))
         } else if self.legs.len() > 1 {
@@ -48,7 +48,7 @@ impl ConfluxSet {
     /// Return the primary leg of this conflux set.
     ///
     /// Returns an error if called before any circuit legs are available.
-    pub(super) fn primary_leg(&mut self) -> Result<&mut Circuit, Bug> {
+    pub(super) fn primary_leg_mut(&mut self) -> Result<&mut Circuit, Bug> {
         // TODO(conflux): support more than one leg,
         // and remove this check
         if self.legs.len() > 1 {
