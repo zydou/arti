@@ -7,9 +7,10 @@ use slotmap_careful::SlotMap;
 use tor_async_utils::SinkPrepareExt as _;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
+use crate::crypto::cell::HopNum;
 use crate::util::err::ReactorError;
 
-use super::{Circuit, CircuitAction, LegIdKey};
+use super::{Circuit, CircuitAction, LegId, LegIdKey};
 
 /// Type alias for the result of [`ConfluxSet::circuit_action`].
 type CircuitActionResult = Result<Option<CircuitAction>, crate::Error>;
@@ -45,23 +46,6 @@ impl ConfluxSet {
         }
     }
 
-    /// Return the only leg of this conflux set.
-    ///
-    /// Returns an error if there is more than one leg in the set,
-    /// or if called before any circuit legs are available.
-    pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, NotSingleLegError> {
-        self.single_leg_check()?;
-
-        let Some((_circ_id, circ)) = self.legs.iter_mut().next() else {
-            tracing::warn!(
-                "invariant failed: passed 'single_leg_check()' but conflux set has no legs"
-            );
-            return Err(NotSingleLegError::EmptyConfluxSet);
-        };
-
-        Ok(circ)
-    }
-
     /// Remove and return the only leg of this conflux set.
     ///
     /// Returns an error if there is more than one leg in the set,
@@ -74,6 +58,58 @@ impl ConfluxSet {
         self.legs
             .remove(self.primary_id)
             .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))
+    }
+
+    /// Return a reference to the only leg of this conflux set,
+    /// along with the leg's ID.
+    ///
+    /// Returns an error if there is more than one leg in the set,
+    /// or if called before any circuit legs are available.
+    pub(super) fn single_leg_with_id(&self) -> Result<(LegId, &Circuit), NotSingleLegError> {
+        self.single_leg_check()?;
+
+        let Some((circ_id, circ)) = self.legs.iter().next() else {
+            tracing::warn!(
+                "invariant failed: passed 'single_leg_check()' but conflux set has no legs"
+            );
+            return Err(NotSingleLegError::EmptyConfluxSet);
+        };
+
+        Ok((LegId(circ_id), circ))
+    }
+
+    /// Return a mutable reference to the only leg of this conflux set,
+    /// along with the leg's ID.
+    ///
+    /// Returns an error if there is more than one leg in the set,
+    /// or if called before any circuit legs are available.
+    pub(super) fn single_leg_with_id_mut(
+        &mut self,
+    ) -> Result<(LegId, &mut Circuit), NotSingleLegError> {
+        self.single_leg_check()?;
+
+        let Some((circ_id, circ)) = self.legs.iter_mut().next() else {
+            tracing::warn!(
+                "invariant failed: passed 'single_leg_check()' but conflux set has no legs"
+            );
+            return Err(NotSingleLegError::EmptyConfluxSet);
+        };
+
+        Ok((LegId(circ_id), circ))
+    }
+
+    /// Return a reference to the only leg of this conflux set.
+    ///
+    /// See [`single_leg_with_id`](Self::single_leg_with_id) for more information.
+    pub(super) fn single_leg(&self) -> Result<&Circuit, NotSingleLegError> {
+        self.single_leg_with_id().map(|(_id, leg)| leg)
+    }
+
+    /// Return a mutable reference to the only leg of this conflux set.
+    ///
+    /// See [`single_leg_with_id_mut`](Self::single_leg_with_id_mut) for more information.
+    pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, NotSingleLegError> {
+        self.single_leg_with_id_mut().map(|(_id, leg)| leg)
     }
 
     /// Return the primary leg of this conflux set.
@@ -99,6 +135,16 @@ impl ConfluxSet {
 
             Ok(circ)
         }
+    }
+
+    /// Return a mutable reference to the leg of this conflux set with the given id.
+    pub(super) fn leg_mut(&mut self, leg_id: LegId) -> Option<&mut Circuit> {
+        self.legs.get_mut(leg_id.0)
+    }
+
+    /// Return an iterator of all legs in the conflux set.
+    pub(super) fn legs(&self) -> impl Iterator<Item = (LegId, &Circuit)> {
+        self.legs.iter().map(|(id, leg)| (LegId(id), leg))
     }
 
     /// Return the number of legs in this conflux set.
@@ -179,6 +225,13 @@ impl ConfluxSet {
             // Note: We don't actually use the returned SinkSendable,
             // and continue writing to the SometimesUboundedSink in the reactor :(
             .map(|res| res.map(|res| res.0))
+    }
+
+    /// The join point on the current primary leg.
+    pub(super) fn primary_join_point(&self) -> Option<(LegId, HopNum)> {
+        // TODO(conflux): we need a way to get the join point on the primary leg once this tunnel
+        // has been converted from a "non-conflux tunnel" to a "conflux tunnel"
+        None
     }
 }
 
