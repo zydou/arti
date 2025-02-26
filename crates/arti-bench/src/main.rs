@@ -72,7 +72,7 @@ use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_socks::tcp::Socks5Stream;
 use tor_config::{ConfigurationSource, ConfigurationSources};
-use tor_rtcompat::Runtime;
+use tor_rtcompat::ToplevelRuntime;
 use tracing::info;
 
 /// Generate a random payload of bytes of the given size
@@ -463,7 +463,7 @@ fn main() -> Result<()> {
 #[allow(clippy::missing_docs_in_private_items)]
 struct Benchmark<R>
 where
-    R: Runtime,
+    R: ToplevelRuntime,
 {
     runtime: R,
     connect_addr: SocketAddr,
@@ -622,7 +622,7 @@ struct BenchmarkSummary {
     results: HashMap<BenchmarkType, BenchmarkResults>,
 }
 
-impl<R: Runtime> Benchmark<R> {
+impl<R: ToplevelRuntime> Benchmark<R> {
     /// Run a type of benchmark (`ty`), performing `self.samples` benchmark
     /// runs, using `self.circs_per_sample` concurrent circuits, and
     /// `self.streams_per_circ` concurrent streams on each circuit.

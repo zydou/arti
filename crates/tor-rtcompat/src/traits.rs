@@ -20,11 +20,13 @@ use tor_general_addr::unix;
 /// * [`CoarseTimeProvider`] for a cheaper but less accurate notion of time.
 /// * [`NetStreamProvider`] to launch and accept network connections.
 /// * [`TlsProvider`] to launch TLS connections.
-/// * [`ToplevelBlockOn`] to block on a top-level future and run it to completion
 /// * [`Blocking`] to be able to run synchronous (cpubound or IO) code,
 ///   and *re*-enter the async context from synchronous thread
 ///   (This may become optional in the future, if/when we add WASM
 ///   support).
+///
+/// Some `Runtime` values can also be used to enter the corresponding async executor;
+/// those are [`ToplevelBlockOn`] and therefore [`ToplevelRuntime`]s.
 ///
 /// We require that every `Runtime` has an efficient [`Clone`] implementation
 /// that gives a new opaque reference to the same underlying runtime.
@@ -54,7 +56,6 @@ pub trait Runtime:
     + Send
     + Spawn
     + Blocking
-    + ToplevelBlockOn // XXXX remove from Runtime
     + Clone
     + SleepProvider
     + CoarseTimeProvider
@@ -72,7 +73,6 @@ impl<T> Runtime for T where
         + Send
         + Spawn
         + Blocking
-        + ToplevelBlockOn // XXXX remove from Runtime
         + Clone
         + SleepProvider
         + CoarseTimeProvider

@@ -364,7 +364,7 @@ macro_rules! test_with_one_runtime {
 ))]
 mod test {
     #![allow(clippy::unwrap_used, clippy::unnecessary_wraps)]
-    use crate::Runtime;
+    use crate::ToplevelRuntime;
     use crate::SleepProviderExt;
 
     use crate::traits::*;
@@ -379,7 +379,7 @@ mod test {
 
     // Test "sleep" with a tiny delay, and make sure that at least that
     // much delay happens.
-    fn small_delay<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn small_delay<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let rt = runtime.clone();
         runtime.block_on(async {
             let i1 = Instant::now();
@@ -392,7 +392,7 @@ mod test {
     }
 
     // Try a timeout operation that will succeed.
-    fn small_timeout_ok<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn small_timeout_ok<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let rt = runtime.clone();
         runtime.block_on(async {
             let one_day = Duration::from_secs(86400);
@@ -403,7 +403,7 @@ mod test {
     }
 
     // Try a timeout operation that will time out.
-    fn small_timeout_expire<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn small_timeout_expire<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         use futures::future::pending;
 
         let rt = runtime.clone();
@@ -422,7 +422,7 @@ mod test {
     //
     // NOTE: This test will fail if the clock jumps a lot while it's
     // running.  We should use simulated time instead.
-    fn tiny_wallclock<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn tiny_wallclock<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let rt = runtime.clone();
         runtime.block_on(async {
             let i1 = Instant::now();
@@ -443,7 +443,7 @@ mod test {
     // Try connecting to ourself and sending a little data.
     //
     // NOTE: requires Ipv4 localhost.
-    fn self_connect_tcp<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn self_connect_tcp<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
@@ -476,7 +476,7 @@ mod test {
     // Try connecting to ourself and sending a little data.
     //
     // NOTE: requires Ipv4 localhost.
-    fn self_connect_udp<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn self_connect_udp<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
@@ -511,7 +511,7 @@ mod test {
     //
     // We launch a few connections and make sure that we can read data on
     // them.
-    fn listener_stream<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn listener_stream<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
@@ -560,7 +560,7 @@ mod test {
     //
     // Note that since we don't have async tls server support yet, I'm just
     // going to use a thread.
-    fn simple_tls<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn simple_tls<R: ToplevelRuntime>(runtime: &R) -> IoResult<()> {
         /*
          A simple expired self-signed rsa-2048 certificate.
 

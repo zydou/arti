@@ -20,6 +20,7 @@ use crate::util::impl_runtime_prelude::*;
 pub struct MockSleepRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
     #[deftly(mock(task, net))]
+    #[deftly(mock(toplevel_where = "R: ToplevelBlockOn"))]
     runtime: R,
     /// A MockSleepProvider.  Time-related calls get delegated here.
     #[deftly(mock(sleep))]

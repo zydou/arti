@@ -109,7 +109,7 @@ use arti_client::TorClient;
 use safelog::with_safe_logging_suppressed;
 use tor_config::mistrust::BuilderExt as _;
 use tor_config::ConfigurationSources;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::ToplevelRuntime;
 
 use anyhow::{Context, Error, Result};
 use clap::{value_parser, Arg, ArgAction, Command};
@@ -124,7 +124,7 @@ use clap::Subcommand as _;
 pub use subcommands::proxy::run_proxy as run;
 
 /// Create a runtime for Arti to use.
-fn create_runtime() -> std::io::Result<impl Runtime> {
+fn create_runtime() -> std::io::Result<impl ToplevelRuntime> {
     cfg_if::cfg_if! {
         if #[cfg(all(feature="tokio", feature="native-tls"))] {
             use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
