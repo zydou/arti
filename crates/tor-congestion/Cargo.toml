@@ -11,8 +11,9 @@ keywords = ["tor", "arti", "async"]
 categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
-# This crate is not yet used in Arti.
-publish = false
+# TODO: We're temporarily publishing this crate one last time, and should remove the crate after the next release.
+# See https://gitlab.torproject.org/tpo/core/arti/-/issues/1864.
+publish = true
 
 [dependencies]
 
