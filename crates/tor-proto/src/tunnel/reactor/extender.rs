@@ -142,7 +142,7 @@ where
     fn extend_circuit(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Circuit,
+        circ: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
         let msg = msg
             .decode::<Extended2>()
@@ -174,7 +174,7 @@ where
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back, binding) = layer.split();
-        reactor.add_hop(
+        circ.add_hop(
             self.relay_cell_format,
             path::HopDetail::Relay(self.peer_id.clone()),
             Box::new(layer_fwd),
@@ -201,9 +201,9 @@ where
     fn handle_msg(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Circuit,
+        circ: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
-        let status = self.extend_circuit(msg, reactor);
+        let status = self.extend_circuit(msg, circ);
 
         if let Some(done) = self.operation_finished.take() {
             // ignore it if the receiving channel went away.
