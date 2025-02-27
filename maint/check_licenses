@@ -32,11 +32,13 @@ RECOGNIZED_LICENSES=(
     "Apache-2.0) OR MIT AND (MIT"
     # Used by unicode-ident
     "(MIT OR Apache-2.0) AND Unicode-3.0"
+    # Used by ring >= v0.17.10
+    "Apache-2.0 AND ISC"
 )
 
 # List of packages that don't list a license.
 NO_LICENSE=(
-    # The license for "ring" is something like "ISC AND openssl AND
+    # The license for "ring" < v0.17.10 is something like "ISC AND openssl AND
     # ssleay AND MIT"; the openssl license is not up-to-date with
     # modern openssl.  It includes an advertising clause. :P
     #

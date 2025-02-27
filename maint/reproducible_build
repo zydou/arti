@@ -44,6 +44,18 @@ export RUSTFLAGS="-C target-cpu=westmere"
 cp -a "$here" /arti
 cd /arti
 
+## FIXME: This is a workaround for:
+## https://gitlab.torproject.org/tpo/core/arti/-/issues/1335
+##
+## Since 'native-tls' >= 0.2.14 only builds on rust >= 1.80,
+## and we can't use newer rust versions due to arti#1335,
+## we need to downgrade 'native-tls'.
+## (And similar for other libs.)
+$CARGO update -p native-tls --precise 0.2.13
+$CARGO update -p zerofrom --precise 0.1.5
+$CARGO update -p litemap --precise 0.7.4
+$CARGO update -p tinystr:0.8.1 --precise 0.8.0
+
 cargo_build () {
 	$CARGO build --locked "$@"
 }
