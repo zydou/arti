@@ -70,7 +70,7 @@ See also what other projects are writing about Lunar:
   and `::send_message` is now `async`.
   ([!2747])
 - `fs-mistrust`: A few methods now take `&self` rather than `self`.
-  !2707
+  ([!2707])
 
 ### Relay development
 
@@ -166,7 +166,7 @@ See also what other projects are writing about Lunar:
   ([!2615], [!2738], [#1809], [!2717])
 - Replace an async `Mutex` with a sync one in file watcher.
   ([!2763])
-- Remove confusing `use asynchronous_codec as futures_codec`
+- Remove confusing `use asynchronous_codec as futures_codec`.
   ([#1690], [!2769])
 - Fix many typos.
   ([!2751])
