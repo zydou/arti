@@ -58,7 +58,7 @@ hex = "*"
 native-tls-crate = { package = "native-tls", version = "0.2", optional = true }
 paste = "1"
 pin-project = "1"
-rustls-pki-types = { version = "1", optional = true }
+rustls-pki-types = { version = "1.8", optional = true }
 rustls-webpki = { version = "0.102.8", optional = true }
 thiserror = "2"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = [
