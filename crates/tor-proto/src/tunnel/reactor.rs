@@ -1938,49 +1938,47 @@ impl Circuit {
 
                 let hop_num = HopNum::from(i as u8);
                 let hop_map = Arc::clone(&self.hops[i].map);
-                Some(
-                    futures::future::poll_fn(move |cx| {
-                        // Process an outbound message from the first ready stream on
-                        // this hop. The stream map implements round robin scheduling to
-                        // ensure fairness across streams.
-                        // TODO: Consider looping here to process multiple ready
-                        // streams. Need to be careful though to balance that with
-                        // continuing to service incoming and control messages.
-                        let mut hop_map = hop_map.lock().expect("lock poisoned");
-                        let Some((sid, msg)) = hop_map.poll_ready_streams_iter(cx).next() else {
-                            // No ready streams for this hop.
-                            return Poll::Pending;
-                        };
+                Some(futures::future::poll_fn(move |cx| {
+                    // Process an outbound message from the first ready stream on
+                    // this hop. The stream map implements round robin scheduling to
+                    // ensure fairness across streams.
+                    // TODO: Consider looping here to process multiple ready
+                    // streams. Need to be careful though to balance that with
+                    // continuing to service incoming and control messages.
+                    let mut hop_map = hop_map.lock().expect("lock poisoned");
+                    let Some((sid, msg)) = hop_map.poll_ready_streams_iter(cx).next() else {
+                        // No ready streams for this hop.
+                        return Poll::Pending;
+                    };
 
-                        if msg.is_none() {
-                            return Poll::Ready(Ok(RunOnceCmdInner::CloseStream {
-                                hop_num,
-                                sid,
-                                behav: CloseStreamBehavior::default(),
-                                reason: streammap::TerminateReason::StreamTargetClosed,
-                                done: None,
-                            }));
-                        };
-                        let msg = hop_map.take_ready_msg(sid).expect("msg disappeared");
+                    if msg.is_none() {
+                        return Poll::Ready(Ok(RunOnceCmdInner::CloseStream {
+                            hop_num,
+                            sid,
+                            behav: CloseStreamBehavior::default(),
+                            reason: streammap::TerminateReason::StreamTargetClosed,
+                            done: None,
+                        }));
+                    };
+                    let msg = hop_map.take_ready_msg(sid).expect("msg disappeared");
 
-                        #[allow(unused)] // unused in non-debug builds
-                        let Some(StreamEntMut::Open(s)) = hop_map.get_mut(sid) else {
-                            panic!("Stream {sid} disappeared");
-                        };
+                    #[allow(unused)] // unused in non-debug builds
+                    let Some(StreamEntMut::Open(s)) = hop_map.get_mut(sid) else {
+                        panic!("Stream {sid} disappeared");
+                    };
 
-                        debug_assert!(
-                            s.can_send(&msg),
-                            "Stream {sid} produced a message it can't send: {msg:?}"
-                        );
+                    debug_assert!(
+                        s.can_send(&msg),
+                        "Stream {sid} produced a message it can't send: {msg:?}"
+                    );
 
-                        let cell = SendRelayCell {
-                            hop: hop_num,
-                            early: false,
-                            cell: AnyRelayMsgOuter::new(Some(sid), msg),
-                        };
-                        Poll::Ready(Ok(RunOnceCmdInner::Send { cell, done: None }))
-                    })
-                )
+                    let cell = SendRelayCell {
+                        hop: hop_num,
+                        early: false,
+                        cell: AnyRelayMsgOuter::new(Some(sid), msg),
+                    };
+                    Poll::Ready(Ok(RunOnceCmdInner::Send { cell, done: None }))
+                }))
             })
             .collect::<FuturesUnordered<_>>()
     }
