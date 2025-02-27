@@ -1938,7 +1938,7 @@ impl Circuit {
 
                 let hop_num = HopNum::from(i as u8);
                 let hop_map = Arc::clone(&self.hops[i].map);
-                Some(async move {
+                Some(
                     futures::future::poll_fn(move |cx| {
                         // Process an outbound message from the first ready stream on
                         // this hop. The stream map implements round robin scheduling to
@@ -1980,8 +1980,7 @@ impl Circuit {
                         };
                         Poll::Ready(Ok(RunOnceCmdInner::Send { cell, done: None }))
                     })
-                    .await
-                })
+                )
             })
             .collect::<FuturesUnordered<_>>()
     }
