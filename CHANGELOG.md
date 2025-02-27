@@ -3,6 +3,53 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.4.1 — 3 March 2025
+
+XXXX BLURB BLURB XXXX
+
+### Breaking changes
+
+### Security fixes
+
+### Network updates
+
+
+### Major bugfixes
+
+### Major features
+
+### Deprecated functionality
+
+### Breaking changes in lower-level crates
+
+### Onion service development
+### Relay development
+### RPC development
+### (Other area of development)
+
+
+### Testing
+
+
+### Documentation
+
+### Infrastructure
+
+### Cleanups, minor features, and bugfixes
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+kpcyrd and Neel Chauhan.
+
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+
+
 # Arti 1.4.0 — 7 February 2025
 
 Arti 1.4.0 offers a new [RPC interface], continues work on the relay
