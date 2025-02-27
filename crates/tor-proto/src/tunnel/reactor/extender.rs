@@ -1,6 +1,6 @@
 //! Module providing [`CircuitExtender`].
 
-use super::{MetaCellDisposition, MetaCellHandler, Reactor, ReactorResultChannel};
+use super::{Circuit, MetaCellDisposition, MetaCellHandler, ReactorResultChannel};
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
@@ -84,15 +84,15 @@ where
         linkspecs: Vec<EncodedLinkSpec>,
         params: CircParameters,
         client_aux_data: &impl Borrow<H::ClientAuxData>,
-        reactor: &mut Reactor,
+        circ: &mut Circuit,
         done: ReactorResultChannel<()>,
     ) -> Result<(Self, SendRelayCell)> {
         match (|| {
             let mut rng = rand::thread_rng();
-            let unique_id = reactor.unique_id;
+            let unique_id = circ.unique_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
-            let n_hops = reactor.crypto_out.n_layers();
+            let n_hops = circ.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(
                 "{}: Extending circuit to hop {} with {:?}",
@@ -142,7 +142,7 @@ where
     fn extend_circuit(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Reactor,
+        circ: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
         let msg = msg
             .decode::<Extended2>()
@@ -174,7 +174,7 @@ where
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back, binding) = layer.split();
-        reactor.add_hop(
+        circ.add_hop(
             self.relay_cell_format,
             path::HopDetail::Relay(self.peer_id.clone()),
             Box::new(layer_fwd),
@@ -201,9 +201,9 @@ where
     fn handle_msg(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Reactor,
+        circ: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
-        let status = self.extend_circuit(msg, reactor);
+        let status = self.extend_circuit(msg, circ);
 
         if let Some(done) = self.operation_finished.take() {
             // ignore it if the receiving channel went away.

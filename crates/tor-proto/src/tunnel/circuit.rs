@@ -328,7 +328,7 @@ impl ClientCirc {
             .unbounded_send(CtrlMsg::FirstHopClockSkew { answer: tx })
             .map_err(|_| Error::CircuitClosed)?;
 
-        rx.await.map_err(|_| Error::CircuitClosed)
+        Ok(rx.await.map_err(|_| Error::CircuitClosed)??)
     }
 
     /// Return a reference to this circuit's memory quota account

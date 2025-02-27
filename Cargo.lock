@@ -6375,6 +6375,7 @@ dependencies = [
  "digest",
  "educe",
  "futures",
+ "futures-util",
  "hex",
  "hex-literal",
  "hkdf",
