@@ -5,8 +5,6 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.4.0 — 7 February 2025
 
-TODO - also, not yet in the final (\[...], \[...]) format.
-
 Arti 1.4.0 offers a new [RPC interface], continues work on the relay
 implementation, includes an overhaul of the [in-tree
 documentation](https://tpo.pages.torproject.net/core/arti/).
