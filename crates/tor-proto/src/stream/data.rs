@@ -127,7 +127,7 @@ pub struct DataStream {
     #[cfg(feature = "stream-ctrl")]
     ctrl: std::sync::Arc<ClientDataStreamCtrl>,
 }
-assert_impl_all! { DataStream: Send, Sync}
+assert_impl_all! { DataStream: Send, Sync }
 
 /// An object used to control and monitor a data stream.
 ///
