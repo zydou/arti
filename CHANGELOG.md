@@ -3,9 +3,130 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.4.0 — 7 February 2025
+# Arti 1.4.1 — 3 March 2025
 
-TODO - also, not yet in the final (\[...], \[...]) format.
+Arti 1.4.1 contains
+significant behind-the-scenes groundwork for [Conflux],
+a feature that improves performance and reliability
+by allowing data streams to tunnel over multiple circuits.
+
+It also adds client-side support for an
+[improved representation of family membership][prop321].
+
+<!--
+UP TO DATE AS OF ddeb9bca63aa88142b617afc07b9a3554d8fe59c
+(I'll remove this once we are more final.)
+-->
+
+### Major features
+
+- Arti now implements the client side of ID-based families
+  (a.k.a. ["Happy Families"][prop321]).
+  When deployed everywhere on the network,
+  this feature will allow us
+  to remove around 80-90% of the data from microdescriptors,
+  and save some administrative complexity.
+  ([#1848], [!2792])
+
+### Breaking changes in lower-level crates
+
+- Removed the deprecated experimental `DataStream::circuit` API. ([!2794])
+- Removed the `ClientCirc::channel` API. ([!2783])
+- Functions in `tor-netdir` and `tor-relay-selection` related to families
+  now take a new `FamilyRules` argument,
+  to represent relevant network parameters. ([!2792])
+
+### Conflux development
+
+- Major simplification and refactoring in the `tor-proto` crate,
+  to lay the groundwork for [Conflux] in Arti.
+  ([#1839], [!2772], [!2774], [!2783], [!2786], [!2796], [!2800], [!2804])
+- Implemented message types that will be used for Conflux.
+  ([#1852], [!2789])
+- Added types for identifying hops within a Conflux tunnel.
+  ([!2799], [!2803])
+
+### Onion service development
+
+- Refactored `ReplayLog` code so it can be used to detect replays
+  in both INTRODUCE messages and proof-of-work solutions. ([!2688])
+
+### Testing
+
+- Added thread-management support to our testing mock runtime.
+  ([#1835], [!2793])
+
+### Documentation
+
+- Fixes and cleanups to examples on website. ([!2775])
+- Fixed a typo. ([!2795])
+- Documentation for experimental features in the `tor-keymgr` README.
+  ([!2806])
+
+### Network updates
+
+- Updated to the latest list of Tor fallback directories. ([!2787])
+
+### Cleanups, minor features, and bugfixes
+
+- Upgraded to the latest versions of [`hickory-proto`],
+  [`derive-deftly`], and several other crates.
+  ([#1847], [!2784], [!2788], [!2809])
+- Fixed new clippy warnings that appeared in Rust 1.85.
+  ([!2801])
+- Do not emit ANSI color to our stdout log
+  when that log is not being sent to a terminal. ([#1763], [!2802])
+- The `DataStream` type now implements `Sync`. ([#1859], [!2808])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+kpcyrd and Neel Chauhan.
+
+Also, our deep thanks to
+all of our [sponsors]
+for funding the development of Arti!
+
+[!2688]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2688
+[!2772]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2772
+[!2774]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2774
+[!2775]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2775
+[!2783]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2783
+[!2784]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2784
+[!2786]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2786
+[!2787]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2787
+[!2788]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2788
+[!2789]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2789
+[!2792]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2792
+[!2793]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2793
+[!2794]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2794
+[!2795]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2795
+[!2796]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2796
+[!2799]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2799
+[!2800]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2800
+[!2801]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2801
+[!2802]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2802
+[!2803]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2803
+[!2804]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2804
+[!2806]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2806
+[!2808]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2808
+[!2809]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2809
+[#1763]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1763
+[#1835]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1835
+[#1839]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1839
+[#1847]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1847
+[#1848]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1848
+[#1852]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1852
+[#1859]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1859
+[Conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
+[`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
+[`hickory-proto`]: https://crates.io/crates/hickory-proto
+[prop321]: https://spec.torproject.org/proposals/321-happy-families.html
+[sponsors]: https://www.torproject.org/about/sponsors/
+
+
+
+# Arti 1.4.0 — 7 February 2025
 
 Arti 1.4.0 offers a new [RPC interface], continues work on the relay
 implementation, includes an overhaul of the [in-tree
@@ -72,7 +193,7 @@ See also what other projects are writing about Lunar:
   and `::send_message` is now `async`.
   ([!2747])
 - `fs-mistrust`: A few methods now take `&self` rather than `self`.
-  !2707
+  ([!2707])
 
 ### Relay development
 
@@ -168,7 +289,7 @@ See also what other projects are writing about Lunar:
   ([!2615], [!2738], [#1809], [!2717])
 - Replace an async `Mutex` with a sync one in file watcher.
   ([!2763])
-- Remove confusing `use asynchronous_codec as futures_codec`
+- Remove confusing `use asynchronous_codec as futures_codec`.
   ([#1690], [!2769])
 - Fix many typos.
   ([!2751])
