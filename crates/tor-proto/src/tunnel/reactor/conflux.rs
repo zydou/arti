@@ -136,6 +136,9 @@ impl ConfluxSet {
                         internal!("tried to poll circuits while input lock is held?!")
                     })?;
 
+                    // NOTE: the stream returned by this function is polled in the select_biased!
+                    // from Reactor::run_once(), so each block from *this* select_biased! must be
+                    // cancellation-safe
                     select_biased! {
                         // Check whether we've got an input message pending.
                         ret = input.next().fuse() => {
