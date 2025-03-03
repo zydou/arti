@@ -30,7 +30,7 @@ native-tls = ["native-tls-crate", "async-native-tls"]
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
 # which in turn introduces a GPL-incompatibility.
-rustls = ["futures-rustls", "rustls-pki-types", "rustls-webpki", "__is_nonadditive"]
+rustls = ["futures-rustls", "dep:rustls", "rustls-pki-types", "rustls-webpki", "__is_nonadditive"]
 
 __is_nonadditive = []
 
@@ -58,6 +58,7 @@ hex = "*"
 native-tls-crate = { package = "native-tls", version = "0.2", optional = true }
 paste = "1"
 pin-project = "1"
+rustls = { version = "0.23.21", optional = true }
 rustls-pki-types = { version = "1.8", optional = true }
 rustls-webpki = { version = "0.102.8", optional = true }
 thiserror = "2"
