@@ -13,11 +13,6 @@ by allowing data streams to tunnel over multiple circuits.
 It also adds client-side support for an
 [improved representation of family membership][prop321].
 
-<!--
-UP TO DATE AS OF ddeb9bca63aa88142b617afc07b9a3554d8fe59c
-(I'll remove this once we are more final.)
--->
-
 ### Major features
 
 - Arti now implements the client side of ID-based families
