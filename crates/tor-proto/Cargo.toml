@@ -41,7 +41,7 @@ full = [
 ]
 
 experimental = ["experimental-api", "conflux", "flowctl-cc", "stream-ctrl", "testing", "bench", "counter-galois-onion"]
-conflux = ["__is_experimental"]
+conflux = ["tor-cell/conflux", "__is_experimental"]
 flowctl-cc = ["__is_experimental"]
 
 hs-client = ["hs-common"]
