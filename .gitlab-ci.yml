@@ -1,3 +1,10 @@
+include:
+  - project: tpo/tpa/ci-templates
+    file: [ dependency_proxy.yml ]
+    inputs: { namespace: tpo/core }
+    rules:
+      - if: $CI_PROJECT_URL =~ /gitlab.torproject.org/
+
 stages:
   - check
   - build
@@ -5,6 +12,8 @@ stages:
   - deploy
 
 variables:
+  # Don't fail pulling images if dependency_proxy.yml is not included
+  DOCKER_REGISTRY_URL: "docker.io"
   # We don't need Husky to install the Git hooks for CI.
   CARGO_HUSKY_DONT_INSTALL_HOOKS: "true"
   # fs-mistrust doesn't like umask 0
@@ -13,7 +22,7 @@ variables:
   FF_TIMESTAMPS: "true"
   # Pinned CI image for must Rust tests
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  RECENT_RUST_IMAGE: "amd64/rust:1.83.0-bookworm"
+  RECENT_RUST_IMAGE: "${DOCKER_REGISTRY_URL}/amd64/rust:1.83.0-bookworm"
   # Pinned chutney version.
   # TODO: Consider unpinning once chutney's CI is running arti's CI.
   # Alternatively if we decide to keep this, consider to actually start managing
@@ -64,13 +73,13 @@ default:
 
 check-editorconfig:
   stage: check
-  image: mstruebing/editorconfig-checker
+  image: ${DOCKER_REGISTRY_URL}/mstruebing/editorconfig-checker
   script:
     - ec
 
 shellcheck:
   stage: check
-  image: koalaman/shellcheck-alpine
+  image: ${DOCKER_REGISTRY_URL}/koalaman/shellcheck-alpine
   script:
     - apk add git bash
     - ./maint/common/shellcheck-all
@@ -126,7 +135,7 @@ maint-check-ownership:
 maint-check-cbindgen:
   stage: test
   # cbindgen needs nightly rust to do macro expansion
-  image: rustlang/rust:nightly
+  image: ${DOCKER_REGISTRY_URL}/rustlang/rust:nightly
   script:
     - ./maint/common/apt-install python3-toml
     - ./maint/common/via-cargo-install-in-ci cbindgen --version 0.27.0
@@ -227,7 +236,7 @@ rust-recent:
 rust-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: ${DOCKER_REGISTRY_URL}/amd64/rust:bookworm
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -272,7 +281,7 @@ rust-recent-arti-extra-features:
 rust-latest-arti-extra-features:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: ${DOCKER_REGISTRY_URL}/amd64/rust:bookworm
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -297,7 +306,7 @@ rust-clippy-nontest:
 
 rust-nightly:
   stage: test
-  image: rustlang/rust:nightly
+  image: ${DOCKER_REGISTRY_URL}/rustlang/rust:nightly
   # In case there is a bug in rust:nightly, you can instead pin an older
   # version of the Docker image until that bug is fixed.  To find the
   # SHA256 ID of the last working version of nightly, look at the logs
@@ -422,7 +431,7 @@ coverage:
 minimal-versions:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:1.77
+  image: ${DOCKER_REGISTRY_URL}/amd64/rust:1.77
   needs: ["rust-checks"]
   script:
     - rustup install nightly
@@ -436,7 +445,7 @@ minimal-versions:
     TARGET: UNDEFINED--BUG-IN-CI-YAML
   # If you upgrade this image, also change the one in docker_reproducible_build.
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:1.77.0-alpine3.18
+  image: ${DOCKER_REGISTRY_URL}/amd64/rust:1.77.0-alpine3.18
   script:
     - apk add bash
     - ./maint/reproducible_build $TARGET
@@ -739,7 +748,7 @@ pages:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
   stage: deploy
-  image: node:lts
+  image: ${DOCKER_REGISTRY_URL}/node:lts
   script:
     # Install tools needed.
     - maint/common/apt-install git
