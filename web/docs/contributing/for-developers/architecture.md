@@ -90,7 +90,6 @@ The current available crates are:
 | tor-checkable | Traits for wrapping up signed and/or time-bound objects. |
 | tor-circmgr | Circuits through the Tor network on demand. |
 | tor-config | Tools for configuration management in Arti. |
-| tor-congestion | Algorithms for congestion control on the Tor network. |
 | tor-consdiff | Restricted ed diff and patch formats for Tor. |
 | tor-dirclient | Implements a minimal directory client for Tor. |
 | tor-dirmgr | Code to fetch, store, and update Tor directory information. |
