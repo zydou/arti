@@ -1,7 +1,5 @@
 //! Conflux-related functionality
 
-use std::sync::Arc;
-
 use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _, Stream};
 use slotmap_careful::SlotMap;
@@ -111,10 +109,6 @@ impl ConfluxSet {
     /// Returns a stream of [`CircuitAction`] messages,
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
     ///
-    /// IMPORTANT: this stream locks the input mutexes of each leg,
-    /// and will return an error if any of the locks are held by another task.
-    /// Never create more than one [`ConfluxSet::circuit_action`] stream at a time!
-    ///
     /// This is cancellation-safe.
     pub(super) fn circuit_action<'a>(
         &'a mut self,
@@ -122,20 +116,12 @@ impl ConfluxSet {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
-                let input = Arc::clone(&leg.input);
                 let mut ready_streams = leg.ready_streams_iterator();
+                let input = &mut leg.input;
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
                 // We should replace this with a simple sink readiness check
                 leg.chan_sender.prepare_send_from(async move {
-                    // If we can't immediately acquire this lock,
-                    // something has gone terribly wrong: it likely means some other
-                    // task created a poll_all_circs() future and is attempting
-                    // to drive it to completion.
-                    let mut input = input.try_lock().ok_or_else(|| {
-                        internal!("tried to poll circuits while input lock is held?!")
-                    })?;
-
                     // NOTE: the stream returned by this function is polled in the select_biased!
                     // from Reactor::run_once(), so each block from *this* select_biased! must be
                     // cancellation-safe
