@@ -46,11 +46,11 @@ use std::result::Result as StdResult;
 
 /// A message telling the reactor to do something.
 ///
-/// The difference between this and [`CtrlCmd`] is that `CtrlMsg`s
-/// are only handled when the reactor's `chan_sender` is ready to receive cells,
-/// whereas `CtrlCmd` are handled immediately as they arrive.
-///
 /// For each `CtrlMsg`, the reactor will send a cell on the underlying channel.
+///
+/// The difference between this and [`CtrlCmd`] is that `CtrlMsg`s
+/// cause the reactor to send cells on the reactor's `chan_sender`,
+/// whereas `CtrlCmd` do not.
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub(crate) enum CtrlMsg {
@@ -179,8 +179,7 @@ pub(crate) enum CtrlMsg {
 /// A message telling the reactor to do something.
 ///
 /// The difference between this and [`CtrlMsg`] is that `CtrlCmd`s
-/// are handled even if the reactor's `chan_sender` is not ready to receive cells.
-/// Another difference is that `CtrlCmd`s never cause cells to sent on the channel,
+/// never cause cells to sent on the channel,
 /// while `CtrlMsg`s potentially do: `CtrlMsg`s are mapped to [`RunOnceCmdInner`] commands,
 /// some of which instruct the reactor to send cells down the channel.
 #[derive(educe::Educe)]
