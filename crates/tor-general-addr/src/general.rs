@@ -290,6 +290,9 @@ impl<'a> arbitrary::Arbitrary<'a> for SocketAddr {
             }
             #[cfg(any(target_os = "android", target_os = "linux"))]
             Kind::UnixAbstract => {
+                #[cfg(target_os = "android")]
+                use std::os::android::net::SocketAddrExt as _;
+                #[cfg(target_os = "linux")]
                 use std::os::linux::net::SocketAddrExt as _;
                 let name: &[u8] = u.arbitrary()?;
                 Ok(SocketAddr::Unix(
