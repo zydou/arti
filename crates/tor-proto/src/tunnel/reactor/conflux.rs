@@ -39,9 +39,9 @@ impl ConfluxSet {
     /// or if called before any circuit legs are available.
     fn single_leg_check(&self) -> Result<(), Bug> {
         if self.legs.is_empty() {
-            Err(internal!("tried to get circuit leg before creating it?!"))
+            Err(bad_api_usage!("tried to get circuit leg before creating it?!"))
         } else if self.legs.len() > 1 {
-            Err(internal!(
+            Err(bad_api_usage!(
                 "tried to get single circuit leg after conflux linking?!"
             ))
         } else {
@@ -76,7 +76,7 @@ impl ConfluxSet {
         }
 
         if self.legs.is_empty() {
-            Err(internal!("tried to get circuit leg before creating it?!"))
+            Err(bad_api_usage!("tried to get circuit leg before creating it?!"))
         } else {
             // TODO(conflux): implement primary leg selection
             let circ = self
