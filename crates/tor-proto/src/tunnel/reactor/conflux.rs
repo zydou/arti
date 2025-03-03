@@ -31,26 +31,52 @@ impl ConfluxSet {
         Self { legs, primary_id }
     }
 
+    /// Check if this conflux set consists of a single leg.
+    ///
+    /// Returns an error if there is more than one leg in the set,
+    /// or if called before any circuit legs are available.
+    fn single_leg_check(&self) -> Result<(), Bug> {
+        if self.legs.is_empty() {
+            Err(bad_api_usage!(
+                "tried to get circuit leg before creating it?!"
+            ))
+        } else if self.legs.len() > 1 {
+            Err(bad_api_usage!(
+                "tried to get single circuit leg after conflux linking?!"
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Return the only leg of this conflux set.
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
     pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, Bug> {
-        if self.legs.is_empty() {
-            Err(internal!("tried to get circuit leg before creating it?!"))
-        } else if self.legs.len() > 1 {
-            Err(internal!(
-                "tried to get single circuit leg after conflux linking?!"
-            ))
-        } else {
-            let (_circ_id, circ) = self
-                .legs
-                .iter_mut()
-                .next()
-                .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))?;
+        self.single_leg_check()?;
 
-            Ok(circ)
-        }
+        let (_circ_id, circ) = self
+            .legs
+            .iter_mut()
+            .next()
+            .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))?;
+
+        Ok(circ)
+    }
+
+    /// Remove and return the only leg of this conflux set.
+    ///
+    /// Returns an error if there is more than one leg in the set,
+    /// or if called before any circuit legs are available.
+    ///
+    /// Calling this function will empty the [`ConfluxSet`].
+    pub(super) fn take_single_leg(&mut self) -> Result<Circuit, Bug> {
+        self.single_leg_check()?;
+
+        self.legs
+            .remove(self.primary_id)
+            .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))
     }
 
     /// Return the primary leg of this conflux set.
@@ -64,7 +90,9 @@ impl ConfluxSet {
         }
 
         if self.legs.is_empty() {
-            Err(internal!("tried to get circuit leg before creating it?!"))
+            Err(bad_api_usage!(
+                "tried to get circuit leg before creating it?!"
+            ))
         } else {
             // TODO(conflux): implement primary leg selection
             let circ = self
