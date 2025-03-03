@@ -110,22 +110,28 @@ where
     }
 }
 
+/// Try to install a default crypto provider if none has been installed, so that Rustls can operate.
+///
+/// (Warns if we have to do this: the application should be responsible for choosing a provider.)
+fn ensure_provider_installed() {
+    if futures_rustls::rustls::crypto::CryptoProvider::get_default().is_none() {
+        // If we haven't installed a CryptoProvider at this point, we warn and install
+        // the `ring` provider.  That isn't great, but the alternative would be to
+        // panic.  Right now, that would cause many of our tests to fail.
+        tracing::warn!(
+            "Creating a RustlsRuntime, but no CryptoProvider is installed. The application \
+                        should call CryptoProvider::install_default()"
+        );
+        let _idempotent_ignore = futures_rustls::rustls::crypto::CryptoProvider::install_default(
+            futures_rustls::rustls::crypto::ring::default_provider(),
+        );
+    }
+}
+
 impl RustlsProvider {
     /// Construct a new [`RustlsProvider`.]
     pub(crate) fn new() -> Self {
-        if futures_rustls::rustls::crypto::CryptoProvider::get_default().is_none() {
-            // If we haven't installed a CryptoProvider at this point, we warn and install
-            // the `ring` provider.  That isn't great, but the alternative would be to
-            // panic.  Right now, that would cause many of our tests to fail.
-            tracing::warn!(
-                "Creating a RustlsRuntime, but no CryptoProvider is installed. The application \
-                            should call CryptoProvider::install_default()"
-            );
-            let _idempotent_ignore =
-                futures_rustls::rustls::crypto::CryptoProvider::install_default(
-                    futures_rustls::rustls::crypto::ring::default_provider(),
-                );
-        }
+        ensure_provider_installed();
 
         // Be afraid: we are overriding the default certificate verification and
         // TLS signature checking code! See notes on `Verifier` below for
@@ -287,12 +293,14 @@ mod test {
 
     #[test]
     fn basic_tor_cert() {
+        ensure_provider_installed();
         let der = CertificateDer::from_slice(TOR_CERTIFICATE);
         let _cert = EndEntityCert::try_from(&der).unwrap();
     }
 
     #[test]
     fn verifier_with_expired_root_cert() {
+        ensure_provider_installed();
         let _verifier = Verifier::from_cert_der(EXPIRED_TOR_CERTIFICATE);
     }
 }
