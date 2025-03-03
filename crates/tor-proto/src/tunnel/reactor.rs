@@ -1902,6 +1902,8 @@ impl Circuit {
     /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
     /// To avoid contention, never create more than one [`Circuit::ready_streams_iterator`]
     /// stream at a time!
+    ///
+    /// This is cancellation-safe.
     fn ready_streams_iterator(&self) -> impl Stream<Item = Result<RunOnceCmdInner>> {
         self.hops
             .iter()
