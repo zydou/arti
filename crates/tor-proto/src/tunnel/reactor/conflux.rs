@@ -56,13 +56,13 @@ impl ConfluxSet {
     pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, Bug> {
         self.single_leg_check()?;
 
-            let (_circ_id, circ) = self
-                .legs
-                .iter_mut()
-                .next()
-                .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))?;
+        let (_circ_id, circ) = self
+            .legs
+            .iter_mut()
+            .next()
+            .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))?;
 
-            Ok(circ)
+        Ok(circ)
     }
 
     /// Return the primary leg of this conflux set.
