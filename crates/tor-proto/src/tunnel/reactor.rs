@@ -68,7 +68,6 @@ use {
 };
 
 use futures::channel::mpsc;
-use futures::lock::Mutex as AsyncMutex;
 use futures::StreamExt;
 use futures::{select_biased, FutureExt as _, SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
@@ -536,17 +535,8 @@ pub(crate) struct Circuit {
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
     ///
-    /// IMPORTANT: to avoid locking up the reactor, there should never be contention
-    /// on this lock. Currently, this lock is only ever acquired inside
-    /// [`ConfluxSet::circuit_action`].
-    ///
-    /// TODO(conflux): perhaps we should restrict the visibility of the Circuit internals?
-    /// If we moved it to the conflux module, for example, the input channel
-    /// would be unreachable inside this module, thereby making it easier
-    /// to validate and enforce the non-contention invariant described above.
-    ///
     // TODO: could use a SPSC channel here instead.
-    input: Arc<AsyncMutex<CircuitRxReceiver>>,
+    input: CircuitRxReceiver,
     /// The cryptographic state for this circuit for inbound cells.
     /// This object is divided into multiple layers, each of which is
     /// shared with one hop of the circuit.
@@ -654,7 +644,7 @@ impl Reactor {
         let circuit_leg = Circuit {
             channel,
             chan_sender,
-            input: Arc::new(AsyncMutex::new(input)),
+            input,
             crypto_in: InboundClientCrypt::new(),
             hops: vec![],
             unique_id,
