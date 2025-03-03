@@ -33,6 +33,9 @@ use {
 #[cfg(test)]
 use {crate::congestion::sendme::CircTag, crate::Error, tor_error::internal};
 
+#[cfg(feature = "conflux")]
+use super::Circuit;
+
 use oneshot_fused_workaround as oneshot;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -236,6 +239,17 @@ pub(crate) enum CtrlCmd {
     QuerySendWindow {
         hop: HopNum,
         done: ReactorResultChannel<(u32, Vec<CircTag>)>,
+    },
+    /// Shut down the reactor, and return the underlying [`Circuit`],
+    /// if the tunnel is not multi-path.
+    ///
+    /// Returns an error if called on a multi-path reactor.
+    #[cfg(feature = "conflux")]
+    #[allow(unused)] // TODO(conflux)
+    ShutdownAndReturnCircuit {
+        /// Oneshot channel to return the underlying [`Circuit`],
+        /// or an error if the reactor's tunnel is multi-path.
+        answer: oneshot::Sender<StdResult<Circuit, Bug>>,
     },
 }
 
@@ -533,6 +547,10 @@ impl<'a> ControlHandler<'a> {
                 );
 
                 Ok(())
+            }
+            #[cfg(feature = "conflux")]
+            CtrlCmd::ShutdownAndReturnCircuit { answer } => {
+                self.reactor.handle_shutdown_and_return_circuit(answer)
             }
         }
     }
