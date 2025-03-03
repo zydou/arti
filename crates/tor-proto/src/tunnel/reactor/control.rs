@@ -451,7 +451,7 @@ impl<'a> ControlHandler<'a> {
     pub(super) fn handle_cmd(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
         trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
         match msg {
-            CtrlCmd::Shutdown => Err(ReactorError::Shutdown),
+            CtrlCmd::Shutdown => self.reactor.handle_shutdown().map(|_| ()),
             #[cfg(feature = "hs-common")]
             #[allow(unreachable_code)]
             CtrlCmd::ExtendVirtual {
