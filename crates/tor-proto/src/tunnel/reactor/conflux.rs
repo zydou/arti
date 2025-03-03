@@ -67,6 +67,20 @@ impl ConfluxSet {
         Ok(circ)
     }
 
+    /// Remove and return the only leg of this conflux set.
+    ///
+    /// Returns an error if there is more than one leg in the set,
+    /// or if called before any circuit legs are available.
+    ///
+    /// Calling this function will empty the [`ConfluxSet`].
+    pub(super) fn take_single_leg(&mut self) -> Result<Circuit, Bug> {
+        self.single_leg_check()?;
+
+        self.legs
+            .remove(self.primary_id)
+            .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))
+    }
+
     /// Return the primary leg of this conflux set.
     ///
     /// Returns an error if called before any circuit legs are available.

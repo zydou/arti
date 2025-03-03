@@ -989,6 +989,20 @@ impl Reactor {
 
         Err(ReactorError::Shutdown)
     }
+
+    /// Handle a request to shutdown the reactor and return the only [`Circuit`] in this tunnel.
+    ///
+    /// Returns an error over the `answer` channel if the reactor has no circuits,
+    /// or more than one circuit. The reactor will shut down regardless.
+    #[cfg(feature = "conflux")]
+    fn handle_shutdown_and_return_circuit(
+        &mut self,
+        answer: oneshot::Sender<StdResult<Circuit, Bug>>,
+    ) -> StdResult<(), ReactorError> {
+        // Don't care if the receiver goes away
+        let _ = answer.send(self.circuits.take_single_leg());
+        self.handle_shutdown().map(|_| ())
+    }
 }
 
 impl Circuit {
