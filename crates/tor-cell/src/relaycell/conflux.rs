@@ -81,12 +81,15 @@ struct Link {
     payload: V1LinkPayload,
 }
 
+/// Type alias for the nonce type of a [`V1LinkPayload`].
+pub type V1Nonce = [u8; V1_LINK_NONCE_LEN];
+
 /// The v1 payload of a v1 [`ConfluxLink`] or [`ConfluxLinked`] message.
 #[derive(Debug, Clone, Deftly, Getters)]
 #[derive_deftly(HasMemoryCost)]
 pub struct V1LinkPayload {
     /// Random 256-bit secret, for associating two circuits together.
-    nonce: [u8; V1_LINK_NONCE_LEN],
+    nonce: V1Nonce,
     /// The last sequence number sent.
     last_seqno_sent: u64,
     /// The last sequence number received.
