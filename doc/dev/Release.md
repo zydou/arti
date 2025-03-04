@@ -114,6 +114,10 @@ release?" above.
    Then, fill in the URLs for any links that the script couldn't find -
    they'll be marked with X X X todo markers.
 
+   Run `maint/format_md_links CHANGELOG.md`
+   to ensure that the lists of links on each entry
+   are in the expected format.
+
    Run `maint/thanks arti-v${LAST_VERSION}`
    to generate our list of acknowledgments;
    insert this into the changelog.
