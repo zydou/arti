@@ -523,6 +523,8 @@ impl Store for SqliteStore {
         // Find all consensus blobs that are no longer referenced,
         // and delete their entries from extdocs.
         let remove_consensus_blobs = {
+            // TODO: This query can be O(n); but that won't matter for clients.
+            // For relays, we may want to add an index to speed it up, if we use this code there too.
             let mut stmt = tx.prepare(FIND_UNREFERENCED_CONSENSUS_EXTDOCS)?;
             let filenames: Vec<String> = stmt
                 .query_map([], |row| row.get::<_, String>(0))?
