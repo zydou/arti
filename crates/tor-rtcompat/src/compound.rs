@@ -109,12 +109,12 @@ where
 
     #[inline]
     #[track_caller]
-    fn spawn_thread<F, T>(&self, f: F) -> TaskR::ThreadHandle<T>
+    fn spawn_blocking<F, T>(&self, f: F) -> TaskR::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
-        self.inner.spawn.spawn_thread(f)
+        self.inner.spawn.spawn_blocking(f)
     }
 
     #[inline]

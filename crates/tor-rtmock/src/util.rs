@@ -36,11 +36,11 @@ define_derive_deftly! {
     impl <$tgens> Blocking for $ttype {
         type ThreadHandle<T: Send + 'static> = <$ftype as Blocking>::ThreadHandle<T>;
 
-        fn spawn_thread<F, T>(&self, f: F) -> <$ftype as Blocking>::ThreadHandle<T>
+        fn spawn_blocking<F, T>(&self, f: F) -> <$ftype as Blocking>::ThreadHandle<T>
         where
             F: FnOnce() -> T + Send + 'static,
             T: Send + 'static {
-            self.$fname.spawn_thread(f)
+            self.$fname.spawn_blocking(f)
         }
 
         fn reenter_block_on<F>(&self, future: F) -> F::Output

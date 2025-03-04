@@ -450,7 +450,7 @@ impl Spawn for MockExecutor {
 }
 
 impl MockExecutor {
-    /// Implementation of `spawn_thread` and `blocking_io`
+    /// Implementation of `spawn_blocking` and `blocking_io`
     fn spawn_thread_inner<F, T>(&self, f: F) -> <Self as Blocking>::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
@@ -459,7 +459,7 @@ impl MockExecutor {
         // For the mock executor, everything runs on the same thread.
         // If we need something more complex in the future, we can change this.
         let (tx, rx) = oneshot::channel();
-        self.spawn_identified("spawn_thread".to_string(), async move {
+        self.spawn_identified("Blocking".to_string(), async move {
             match tx.send(f()) {
                 Ok(()) => (),
                 Err(_) => panic!("Failed to send future's output, did future panic?"),
@@ -473,7 +473,7 @@ impl Blocking for MockExecutor {
     type ThreadHandle<T: Send + 'static> =
         Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
 
-    fn spawn_thread<F, T>(&self, f: F) -> Self::ThreadHandle<T>
+    fn spawn_blocking<F, T>(&self, f: F) -> Self::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
@@ -481,7 +481,7 @@ impl Blocking for MockExecutor {
         assert_matches!(
             THREAD_DESCRIPTOR.get(),
             ThreadDescriptor::Executor | ThreadDescriptor::Subthread(_),
- "MockExecutor::spawn_thread_io only allowed from future or subthread, being run by this executor"
+ "MockExecutor::spawn_blocking_io only allowed from future or subthread, being run by this executor"
         );
         self.spawn_thread_inner(f)
     }
@@ -1650,14 +1650,14 @@ mod test {
 
     #[cfg_attr(not(miri), traced_test)]
     #[test]
-    fn spawn_thread() {
+    fn spawn_blocking() {
         let runtime = MockExecutor::default();
 
         runtime.block_on({
             let runtime = runtime.clone();
             async move {
-                let thr_1 = runtime.spawn_thread(|| 42);
-                let thr_2 = runtime.spawn_thread(|| 99);
+                let thr_1 = runtime.spawn_blocking(|| 42);
+                let thr_2 = runtime.spawn_blocking(|| 99);
 
                 assert_eq!(thr_2.await, 99);
                 assert_eq!(thr_1.await, 42);

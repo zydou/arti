@@ -199,7 +199,7 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
 /// `Blocking` can be used to interact with libraries or OS primitives
 /// that only offer a synchronous, blocking, interface.
 ///
-/// Use [`spawn_thread`](Blocking::spawn_thread)
+/// Use [`spawn_blocking`](Blocking::spawn_blocking)
 /// when it is convenient to have a long-running thread,
 /// for these operations.
 ///
@@ -212,9 +212,9 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
 /// ### CPU-intensive activities
 ///
 /// Perform CPU-intensive work, that ought not to block the program's main loop,
-/// via [`Blocking::spawn_thread`].
+/// via [`Blocking::spawn_blocking`].
 ///
-/// `spawn_thread` does not apply any limiting or prioritisation;
+/// `spawn_blocking` does not apply any limiting or prioritisation;
 /// its threads simply compete for CPU with other threads in the program.
 /// That must be done by the caller; therefore:
 ///
@@ -236,7 +236,7 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
 /// | `tor-rtcompat`               | Tokio                 | `MockExecutor`                 |
 /// |------------------------------|-----------------------|--------------------------------|
 /// | `ToplevelBlockOn::block_on`  | `Runtime::block_on`   | `ToplevelBlockOn::block_on`    |
-/// | `Blocking::spawn_thread`     | `task::spawn_blocking`  | `subthread_spawn`            |
+/// | `Blocking::spawn_blocking`   | `task::spawn_blocking`  | `subthread_spawn`            |
 /// | `Blocking::reenter_block_on` | `Handle::block_on`    | `subthread_block_on_future`    |
 /// | `Blocking::blocking_io`      | `block_in_place`      | `subthread_spawn`              |
 /// | (not available)              | (not implemented)     | `progress_until_stalled` etc.  |
@@ -256,24 +256,23 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///  * For cpu-intensive work
     ///
     /// See [`Blocking`]'s trait level docs for advice on choosing
-    /// between `spawn_thread` and [`Blocking::blocking_io`].
+    /// between `spawn_blocking` and [`Blocking::blocking_io`].
     ///
-    /// `Blocking::spawn_thread` is similar to `std::thread::spawn`
+    /// `Blocking::spawn_blocking` is similar to `std::thread::spawn`
     /// but also makes any necessary arrangements so that `reenter_block_on`,
     /// can be called on the spawned thread.
     ///
-    /// However, `Blocking::spawn_thread` *does not guarantee*
+    /// However, `Blocking::spawn_blocking` *does not guarantee*
     /// to use a completely fresh thread.
     /// The implementation may have a thread pool, allowing it reuse an existing thread.
-    /// Correspondingly, if a very large number of `Blocking::spawn_thread` calls,
+    /// Correspondingly, if a very large number of `Blocking::spawn_blocking` calls,
     /// are in progress at once, some of them may block.
     /// (For example, the implementation for Tokio uses `tokio::task::spawn_blocking`,
     /// which has both of these properties.)
-    // XXXX rename this to spawn_blocking.  Let's use Tokio terminology.
     ///
-    /// ### Typical use of `spawn_thread`
+    /// ### Typical use of `spawn_blocking`
     ///
-    ///  * Spawn the thread with `SpawnThread::spawn_thread`.
+    ///  * Spawn the thread with `SpawnThread::spawn_blocking`.
     ///  * On that thread, receive work items from from the async environment
     ///    using async inter-task facilities (eg `futures::channel::mpsc::channel`),
     ///    called via [`reenter_block_on`](Blocking::reenter_block_on).
@@ -283,34 +282,34 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///
     /// ### CPU-intensive work
     ///
-    /// Limit the number of CPU-intensive concurrent threads spawned with `spawn_thread`.
+    /// Limit the number of CPU-intensive concurrent threads spawned with `spawn_blocking`.
     /// See the [trait-level docs](Blocking) for more details.
     ///
     /// ### Panics
     ///
-    /// `Blocking::spawn_thread` may only be called from within either:
+    /// `Blocking::spawn_blocking` may only be called from within either:
     ///
     ///  * A task or future being polled by this `Runtime`; or
-    ///  * A thread itself spawned with `Blocking::spawn_thread` on the this runtime.
+    ///  * A thread itself spawned with `Blocking::spawn_blocking` on the this runtime.
     ///
     /// Otherwise it may malfunction or panic.
     /// (`tor_rtmock::MockExecutor`'s implementation will usually detect violations.)
     ///
     /// If `f` panics, `ThreadHandle` will also panic when polled
     /// (perhaps using `resume_unwind`).
-    fn spawn_thread<F, T>(&self, f: F) -> Self::ThreadHandle<T>
+    fn spawn_blocking<F, T>(&self, f: F) -> Self::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static;
 
-    /// Future from [`spawn_thread`](Self::spawn_thread)
+    /// Future from [`spawn_blocking`](Self::spawn_blocking)
     type ThreadHandle<T: Send + 'static>: Future<Output = T>;
 
-    /// Block on a future, from within `Blocking::spawn_thread`
+    /// Block on a future, from within `Blocking::spawn_blocking`
     ///
     /// Reenters the executor, blocking this thread until `future` is `Ready`.
     ///
-    /// See [`spawn_thread`](Blocking::spawn_thread) and
+    /// See [`spawn_blocking`](Blocking::spawn_blocking) and
     /// [`Blocking`]'s trait-level docs for more details.
     ///
     /// It is not guaranteed what thread the future will be polled on.
@@ -321,7 +320,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///
     /// ### Panics
     ///
-    /// Must only be called on a thread made with `Blocking::spawn_thread`.
+    /// Must only be called on a thread made with `Blocking::spawn_blocking`.
     /// **Not** allowed within [`blocking_io`](Blocking::blocking_io).
     ///
     /// Otherwise it may malfunction or panic.
@@ -336,15 +335,15 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// Call the blocking function `f`, informing the async executor
     /// that we are going to perform blocking IO.
     ///
-    /// This is a usually-faster, but simpler, alternative to [`Blocking::spawn_thread`].
+    /// This is a usually-faster, but simpler, alternative to [`Blocking::spawn_blocking`].
     ///
-    /// Its API can be more convenient than `spawn_thread`.
-    /// `blocking_io` is intended to be more performant than `spawn_thread`
+    /// Its API can be more convenient than `spawn_blocking`.
+    /// `blocking_io` is intended to be more performant than `spawn_blocking`
     /// when called repeatedly (ie, when switching quickly between sync and async).
     ///
     /// See [`Blocking`]'s trait-level docs for more information about
     /// the performance properties, and on choosing between `blocking_io`
-    /// and `spawn_thread`.
+    /// and `spawn_blocking`.
     /// (Avoid using `blocking_io` for CPU-intensive work.)
     ///
     /// ### Limitations
@@ -353,15 +352,15 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///  * `f` cannot execute any futures.
     ///    If this is needed, break up `f` into smaller pieces so that the
     ///    futures can be awaited outside the call to `blocking_io`,
-    ///    or use `spawn_thread` for the whole activity.
+    ///    or use `spawn_blocking` for the whole activity.
     ///  * `f` *may* be called on the calling thread when `blocking_io` is called,
     ///    on an executor thread when the returned future is polled,
     ///    or a different thread.
     ///  * Not suitable for CPU-intensive work
     ///    (mostly because there is no practical way to ration or limit
     ///    the amount of cpu time used).
-    ///    Use `spawn_thread` for that.
-    ///  * Performance better than using `spawn_thread` each time is not guaranteed.
+    ///    Use `spawn_blocking` for that.
+    ///  * Performance better than using `spawn_blocking` each time is not guaranteed.
     ///
     /// ### Panics
     ///
@@ -374,13 +373,13 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// ### Fallback (provided) implementation
     ///
     /// The fallback implementation is currently used with `async_std`.
-    /// It spawns a thread with `spawn_thread`, once for each `blocking_io` call.
+    /// It spawns a thread with `spawn_blocking`, once for each `blocking_io` call.
     fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
-        self.spawn_thread(f)
+        self.spawn_blocking(f)
     }
 }
 
