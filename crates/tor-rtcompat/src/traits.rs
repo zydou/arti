@@ -262,7 +262,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// which has both of these properties.)
     // XXXX rename this to spawn_blocking.  Let's use Tokio terminology.
     ///
-    /// ### How to use `spawn_thread` correctly
+    /// ### Typical use of `spawn_thread`
     ///
     ///  * Spawn the thread with `SpawnThread::spawn_thread`.
     ///  * On that thread, receive work items from from the async environment
