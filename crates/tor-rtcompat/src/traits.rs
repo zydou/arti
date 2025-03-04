@@ -204,7 +204,7 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
 /// for these operations.
 ///
 /// Use [`blocking_io`](Blocking::blocking_io)
-/// when the blocking code is usually expected to be complete quickly,
+/// when the blocking code is usually expected to complete quickly,
 /// and/or you will be switching back and forth a lot
 /// between sync and async contexts.
 /// Note that you cannot call back to async code from within `blocking_io`.
