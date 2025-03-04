@@ -510,9 +510,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 Err(error) => {
                     debug_report!(
                         &error,
-                        "failed hsdir desc fetch for {} from {}",
+                        "failed hsdir desc fetch for {} from {}/{}",
                         &self.hsid,
                         &relay.id(),
+                        &relay.rsa_id()
                     );
                     errors.push(tor_error::Report(DescriptorError {
                         hsdir: hsdir_for_error,
