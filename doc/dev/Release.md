@@ -71,6 +71,14 @@ release?" above.
    This will tell us if any of our dependencies
    have new versions that will not upgrade automatically.
 
+   Then, upgrade these dependencies.
+   Note that in some cases, this will be nontrivial:
+   APIs may have changed, or the upgraded versions may not be compatible
+   with our current MSRV.
+   You'll may need to either fix the call sites to the old APIs,
+   skip the upgrade,
+   or open a ticket to upgrade the crate later on.
+
 2. Check for non-breaking changes to our dependencies.
    A day or two before release, I try to run:
    `cargo update`.
@@ -114,13 +122,17 @@ release?" above.
    Then, fill in the URLs for any links that the script couldn't find -
    they'll be marked with X X X todo markers.
 
+   Run `maint/format_md_links CHANGELOG.md`
+   to ensure that the lists of links on each entry
+   are in the expected format.
+
    Run `maint/thanks arti-v${LAST_VERSION}`
    to generate our list of acknowledgments;
    insert this into the changelog.
 
    Add an acknowledgement for the current sponsor(s).
 
-4. Determine what semver/version update to do to each crate.
+5. Determine what semver/version update to do to each crate.
 
    We need to sort our crates into the following tiers.
     * Unstable (0.x) `tor-*` and `arti-*` crates.
