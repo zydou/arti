@@ -898,9 +898,6 @@ impl MockExecutor {
     ///    So using Subthreads eliminates a source of test nonndeterminism.
     ///    (Execution order is still varied due to explicitly varying the scheduling policy.)
     ///
-    /// **TODO [\#1835](https://gitlab.torproject.org/tpo/core/arti/-/issues/1835)**:
-    /// Currently the traits in `tor_rtcompat` do not support proper usage very well.
-    ///
     /// # Panics, abuse, and malfunctions
     ///
     /// If `call` panics and unwinds, `spawn_subthread` yields `Err`.
