@@ -175,11 +175,14 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
     ///
     /// # Not reentrant!
     ///
-    /// There should be one call to `block_on`,
+    /// There should be one call to `block_on` (for each fresh `Runtime`),
     /// at the toplevel of the program (or test case).
+    /// (Sequential calls to `block_on` from the same thread are allowed.)
     ///
     /// `block_on` may not function correctly if is called
-    /// from multiple threads simultaneously.
+    /// from multiple threads simultaneously,
+    /// or if calls involving different `Runtime`s are interleaved on the same thread.
+    /// (Specific runtimes may offer better guarantees.)
     ///
     /// (`tor_rtmock::MockExecutor`'s implementation will often detect violations.)
     fn block_on<F: Future>(&self, future: F) -> F::Output;
