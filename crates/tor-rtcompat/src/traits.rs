@@ -339,7 +339,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// This is a usually-faster, but simpler, alternative to [`Blocking::spawn_thread`].
     ///
     /// Its API can be more convenient than `spawn_thread`.
-    /// `blocking_is` is intended to be more performant than `spawn_thread`
+    /// `blocking_io` is intended to be more performant than `spawn_thread`
     /// when called repeatedly (ie, when switching quickly between sync and async).
     ///
     /// See [`Blocking`]'s trait-level docs for more information about
