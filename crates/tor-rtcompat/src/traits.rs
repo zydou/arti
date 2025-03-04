@@ -25,8 +25,14 @@ use tor_general_addr::unix;
 ///   (This may become optional in the future, if/when we add WASM
 ///   support).
 ///
-/// Some `Runtime` values can also be used to enter the corresponding async executor;
-/// those are [`ToplevelBlockOn`] and therefore [`ToplevelRuntime`]s.
+/// A value which is only `Runtime` cannot be used as an *entry point* to the runtime.
+/// For that, it must also implement [`ToplevelBlockOn`],
+/// making it a [`ToplevelRuntime`].
+/// Since you can only [enter a runtime](ToplevelBlockOn::block_on) once,
+/// typically you use a `ToplevelRuntime` to enter the runtime,
+/// and use it as only a `Runtime` afterwards.
+/// This means that library code should typically
+/// deal with `Runtime` rather than `ToplevelRuntime`.
 ///
 /// We require that every `Runtime` has an efficient [`Clone`] implementation
 /// that gives a new opaque reference to the same underlying runtime.
