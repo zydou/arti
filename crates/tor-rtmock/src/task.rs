@@ -968,6 +968,7 @@ impl MockExecutor {
     /// including `fut`, until `fut` completes.
     ///
     /// `fut` is polled on the executor thread, not on the Subthread.
+    /// (We may change that in the future, allowing passing a non-`Send` future.)
     ///
     /// # Panics, abuse, and malfunctions
     ///

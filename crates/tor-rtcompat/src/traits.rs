@@ -310,6 +310,12 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// See [`spawn_thread`](Blocking::spawn_thread) and
     /// [`Blocking`]'s trait-level docs for more details.
     ///
+    /// It is not guaranteed what thread the future will be polled on.
+    /// In production `Runtime`s, it will usually be the thread calling `reenter_block_on`.
+    // All existing runtimes other than MockExecutor accept a non-Send future, but
+    // MockExecutor::subthread_block_on_future does not.
+    // If this restriction turns out to be awkward, MockExecutor could be changed, with some work.
+    ///
     /// ### Panics
     ///
     /// Must only be called on a thread made with `Blocking::spawn_thread`.
