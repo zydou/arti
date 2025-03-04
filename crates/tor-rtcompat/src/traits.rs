@@ -10,7 +10,7 @@ use std::net;
 use std::time::{Duration, Instant, SystemTime};
 use tor_general_addr::unix;
 
-/// A runtime that we can use to run Tor as a client.
+/// A runtime for use by Tor client library code.
 ///
 /// This trait comprises several other traits that we require all of our
 /// runtimes to provide:
