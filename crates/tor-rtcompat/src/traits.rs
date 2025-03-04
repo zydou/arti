@@ -227,7 +227,7 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
 /// | `tor-rtcompat`               | Tokio                 | `MockExecutor`                 |
 /// |------------------------------|-----------------------|--------------------------------|
 /// | `ToplevelBlockOn::block_on`  | `Runtime::block_on`   | `ToplevelBlockOn::block_on`    |
-/// | `Blocking::spawn_thread`     | `std::thread::spawn`  | `subthread_spawn`              |
+/// | `Blocking::spawn_thread`     | `task::spawn_blocking`  | `subthread_spawn`            |
 /// | `Blocking::reenter_block_on` | `Handle::block_on`    | `subthread_block_on_future`    |
 /// | `Blocking::blocking_io`      | `block_in_place`      | `subthread_spawn`              |
 /// | (not available)              | (not implemented)     | `progress_until_stalled` etc.  |
@@ -249,9 +249,18 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// See [`Blocking`]'s trait level docs for advice on choosing
     /// between `spawn_thread` and [`Blocking::blocking_io`].
     ///
-    /// `Blocking::spawn_thread` is like `std::thread::spawn`
+    /// `Blocking::spawn_thread` is similar to `std::thread::spawn`
     /// but also makes any necessary arrangements so that `reenter_block_on`,
     /// can be called on the spawned thread.
+    ///
+    /// However, `Blocking::spawn_thread` *does not guarantee*
+    /// to use a completely fresh thread.
+    /// The implementation may have a thread pool, allowing it reuse an existing thread.
+    /// Correspondingly, if a very large number of `Blocking::spawn_thread` calls,
+    /// are in progress at once, some of them may block.
+    /// (For example, the implementation for Tokio uses `tokio::task::spawn_blocking`,
+    /// which has both of these properties.)
+    // XXXX rename this to spawn_blocking.  Let's use Tokio terminology.
     ///
     /// ### How to use `spawn_thread` correctly
     ///
