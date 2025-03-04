@@ -39,6 +39,20 @@ the SQLite 3 development files and shellcheck to successfully run git hooks.
   when running `make` or `--with-libpcre` when running `./configure`.
 
 - SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
+
+- Perl and possibly additional Perl packages
+  (depending on your operating system/distro)
+  required to build a vendored version of OpenSSL.
+  These are needed when building or testing with `--all-features`, as recommended below.
+  For example:
+
+  ```bash
+  apt install perl
+  ```
+
+  ```bash
+  dnf install perl-interpreter perl-FindBin perl-lib perl-IPC-Cmd perl-File-Compare perl-File-Copy
+  ```
   
 - For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing)
   (used in [`maint/shellcheck_all`](./maint/common/shellcheck-all))
