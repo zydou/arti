@@ -5870,6 +5870,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "signature",
+ "static_assertions",
  "strum 0.26.3",
  "tempfile",
  "thiserror 2.0.11",

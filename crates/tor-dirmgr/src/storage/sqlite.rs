@@ -132,11 +132,8 @@ mod blob_consistency {}
 /// This error is an internal type: it's never returned to the user.
 #[derive(Debug)]
 enum AbsentBlob {
-    /// Upon finding that the blob was vanished, we removed its entry from ExtDocs.
-    RowRemoved,
-    /// Upon finding that the blob was vanished, we tried to remove its entry from
-    /// ExtDocs, but no rows were removed.
-    NothingRemoved,
+    /// We did not find a blob file on the disk.
+    VanishedFile,
     /// We did not even find a blob to read in ExtDocs.
     NothingToRead,
 }
@@ -328,14 +325,7 @@ impl SqliteStore {
                     "{:?} was listed in the database, but its corresponding file had been deleted",
                     path
                 );
-                let n_rows_removed = self
-                    .conn
-                    .execute(DELETE_EXTDOC_BY_FILENAME, params![path])?;
-                if n_rows_removed < 1 {
-                    return Ok(Err(AbsentBlob::NothingRemoved));
-                } else {
-                    return Ok(Err(AbsentBlob::RowRemoved));
-                }
+                return Ok(Err(AbsentBlob::VanishedFile));
             }
             Err(e) => return Err(e.into()),
         };
@@ -512,7 +502,6 @@ impl SqliteStore {
     ///
     /// This method is `O(n)` in the size of the ExtDocs table and the size of the directory.
     /// It doesn't take self, to avoid problems with the borrow checker.
-    #[allow(unused)] // XXXX
     fn remove_entries_for_vanished_blobs<'a>(
         blob_dir: &CheckedDir,
         tx: &Transaction<'a>,
@@ -649,13 +638,46 @@ impl Store for SqliteStore {
         Ok(())
     }
 
+    // Note: We cannot, and do not, call this function when a transaction already exists.
     fn latest_consensus(
         &self,
         flavor: ConsensusFlavor,
         pending: Option<bool>,
     ) -> Result<Option<InputString>> {
-        self.latest_consensus_internal(flavor, pending)
-            .map(|v| v.ok()) // XXXX not final
+        match self.latest_consensus_internal(flavor, pending)? {
+            Ok(s) => return Ok(Some(s)),
+            Err(AbsentBlob::NothingToRead) => return Ok(None),
+            Err(AbsentBlob::VanishedFile) => {
+                // If we get here, the file was vanished.  Clean up the DB and try again.
+            }
+        }
+
+        // We use unchecked_transaction() here because this API takes a non-mutable `SqliteStore`.
+        // `unchecked_transaction()` will give an error if it is used
+        // when a transaction already exists.
+        // That's fine: We don't call this function from inside this module,
+        // when a transaction might exist,
+        // and we can't call multiple SqliteStore functions at once: it isn't sync.
+        // Here we enforce that:
+        static_assertions::assert_not_impl_any!(SqliteStore: Sync);
+
+        // If we decide that this is unacceptable,
+        // then since sqlite doesn't really support concurrent use of a connection,
+        // we _could_ change the Store::latest_consensus API take &mut self,
+        // or we could add a mutex,
+        // or we could just not use a transaction object.
+        let tx = self.conn.unchecked_transaction()?;
+        Self::remove_entries_for_vanished_blobs(&self.blob_dir, &tx)?;
+        tx.commit()?;
+
+        match self.latest_consensus_internal(flavor, pending)? {
+            Ok(s) => Ok(Some(s)),
+            Err(AbsentBlob::NothingToRead) => Ok(None),
+            Err(AbsentBlob::VanishedFile) => {
+                warn!("Somehow remove_entries_for_vanished_blobs didn't resolve a VanishedFile");
+                Ok(None)
+            }
+        }
     }
 
     fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>> {
