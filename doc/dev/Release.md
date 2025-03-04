@@ -71,6 +71,14 @@ release?" above.
    This will tell us if any of our dependencies
    have new versions that will not upgrade automatically.
 
+   Then, upgrade these dependencies.
+   Note that in some cases, this will be nontrivial:
+   APIs may have changed, or the upgraded versions may not be compatible
+   with our current MSRV.
+   You'll may need to either fix the call sites to the old APIs,
+   skip the upgrade,
+   or open a ticket to upgrade the crate later on.
+
 2. Check for non-breaking changes to our dependencies.
    A day or two before release, I try to run:
    `cargo update`.
