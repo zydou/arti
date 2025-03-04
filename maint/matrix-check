@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import toml.decoder
 import sys
 import os.path
@@ -111,8 +112,29 @@ def test_crate(crate):
     # TODO test random combination?
 
 
+# https://stackoverflow.com/questions/24483182/python-split-list-into-n-chunks
+def chunks(lst, n):
+    """Yield n number of striped chunks from lst."""
+    for i in range(0, n):
+        yield lst[i::n]
+
+
 def main():
-    for crate in list_crates.list_crates():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--parallel",
+        type=str,
+        default="1,0",
+        help="Split the checking into multiple chunks and run only a single one of the chunks. "
+        "Takes two comma-separated integers, the first is the number of chunks, "
+        "the second is which chunk to run (zero-indexed)",
+    )
+    args = parser.parse_args()
+    parallel_chunks, parallel_n = map(int, args.parallel.split(","))
+    assert parallel_n < parallel_chunks
+
+    crates = list(list_crates.list_crates())
+    for crate in list(chunks(crates, parallel_chunks))[parallel_n]:
         test_crate(crate)
 
 
