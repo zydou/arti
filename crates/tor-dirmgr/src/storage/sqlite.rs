@@ -369,6 +369,37 @@ impl SqliteStore {
         ))
     }
 
+    /// As `latest_consensus`, but do not retry.
+    fn latest_consensus_internal(
+        &self,
+        flavor: ConsensusFlavor,
+        pending: Option<bool>,
+    ) -> Result<Option<InputString>> {
+        trace!(?flavor, ?pending, "Loading latest consensus from cache");
+        let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
+            None => self
+                .conn
+                .query_row(FIND_CONSENSUS, params![flavor.name()], |row| row.try_into())
+                .optional()?,
+            Some(pending_val) => self
+                .conn
+                .query_row(
+                    FIND_CONSENSUS_P,
+                    params![pending_val, flavor.name()],
+                    |row| row.try_into(),
+                )
+                .optional()?,
+        };
+
+        if let Some((_va, _vu, filename)) = rv {
+            // TODO blobs: If the cache is inconsistent (because this blob is _vanished_), and the cache has not yet
+            // been cleaned, this may fail to find the latest consensus that we actually have.
+            self.read_blob(&filename)
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Save a blob to disk and commit it.
     #[cfg(test)]
     fn save_blob(
@@ -571,30 +602,9 @@ impl Store for SqliteStore {
         flavor: ConsensusFlavor,
         pending: Option<bool>,
     ) -> Result<Option<InputString>> {
-        trace!(?flavor, ?pending, "Loading latest consensus from cache");
-        let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
-            None => self
-                .conn
-                .query_row(FIND_CONSENSUS, params![flavor.name()], |row| row.try_into())
-                .optional()?,
-            Some(pending_val) => self
-                .conn
-                .query_row(
-                    FIND_CONSENSUS_P,
-                    params![pending_val, flavor.name()],
-                    |row| row.try_into(),
-                )
-                .optional()?,
-        };
-
-        if let Some((_va, _vu, filename)) = rv {
-            // TODO blobs: If the cache is inconsistent (because this blob is _vanished_), and the cache has not yet
-            // been cleaned, this may fail to find the latest consensus that we actually have.
-            self.read_blob(&filename)
-        } else {
-            Ok(None)
-        }
+        self.latest_consensus_internal(flavor, pending)
     }
+
     fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>> {
         let mut stmt = self.conn.prepare(FIND_LATEST_CONSENSUS_META)?;
         let mut rows = stmt.query(params![flavor.name()])?;
