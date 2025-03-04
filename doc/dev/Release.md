@@ -132,7 +132,7 @@ release?" above.
 
    Add an acknowledgement for the current sponsor(s).
 
-4. Determine what semver/version update to do to each crate.
+5. Determine what semver/version update to do to each crate.
 
    We need to sort our crates into the following tiers.
     * Unstable (0.x) `tor-*` and `arti-*` crates.
