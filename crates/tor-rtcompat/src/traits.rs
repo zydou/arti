@@ -266,7 +266,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///
     ///  * Spawn the thread with `SpawnThread::spawn_thread`.
     ///  * On that thread, receive work items from from the async environment
-    ///    using async inter-task facilities (eg `mpsc::channel`),
+    ///    using async inter-task facilities (eg `futures::channel::mpsc::channel`),
     ///    called via [`reenter_block_on`](Blocking::reenter_block_on).
     ///  * Return answers with async inter-task facilities, calling either
     ///    a non-blocking immediate send (eg `[try_send`])
