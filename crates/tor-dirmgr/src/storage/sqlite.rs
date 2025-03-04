@@ -483,7 +483,12 @@ impl Store for SqliteStore {
                     self.conn = conn;
                 }
                 Err(e) => {
-                    let _ignore = lf.unlock();
+                    if let Err(e2) = lf.unlock() {
+                        warn_report!(
+                            e2,
+                            "Unable to release lock file while upgrading DB to read/write"
+                        );
+                    }
                     return Err(e.into());
                 }
             }
@@ -546,7 +551,13 @@ impl Store for SqliteStore {
         for name in remove_blob_files {
             let fname = self.blob_dir.join(name);
             if let Ok(fname) = fname {
-                let _ignore = std::fs::remove_file(fname);
+                if let Err(e) = std::fs::remove_file(&fname) {
+                    warn_report!(
+                        e,
+                        "Couldn't remove orphaned blob file {}",
+                        fname.display_lossy()
+                    );
+                }
             }
         }
 
@@ -864,6 +875,8 @@ mod blob_handle {
 
     use crate::Result;
     use rusqlite::Transaction;
+    use tor_basic_utils::PathExt as _;
+    use tor_error::warn_report;
 
     /// Handle to a blob that we have saved to disk but
     /// not yet committed to
@@ -958,7 +971,13 @@ mod blob_handle {
     impl Drop for Unlinker {
         fn drop(&mut self) {
             if let Some(p) = self.p.take() {
-                let _ignore_err = std::fs::remove_file(p);
+                if let Err(e) = std::fs::remove_file(&p) {
+                    warn_report!(
+                        e,
+                        "Couldn't remove rolled-back blob file {}",
+                        p.display_lossy()
+                    );
+                }
             }
         }
     }
