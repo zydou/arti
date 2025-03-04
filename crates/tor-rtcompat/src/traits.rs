@@ -181,7 +181,7 @@ pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
 
 /// Support for interacting with blocking (non-async) code
 ///
-/// This supports two use cases.
+/// This supports two use cases: blocking IO and CPU-intensive activities.
 /// (In both of these cases, simply calling the functions within an `async` task
 /// is a bad idea, because that can block the whole async runtime.)
 ///
