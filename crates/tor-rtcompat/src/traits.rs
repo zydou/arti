@@ -357,7 +357,10 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///  * `f` *may* be called on the calling thread when `blocking_io` is called,
     ///    on an executor thread when the returned future is polled,
     ///    or a different thread.
-    ///  * Not suitable for CPU-intensive work; use `spawn_thread` for that.
+    ///  * Not suitable for CPU-intensive work
+    ///    (mostly because there is no practical way to ration or limit
+    ///    the amount of cpu time used).
+    ///    Use `spawn_thread` for that.
     ///  * Performance better than using `spawn_thread` each time is not guaranteed.
     ///
     /// ### Panics
