@@ -294,7 +294,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static;
 
-    /// Future from `spawn_thread`
+    /// Future from [`spawn_thread`](Self::spawn_thread)
     type ThreadHandle<T: Send + 'static>: Future<Output = T>;
 
     /// Block on a future, from within `Blocking::spawn_thread`
