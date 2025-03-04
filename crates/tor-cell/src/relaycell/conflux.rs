@@ -37,6 +37,18 @@ macro_rules! impl_link_wrapper {
 #[derive_deftly(HasMemoryCost)]
 pub struct ConfluxLink(Link);
 
+impl ConfluxLink {
+    /// Create a new v1 `CONFLUX_LINK` message.
+    pub fn new(payload: V1LinkPayload) -> Self {
+        let link = Link {
+            version: CONFLUX_LINK_VERSION,
+            payload,
+        };
+
+        Self(link)
+    }
+}
+
 impl_link_wrapper!(ConfluxLink);
 
 impl Body for ConfluxLink {
@@ -53,6 +65,18 @@ impl Body for ConfluxLink {
 #[derive(Debug, Clone, Deftly)]
 #[derive_deftly(HasMemoryCost)]
 pub struct ConfluxLinked(Link);
+
+impl ConfluxLinked {
+    /// Create a new v1 `CONFLUX_LINKED` message.
+    pub fn new(payload: V1LinkPayload) -> Self {
+        let link = Link {
+            version: CONFLUX_LINK_VERSION,
+            payload,
+        };
+
+        Self(link)
+    }
+}
 
 impl_link_wrapper!(ConfluxLinked);
 
@@ -96,6 +120,21 @@ pub struct V1LinkPayload {
     last_seqno_recv: u64,
     /// The desired UX properties.
     desired_ux: V1DesiredUx,
+}
+
+impl V1LinkPayload {
+    /// Create a new `V1LinkPayload`.
+    pub fn new(nonce: V1Nonce, desired_ux: V1DesiredUx) -> Self {
+        Self {
+            nonce,
+            // NOTE: the two sequence number fields are 0 on the initial link.
+            // We need to support setting these for reattachment/resumption
+            // (see [CONFLUX_SET_MANAGEMENT] and [RESUMPTION]).
+            last_seqno_sent: 0,
+            last_seqno_recv: 0,
+            desired_ux,
+        }
+    }
 }
 
 caret_int! {
@@ -178,6 +217,13 @@ impl Body for V1LinkPayload {
 pub struct ConfluxSwitch {
     /// The relative sequence number.
     seqno: u32,
+}
+
+impl ConfluxSwitch {
+    /// Create a new v1 `CONFLUX_SWITCH` message.
+    pub fn new(seqno: u32) -> Self {
+        Self { seqno }
+    }
 }
 
 impl Body for ConfluxSwitch {
