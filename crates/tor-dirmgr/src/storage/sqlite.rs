@@ -127,6 +127,20 @@ pub(crate) struct SqliteStore {
 #[allow(unused)]
 mod blob_consistency {}
 
+/// Specific error returned when a blob will not be read.
+///
+/// This error is an internal type: it's never returned to the user.
+#[derive(Debug)]
+enum AbsentBlob {
+    /// Upon finding that the blob was vanished, we removed its entry from ExtDocs.
+    RowRemoved,
+    /// Upon finding that the blob was vanished, we tried to remove its entry from
+    /// ExtDocs, but no rows were removed.
+    NothingRemoved,
+    /// We did not even find a blob to read in ExtDocs.
+    NothingToRead,
+}
+
 impl SqliteStore {
     /// Construct or open a new SqliteStore at some location on disk.
     /// The provided location must be a directory, or a possible
@@ -302,11 +316,11 @@ impl SqliteStore {
 
     /// Read a blob from disk, mapping it if possible.
     ///
-    /// Return `Ok(None)` if the file for the blob was not found on disk;
+    /// Return `Ok(Err(.))` if the file for the blob was not found on disk;
     /// returns an error in other cases.
     ///
     /// (See [`blob_consistency`] for information on why the blob might be absent.)
-    fn read_blob(&self, path: &str) -> Result<Option<InputString>> {
+    fn read_blob(&self, path: &str) -> Result<StdResult<InputString, AbsentBlob>> {
         let file = match self.blob_dir.open(path, OpenOptions::new().read(true)) {
             Ok(file) => file,
             Err(fs_mistrust::Error::NotFound(_)) => {
@@ -314,9 +328,14 @@ impl SqliteStore {
                     "{:?} was listed in the database, but its corresponding file had been deleted",
                     path
                 );
-                self.conn
+                let n_rows_removed = self
+                    .conn
                     .execute(DELETE_EXTDOC_BY_FILENAME, params![path])?;
-                return Ok(None);
+                if n_rows_removed < 1 {
+                    return Ok(Err(AbsentBlob::NothingRemoved));
+                } else {
+                    return Ok(Err(AbsentBlob::RowRemoved));
+                }
             }
             Err(e) => return Err(e.into()),
         };
@@ -327,7 +346,7 @@ impl SqliteStore {
                 fname: PathBuf::from(path),
                 error: Arc::new(err),
             })
-            .map(Some)
+            .map(Ok)
     }
 
     /// Write a file to disk as a blob, and record it in the ExtDocs table.
@@ -374,7 +393,7 @@ impl SqliteStore {
         &self,
         flavor: ConsensusFlavor,
         pending: Option<bool>,
-    ) -> Result<Option<InputString>> {
+    ) -> Result<StdResult<InputString, AbsentBlob>> {
         trace!(?flavor, ?pending, "Loading latest consensus from cache");
         let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
             None => self
@@ -396,7 +415,7 @@ impl SqliteStore {
             // been cleaned, this may fail to find the latest consensus that we actually have.
             self.read_blob(&filename)
         } else {
-            Ok(None)
+            Ok(Err(AbsentBlob::NothingToRead))
         }
     }
 
@@ -603,6 +622,7 @@ impl Store for SqliteStore {
         pending: Option<bool>,
     ) -> Result<Option<InputString>> {
         self.latest_consensus_internal(flavor, pending)
+            .map(|v| v.ok()) // XXXX not final
     }
 
     fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>> {
@@ -638,7 +658,7 @@ impl Store for SqliteStore {
         if let Some(row) = rows.next()? {
             let meta = cmeta_from_row(row)?;
             let fname: String = row.get(5)?;
-            if let Some(text) = self.read_blob(&fname)? {
+            if let Ok(text) = self.read_blob(&fname)? {
                 return Ok(Some((text, meta)));
             }
         }
