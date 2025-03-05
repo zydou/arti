@@ -518,7 +518,6 @@ impl SqliteStore {
 
         let mut n_removed = 0;
         for fname in in_db {
-            dbg!(&fname);
             if in_directory.contains(Path::new(&fname)) {
                 // The blob is present; great!
                 continue;
