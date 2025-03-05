@@ -1,6 +1,6 @@
 //! Implement synchronous views of circuit internals.
 
-use super::CircHop;
+use super::circuit::CircHop;
 
 /// A view of a [`ClientCirc`](crate::tunnel::circuit::ClientCirc)'s internals, usable in a
 /// synchronous callback.

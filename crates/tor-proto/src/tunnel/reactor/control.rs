@@ -1,5 +1,6 @@
 //! Module providing [`CtrlMsg`].
 
+use super::circuit::extender::CircuitExtender;
 use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
@@ -11,7 +12,6 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::{path, CircParameters};
-use crate::tunnel::reactor::extender::CircuitExtender;
 use crate::tunnel::reactor::{NtorClient, ReactorError};
 use crate::tunnel::streammap;
 use crate::util::skew::ClockSkew;
