@@ -1226,7 +1226,7 @@ impl Circuit {
     }
 
     /// Check whether this circuit has any hops.
-    pub(super) fn has_first_hop(&self) -> bool {
+    pub(super) fn has_hops(&self) -> bool {
         !self.hops.is_empty()
     }
 

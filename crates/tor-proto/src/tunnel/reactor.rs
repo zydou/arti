@@ -502,7 +502,7 @@ impl Reactor {
         if self
             .circuits
             .single_leg_mut()
-            .is_ok_and(|c| !c.has_first_hop())
+            .is_ok_and(|c| !c.has_hops())
         {
             self.wait_for_create().await?;
 
