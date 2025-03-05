@@ -21,9 +21,10 @@ use tor_netdoc::doc::routerdesc::RdDigest;
 #[cfg(feature = "bridge-client")]
 pub(crate) use {crate::storage::CachedBridgeDescriptor, tor_guardmgr::bridge::BridgeConfig};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
+use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -47,6 +48,94 @@ pub(crate) struct SqliteStore {
     /// (sqlite supports that with connection locking, but we want to
     /// be a little more coarse-grained here)
     lockfile: Option<fslock::LockFile>,
+}
+
+/// # Some notes on blob consistency, and the lack thereof.
+///
+/// We store large documents (currently, consensuses) in separate files,
+/// called "blobs",
+/// outside of the the sqlite database.
+/// We do this for performance reasons: for large objects,
+/// mmap is far more efficient than sqlite in RAM and CPU.
+///
+/// In the sqlite database, we keep track of our blobs
+/// using the ExtDocs table.
+/// This scheme makes it possible for the blobs and the table
+/// get out of sync.
+///
+/// In summary:
+///   - _Vanished_ blobs (ones present only in ExtDocs) are possible;
+///     we try to tolerate them.
+///   - _Orphaned_ blobs (ones present only on the disk) are possible;
+///     we try to tolerate them.
+///   - _Corrupted_ blobs (ones with the wrong contents) are possible
+///     but (we hope) unlikely;
+///     we do not currently try to tolerate them.
+///
+/// In more detail:
+///
+/// Here are the practices we use when _writing_ blobs:
+///
+/// - We always create a blob before updating the ExtDocs table,
+///   and remove an entry from the ExtDocs before deleting the blob.
+/// - If we decide to roll back the transaction that adds the row to ExtDocs,
+///   we delete the blob after doing so.
+/// - We use [`CheckedDir::write_and_replace`] to store blobs,
+///   so a half-formed blob shouldn't be common.
+///   (We assume that "close" and "rename" are serialized by the OS,
+///   so that _if_ the rename happens, the file is completely written.)
+/// - Blob filenames include a digest of the file contents,
+///   so collisions are unlikely.
+///
+/// Here are the practices we use when _deleting_ blobs:
+/// - First, we drop the row from the ExtDocs table.
+///   Only then do we delete the file.
+///
+/// These practices can result in _orphaned_ blobs
+/// (ones with no row in the ExtDoc table),
+/// or in _half-written_ blobs files with tempfile names
+/// (which also have no row in the ExtDoc table).
+/// This happens if we crash at the wrong moment.
+/// Such blobs can be safely removed;
+/// we do so in [`SqliteStore::remove_unreferenced_blobs`].
+///
+/// Despite our efforts, _vanished_ blobs
+/// (entries in the ExtDoc table with no corresponding file)
+/// are also possible.  They could happen for these reasons:
+/// - The filesystem might not serialize or sync things in a way that's
+///   consistent with the DB.
+/// - An automatic process might remove random cache files.
+/// - The user might run around deleting things to free space.
+///
+/// We try to tolerate vanished blobs.
+///
+/// _Corrupted_ blobs are also possible.  They can happen on FS corruption,
+/// or on somebody messing around with the cache directory manually.
+/// We do not attempt to tolerate corrupted blobs.
+///
+/// ## On trade-offs
+///
+/// TODO: The practices described above are more likely
+/// to create _orphaned_ blobs than _vanished_ blobs.
+/// We initially made this trade-off decision on the mistaken theory
+/// that we could avoid vanished blobs entirely.
+/// We _may_ want to revisit this choice,
+/// on the rationale that we can respond to vanished blobs as soon as we notice they're gone,
+/// whereas we can only handle orphaned blobs with a periodic cleanup.
+/// On the other hand, since we need to handle both cases,
+/// it may not matter very much in practice.
+#[allow(unused)]
+mod blob_consistency {}
+
+/// Specific error returned when a blob will not be read.
+///
+/// This error is an internal type: it's never returned to the user.
+#[derive(Debug)]
+enum AbsentBlob {
+    /// We did not find a blob file on the disk.
+    VanishedFile,
+    /// We did not even find a blob to read in ExtDocs.
+    NothingToRead,
 }
 
 impl SqliteStore {
@@ -224,9 +313,11 @@ impl SqliteStore {
 
     /// Read a blob from disk, mapping it if possible.
     ///
-    /// Return `Ok(None)` if the file for the blob was not found on disk;
+    /// Return `Ok(Err(.))` if the file for the blob was not found on disk;
     /// returns an error in other cases.
-    fn read_blob(&self, path: &str) -> Result<Option<InputString>> {
+    ///
+    /// (See [`blob_consistency`] for information on why the blob might be absent.)
+    fn read_blob(&self, path: &str) -> Result<StdResult<InputString, AbsentBlob>> {
         let file = match self.blob_dir.open(path, OpenOptions::new().read(true)) {
             Ok(file) => file,
             Err(fs_mistrust::Error::NotFound(_)) => {
@@ -234,9 +325,7 @@ impl SqliteStore {
                     "{:?} was listed in the database, but its corresponding file had been deleted",
                     path
                 );
-                self.conn
-                    .execute(DELETE_EXTDOC_BY_FILENAME, params![path])?;
-                return Ok(None);
+                return Ok(Err(AbsentBlob::VanishedFile));
             }
             Err(e) => return Err(e.into()),
         };
@@ -247,27 +336,29 @@ impl SqliteStore {
                 fname: PathBuf::from(path),
                 error: Arc::new(err),
             })
-            .map(Some)
+            .map(Ok)
     }
 
     /// Write a file to disk as a blob, and record it in the ExtDocs table.
     ///
     /// Return a SavedBlobHandle that describes where the blob is, and which
     /// can be used either to commit the blob or delete it.
+    ///
+    /// See [`blob_consistency`] for more information on guarantees.
     fn save_blob_internal(
         &mut self,
         contents: &[u8],
         doctype: &str,
-        dtype: &str,
+        digest_type: &str,
         digest: &[u8],
         expires: OffsetDateTime,
-    ) -> Result<SavedBlobHandle<'_>> {
+    ) -> Result<blob_handle::SavedBlobHandle<'_>> {
         let digest = hex::encode(digest);
-        let digeststr = format!("{}-{}", dtype, digest);
+        let digeststr = format!("{}-{}", digest_type, digest);
         let fname = format!("{}_{}", doctype, digeststr);
 
         let full_path = self.blob_dir.join(&fname)?;
-        let unlinker = Unlinker::new(&full_path);
+        let unlinker = blob_handle::Unlinker::new(&full_path);
         self.blob_dir
             .write_and_replace(&fname, contents)
             .map_err(|e| match e {
@@ -280,14 +371,42 @@ impl SqliteStore {
             })?;
 
         let tx = self.conn.unchecked_transaction()?;
-        tx.execute(INSERT_EXTDOC, params![digeststr, expires, dtype, fname])?;
+        tx.execute(INSERT_EXTDOC, params![digeststr, expires, doctype, fname])?;
 
-        Ok(SavedBlobHandle {
-            tx,
-            fname,
-            digeststr,
-            unlinker,
-        })
+        Ok(blob_handle::SavedBlobHandle::new(
+            tx, fname, digeststr, unlinker,
+        ))
+    }
+
+    /// As `latest_consensus`, but do not retry.
+    fn latest_consensus_internal(
+        &self,
+        flavor: ConsensusFlavor,
+        pending: Option<bool>,
+    ) -> Result<StdResult<InputString, AbsentBlob>> {
+        trace!(?flavor, ?pending, "Loading latest consensus from cache");
+        let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
+            None => self
+                .conn
+                .query_row(FIND_CONSENSUS, params![flavor.name()], |row| row.try_into())
+                .optional()?,
+            Some(pending_val) => self
+                .conn
+                .query_row(
+                    FIND_CONSENSUS_P,
+                    params![pending_val, flavor.name()],
+                    |row| row.try_into(),
+                )
+                .optional()?,
+        };
+
+        if let Some((_va, _vu, filename)) = rv {
+            // TODO blobs: If the cache is inconsistent (because this blob is _vanished_), and the cache has not yet
+            // been cleaned, this may fail to find the latest consensus that we actually have.
+            self.read_blob(&filename)
+        } else {
+            Ok(Err(AbsentBlob::NothingToRead))
+        }
     }
 
     /// Save a blob to disk and commit it.
@@ -296,20 +415,13 @@ impl SqliteStore {
         &mut self,
         contents: &[u8],
         doctype: &str,
-        dtype: &str,
+        digest_type: &str,
         digest: &[u8],
         expires: OffsetDateTime,
     ) -> Result<String> {
-        let h = self.save_blob_internal(contents, doctype, dtype, digest, expires)?;
-        let SavedBlobHandle {
-            tx,
-            digeststr,
-            fname,
-            unlinker,
-        } = h;
-        let _ = digeststr;
-        tx.commit()?;
-        unlinker.forget();
+        let h = self.save_blob_internal(contents, doctype, digest_type, digest, expires)?;
+        let fname = h.fname().to_string();
+        h.commit()?;
         Ok(fname)
     }
 
@@ -323,6 +435,9 @@ impl SqliteStore {
     }
 
     /// Remove the blob with name `fname`, but do not give an error on failure.
+    ///
+    /// See [`blob_consistency`]: we should call this only having first ensured
+    /// that the blob is removed from the ExtDocs table.
     fn remove_blob_or_warn<P: AsRef<Path>>(&self, fname: P) {
         let fname = fname.as_ref();
         if let Err(e) = self.blob_dir.remove_file(fname) {
@@ -332,7 +447,7 @@ impl SqliteStore {
 
     /// Delete any blob files that are old enough, and not mentioned in the ExtDocs table.
     ///
-    /// There shouldn't actually be any, but we don't want to let our cache grow infinitely
+    /// There shouldn't typically be any, but we don't want to let our cache grow infinitely
     /// if we have a bug.
     fn remove_unreferenced_blobs(
         &self,
@@ -382,6 +497,38 @@ impl SqliteStore {
 
         Ok(())
     }
+
+    /// Remove any entry in the ExtDocs table for which a blob file is vanished.
+    ///
+    /// This method is `O(n)` in the size of the ExtDocs table and the size of the directory.
+    /// It doesn't take self, to avoid problems with the borrow checker.
+    fn remove_entries_for_vanished_blobs<'a>(
+        blob_dir: &CheckedDir,
+        tx: &Transaction<'a>,
+    ) -> Result<usize> {
+        let in_directory: HashSet<PathBuf> = blob_dir
+            .read_directory(".")?
+            .flatten()
+            .map(|dir_entry| PathBuf::from(dir_entry.file_name()))
+            .collect();
+        let in_db: Vec<String> = tx
+            .prepare(FIND_ALL_EXTDOC_FILENAMES)?
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<StdResult<Vec<String>, _>>()?;
+
+        let mut n_removed = 0;
+        for fname in in_db {
+            dbg!(&fname);
+            if in_directory.contains(Path::new(&fname)) {
+                // The blob is present; great!
+                continue;
+            }
+
+            n_removed += tx.execute(DELETE_EXTDOC_BY_FILENAME, [fname])?;
+        }
+
+        Ok(n_removed)
+    }
 }
 
 impl Store for SqliteStore {
@@ -408,7 +555,12 @@ impl Store for SqliteStore {
                     self.conn = conn;
                 }
                 Err(e) => {
-                    let _ignore = lf.unlock();
+                    if let Err(e2) = lf.unlock() {
+                        warn_report!(
+                            e2,
+                            "Unable to release lock file while upgrading DB to read/write"
+                        );
+                    }
                     return Err(e.into());
                 }
             }
@@ -422,10 +574,9 @@ impl Store for SqliteStore {
         #[allow(clippy::let_and_return)]
         let expired_blobs: Vec<String> = {
             let mut stmt = tx.prepare(FIND_EXPIRED_EXTDOCS)?;
-            let names = stmt
+            let names: Vec<String> = stmt
                 .query_map([], |row| row.get::<_, String>(0))?
-                .filter_map(std::result::Result::ok)
-                .collect();
+                .collect::<StdResult<Vec<String>, _>>()?;
             names
         };
 
@@ -446,11 +597,39 @@ impl Store for SqliteStore {
         #[cfg(feature = "bridge-client")]
         tx.execute(DROP_OLD_BRIDGEDESCS, [now, now])?;
 
+        // Find all consensus blobs that are no longer referenced,
+        // and delete their entries from extdocs.
+        let remove_consensus_blobs = {
+            // TODO: This query can be O(n); but that won't matter for clients.
+            // For relays, we may want to add an index to speed it up, if we use this code there too.
+            let mut stmt = tx.prepare(FIND_UNREFERENCED_CONSENSUS_EXTDOCS)?;
+            let filenames: Vec<String> = stmt
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<StdResult<Vec<String>, _>>()?;
+            drop(stmt);
+            let mut stmt = tx.prepare(DELETE_EXTDOC_BY_FILENAME)?;
+            for fname in filenames.iter() {
+                stmt.execute([fname])?;
+            }
+            filenames
+        };
+
         tx.commit()?;
-        for name in expired_blobs {
+        // Now that the transaction has been committed, these blobs are
+        // unreferenced in the ExtDocs table, and we can remove them from disk.
+        let mut remove_blob_files: HashSet<_> = expired_blobs.iter().collect();
+        remove_blob_files.extend(remove_consensus_blobs.iter());
+
+        for name in remove_blob_files {
             let fname = self.blob_dir.join(name);
             if let Ok(fname) = fname {
-                let _ignore = std::fs::remove_file(fname);
+                if let Err(e) = std::fs::remove_file(&fname) {
+                    warn_report!(
+                        e,
+                        "Couldn't remove orphaned blob file {}",
+                        fname.display_lossy()
+                    );
+                }
             }
         }
 
@@ -459,35 +638,48 @@ impl Store for SqliteStore {
         Ok(())
     }
 
+    // Note: We cannot, and do not, call this function when a transaction already exists.
     fn latest_consensus(
         &self,
         flavor: ConsensusFlavor,
         pending: Option<bool>,
     ) -> Result<Option<InputString>> {
-        trace!(?flavor, ?pending, "Loading latest consensus from cache");
-        let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
-            None => self
-                .conn
-                .query_row(FIND_CONSENSUS, params![flavor.name()], |row| row.try_into())
-                .optional()?,
-            Some(pending_val) => self
-                .conn
-                .query_row(
-                    FIND_CONSENSUS_P,
-                    params![pending_val, flavor.name()],
-                    |row| row.try_into(),
-                )
-                .optional()?,
-        };
+        match self.latest_consensus_internal(flavor, pending)? {
+            Ok(s) => return Ok(Some(s)),
+            Err(AbsentBlob::NothingToRead) => return Ok(None),
+            Err(AbsentBlob::VanishedFile) => {
+                // If we get here, the file was vanished.  Clean up the DB and try again.
+            }
+        }
 
-        if let Some((_va, _vu, filename)) = rv {
-            // TODO: If the cache is corrupt (because this blob is missing), and the cache has not yet
-            // been cleaned, this may fail to find the latest consensus that we actually have.
-            self.read_blob(&filename)
-        } else {
-            Ok(None)
+        // We use unchecked_transaction() here because this API takes a non-mutable `SqliteStore`.
+        // `unchecked_transaction()` will give an error if it is used
+        // when a transaction already exists.
+        // That's fine: We don't call this function from inside this module,
+        // when a transaction might exist,
+        // and we can't call multiple SqliteStore functions at once: it isn't sync.
+        // Here we enforce that:
+        static_assertions::assert_not_impl_any!(SqliteStore: Sync);
+
+        // If we decide that this is unacceptable,
+        // then since sqlite doesn't really support concurrent use of a connection,
+        // we _could_ change the Store::latest_consensus API take &mut self,
+        // or we could add a mutex,
+        // or we could just not use a transaction object.
+        let tx = self.conn.unchecked_transaction()?;
+        Self::remove_entries_for_vanished_blobs(&self.blob_dir, &tx)?;
+        tx.commit()?;
+
+        match self.latest_consensus_internal(flavor, pending)? {
+            Ok(s) => Ok(Some(s)),
+            Err(AbsentBlob::NothingToRead) => Ok(None),
+            Err(AbsentBlob::VanishedFile) => {
+                warn!("Somehow remove_entries_for_vanished_blobs didn't resolve a VanishedFile");
+                Ok(None)
+            }
         }
     }
+
     fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>> {
         let mut stmt = self.conn.prepare(FIND_LATEST_CONSENSUS_META)?;
         let mut rows = stmt.query(params![flavor.name()])?;
@@ -521,7 +713,7 @@ impl Store for SqliteStore {
         if let Some(row) = rows.next()? {
             let meta = cmeta_from_row(row)?;
             let fname: String = row.get(5)?;
-            if let Some(text) = self.read_blob(&fname)? {
+            if let Ok(text) = self.read_blob(&fname)? {
                 return Ok(Some((text, meta)));
             }
         }
@@ -557,7 +749,7 @@ impl Store for SqliteStore {
             &sha3_of_whole[..],
             expires,
         )?;
-        h.tx.execute(
+        h.tx().execute(
             INSERT_CONSENSUS,
             params![
                 valid_after,
@@ -566,11 +758,10 @@ impl Store for SqliteStore {
                 flavor.name(),
                 pending,
                 hex::encode(sha3_of_signed),
-                h.digeststr
+                h.digest_string()
             ],
         )?;
-        h.tx.commit()?;
-        h.unlinker.forget();
+        h.commit()?;
         Ok(())
     }
     fn mark_consensus_usable(&mut self, cmeta: &ConsensusMeta) -> Result<()> {
@@ -763,47 +954,116 @@ impl Store for SqliteStore {
     }
 }
 
-/// Handle to a blob that we have saved to disk but not yet committed to
-/// the database.
-struct SavedBlobHandle<'a> {
-    /// Transaction we're using to add the blob to the ExtDocs table.
-    tx: Transaction<'a>,
-    /// Filename for the file, with respect to the blob directory.
-    #[allow(unused)]
-    fname: String,
-    /// Declared digest string for this blob. Of the format
-    /// "digesttype-hexstr".
-    digeststr: String,
-    /// An 'unlinker' for the blob file.
-    unlinker: Unlinker,
-}
+/// Functionality related to uncommitted blobs.
+mod blob_handle {
+    use std::path::{Path, PathBuf};
 
-/// Handle to a file which we might have to delete.
-///
-/// When this handle is dropped, the file gets deleted, unless you have
-/// first called [`Unlinker::forget`].
-struct Unlinker {
-    /// The location of the file to remove, or None if we shouldn't
-    /// remove it.
-    p: Option<PathBuf>,
-}
-impl Unlinker {
-    /// Make a new Unlinker for a given filename.
-    fn new<P: AsRef<Path>>(p: P) -> Self {
-        Unlinker {
-            p: Some(p.as_ref().to_path_buf()),
+    use crate::Result;
+    use rusqlite::Transaction;
+    use tor_basic_utils::PathExt as _;
+    use tor_error::warn_report;
+
+    /// Handle to a blob that we have saved to disk but
+    /// not yet committed to
+    /// the database, and the database transaction where we added a reference to it.
+    ///
+    /// Used to either commit the blob (by calling [`SavedBlobHandle::commit`]),
+    /// or roll it back (by dropping the [`SavedBlobHandle`] without committing it.)
+    #[must_use]
+    pub(super) struct SavedBlobHandle<'a> {
+        /// Transaction we're using to add the blob to the ExtDocs table.
+        ///
+        /// Note that struct fields are dropped in declaration order,
+        /// so when we drop an uncommitted SavedBlobHandle,
+        /// we roll back the transaction before we delete the file.
+        /// (In practice, either order would be fine.)
+        tx: Transaction<'a>,
+        /// Filename for the file, with respect to the blob directory.
+        fname: String,
+        /// Declared digest string for this blob. Of the format
+        /// "digesttype-hexstr".
+        digeststr: String,
+        /// An 'unlinker' for the blob file.
+        unlinker: Unlinker,
+    }
+
+    impl<'a> SavedBlobHandle<'a> {
+        /// Construct a SavedBlobHandle from its parts.
+        pub(super) fn new(
+            tx: Transaction<'a>,
+            fname: String,
+            digeststr: String,
+            unlinker: Unlinker,
+        ) -> Self {
+            Self {
+                tx,
+                fname,
+                digeststr,
+                unlinker,
+            }
+        }
+
+        /// Return a reference to the underlying database transaction.
+        pub(super) fn tx(&self) -> &Transaction<'a> {
+            &self.tx
+        }
+        /// Return the digest string of the saved blob.
+        /// Other tables use this as a foreign key into ExtDocs.digest
+        pub(super) fn digest_string(&self) -> &str {
+            self.digeststr.as_ref()
+        }
+        /// Return the filename of this blob within the blob directory.
+        #[allow(unused)] // used for testing.
+        pub(super) fn fname(&self) -> &str {
+            self.fname.as_ref()
+        }
+        /// Commit the relevant database transaction.
+        pub(super) fn commit(self) -> Result<()> {
+            // The blob has been written to disk, so it is safe to
+            // commit the transaction.
+            // If the commit returns an error, self.unlinker will remove the blob.
+            // (This could result in a vanished blob if the commit reports an error,
+            // but the transaction is still visible in the database.)
+            self.tx.commit()?;
+            // If we reach this point, we don't want to remove the file.
+            self.unlinker.forget();
+            Ok(())
         }
     }
-    /// Forget about this unlinker, so that the corresponding file won't
-    /// get dropped.
-    fn forget(mut self) {
-        self.p = None;
+
+    /// Handle to a file which we might have to delete.
+    ///
+    /// When this handle is dropped, the file gets deleted, unless you have
+    /// first called [`Unlinker::forget`].
+    pub(super) struct Unlinker {
+        /// The location of the file to remove, or None if we shouldn't
+        /// remove it.
+        p: Option<PathBuf>,
     }
-}
-impl Drop for Unlinker {
-    fn drop(&mut self) {
-        if let Some(p) = self.p.take() {
-            let _ignore_err = std::fs::remove_file(p);
+    impl Unlinker {
+        /// Make a new Unlinker for a given filename.
+        pub(super) fn new<P: AsRef<Path>>(p: P) -> Self {
+            Unlinker {
+                p: Some(p.as_ref().to_path_buf()),
+            }
+        }
+        /// Forget about this unlinker, so that the corresponding file won't
+        /// get dropped.
+        fn forget(mut self) {
+            self.p = None;
+        }
+    }
+    impl Drop for Unlinker {
+        fn drop(&mut self) {
+            if let Some(p) = self.p.take() {
+                if let Err(e) = std::fs::remove_file(&p) {
+                    warn_report!(
+                        e,
+                        "Couldn't remove rolled-back blob file {}",
+                        p.display_lossy()
+                    );
+                }
+            }
         }
     }
 }
@@ -857,13 +1117,16 @@ const INSTALL_V0_SCHEMA: &str = "
 
   -- Keeps track of external blobs on disk.
   CREATE TABLE ExtDocs (
-    -- Records a digest of the file contents, in the form 'dtype-hexstr'
+    -- Records a digest of the file contents, in the form '<digest_type>-hexstr'
     digest TEXT PRIMARY KEY NOT NULL,
     -- When was this file created?
     created DATE NOT NULL,
     -- After what time will this file definitely be useless?
     expires DATE NOT NULL,
-    -- What is the type of this file? Currently supported are 'con:<flavor>'.
+    -- What is the type of this file? Currently supported are 'con_<flavor>'.
+    --   (Before tor-dirmgr ~0.28.0, we would erroneously record 'con_flavor' as 'sha3-256';
+    --   Nothing depended on this yet, but will be used in the future
+    --   as we add more large-document types.)
     type TEXT NOT NULL,
     -- Filename for this file within our blob directory.
     filename TEXT NOT NULL
@@ -1069,6 +1332,15 @@ const INSERT_BRIDGEDESC: &str = "
 #[allow(dead_code)]
 const DELETE_BRIDGEDESC: &str = "DELETE FROM BridgeDescs WHERE bridge_line = ?;";
 
+/// Query: Find all consensus extdocs that are not referenced in the consensus table.
+///
+/// Note: use of `sha3-256` is a synonym for `con_%` is a workaround.
+const FIND_UNREFERENCED_CONSENSUS_EXTDOCS: &str = "
+    SELECT filename FROM ExtDocs WHERE
+         (type LIKE 'con_%' OR type = 'sha3-256')
+    AND NOT EXISTS
+         (SELECT digest FROM Consensuses WHERE Consensuses.digest = ExtDocs.digest);";
+
 /// Query: Discard every expired extdoc.
 ///
 /// External documents aren't exposed through [`Store`].
@@ -1076,6 +1348,9 @@ const DROP_OLD_EXTDOCS: &str = "DELETE FROM ExtDocs WHERE expires < datetime('no
 
 /// Query: Discard an extdoc with a given path.
 const DELETE_EXTDOC_BY_FILENAME: &str = "DELETE FROM ExtDocs WHERE filename = ?;";
+
+/// Query: List all extdoc filenames.
+const FIND_ALL_EXTDOC_FILENAMES: &str = "SELECT filename FROM ExtDocs;";
 
 /// Query: Discard every router descriptor that hasn't been listed for 3
 /// months.
@@ -1098,9 +1373,11 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::storage::EXPIRATION_DEFAULTS;
+    use digest::Digest;
     use hex_literal::hex;
     use tempfile::{tempdir, TempDir};
     use time::ext::NumericalDuration;
+    use tor_llcrypto::d::Sha3_256;
 
     pub(crate) fn new_empty() -> Result<(TempDir, SqliteStore)> {
         let tmp_dir = tempdir().unwrap();
@@ -1505,6 +1782,98 @@ pub(crate) mod test {
         store.remove_unreferenced_blobs(now, &EXPIRATION_DEFAULTS)?;
         assert_eq!(store.blob_dir.read_directory(".")?.count(), 2);
 
+        Ok(())
+    }
+
+    #[test]
+    fn unreferenced_consensus_blob() -> Result<()> {
+        let (_tmp_dir, mut store) = new_empty()?;
+
+        let now = OffsetDateTime::now_utc();
+        let one_week = 1.weeks();
+
+        // Make a blob that claims to be a consensus, and which has not yet expired, but which is
+        // not listed in the consensus table.  It should get removed.
+        let fname = store.save_blob(
+            b"pretend this is a consensus",
+            "con_fake",
+            "sha1",
+            &hex!("803e5a45eea7766a62a735e051a25a50ffb9b1cf"),
+            now + one_week,
+        )?;
+
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 1);
+        assert_eq!(
+            &std::fs::read(store.blob_dir.join(&fname)?).unwrap()[..],
+            b"pretend this is a consensus"
+        );
+        let n: u32 = store
+            .conn
+            .query_row("SELECT COUNT(filename) FROM ExtDocs", [], |row| row.get(0))?;
+        assert_eq!(n, 1);
+
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 0);
+
+        let n: u32 = store
+            .conn
+            .query_row("SELECT COUNT(filename) FROM ExtDocs", [], |row| row.get(0))?;
+        assert_eq!(n, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn vanished_blob_cleanup() -> Result<()> {
+        let (_tmp_dir, mut store) = new_empty()?;
+
+        let now = OffsetDateTime::now_utc();
+        let one_week = 1.weeks();
+
+        // Make a few blobs.
+        let mut fnames = vec![];
+        for idx in 0..8 {
+            let content = format!("Example {idx}");
+            let digest = Sha3_256::digest(content.as_bytes());
+            let fname = store.save_blob(
+                content.as_bytes(),
+                "blob",
+                "sha3-256",
+                digest.as_slice(),
+                now + one_week,
+            )?;
+            fnames.push(fname);
+        }
+
+        // Delete the odd-numbered blobs.
+        store.blob_dir.remove_file(&fnames[1])?;
+        store.blob_dir.remove_file(&fnames[3])?;
+        store.blob_dir.remove_file(&fnames[5])?;
+        store.blob_dir.remove_file(&fnames[7])?;
+
+        let n_removed = {
+            let tx = store.conn.transaction()?;
+            let n = SqliteStore::remove_entries_for_vanished_blobs(&store.blob_dir, &tx)?;
+            tx.commit()?;
+            n
+        };
+        assert_eq!(n_removed, 4);
+
+        // Make sure that it was the _odd-numbered_ ones that got deleted from the DB.
+        let (n_1,): (u32,) =
+            store
+                .conn
+                .query_row(COUNT_EXTDOC_BY_PATH, params![&fnames[1]], |row| {
+                    row.try_into()
+                })?;
+        let (n_2,): (u32,) =
+            store
+                .conn
+                .query_row(COUNT_EXTDOC_BY_PATH, params![&fnames[2]], |row| {
+                    row.try_into()
+                })?;
+        assert_eq!(n_1, 0);
+        assert_eq!(n_2, 1);
         Ok(())
     }
 }
