@@ -28,7 +28,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use rusqlite::{params, OpenFlags, OptionalExtension};
+use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
 use time::OffsetDateTime;
 use tracing::{trace, warn};
 
@@ -506,6 +506,39 @@ impl SqliteStore {
         }
 
         Ok(())
+    }
+
+    /// Remove any entry in the ExtDocs table for which a blob file is vanished.
+    ///
+    /// This method is `O(n)` in the size of the ExtDocs table and the size of the directory.
+    /// It doesn't take self, to avoid problems with the borrow checker.
+    #[allow(unused)] // XXXX
+    fn remove_entries_for_vanished_blobs<'a>(
+        blob_dir: &CheckedDir,
+        tx: &Transaction<'a>,
+    ) -> Result<usize> {
+        let in_directory: HashSet<PathBuf> = blob_dir
+            .read_directory(".")?
+            .flatten()
+            .map(|dir_entry| PathBuf::from(dir_entry.file_name()))
+            .collect();
+        let in_db: Vec<String> = tx
+            .prepare(FIND_ALL_EXTDOC_FILENAMES)?
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<StdResult<Vec<String>, _>>()?;
+
+        let mut n_removed = 0;
+        for fname in in_db {
+            dbg!(&fname);
+            if in_directory.contains(Path::new(&fname)) {
+                // The blob is present; great!
+                continue;
+            }
+
+            n_removed += tx.execute(DELETE_EXTDOC_BY_FILENAME, [fname])?;
+        }
+
+        Ok(n_removed)
     }
 }
 
@@ -1294,6 +1327,9 @@ const DROP_OLD_EXTDOCS: &str = "DELETE FROM ExtDocs WHERE expires < datetime('no
 /// Query: Discard an extdoc with a given path.
 const DELETE_EXTDOC_BY_FILENAME: &str = "DELETE FROM ExtDocs WHERE filename = ?;";
 
+/// Query: List all extdoc filenames.
+const FIND_ALL_EXTDOC_FILENAMES: &str = "SELECT filename FROM ExtDocs;";
+
 /// Query: Discard every router descriptor that hasn't been listed for 3
 /// months.
 // TODO: Choose a more realistic time.
@@ -1315,9 +1351,11 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::storage::EXPIRATION_DEFAULTS;
+    use digest::Digest;
     use hex_literal::hex;
     use tempfile::{tempdir, TempDir};
     use time::ext::NumericalDuration;
+    use tor_llcrypto::d::Sha3_256;
 
     pub(crate) fn new_empty() -> Result<(TempDir, SqliteStore)> {
         let tmp_dir = tempdir().unwrap();
@@ -1760,6 +1798,60 @@ pub(crate) mod test {
             .query_row("SELECT COUNT(filename) FROM ExtDocs", [], |row| row.get(0))?;
         assert_eq!(n, 0);
 
+        Ok(())
+    }
+
+    #[test]
+    fn vanished_blob_cleanup() -> Result<()> {
+        let (_tmp_dir, mut store) = new_empty()?;
+
+        let now = OffsetDateTime::now_utc();
+        let one_week = 1.weeks();
+
+        // Make a few blobs.
+        let mut fnames = vec![];
+        for idx in 0..8 {
+            let content = format!("Example {idx}");
+            let digest = Sha3_256::digest(content.as_bytes());
+            let fname = store.save_blob(
+                content.as_bytes(),
+                "blob",
+                "sha3-256",
+                digest.as_slice(),
+                now + one_week,
+            )?;
+            fnames.push(fname);
+        }
+
+        // Delete the odd-numbered blobs.
+        store.blob_dir.remove_file(&fnames[1])?;
+        store.blob_dir.remove_file(&fnames[3])?;
+        store.blob_dir.remove_file(&fnames[5])?;
+        store.blob_dir.remove_file(&fnames[7])?;
+
+        let n_removed = {
+            let tx = store.conn.transaction()?;
+            let n = SqliteStore::remove_entries_for_vanished_blobs(&store.blob_dir, &tx)?;
+            tx.commit()?;
+            n
+        };
+        assert_eq!(n_removed, 4);
+
+        // Make sure that it was the _odd-numbered_ ones that got deleted from the DB.
+        let (n_1,): (u32,) =
+            store
+                .conn
+                .query_row(COUNT_EXTDOC_BY_PATH, params![&fnames[1]], |row| {
+                    row.try_into()
+                })?;
+        let (n_2,): (u32,) =
+            store
+                .conn
+                .query_row(COUNT_EXTDOC_BY_PATH, params![&fnames[2]], |row| {
+                    row.try_into()
+                })?;
+        assert_eq!(n_1, 0);
+        assert_eq!(n_2, 1);
         Ok(())
     }
 }
