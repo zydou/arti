@@ -1348,7 +1348,7 @@ impl CircHop {
 
     /// Return the number of open streams on this hop.
     ///
-    /// Note: because this locks the stream map mutex,
+    /// WARNING: because this locks the stream map mutex,
     /// it should never be called from a context where that mutex is already locked.
     pub(super) fn n_open_streams(&self) -> usize {
         self.map.lock().expect("lock poisoned").n_open_streams()
