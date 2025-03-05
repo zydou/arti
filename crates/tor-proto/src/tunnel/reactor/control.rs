@@ -276,7 +276,9 @@ impl<'a> ControlHandler<'a> {
                 if self.reactor.circuits.len() == 1 {
                     // This should've been handled in Reactor::run_once()
                     // (ControlHandler::handle_msg() is never called before wait_for_create()).
-                    debug_assert!(!self.reactor.circuits.single_leg_mut()?.hops.is_empty());
+                    //
+                    // TODO: _mut is not needed here
+                    debug_assert!(self.reactor.circuits.single_leg_mut()?.has_first_hop());
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot create first hop twice"

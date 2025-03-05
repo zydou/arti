@@ -704,7 +704,7 @@ impl Reactor {
         if self
             .circuits
             .single_leg_mut()
-            .is_ok_and(|c| c.hops.is_empty())
+            .is_ok_and(|c| !c.has_first_hop())
         {
             self.wait_for_create().await?;
 
@@ -878,7 +878,7 @@ impl Reactor {
                 let res = self
                     .circuits
                     .single_leg_mut()
-                    .map(|leg| leg.channel.clock_skew());
+                    .map(|leg| leg.clock_skew());
 
                 // don't care if the sender goes away
                 let _ = answer.send(res);
@@ -2031,6 +2031,17 @@ impl Circuit {
             }
         }
         Ok(())
+    }
+
+    /// Check whether this circuit has any hops.
+    fn has_first_hop(&self) -> bool {
+        !self.hops.is_empty()
+    }
+
+    /// Return a ClockSkew declaring how much clock skew the other side of this channel
+    /// claimed that we had when we negotiated the connection.
+    fn clock_skew(&self) -> ClockSkew {
+        self.channel.clock_skew()
     }
 }
 
