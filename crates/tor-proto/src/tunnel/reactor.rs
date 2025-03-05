@@ -673,10 +673,7 @@ impl Reactor {
                 leg.handle_sendme(hop, sendme, signals)?;
             }
             RunOnceCmdInner::FirstHopClockSkew { answer } => {
-                let res = self
-                    .circuits
-                    .single_leg_mut()
-                    .map(|leg| leg.clock_skew());
+                let res = self.circuits.single_leg_mut().map(|leg| leg.clock_skew());
 
                 // don't care if the sender goes away
                 let _ = answer.send(res);
