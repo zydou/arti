@@ -538,7 +538,7 @@ impl<'a> ControlHandler<'a> {
             CtrlCmd::QuerySendWindow { hop, done } => {
                 let _ = done.send(
                     if let Some(hop) = self.reactor.circuits.single_leg_mut()?.hop_mut(hop) {
-                        Ok(hop.ccontrol.send_window_and_expected_tags())
+                        Ok(hop.send_window_and_expected_tags())
                     } else {
                         Err(Error::from(internal!(
                             "received QuerySendWindow for unknown hop {}",

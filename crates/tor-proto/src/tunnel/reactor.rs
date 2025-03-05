@@ -381,6 +381,20 @@ impl CircHop {
         }
         Ok(None)
     }
+
+    /// Delegate to CongestionControl, for testing purposes
+    #[cfg(test)]
+    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<CircTag>) {
+        self.ccontrol.send_window_and_expected_tags()
+    }
+
+    /// Return the number of open streams on this hop.
+    ///
+    /// Note: because this locks the stream map mutex,
+    /// it should never be called from a context where that mutex is already locked.
+    pub(super) fn n_open_streams(&self) -> usize {
+        self.map.lock().expect("lock poisoned").n_open_streams()
+    }
 }
 
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
