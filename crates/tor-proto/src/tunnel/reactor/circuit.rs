@@ -146,7 +146,7 @@ pub(crate) struct Circuit {
     /// List of hops state objects used by the reactor
     hops: Vec<CircHop>,
     /// Mutable information about this circuit, shared with
-    /// [`ClientCirc`](super::ClientCirc).
+    /// [`ClientCirc`](crate::circuit::ClientCirc).
     ///
     // TODO(conflux)/TODO(#1840): this belongs in the Reactor
     mutable: Arc<Mutex<MutableState>>,
@@ -186,7 +186,7 @@ impl Circuit {
         }
     }
 
-    /// Handle a [`CtrlMsg::AddFakeHop`] message.
+    /// Handle a [`CtrlMsg::AddFakeHop`](super::CtrlMsg::AddFakeHop) message.
     #[cfg(test)]
     pub(super) fn handle_add_fake_hop(
         &mut self,
@@ -740,7 +740,7 @@ impl Circuit {
         Ok(RunOnceCmdInner::CleanShutdown)
     }
 
-    /// Handle a [`CtrlMsg::Create`] message.
+    /// Handle a [`CtrlMsg::Create`](super::CtrlMsg::Create) message.
     pub(super) async fn handle_create(
         &mut self,
         recv_created: oneshot::Receiver<CreateResponse>,
