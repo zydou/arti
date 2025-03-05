@@ -34,6 +34,13 @@ RECOGNIZED_LICENSES=(
     "(MIT OR Apache-2.0) AND Unicode-3.0"
     # Used by ring >= v0.17.10
     "Apache-2.0 AND ISC"
+    # Used by aws-lc-rs
+    "ISC AND (Apache-2.0 OR ISC)"
+    # Used by aws-lc-sys
+    #
+    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/493 for
+    # our related ticket on OpenSSL license here.
+    "ISC AND (Apache-2.0 OR ISC) AND OpenSSL"
 )
 
 # List of packages that don't list a license.
