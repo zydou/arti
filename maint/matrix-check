@@ -134,14 +134,14 @@ def main():
         default="1,0",
         help="Split the checking into multiple chunks and run only a single one of the chunks. "
         "Takes two comma-separated integers, the first is the number of chunks, "
-        "the second is which chunk to run (zero-indexed).",
+        "the second is which chunk to run (zero-indexed)."
         "This assumes that the set of crates that exist is the same between all invocations.",
     )
     args = parser.parse_args()
     parallel_chunks, parallel_n = map(int, args.parallel.split(","))
     assert parallel_n < parallel_chunks
 
-    crates = sorted(list_crates.list_crates(), key = lambda crate: crate.name)
+    crates = sorted(list_crates.list_crates(), key=lambda crate: crate.name)
     for crate in list(chunks(crates, parallel_chunks))[parallel_n]:
         test_crate(crate)
 
