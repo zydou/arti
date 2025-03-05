@@ -329,15 +329,15 @@ impl From<async_executors::TokioTp> for TokioRuntimeHandle {
     }
 }
 
-impl BlockOn for TokioRuntimeHandle {
+impl ToplevelBlockOn for TokioRuntimeHandle {
     #[track_caller]
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         self.handle.block_on(f)
     }
 }
 
-impl SpawnBlocking for TokioRuntimeHandle {
-    type Handle<T: Send + 'static> = async_executors::BlockingHandle<T>;
+impl Blocking for TokioRuntimeHandle {
+    type ThreadHandle<T: Send + 'static> = async_executors::BlockingHandle<T>;
 
     #[track_caller]
     fn spawn_blocking<F, T>(&self, f: F) -> async_executors::BlockingHandle<T>
@@ -346,6 +346,21 @@ impl SpawnBlocking for TokioRuntimeHandle {
         T: Send + 'static,
     {
         async_executors::BlockingHandle::tokio(self.handle.spawn_blocking(f))
+    }
+
+    #[track_caller]
+    fn reenter_block_on<F: Future>(&self, future: F) -> F::Output {
+        self.handle.block_on(future)
+    }
+
+    #[track_caller]
+    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        let r = tokio_crate::task::block_in_place(f);
+        std::future::ready(r)
     }
 }
 

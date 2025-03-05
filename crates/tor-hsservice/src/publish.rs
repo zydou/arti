@@ -172,7 +172,7 @@ mod test {
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_netdir::{testnet, NetDir};
     use tor_netdoc::doc::hsdesc::test_data;
-    use tor_rtcompat::BlockOn;
+    use tor_rtcompat::ToplevelBlockOn;
     use tor_rtmock::MockRuntime;
 
     use crate::config::OnionServiceConfigBuilder;

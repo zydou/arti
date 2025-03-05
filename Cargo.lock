@@ -6573,6 +6573,7 @@ name = "tor-rtmock"
 version = "0.28.0"
 dependencies = [
  "amplify",
+ "assert_matches",
  "async-trait",
  "derive-deftly 1.0.0",
  "derive_more",

@@ -216,14 +216,14 @@ impl SleepProvider for async_executors::AsyncStd {
     }
 }
 
-impl BlockOn for async_executors::AsyncStd {
+impl ToplevelBlockOn for async_executors::AsyncStd {
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         async_executors::AsyncStd::block_on(f)
     }
 }
 
-impl SpawnBlocking for async_executors::AsyncStd {
-    type Handle<T: Send + 'static> = async_executors::BlockingHandle<T>;
+impl Blocking for async_executors::AsyncStd {
+    type ThreadHandle<T: Send + 'static> = async_executors::BlockingHandle<T>;
 
     fn spawn_blocking<F, T>(&self, f: F) -> async_executors::BlockingHandle<T>
     where
@@ -231,5 +231,9 @@ impl SpawnBlocking for async_executors::AsyncStd {
         T: Send + 'static,
     {
         async_executors::SpawnBlocking::spawn_blocking(&self, f)
+    }
+
+    fn reenter_block_on<F: Future>(&self, f: F) -> F::Output {
+        async_executors::AsyncStd::block_on(f)
     }
 }

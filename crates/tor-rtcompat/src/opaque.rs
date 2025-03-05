@@ -16,20 +16,29 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
-    impl $crate::traits::SpawnBlocking for $t {
-        type Handle<T: Send + 'static> = <$mty as $crate::traits::SpawnBlocking>::Handle<T>;
+    impl $crate::traits::Blocking for $t {
+        type ThreadHandle<T: Send + 'static> = <$mty as $crate::traits::Blocking>::ThreadHandle<T>;
 
         #[inline]
-        fn spawn_blocking<F, T>(&self, f: F) -> <$mty as $crate::traits::SpawnBlocking>::Handle<T>
+        fn spawn_blocking<F, T>(&self, f: F) -> <$mty as $crate::traits::Blocking>::ThreadHandle<T>
         where
             F: FnOnce() -> T + Send + 'static,
             T: Send + 'static,
         {
             self.$member.spawn_blocking(f)
         }
+
+        #[inline]
+        fn reenter_block_on<F>(&self, future: F) -> F::Output
+        where
+            F: futures::Future + Send + 'static,
+            F::Output: Send + 'static
+        {
+            self.$member.reenter_block_on(future)
+        }
     }
 
-    impl $crate::traits::BlockOn for $t {
+    impl $crate::traits::ToplevelBlockOn for $t {
         #[inline]
         fn block_on<F: futures::Future>(&self, future: F) -> F::Output {
             self.$member.block_on(future)

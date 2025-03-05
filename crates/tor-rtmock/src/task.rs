@@ -10,7 +10,7 @@ use std::future::Future;
 use std::io::{self, Write as _};
 use std::iter;
 use std::mem;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{catch_unwind, panic_any, AssertUnwindSafe};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
@@ -20,6 +20,7 @@ use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
 
+use assert_matches::assert_matches;
 use educe::Educe;
 use itertools::Either;
 use itertools::{chain, izip};
@@ -35,7 +36,7 @@ use tracing::{error, trace};
 
 use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
-use tor_rtcompat::{BlockOn, SpawnBlocking};
+use tor_rtcompat::{Blocking, ToplevelBlockOn};
 
 use Poll::*;
 use TaskState::*;
@@ -53,11 +54,11 @@ type MainFuture<'m> = Pin<&'m mut dyn Future<Output = ()>>;
 /// For test cases which don't actually wait for anything in the real world.
 ///
 /// This is the executor.
-/// It implements [`Spawn`] and [`BlockOn`]
+/// It implements [`Spawn`] and [`ToplevelBlockOn`]
 ///
 /// It will usually be used as part of a `MockRuntime`.
 ///
-/// To run futures, call [`BlockOn::block_on`],
+/// To run futures, call [`ToplevelBlockOn::block_on`]
 ///
 /// # Restricted environment
 ///
@@ -135,7 +136,8 @@ use task_id::Ti as TaskId;
 /// So we cannot store that future in `Data` because `Data` is `'static`.
 /// Instead, this main task future is passed as an argument down the call stack.
 /// In the data structure we simply store a placeholder, `TaskFutureInfo::Main`.
-#[derive(Default, derive_more::Debug)]
+#[derive(Educe, derive_more::Debug)]
+#[educe(Default)]
 struct Data {
     /// Tasks
     ///
@@ -168,6 +170,7 @@ struct Data {
     ///
     ///  1. no-one but the named thread is allowed to modify this field.
     ///  2. after modifying this field, signal `thread_condvar`
+    #[educe(Default(expression = "ThreadDescriptor::Executor"))]
     thread_to_run: ThreadDescriptor,
 }
 
@@ -312,11 +315,13 @@ struct ProgressUntilStalledFuture {
 /// This being a thread-local and not scoped by which `MockExecutor` we're talking about
 /// means that we can't cope if there are multiple `MockExecutor`s involved in the same thread.
 /// That's OK (and documented).
-#[derive(Default, Copy, Clone, Eq, PartialEq, derive_more::Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, derive_more::Debug)]
 enum ThreadDescriptor {
+    /// Foreign - neither the (running) executor, nor a Subthread
+    #[debug("FOREIGN")]
+    Foreign,
     /// The executor.
     #[debug("Exe")]
-    #[default]
     Executor,
     /// This task, which is a Subthread.
     #[debug("{_0:?}")]
@@ -332,7 +337,7 @@ struct IsSubthread;
 thread_local! {
     /// Identifies this thread.
     pub static THREAD_DESCRIPTOR: Cell<ThreadDescriptor> = const {
-        Cell::new(ThreadDescriptor::Executor)
+        Cell::new(ThreadDescriptor::Foreign)
     };
 }
 
@@ -444,18 +449,17 @@ impl Spawn for MockExecutor {
     }
 }
 
-impl SpawnBlocking for MockExecutor {
-    type Handle<T: Send + 'static> = Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
-
-    fn spawn_blocking<F, T>(&self, f: F) -> Self::Handle<T>
+impl MockExecutor {
+    /// Implementation of `spawn_blocking` and `blocking_io`
+    fn spawn_thread_inner<F, T>(&self, f: F) -> <Self as Blocking>::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
-        // For the mock executor, everything goes on the same threadpool.
+        // For the mock executor, everything runs on the same thread.
         // If we need something more complex in the future, we can change this.
         let (tx, rx) = oneshot::channel();
-        self.spawn_identified("spawn_blocking".to_string(), async move {
+        self.spawn_identified("Blocking".to_string(), async move {
             match tx.send(f()) {
                 Ok(()) => (),
                 Err(_) => panic!("Failed to send future's output, did future panic?"),
@@ -465,9 +469,48 @@ impl SpawnBlocking for MockExecutor {
     }
 }
 
+impl Blocking for MockExecutor {
+    type ThreadHandle<T: Send + 'static> =
+        Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
+
+    fn spawn_blocking<F, T>(&self, f: F) -> Self::ThreadHandle<T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        assert_matches!(
+            THREAD_DESCRIPTOR.get(),
+            ThreadDescriptor::Executor | ThreadDescriptor::Subthread(_),
+ "MockExecutor::spawn_blocking_io only allowed from future or subthread, being run by this executor"
+        );
+        self.spawn_thread_inner(f)
+    }
+
+    fn reenter_block_on<F>(&self, future: F) -> F::Output
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        self.subthread_block_on_future(future)
+    }
+
+    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        assert_eq!(
+            THREAD_DESCRIPTOR.get(),
+            ThreadDescriptor::Executor,
+            "MockExecutor::blocking_io only allowed from future being polled by this executor"
+        );
+        self.spawn_thread_inner(f)
+    }
+}
+
 //---------- block_on ----------
 
-impl BlockOn for MockExecutor {
+impl ToplevelBlockOn for MockExecutor {
     fn block_on<F>(&self, input_fut: F) -> F::Output
     where
         F: Future,
@@ -601,9 +644,35 @@ impl MockExecutor {
     /// # Panics
     ///
     /// Might malfunction or panic if called reentrantly
-    #[allow(clippy::cognitive_complexity)]
-    fn execute_until_first_stall(&self, mut main_fut: MainFuture) {
+    fn execute_until_first_stall(&self, main_fut: MainFuture) {
         trace!("MockExecutor execute_until_first_stall ...");
+
+        assert_eq!(
+            THREAD_DESCRIPTOR.get(),
+            ThreadDescriptor::Foreign,
+            "MockExecutor executor re-entered"
+        );
+        THREAD_DESCRIPTOR.set(ThreadDescriptor::Executor);
+
+        let r = catch_unwind(AssertUnwindSafe(|| self.executor_main_loop(main_fut)));
+
+        THREAD_DESCRIPTOR.set(ThreadDescriptor::Foreign);
+
+        match r {
+            Ok(()) => trace!("MockExecutor execute_until_first_stall done."),
+            Err(e) => {
+                trace!("MockExecutor executor, or async task, panicked!");
+                panic_any(e)
+            }
+        }
+    }
+
+    /// Keep polling tasks until `awake` is empty (inner, executor main loop)
+    ///
+    /// This is only called from [`MockExecutor::execute_until_first_stall`],
+    /// so it could also be called `execute_until_first_stall_inner`.
+    #[allow(clippy::cognitive_complexity)]
+    fn executor_main_loop(&self, mut main_fut: MainFuture) {
         'outer: loop {
             // Take a `Awake` task off `awake` and make it `Asleep`
             let (id, mut fut) = 'inner: loop {
@@ -693,7 +762,6 @@ impl MockExecutor {
                 }
             }
         }
-        trace!("MockExecutor execute_until_first_stall done.");
     }
 }
 
@@ -814,7 +882,9 @@ impl MockExecutor {
     ///  * Only a Subthread can re-enter the async context from sync code:
     ///    this must be done with
     ///    using [`subthread_block_on_future`](MockExecutor::subthread_block_on_future).
-    ///    (Re-entering the executor with [`block_on`](BlockOn::block_on) is not allowed.)
+    ///    (Re-entering the executor with
+    ///    [`block_on`](tor_rtcompat::ToplevelBlockOn::block_on)
+    ///    is not allowed.)
     ///  * If async tasks want to suspend waiting for synchronous code,
     ///    the synchronous code must run on a Subthread.
     ///    This allows the `MockExecutor` to know when
@@ -827,9 +897,6 @@ impl MockExecutor {
     ///    they only run as scheduled deterministically by the `MockExecutor`.
     ///    So using Subthreads eliminates a source of test nonndeterminism.
     ///    (Execution order is still varied due to explicitly varying the scheduling policy.)
-    ///
-    /// **TODO [\#1835](https://gitlab.torproject.org/tpo/core/arti/-/issues/1835)**:
-    /// Currently the traits in `tor_rtcompat` do not support proper usage very well.
     ///
     /// # Panics, abuse, and malfunctions
     ///
@@ -898,6 +965,7 @@ impl MockExecutor {
     /// including `fut`, until `fut` completes.
     ///
     /// `fut` is polled on the executor thread, not on the Subthread.
+    /// (We may change that in the future, allowing passing a non-`Send` future.)
     ///
     /// # Panics, abuse, and malfunctions
     ///
@@ -925,8 +993,11 @@ impl MockExecutor {
 
         let id = match THREAD_DESCRIPTOR.get() {
             ThreadDescriptor::Subthread(id) => id,
-            ThreadDescriptor::Executor => panic!(
-                "subthread_block_on_future called on thread not spawned with spawn_subthread"
+            ThreadDescriptor::Executor => {
+                panic!("subthread_block_on_future called from MockExecutor thread (async task?)")
+            }
+            ThreadDescriptor::Foreign => panic!(
+    "subthread_block_on_future called on foreign thread (not spawned with spawn_subthread)"
             ),
         };
         trace!("MockExecutor thread {id:?}, subthread_block_on_future...");
@@ -1585,11 +1656,11 @@ mod test {
         runtime.block_on({
             let runtime = runtime.clone();
             async move {
-                let task_1 = runtime.spawn_blocking(|| 42);
-                let task_2 = runtime.spawn_blocking(|| 99);
+                let thr_1 = runtime.spawn_blocking(|| 42);
+                let thr_2 = runtime.spawn_blocking(|| 99);
 
-                assert_eq!(task_2.await, 99);
-                assert_eq!(task_1.await, 42);
+                assert_eq!(thr_2.await, 99);
+                assert_eq!(thr_1.await, 42);
             }
         });
     }

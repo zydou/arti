@@ -15,9 +15,14 @@ define_derive_deftly! {
 ///  * `#[deftly(mock(net))]` to indicate the field implementing `NetProvider`
 ///  * `#[deftly(mock(sleep))]` to indicate the field implementing `SleepProvider`
 ///     and `CoarseTimeProvider`.
+///  * `#[deftly(mock(toplevel))]` to indicate the field implementing `ToplevelBlockOn`
+///     unconditionally.
+///  * `#[deftly(mock(toplevel_where = "BOUND"))]` to indicate the field implementing
+///    `ToplevelBlockOn` only if BOUND is satisfied.
+///    For example, `#[deftly(mock(toplevel_where = "R: ToplevelBlockOn"))] runtime: R,`.
 // This could perhaps be further reduced:
 // ambassador might be able to remove most of the body (although does it do async well?)
-    SomeMockRuntime for struct, expect items:
+    SomeMockRuntime for struct, expect items, beta_deftly:
 
  $(
   ${when fmeta(mock(task))}
@@ -28,18 +33,32 @@ define_derive_deftly! {
         }
     }
 
-    impl <$tgens> SpawnBlocking for $ttype {
-        type Handle<T: Send + 'static> = <$ftype as SpawnBlocking>::Handle<T>;
+    impl <$tgens> Blocking for $ttype {
+        type ThreadHandle<T: Send + 'static> = <$ftype as Blocking>::ThreadHandle<T>;
 
-        fn spawn_blocking<F, T>(&self, f: F) -> <$ftype as SpawnBlocking>::Handle<T>
+        fn spawn_blocking<F, T>(&self, f: F) -> <$ftype as Blocking>::ThreadHandle<T>
         where
             F: FnOnce() -> T + Send + 'static,
             T: Send + 'static {
             self.$fname.spawn_blocking(f)
         }
+
+        fn reenter_block_on<F>(&self, future: F) -> F::Output
+        where
+            F: Future + Send + 'static,
+            F::Output: Send + 'static
+        {
+            self.$fname.reenter_block_on(future)
+        }
     }
 
-    impl <$tgens> BlockOn for $ttype {
+ )
+ $(
+  ${when any(fmeta(mock(toplevel)), fmeta(mock(toplevel_where)))}
+
+    impl <$tgens> ToplevelBlockOn for $ttype
+    where ${fmeta(mock(toplevel_where)) as token_stream, default {}}
+    {
         fn block_on<F: Future>(&self, future: F) -> F::Output {
             self.$fname.block_on(future)
         }
@@ -162,8 +181,8 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::net::SocketAddr;
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
-        unimpl::FakeListener, unimpl::FakeStream, BlockOn, CoarseInstant, CoarseTimeProvider,
-        NetStreamProvider, Runtime, SleepProvider, SpawnBlocking, TlsProvider, UdpProvider,
+        unimpl::FakeListener, unimpl::FakeStream, Blocking, CoarseInstant, CoarseTimeProvider,
+        NetStreamProvider, Runtime, SleepProvider, TlsProvider, ToplevelBlockOn, UdpProvider,
     };
 }
 
