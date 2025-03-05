@@ -114,7 +114,14 @@ def test_crate(crate):
 
 # https://stackoverflow.com/questions/24483182/python-split-list-into-n-chunks
 def chunks(lst, n):
-    """Yield n number of striped chunks from lst."""
+    """
+    Yield n number of chunks from lst.
+
+    This is a striped chunk, meaning that rather than making contigious chunks, each chunk is made
+    up of elements that are n spaces apart in the input list. This has the advantage of making
+    sure that the lists are as close to evenly sized as possible, even if the input list length is
+    not divisible by n.
+    """
     for i in range(0, n):
         yield lst[i::n]
 
@@ -133,7 +140,7 @@ def main():
     parallel_chunks, parallel_n = map(int, args.parallel.split(","))
     assert parallel_n < parallel_chunks
 
-    crates = list(list_crates.list_crates())
+    crates = sorted(list_crates.list_crates(), key = lambda crate: crate.name)
     for crate in list(chunks(crates, parallel_chunks))[parallel_n]:
         test_crate(crate)
 
