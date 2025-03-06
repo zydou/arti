@@ -2,6 +2,17 @@
 
 #![cfg(not(miri))] // miri cannot do CLOCK_REALTIME
 
+// TODO #1885
+//
+// Ideally we would use #[cfg_attr(not(test), allow(deprecated))] as discussed by the
+// MockSleepProvider's cfg_attr deprecated attr, and as done in lib.rs for `mod time`.
+//
+// But inner cfg attr doesn't work correctly, and because this is a cargo "integration test"
+// there is no super-module in which to put an outer attribute.
+// (cargo "integration tests" are a bad idea for other reasons, but it doesn't seem worth
+// tidying that up since this whole test exists to test deprecated code.)
+#![allow(deprecated)]
+
 use tor_rtcompat::test_with_all_runtimes;
 use tor_rtcompat::{SleepProvider, SleepProviderExt, Timeout, TimeoutError};
 
