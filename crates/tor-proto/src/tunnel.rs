@@ -16,8 +16,6 @@ use std::net::IpAddr;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tor_error::bad_api_usage;
-use tor_linkspec::OwnedChanTarget;
 
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
@@ -38,6 +36,8 @@ use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal};
 use tor_cell::relaycell::{RelayCellFormat, StreamId};
+use tor_error::bad_api_usage;
+use tor_linkspec::OwnedChanTarget;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 

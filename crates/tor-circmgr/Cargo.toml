@@ -22,6 +22,7 @@ full = [
     "retry-error/full",
     "safelog/full",
     "tor-basic-utils/full",
+    "tor-cell/full",
     "tor-chanmgr/full",
     "tor-config/full",
     "tor-error/full",
@@ -70,6 +71,7 @@ amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 bounded-vec-deque = "0.1"
 cfg-if = "1.0.0"
+derive-deftly = { version = "1.1.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
@@ -89,6 +91,7 @@ static_assertions = "1"
 thiserror = "2"
 tor-async-utils = { version = "0.33.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
+tor-cell = { path = "../tor-cell", version = "0.33.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.33.0" }
 tor-config = { path = "../tor-config", version = "0.33.0" }
 tor-error = { path = "../tor-error", version = "0.33.0", features = ["tracing"] }

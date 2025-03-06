@@ -82,6 +82,7 @@ mod mgr;
 mod mocks;
 mod preemptive;
 pub mod timeouts;
+mod tunnel;
 mod usage;
 
 // Can't apply `visibility` to modules.
@@ -97,6 +98,13 @@ pub use err::Error;
 pub use isolation::IsolationToken;
 use tor_guardmgr::fallback::FallbackList;
 pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
+pub use tunnel::{
+    ClientDataTunnel, ClientDirTunnel, ClientMultiPathDataTunnel,
+    ClientMultiPathOnionServiceDataTunnel, ClientOnionServiceDataTunnel,
+    ClientOnionServiceDirTunnel, ClientOnionServiceIntroTunnel,
+    ServiceMultiPathOnionServiceDataTunnel, ServiceOnionServiceDataTunnel,
+    ServiceOnionServiceDirTunnel, ServiceOnionServiceIntroTunnel,
+};
 pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
