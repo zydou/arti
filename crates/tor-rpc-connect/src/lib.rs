@@ -176,9 +176,6 @@ pub enum ConnectError {
     /// We were told to connect using an auth type that we don't support.
     #[error("Unsupported authentication type")]
     UnsupportedAuthType,
-    /// We were told to use a Unix address for which we could not extract a parent directory.
-    #[error("Invalid unix address")]
-    InvalidUnixAddress,
     /// Unable to access the location of a Unix address.
     #[error("Unix address access")]
     UnixAddressAccess(#[from] fs_mistrust::Error),
@@ -203,7 +200,6 @@ impl crate::HasClientErrorAction for ConnectError {
             E::LoadCookie(err) => err.client_action(),
             E::UnsupportedSocketType => A::Decline,
             E::UnsupportedAuthType => A::Decline,
-            E::InvalidUnixAddress => A::Decline,
             E::UnixAddressAccess(err) => err.client_action(),
             E::AlreadyLocked => A::Abort, // (This one can't actually occur for clients.)
         }
