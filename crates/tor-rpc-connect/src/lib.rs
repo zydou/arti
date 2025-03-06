@@ -87,7 +87,7 @@ impl HasClientErrorAction for tor_config_path::addr::CfgAddrError {
         match self {
             CAE::NoUnixAddressSupport(_) => A::Decline,
             CAE::Path(cfg_path_error) => cfg_path_error.client_action(),
-            CAE::ConstructUnixAddress(_) => A::Abort,
+            CAE::ConstructAfUnixAddress(_) => A::Abort,
             // No variants are currently captured in this pattern, but they _could_ be in the future.
             _ => A::Abort,
         }
@@ -176,9 +176,9 @@ pub enum ConnectError {
     /// We were told to connect using an auth type that we don't support.
     #[error("Unsupported authentication type")]
     UnsupportedAuthType,
-    /// Unable to access the location of a Unix address.
-    #[error("Unix address access")]
-    UnixAddressAccess(#[from] fs_mistrust::Error),
+    /// Unable to access the location of an AF\_UNIX socket.
+    #[error("Unix domain socket path access")]
+    AfUnixSocketPathAccess(#[from] fs_mistrust::Error),
     /// Another process was holding a lock for this connect point,
     /// so we couldn't bind to it.
     #[error("Could not acquire lock: Another process is listening on this connect point")]
@@ -200,7 +200,7 @@ impl crate::HasClientErrorAction for ConnectError {
             E::LoadCookie(err) => err.client_action(),
             E::UnsupportedSocketType => A::Decline,
             E::UnsupportedAuthType => A::Decline,
-            E::UnixAddressAccess(err) => err.client_action(),
+            E::AfUnixSocketPathAccess(err) => err.client_action(),
             E::AlreadyLocked => A::Abort, // (This one can't actually occur for clients.)
         }
     }

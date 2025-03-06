@@ -60,7 +60,7 @@ impl CfgAddr {
                 #[cfg(unix)]
                 {
                     let addr = unix::SocketAddr::from_pathname(cfg_path.path(path_resolver)?)
-                        .map_err(|e| CfgAddrError::ConstructUnixAddress(Arc::new(e)))?;
+                        .map_err(|e| CfgAddrError::ConstructAfUnixAddress(Arc::new(e)))?;
                     Ok(addr.into())
                 }
             }
@@ -113,8 +113,8 @@ pub enum CfgAddrError {
     /// Unable to create an AF_UNIX address from a path.
     ///
     /// (This can happen if the path is too long, or contains internal NULs.)
-    #[error("Could not construct unix address")]
-    ConstructUnixAddress(#[source] Arc<io::Error>),
+    #[error("Could not construct AF_UNIX address")]
+    ConstructAfUnixAddress(#[source] Arc<io::Error>),
 }
 
 impl FromStr for CfgAddr {

@@ -205,7 +205,7 @@ pub enum AddrParseError {
     NoSchema,
     /// Tried to parse an address as an AF_UNIX address, but failed.
     #[error("Invalid AF_UNIX address")]
-    InvalidUnixAddress(#[source] Arc<IoError>),
+    InvalidAfUnixAddress(#[source] Arc<IoError>),
     /// Tried to parse an address as a inet address, but failed.
     #[error("Invalid internet address")]
     InvalidInetAddress(#[from] std::net::AddrParseError),
@@ -213,7 +213,7 @@ pub enum AddrParseError {
 
 impl From<IoError> for AddrParseError {
     fn from(e: IoError) -> Self {
-        Self::InvalidUnixAddress(Arc::new(e))
+        Self::InvalidAfUnixAddress(Arc::new(e))
     }
 }
 
@@ -474,11 +474,11 @@ mod test {
     fn parse_err_no_unix() {
         assert_matches!(
             "unix:".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidUnixAddress(_))
+            Err(AddrParseError::InvalidAfUnixAddress(_))
         );
         assert_matches!(
             "unix:/any/path".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidUnixAddress(_))
+            Err(AddrParseError::InvalidAfUnixAddress(_))
         );
     }
 }
