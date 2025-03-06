@@ -525,7 +525,10 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_rtmock::{io::stream_pair, time::MockSleepProvider};
+    use tor_rtmock::io::stream_pair;
+
+    #[allow(deprecated)] // TODO #1885
+    use tor_rtmock::time::MockSleepProvider;
 
     use futures_await_test::async_test;
 
@@ -565,6 +568,7 @@ mod test {
     ) -> (RequestResult<()>, Vec<u8>) {
         // We don't need to do anything fancy here, since we aren't simulating
         // a timeout.
+        #[allow(deprecated)] // TODO #1885
         let mock_time = MockSleepProvider::new(std::time::SystemTime::now());
 
         let mut output = Vec::new();

@@ -743,6 +743,7 @@ mod test {
 
             trace!("acquiesce after test1");
             #[allow(clippy::clone_on_copy)]
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that's ready after a short delay.
@@ -767,6 +768,7 @@ mod test {
 
             trace!("acquiesce after test2");
             #[allow(clippy::clone_on_copy)]
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that passes the first timeout, and make sure that
@@ -797,6 +799,7 @@ mod test {
 
             trace!("acquiesce after test3");
             #[allow(clippy::clone_on_copy)]
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that times out and gets abandoned.
