@@ -1,5 +1,6 @@
 //! Module providing [`CtrlMsg`].
 
+use super::circuit::extender::CircuitExtender;
 use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
@@ -11,7 +12,6 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::{path, CircParameters};
-use crate::tunnel::reactor::extender::CircuitExtender;
 use crate::tunnel::reactor::{NtorClient, ReactorError};
 use crate::tunnel::streammap;
 use crate::util::skew::ClockSkew;
@@ -276,7 +276,9 @@ impl<'a> ControlHandler<'a> {
                 if self.reactor.circuits.len() == 1 {
                     // This should've been handled in Reactor::run_once()
                     // (ControlHandler::handle_msg() is never called before wait_for_create()).
-                    debug_assert!(!self.reactor.circuits.single_leg_mut()?.hops.is_empty());
+                    //
+                    // TODO: _mut is not needed here
+                    debug_assert!(self.reactor.circuits.single_leg_mut()?.has_hops());
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot create first hop twice"
@@ -536,7 +538,7 @@ impl<'a> ControlHandler<'a> {
             CtrlCmd::QuerySendWindow { hop, done } => {
                 let _ = done.send(
                     if let Some(hop) = self.reactor.circuits.single_leg_mut()?.hop_mut(hop) {
-                        Ok(hop.ccontrol.send_window_and_expected_tags())
+                        Ok(hop.send_window_and_expected_tags())
                     } else {
                         Err(Error::from(internal!(
                             "received QuerySendWindow for unknown hop {}",

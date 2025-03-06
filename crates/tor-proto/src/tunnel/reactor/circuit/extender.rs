@@ -1,6 +1,6 @@
 //! Module providing [`CircuitExtender`].
 
-use super::{Circuit, MetaCellDisposition, MetaCellHandler, ReactorResultChannel};
+use super::{Circuit, ReactorResultChannel};
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
@@ -9,6 +9,7 @@ use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircParameters;
+use crate::tunnel::reactor::MetaCellDisposition;
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
@@ -21,7 +22,7 @@ use tor_error::internal;
 use crate::crypto::handshake::ntor::NtorClient;
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::tunnel::circuit::path;
-use crate::tunnel::reactor::SendRelayCell;
+use crate::tunnel::reactor::{MetaCellHandler, SendRelayCell};
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 use tracing::trace;
@@ -30,7 +31,7 @@ use tracing::trace;
 ///
 /// Yes, I know having trait bounds on structs is bad, but in this case it's necessary
 /// since we want to be able to use `H::KeyType`.
-pub(super) struct CircuitExtender<H, L, FWD, REV>
+pub(crate) struct CircuitExtender<H, L, FWD, REV>
 where
     H: ClientHandshake,
 {
@@ -76,7 +77,7 @@ where
     /// current last hop which relay to connect to.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::blocks_in_conditions)]
-    pub(super) fn begin(
+    pub(crate) fn begin(
         relay_cell_format: RelayCellFormat,
         peer_id: OwnedChanTarget,
         handshake_id: HandshakeType,
@@ -233,7 +234,7 @@ where
 // ```
 // trait HandshakeAuxDataHandler<H> where H: ClientHandshake
 // ```
-pub(super) trait HandshakeAuxDataHandler: ClientHandshake {
+pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     /// Handle auxiliary handshake data returned when creating or extending a
     /// circuit.
     fn handle_server_aux_data(

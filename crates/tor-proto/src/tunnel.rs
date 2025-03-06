@@ -16,7 +16,7 @@ use std::sync::Arc;
 use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 use circuit::ClientCirc;
-use circuit::{handshake, StreamMpscSender, CIRCUIT_BUFFER_SIZE};
+use circuit::{handshake, StreamMpscSender};
 use reactor::{CtrlMsg, LegId};
 
 use tor_async_utils::SinkCloseChannel as _;

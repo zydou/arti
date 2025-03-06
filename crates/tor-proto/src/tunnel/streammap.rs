@@ -4,6 +4,7 @@ use crate::congestion::sendme;
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
 use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::tunnel::halfstream::HalfStream;
+use crate::tunnel::reactor::circuit::RECV_WINDOW_INIT;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;
@@ -21,7 +22,6 @@ use tor_error::{bad_api_usage, internal};
 
 use rand::Rng;
 
-use crate::tunnel::reactor::RECV_WINDOW_INIT;
 use tracing::debug;
 
 /// Entry for an open stream
