@@ -257,7 +257,7 @@ the corresponding entry is *declined*.
    but no Arti process is listening at the location it describes.
  - The connect point tells us to try an embedded
    Arti client, but no embedded client is available.
- - The connect point tells us to use a Unix socket,
+ - The connect point tells us to use a Unix domain socket,
    but we are on windows.
  - The specified address for connect file,
    or a file that the connect point mentions,

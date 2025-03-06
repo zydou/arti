@@ -258,7 +258,7 @@ pub enum TargetAddr {
     /// An address that we can reach over the internet.
     Inet(SocketAddr),
     /* TODO (#1246): Put this back.
-    /// An address of a local unix socket.
+    /// An address of a local unix domain socket.
     Unix(PathBuf),
     */
 }

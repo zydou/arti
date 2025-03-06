@@ -87,7 +87,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
             // while it is in use.
             //
             // (We can't just rely on getting an EADDRINUSE when we bind the socket,
-            // since unix sockets give that error unconditionally if the file exists,
+            // since AF_UNIX sockets give that error unconditionally if the file exists,
             // whether anybody has bound to it or not.
             // We can't just check whether the socket file exists,
             // since it might be a stale socket left over from a process that has crashed.

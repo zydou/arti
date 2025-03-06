@@ -1,4 +1,4 @@
-//! Definitions related to unix socket support.
+//! Definitions related to unix domain socket support.
 //!
 //! To avoid confusion, don't import `SocketAddr` from this module directly;
 //! instead, import the module and refer to `unix::SocketAddr`.
@@ -19,7 +19,7 @@ pub use std::os::unix::net::SocketAddr;
 /// (This is an uninhabited placeholder implementations for platforms without AF_UNIX support.)
 ///
 /// Note that we currently include Windows on platforms without AF_UNIX support:
-/// When we use Unix sockets in Arti, we rely on their filesystem-based security properties,
+/// When we use unix domain sockets in Arti, we rely on their filesystem-based security properties,
 /// which we haven't yet had a chance to fully analyze on non-Unix platforms.
 #[cfg(not(unix))]
 #[derive(Debug, Clone)]
@@ -48,9 +48,9 @@ impl SocketAddr {
     }
 }
 
-/// Error: Unix addresses are not supported on this platform.
+/// Error: Unix domain sockets are not supported on this platform.
 #[derive(Clone, Debug, Default, thiserror::Error)]
-#[error("No support for AF_UNIX addresses on this platform")]
+#[error("No support for unix domain sockets on this platform")]
 #[non_exhaustive]
 pub struct NoUnixAddressSupport;
 

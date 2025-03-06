@@ -32,7 +32,7 @@ def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
 
     env = {
         "RUNNING_IN_SHADOW": "yes",
-        # unix sockets aren't supported in shadow
+        # AF_UNIX sockets aren't supported in shadow
         "CHUTNEY_ENABLE_CONTROLSOCKET": "no",
         # ipv6 isn't supported in shadow
         "CHUTNEY_DISABLE_IPV6": "yes",

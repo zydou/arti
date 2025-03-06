@@ -115,7 +115,7 @@ pub(crate) mod net {
         }}
     }
 
-    /// Try to convert a tokio unix SocketAddr into a crate::SocketAddr.
+    /// Try to convert a tokio `unix::SocketAddr` into a crate::SocketAddr.
     ///
     /// Frustratingly, this information is _right there_: Tokio's SocketAddr has a
     /// std::unix::net::SocketAddr internally, but there appears to be no way to get it out.

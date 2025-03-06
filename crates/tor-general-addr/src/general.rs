@@ -43,7 +43,7 @@ use std::os::linux::net::SocketAddrExt as _;
 ///    Examples: `unix:/path/to/socket`, `inet:127.0.0.1:9999`,
 ///    `inet:[::1]:9999`.
 ///
-///    The "unnamed" unix address is represented as `unix:`.
+///    The "unnamed" AF_UNIX address is represented as `unix:`.
 ///
 /// 2. A _unqualified_ representation,
 ///    consisting of a `net::SocketAddr` address represented as a string.
@@ -366,7 +366,7 @@ mod test {
         assert_eq!(ga2.try_to_string().unwrap(), "inet:[::1]:9999");
     }
 
-    /// Treat `s` as a unix path, and build a `general::SocketAddr` from it.
+    /// Treat `s` as a path for an AF_UNIX socket, and build a `general::SocketAddr` from it.
     ///
     /// Testing only. Panics on error.
     #[cfg(unix)]

@@ -1,4 +1,4 @@
-//! Functionality for working with Unix addresses.
+//! Functionality for working with AF\_UNIX addresses.
 
 use tor_general_addr::unix;
 
@@ -10,7 +10,7 @@ pub(crate) fn new_unnamed_socketaddr() -> std::io::Result<unix::SocketAddr> {
     unix::SocketAddr::from_pathname("")
 }
 
-/// Error: Tried to perform an operation on an unsupported kind of unix address.
+/// Error: Tried to perform an operation on an unsupported kind of AF\_UNIX address.
 ///
 /// (For example, you can't bind or connect to an unnamed address.)
 #[derive(Clone, Debug, thiserror::Error)]
@@ -31,7 +31,7 @@ mod test {
     #[test]
     #[cfg(unix)]
     fn unnamed() {
-        let u = new_unnamed_socketaddr().expect("couldn't construct unnamed unix socketaddr");
+        let u = new_unnamed_socketaddr().expect("couldn't construct unnamed AF_UNIX socketaddr");
         assert!(u.is_unnamed());
         assert!(u.as_pathname().is_none());
 
