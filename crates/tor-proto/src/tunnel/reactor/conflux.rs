@@ -5,7 +5,7 @@ use futures::{select_biased, stream::FuturesUnordered, FutureExt as _, Stream};
 use slotmap_careful::SlotMap;
 
 use tor_async_utils::SinkPrepareExt as _;
-use tor_error::{bad_api_usage, internal, Bug};
+use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
 use crate::util::err::ReactorError;
 
@@ -35,15 +35,11 @@ impl ConfluxSet {
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
-    fn single_leg_check(&self) -> Result<(), Bug> {
+    fn single_leg_check(&self) -> Result<(), NotSingleLegError> {
         if self.legs.is_empty() {
-            Err(bad_api_usage!(
-                "tried to get circuit leg before creating it?!"
-            ))
+            Err(NotSingleLegError::EmptyConfluxSet)
         } else if self.legs.len() > 1 {
-            Err(bad_api_usage!(
-                "tried to get single circuit leg after conflux linking?!"
-            ))
+            Err(NotSingleLegError::IsMultipath)
         } else {
             Ok(())
         }
@@ -182,5 +178,35 @@ impl ConfluxSet {
             // Note: We don't actually use the returned SinkSendable,
             // and continue writing to the SometimesUboundedSink in the reactor :(
             .map(|res| res.map(|res| res.0))
+    }
+}
+
+/// An error returned when a method is expecting a single-leg conflux circuit,
+/// but it is not single-leg.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub(super) enum NotSingleLegError {
+    /// Conflux set has no legs.
+    #[error("the conflux set has no legs")]
+    EmptyConfluxSet,
+    /// Conflux set is multi-path.
+    #[error("the conflux set is multi-path")]
+    IsMultipath,
+}
+
+impl From<NotSingleLegError> for Bug {
+    fn from(e: NotSingleLegError) -> Self {
+        into_bad_api_usage!("not a single leg conflux set")(e)
+    }
+}
+
+impl From<NotSingleLegError> for crate::Error {
+    fn from(e: NotSingleLegError) -> Self {
+        Self::from(Bug::from(e))
+    }
+}
+
+impl From<NotSingleLegError> for ReactorError {
+    fn from(e: NotSingleLegError) -> Self {
+        Self::from(Bug::from(e))
     }
 }
