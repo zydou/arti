@@ -1225,6 +1225,21 @@ impl Circuit {
         Ok(())
     }
 
+    /// The number of hops in this circuit.
+    pub(super) fn num_hops(&self) -> u8 {
+        // Realistically the number of hops can't be larger than `u8::MAX` due to relay-early cells,
+        // and other code hopefully prevents users from attempting to build circuits that long.
+        // The alternative is an `as u8` cast here, but I think panicking is better than silently
+        // using the wrong hop.
+        // TODO(conflux): We should make `Circuit::add_hop` fallible, and to fail if the length
+        // exceeds `u8::MAX`. This will allow us to be more confident that this `expect` will never
+        // panic.
+        self.hops
+            .len()
+            .try_into()
+            .expect("`hops.len()` has more than `u8::MAX` hops")
+    }
+
     /// Check whether this circuit has any hops.
     pub(super) fn has_hops(&self) -> bool {
         !self.hops.is_empty()

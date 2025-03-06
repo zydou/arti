@@ -32,7 +32,7 @@ use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
 use crate::tunnel::circuit::MutableState;
-use crate::tunnel::streammap;
+use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -793,7 +793,87 @@ impl Reactor {
         let _ = answer.send(self.circuits.take_single_leg());
         self.handle_shutdown().map(|_| ())
     }
+
+    /// Resolves a [`TargetHop`] to a [`HopLocation`].
+    ///
+    /// After resolving a `TargetHop::LastHop`,
+    /// the `HopLocation` can become stale if a single-path circuit is later extended or truncated.
+    /// This means that the `HopLocation` can become stale from one reactor iteration to the next.
+    ///
+    /// It's generally okay to hold on to a (possibly stale) `HopLocation`
+    /// if you need a fixed hop position in the tunnel.
+    /// For example if we open a stream to `TargetHop::LastHop`,
+    /// we would want to store the stream position as a `HopLocation` and not a `TargetHop::LastHop`
+    /// as we don't want the stream position to change as the tunnel is extended or truncated.
+    ///
+    /// Returns [`NoHopsBuiltError`] if trying to resolve `TargetHop::LastHop`
+    /// and the tunnel has no hops
+    /// (either has no legs, or has legs which contain no hops).
+    fn resolve_target_hop(&self, hop: TargetHop) -> StdResult<HopLocation, NoHopsBuiltError> {
+        match hop {
+            TargetHop::Hop(hop) => Ok(hop),
+            TargetHop::LastHop => {
+                if let Ok((leg_id, leg)) = self.circuits.single_leg() {
+                    // single-path tunnel
+                    let num_hops = leg.num_hops();
+                    if num_hops == 0 {
+                        // asked for the last hop, but there are no hops
+                        return Err(NoHopsBuiltError);
+                    }
+                    let hop = HopNum::from(num_hops - 1);
+                    Ok(HopLocation::Hop((leg_id, hop)))
+                } else if !self.circuits.is_empty() {
+                    // multi-path tunnel
+                    return Ok(HopLocation::JoinPoint);
+                } else {
+                    // no legs
+                    Err(NoHopsBuiltError)
+                }
+            }
+        }
+    }
+
+    /// Resolves a [`HopLocation`] to a [`LegId`] and [`HopNum`].
+    ///
+    /// After resolving a `HopLocation::JoinPoint`,
+    /// the [`LegId`] and [`HopNum`] can become stale if the primary leg changes.
+    ///
+    /// You should try to only resolve to a specific [`LegId`] and [`HopNum`] immediately before you
+    /// need them,
+    /// and you should not hold on to the resolved [`LegId`] and [`HopNum`] between reactor
+    /// iterations as the primary leg may change from one iteration to the next.
+    ///
+    /// Returns [`NoJoinPointError`] if trying to resolve `HopLocation::JoinPoint`
+    /// but it does not have a join point.
+    fn resolve_hop_location(
+        &self,
+        hop: HopLocation,
+    ) -> StdResult<(LegId, HopNum), NoJoinPointError> {
+        match hop {
+            HopLocation::Hop((leg_id, hop_num)) => Ok((leg_id, hop_num)),
+            HopLocation::JoinPoint => {
+                if let Some((leg_id, hop_num)) = self.circuits.primary_join_point() {
+                    Ok((leg_id, hop_num))
+                } else {
+                    // Attempted to get the join point of a non-multipath tunnel.
+                    Err(NoJoinPointError)
+                }
+            }
+        }
+    }
 }
+
+/// The tunnel does not have any hops.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+#[error("no hops have been built for this tunnel")]
+pub(crate) struct NoHopsBuiltError;
+
+/// The tunnel does not have a join point.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+#[error("the tunnel does not have a join point")]
+pub(crate) struct NoJoinPointError;
 
 impl CellHandlers {
     /// Try to install a given meta-cell handler to receive any unusual cells on
