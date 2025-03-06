@@ -17,6 +17,8 @@ use crate::util::impl_runtime_prelude::*;
 /// Use [`MockRuntime`](crate::MockRuntime) for new tests.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(SomeMockRuntime)]
+// TODO #1885, see MockSleepProvider's cfg_attr deprecated
+#[cfg_attr(not(test), deprecated(since = "0.29.0"))]
 pub struct MockSleepRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
     #[deftly(mock(task, net))]

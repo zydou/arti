@@ -227,6 +227,7 @@ mod test {
         // succeeds or fails.
 
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rt);
 
             const N_TRIES: usize = 1024;

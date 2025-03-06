@@ -1541,7 +1541,10 @@ mod test {
     use tor_netdir::testnet;
     use tor_persist::TestingStateMgr;
     use tor_rtcompat::SleepProvider;
-    use tor_rtmock::{MockRuntime, MockSleepRuntime};
+    use tor_rtmock::MockRuntime;
+
+    #[allow(deprecated)] // TODO #1885
+    use tor_rtmock::MockSleepRuntime;
 
     static FALLBACKS_EMPTY: Lazy<FallbackList> = Lazy::new(|| [].into());
 
@@ -1591,6 +1594,7 @@ mod test {
     #[test]
     fn basic_tests() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
 
             let builder = make_builder(&rt);
@@ -1673,6 +1677,7 @@ mod test {
     #[test]
     fn request_timeout() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
 
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
@@ -1699,6 +1704,7 @@ mod test {
     #[test]
     fn request_timeout2() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
 
             // Now try a more complicated case: we'll try to get things so
@@ -1731,6 +1737,7 @@ mod test {
     #[test]
     fn request_unplannable() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
 
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
@@ -1753,6 +1760,7 @@ mod test {
     #[test]
     fn request_fails_too_much() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
@@ -1774,6 +1782,7 @@ mod test {
     #[test]
     fn request_wrong_spec() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
@@ -1802,6 +1811,7 @@ mod test {
     #[test]
     fn request_retried() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
@@ -1836,6 +1846,7 @@ mod test {
     #[test]
     fn isolated() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let builder = make_builder(&rt);
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -1919,6 +1930,7 @@ mod test {
     #[test]
     fn opportunistic() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
 
             // The first request will time out completely, but we're
@@ -1963,6 +1975,7 @@ mod test {
             // This time we're going to use ensure_circuit() to make
             // sure that a circuit gets built, and then launch two
             // other circuits that will use it.
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let builder = make_builder(&rt);
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -2006,6 +2019,7 @@ mod test {
             use crate::config::CircuitTimingBuilder;
             // Now let's make some circuits -- one dirty, one clean, and
             // make sure that one expires and one doesn't.
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let builder = make_builder(&rt);
 
@@ -2209,6 +2223,7 @@ mod test {
     #[test]
     fn test_circlist_preemptive_target_circs() {
         MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let dirinfo = DirInfo::Directory(&netdir);

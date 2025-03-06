@@ -443,6 +443,7 @@ mod test {
     #[test]
     fn timer_impl() {
         let runtime = tor_rtcompat::tokio::TokioNativeTlsRuntime::create().unwrap();
+        #[allow(deprecated)] // TODO #1885
         let runtime = tor_rtmock::MockSleepRuntime::new(runtime);
 
         let parameters = Parameters {

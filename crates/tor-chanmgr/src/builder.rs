@@ -291,7 +291,10 @@ mod test {
     use tor_proto::channel::Channel;
     use tor_proto::memquota::{ChannelAccount, SpecificAccount as _};
     use tor_rtcompat::{test_with_one_runtime, NetStreamListener};
-    use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
+    use tor_rtmock::{io::LocalStream, net::MockNetwork};
+
+    #[allow(deprecated)] // TODO #1885
+    use tor_rtmock::MockSleepRuntime;
 
     // Make sure that the builder can build a real channel.  To test
     // this out, we set up a listener that pretends to have the right
@@ -324,6 +327,7 @@ mod test {
                 .add_address(client_addr)
                 .runtime(rt.clone());
             // Mock the current time too
+            #[allow(deprecated)] // TODO #1885
             let client_rt = MockSleepRuntime::new(client_rt);
 
             // Set up a relay runtime with a different IP

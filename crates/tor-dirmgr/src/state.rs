@@ -1270,6 +1270,7 @@ mod test {
     use time::macros::datetime;
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
     use tor_rtcompat::RuntimeSubstExt as _;
+    #[allow(deprecated)] // TODO #1885
     use tor_rtmock::time::MockSleepProvider;
 
     #[test]
@@ -1310,6 +1311,7 @@ mod test {
     }
 
     fn make_time_shifted_runtime(now: SystemTime, rt: impl Runtime) -> impl Runtime {
+        #[allow(deprecated)] // TODO #1885
         let msp = MockSleepProvider::new(now);
         rt.with_sleep_provider(msp.clone())
             .with_coarse_time_provider(msp)
