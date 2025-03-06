@@ -49,14 +49,15 @@ impl ConfluxSet {
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
-    pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, Bug> {
+    pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, NotSingleLegError> {
         self.single_leg_check()?;
 
-        let (_circ_id, circ) = self
-            .legs
-            .iter_mut()
-            .next()
-            .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))?;
+        let Some((_circ_id, circ)) = self.legs.iter_mut().next() else {
+            tracing::warn!(
+                "invariant failed: passed 'single_leg_check()' but conflux set has no legs"
+            );
+            return Err(NotSingleLegError::EmptyConfluxSet);
+        };
 
         Ok(circ)
     }

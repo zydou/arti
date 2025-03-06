@@ -672,7 +672,7 @@ impl Reactor {
                 let res = self.circuits.single_leg_mut().map(|leg| leg.clock_skew());
 
                 // don't care if the sender goes away
-                let _ = answer.send(res);
+                let _ = answer.send(res.map_err(Into::into));
             }
             RunOnceCmdInner::CleanShutdown => {
                 trace!("{}: reactor shutdown due to handled cell", self.unique_id);
