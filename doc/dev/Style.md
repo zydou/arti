@@ -25,9 +25,9 @@ ambiguous and therefore wrong.
 
 Examples of deprecated uses:
 
- * "onion proxy" to mean a hidden service reverse proxy
- * "onion tunnel" to mean a tunnel to a hidden service
- * "onion" to mean HS identity (KP\_hs\_id, `.onion` domain),
+ * *"onion proxy" to mean a hidden service reverse proxy
+ * *"onion tunnel" to mean a tunnel to a hidden service
+ * *"onion" to mean HS identity (KP\_hs\_id, `.onion` domain),
    for example "if this is the same onion"
 
 In lower-level crates and APIs, prefer "hs" (short for hidden service).
