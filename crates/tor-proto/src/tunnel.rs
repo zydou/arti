@@ -33,7 +33,7 @@ pub(crate) enum HopLocation {
     Hop(HopNum),
     /// A specific position in a tunnel.
     #[cfg(feature = "conflux")]
-    Leg((LegId, HopNum)),
+    Hop((LegId, HopNum)),
     /// The join point of a multi-path tunnel.
     #[cfg(feature = "conflux")]
     JoinPoint,
