@@ -87,10 +87,10 @@ define_derive_deftly! {
         type Listener = FakeListener<tor_general_addr::unix::SocketAddr>;
 
         async fn connect(&self, _addr: &tor_general_addr::unix::SocketAddr) -> IoResult<Self::Stream> {
-            Err(tor_general_addr::unix::NoUnixAddressSupport::default().into())
+            Err(tor_general_addr::unix::NoAfUnixSocketSupport::default().into())
         }
         async fn listen(&self, _addr: &tor_general_addr::unix::SocketAddr) -> IoResult<Self::Listener> {
-            Err(tor_general_addr::unix::NoUnixAddressSupport::default().into())
+            Err(tor_general_addr::unix::NoAfUnixSocketSupport::default().into())
         }
     }
 

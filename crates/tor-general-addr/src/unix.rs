@@ -44,7 +44,7 @@ impl SocketAddr {
     /// (Because this platform lacks AF_UNIX support, this method will always return an error.)
     pub fn from_pathname<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let _ = path;
-        Err(NoUnixAddressSupport.into())
+        Err(NoAfUnixSocketSupport.into())
     }
 }
 
@@ -52,10 +52,14 @@ impl SocketAddr {
 #[derive(Clone, Debug, Default, thiserror::Error)]
 #[error("No support for unix domain sockets on this platform")]
 #[non_exhaustive]
-pub struct NoUnixAddressSupport;
+pub struct NoAfUnixSocketSupport;
 
-impl From<NoUnixAddressSupport> for std::io::Error {
-    fn from(value: NoUnixAddressSupport) -> Self {
+/// Deprecated name for `NoAfUnixSocketSupport`
+#[deprecated]
+pub type NoUnixAddressSupport = NoAfUnixSocketSupport;
+
+impl From<NoAfUnixSocketSupport> for std::io::Error {
+    fn from(value: NoAfUnixSocketSupport) -> Self {
         std::io::Error::new(std::io::ErrorKind::Unsupported, value)
     }
 }

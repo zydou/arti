@@ -16,10 +16,14 @@ pub(crate) fn new_unnamed_socketaddr() -> std::io::Result<unix::SocketAddr> {
 #[derive(Clone, Debug, thiserror::Error)]
 #[error("Operation not supported on this kind of AF_UNIX address")]
 #[non_exhaustive]
-pub struct UnsupportedUnixAddressType;
+pub struct UnsupportedAfUnixAddressType;
 
-impl From<UnsupportedUnixAddressType> for std::io::Error {
-    fn from(value: UnsupportedUnixAddressType) -> Self {
+/// Deprecated name for `UnsupportedAfUnixAddressType`
+#[deprecated]
+pub type UnsupportedUnixAddressType = UnsupportedAfUnixAddressType;
+
+impl From<UnsupportedAfUnixAddressType> for std::io::Error {
+    fn from(value: UnsupportedAfUnixAddressType) -> Self {
         std::io::Error::new(std::io::ErrorKind::Unsupported, value)
     }
 }

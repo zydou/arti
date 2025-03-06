@@ -55,7 +55,7 @@ impl CfgAddr {
                 #[cfg(not(unix))]
                 {
                     // Give this error early on non-unix platforms, so that we don't confuse the user.
-                    return Err(unix::NoUnixAddressSupport::default().into());
+                    return Err(unix::NoAfUnixSocketSupport::default().into());
                 }
                 #[cfg(unix)]
                 {
@@ -106,7 +106,7 @@ impl CfgAddr {
 pub enum CfgAddrError {
     /// Tried to expand a `unix:` address on a platform where we don't support `AF_UNIX` addresses.
     #[error("No support for AF_UNIX addresses on this platform")]
-    NoUnixAddressSupport(#[from] unix::NoUnixAddressSupport),
+    NoAfUnixSocketSupport(#[from] unix::NoAfUnixSocketSupport),
     /// Unable to expand the underlying `CfgPath`, likely due to syntax or missing variables.
     #[error("Could not expand path")]
     Path(#[from] CfgPathError),
@@ -299,7 +299,7 @@ mod test {
         #[cfg(not(unix))]
         assert_matches!(
             a1.address(&resolv),
-            Err(CfgAddrError::NoUnixAddressSupport(_))
+            Err(CfgAddrError::NoAfUnixSocketSupport(_))
         );
     }
 
@@ -318,7 +318,7 @@ mod test {
         {
             assert_matches!(
                 cfg_addr.address(path_resolver),
-                Err(CfgAddrError::NoUnixAddressSupport(_))
+                Err(CfgAddrError::NoAfUnixSocketSupport(_))
             );
         }
     }

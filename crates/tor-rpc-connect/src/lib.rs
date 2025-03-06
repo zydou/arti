@@ -85,7 +85,7 @@ impl HasClientErrorAction for tor_config_path::addr::CfgAddrError {
         use tor_config_path::addr::CfgAddrError as CAE;
         use ClientErrorAction as A;
         match self {
-            CAE::NoUnixAddressSupport(_) => A::Decline,
+            CAE::NoAfUnixSocketSupport(_) => A::Decline,
             CAE::Path(cfg_path_error) => cfg_path_error.client_action(),
             CAE::ConstructAfUnixAddress(_) => A::Abort,
             // No variants are currently captured in this pattern, but they _could_ be in the future.
