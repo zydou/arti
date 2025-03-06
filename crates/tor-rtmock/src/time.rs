@@ -150,7 +150,7 @@ use crate::time_core::MockTimeCore;
 // When we're used by external crates, we're always cfg(not(test)), so we seem deprecated
 // from outside this crate.  *Within* this crate, this cfg_attr means that if we use things
 // that are deprecated for other reasons, we will notice.
-#[cfg_attr(not(test), deprecated)]
+#[cfg_attr(not(test), deprecated(since = "0.29.0"))]
 pub struct MockSleepProvider {
     /// The shared backend for this MockSleepProvider and its futures.
     state: Arc<Mutex<SleepSchedule>>,
