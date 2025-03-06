@@ -596,10 +596,18 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
                 self.timeouts.take();
                 // If we already had a timeout that was at least the
                 // length of our fallback timeouts, we should double
-                // those fallback timeouts.
+                // those fallback timeouts, up to a maximum.
                 if base_timeouts.0 >= self.fallback_timeouts.0 {
-                    self.fallback_timeouts.0 *= 2;
-                    self.fallback_timeouts.1 *= 2;
+                    /// Largest value we'll allow a fallback timeout
+                    /// (the one we return when we have insufficient data)
+                    /// to reach.
+                    ///
+                    /// TODO: This is a ridiculous over-estimate.
+                    const MAX_FALLBACK_TIMEOUT: Duration = Duration::from_secs(7200);
+                    self.fallback_timeouts.0 =
+                        (self.fallback_timeouts.0 * 2).min(MAX_FALLBACK_TIMEOUT);
+                    self.fallback_timeouts.1 =
+                        (self.fallback_timeouts.1 * 2).min(MAX_FALLBACK_TIMEOUT);
                 }
             }
         }
