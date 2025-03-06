@@ -35,3 +35,28 @@ In higher-level user-facing code, write out "onion service" in full.
 
 When referring to specifically the `.onion` domain name for an HS,
 prefer "onion address".  `.onion` is also OK.
+
+## Unix domain sockets (AF_UNIX) terminology
+
+AF\_UNIX sockets are not "unix sockets".  (Unix supports many other
+kinds of sockets and some non-Unix operating systems support, or
+emulate, AF_UNIX sockets.)
+
+Examples of deprecated uses:
+
+ * *"unix socket".  Use "unix domain socket" or "AF_UNIX socket".
+ * *"unix address".  Use "AF_UNIX address".
+ * *"unix path" to mean the path of a unix domain socket.
+   Use "socket path", "unix domain socket path", or
+   "AF_UNIX socket path".
+
+Enum variants for AF_UNIX addresses, within an enum which contains
+variants for various address families, *should* be called `Unix`.
+(This is analogous to the `UNIX` in `AF_UNIX`.)  When talking about a
+Rust type, one *can* correctly refer to a "`Unix` address", but this
+is close to a deprecated usage and another formulation is often
+better.
+
+Apart from that, Rust identifiers at least in public APIs should avoid
+using `unix`, `UNIX` or `Unix` to mean "unix domain socket".
+Use `af_unix`, `AF_UNIX`, or `AfUnix`.
