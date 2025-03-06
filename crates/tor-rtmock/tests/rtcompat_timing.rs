@@ -1,7 +1,8 @@
 //! Example: tests for the timing features in tor-rtcompat.
 
-#![cfg(not(miri))] // miri cannot do CLOCK_REALTIME
-
+// miri cannot do CLOCK_REALTIME
+#![cfg(not(miri))]
+//
 // TODO #1885
 //
 // Ideally we would use #[cfg_attr(not(test), allow(deprecated))] as discussed by the
