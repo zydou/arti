@@ -816,7 +816,7 @@ impl Reactor {
         answer: oneshot::Sender<StdResult<Circuit, Bug>>,
     ) -> StdResult<(), ReactorError> {
         // Don't care if the receiver goes away
-        let _ = answer.send(self.circuits.take_single_leg());
+        let _ = answer.send(self.circuits.take_single_leg().map_err(Into::into));
         self.handle_shutdown().map(|_| ())
     }
 

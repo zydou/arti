@@ -38,9 +38,8 @@ impl ConfluxSet {
     /// or if called before any circuit legs are available.
     ///
     /// Calling this function will empty the [`ConfluxSet`].
-    pub(super) fn take_single_leg(&mut self) -> Result<Circuit, Bug> {
-        let circ = get_single(self.legs.remove(self.primary_id).into_iter())
-            .map_err(NotSingleLegError::from)?;
+    pub(super) fn take_single_leg(&mut self) -> Result<Circuit, NotSingleLegError> {
+        let circ = get_single(self.legs.remove(self.primary_id).into_iter())?;
         Ok(circ)
     }
 
