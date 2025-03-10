@@ -36,7 +36,6 @@ pub(crate) enum HscSubcommand {
 #[derive(Debug, Subcommand)]
 pub(crate) enum KeySubcommand {
     /// Get or generate a hidden service client key
-    /// Deprecated. Use key get instead.
     #[command(arg_required_else_help = true)]
     Get(GetKeyArgs),
 
