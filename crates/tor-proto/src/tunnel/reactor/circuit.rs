@@ -1230,6 +1230,14 @@ impl Circuit {
         !self.hops.is_empty()
     }
 
+    /// Get the path of the circuit.
+    ///
+    /// **Warning:** Do not call while already holding the [`Self::mutable`] lock.
+    pub(super) fn path(&self) -> Arc<path::Path> {
+        let mutable = self.mutable.lock().expect("poisoned lock");
+        Arc::clone(&mutable.path)
+    }
+
     /// Return a ClockSkew declaring how much clock skew the other side of this channel
     /// claimed that we had when we negotiated the connection.
     pub(super) fn clock_skew(&self) -> ClockSkew {

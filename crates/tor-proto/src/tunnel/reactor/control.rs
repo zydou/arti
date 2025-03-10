@@ -13,7 +13,7 @@ use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::{path, CircParameters};
 use crate::tunnel::reactor::{NtorClient, ReactorError};
-use crate::tunnel::streammap;
+use crate::tunnel::{streammap, HopLocation, LegId, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
 use tor_cell::chancell::msg::HandshakeType;
@@ -43,6 +43,7 @@ use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;
+use std::sync::Arc;
 
 /// A message telling the reactor to do something.
 ///
@@ -223,6 +224,11 @@ pub(crate) enum CtrlCmd {
         #[educe(Debug(ignore))]
         #[cfg(feature = "hs-service")]
         filter: Box<dyn IncomingStreamRequestFilter>,
+    },
+    /// Get the leg ID and path for each leg of the tunnel.
+    QueryLegs {
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<Vec<(LegId, Arc<path::Path>)>>,
     },
     /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
     #[cfg(test)]
@@ -512,6 +518,17 @@ impl<'a> ControlHandler<'a> {
                     .set_incoming_stream_req_handler(handler);
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
 
+                Ok(())
+            }
+            CtrlCmd::QueryLegs { done } => {
+                let ret = self
+                    .reactor
+                    .circuits
+                    .legs()
+                    .map(|(id, leg)| (LegId(id), leg.path()))
+                    .collect();
+                // TODO(conflux): Consider adding the leg id to the `Path`.
+                let _ = done.send(Ok(ret));
                 Ok(())
             }
             #[cfg(test)]

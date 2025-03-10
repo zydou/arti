@@ -59,7 +59,7 @@ use crate::tunnel::reactor::CtrlCmd;
 use crate::tunnel::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
-use crate::tunnel::StreamTarget;
+use crate::tunnel::{HopLocation, LegId, StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
@@ -316,6 +316,19 @@ impl ClientCirc {
     /// extended.
     pub fn path_ref(&self) -> Arc<Path> {
         self.mutable.lock().expect("poisoned_lock").path.clone()
+    }
+
+    /// Get the [`LegId`] and [`Path`] of each leg of the tunnel.
+    // TODO(conflux): We probably want to replace uses of `path_ref` with
+    // this method and remove `path_ref`.
+    async fn legs(&self) -> Result<Vec<(LegId, Arc<Path>)>> {
+        let (tx, rx) = oneshot::channel();
+
+        self.command
+            .unbounded_send(CtrlCmd::QueryLegs { done: tx })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
     /// Get the clock skew claimed by the first hop of the circuit.
