@@ -32,20 +32,6 @@ impl ConfluxSet {
         Self { legs, primary_id }
     }
 
-    /// Check if this conflux set consists of a single leg.
-    ///
-    /// Returns an error if there is more than one leg in the set,
-    /// or if called before any circuit legs are available.
-    fn single_leg_check(&self) -> Result<(), NotSingleLegError> {
-        if self.legs.is_empty() {
-            Err(NotSingleLegError::EmptyConfluxSet)
-        } else if self.legs.len() > 1 {
-            Err(NotSingleLegError::IsMultipath)
-        } else {
-            Ok(())
-        }
-    }
-
     /// Remove and return the only leg of this conflux set.
     ///
     /// Returns an error if there is more than one leg in the set,
@@ -53,11 +39,9 @@ impl ConfluxSet {
     ///
     /// Calling this function will empty the [`ConfluxSet`].
     pub(super) fn take_single_leg(&mut self) -> Result<Circuit, Bug> {
-        self.single_leg_check()?;
-
-        self.legs
-            .remove(self.primary_id)
-            .ok_or_else(|| internal!("slotmap is empty but its length is one?!"))
+        let circ = get_single(self.legs.remove(self.primary_id).into_iter())
+            .map_err(NotSingleLegError::from)?;
+        Ok(circ)
     }
 
     /// Return a reference to the only leg of this conflux set,
@@ -66,15 +50,7 @@ impl ConfluxSet {
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
     pub(super) fn single_leg(&self) -> Result<(LegId, &Circuit), NotSingleLegError> {
-        self.single_leg_check()?;
-
-        let Some((circ_id, circ)) = self.legs.iter().next() else {
-            tracing::warn!(
-                "invariant failed: passed 'single_leg_check()' but conflux set has no legs"
-            );
-            return Err(NotSingleLegError::EmptyConfluxSet);
-        };
-
+        let (circ_id, circ) = get_single(self.legs.iter())?;
         Ok((LegId(circ_id), circ))
     }
 
@@ -84,15 +60,7 @@ impl ConfluxSet {
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
     pub(super) fn single_leg_mut(&mut self) -> Result<(LegId, &mut Circuit), NotSingleLegError> {
-        self.single_leg_check()?;
-
-        let Some((circ_id, circ)) = self.legs.iter_mut().next() else {
-            tracing::warn!(
-                "invariant failed: passed 'single_leg_check()' but conflux set has no legs"
-            );
-            return Err(NotSingleLegError::EmptyConfluxSet);
-        };
-
+        let (circ_id, circ) = get_single(self.legs.iter_mut())?;
         Ok((LegId(circ_id), circ))
     }
 
@@ -219,6 +187,30 @@ impl ConfluxSet {
     }
 }
 
+/// Get the only item from an iterator.
+///
+/// Returns an error if the iterator is empty or has more than one item.
+fn get_single<T>(mut iterator: impl Iterator<Item = T>) -> Result<T, NotSingleError> {
+    let Some(rv) = iterator.next() else {
+        return Err(NotSingleError::None);
+    };
+    if iterator.next().is_some() {
+        return Err(NotSingleError::Multiple);
+    }
+    Ok(rv)
+}
+
+/// An error returned from [`get_single`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub(super) enum NotSingleError {
+    /// The iterator had no items.
+    #[error("the iterator had no items")]
+    None,
+    /// The iterator had more than one item.
+    #[error("the iterator had more than one item")]
+    Multiple,
+}
+
 /// An error returned when a method is expecting a single-leg conflux circuit,
 /// but it is not single-leg.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -246,5 +238,14 @@ impl From<NotSingleLegError> for crate::Error {
 impl From<NotSingleLegError> for ReactorError {
     fn from(e: NotSingleLegError) -> Self {
         Self::from(Bug::from(e))
+    }
+}
+
+impl From<NotSingleError> for NotSingleLegError {
+    fn from(e: NotSingleError) -> Self {
+        match e {
+            NotSingleError::None => Self::EmptyConfluxSet,
+            NotSingleError::Multiple => Self::IsMultipath,
+        }
     }
 }
