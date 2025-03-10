@@ -29,13 +29,8 @@ use tor_cell::relaycell::StreamId;
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) enum HopLocation {
     /// A specific position in a tunnel.
-    #[cfg(not(feature = "conflux"))]
-    Hop(HopNum),
-    /// A specific position in a tunnel.
-    #[cfg(feature = "conflux")]
     Hop((LegId, HopNum)),
     /// The join point of a multi-path tunnel.
-    #[cfg(feature = "conflux")]
     JoinPoint,
 }
 
