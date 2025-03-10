@@ -278,7 +278,7 @@ impl<'a> ControlHandler<'a> {
                     // (ControlHandler::handle_msg() is never called before wait_for_create()).
                     //
                     // TODO: _mut is not needed here
-                    debug_assert!(self.reactor.circuits.single_leg_mut()?.has_hops());
+                    debug_assert!(self.reactor.circuits.single_leg_mut()?.1.has_hops());
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot create first hop twice"
@@ -301,7 +301,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let Ok(circ) = self.reactor.circuits.single_leg_mut() else {
+                let Ok((_id, circ)) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -341,7 +341,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let Ok(circ) = self.reactor.circuits.single_leg_mut() else {
+                let Ok((_id, circ)) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -483,10 +483,8 @@ impl<'a> ControlHandler<'a> {
 
                 // TODO(conflux): the error should probably be sent via the done channel?
                 // (it should probably not crash the reactor)
-                self.reactor
-                    .circuits
-                    .single_leg_mut()?
-                    .add_hop(format, peer_id, outbound, inbound, binding, &params);
+                let (_id, leg) = self.reactor.circuits.single_leg_mut()?;
+                leg.add_hop(format, peer_id, outbound, inbound, binding, &params);
                 let _ = done.send(Ok(()));
 
                 Ok(())
@@ -524,28 +522,24 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                self.reactor.circuits.single_leg_mut()?.handle_add_fake_hop(
-                    relay_cell_format,
-                    fwd_lasthop,
-                    rev_lasthop,
-                    &params,
-                    done,
-                );
+                let (_id, leg) = self.reactor.circuits.single_leg_mut()?;
+                leg.handle_add_fake_hop(relay_cell_format, fwd_lasthop, rev_lasthop, &params, done);
 
                 Ok(())
             }
             #[cfg(test)]
             CtrlCmd::QuerySendWindow { hop, done } => {
-                let _ = done.send(
-                    if let Some(hop) = self.reactor.circuits.single_leg_mut()?.hop_mut(hop) {
+                let _ = done.send({
+                    let (_id, leg) = self.reactor.circuits.single_leg_mut()?;
+                    if let Some(hop) = leg.hop_mut(hop) {
                         Ok(hop.send_window_and_expected_tags())
                     } else {
                         Err(Error::from(internal!(
                             "received QuerySendWindow for unknown hop {}",
                             hop.display()
                         )))
-                    },
-                );
+                    }
+                });
 
                 Ok(())
             }

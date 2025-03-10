@@ -499,7 +499,11 @@ impl Reactor {
 
         // If this is a single path circuit, we need to wait until the first hop
         // is created before doing anything else
-        if self.circuits.single_leg_mut().is_ok_and(|c| !c.has_hops()) {
+        let single_path_with_hops = self
+            .circuits
+            .single_leg_mut()
+            .is_ok_and(|(_id, leg)| !leg.has_hops());
+        if single_path_with_hops {
             self.wait_for_create().await?;
 
             return Ok(());
@@ -630,7 +634,8 @@ impl Reactor {
                     Ok((cell, stream_id)) => {
                         // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
                         // (currently it is an error to use BeginStream on a multipath tunnel)
-                        let outcome = self.circuits.single_leg_mut()?.send_relay_cell(cell).await;
+                        let (_id, leg) = self.circuits.single_leg_mut()?;
+                        let outcome = leg.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone().map(|_| stream_id));
                         outcome?;
@@ -651,7 +656,7 @@ impl Reactor {
             } => {
                 // TODO(conflux): currently, it is an error to use CloseStream
                 // with a multi-path circuit.
-                let leg = self.circuits.single_leg_mut()?;
+                let (_id, leg) = self.circuits.single_leg_mut()?;
                 let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason).await;
 
                 if let Some(done) = done {
@@ -662,14 +667,17 @@ impl Reactor {
             RunOnceCmdInner::HandleSendMe { hop, sendme } => {
                 // TODO(conflux): this should specify which leg of the circuit the SENDME
                 // came on
-                let leg = self.circuits.single_leg_mut()?;
+                let (_id, leg) = self.circuits.single_leg_mut()?;
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
                 let signals = leg.congestion_signals().await;
                 leg.handle_sendme(hop, sendme, signals)?;
             }
             RunOnceCmdInner::FirstHopClockSkew { answer } => {
-                let res = self.circuits.single_leg_mut().map(|leg| leg.clock_skew());
+                let res = self
+                    .circuits
+                    .single_leg_mut()
+                    .map(|(_id, leg)| leg.clock_skew());
 
                 // don't care if the sender goes away
                 let _ = answer.send(res.map_err(Into::into));
@@ -700,7 +708,8 @@ impl Reactor {
                         params,
                         done,
                     } => {
-                        self.circuits.single_leg_mut()?.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
+                        let (_id, leg) = self.circuits.single_leg_mut()?;
+                        leg.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
                         return Ok(())
                     },
                     _ => {
@@ -721,7 +730,7 @@ impl Reactor {
             } => {
                 // TODO(conflux): instead of crashing the reactor, it might be better
                 // to send the error via the done channel instead
-                let leg = self.circuits.single_leg_mut()?;
+                let (_id, leg) = self.circuits.single_leg_mut()?;
                 leg.handle_create(recv_created, handshake, &params, done)
                     .await
             }

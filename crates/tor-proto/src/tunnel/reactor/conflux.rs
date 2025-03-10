@@ -65,7 +65,7 @@ impl ConfluxSet {
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
-    pub(super) fn single_leg_with_id(&self) -> Result<(LegId, &Circuit), NotSingleLegError> {
+    pub(super) fn single_leg(&self) -> Result<(LegId, &Circuit), NotSingleLegError> {
         self.single_leg_check()?;
 
         let Some((circ_id, circ)) = self.legs.iter().next() else {
@@ -83,9 +83,7 @@ impl ConfluxSet {
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
-    pub(super) fn single_leg_with_id_mut(
-        &mut self,
-    ) -> Result<(LegId, &mut Circuit), NotSingleLegError> {
+    pub(super) fn single_leg_mut(&mut self) -> Result<(LegId, &mut Circuit), NotSingleLegError> {
         self.single_leg_check()?;
 
         let Some((circ_id, circ)) = self.legs.iter_mut().next() else {
@@ -96,20 +94,6 @@ impl ConfluxSet {
         };
 
         Ok((LegId(circ_id), circ))
-    }
-
-    /// Return a reference to the only leg of this conflux set.
-    ///
-    /// See [`single_leg_with_id`](Self::single_leg_with_id) for more information.
-    pub(super) fn single_leg(&self) -> Result<&Circuit, NotSingleLegError> {
-        self.single_leg_with_id().map(|(_id, leg)| leg)
-    }
-
-    /// Return a mutable reference to the only leg of this conflux set.
-    ///
-    /// See [`single_leg_with_id_mut`](Self::single_leg_with_id_mut) for more information.
-    pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, NotSingleLegError> {
-        self.single_leg_with_id_mut().map(|(_id, leg)| leg)
     }
 
     /// Return the primary leg of this conflux set.
