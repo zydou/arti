@@ -24,10 +24,11 @@ use crate::tunnel::circuit::{
     CircParameters, CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
-use crate::tunnel::reactor::MetaCellDisposition;
+use crate::tunnel::reactor::{LegId, LegIdKey, MetaCellDisposition};
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
+use crate::tunnel::HopLocation;
 use crate::util::err::ReactorError;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
@@ -1095,12 +1096,20 @@ impl Circuit {
     /// representing the instructions for handling the ready-item, if any,
     /// of its highest priority stream.
     ///
+    /// The [`LegIdKey`] for this circuit is required so that we can communicate which leg to
+    /// operate on when we build a `RunOnceCmdInner` to return from the stream.
+    /// For example, `RunOnceCmdInner::CloseStream` requires a `hop: HopLocation` field so that the
+    /// reactor knows on which hop on which leg to close the stream.
+    ///
     /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
     /// To avoid contention, never create more than one [`Circuit::ready_streams_iterator`]
     /// stream at a time!
     ///
     /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(&self) -> impl Stream<Item = Result<RunOnceCmdInner>> {
+    pub(super) fn ready_streams_iterator(
+        &self,
+        leg_id: LegIdKey,
+    ) -> impl Stream<Item = Result<RunOnceCmdInner>> {
         self.hops
             .iter()
             .enumerate()
@@ -1141,7 +1150,7 @@ impl Circuit {
 
                     if msg.is_none() {
                         return Poll::Ready(Ok(RunOnceCmdInner::CloseStream {
-                            hop_num,
+                            hop: HopLocation::Hop((LegId(leg_id), hop_num)),
                             sid,
                             behav: CloseStreamBehavior::default(),
                             reason: streammap::TerminateReason::StreamTargetClosed,
@@ -1225,9 +1234,32 @@ impl Circuit {
         Ok(())
     }
 
+    /// The number of hops in this circuit.
+    pub(super) fn num_hops(&self) -> u8 {
+        // Realistically the number of hops can't be larger than `u8::MAX` due to relay-early cells,
+        // and other code hopefully prevents users from attempting to build circuits that long.
+        // The alternative is an `as u8` cast here, but I think panicking is better than silently
+        // using the wrong hop.
+        // TODO(conflux): We should make `Circuit::add_hop` fallible, and to fail if the length
+        // exceeds `u8::MAX`. This will allow us to be more confident that this `expect` will never
+        // panic.
+        self.hops
+            .len()
+            .try_into()
+            .expect("`hops.len()` has more than `u8::MAX` hops")
+    }
+
     /// Check whether this circuit has any hops.
     pub(super) fn has_hops(&self) -> bool {
         !self.hops.is_empty()
+    }
+
+    /// Get the path of the circuit.
+    ///
+    /// **Warning:** Do not call while already holding the [`Self::mutable`] lock.
+    pub(super) fn path(&self) -> Arc<path::Path> {
+        let mutable = self.mutable.lock().expect("poisoned lock");
+        Arc::clone(&mutable.path)
     }
 
     /// Return a ClockSkew declaring how much clock skew the other side of this channel

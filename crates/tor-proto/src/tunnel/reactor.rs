@@ -32,7 +32,7 @@ use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
 use crate::tunnel::circuit::MutableState;
-use crate::tunnel::streammap;
+use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -42,7 +42,7 @@ use control::ControlHandler;
 use std::mem::size_of;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, StreamId, UnparsedRelayMsg};
-use tor_error::{internal, Bug};
+use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
 use futures::channel::mpsc;
 use futures::StreamExt;
@@ -175,13 +175,17 @@ enum RunOnceCmdInner {
     BeginStream {
         /// The cell to send.
         cell: Result<(SendRelayCell, StreamId)>,
+        /// The location of the hop on the tunnel. We don't use this (and `Circuit`s shouldn't need
+        /// to worry about legs anyways), but need it so that we can pass it back in `done` to the
+        /// caller.
+        hop: HopLocation,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
-        done: ReactorResultChannel<StreamId>,
+        done: ReactorResultChannel<(StreamId, HopLocation)>,
     },
     /// Close the specified stream.
     CloseStream {
         /// The hop number.
-        hop_num: HopNum,
+        hop: HopLocation,
         /// The ID of the stream to close.
         sid: StreamId,
         /// The stream-closing behavior.
@@ -499,7 +503,11 @@ impl Reactor {
 
         // If this is a single path circuit, we need to wait until the first hop
         // is created before doing anything else
-        if self.circuits.single_leg_mut().is_ok_and(|c| !c.has_hops()) {
+        let single_path_with_hops = self
+            .circuits
+            .single_leg_mut()
+            .is_ok_and(|(_id, leg)| !leg.has_hops());
+        if single_path_with_hops {
             self.wait_for_create().await?;
 
             return Ok(());
@@ -625,14 +633,15 @@ impl Reactor {
             }
             // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
             // Currently, we always begin streams on the primary leg
-            RunOnceCmdInner::BeginStream { cell, done } => {
+            RunOnceCmdInner::BeginStream { cell, hop, done } => {
                 match cell {
                     Ok((cell, stream_id)) => {
                         // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
                         // (currently it is an error to use BeginStream on a multipath tunnel)
-                        let outcome = self.circuits.single_leg_mut()?.send_relay_cell(cell).await;
+                        let (_id, leg) = self.circuits.single_leg_mut()?;
+                        let outcome = leg.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
-                        let _ = done.send(outcome.clone().map(|_| stream_id));
+                        let _ = done.send(outcome.clone().map(|_| (stream_id, hop)));
                         outcome?;
                     }
                     Err(e) => {
@@ -643,15 +652,37 @@ impl Reactor {
                 }
             }
             RunOnceCmdInner::CloseStream {
-                hop_num,
+                hop,
                 sid,
                 behav,
                 reason,
                 done,
             } => {
-                // TODO(conflux): currently, it is an error to use CloseStream
-                // with a multi-path circuit.
-                let leg = self.circuits.single_leg_mut()?;
+                let result = (move || {
+                    // this is needed to force the closure to be FnOnce rather than FnMut :(
+                    let self_ = self;
+                    let (leg_id, hop_num) = self_
+                        .resolve_hop_location(hop)
+                        .map_err(into_bad_api_usage!("Could not resolve {hop:?}"))?;
+                    let leg = self_
+                        .circuits
+                        .leg_mut(leg_id)
+                        .ok_or(bad_api_usage!("No leg for id {:?}", leg_id))?;
+                    Ok::<_, Bug>((leg, hop_num))
+                })();
+
+                let (leg, hop_num) = match result {
+                    Ok(x) => x,
+                    Err(e) => {
+                        if let Some(done) = done {
+                            // don't care if the sender goes away
+                            let e = into_bad_api_usage!("Could not resolve {hop:?}")(e);
+                            let _ = done.send(Err(e.into()));
+                        }
+                        return Ok(());
+                    }
+                };
+
                 let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason).await;
 
                 if let Some(done) = done {
@@ -662,17 +693,20 @@ impl Reactor {
             RunOnceCmdInner::HandleSendMe { hop, sendme } => {
                 // TODO(conflux): this should specify which leg of the circuit the SENDME
                 // came on
-                let leg = self.circuits.single_leg_mut()?;
+                let (_id, leg) = self.circuits.single_leg_mut()?;
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
                 let signals = leg.congestion_signals().await;
                 leg.handle_sendme(hop, sendme, signals)?;
             }
             RunOnceCmdInner::FirstHopClockSkew { answer } => {
-                let res = self.circuits.single_leg_mut().map(|leg| leg.clock_skew());
+                let res = self
+                    .circuits
+                    .single_leg_mut()
+                    .map(|(_id, leg)| leg.clock_skew());
 
                 // don't care if the sender goes away
-                let _ = answer.send(res);
+                let _ = answer.send(res.map_err(Into::into));
             }
             RunOnceCmdInner::CleanShutdown => {
                 trace!("{}: reactor shutdown due to handled cell", self.unique_id);
@@ -700,7 +734,8 @@ impl Reactor {
                         params,
                         done,
                     } => {
-                        self.circuits.single_leg_mut()?.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
+                        let (_id, leg) = self.circuits.single_leg_mut()?;
+                        leg.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
                         return Ok(())
                     },
                     _ => {
@@ -721,7 +756,7 @@ impl Reactor {
             } => {
                 // TODO(conflux): instead of crashing the reactor, it might be better
                 // to send the error via the done channel instead
-                let leg = self.circuits.single_leg_mut()?;
+                let (_id, leg) = self.circuits.single_leg_mut()?;
                 leg.handle_create(recv_created, handshake, &params, done)
                     .await
             }
@@ -781,10 +816,90 @@ impl Reactor {
         answer: oneshot::Sender<StdResult<Circuit, Bug>>,
     ) -> StdResult<(), ReactorError> {
         // Don't care if the receiver goes away
-        let _ = answer.send(self.circuits.take_single_leg());
+        let _ = answer.send(self.circuits.take_single_leg().map_err(Into::into));
         self.handle_shutdown().map(|_| ())
     }
+
+    /// Resolves a [`TargetHop`] to a [`HopLocation`].
+    ///
+    /// After resolving a `TargetHop::LastHop`,
+    /// the `HopLocation` can become stale if a single-path circuit is later extended or truncated.
+    /// This means that the `HopLocation` can become stale from one reactor iteration to the next.
+    ///
+    /// It's generally okay to hold on to a (possibly stale) `HopLocation`
+    /// if you need a fixed hop position in the tunnel.
+    /// For example if we open a stream to `TargetHop::LastHop`,
+    /// we would want to store the stream position as a `HopLocation` and not a `TargetHop::LastHop`
+    /// as we don't want the stream position to change as the tunnel is extended or truncated.
+    ///
+    /// Returns [`NoHopsBuiltError`] if trying to resolve `TargetHop::LastHop`
+    /// and the tunnel has no hops
+    /// (either has no legs, or has legs which contain no hops).
+    fn resolve_target_hop(&self, hop: TargetHop) -> StdResult<HopLocation, NoHopsBuiltError> {
+        match hop {
+            TargetHop::Hop(hop) => Ok(hop),
+            TargetHop::LastHop => {
+                if let Ok((leg_id, leg)) = self.circuits.single_leg() {
+                    // single-path tunnel
+                    let num_hops = leg.num_hops();
+                    if num_hops == 0 {
+                        // asked for the last hop, but there are no hops
+                        return Err(NoHopsBuiltError);
+                    }
+                    let hop = HopNum::from(num_hops - 1);
+                    Ok(HopLocation::Hop((leg_id, hop)))
+                } else if !self.circuits.is_empty() {
+                    // multi-path tunnel
+                    return Ok(HopLocation::JoinPoint);
+                } else {
+                    // no legs
+                    Err(NoHopsBuiltError)
+                }
+            }
+        }
+    }
+
+    /// Resolves a [`HopLocation`] to a [`LegId`] and [`HopNum`].
+    ///
+    /// After resolving a `HopLocation::JoinPoint`,
+    /// the [`LegId`] and [`HopNum`] can become stale if the primary leg changes.
+    ///
+    /// You should try to only resolve to a specific [`LegId`] and [`HopNum`] immediately before you
+    /// need them,
+    /// and you should not hold on to the resolved [`LegId`] and [`HopNum`] between reactor
+    /// iterations as the primary leg may change from one iteration to the next.
+    ///
+    /// Returns [`NoJoinPointError`] if trying to resolve `HopLocation::JoinPoint`
+    /// but it does not have a join point.
+    fn resolve_hop_location(
+        &self,
+        hop: HopLocation,
+    ) -> StdResult<(LegId, HopNum), NoJoinPointError> {
+        match hop {
+            HopLocation::Hop((leg_id, hop_num)) => Ok((leg_id, hop_num)),
+            HopLocation::JoinPoint => {
+                if let Some((leg_id, hop_num)) = self.circuits.primary_join_point() {
+                    Ok((leg_id, hop_num))
+                } else {
+                    // Attempted to get the join point of a non-multipath tunnel.
+                    Err(NoJoinPointError)
+                }
+            }
+        }
+    }
 }
+
+/// The tunnel does not have any hops.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+#[error("no hops have been built for this tunnel")]
+pub(crate) struct NoHopsBuiltError;
+
+/// The tunnel does not have a join point.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+#[error("the tunnel does not have a join point")]
+pub(crate) struct NoJoinPointError;
 
 impl CellHandlers {
     /// Try to install a given meta-cell handler to receive any unusual cells on
