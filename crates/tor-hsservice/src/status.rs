@@ -148,6 +148,16 @@ pub enum State {
     Broken,
 }
 
+impl State {
+    /// Check whether the service is *believed* to be fully reachable.
+    ///
+    /// This is at best an implication in one direction, even if this returns
+    /// `false`, the service may still be reachable.
+    pub fn is_fully_reachable(&self) -> bool {
+        matches!(self, Self::Running | Self::DegradedReachable)
+    }
+}
+
 /// An error type for descriptor upload failures with retries.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
