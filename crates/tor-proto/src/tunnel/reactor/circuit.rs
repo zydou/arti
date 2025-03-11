@@ -657,6 +657,34 @@ impl Circuit {
         Ok(None)
     }
 
+    /// Handle a conflux message coming from the specified hop.
+    ///
+    /// Returns an error if
+    ///
+    ///   * this is not a conflux circuit (i.e. it doesn't have a [`ConfluxMsgHandler`])
+    ///   * this is a client circuit and the conflux message originated an unexpected hop
+    ///   * the cell was sent in violation of the handshake protocol
+    #[cfg(feature = "conflux")]
+    fn handle_conflux_msg(
+        &mut self,
+        hop: HopNum,
+        msg: UnparsedRelayMsg,
+    ) -> Result<Option<CircuitCmd>> {
+        let Some(conflux_handler) = self.conflux_handler.as_mut() else {
+            // If conflux is not enabled, tear down the circuit
+            // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329)
+            //
+            // TODO(conflux): make sure this is properly implemented
+            return Err(Error::CircProto(format!(
+                "Received {} cell from hop {} on non-conflux client circuit?!",
+                msg.cmd(),
+                hop.display(),
+            )));
+        };
+
+        conflux_handler.handle_conflux_msg(msg, hop)
+    }
+
     /// Deliver `msg` to the specified open stream entry `ent`.
     fn deliver_msg_to_stream(
         streamid: StreamId,
@@ -1184,6 +1212,17 @@ impl Circuit {
         }
 
         trace!("{}: Received meta-cell {:?}", self.unique_id, msg);
+
+        #[cfg(feature = "conflux")]
+        if matches!(
+            msg.cmd(),
+            RelayCmd::CONFLUX_LINK
+                | RelayCmd::CONFLUX_LINKED
+                | RelayCmd::CONFLUX_LINKED_ACK
+                | RelayCmd::CONFLUX_SWITCH
+        ) {
+            return self.handle_conflux_msg(hopnum, msg);
+        }
 
         // For all other command types, we'll only get them in response
         // to another command, which should have registered a responder.
