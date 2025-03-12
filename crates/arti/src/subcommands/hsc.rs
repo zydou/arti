@@ -102,7 +102,7 @@ pub(crate) struct CommonArgs {
 
     /// The .onion address of the hidden service
     #[arg(long)]
-    onion_name: HsId,
+    onion_address: HsId,
 }
 
 /// The common arguments of the key subcommands.
@@ -187,16 +187,16 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> 
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
             client
-                .get_service_discovery_key(args.common.onion_name)?
+                .get_service_discovery_key(args.common.onion_address)?
                 .map(Ok)
                 .unwrap_or_else(|| {
                     client.generate_service_discovery_key(
                         KeystoreSelector::Primary,
-                        args.common.onion_name,
+                        args.common.onion_address,
                     )
                 })?
         }
-        GenerateKey::No => match client.get_service_discovery_key(args.common.onion_name)? {
+        GenerateKey::No => match client.get_service_discovery_key(args.common.onion_address)? {
             Some(key) => key,
             None => {
                 return Err(anyhow!(
@@ -256,15 +256,15 @@ fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -
     if !args.force {
         let msg = format!(
             "rotate client restricted discovery key for {}?",
-            args.common.onion_name
+            args.common.onion_address
         );
         if !prompt(&msg)? {
             return Ok(());
         }
     }
 
-    let key =
-        client.rotate_service_discovery_key(KeystoreSelector::default(), args.common.onion_name)?;
+    let key = client
+        .rotate_service_discovery_key(KeystoreSelector::default(), args.common.onion_address)?;
 
     display_service_discovery_key(&args.keygen, &key)
 }
@@ -274,15 +274,15 @@ fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -
     if !args.force {
         let msg = format!(
             "remove client restricted discovery key for {}?",
-            args.common.onion_name
+            args.common.onion_address
         );
         if !prompt(&msg)? {
             return Ok(());
         }
     }
 
-    let _key =
-        client.remove_service_discovery_key(KeystoreSelector::default(), args.common.onion_name)?;
+    let _key = client
+        .remove_service_discovery_key(KeystoreSelector::default(), args.common.onion_address)?;
 
     Ok(())
 }

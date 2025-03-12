@@ -79,7 +79,7 @@ Once this has appeared,
 you can find your onion .address using the `arti hss` command
 (replace `<NICKNAME>` with the nickname of your service):
 ```
-./target/release/arti hss --nickname <NICKNAME> onion-name
+./target/release/arti hss --nickname <NICKNAME> onion-address
 ```
 
 ## Limitations

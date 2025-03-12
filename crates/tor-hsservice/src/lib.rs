@@ -360,8 +360,16 @@ impl OnionService {
     ///
     /// Returns `None` if the HsId of the service could not be found in any of the configured
     /// keystores.
+    pub fn onion_address(&self) -> Option<HsId> {
+        onion_address(&self.keymgr, &self.config.nickname)
+    }
+
+    /// Return the onion address of this service.
+    ///
+    /// See [`onion_address`](Self::onion_address)
+    #[deprecated = "Use the new onion_address method instead"]
     pub fn onion_name(&self) -> Option<HsId> {
-        onion_name(&self.keymgr, &self.config.nickname)
+        self.onion_address()
     }
 
     /// Generate an identity key (KP_hs_id) for this service.
@@ -497,8 +505,16 @@ impl RunningOnionService {
     ///
     /// Returns `None` if the HsId of the service could not be found in any of the configured
     /// keystores.
+    pub fn onion_address(&self) -> Option<HsId> {
+        onion_address(&self.keymgr, &self.nickname)
+    }
+
+    /// Return the onion address of this service.
+    ///
+    /// See [`onion_address`](Self::onion_address)
+    #[deprecated = "Use the new onion_address method instead"]
     pub fn onion_name(&self) -> Option<HsId> {
-        onion_name(&self.keymgr, &self.nickname)
+        self.onion_address()
     }
 }
 
@@ -568,10 +584,10 @@ fn maybe_generate_hsid(
 /// Returns `None` if the HsId of the service could not be found in any of the configured
 /// keystores.
 //
-// TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
+// TODO: instead of duplicating RunningOnionService::onion_address, maybe we should make this a
 // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
 // ArtiHss.
-fn onion_name(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
+fn onion_address(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
     let hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
     keymgr
@@ -784,7 +800,7 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn onion_name() {
+    fn onion_address() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
@@ -816,7 +832,7 @@ pub(crate) mod test {
             .unwrap();
 
         let hsid = HsId::from(hsid_public);
-        assert_eq!(service.onion_name().unwrap(), hsid);
+        assert_eq!(service.onion_address().unwrap(), hsid);
 
         drop(temp_dir); // prove that this is still live
     }
