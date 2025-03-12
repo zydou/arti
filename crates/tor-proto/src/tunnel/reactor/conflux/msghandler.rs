@@ -77,6 +77,11 @@ impl ConfluxMsgHandler {
     pub(crate) fn note_link_sent(&mut self, ts: Instant) -> Result<(), Bug> {
         self.handler.note_link_sent(ts)
     }
+
+    /// Returns the conflux status of this handler.
+    pub(crate) fn status(&self) -> ConfluxStatus {
+        self.handler.status()
+    }
 }
 
 /// An object that can process conflux relay messages

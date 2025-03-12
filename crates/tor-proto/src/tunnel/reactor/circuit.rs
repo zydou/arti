@@ -55,6 +55,8 @@ use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
 use tracing::{debug, trace, warn};
 
+#[cfg(feature = "conflux")]
+use super::conflux::ConfluxMsgHandler;
 use super::{
     CellHandlers, CircuitHandshake, CloseStreamBehavior, ReactorResultChannel, SendRelayCell,
 };
@@ -159,6 +161,12 @@ pub(crate) struct Circuit {
     channel_id: CircId,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
+    /// A handler for conflux cells.
+    ///
+    /// Set once the conflux handshake is initiated by the reactor
+    /// using [`Reactor::handle_link_circuits`](super::Reactor::handle_link_circuits).
+    #[cfg(feature = "conflux")]
+    conflux_handler: Option<ConfluxMsgHandler>,
     /// Memory quota account
     #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
     memquota: CircuitAccount,
@@ -261,8 +269,17 @@ impl Circuit {
             channel_id,
             crypto_out,
             mutable,
+            #[cfg(feature = "conflux")]
+            conflux_handler: None,
             memquota,
         }
+    }
+    /// Install a [`ConfluxMsgHandler`] on this circuit,
+    ///
+    /// Once this is called, the circuit will be able to handle conflux cells.
+    #[cfg(feature = "conflux")]
+    pub(super) fn install_conflux_handler(&mut self, conflux_handler: ConfluxMsgHandler) {
+        self.conflux_handler = Some(conflux_handler);
     }
 
     /// Handle a [`CtrlMsg::AddFakeHop`](super::CtrlMsg::AddFakeHop) message.
@@ -1409,6 +1426,30 @@ impl Circuit {
     pub(super) fn uses_stream_sendme(&self, hop: HopNum) -> Option<bool> {
         let hop = self.hop(hop)?;
         Some(hop.ccontrol.uses_stream_sendme())
+    }
+
+    /// Returns whether this is a conflux circuit that is not linked yet.
+    pub(super) fn is_conflux_pending(&self) -> bool {
+        let Some(status) = self.conflux_status() else {
+            return false;
+        };
+
+        status != ConfluxStatus::Linked
+    }
+
+    /// Returns the conflux status of this circuit.
+    ///
+    /// Returns `None` if this is not a conflux circuit.
+    pub(super) fn conflux_status(&self) -> Option<ConfluxStatus> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "conflux")] {
+                self.conflux_handler
+                    .as_ref()
+                    .map(|handler| handler.status())
+            } else {
+                None
+            }
+        }
     }
 }
 

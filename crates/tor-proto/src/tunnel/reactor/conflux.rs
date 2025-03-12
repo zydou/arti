@@ -24,6 +24,9 @@ use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason};
 #[cfg(feature = "conflux")]
 use tor_cell::relaycell::conflux::{V1DesiredUx, V1Nonce};
 
+#[cfg(feature = "conflux")]
+pub(crate) use msghandler::ConfluxMsgHandler;
+
 /// A set of linked conflux circuits.
 pub(super) struct ConfluxSet {
     /// The circuits in this conflux set.
