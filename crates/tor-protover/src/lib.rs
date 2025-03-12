@@ -85,11 +85,13 @@ caret_int! {
         Padding = 10,
         /// Improved means of flow control on circuits.
         FlowCtrl = 11,
+        /// Multi-path circuit support.
+        Conflux = 12,
     }
 }
 
 /// How many recognized protocols are there?
-const N_RECOGNIZED: usize = 12;
+const N_RECOGNIZED: usize = 13;
 
 /// Representation for a known or unknown protocol.
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
