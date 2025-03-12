@@ -43,7 +43,7 @@ async fn main() {
         .unwrap();
 
     let (service, request_stream) = client.launch_onion_service(svc_cfg).unwrap();
-    println!("{}", service.onion_name().unwrap());
+    println!("{}", service.onion_address().unwrap());
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream);
     tokio::pin!(stream_requests);

@@ -1024,7 +1024,7 @@ EXAMPLES
       Print the .onion address of the service with nickname allium from the
       default keystore:
 
-        arti hss --nickname allium print-onion-name
+        arti hss --nickname allium print-onion-address
 
      Sample output:
         wrxdvcaqpuzakbfww5sxs6r2uybczwijzfn2ezy2osaj7iox7kl7nhad.onion
