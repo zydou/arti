@@ -48,7 +48,7 @@
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
 use build::CircuitBuilder;
-use mgr::{AbstractCirc, AbstractCircBuilder};
+use mgr::{AbstractTunnel, AbstractTunnelBuilder};
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
 use tor_error::{error_report, warn_report};
@@ -113,9 +113,9 @@ pub use config::{
 };
 
 use crate::isolation::StreamIsolation;
-use crate::mgr::CircProvenance;
+use crate::mgr::TunnelProvenance;
 use crate::preemptive::PreemptiveCircuitPredictor;
-use usage::TargetCircUsage;
+use usage::TargetTunnelUsage;
 
 use safelog::sensitive as sv;
 #[cfg(feature = "geoip")]
@@ -169,7 +169,7 @@ impl<'a> From<&'a NetDir> for DirInfo<'a> {
 }
 impl<'a> DirInfo<'a> {
     /// Return a set of circuit parameters for this DirInfo.
-    fn circ_params(&self, usage: &TargetCircUsage) -> Result<CircParameters> {
+    fn circ_params(&self, usage: &TargetTunnelUsage) -> Result<CircParameters> {
         use tor_netdir::params::NetParameters;
         // We use a common function for both cases here to be sure that
         // we look at the defaults from NetParameters code.
@@ -180,7 +180,7 @@ impl<'a> DirInfo<'a> {
         };
         match usage {
             #[cfg(feature = "hs-common")]
-            TargetCircUsage::HsCircBase { .. } => {
+            TargetTunnelUsage::HsCircBase { .. } => {
                 build::onion_circparams_from_netparams(net_params)
             }
             _ => build::exit_circparams_from_netparams(net_params),
@@ -381,9 +381,9 @@ impl<R: Runtime> CircMgr<R> {
 
 /// Internal object used to implement CircMgr, which allows for mocking.
 #[derive(Clone)]
-pub(crate) struct CircMgrInner<B: AbstractCircBuilder<R> + 'static, R: Runtime> {
+pub(crate) struct CircMgrInner<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
-    mgr: Arc<mgr::AbstractCircMgr<B, R>>,
+    mgr: Arc<mgr::AbstractTunnelMgr<B, R>>,
     /// A preemptive circuit predictor, for, uh, building circuits preemptively.
     predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
 }
@@ -436,7 +436,7 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
     }
 }
 
-impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
+impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// Generic implementation for [`CircMgrInner::new`]
     pub(crate) fn new_generic<CFG: CircMgrConfig>(
         config: &CFG,
@@ -451,7 +451,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         guardmgr.set_filter(config.path_rules().build_guard_filter());
 
         let mgr =
-            mgr::AbstractCircMgr::new(builder, runtime.clone(), config.circuit_timing().clone());
+            mgr::AbstractTunnelMgr::new(builder, runtime.clone(), config.circuit_timing().clone());
 
         CircMgrInner {
             mgr: Arc::new(mgr),
@@ -536,9 +536,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
-    pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<B::Circ>> {
+    pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<B::Tunnel>> {
         self.expire_circuits();
-        let usage = TargetCircUsage::Dir;
+        let usage = TargetTunnelUsage::Dir;
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
 
@@ -555,7 +555,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
         //             additive. The function should be refactored to be builder-like.
         #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
-    ) -> Result<Arc<B::Circ>> {
+    ) -> Result<Arc<B::Tunnel>> {
         self.expire_circuits();
         let time = Instant::now();
         {
@@ -578,7 +578,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         let ports = ports.iter().map(Clone::clone).collect();
         #[cfg(not(feature = "geoip"))]
         let country_code = None;
-        let usage = TargetCircUsage::Exit {
+        let usage = TargetTunnelUsage::Exit {
             ports,
             isolation,
             country_code,
@@ -596,9 +596,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
         &self,
         target: T,
-    ) -> Result<Arc<B::Circ>> {
+    ) -> Result<Arc<B::Tunnel>> {
         self.expire_circuits();
-        let usage = TargetCircUsage::DirSpecificTarget(target.to_owned());
+        let usage = TargetTunnelUsage::DirSpecificTarget(target.to_owned());
         self.mgr
             .get_or_launch(&usage, DirInfo::Nothing)
             .await
@@ -766,9 +766,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
             .cbt_max_open_circuits_for_testing
             .try_into()
             .expect("Out-of-bounds result from BoundedInt32");
-        if (self.mgr.n_circs() as u64) < max_circs {
+        if (self.mgr.n_tunnels() as u64) < max_circs {
             // Actually launch the circuit!
-            let usage = TargetCircUsage::TimeoutTesting;
+            let usage = TargetTunnelUsage::TimeoutTesting;
             let dirinfo = netdir.into();
             let mgr = Arc::clone(&self.mgr);
             debug!("Launching a circuit to test build times.");
@@ -926,7 +926,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
             (preemptive.predict(&path_config), threshold)
         };
 
-        if self.mgr.n_circs() >= threshold {
+        if self.mgr.n_tunnels() >= threshold {
             return Ok(());
         }
         let mut n_created = 0_usize;
@@ -938,11 +938,11 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         let results = futures::future::join_all(futures).await;
         for (i, result) in results.into_iter().enumerate() {
             match result {
-                Ok((_, CircProvenance::NewlyCreated)) => {
+                Ok((_, TunnelProvenance::NewlyCreated)) => {
                     debug!("Preeemptive circuit was created for {:?}", circs[i]);
                     n_created += 1;
                 }
-                Ok((_, CircProvenance::Preexisting)) => {
+                Ok((_, TunnelProvenance::Preexisting)) => {
                     trace!("Circuit already existed created for {:?}", circs[i]);
                 }
                 Err(e) => {
@@ -987,11 +987,11 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         dir: &NetDir,
         stem_kind: HsCircStemKind,
         circ_kind: Option<HsCircKind>,
-    ) -> Result<Arc<B::Circ>>
+    ) -> Result<Arc<B::Tunnel>>
     where
         T: IntoOwnedChanTarget,
     {
-        let usage = TargetCircUsage::HsCircBase {
+        let usage = TargetTunnelUsage::HsCircBase {
             compatible_with_target: planned_target.map(IntoOwnedChanTarget::to_owned),
             stem_kind,
             circ_kind,
@@ -1045,7 +1045,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         // our circuit expiration runs on scheduled timers via
         // spawn_expiration_task.)
         let now = self.mgr.peek_runtime().now();
-        self.mgr.expire_circs(now);
+        self.mgr.expire_tunnels(now);
     }
 
     /// Mark every circuit that we have launched so far as unsuitable for
@@ -1056,13 +1056,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// TODO: we may want to expose this eventually.  If we do, we should
     /// be very clear that you don't want to use it haphazardly.
     pub(crate) fn retire_all_circuits(&self) {
-        self.mgr.retire_all_circuits();
+        self.mgr.retire_all_tunnels();
     }
 
     /// If `circ_id` is the unique identifier for a circuit that we're
     /// keeping track of, don't give it out for any future requests.
-    pub(crate) fn retire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id) {
-        let _ = self.mgr.take_circ(circ_id);
+    pub(crate) fn retire_circ(&self, circ_id: &<B::Tunnel as AbstractTunnel>::Id) {
+        let _ = self.mgr.take_tunnel(circ_id);
     }
 
     /// Return a stream of events about our estimated clock skew; these events
@@ -1104,7 +1104,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     }
 }
 
-impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> Drop for CircMgrInner<B, R> {
+impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> Drop for CircMgrInner<B, R> {
     fn drop(&mut self) {
         match self.store_persistent_state() {
             Ok(true) => info!("Flushed persistent state at exit."),
@@ -1145,7 +1145,7 @@ mod test {
         let fb = FallbackList::from([]);
         let di: DirInfo<'_> = (&fb).into();
 
-        let p1 = di.circ_params(&TargetCircUsage::Dir).unwrap();
+        let p1 = di.circ_params(&TargetTunnelUsage::Dir).unwrap();
         assert!(!p1.extend_by_ed25519_id);
 
         // Now try with a directory and configured parameters.
@@ -1159,7 +1159,7 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params(&TargetCircUsage::Dir).unwrap();
+        let p2 = di.circ_params(&TargetTunnelUsage::Dir).unwrap();
         assert!(p2.extend_by_ed25519_id);
 
         // Now try with a bogus circwindow value.
@@ -1173,7 +1173,7 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params(&TargetCircUsage::Dir).unwrap();
+        let p2 = di.circ_params(&TargetTunnelUsage::Dir).unwrap();
         assert!(p2.extend_by_ed25519_id);
     }
 

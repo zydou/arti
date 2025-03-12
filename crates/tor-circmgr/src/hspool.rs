@@ -12,9 +12,9 @@ use std::{
 
 use crate::{
     build::{onion_circparams_from_netparams, CircuitBuilder},
-    mgr::AbstractCircBuilder,
+    mgr::AbstractTunnelBuilder,
     path::hspath::hs_stem_terminal_hop_usage,
-    timeouts, AbstractCirc, CircMgr, CircMgrInner, Error, Result,
+    timeouts, AbstractTunnel, CircMgr, CircMgrInner, Error, Result,
 };
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
@@ -95,14 +95,14 @@ impl HsCircKind {
 /// This represents a hidden service circuit that has not yet been extended to a target.
 ///
 /// See [HsCircStemKind].
-pub(crate) struct HsCircStem<C: AbstractCirc> {
+pub(crate) struct HsCircStem<C: AbstractTunnel> {
     /// The circuit.
     pub(crate) circ: Arc<C>,
     /// Whether the circuit is NAIVE  or GUARDED.
     pub(crate) kind: HsCircStemKind,
 }
 
-impl<C: AbstractCirc> HsCircStem<C> {
+impl<C: AbstractTunnel> HsCircStem<C> {
     /// Whether this circuit satisfies _all_ the [`HsCircPrefs`].
     ///
     /// Returns `false` if any of the `prefs` are not satisfied.
@@ -116,7 +116,7 @@ impl<C: AbstractCirc> HsCircStem<C> {
     }
 }
 
-impl<C: AbstractCirc> Deref for HsCircStem<C> {
+impl<C: AbstractTunnel> Deref for HsCircStem<C> {
     type Target = Arc<C>;
 
     fn deref(&self) -> &Self::Target {
@@ -124,7 +124,7 @@ impl<C: AbstractCirc> Deref for HsCircStem<C> {
     }
 }
 
-impl<C: AbstractCirc> HsCircStem<C> {
+impl<C: AbstractTunnel> HsCircStem<C> {
     /// Check if this circuit stem is of the specified `kind`
     /// or can be extended to become that kind.
     ///
@@ -286,7 +286,7 @@ impl<R: Runtime> HsCircPool<R> {
 }
 
 /// An object to provide circuits for implementing onion services.
-pub(crate) struct HsCircPoolInner<B: AbstractCircBuilder<R> + 'static, R: Runtime> {
+pub(crate) struct HsCircPoolInner<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> {
     /// An underlying circuit manager, used for constructing circuits.
     circmgr: Arc<CircMgrInner<B, R>>,
     /// A task handle for making the background circuit launcher fire early.
@@ -304,11 +304,11 @@ pub(crate) struct HsCircPoolInner<B: AbstractCircBuilder<R> + 'static, R: Runtim
     // [2]: https://doc.rust-lang.org/std/sync/struct.OnceLock.html#method.get_or_try_init
     launcher_handle: OnceCell<TaskHandle>,
     /// The mutable state of this pool.
-    inner: Mutex<Inner<B::Circ>>,
+    inner: Mutex<Inner<B::Tunnel>>,
 }
 
 /// The mutable state of an [`HsCircPool`]
-struct Inner<C: AbstractCirc> {
+struct Inner<C: AbstractTunnel> {
     /// A collection of pre-constructed circuits.
     pool: pool::Pool<C>,
 }
@@ -320,7 +320,7 @@ impl<R: Runtime> HsCircPoolInner<CircuitBuilder<R>, R> {
     }
 }
 
-impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
+impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// Create a new [`HsCircPoolInner`] from a [`CircMgrInner`].
     pub(crate) fn new_internal(circmgr: &Arc<CircMgrInner<B, R>>) -> Self {
         let circmgr = Arc::clone(circmgr);
@@ -365,7 +365,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     pub(crate) async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> Result<(Arc<B::Circ>, Relay<'a>)> {
+    ) -> Result<(Arc<B::Tunnel>, Relay<'a>)> {
         // For rendezvous points, clients use 3-hop circuits.
         // Note that we aren't using any special rules for the last hop here; we
         // are relying on the fact that:
@@ -421,7 +421,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         kind: HsCircKind,
         target: T,
-    ) -> Result<Arc<B::Circ>>
+    ) -> Result<Arc<B::Tunnel>>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -474,10 +474,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// Try to extend a circuit to the specified target hop.
     async fn extend_circ<T>(
         &self,
-        circ: HsCircStem<B::Circ>,
+        circ: HsCircStem<B::Tunnel>,
         params: CircParameters,
         target: T,
-    ) -> Result<Arc<B::Circ>>
+    ) -> Result<Arc<B::Tunnel>>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -537,7 +537,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         avoid_target: Option<&T>,
         kind: HsCircKind,
-    ) -> Result<HsCircStem<B::Circ>>
+    ) -> Result<HsCircStem<B::Tunnel>>
     where
         // TODO #504: It would be better if this were a type that had to include
         // family info.
@@ -567,7 +567,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
 
-            let restrictions = |circ: &HsCircStem<B::Circ>| {
+            let restrictions = |circ: &HsCircStem<B::Tunnel>| {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
@@ -646,11 +646,11 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     async fn maybe_extend_stem_circuit<T>(
         &self,
         netdir: &NetDir,
-        circuit: HsCircStem<B::Circ>,
+        circuit: HsCircStem<B::Tunnel>,
         avoid_target: Option<&T>,
         stem_kind: HsCircStemKind,
         circ_kind: HsCircKind,
-    ) -> Result<HsCircStem<B::Circ>>
+    ) -> Result<HsCircStem<B::Tunnel>>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -684,11 +684,11 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     async fn extend_full_vanguards_circuit<T>(
         &self,
         netdir: &NetDir,
-        circuit: HsCircStem<B::Circ>,
+        circuit: HsCircStem<B::Tunnel>,
         avoid_target: Option<&T>,
         stem_kind: HsCircStemKind,
         circ_kind: HsCircKind,
-    ) -> Result<HsCircStem<B::Circ>>
+    ) -> Result<HsCircStem<B::Tunnel>>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -752,7 +752,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// Ensure `circ` is compatible with `target`, and has the correct length for its `kind`.
     fn ensure_suitable_circuit<T>(
         &self,
-        circ: &Arc<B::Circ>,
+        circ: &Arc<B::Tunnel>,
         target: Option<&T>,
         kind: HsCircStemKind,
     ) -> Result<()>
@@ -766,7 +766,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     }
 
     /// Ensure the specified circuit of type `kind` has the right length.
-    fn ensure_circuit_length_valid(&self, circ: &Arc<B::Circ>, kind: HsCircStemKind) -> Result<()> {
+    fn ensure_circuit_length_valid(&self, circ: &Arc<B::Tunnel>, kind: HsCircStemKind) -> Result<()> {
         let circ_path_len = circ.n_hops().map_err(|error| Error::Protocol {
             action: "validating circuit length",
             peer: None, // Either party could be to blame.
@@ -798,7 +798,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// because:
     ///   * a relay won't let you extend the circuit to itself
     ///   * relays won't let you extend the circuit to their previous hop
-    fn ensure_circuit_can_extend_to_target<T>(circ: &Arc<B::Circ>, target: Option<&T>) -> Result<()>
+    fn ensure_circuit_can_extend_to_target<T>(circ: &Arc<B::Tunnel>, target: Option<&T>) -> Result<()>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -875,7 +875,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 /// We require that the circuit is open, that every hop  in the circuit is
 /// listed in `netdir`, and that no hop in the circuit shares a family with
 /// `target`.
-fn circuit_compatible_with_target<C: AbstractCirc>(
+fn circuit_compatible_with_target<C: AbstractTunnel>(
     netdir: &NetDir,
     circ: &HsCircStem<C>,
     circ_kind: HsCircKind,
@@ -904,7 +904,7 @@ fn circuit_compatible_with_target<C: AbstractCirc>(
 /// We require that the circuit is open, that it can become the specified
 /// kind of [`HsCircStem`], that every hop in the circuit is listed in `netdir`,
 /// and that the last two hops are different from the specified target.
-fn vanguards_circuit_compatible_with_target<C: AbstractCirc, T>(
+fn vanguards_circuit_compatible_with_target<C: AbstractTunnel, T>(
     netdir: &NetDir,
     circ: &HsCircStem<C>,
     kind: HsCircStemKind,
@@ -959,7 +959,7 @@ fn circuit_still_useable<C, F1, F2>(
     last_hop_ok: F2,
 ) -> bool
 where
-    C: AbstractCirc,
+    C: AbstractTunnel,
     F1: Fn(&Relay<'_>) -> bool,
     F2: Fn(&Relay<'_>) -> bool,
 {
@@ -1032,8 +1032,7 @@ fn relay_for_path_ent<'a>(
 }
 
 /// Background task to launch onion circuits as needed.
-#[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor, after !3007 is in.
-async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Runtime>(
+async fn launch_hs_circuits_as_needed<B: AbstractTunnelBuilder<R> + 'static, R: Runtime>(
     pool: Weak<HsCircPoolInner<B, R>>,
     netdir_provider: Weak<dyn NetDirProvider + 'static>,
     mut schedule: TaskSchedule<R>,
@@ -1118,7 +1117,7 @@ async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Ru
 }
 
 /// Background task to remove unusable circuits whenever the directory changes.
-async fn remove_unusable_circuits<B: AbstractCircBuilder<R> + 'static, R: Runtime>(
+async fn remove_unusable_circuits<B: AbstractTunnelBuilder<R> + 'static, R: Runtime>(
     pool: Weak<HsCircPoolInner<B, R>>,
     netdir_provider: Weak<dyn NetDirProvider + 'static>,
 ) {

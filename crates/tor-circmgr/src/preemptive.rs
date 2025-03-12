@@ -1,6 +1,6 @@
 //! Tools for determining what circuits to preemptively build.
 
-use crate::{PathConfig, PreemptiveCircuitConfig, TargetCircUsage, TargetPort};
+use crate::{PathConfig, PreemptiveCircuitConfig, TargetPort, TargetTunnelUsage};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -55,7 +55,7 @@ impl PreemptiveCircuitPredictor {
     }
 
     /// Make some predictions for what circuits should be built.
-    pub(crate) fn predict(&self, path_config: &PathConfig) -> Vec<TargetCircUsage> {
+    pub(crate) fn predict(&self, path_config: &PathConfig) -> Vec<TargetTunnelUsage> {
         let config = self.config();
         let now = Instant::now();
         let circs = config.min_exit_circs_for_port;
@@ -73,7 +73,7 @@ impl PreemptiveCircuitPredictor {
             })
             .map(|(&port, _)| {
                 let require_stability = port.is_some_and(|p| path_config.long_lived_ports.contains(&p.port));
-                TargetCircUsage::Preemptive {
+                TargetTunnelUsage::Preemptive {
                     port, circs, require_stability,
                 }
             })
@@ -107,8 +107,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use crate::{
-        PathConfig, PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetCircUsage,
-        TargetPort,
+        PathConfig, PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetPort,
+        TargetTunnelUsage,
     };
     use std::time::{Duration, Instant};
 
@@ -124,7 +124,7 @@ mod test {
 
         assert_isoleq!(
             predictor.predict(&path_config),
-            vec![TargetCircUsage::Preemptive {
+            vec![TargetTunnelUsage::Preemptive {
                 port: None,
                 circs: 2,
                 require_stability: false,
@@ -140,14 +140,14 @@ mod test {
         assert_eq!(results.len(), 2);
         assert!(results
             .iter()
-            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
                 port: None,
                 circs: 2,
                 require_stability: false,
             })));
         assert!(results
             .iter()
-            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
                 port: Some(TargetPort::ipv4(80)),
                 circs: 2,
                 require_stability: false,
@@ -164,7 +164,7 @@ mod test {
 
         assert_isoleq!(
             predictor.predict(&path_config),
-            vec![TargetCircUsage::Preemptive {
+            vec![TargetTunnelUsage::Preemptive {
                 port: None,
                 circs: 2,
                 require_stability: false,
@@ -177,14 +177,14 @@ mod test {
         assert_eq!(results.len(), 2);
         assert!(results
             .iter()
-            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
                 port: None,
                 circs: 2,
                 require_stability: false,
             })));
         assert!(results
             .iter()
-            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
                 port: Some(TargetPort::ipv4(1234)),
                 circs: 2,
                 require_stability: false,
@@ -205,7 +205,7 @@ mod test {
 
         assert_isoleq!(
             predictor.predict(&path_config),
-            vec![TargetCircUsage::Preemptive {
+            vec![TargetTunnelUsage::Preemptive {
                 port: None,
                 circs: 2,
                 require_stability: false,

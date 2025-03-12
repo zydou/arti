@@ -3,7 +3,7 @@
 use crate::build::CircuitBuilder;
 use crate::mgr::{self, MockablePlan};
 use crate::path::OwnedPath;
-use crate::usage::{SupportedCircUsage, TargetCircUsage};
+use crate::usage::{SupportedTunnelUsage, TargetTunnelUsage};
 use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 use async_trait::async_trait;
 use educe::Educe;
@@ -18,7 +18,7 @@ use tor_proto::circuit::{CircParameters, ClientCirc, Path, UniqId};
 use tor_rtcompat::Runtime;
 
 #[async_trait]
-impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
+impl mgr::AbstractTunnel for tor_proto::circuit::ClientCirc {
     type Id = tor_proto::circuit::UniqId;
 
     fn id(&self) -> Self::Id {
@@ -50,8 +50,8 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
         target: &T,
         params: CircParameters,
     ) -> tor_proto::Result<()> {
-        // Use 'ClientCirc::' name to avoid invoking _this_ method.
-        ClientCirc::extend(self, target, params).await
+        // Use 'Self::' name to avoid invoking _this_ method.
+        Self::extend(self, target, params).await
     }
 }
 
@@ -61,7 +61,7 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
 #[educe(Debug)]
 pub(crate) struct Plan {
     /// The supported usage that the circuit will have when complete
-    final_spec: SupportedCircUsage,
+    final_spec: SupportedTunnelUsage,
     /// An owned copy of the path to build.
     // TODO: it would be nice if this weren't owned.
     path: OwnedPath,
@@ -80,15 +80,15 @@ pub(crate) struct Plan {
 impl MockablePlan for Plan {}
 
 #[async_trait]
-impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBuilder<R> {
-    type Circ = ClientCirc;
+impl<R: Runtime> crate::mgr::AbstractTunnelBuilder<R> for crate::build::CircuitBuilder<R> {
+    type Tunnel = ClientCirc;
     type Plan = Plan;
 
-    fn plan_circuit(
+    fn plan_tunnel(
         &self,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(Plan, SupportedCircUsage)> {
+    ) -> Result<(Plan, SupportedTunnelUsage)> {
         let mut rng = rand::rng();
         let (path, final_spec, guard_status, guard_usable) = usage.build_path(
             &mut rng,
@@ -111,7 +111,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
         Ok((plan, final_spec))
     }
 
-    async fn build_circuit(&self, plan: Plan) -> Result<(SupportedCircUsage, Arc<ClientCirc>)> {
+    async fn build_tunnel(&self, plan: Plan) -> Result<(SupportedTunnelUsage, Arc<ClientCirc>)> {
         use crate::build::GuardStatusHandle;
         use tor_guardmgr::GuardStatus;
         let Plan {
@@ -171,14 +171,14 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
         }
     }
 
-    fn launch_parallelism(&self, spec: &TargetCircUsage) -> usize {
+    fn launch_parallelism(&self, spec: &TargetTunnelUsage) -> usize {
         match spec {
-            TargetCircUsage::Dir => 3,
+            TargetTunnelUsage::Dir => 3,
             _ => 1,
         }
     }
 
-    fn select_parallelism(&self, spec: &TargetCircUsage) -> usize {
+    fn select_parallelism(&self, spec: &TargetTunnelUsage) -> usize {
         self.launch_parallelism(spec)
     }
 
