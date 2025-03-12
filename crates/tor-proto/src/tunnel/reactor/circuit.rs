@@ -215,7 +215,8 @@ impl Circuit {
             rev,
             binding,
             params,
-        );
+        )
+        .expect("could not add hop to circuit");
         let _ = done.send(Ok(()));
     }
 
@@ -835,7 +836,7 @@ impl Circuit {
             back,
             binding,
             params,
-        );
+        )?;
         Ok(())
     }
 
@@ -934,6 +935,8 @@ impl Circuit {
     }
 
     /// Add a hop to the end of this circuit.
+    ///
+    /// Will return an error if the circuit already has [`u8::MAX`] hops.
     pub(super) fn add_hop(
         &mut self,
         format: RelayCellFormat,
@@ -942,8 +945,21 @@ impl Circuit {
         rev: Box<dyn InboundClientLayer + 'static + Send>,
         binding: Option<CircuitBinding>,
         params: &CircParameters,
-    ) {
-        let hop_num = (self.hops.len() as u8).into();
+    ) -> StdResult<(), Bug> {
+        let hop_num = self.hops.len();
+        debug_assert_eq!(hop_num, usize::from(self.num_hops()));
+
+        // There are several places in the code that assume that a `usize` hop number
+        // can be cast or converted to a `u8` hop number,
+        // so this check is important to prevent panics or incorrect behaviour.
+        if hop_num == usize::from(u8::MAX) {
+            return Err(internal!(
+                "cannot add more hops to a circuit with `u8::MAX` hops"
+            ));
+        }
+
+        let hop_num = (hop_num as u8).into();
+
         let hop = CircHop::new(self.unique_id, hop_num, format, params);
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
@@ -951,6 +967,8 @@ impl Circuit {
         let mut mutable = self.mutable.lock().expect("poisoned lock");
         Arc::make_mut(&mut mutable.path).push_hop(peer_id);
         mutable.binding.push(binding);
+
+        Ok(())
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
@@ -1236,13 +1254,10 @@ impl Circuit {
 
     /// The number of hops in this circuit.
     pub(super) fn num_hops(&self) -> u8 {
-        // Realistically the number of hops can't be larger than `u8::MAX` due to relay-early cells,
-        // and other code hopefully prevents users from attempting to build circuits that long.
-        // The alternative is an `as u8` cast here, but I think panicking is better than silently
-        // using the wrong hop.
-        // TODO(conflux): We should make `Circuit::add_hop` fallible, and to fail if the length
-        // exceeds `u8::MAX`. This will allow us to be more confident that this `expect` will never
-        // panic.
+        // `Circuit::add_hop` checks to make sure that we never have more than `u8::MAX` hops,
+        // so `self.hops.len()` should be safe to cast to a `u8`.
+        // If that assumption is violated,
+        // we choose to panic rather than silently use the wrong hop due to an `as` cast.
         self.hops
             .len()
             .try_into()
