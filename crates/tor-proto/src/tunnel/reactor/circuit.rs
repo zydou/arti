@@ -66,6 +66,7 @@ use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
+use std::time::Instant;
 
 use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
@@ -280,6 +281,34 @@ impl Circuit {
     #[cfg(feature = "conflux")]
     pub(super) fn install_conflux_handler(&mut self, conflux_handler: ConfluxMsgHandler) {
         self.conflux_handler = Some(conflux_handler);
+    }
+
+    /// Send a LINK cell to the specified hop.
+    ///
+    /// This must be called *after* a [`ConfluxMsgHandler`] is installed
+    /// on the circuit with [`install_conflux_handler`](Self::install_conflux_handler).
+    #[cfg(feature = "conflux")]
+    pub(super) async fn begin_conflux_link(
+        &mut self,
+        hop: HopNum,
+        cell: AnyRelayMsgOuter,
+    ) -> Result<()> {
+        let Some(conflux_handler) = self.conflux_handler.as_mut() else {
+            return Err(internal!(
+                "tried to send LINK cell before installing a ConfluxMsgHandler?!"
+            )
+            .into());
+        };
+
+        // XXX: use DynTimeProvider to get the time
+        conflux_handler.note_link_sent(Instant::now())?;
+
+        let cell = SendRelayCell {
+            hop,
+            early: false,
+            cell,
+        };
+        self.send_relay_cell(cell).await
     }
 
     /// Handle a [`CtrlMsg::AddFakeHop`](super::CtrlMsg::AddFakeHop) message.
