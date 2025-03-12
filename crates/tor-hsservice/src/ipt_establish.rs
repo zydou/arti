@@ -734,8 +734,9 @@ impl<R: Runtime> Reactor<R> {
             let mut details = EstablishIntroDetails::new(ipt_sid_id);
             if let Some(dos_params) = &self.extensions.dos_params {
                 // We only send the Dos extension when the relay is known to
-                // support HsIntro=5.
-                if protovers.supports_known_subver(tor_protover::ProtoKind::HSIntro, 5) {
+                // support it.
+                use tor_protover::named::HSINTRO_RATELIM;
+                if protovers.supports_named_subver(HSINTRO_RATELIM) {
                     details.set_extension_dos(dos_params.clone());
                 }
             }
