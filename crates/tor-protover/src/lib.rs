@@ -50,6 +50,8 @@ use caret::caret_int;
 
 use thiserror::Error;
 
+pub mod named;
+
 caret_int! {
     /// A recognized subprotocol.
     ///
@@ -92,6 +94,22 @@ caret_int! {
 
 /// How many recognized protocols are there?
 const N_RECOGNIZED: usize = 13;
+
+/// A specific, named subversion of a protocol.
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub struct NamedSubver {
+    /// The protocol in question
+    kind: ProtoKind,
+    /// The version of the protocol
+    version: u8,
+}
+
+impl NamedSubver {
+    /// Create a new NamedSubver.
+    const fn new(kind: ProtoKind, version: u8) -> Self {
+        Self { kind, version }
+    }
+}
 
 /// Representation for a known or unknown protocol.
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
@@ -215,6 +233,18 @@ impl Protocols {
             Some(p) => self.supports_recognized_ver(p.get() as usize, ver),
             None => self.supports_unrecognized_ver(proto, ver),
         }
+    }
+
+    /// Check whether a protocol version is supported.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Link=1-5 Desc=2-4".parse().unwrap();
+    /// assert!(protos.supports_named_subver(named::DESC_FAMILY_IDS)); // Desc=5
+    /// assert!(! protos.supports_named_subver(named::CONFLUX_BASE)); // Conflux=1
+    /// ```
+    pub fn supports_named_subver(&self, protover: NamedSubver) -> bool {
+        self.supports_known_subver(protover.kind, protover.version)
     }
 
     /// Parsing helper: Try to add a new entry `ent` to this set of protocols.

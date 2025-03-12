@@ -6526,6 +6526,7 @@ name = "tor-protover"
 version = "0.28.0"
 dependencies = [
  "caret",
+ "paste",
  "thiserror 2.0.11",
 ]
 
