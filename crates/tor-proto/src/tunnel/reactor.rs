@@ -901,12 +901,7 @@ impl Reactor {
             TargetHop::LastHop => {
                 if let Ok((leg_id, leg)) = self.circuits.single_leg() {
                     // single-path tunnel
-                    let num_hops = leg.num_hops();
-                    if num_hops == 0 {
-                        // asked for the last hop, but there are no hops
-                        return Err(NoHopsBuiltError);
-                    }
-                    let hop = HopNum::from(num_hops - 1);
+                    let hop = leg.last_hop_num().ok_or(NoHopsBuiltError)?;
                     Ok(HopLocation::Hop((leg_id, hop)))
                 } else if !self.circuits.is_empty() {
                     // multi-path tunnel

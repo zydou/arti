@@ -1339,6 +1339,18 @@ impl Circuit {
         !self.hops.is_empty()
     }
 
+    /// Get the `HopNum` of the last hop, if this circuit is non-empty.
+    ///
+    /// Returns `None` if the circuit has no hops.
+    pub(super) fn last_hop_num(&self) -> Option<HopNum> {
+        let num_hops = self.num_hops();
+        if num_hops == 0 {
+            // asked for the last hop, but there are no hops
+            return None;
+        }
+        Some(HopNum::from(num_hops - 1))
+    }
+
     /// Get the path of the circuit.
     ///
     /// **Warning:** Do not call while already holding the [`Self::mutable`] lock.
