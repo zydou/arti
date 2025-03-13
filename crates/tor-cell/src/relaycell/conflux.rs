@@ -135,6 +135,16 @@ impl V1LinkPayload {
             desired_ux,
         }
     }
+
+    /// Set the last sequence number sent.
+    pub fn set_last_seqno_sent(&mut self, seqno: u64) {
+        self.last_seqno_sent = seqno;
+    }
+
+    /// Set the last sequence number received.
+    pub fn set_last_seqno_recv(&mut self, seqno: u64) {
+        self.last_seqno_recv = seqno;
+    }
 }
 
 caret_int! {
