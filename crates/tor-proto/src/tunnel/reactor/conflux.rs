@@ -8,13 +8,16 @@ use slotmap_careful::SlotMap;
 
 use tor_async_utils::SinkPrepareExt as _;
 use tor_basic_utils::flatten;
-use tor_cell::relaycell::conflux::V1Nonce;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
+use crate::circuit::path::HopDetail;
 use crate::crypto::cell::HopNum;
 use crate::util::err::ReactorError;
 
 use super::{Circuit, CircuitAction, LegId, LegIdKey};
+
+#[cfg(feature = "conflux")]
+use tor_cell::relaycell::conflux::V1Nonce;
 
 /// A set of linked conflux circuits.
 pub(super) struct ConfluxSet {
@@ -22,9 +25,31 @@ pub(super) struct ConfluxSet {
     legs: SlotMap<LegIdKey, Circuit>,
     /// The unique identifier of the primary leg
     primary_id: LegIdKey,
+    /// The join point of the set, if this is a multi-path set.
+    ///
+    /// The exact leg this is located on depends on which leg is currently the primary.
+    ///
+    /// Initially the conflux set starts out as a single-path set with no join point.
+    /// When it is converted to a multipath set, the join point is initialized
+    /// to the last hop in the tunnel (which should be the same for all the circuits in the set).
+    //
+    // TODO(conflux): for simplicity, we currently we force all legs to have the same length,
+    // to ensure the HopNum of the join point is the same for all of them.
+    //
+    // In the future we might want to relax this restriction.
+    join_point: Option<JoinPoint>,
     /// The nonce associated with the circuits from this set.
     #[cfg(feature = "conflux")]
     nonce: V1Nonce,
+}
+
+/// The conflux join point.
+#[derive(Debug, Clone)]
+struct JoinPoint {
+    /// The hop number.
+    hop: HopNum,
+    /// The HopDetail of the hop.
+    detail: HopDetail,
 }
 
 impl ConfluxSet {
@@ -32,10 +57,13 @@ impl ConfluxSet {
     pub(super) fn new(circuit_leg: Circuit) -> Self {
         let mut legs: SlotMap<LegIdKey, Circuit> = SlotMap::with_key();
         let primary_id = legs.insert(circuit_leg);
+        // Note: the join point is only set for multi-path tunnels
+        let join_point = None;
 
         Self {
             legs,
             primary_id,
+            join_point,
             #[cfg(feature = "conflux")]
             nonce: V1Nonce::new(&mut rand::rng()),
         }
@@ -211,9 +239,9 @@ impl ConfluxSet {
 
     /// The join point on the current primary leg.
     pub(super) fn primary_join_point(&self) -> Option<(LegId, HopNum)> {
-        // TODO(conflux): we need a way to get the join point on the primary leg once this tunnel
-        // has been converted from a "non-conflux tunnel" to a "conflux tunnel"
-        None
+        self.join_point
+            .as_ref()
+            .map(|join_point| (LegId(self.primary_id), join_point.hop))
     }
 
     /// Does congestion control use stream SENDMEs for the given hop?
