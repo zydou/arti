@@ -535,7 +535,7 @@ impl<'a> ControlHandler<'a> {
                 // TODO(conflux): the error should probably be sent via the done channel?
                 // (it should probably not crash the reactor)
                 let (_id, leg) = self.reactor.circuits.single_leg_mut()?;
-                leg.add_hop(format, peer_id, outbound, inbound, binding, &params);
+                leg.add_hop(format, peer_id, outbound, inbound, binding, &params)?;
                 let _ = done.send(Ok(()));
 
                 Ok(())

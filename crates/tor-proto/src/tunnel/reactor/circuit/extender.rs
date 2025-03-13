@@ -182,7 +182,7 @@ where
             Box::new(layer_back),
             Some(binding),
             &self.params,
-        );
+        )?;
         Ok(MetaCellDisposition::ConversationFinished)
     }
 }
