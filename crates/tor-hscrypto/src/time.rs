@@ -1,7 +1,11 @@
 //! Manipulate time periods (as used in the onion service system)
 
-use std::time::{Duration, SystemTime};
+use std::{
+    fmt::Display,
+    time::{Duration, SystemTime},
+};
 
+use humantime::format_rfc3339_seconds;
 use tor_units::IntegerMinutes;
 
 /// A period of time, as used in the onion service system.
@@ -37,6 +41,25 @@ impl PartialOrd for TimePeriod {
             Some(self.interval_num.cmp(&other.interval_num))
         } else {
             None
+        }
+    }
+}
+
+impl Display for TimePeriod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "#{} ", self.interval_num())?;
+        match self.range() {
+            Ok(r) => {
+                let mins = self.length().as_minutes();
+                write!(
+                    f,
+                    "{}..+{}:{:02}",
+                    format_rfc3339_seconds(r.start),
+                    mins / 60,
+                    mins % 60
+                )
+            }
+            Err(_) => write!(f, "overflow! {self:?}"),
         }
     }
 }

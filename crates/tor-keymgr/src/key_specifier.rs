@@ -522,16 +522,7 @@ impl KeySpecifierComponent for TimePeriod {
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO should this be the Display impl for TimePeriod?
-        write!(f, "#{} ", self.interval_num())?;
-        match self.range() {
-            Ok(r) => {
-                use humantime::format_rfc3339_seconds as f3339;
-                let mins = self.length().as_minutes();
-                write!(f, "{}..+{}:{:02}", f3339(r.start), mins / 60, mins % 60)
-            }
-            Err(_) => write!(f, "overflow! {self:?}"),
-        }
+        Display::fmt(&self, f)
     }
 }
 
