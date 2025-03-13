@@ -13,7 +13,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 const CONFLUX_LINK_VERSION: u8 = 1;
 
 /// The length of the nonce from a v1 CONFLUX_LINK message, in bytes.
-const V1_LINK_NONCE_LEN: usize = 32;
+pub const V1_LINK_NONCE_LEN: usize = 32;
 
 /// Helper macro for implementing wrapper types over [`Link`]
 macro_rules! impl_link_wrapper {
