@@ -8,6 +8,7 @@ use slotmap_careful::SlotMap;
 
 use tor_async_utils::SinkPrepareExt as _;
 use tor_basic_utils::flatten;
+use tor_cell::relaycell::conflux::V1Nonce;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
 use crate::crypto::cell::HopNum;
@@ -21,6 +22,9 @@ pub(super) struct ConfluxSet {
     legs: SlotMap<LegIdKey, Circuit>,
     /// The unique identifier of the primary leg
     primary_id: LegIdKey,
+    /// The nonce associated with the circuits from this set.
+    #[cfg(feature = "conflux")]
+    nonce: V1Nonce,
 }
 
 impl ConfluxSet {
@@ -29,7 +33,12 @@ impl ConfluxSet {
         let mut legs: SlotMap<LegIdKey, Circuit> = SlotMap::with_key();
         let primary_id = legs.insert(circuit_leg);
 
-        Self { legs, primary_id }
+        Self {
+            legs,
+            primary_id,
+            #[cfg(feature = "conflux")]
+            nonce: V1Nonce::new(&mut rand::rng()),
+        }
     }
 
     /// Remove and return the only leg of this conflux set.
