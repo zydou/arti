@@ -78,7 +78,7 @@ async fn main() {
     }
     eprintln!(
         "ready to serve connections via {}",
-        service.onion_name().unwrap()
+        service.onion_address().unwrap()
     );
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)
