@@ -656,44 +656,13 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    use crate::arti_path::PATH_SEP;
     use crate::test_utils::check_key_specifier;
     use derive_deftly::Deftly;
     use humantime::parse_rfc3339;
-    use itertools::{chain, Itertools};
+    use itertools::Itertools;
     use serde::{Deserialize, Serialize};
     use std::fmt::Debug;
     use std::time::Duration;
-    use tor_persist::slug::BadSlug;
-
-    // TODO I think this could be a function?
-    macro_rules! assert_err {
-        ($ty:ident, $inner:expr, $error_kind:pat) => {{
-            let path = $ty::new($inner.to_string());
-            let path_fromstr: Result<$ty, _> = $ty::try_from($inner.to_string());
-            let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
-            assert!(path.is_err(), "{} should be invalid", $inner);
-            assert!(
-                matches!(path.as_ref().unwrap_err(), $error_kind),
-                "wrong error type for {}: {path:?}",
-                $inner
-            );
-            assert_eq!(path, path_fromstr);
-            assert_eq!(path, path_tryfrom);
-        }};
-    }
-
-    macro_rules! assert_ok {
-        ($ty:ident, $inner:expr) => {{
-            let path = $ty::new($inner.to_string());
-            let path_fromstr: Result<$ty, _> = $ty::try_from($inner.to_string());
-            let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
-            assert!(path.is_ok(), "{} should be valid", $inner);
-            assert_eq!(path.as_ref().unwrap().to_string(), *$inner);
-            assert_eq!(path, path_fromstr);
-            assert_eq!(path, path_tryfrom);
-        }};
-    }
 
     impl KeySpecifierComponentViaDisplayFromStr for usize {}
     impl KeySpecifierComponentViaDisplayFromStr for String {}
@@ -701,19 +670,6 @@ mod test {
     // This impl probably shouldn't be made non-test, since it produces longer paths
     // than is necessary.  `t`/`f` would be better representation.  But it's fine for tests.
     impl KeySpecifierComponentViaDisplayFromStr for bool {}
-
-    impl PartialEq for ArtiPathSyntaxError {
-        fn eq(&self, other: &Self) -> bool {
-            use ArtiPathSyntaxError::*;
-
-            match (self, other) {
-                (Slug(err1), Slug(err2)) => err1 == err2,
-                _ => false,
-            }
-        }
-    }
-
-    // TODO many of these tests should be in arti_path.rs
 
     fn test_time_period() -> TimePeriod {
         TimePeriod::new(
@@ -730,131 +686,6 @@ mod test {
         assert_eq!(
             KeySpecifierComponentPrettyHelper(&tp).to_string(),
             "#18519 2020-09-14T01:00:00Z..+24:00",
-        );
-    }
-
-    #[test]
-    #[allow(clippy::cognitive_complexity)]
-    fn arti_path_validation() {
-        const VALID_ARTI_PATH_COMPONENTS: &[&str] = &["my-hs-client-2", "hs_client"];
-        const VALID_ARTI_PATHS: &[&str] = &[
-            "path/to/client+subvalue+fish",
-            "_hs_client",
-            "hs_client-",
-            "hs_client_",
-            "_",
-        ];
-
-        const BAD_FIRST_CHAR_ARTI_PATHS: &[&str] = &["-hs_client", "-"];
-
-        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] =
-            &["client?", "no spaces please", "client٣¾", "clientß"];
-
-        const EMPTY_PATH_COMPONENT: &[&str] =
-            &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
-
-        for path in chain!(VALID_ARTI_PATH_COMPONENTS, VALID_ARTI_PATHS) {
-            assert_ok!(ArtiPath, path);
-        }
-
-        for path in DISALLOWED_CHAR_ARTI_PATHS {
-            assert_err!(
-                ArtiPath,
-                path,
-                ArtiPathSyntaxError::Slug(BadSlug::BadCharacter(_))
-            );
-        }
-
-        for path in BAD_FIRST_CHAR_ARTI_PATHS {
-            assert_err!(
-                ArtiPath,
-                path,
-                ArtiPathSyntaxError::Slug(BadSlug::BadFirstCharacter(_))
-            );
-        }
-
-        for path in EMPTY_PATH_COMPONENT {
-            assert_err!(
-                ArtiPath,
-                path,
-                ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
-            );
-        }
-
-        const SEP: char = PATH_SEP;
-        // This is a valid ArtiPath, but not a valid Slug
-        let path = format!("a{SEP}client{SEP}key+private");
-        assert_ok!(ArtiPath, &path);
-
-        const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
-        assert_err!(
-            ArtiPath,
-            PATH_WITH_TRAVERSAL,
-            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
-        );
-
-        const REL_PATH: &str = "./bob";
-        assert_err!(
-            ArtiPath,
-            REL_PATH,
-            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
-        );
-
-        const EMPTY_DENOTATOR: &str = "c++";
-        assert_err!(
-            ArtiPath,
-            EMPTY_DENOTATOR,
-            ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
-        );
-    }
-
-    #[test]
-    #[allow(clippy::cognitive_complexity)]
-    fn arti_path_with_denotator() {
-        const VALID_ARTI_DENOTATORS: &[&str] = &[
-            "foo",
-            "one_two_three-f0ur",
-            "1-2-3-",
-            "1-2-3_",
-            "1-2-3",
-            "_1-2-3",
-            "1-2-3",
-        ];
-
-        const BAD_OUTER_CHAR_DENOTATORS: &[&str] = &["-1-2-3"];
-
-        for denotator in VALID_ARTI_DENOTATORS {
-            let path = format!("foo/bar/qux+{denotator}");
-            assert_ok!(ArtiPath, path);
-        }
-
-        for denotator in BAD_OUTER_CHAR_DENOTATORS {
-            let path = format!("foo/bar/qux+{denotator}");
-
-            assert_err!(
-                ArtiPath,
-                path,
-                ArtiPathSyntaxError::Slug(BadSlug::BadFirstCharacter(_))
-            );
-        }
-
-        // An ArtiPath with multiple denotators
-        let path = format!(
-            "foo/bar/qux+{}+{}+foo",
-            VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
-        );
-        assert_ok!(ArtiPath, path);
-
-        // An invalid ArtiPath with multiple valid denotators and
-        // an empty (invalid) denotator
-        let path = format!(
-            "foo/bar/qux+{}+{}+foo+",
-            VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
-        );
-        assert_err!(
-            ArtiPath,
-            path,
-            ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
         );
     }
 
@@ -880,21 +711,6 @@ mod test {
                 .contains("character '!' (U+0021) is not allowed"),
             "wrong msg {e:?}"
         );
-    }
-
-    #[test]
-    fn substring() {
-        const KEY_PATH: &str = "hello";
-        let path = ArtiPath::new(KEY_PATH.to_string()).unwrap();
-
-        assert_eq!(path.substring(&(0..1).into()).unwrap(), "h");
-        assert_eq!(path.substring(&(2..KEY_PATH.len()).into()).unwrap(), "llo");
-        assert_eq!(
-            path.substring(&(0..KEY_PATH.len()).into()).unwrap(),
-            "hello"
-        );
-        assert_eq!(path.substring(&(0..KEY_PATH.len() + 1).into()), None);
-        assert_eq!(path.substring(&(0..0).into()).unwrap(), "");
     }
 
     #[test]
