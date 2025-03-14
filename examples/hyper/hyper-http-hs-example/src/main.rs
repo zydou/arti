@@ -69,7 +69,17 @@ async fn main() {
         .unwrap();
     let (service, request_stream) = client.launch_onion_service(svc_cfg).unwrap();
 
-    eprintln!("ready to serve connections");
+    // Wait until the service is believed to be fully reachable.
+    eprintln!("waiting for service to become fully reachable");
+    while let Some(status) = service.status_events().next().await {
+        if status.state().is_fully_reachable() {
+            break;
+        }
+    }
+    eprintln!(
+        "ready to serve connections via {}",
+        service.onion_name().unwrap()
+    );
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)
         .take_until(handler.shutdown.cancelled());
