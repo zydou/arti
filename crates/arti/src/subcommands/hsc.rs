@@ -9,6 +9,7 @@ use tor_rtcompat::Runtime;
 
 use std::fs::OpenOptions;
 use std::io;
+use std::str::FromStr;
 
 /// The hsc subcommands the arti CLI will be augmented with.
 #[derive(Parser, Debug)]
@@ -99,10 +100,6 @@ pub(crate) struct CommonArgs {
         value_enum
     )]
     key_type: KeyType,
-
-    /// The .onion address of the hidden service
-    #[arg(long)]
-    onion_address: HsId,
 }
 
 /// The common arguments of the key subcommands.
@@ -183,20 +180,18 @@ fn run_key(subcommand: KeySubcommand, client: &InertTorClient) -> Result<()> {
 
 /// Run the `hsc prepare-stealth-mode-key` subcommand.
 fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> Result<()> {
+    let addr = get_onion_address()?;
     let key = match args.generate {
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
             client
-                .get_service_discovery_key(args.common.onion_address)?
+                .get_service_discovery_key(addr)?
                 .map(Ok)
                 .unwrap_or_else(|| {
-                    client.generate_service_discovery_key(
-                        KeystoreSelector::Primary,
-                        args.common.onion_address,
-                    )
+                    client.generate_service_discovery_key(KeystoreSelector::Primary, addr)
                 })?
         }
-        GenerateKey::No => match client.get_service_discovery_key(args.common.onion_address)? {
+        GenerateKey::No => match client.get_service_discovery_key(addr)? {
             Some(key) => key,
             None => {
                 return Err(anyhow!(
@@ -252,36 +247,30 @@ fn write_public_key(mut f: impl io::Write, key: &HsClientDescEncKey) -> io::Resu
 
 /// Run the `hsc rotate-key` subcommand.
 fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -> Result<()> {
+    let addr = get_onion_address()?;
     if !args.force {
-        let msg = format!(
-            "rotate client restricted discovery key for {}?",
-            args.common.onion_address
-        );
+        let msg = format!("rotate client restricted discovery key for {}?", addr);
         if !prompt(&msg)? {
             return Ok(());
         }
     }
 
-    let key = client
-        .rotate_service_discovery_key(KeystoreSelector::default(), args.common.onion_address)?;
+    let key = client.rotate_service_discovery_key(KeystoreSelector::default(), addr)?;
 
     display_service_discovery_key(&args.keygen, &key)
 }
 
 /// Run the `hsc remove-key` subcommand.
 fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -> Result<()> {
+    let addr = get_onion_address()?;
     if !args.force {
-        let msg = format!(
-            "remove client restricted discovery key for {}?",
-            args.common.onion_address
-        );
+        let msg = format!("remove client restricted discovery key for {}?", addr);
         if !prompt(&msg)? {
             return Ok(());
         }
     }
 
-    let _key = client
-        .remove_service_discovery_key(KeystoreSelector::default(), args.common.onion_address)?;
+    let _key = client.remove_service_discovery_key(KeystoreSelector::default(), addr)?;
 
     Ok(())
 }
@@ -314,4 +303,15 @@ fn prompt(msg: &str) -> Result<bool> {
             }
         }
     }
+}
+
+/// Prompt the user for an onion address.
+#[allow(clippy::needless_question_mark)]
+fn get_onion_address() -> Result<HsId, anyhow::Error> {
+    let addr = dialoguer::Input::<String>::new()
+        .with_prompt("Type an onion address")
+        .interact()
+        .map_err(|e| anyhow!("{}", e))?;
+
+    Ok(HsId::from_str(&addr).map_err(|e| anyhow!("{}", e))?)
 }
