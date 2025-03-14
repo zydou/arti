@@ -233,7 +233,6 @@ fn display_service_discovery_key(args: &KeygenArgs, key: &HsClientDescEncKey) ->
                         return Err(anyhow!("{filename} already exists. Move it, or rerun with --overwrite to overwrite it"));
                     }
                     _ => {
-                        // TODO maybe handle some other ErrorKinds
                         return Err(e)
                             .with_context(|| format!("could not write public key to {filename}"));
                     }
