@@ -17,7 +17,7 @@ use crate::util::err::ReactorError;
 use super::{Circuit, CircuitAction, LegId, LegIdKey};
 
 #[cfg(feature = "conflux")]
-use tor_cell::relaycell::conflux::V1Nonce;
+use tor_cell::relaycell::conflux::{V1DesiredUx, V1Nonce};
 
 /// A set of linked conflux circuits.
 pub(super) struct ConfluxSet {
@@ -41,6 +41,9 @@ pub(super) struct ConfluxSet {
     /// The nonce associated with the circuits from this set.
     #[cfg(feature = "conflux")]
     nonce: V1Nonce,
+    /// The desired UX
+    #[cfg(feature = "conflux")]
+    desired_ux: V1DesiredUx,
 }
 
 /// The conflux join point.
@@ -60,12 +63,18 @@ impl ConfluxSet {
         // Note: the join point is only set for multi-path tunnels
         let join_point = None;
 
+        // TODO(conflux): read this from the consensus/config.
+        #[cfg(feature = "conflux")]
+        let desired_ux = V1DesiredUx::NO_OPINION;
+
         Self {
             legs,
             primary_id,
             join_point,
             #[cfg(feature = "conflux")]
             nonce: V1Nonce::new(&mut rand::rng()),
+            #[cfg(feature = "conflux")]
+            desired_ux,
         }
     }
 
