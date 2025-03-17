@@ -380,8 +380,6 @@ impl<'a> ControlHandler<'a> {
 
                 Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
             }
-            // TODO(conflux): this should specify which leg this stream is on
-            // (currently we assume it's the primary leg)
             CtrlMsg::BeginStream {
                 hop,
                 message,
@@ -390,9 +388,6 @@ impl<'a> ControlHandler<'a> {
                 done,
                 cmd_checker,
             } => {
-                // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
-                // Currently, we always begin streams on the primary leg
-
                 // If resolving the hop fails,
                 // we want to report an error back to the initiator and not shut down the reactor.
                 let hop_location = match self.reactor.resolve_target_hop(hop) {
@@ -430,28 +425,19 @@ impl<'a> ControlHandler<'a> {
                     done,
                 }))
             }
-            // TODO(conflux): this should specify which leg this stream is on
-            // (currently we assume it's the primary leg)
             #[cfg(feature = "hs-service")]
             CtrlMsg::ClosePendingStream {
                 hop,
                 stream_id,
                 message,
                 done,
-            } => {
-                // TODO(conflux): what to do if there are multiple legs?
-                // The hop_num won't be enough to identify the hop the stream is with
-                Ok(Some(RunOnceCmdInner::CloseStream {
-                    hop,
-                    sid: stream_id,
-                    behav: message,
-                    reason: streammap::TerminateReason::ExplicitEnd,
-                    done: Some(done),
-                }))
-            }
-            // TODO(conflux): this should specify which leg to send the msg on
-            // (currently we send it down the primary leg)
-            //
+            } => Ok(Some(RunOnceCmdInner::CloseStream {
+                hop,
+                sid: stream_id,
+                behav: message,
+                reason: streammap::TerminateReason::ExplicitEnd,
+                done: Some(done),
+            })),
             // TODO(#1860): remove stream-level sendme support
             CtrlMsg::SendSendme { stream_id, hop } => {
                 let sendme = Sendme::new_empty();
