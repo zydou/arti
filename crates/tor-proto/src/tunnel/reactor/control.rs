@@ -169,6 +169,8 @@ pub(crate) enum CtrlMsg {
         stream_id: StreamId,
         /// The hop number the stream is on.
         hop: HopLocation,
+        /// A sender that we use to tell the caller that the SENDME was sent.
+        sender: oneshot::Sender<Result<()>>,
     },
     /// Get the clock skew claimed by the first hop of the circuit.
     FirstHopClockSkew {
@@ -439,15 +441,24 @@ impl<'a> ControlHandler<'a> {
                 done: Some(done),
             })),
             // TODO(#1860): remove stream-level sendme support
-            CtrlMsg::SendSendme { stream_id, hop } => {
+            CtrlMsg::SendSendme {
+                stream_id,
+                hop,
+                sender,
+            } => {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
-                // TODO(conflux): If resolving the hop fails,
+                // If resolving the hop fails,
                 // we want to report an error back to the initiator and not shut down the reactor.
-                let (_leg_id, hop_num) = self
-                    .reactor
-                    .resolve_hop_location(hop)
-                    .map_err(into_bad_api_usage!("Could not resolve hop {hop:?}"))?;
+                let (_leg_id, hop_num) = match self.reactor.resolve_hop_location(hop) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        let e = into_bad_api_usage!("Could not resolve hop {hop:?}")(e);
+                        // don't care if receiver goes away
+                        let _ = sender.send(Err(e.into()));
+                        return Ok(None);
+                    }
+                };
 
                 let cell = SendRelayCell {
                     hop: hop_num,
@@ -458,7 +469,10 @@ impl<'a> ControlHandler<'a> {
                 // can't add this to `RunOnceCmdInner` until the stream map knows about legs.
                 // `Reactor::ready_streams_iterator` now knows the leg id, so we should be able to
                 // use that.
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
+                Ok(Some(RunOnceCmdInner::Send {
+                    cell,
+                    done: Some(sender),
+                }))
             }
             // TODO(conflux): this should specify which leg to send the msg on
             // (currently we send it down the primary leg)
