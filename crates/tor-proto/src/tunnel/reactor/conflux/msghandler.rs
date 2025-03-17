@@ -152,6 +152,16 @@ impl ConfluxMsgHandler {
 
         Ok(action)
     }
+
+    /// Returns the initial RTT measured by this handler.
+    pub(crate) fn init_rtt(&self) -> Option<Duration> {
+        self.handler.init_rtt()
+    }
+
+    /// Return the sequence number of the last message sent on this leg.
+    pub(crate) fn last_seq_sent(&self) -> u32 {
+        self.handler.last_seq_sent()
+    }
 }
 
 /// An action to take after processing a potentially out of order message.

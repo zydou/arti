@@ -11,10 +11,11 @@ use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
 use itertools::Itertools as _;
 use slotmap_careful::SlotMap;
+use tracing::warn;
 
 use tor_async_utils::SinkPrepareExt as _;
 use tor_basic_utils::flatten;
-use tor_cell::relaycell::RelayCmd;
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 use tor_linkspec::HasRelayIds as _;
 
@@ -28,9 +29,9 @@ use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason};
 
 #[cfg(feature = "conflux")]
 use {
+    super::SendRelayCell,
     tor_cell::relaycell::conflux::{V1DesiredUx, V1LinkPayload, V1Nonce},
-    tor_cell::relaycell::msg::ConfluxLink,
-    tor_cell::relaycell::AnyRelayMsgOuter,
+    tor_cell::relaycell::msg::{ConfluxLink, ConfluxSwitch},
 };
 
 #[cfg(feature = "conflux")]
@@ -76,6 +77,9 @@ pub(super) struct ConfluxSet {
     /// If the message is out-of-order, the `ConfluxMsgHandler` instructs the circuit
     /// to instruct the reactor to buffer the message.
     last_seq_delivered: Arc<AtomicU32>,
+    /// Whether we have selected our initial primary leg,
+    /// if this is a multipath conflux set.
+    selected_init_primary: bool,
 }
 
 /// The conflux join point.
@@ -108,6 +112,7 @@ impl ConfluxSet {
             #[cfg(feature = "conflux")]
             desired_ux,
             last_seq_delivered: Arc::new(AtomicU32::new(0)),
+            selected_init_primary: false,
         }
     }
 
@@ -369,6 +374,151 @@ impl ConfluxSet {
         }
 
         Ok(())
+    }
+
+    /// Try to update the primary leg based on the configured desired UX,
+    /// if needed.
+    ///
+    /// Returns the SWITCH cell to send on the primary leg,
+    /// if we switched primary leg.
+    #[cfg(feature = "conflux")]
+    pub(super) fn maybe_update_primary_leg(&mut self) -> crate::Result<Option<SendRelayCell>> {
+        let Some(join_point) = self.join_point.as_ref() else {
+            // Return early if this is not a multi-path tunnel
+            return Ok(None);
+        };
+
+        let join_point = join_point.hop;
+
+        if !self.should_update_primary_leg() {
+            // Nothing to do
+            return Ok(None);
+        }
+
+        let Some(new_primary_id) = self.select_primary_leg()? else {
+            // None of the legs satisfy our UX requirements, continue using the existing one.
+            return Ok(None);
+        };
+
+        // Check that the newly selected leg is actually different from the previous
+        if self.primary_id == new_primary_id {
+            // The primary leg stays the same, nothing to do.
+            return Ok(None);
+        }
+
+        let prev_last_seq_sent = self.primary_leg_mut()?.last_seq_sent()?;
+        self.primary_id = new_primary_id;
+        let new_last_seq_sent = self.primary_leg_mut()?.last_seq_sent()?;
+
+        let seqno_delta = prev_last_seq_sent - new_last_seq_sent;
+
+        let switch = ConfluxSwitch::new(seqno_delta);
+        let cell = AnyRelayMsgOuter::new(None, switch.into());
+        Ok(Some(SendRelayCell {
+            hop: join_point,
+            early: false,
+            cell,
+        }))
+    }
+
+    /// Whether it's time to select a new primary leg.
+    #[cfg(feature = "conflux")]
+    fn should_update_primary_leg(&mut self) -> bool {
+        if !self.selected_init_primary {
+            self.maybe_select_init_primary();
+            return false;
+        }
+
+        // If we don't have at least 2 legs,
+        // we can't switch our primary leg.
+        if self.legs.len() < 2 {
+            return false;
+        }
+
+        // TODO(conflux-tuning): if it turns out we switch legs too frequently,
+        // we might want to implement some sort of rate-limiting here
+        // (see c-tor's conflux_can_switch).
+
+        true
+    }
+
+    /// Return the best leg according to the configured desired UX.
+    ///
+    /// Returns `None` if no suitable was found.
+    #[cfg(feature = "conflux")]
+    fn select_primary_leg(&self) -> Result<Option<LegIdKey>, Bug> {
+        match self.desired_ux {
+            V1DesiredUx::NO_OPINION | V1DesiredUx::MIN_LATENCY => {
+                self.select_primary_leg_min_rtt(false)
+            }
+            V1DesiredUx::HIGH_THROUGHPUT => self.select_primary_leg_min_rtt(true),
+            V1DesiredUx::LOW_MEM_LATENCY | V1DesiredUx::LOW_MEM_THROUGHPUT => {
+                // TODO(conflux-tuning): add support for low-memory algorithms
+                self.select_primary_leg_min_rtt(false)
+            }
+            _ => {
+                // Default to MIN_RTT if we don't recognized the desired UX value
+                warn!(
+                    "Ignoring unrecognized conflux desired UX {}, using MIN_LATNECY",
+                    self.desired_ux
+                );
+                self.select_primary_leg_min_rtt(false)
+            }
+        }
+    }
+
+    /// Try to choose an initial primary leg, if we have an initial RTT measurement
+    /// for at least one of the legs.
+    #[cfg(feature = "conflux")]
+    fn maybe_select_init_primary(&mut self) {
+        let best = self
+            .legs
+            .iter()
+            .filter_map(|(id, leg)| leg.init_rtt().map(|rtt| (LegId(id), rtt)))
+            .min_by_key(|(_leg_id, rtt)| *rtt)
+            .map(|(leg_id, _rtt)| leg_id.0);
+
+        if let Some(best) = best {
+            self.primary_id = best;
+            self.selected_init_primary = true;
+        }
+    }
+
+    /// Return the leg with the best (lowest) RTT.
+    ///
+    /// If `check_can_send` is true, selects the lowest RTT leg that is ready to send.
+    ///
+    /// Returns `None` if no suitable was found.
+    #[cfg(feature = "conflux")]
+    fn select_primary_leg_min_rtt(&self, check_can_send: bool) -> Result<Option<LegIdKey>, Bug> {
+        let mut best = None;
+
+        for (leg_id, circ) in self.legs.iter() {
+            let join_point = self.join_point_hop(circ)?;
+            let ccontrol = join_point.ccontrol();
+
+            if check_can_send && !ccontrol.can_send() {
+                continue;
+            }
+
+            let rtt = ccontrol.rtt();
+            let ewma_rtt = rtt.ewma_rtt_usec();
+
+            match best.take() {
+                None => {
+                    best = Some((leg_id, ewma_rtt));
+                }
+                Some(best_so_far) => {
+                    if best_so_far.1 < ewma_rtt {
+                        best = Some(best_so_far);
+                    } else {
+                        best = Some((leg_id, ewma_rtt));
+                    }
+                }
+            }
+        }
+
+        Ok(best.map(|(leg_id, _)| leg_id))
     }
 
     /// Returns the next ready [`CircuitAction`],

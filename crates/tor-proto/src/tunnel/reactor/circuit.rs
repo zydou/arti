@@ -66,7 +66,7 @@ use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
@@ -724,6 +724,19 @@ impl Circuit {
         };
 
         conflux_handler.handle_conflux_msg(msg, hop)
+    }
+
+    /// For conflux: return the sequence number of the last cell sent on this leg.
+    ///
+    /// Returns an error if this circuit is not part of a conflux set.
+    #[cfg(feature = "conflux")]
+    pub(super) fn last_seq_sent(&self) -> Result<u32> {
+        let handler = self
+            .conflux_handler
+            .as_ref()
+            .ok_or_else(|| internal!("tried to get last_seq_sent of non-conflux circ"))?;
+
+        Ok(handler.last_seq_sent())
     }
 
     /// Deliver `msg` to the specified open stream entry `ent`.
@@ -1575,6 +1588,14 @@ impl Circuit {
                 None
             }
         }
+    }
+
+    /// Returns initial RTT on this leg, measured in the conflux handshake.
+    #[cfg(feature = "conflux")]
+    pub(super) fn init_rtt(&self) -> Option<Duration> {
+        self.conflux_handler
+            .as_ref()
+            .map(|handler| handler.init_rtt())?
     }
 }
 

@@ -718,8 +718,6 @@ impl Reactor {
         #[cfg(feature = "conflux")]
         self.try_dequeue_ooo_msgs().await?;
 
-        // TODO(conflux): support switching the primary leg
-
         let action = select_biased! {
             res = self.command.next() => {
                 let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
@@ -787,6 +785,15 @@ impl Reactor {
 
         if let Some(cmd) = cmd {
             self.handle_run_once_cmd(cmd).await?;
+        }
+
+        // Check if it's time to switch our primary leg.
+        #[cfg(feature = "conflux")]
+        if let Some(switch_cell) = self.circuits.maybe_update_primary_leg()? {
+            self.circuits
+                .primary_leg_mut()?
+                .send_relay_cell(switch_cell)
+                .await?;
         }
 
         Ok(())
