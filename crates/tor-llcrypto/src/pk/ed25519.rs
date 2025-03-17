@@ -11,7 +11,6 @@
 
 use base64ct::{Base64Unpadded, Encoding as _};
 use curve25519_dalek::Scalar;
-use sha2::Sha512;
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
@@ -19,14 +18,119 @@ use subtle::{Choice, ConstantTimeEq};
 use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
 
 use ed25519_dalek::hazmat::ExpandedSecretKey;
-// NOTE: We are renaming a few types here to maintain consistency with
-// our variable names, and with the nomenclature we use elsewhere for public
-// keys.
-pub use ed25519_dalek::{
-    Signature, Signer, SigningKey as Keypair, Verifier, VerifyingKey as PublicKey,
-};
+use ed25519_dalek::{Signer as _, Verifier as _};
 
 use crate::util::ct::CtByteArray;
+
+/// An Ed25519 signature.
+///
+/// See [`ed25519_dalek::Signature`] for more information.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Signature(pub(crate) ed25519_dalek::Signature);
+
+/// An Ed25519 keypair.
+///
+/// (We do not provide a separate "private key only" type.)
+///
+/// See [`ed25519_dalek::SigningKey`] for more information.
+#[derive(Debug)]
+pub struct Keypair(pub(crate) ed25519_dalek::SigningKey);
+
+/// An Ed25519 public key.
+///
+/// See [`ed25519_dalek::SigningKey`] for more information.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PublicKey(pub(crate) ed25519_dalek::VerifyingKey);
+
+impl<'a> From<&'a Keypair> for PublicKey {
+    fn from(value: &'a Keypair) -> Self {
+        PublicKey((&value.0).into())
+    }
+}
+
+impl PublicKey {
+    /// Construct a public key from its byte representation.
+    pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, signature::Error> {
+        Ok(PublicKey(ed25519_dalek::VerifyingKey::from_bytes(bytes)?))
+    }
+
+    /// Return a reference to the byte representation of this public key.
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        self.0.as_bytes()
+    }
+    /// Return the byte representation of this public key.
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+    /// Verify a signature using this public key.
+    ///
+    /// See [`ed25519_dalek::VerifyingKey::verify`] for more information.
+    pub fn verify(&self, message: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.0.verify(message, &signature.0)
+    }
+}
+impl Keypair {
+    /// Generate a new random ed25519 keypair.
+    pub fn generate<R: rand_core::RngCore + rand_core::CryptoRng>(csprng: &mut R) -> Self {
+        Self(ed25519_dalek::SigningKey::generate(csprng))
+    }
+    /// Construct an ed25519 keypair from the byte representation of its secret key.
+    pub fn from_bytes(bytes: &[u8; 32]) -> Self {
+        Self(ed25519_dalek::SigningKey::from_bytes(bytes))
+    }
+    /// Return a reference to the byte representation of the secret key in this keypair.
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        self.0.as_bytes()
+    }
+    /// Return to the byte representation of the secret key in this keypair.
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+    /// Return the public key in this keypair.
+    pub fn verifying_key(&self) -> PublicKey {
+        PublicKey(*self.0.as_ref())
+    }
+    /// Verify a signature generated with this keypair.
+    pub fn verify(&self, message: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.0.verify(message, &signature.0)
+    }
+    /// Sign a message using this keypair.
+    pub fn sign(&self, message: &[u8]) -> Signature {
+        Signature(self.0.sign(message))
+    }
+}
+impl Signature {
+    /// Construct this signature from its byte representation.
+    pub fn from_bytes(bytes: &[u8; 64]) -> Self {
+        Self(ed25519_dalek::Signature::from_bytes(bytes))
+    }
+    /// Return the byte representation of this signature.
+    pub fn to_bytes(&self) -> [u8; 64] {
+        self.0.to_bytes()
+    }
+}
+impl<'a> TryFrom<&'a [u8]> for PublicKey {
+    type Error = signature::Error;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        Ok(Self(ed25519_dalek::VerifyingKey::try_from(value)?))
+    }
+}
+impl<'a> From<&'a [u8; 32]> for Keypair {
+    fn from(value: &'a [u8; 32]) -> Self {
+        Self(ed25519_dalek::SigningKey::from(value))
+    }
+}
+impl From<[u8; 64]> for Signature {
+    fn from(value: [u8; 64]) -> Self {
+        Signature(value.into())
+    }
+}
+impl<'a> From<&'a [u8; 64]> for Signature {
+    fn from(value: &'a [u8; 64]) -> Self {
+        Signature(value.into())
+    }
+}
 
 /// The length of an ED25519 identity, in bytes.
 pub const ED25519_ID_LEN: usize = 32;
@@ -66,8 +170,13 @@ impl ExpandedKeypair {
 
     /// Compute a signature over a message using this keypair.
     pub fn sign(&self, message: &[u8]) -> Signature {
+        use sha2::Sha512;
         // See notes on ExpandedKeypair about why this hazmat is okay to use.
-        ed25519_dalek::hazmat::raw_sign::<Sha512>(&self.secret, message, &self.public)
+        Signature(ed25519_dalek::hazmat::raw_sign::<Sha512>(
+            &self.secret,
+            message,
+            &self.public.0,
+        ))
     }
 
     /// Return a representation of the secret key in this keypair.
@@ -96,7 +205,7 @@ impl ExpandedKeypair {
             scalar,
             hash_prefix,
         };
-        let public = PublicKey::from(&secret);
+        let public = PublicKey((&secret).into());
         Some(Self { secret, public })
     }
 
@@ -390,8 +499,8 @@ pub fn validate_batch(sigs: &[&ValidatableEd25519Signature]) -> bool {
         let mut ed_pks = Vec::new();
         for ed_sig in sigs {
             let (pk, sig, msg) = ed_sig.as_parts();
-            ed_sigs.push(*sig);
-            ed_pks.push(*pk);
+            ed_sigs.push(sig.0);
+            ed_pks.push(pk.0);
             ed_msgs.push(msg);
         }
         ed25519_dalek::verify_batch(&ed_msgs[..], &ed_sigs[..], &ed_pks[..]).is_ok()
@@ -401,11 +510,28 @@ pub fn validate_batch(sigs: &[&ValidatableEd25519Signature]) -> bool {
 /// An object that has an Ed25519 [`PublicKey`].
 pub trait Ed25519PublicKey {
     /// Get the Ed25519 [`PublicKey`].
-    fn public_key(&self) -> &PublicKey;
+    fn public_key(&self) -> PublicKey;
 }
 
 impl Ed25519PublicKey for Keypair {
-    fn public_key(&self) -> &PublicKey {
-        self.as_ref()
+    fn public_key(&self) -> PublicKey {
+        Keypair::verifying_key(self)
+    }
+}
+
+/// An object that can generate Ed25519 signatures.
+pub trait Ed25519SigningKey {
+    /// Sign a message with this key.
+    fn sign(&self, message: &[u8]) -> Signature;
+}
+
+impl Ed25519SigningKey for Keypair {
+    fn sign(&self, message: &[u8]) -> Signature {
+        Keypair::sign(self, message)
+    }
+}
+impl Ed25519SigningKey for ExpandedKeypair {
+    fn sign(&self, message: &[u8]) -> Signature {
+        ExpandedKeypair::sign(self, message)
     }
 }
