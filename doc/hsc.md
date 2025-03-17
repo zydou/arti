@@ -16,7 +16,7 @@ state directory, which you might have overridden in the configuration.
 Client service discovery keys (previously known as "client authorization" keys)
 can be generated and/or retrieved using the
 `arti hsc key get` command, the user will be prompted for an onion
-address `<SVC>.onion`.
+address of the form `<SVC>.onion`.
 By default `key get` will generate a new keypair for use with `<SVC>.onion`,
 if one does not already exist, and output its public part in the file specified
 with the `--output` option. If such a keypair already exists, a new one will
@@ -24,7 +24,7 @@ with the `--output` option. If such a keypair already exists, a new one will
 
 ```ignore
 $ arti -c hsc.toml hsc key get --output -
-Type an onion address: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
+Enter an onion address: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
 descriptor:x25519:RWWKYMW5EXDUZ2ESDDC7FQJCG6ROAR34LXNSTXFSY6JMQOWNDVNQ
 ```
 
@@ -42,7 +42,7 @@ Keys can be rotated with the `arti hsc key rotate` command.
 To rotate a service discovery key:
 ```ignore
 $ arti -c hsc.toml hsc key rotate --output -
-Type an onion address: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
+Enter an onion address: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
 rotate client restricted discovery key for mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion? (type YES or no): YES
 descriptor:x25519:4E4B6CILWAAM2JFSVTOTCANCCUIMSOOSXZWONSR52ETXSTCKIYIA
 ```
@@ -67,7 +67,7 @@ Keys can be rotated with the `arti hsc key remove` command.
 To remove a service discovery key:
 ```ignore
 $ arti -c hsc.toml hsc key remove
-Type an onion address: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
+Enter an onion address: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
 remove client restricted discovery key for mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion? (type YES or no): YES
 descriptor:x25519:4E4B6CILWAAM2JFSVTOTCANCCUIMSOOSXZWONSR52ETXSTCKIYIA
 ```
