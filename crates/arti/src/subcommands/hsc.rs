@@ -306,12 +306,11 @@ fn prompt(msg: &str) -> Result<bool> {
 }
 
 /// Prompt the user for an onion address.
-#[allow(clippy::needless_question_mark)]
 fn get_onion_address() -> Result<HsId, anyhow::Error> {
     let addr = dialoguer::Input::<String>::new()
-        .with_prompt("Type an onion address")
+        .with_prompt("Enter an onion address")
         .interact()
-        .map_err(|e| anyhow!("{}", e))?;
+        .map_err(|e| anyhow!(e))?;
 
-    Ok(HsId::from_str(&addr).map_err(|e| anyhow!("{}", e))?)
+    HsId::from_str(&addr).map_err(|e| anyhow!(e))
 }
