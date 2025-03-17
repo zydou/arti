@@ -623,7 +623,9 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         let mut nonfatal_error = None;
         let mut newcerts = Vec::new();
-        for cert in AuthCert::parse_multiple(text) {
+        for cert in
+            AuthCert::parse_multiple(text).map_err(|e| Error::from_netdoc(source.clone(), e))?
+        {
             match self.check_parsed_certificate(cert, &source, text) {
                 Ok((cert, cert_text)) => {
                     newcerts.push((cert, cert_text));
@@ -1055,7 +1057,9 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut new_mds = Vec::new();
         let mut nonfatal_err = None;
 
-        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed) {
+        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed)
+            .map_err(|e| Error::from_netdoc(source.clone(), e))?
+        {
             let anno = match anno {
                 Err(e) => {
                     nonfatal_err.get_or_insert_with(|| Error::from_netdoc(source.clone(), e));
@@ -1380,6 +1384,7 @@ mod test {
         const MICRODESCS: &str = include_str!("../testdata/microdescs.txt");
         let text = MICRODESCS;
         MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed)
+            .unwrap()
             .map(|res| {
                 let anno = res.unwrap();
                 let text = anno.within(text).unwrap();

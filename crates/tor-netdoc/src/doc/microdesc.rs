@@ -239,7 +239,7 @@ impl MicrodescAnnotation {
 impl Microdesc {
     /// Parse a string into a new microdescriptor.
     pub fn parse(s: &str) -> Result<Microdesc> {
-        let mut items = crate::parse::tokenize::NetDocReader::new(s);
+        let mut items = crate::parse::tokenize::NetDocReader::new(s)?;
         let (result, _) = Self::parse_from_reader(&mut items).map_err(|e| e.within(s))?;
         items.should_be_exhausted()?;
         Ok(result)
@@ -422,10 +422,10 @@ pub struct MicrodescReader<'a> {
 impl<'a> MicrodescReader<'a> {
     /// Construct a MicrodescReader to take microdescriptors from a string
     /// 's'.
-    pub fn new(s: &'a str, allow: &AllowAnnotations) -> Self {
-        let reader = NetDocReader::new(s);
+    pub fn new(s: &'a str, allow: &AllowAnnotations) -> Result<Self> {
+        let reader = NetDocReader::new(s)?;
         let annotated = allow == &AllowAnnotations::AnnotationsAllowed;
-        MicrodescReader { annotated, reader }
+        Ok(MicrodescReader { annotated, reader })
     }
 
     /// If we're annotated, parse an annotation from the reader. Otherwise
@@ -531,7 +531,7 @@ mod test {
     fn parse_multi() -> Result<()> {
         use humantime::parse_rfc3339;
         let mds: Result<Vec<_>> =
-            MicrodescReader::new(TESTDATA2, &AllowAnnotations::AnnotationsAllowed).collect();
+            MicrodescReader::new(TESTDATA2, &AllowAnnotations::AnnotationsAllowed)?.collect();
         let mds = mds?;
         assert_eq!(mds.len(), 4);
 
@@ -562,7 +562,7 @@ mod test {
     #[test]
     fn parse_family_ids() -> Result<()> {
         let mds: Vec<AnnotatedMicrodesc> =
-            MicrodescReader::new(TESTDATA4, &AllowAnnotations::AnnotationsNotAllowed)
+            MicrodescReader::new(TESTDATA4, &AllowAnnotations::AnnotationsNotAllowed)?
                 .collect::<Result<_>>()?;
         assert_eq!(mds.len(), 2);
         let md0 = mds[0].md();
@@ -609,17 +609,18 @@ mod test {
     }
 
     #[test]
-    fn test_recover() {
+    fn test_recover() -> Result<()> {
         let mut data = read_bad("wrong-start");
         data += TESTDATA;
         data += &read_bad("wrong-id");
 
         let res: Vec<Result<_>> =
-            MicrodescReader::new(&data, &AllowAnnotations::AnnotationsAllowed).collect();
+            MicrodescReader::new(&data, &AllowAnnotations::AnnotationsAllowed)?.collect();
 
         assert_eq!(res.len(), 3);
         assert!(res[0].is_err());
         assert!(res[1].is_ok());
         assert!(res[2].is_err());
+        Ok(())
     }
 }

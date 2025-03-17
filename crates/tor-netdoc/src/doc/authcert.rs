@@ -141,23 +141,23 @@ impl AuthCert {
     /// This function verifies the certificate's signatures, but doesn't
     /// check its expiration dates.
     pub fn parse(s: &str) -> Result<UncheckedAuthCert> {
-        let mut reader = NetDocReader::new(s);
+        let mut reader = NetDocReader::new(s)?;
         let body = AUTHCERT_RULES.parse(&mut reader)?;
         reader.should_be_exhausted()?;
         AuthCert::from_body(&body, s).map_err(|e| e.within(s))
     }
 
     /// Return an iterator yielding authority certificates from a string.
-    pub fn parse_multiple(s: &str) -> impl Iterator<Item = Result<UncheckedAuthCert>> + '_ {
+    pub fn parse_multiple(s: &str) -> Result<impl Iterator<Item = Result<UncheckedAuthCert>> + '_> {
         use AuthCertKwd::*;
-        let sections = NetDocReader::new(s)
+        let sections = NetDocReader::new(s)?
             .batching_split_before_loose(|item| item.is_ok_with_kwd(DIR_KEY_CERTIFICATE_VERSION));
-        sections
+        Ok(sections
             .map(|mut section| {
                 let body = AUTHCERT_RULES.parse(&mut section)?;
                 AuthCert::from_body(&body, s)
             })
-            .map(|r| r.map_err(|e| e.within(s)))
+            .map(|r| r.map_err(|e| e.within(s))))
     }
     /*
         /// Return true if this certificate is expired at a given time, or
@@ -459,7 +459,7 @@ mod test {
         let mut data = "<><><<><>\nfingerprint ABC\n".to_string();
         data += TESTDATA;
 
-        let res: Vec<Result<_>> = AuthCert::parse_multiple(&data).collect();
+        let res: Vec<Result<_>> = AuthCert::parse_multiple(&data).unwrap().collect();
 
         // We should recover from the failed case and read the next data fine.
         assert!(res[0].is_err());
@@ -472,7 +472,7 @@ mod test {
         let mut data = bad_data("bad-version");
         data += TESTDATA;
 
-        let res: Vec<Result<_>> = AuthCert::parse_multiple(&data).collect();
+        let res: Vec<Result<_>> = AuthCert::parse_multiple(&data).unwrap().collect();
 
         // We should recover from the failed case and read the next data fine.
         assert!(res[0].is_err());

@@ -459,7 +459,7 @@ impl RouterDesc {
     /// Does not actually check liveness or signatures; you need to do that
     /// yourself before you can do the output.
     pub fn parse(s: &str) -> Result<UncheckedRouterDesc> {
-        let mut reader = crate::parse::tokenize::NetDocReader::new(s);
+        let mut reader = crate::parse::tokenize::NetDocReader::new(s)?;
         let result = Self::parse_internal(&mut reader).map_err(|e| e.within(s))?;
         // We permit empty lines at the end of router descriptors, since there's
         // a known issue in Tor relays that causes them to return them this way.
@@ -898,10 +898,10 @@ fn advance_to_next_routerdesc(reader: &mut NetDocReader<'_, RouterKwd>, annotate
 
 impl<'a> RouterReader<'a> {
     /// Construct a RouterReader to take router descriptors from a string.
-    pub fn new(s: &'a str, allow: &AllowAnnotations) -> Self {
-        let reader = NetDocReader::new(s);
+    pub fn new(s: &'a str, allow: &AllowAnnotations) -> Result<Self> {
+        let reader = NetDocReader::new(s)?;
         let annotated = allow == &AllowAnnotations::AnnotationsAllowed;
-        RouterReader { annotated, reader }
+        Ok(RouterReader { annotated, reader })
     }
 
     /// Extract an annotation from this reader.
@@ -1142,7 +1142,7 @@ mod test {
 ";
         s += &read_bad("mismatched-fp");
 
-        let rd = RouterReader::new(&s, &AllowAnnotations::AnnotationsAllowed);
+        let rd = RouterReader::new(&s, &AllowAnnotations::AnnotationsAllowed).unwrap();
         let v: Vec<_> = rd.collect();
         assert!(v[0].is_err());
         assert!(v[1].is_ok());

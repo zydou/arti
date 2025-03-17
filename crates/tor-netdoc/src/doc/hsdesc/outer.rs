@@ -137,7 +137,7 @@ impl HsDescOuter {
     #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
     pub(super) fn parse(s: &str) -> Result<UncheckedHsDescOuter> {
         // TOSO HS needs to be unchecked.
-        let mut reader = NetDocReader::new(s);
+        let mut reader = NetDocReader::new(s)?;
         let result = HsDescOuter::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
         Ok(result)
     }

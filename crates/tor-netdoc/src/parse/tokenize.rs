@@ -114,12 +114,13 @@ struct NetDocReaderBase<'a, K: Keyword> {
 
 impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
     /// Create a new NetDocReader to split a string into tokens.
-    fn new(s: &'a str) -> Self {
-        NetDocReaderBase {
+    #[allow(clippy::unnecessary_wraps)] // XXXX
+    fn new(s: &'a str) -> Result<Self> {
+        Ok(NetDocReaderBase {
             s,
             off: 0,
             _k: std::marker::PhantomData,
-        }
+        })
     }
     /// Return the current Pos within the string.
     fn pos(&self, pos: usize) -> Pos {
@@ -614,11 +615,11 @@ pub(crate) struct NetDocReader<'a, K: Keyword> {
 
 impl<'a, K: Keyword> NetDocReader<'a, K> {
     /// Construct a new NetDocReader to read tokens from `s`.
-    pub(crate) fn new(s: &'a str) -> Self {
-        NetDocReader {
+    pub(crate) fn new(s: &'a str) -> Result<Self> {
+        Ok(NetDocReader {
             s,
-            tokens: NetDocReaderBase::new(s).peekable(),
-        }
+            tokens: NetDocReaderBase::new(s)?.peekable(),
+        })
     }
     /// Return a reference to the string used for this NetDocReader.
     pub(crate) fn str(&self) -> &'a str {
@@ -747,7 +748,7 @@ cherry 6
 -----END CHERRY SYNOPSIS-----
 plum hello there
 ";
-        let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+        let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s).unwrap();
 
         assert_eq!(r.str(), s);
         assert!(r.should_be_exhausted().is_err()); // it's not exhausted.
@@ -828,7 +829,7 @@ cherry
 
 truncated line";
 
-        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s).unwrap();
         let toks: Vec<_> = r.collect();
 
         assert!(toks[0].is_err());
