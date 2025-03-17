@@ -279,6 +279,12 @@ pub enum NetdocErrorKind {
     /// Found an empty line in the middle of a document
     #[display("Empty line")]
     EmptyLine,
+    /// The document began with a deprecated unicode BOM marker.
+    #[display("unexpecteed byte-order marker")]
+    BomMarkerFound,
+    /// The document contained an internal NUL byte
+    #[display("unexpected NUL")]
+    NulFound,
 }
 
 /// The underlying source for an [`Error`](struct@Error).
