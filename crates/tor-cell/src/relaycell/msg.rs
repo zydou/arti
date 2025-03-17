@@ -1324,4 +1324,4 @@ msg_impl_relaymsg!(
 );
 
 #[cfg(feature = "conflux")]
-msg_impl_relaymsg!(ConfluxSwitch);
+msg_impl_relaymsg!(ConfluxSwitch, ConfluxLink, ConfluxLinked, ConfluxLinkedAck);
