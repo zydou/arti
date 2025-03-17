@@ -13,7 +13,7 @@ description = "Tool used by arti to generate OpenSSH keys for testing"
 base32 = "0.5"
 clap = { version = "4.3.24", features = ["derive"] }
 rand = "0.9"
-rand_core = { version = "0.9.3", features = ["getrandom"] }
+rand_core = { version = "0.9.3", features = ["os_rng"] }
 ssh-key = { version = "0.6.1", features = ["dsa", "alloc", "rand_core", "std"] }
 tor-basic-utils = { path = "../../crates/tor-basic-utils" }
 tor-keymgr = { path = "../../crates/tor-keymgr", features = ["keymgr"] }
