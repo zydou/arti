@@ -18,7 +18,7 @@ use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
-use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
+use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientTunnel};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 
@@ -73,7 +73,7 @@ pub(crate) trait Buildable: Sized {
     ) -> Result<()>;
 }
 
-/// Try to make a [`PendingClientCirc`] to a given relay, and start its
+/// Try to make a [`PendingClientTunnel`] to a given relay, and start its
 /// reactor.
 ///
 /// This is common code, shared by all the first-hop functions in the
@@ -84,7 +84,7 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     target: &CT,
     guard_status: &GuardStatusHandle,
     usage: ChannelUsage,
-) -> Result<PendingClientCirc> {
+) -> Result<PendingClientTunnel> {
     // Get or construct the channel.
     let result = chanmgr.get_or_launch(target, usage).await;
 

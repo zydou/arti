@@ -67,11 +67,12 @@ mod unique_id;
 pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
+use crate::circuit::PendingClientTunnel;
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
-use crate::{tunnel, tunnel::circuit, ClockSkew};
+use crate::{tunnel, ClockSkew};
 use crate::{Error, Result};
 use reactor::BoxedChannelStreamOps;
 use safelog::sensitive as sv;
@@ -675,7 +676,7 @@ impl Channel {
     /// [crate::tunnel::circuit::PendingClientCirc] to build the circuit.
     pub async fn new_circ(
         self: &Arc<Self>,
-    ) -> Result<(circuit::PendingClientCirc, tunnel::reactor::Reactor)> {
+    ) -> Result<(PendingClientTunnel, tunnel::reactor::Reactor)> {
         if self.is_closing() {
             return Err(ChannelClosed.into());
         }
@@ -698,7 +699,7 @@ impl Channel {
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
-        Ok(circuit::PendingClientCirc::new(
+        Ok(PendingClientTunnel::new(
             id,
             self.clone(),
             createdreceiver,

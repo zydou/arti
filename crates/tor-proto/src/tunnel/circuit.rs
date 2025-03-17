@@ -11,13 +11,13 @@
 //!
 //! To build a circuit, first create a [crate::channel::Channel], then
 //! call its [crate::channel::Channel::new_circ] method.  This yields
-//! a [PendingClientCirc] object that won't become live until you call
+//! a [PendingClientTunnel] object that won't become live until you call
 //! one of the methods
-//! (typically [`PendingClientCirc::create_firsthop`])
+//! (typically [`PendingClientTunnel::create_firsthop`])
 //! that extends it to its first hop.  After you've
-//! done that, you can call [`ClientCirc::extend`] on the circuit to
-//! build it into a multi-hop circuit.  Finally, you can use
-//! [ClientCirc::begin_stream] to get a Stream object that can be used
+//! done that, you can call [`ClientTunnel::extend`] on the tunnel to
+//! build it into a multi-hop tunnel.  Finally, you can use
+//! [ClientTunnel::begin_stream] to get a Stream object that can be used
 //! for anonymized data.
 //!
 //! # Implementation
@@ -111,10 +111,10 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 /// # Circuit life cycle
 ///
 /// `ClientCirc`s are created in an initially unusable state using [`Channel::new_circ`],
-/// which returns a [`PendingClientCirc`].  To get a real (one-hop) circuit from
+/// which returns a [`PendingClientTunnel`].  To get a real (one-hop) tunnel from
 /// one of these, you invoke one of its `create_firsthop` methods (typically
-/// [`create_firsthop_fast()`](PendingClientCirc::create_firsthop_fast) or
-/// [`create_firsthop()`](PendingClientCirc::create_firsthop)).
+/// [`create_firsthop_fast()`](PendingClientTunnel::create_firsthop_fast) or
+/// [`create_firsthop()`](PendingClientTunnel::create_firsthop)).
 /// Then, to add more hops to the circuit, you can call
 /// [`extend()`](ClientCirc::extend) on it.
 ///
@@ -367,12 +367,12 @@ pub(super) struct CircuitState {
 ///
 /// To use one of these, call `create_firsthop_fast()` or `create_firsthop()`
 /// to negotiate the cryptographic handshake with the first hop.
-pub struct PendingClientCirc {
+pub struct PendingClientTunnel {
     /// A oneshot receiver on which we'll receive a CREATED* cell,
     /// or a DESTROY cell.
     recvcreated: oneshot::Receiver<CreateResponse>,
     /// The ClientCirc object that we can expose on success.
-    circ: Arc<ClientCirc>,
+    circ: ClientCirc,
 }
 
 /// Description of the network's current rules for building circuits.
@@ -1053,7 +1053,7 @@ impl Conversation<'_> {
     }
 }
 
-impl PendingClientCirc {
+impl PendingClientTunnel {
     /// Instantiate a new circuit object: used from Channel::new_circ().
     ///
     /// Does not send a CREATE* cell on its own.
@@ -1067,7 +1067,7 @@ impl PendingClientCirc {
         unique_id: UniqId,
         runtime: DynTimeProvider,
         memquota: CircuitAccount,
-    ) -> (PendingClientCirc, crate::tunnel::reactor::Reactor) {
+    ) -> (PendingClientTunnel, crate::tunnel::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel, id, unique_id, input, runtime, memquota.clone());
@@ -1085,9 +1085,9 @@ impl PendingClientCirc {
             is_multi_path: false,
         };
 
-        let pending = PendingClientCirc {
+        let pending = PendingClientTunnel {
             recvcreated: createdreceiver,
-            circ: Arc::new(circuit),
+            circ: circuit,
         };
         (pending, reactor)
     }
@@ -1103,7 +1103,7 @@ impl PendingClientCirc {
     /// There's no authentication in CRATE_FAST,
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
-    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<Arc<ClientCirc>> {
+    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<ClientTunnel> {
         // We no nothing about this relay, so we assume it supports no protocol capabilities at all.
         //
         // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
@@ -1123,7 +1123,7 @@ impl PendingClientCirc {
 
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        Ok(self.circ)
+        self.circ.into_tunnel()
     }
 
     /// Use the most appropriate handshake to connect to the first hop of this circuit.
@@ -1134,7 +1134,7 @@ impl PendingClientCirc {
         self,
         target: &Tg,
         params: CircParameters,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<ClientTunnel>
     where
         Tg: tor_linkspec::CircTarget,
     {
@@ -1157,7 +1157,7 @@ impl PendingClientCirc {
         self,
         target: &Tg,
         params: CircParameters,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<ClientTunnel>
     where
         Tg: tor_linkspec::CircTarget,
     {
@@ -1190,7 +1190,7 @@ impl PendingClientCirc {
 
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        Ok(self.circ)
+        self.circ.into_tunnel()
     }
 
     /// Use the ntor_v3 handshake to connect to the first hop of this circuit.
@@ -1205,7 +1205,7 @@ impl PendingClientCirc {
         self,
         target: &Tg,
         params: CircParameters,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<ClientTunnel>
     where
         Tg: tor_linkspec::CircTarget,
     {
@@ -1235,7 +1235,7 @@ impl PendingClientCirc {
 
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        Ok(self.circ)
+        self.circ.into_tunnel()
     }
 }
 
