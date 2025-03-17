@@ -31,7 +31,7 @@ use {
 };
 
 #[cfg(test)]
-use {crate::congestion::sendme::CircTag, crate::Error, tor_error::internal};
+use crate::congestion::sendme::CircTag;
 
 #[cfg(feature = "conflux")]
 use super::Circuit;
@@ -530,9 +530,16 @@ impl<'a> ControlHandler<'a> {
                 // describe why the virtual hop was added, or something?
                 let peer_id = path::HopDetail::Virtual;
 
-                // TODO(conflux): the error should probably be sent via the done channel?
-                // (it should probably not crash the reactor)
-                let (_id, leg) = self.reactor.circuits.single_leg_mut()?;
+                let Ok((_id, leg)) = self.reactor.circuits.single_leg_mut() else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot extend multipath tunnel"
+                    )
+                    .into()));
+
+                    return Ok(());
+                };
+
                 leg.add_hop(format, peer_id, outbound, inbound, binding, &params)?;
                 let _ = done.send(Ok(()));
 
@@ -582,24 +589,39 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let (_id, leg) = self.reactor.circuits.single_leg_mut()?;
+                let Ok((_id, leg)) = self.reactor.circuits.single_leg_mut() else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot add fake hop to multipath tunnel"
+                    )
+                    .into()));
+
+                    return Ok(());
+                };
+
                 leg.handle_add_fake_hop(relay_cell_format, fwd_lasthop, rev_lasthop, &params, done);
 
                 Ok(())
             }
             #[cfg(test)]
             CtrlCmd::QuerySendWindow { hop, done } => {
-                let _ = done.send({
-                    let (_id, leg) = self.reactor.circuits.single_leg_mut()?;
-                    if let Some(hop) = leg.hop_mut(hop) {
-                        Ok(hop.send_window_and_expected_tags())
-                    } else {
-                        Err(Error::from(internal!(
-                            "received QuerySendWindow for unknown hop {}",
-                            hop.display()
-                        )))
-                    }
-                });
+                // Immediately invoked function means that errors will be sent to the channel.
+                let _ = done.send((|| {
+                    let (_id, leg) =
+                        self.reactor
+                            .circuits
+                            .single_leg_mut()
+                            .map_err(into_bad_api_usage!(
+                                "cannot query send window of multipath tunnel"
+                            ))?;
+
+                    let hop = leg.hop_mut(hop).ok_or(bad_api_usage!(
+                        "received QuerySendWindow for unknown hop {}",
+                        hop.display()
+                    ))?;
+
+                    Ok(hop.send_window_and_expected_tags())
+                })());
 
                 Ok(())
             }
