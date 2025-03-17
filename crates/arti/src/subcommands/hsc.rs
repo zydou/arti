@@ -93,13 +93,17 @@ enum GenerateKey {
 /// The common arguments of the key subcommands.
 #[derive(Debug, Clone, Args)]
 pub(crate) struct CommonArgs {
-    /// The type of key to rotate.
+    /// The type of the key.
     #[arg(
         long,
         default_value_t = KeyType::ServiceDiscovery,
         value_enum
     )]
     key_type: KeyType,
+
+    /// Whether to write the prompt or not
+    #[arg(long, short, default_value_t = false)]
+    quiet: bool,
 }
 
 /// The common arguments of the key subcommands.
@@ -180,7 +184,7 @@ fn run_key(subcommand: KeySubcommand, client: &InertTorClient) -> Result<()> {
 
 /// Run the `hsc prepare-stealth-mode-key` subcommand.
 fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> Result<()> {
-    let addr = get_onion_address()?;
+    let addr = get_onion_address(args.common.quiet)?;
     let key = match args.generate {
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
@@ -247,7 +251,7 @@ fn write_public_key(mut f: impl io::Write, key: &HsClientDescEncKey) -> io::Resu
 
 /// Run the `hsc rotate-key` subcommand.
 fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -> Result<()> {
-    let addr = get_onion_address()?;
+    let addr = get_onion_address(args.common.quiet)?;
     if !args.force {
         let msg = format!("rotate client restricted discovery key for {}?", addr);
         if !prompt(&msg)? {
@@ -262,7 +266,7 @@ fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -
 
 /// Run the `hsc remove-key` subcommand.
 fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -> Result<()> {
-    let addr = get_onion_address()?;
+    let addr = get_onion_address(args.common.quiet)?;
     if !args.force {
         let msg = format!("remove client restricted discovery key for {}?", addr);
         if !prompt(&msg)? {
@@ -306,11 +310,12 @@ fn prompt(msg: &str) -> Result<bool> {
 }
 
 /// Prompt the user for an onion address.
-fn get_onion_address() -> Result<HsId, anyhow::Error> {
-    let addr = dialoguer::Input::<String>::new()
-        .with_prompt("Enter an onion address")
-        .interact()
-        .map_err(|e| anyhow!(e))?;
+fn get_onion_address(quiet: bool) -> Result<HsId, anyhow::Error> {
+    let mut addr = String::new();
+    if !quiet {
+        println!("Enter an onion address:");
+    };
+    io::stdin().read_line(&mut addr).map_err(|e| anyhow!(e))?;
 
-    HsId::from_str(&addr).map_err(|e| anyhow!(e))
+    HsId::from_str(addr.trim_end()).map_err(|e| anyhow!(e))
 }
