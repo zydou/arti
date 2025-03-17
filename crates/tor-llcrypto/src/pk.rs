@@ -13,16 +13,6 @@ pub mod rsa;
 /// key-agreement trait, but for now we are just re-using the APIs from
 /// [`x25519_dalek`].
 pub mod curve25519 {
-    // TODO: We may want eventually want to expose ReusableSecret instead of
-    // StaticSecret, for use in places where we need to use a single secret
-    // twice in one handshake, but we do not need that secret to be persistent.
-    //
-    // The trouble here is that if we use ReusableSecret in these cases, we
-    // cannot easily construct it for testing purposes.  We could in theory
-    // kludge something together using a fake Rng, but that might be more
-    // trouble than we want to go looking for.
-    pub use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret, StaticSecret};
-
     use educe::Educe;
 
     /// A keypair containing a [`StaticSecret`] and its corresponding public key.
@@ -35,6 +25,109 @@ pub mod curve25519 {
         pub secret: StaticSecret,
         /// The public part of this key.
         pub public: PublicKey,
+    }
+
+    /// A curve25519 secret key that can only be used once,
+    /// and that can never be inspected.
+    ///
+    /// See [`x25519_dalek::EphemeralSecret`] for more information.
+    pub struct EphemeralSecret(x25519_dalek::EphemeralSecret);
+
+    /// A curve25519 secret key that can be used more than once,
+    /// and whose value can be inspected.
+    ///
+    /// See [`x25519_dalek::StaticSecret`] for more information.
+    //
+    // TODO: We may want eventually want to expose ReusableSecret instead of
+    // StaticSecret, for use in places where we need to use a single secret
+    // twice in one handshake, but we do not need that secret to be persistent.
+    //
+    // The trouble here is that if we use ReusableSecret in these cases, we
+    // cannot easily construct it for testing purposes.  We could in theory
+    // kludge something together using a fake Rng, but that might be more
+    // trouble than we want to go looking for.
+    #[derive(Clone)]
+    pub struct StaticSecret(x25519_dalek::StaticSecret);
+
+    /// A curve15519 public key.
+    ///
+    /// See [`x25519_dalek::PublicKey`] for more information.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct PublicKey(x25519_dalek::PublicKey);
+
+    /// A shared secret negotiated using curve25519.
+    ///
+    /// See [`x25519_dalek::SharedSecret`] for more information
+    pub struct SharedSecret(x25519_dalek::SharedSecret);
+
+    impl<'a> From<&'a EphemeralSecret> for PublicKey {
+        fn from(secret: &'a EphemeralSecret) -> Self {
+            Self((&secret.0).into())
+        }
+    }
+
+    impl<'a> From<&'a StaticSecret> for PublicKey {
+        fn from(secret: &'a StaticSecret) -> Self {
+            Self((&secret.0).into())
+        }
+    }
+
+    impl From<[u8; 32]> for StaticSecret {
+        fn from(value: [u8; 32]) -> Self {
+            Self(value.into())
+        }
+    }
+    impl From<[u8; 32]> for PublicKey {
+        fn from(value: [u8; 32]) -> Self {
+            Self(value.into())
+        }
+    }
+
+    impl EphemeralSecret {
+        /// Return a new random ephemeral secret key.
+        pub fn random_from_rng<R: rand_core::RngCore + rand_core::CryptoRng>(csprng: R) -> Self {
+            Self(x25519_dalek::EphemeralSecret::random_from_rng(csprng))
+        }
+        /// Negotiate a shared secret using this secret key and a public key.
+        pub fn diffie_hellman(self, their_public: &PublicKey) -> SharedSecret {
+            SharedSecret(self.0.diffie_hellman(&their_public.0))
+        }
+    }
+    impl StaticSecret {
+        /// Return a new random static secret key.
+        pub fn random_from_rng<R: rand_core::RngCore + rand_core::CryptoRng>(csprng: R) -> Self {
+            Self(x25519_dalek::StaticSecret::random_from_rng(csprng))
+        }
+        /// Negotiate a shared secret using this secret key and a public key.
+        pub fn diffie_hellman(&self, their_public: &PublicKey) -> SharedSecret {
+            SharedSecret(self.0.diffie_hellman(&their_public.0))
+        }
+        /// Return the bytes that represent this key.
+        pub fn to_bytes(&self) -> [u8; 32] {
+            self.0.to_bytes()
+        }
+    }
+    impl SharedSecret {
+        /// Return the shared secret as an array of bytes.
+        pub fn as_bytes(&self) -> &[u8; 32] {
+            self.0.as_bytes()
+        }
+        /// Return true if both keys contributed to this shared secret.
+        ///
+        /// See [`x25519_dalek::SharedSecret::was_contributory`] for more information.
+        pub fn was_contributory(&self) -> bool {
+            self.0.was_contributory()
+        }
+    }
+    impl PublicKey {
+        /// Return this public key as a reference to an array of bytes.
+        pub fn as_bytes(&self) -> &[u8; 32] {
+            self.0.as_bytes()
+        }
+        /// Return this public key as an array of bytes.
+        pub fn to_bytes(&self) -> [u8; 32] {
+            self.0.to_bytes()
+        }
     }
 }
 
