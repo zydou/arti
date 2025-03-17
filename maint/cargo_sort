@@ -11,15 +11,26 @@ set -euo pipefail
 # So instead, we sed its output.  Urgh.
 
 (TERM=dumb cargo sort --check --workspace || test $? = 1) 2>&1 | perl -ne '
+
+use Cwd;              # Load the Cwd module to get the current working directory
+use File::Basename;   # Load the File::Basename module to extract the top folder name
+
+    # Get the current working directory
+    my $current_dir = cwd();
+
+    # Extract the top folder name from the full path
+    my $cargo_sort_root = basename($current_dir);
+
+    next if m{^\Qerror: Dependencies for $cargo_sort_root are not sorted\E$};
     next if m{^\Qerror: Dependencies for arti are not sorted\E$};
-    $n_arti += !!m{^\QChecking arti...}; # printed for toplevel too
+    $n_allowed += !!m{^\QChecking arti...} || !!m{^\QChecking $cargo_sort_root...}; # for arti crate or toplevel dir
     next if m{^Checking \S+\Q...\E$};
     $n_bad++;
     print STDERR;
     END {
         flush STDOUT;
         eval {
-            die "expected \"Checking arti\" twice, got $n_arti times\n" unless $n_arti==2;
+            die "expected 2 unordered crates, got $n_allowed instead \n" unless $n_allowed==2;
             die "unexpected output ($n_bad line(s)) from cargo-sort\n" if $n_bad;
         };
         if ($@) {
