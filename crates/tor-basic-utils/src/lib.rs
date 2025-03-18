@@ -158,6 +158,10 @@ pub trait RngExt: Rng {
     /// assert_eq!(choose(&[42]).unwrap(), 42);
     /// let _: Bug = choose(&[]).unwrap_err();
     /// ```
+    //
+    // TODO: We may someday wish to rename this function to random_range_checked,
+    // since gen_range was renamed to random_range in rand 0.9.
+    // Or we might decide to leave it alone.
     fn gen_range_checked<T, R>(&mut self, range: R) -> Option<T>
     where
         T: rand::distr::uniform::SampleUniform,
@@ -167,7 +171,7 @@ pub trait RngExt: Rng {
             None
         } else {
             #[allow(clippy::disallowed_methods)]
-            Some(Rng::gen_range(self, range))
+            Some(Rng::random_range(self, range))
         }
     }
 
