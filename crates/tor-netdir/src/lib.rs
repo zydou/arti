@@ -74,7 +74,7 @@ use {hsdir_ring::HsDirRing, std::iter};
 use derive_more::{From, Into};
 use futures::{stream::BoxStream, StreamExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use rand::seq::SliceRandom;
+use rand::seq::{IndexedRandom as _, SliceRandom as _};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;

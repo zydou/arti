@@ -14,7 +14,7 @@ use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_linkspec::{ByRelayIds, HasRelayIds};
 
 use itertools::Itertools;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};

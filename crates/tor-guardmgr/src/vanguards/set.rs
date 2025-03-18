@@ -4,7 +4,7 @@ use std::cmp;
 use std::time::{Duration, SystemTime};
 
 use derive_deftly::{derive_deftly_adhoc, Deftly};
-use rand::{seq::SliceRandom as _, RngCore};
+use rand::{seq::IndexedRandom as _, RngCore};
 use serde::{Deserialize, Serialize};
 
 use tor_basic_utils::RngExt as _;

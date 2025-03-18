@@ -362,7 +362,7 @@ impl<C: AbstractCirc> OpenEntry<C> {
         parallelism: usize,
     ) -> &'a mut Self {
         let _ = usage; // not yet used.
-        use rand::seq::SliceRandom;
+        use rand::seq::IndexedMutRandom as _;
         let parallelism = parallelism.clamp(1, ents.len());
         // TODO: Actually look over the whole list to see which is better.
         let slice = &mut ents[0..parallelism];
