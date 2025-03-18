@@ -1,11 +1,10 @@
 //! All the traits of this crate.
 
 use downcast_rs::{impl_downcast, Downcast};
-use rand::RngCore;
+use rand::{CryptoRng, RngCore};
 use ssh_key::{
     private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair},
     public::{Ed25519PublicKey, KeyData, OpaquePublicKey},
-    rand_core::CryptoRng,
     Algorithm, AlgorithmName,
 };
 use tor_error::internal;
