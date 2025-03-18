@@ -301,7 +301,7 @@ impl<S: SleepProvider> Reactor<S> {
                     padding_negotiate,
                 } = &*updates;
                 if let Some(parameters) = padding_parameters {
-                    self.padding_timer.as_mut().reconfigure(parameters);
+                    self.padding_timer.as_mut().reconfigure(parameters)?;
                 }
                 if let Some(enable) = padding_enable {
                     if *enable {
