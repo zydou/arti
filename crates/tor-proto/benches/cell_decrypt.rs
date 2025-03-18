@@ -1,7 +1,6 @@
 use cipher::{KeyIvInit, StreamCipher};
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use digest::Digest;
-use rand::prelude::*;
 
 use tor_bytes::SecretBuf;
 use tor_cell::relaycell::{RelayCellFormatTrait, RelayCellFormatV0};
@@ -23,7 +22,7 @@ macro_rules! full_circuit_inbound_setup {
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
         let seed3: SecretBuf = b"free to hide no more".to_vec().into();
 
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
         let mut circuit_sates = [
             HopCryptState::construct(seed1.clone()).unwrap(),
@@ -48,7 +47,7 @@ fn create_inbound_cell<
     D: Digest + Clone,
     RCF: RelayCellFormatTrait,
 >(
-    rng: &mut ThreadRng,
+    rng: &mut impl rand::Rng,
     circuit_crypt_states: &mut [HopCryptState<SC, D, RCF>],
 ) -> RelayBody {
     let mut cell = [0u8; 509];
