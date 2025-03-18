@@ -1397,7 +1397,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
 
     /// Try to parse a single networkstatus document from a string.
     pub fn parse(s: &str) -> Result<(&str, &str, UncheckedConsensus<RS>)> {
-        let mut reader = NetDocReader::new(s);
+        let mut reader = NetDocReader::new(s)?;
         Self::parse_from_reader(&mut reader).map_err(|e| e.within(s))
     }
     /// Extract a voter-info section from the reader; return
@@ -1844,7 +1844,7 @@ mod test {
         use std::net::SocketAddr;
         use tor_checkable::{SelfSigned, Timebound};
         let mut certs = Vec::new();
-        for cert in AuthCert::parse_multiple(CERTS) {
+        for cert in AuthCert::parse_multiple(CERTS)? {
             let cert = cert?.check_signature()?.dangerously_assume_timely();
             certs.push(cert);
         }
@@ -1910,7 +1910,7 @@ mod test {
     fn parse_and_validate_ns() -> Result<()> {
         use tor_checkable::{SelfSigned, Timebound};
         let mut certs = Vec::new();
-        for cert in AuthCert::parse_multiple(NS_CERTS) {
+        for cert in AuthCert::parse_multiple(NS_CERTS)? {
             let cert = cert?.check_signature()?.dangerously_assume_timely();
             certs.push(cert);
         }
@@ -1979,7 +1979,7 @@ mod test {
     }
 
     fn gettok(s: &str) -> Result<Item<'_, NetstatusKwd>> {
-        let mut reader = NetDocReader::new(s);
+        let mut reader = NetDocReader::new(s)?;
         let tok = reader.next().unwrap();
         assert!(reader.next().is_none());
         tok

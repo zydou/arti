@@ -114,12 +114,12 @@ struct NetDocReaderBase<'a, K: Keyword> {
 
 impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
     /// Create a new NetDocReader to split a string into tokens.
-    fn new(s: &'a str) -> Self {
-        NetDocReaderBase {
-            s,
+    fn new(s: &'a str) -> Result<Self> {
+        Ok(NetDocReaderBase {
+            s: validate_utf_8_rules(s)?,
             off: 0,
             _k: std::marker::PhantomData,
-        }
+        })
     }
     /// Return the current Pos within the string.
     fn pos(&self, pos: usize) -> Pos {
@@ -614,11 +614,11 @@ pub(crate) struct NetDocReader<'a, K: Keyword> {
 
 impl<'a, K: Keyword> NetDocReader<'a, K> {
     /// Construct a new NetDocReader to read tokens from `s`.
-    pub(crate) fn new(s: &'a str) -> Self {
-        NetDocReader {
+    pub(crate) fn new(s: &'a str) -> Result<Self> {
+        Ok(NetDocReader {
             s,
-            tokens: NetDocReaderBase::new(s).peekable(),
-        }
+            tokens: NetDocReaderBase::new(s)?.peekable(),
+        })
     }
     /// Return a reference to the string used for this NetDocReader.
     pub(crate) fn str(&self) -> &'a str {
@@ -713,6 +713,26 @@ impl<'a, K: Keyword> itertools::PeekingNext for NetDocReader<'a, K> {
     }
 }
 
+/// Check additional UTF-8 rules that the netdoc metaformat imposes on
+/// our documents.
+//
+// NOTE: We might decide in the future to loosen our rules here
+// for parsers that handle concatenated documents:
+// we might want to reject only those documents that contain NULs.
+// But with luck that will never be necessary.
+fn validate_utf_8_rules(s: &str) -> Result<&str> {
+    // No BOM, or mangled BOM, is allowed.
+    let first_char = s.chars().next();
+    if [Some('\u{feff}'), Some('\u{fffe}')].contains(&first_char) {
+        return Err(EK::BomMarkerFound.at_pos(Pos::at(s)));
+    }
+    // No NUL bytes are allowed.
+    if let Some(nul_pos) = memchr::memchr(0, s.as_bytes()) {
+        return Err(EK::NulFound.at_pos(Pos::from_byte(nul_pos)));
+    }
+    Ok(s)
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -747,7 +767,7 @@ cherry 6
 -----END CHERRY SYNOPSIS-----
 plum hello there
 ";
-        let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+        let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s).unwrap();
 
         assert_eq!(r.str(), s);
         assert!(r.should_be_exhausted().is_err()); // it's not exhausted.
@@ -828,7 +848,7 @@ cherry
 
 truncated line";
 
-        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
+        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s).unwrap();
         let toks: Vec<_> = r.collect();
 
         assert!(toks[0].is_err());
@@ -949,5 +969,33 @@ truncated line";
             toks[18].as_ref().err().unwrap(),
             &EK::TruncatedLine.at_pos(Pos::from_line(29, 15))
         );
+    }
+
+    #[test]
+    fn test_validate_strings() {
+        use validate_utf_8_rules as v;
+        assert_eq!(v(""), Ok(""));
+        assert_eq!(v("hello world"), Ok("hello world"));
+        // We don't have to test a lot more valid cases, since this function is called before
+        // parsing any string.
+
+        for s in ["\u{feff}", "\u{feff}hello world", "\u{fffe}hello world"] {
+            let e = v(s).unwrap_err();
+            assert_eq!(e.netdoc_error_kind(), EK::BomMarkerFound);
+            assert_eq!(e.pos().offset_within(s), Some(0));
+        }
+
+        for s in [
+            "\0hello world",
+            "\0",
+            "\0\0\0",
+            "hello\0world",
+            "hello world\0",
+        ] {
+            let e = v(s).unwrap_err();
+            assert_eq!(e.netdoc_error_kind(), EK::NulFound);
+            let nul_pos = e.pos().offset_within(s).unwrap();
+            assert_eq!(s.as_bytes()[nul_pos], 0);
+        }
     }
 }

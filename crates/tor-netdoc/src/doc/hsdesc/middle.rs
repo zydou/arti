@@ -195,7 +195,7 @@ impl HsDescMiddle {
     /// string.
     #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
     pub(super) fn parse(s: &str) -> Result<HsDescMiddle> {
-        let mut reader = NetDocReader::new(s);
+        let mut reader = NetDocReader::new(s)?;
         let result = HsDescMiddle::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
         Ok(result)
     }

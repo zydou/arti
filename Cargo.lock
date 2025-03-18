@@ -6396,6 +6396,7 @@ dependencies = [
  "hex-literal",
  "humantime",
  "itertools 0.14.0",
+ "memchr",
  "once_cell",
  "phf",
  "rand",
