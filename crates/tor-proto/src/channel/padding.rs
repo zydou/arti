@@ -36,7 +36,7 @@ use educe::Educe;
 use futures::future::{self, FusedFuture};
 use futures::FutureExt;
 use pin_project::pin_project;
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use tracing::error;
 
 use tor_cell::chancell::msg::{Padding, PaddingNegotiate};
@@ -172,7 +172,7 @@ impl Parameters {
 #[derive(Debug, Clone)]
 struct PreparedParameters {
     /// The distribution of `X` (not of the ultimate delay, which is `max(X1,X2)`)
-    x_distribution_ms: rand::distributions::Uniform<u32>,
+    x_distribution_ms: rand::distr::Uniform<u32>,
 }
 
 /// Return value from `prepare_to_sleep`: instructions for what caller ought to do
@@ -381,7 +381,7 @@ impl Parameters {
     /// "Compile" the parameters into a form which can be quickly sampled
     fn prepare(self) -> PreparedParameters {
         PreparedParameters {
-            x_distribution_ms: rand::distributions::Uniform::new_inclusive(
+            x_distribution_ms: rand::distr::Uniform::new_inclusive(
                 self.low.as_millis(),
                 self.high.as_millis(),
             ),

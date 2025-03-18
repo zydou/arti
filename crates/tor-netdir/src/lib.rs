@@ -1555,7 +1555,7 @@ impl NetDir {
         P: FnMut(&Relay<'a>) -> bool,
     {
         let relays: Vec<_> = self.relays().filter(usable).collect();
-        // This algorithm uses rand::distributions::WeightedIndex, and uses
+        // This algorithm uses rand::distr::WeightedIndex, and uses
         // gives O(n) time and space  to build the index, plus O(log n)
         // sampling time.
         //

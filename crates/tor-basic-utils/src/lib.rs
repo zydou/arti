@@ -126,7 +126,7 @@ impl StrExt for str {}
 pub trait RngExt: Rng {
     /// Generate a random value in the given range.
     ///
-    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distributions::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distr::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
     ///
     /// If the supplied range is empty, returns `None`.
     ///
@@ -160,8 +160,8 @@ pub trait RngExt: Rng {
     /// ```
     fn gen_range_checked<T, R>(&mut self, range: R) -> Option<T>
     where
-        T: rand::distributions::uniform::SampleUniform,
-        R: rand::distributions::uniform::SampleRange<T>,
+        T: rand::distr::uniform::SampleUniform,
+        R: rand::distr::uniform::SampleRange<T>,
     {
         if range.is_empty() {
             None
@@ -177,7 +177,7 @@ pub trait RngExt: Rng {
     /// with types that implement `GenRangeInfallible`
     /// (that necessarily then implement the appropriate `rand` traits).
     ///
-    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distributions::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
+    /// This function is optimised for the case that only a single sample is made from the given range. See also the [`Uniform`](rand::distr::uniform::Uniform)  distribution type which may be faster if sampling from the same range repeatedly.
     ///
     /// ### Example
     ///
@@ -215,9 +215,9 @@ impl<T: Rng> RngExt for T {}
 // upper bound might be zero, unless a NonZero type is used, which seems like a further
 // complication that we probably don't want to introduce here.  That leaves lower-bounded
 // ranges, but those are very rare.
-pub trait GenRangeInfallible: rand::distributions::uniform::SampleUniform + Ord
+pub trait GenRangeInfallible: rand::distr::uniform::SampleUniform + Ord
 where
-    RangeInclusive<Self>: rand::distributions::uniform::SampleRange<Self>,
+    RangeInclusive<Self>: rand::distr::uniform::SampleRange<Self>,
 {
     /// The usual lower bound, for converting a `RangeToInclusive` to a `RangeInclusive`
     ///
