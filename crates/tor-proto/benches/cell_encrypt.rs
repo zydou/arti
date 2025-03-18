@@ -26,7 +26,7 @@ macro_rules! full_circuit_outbound_setup {
         cc_out.add_layer_from_seed::<$sc, $d, $f>(seed2).unwrap();
         cc_out.add_layer_from_seed::<$sc, $d, $f>(seed3).unwrap();
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let cell = create_outbound_cell(&mut rng);
         (cell, cc_out)
     }};

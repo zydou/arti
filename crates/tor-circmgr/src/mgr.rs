@@ -366,7 +366,7 @@ impl<C: AbstractCirc> OpenEntry<C> {
         let parallelism = parallelism.clamp(1, ents.len());
         // TODO: Actually look over the whole list to see which is better.
         let slice = &mut ents[0..parallelism];
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         slice.choose_mut(&mut rng).expect("Input list was empty")
     }
 
@@ -868,7 +868,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
             // There's been an error.  See how long we wait before we retry.
             let now = self.runtime.now();
             let retry_time =
-                error.abs_retry_time(now, || retry_schedule.next_delay(&mut rand::thread_rng()));
+                error.abs_retry_time(now, || retry_schedule.next_delay(&mut rand::rng()));
 
             let (count, count_limit) = if error.is_internal_reset() {
                 (&mut n_resets, MAX_RESETS)
@@ -1461,7 +1461,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
             // stuff related to predicted ports and channel
             // padding.
             use tor_basic_utils::RngExt as _;
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             rng.gen_range_checked(timings.not_learning..=timings.not_learning * 2)
                 .expect("T .. 2x T turned out to be an empty duration range?!")
         }

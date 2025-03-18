@@ -90,7 +90,7 @@ impl<R: Runtime> TorRelay<R> {
 
     /// Generate the relay keys.
     fn try_generate_keys(keymgr: &KeyMgr) -> Result<(), ErrorDetail> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Attempt to get the relay long-term identity key from the key manager. If not present,
         // generate it. We need this key to sign the signing certificates.

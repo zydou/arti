@@ -1422,7 +1422,7 @@ impl<R: Runtime> MocksForConnect<R> for () {
     type Rng = rand::rngs::ThreadRng;
 
     fn thread_rng(&self) -> Self::Rng {
-        rand::thread_rng()
+        rand::rng()
     }
 }
 #[async_trait]

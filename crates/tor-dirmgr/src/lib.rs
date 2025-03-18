@@ -699,7 +699,7 @@ impl<R: Runtime> DirMgr<R> {
                         BootstrapAction::Fatal => return Err(err),
                     }
 
-                    let delay = retry_delay.next_delay(&mut rand::thread_rng());
+                    let delay = retry_delay.next_delay(&mut rand::rng());
                     warn_report!(
                         err,
                         "Unable to download a usable directory. (We will restart in {})",

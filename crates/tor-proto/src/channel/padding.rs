@@ -392,7 +392,7 @@ impl Parameters {
 impl PreparedParameters {
     /// Randomly select a timeout (as per `padding-spec.txt`)
     fn select_timeout(&self) -> Duration {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let ms = std::cmp::max(
             self.x_distribution_ms.sample(&mut rng),
             self.x_distribution_ms.sample(&mut rng),

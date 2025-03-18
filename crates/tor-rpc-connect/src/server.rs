@@ -131,7 +131,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
             crate::connpt::Auth::Cookie { path } => RpcAuth::Cookie {
                 secret: RpcCookieSource::Loaded(Arc::new(Cookie::create(
                     path.as_path(),
-                    &mut rand::thread_rng(),
+                    &mut rand::rng(),
                     mistrust,
                 )?)),
                 server_address: self.socket.as_str().to_owned(),

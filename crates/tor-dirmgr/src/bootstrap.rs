@@ -604,7 +604,7 @@ pub(crate) async fn download<R: Runtime>(
             // We wait at the start of this loop, on all attempts but the first.
             // This ensures that we always wait between attempts, but not after
             // the final attempt.
-            let next_delay = retry.next_delay(&mut rand::thread_rng());
+            let next_delay = retry.next_delay(&mut rand::rng());
             if let Some(delay) = delay.replace(next_delay) {
                 let time_until_reset = {
                     reset_time

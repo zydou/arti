@@ -719,7 +719,7 @@ mod test {
 
     #[test]
     fn test_ntor3_roundtrip() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
         let verification = &b"shared secret"[..];
@@ -764,7 +764,7 @@ mod test {
     // Same as previous test, but use the higher-level APIs instead.
     #[test]
     fn test_ntor3_roundtrip_highlevel() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
         let (c_state, c_handshake) =
@@ -786,7 +786,7 @@ mod test {
     // Same as previous test, but encode some congestion control extensions.
     #[test]
     fn test_ntor3_roundtrip_highlevel_cc() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
         let client_exts = vec![NtorV3Extension::RequestCongestionControl];

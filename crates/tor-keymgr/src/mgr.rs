@@ -1353,7 +1353,7 @@ mod tests {
                 // cert from them. We can, however, pretend we did, for testing purposes.
                 // Eventually we might want to rewrite these tests to use real items
                 // (like the `ArtiNativeKeystore` tests)
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 let keypair = ed25519::Keypair::generate(&mut rng);
                 let encoded_cert = Ed25519Cert::constructor()
                     .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)

@@ -92,7 +92,7 @@ impl GlobalId {
     /// As with local IDs, this encoding is nondeterministic.
     pub(crate) fn encode(&self, key: &MacKey) -> ObjectId {
         use base64ct::{Base64Unpadded as B64, Encoding};
-        let bytes = self.encode_as_bytes(key, &mut rand::thread_rng());
+        let bytes = self.encode_as_bytes(key, &mut rand::rng());
         B64::encode_string(&bytes[..]).into()
     }
 

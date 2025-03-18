@@ -136,7 +136,7 @@ impl VanguardSets {
         // Resize the vanguard sets if necessary.
         self.l2_vanguards.update_target(params.l2_pool_size());
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Self::replenish_set(
             runtime,
             &mut rng,

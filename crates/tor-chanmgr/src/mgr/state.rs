@@ -523,7 +523,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         let new_entry = ChannelState::Open(OpenEntry {
             channel,
             max_unused_duration: Duration::from_secs(
-                rand::thread_rng()
+                rand::rng()
                     .gen_range_checked(180..270)
                     .expect("not 180 < 270 !"),
             ),

@@ -125,7 +125,7 @@ impl RpcMgr {
         }
 
         Ok(Arc::new(RpcMgr {
-            global_id_mac_key: MacKey::new(&mut rand::thread_rng()),
+            global_id_mac_key: MacKey::new(&mut rand::rng()),
             dispatch_table: Arc::new(RwLock::new(rpc::DispatchTable::from_inventory())),
             session_factory: Box::new(make_session),
             inner: Mutex::new(Inner {
@@ -169,7 +169,7 @@ impl RpcMgr {
         self: &Arc<Self>,
         require_auth: tor_rpc_connect::auth::RpcAuth,
     ) -> Arc<Connection> {
-        let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
+        let connection_id = ConnectionId::from(rand::rng().gen::<[u8; 16]>());
         let connection = Connection::new(
             connection_id,
             self.dispatch_table.clone(),

@@ -137,7 +137,7 @@ impl History {
     {
         use rand::seq::{IteratorRandom, SliceRandom};
         use std::iter;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // We want to build a vector with the elements of the old histogram in
         // random order, but we want to defend ourselves against bogus inputs

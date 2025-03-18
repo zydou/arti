@@ -284,7 +284,7 @@ mod test {
             #[cfg(feature = "hs-pow-full")]
             pow_params,
         }
-        .build_sign(&mut rand::thread_rng())
+        .build_sign(&mut rand::rng())
     }
 
     #[test]

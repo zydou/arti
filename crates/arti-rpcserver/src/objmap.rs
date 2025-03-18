@@ -146,7 +146,7 @@ impl GenIdx {
 
     /// Encode `self` into an rpc::ObjectId that we can give to a client.
     pub(crate) fn encode(self) -> rpc::ObjectId {
-        self.encode_with_rng(&mut rand::thread_rng())
+        self.encode_with_rng(&mut rand::rng())
     }
 
     /// As `encode`, but take a Rng as an argument. For testing.

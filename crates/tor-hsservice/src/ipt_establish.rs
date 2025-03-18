@@ -690,7 +690,7 @@ impl<R: Runtime> Reactor<R> {
                         &self.nickname,
                         self.target.display_relay_ids().redacted()
                     );
-                    let retry_after = retry_delay.next_delay(&mut rand::thread_rng());
+                    let retry_after = retry_delay.next_delay(&mut rand::rng());
                     self.runtime.sleep(retry_after).await;
                 }
             }

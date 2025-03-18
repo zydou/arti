@@ -922,7 +922,7 @@ impl GuardSet {
             options.truncate(1);
         }
 
-        match options.choose(&mut rand::thread_rng()) {
+        match options.choose(&mut rand::rng()) {
             Some((src, g)) => Ok((*src, g.guard_id().clone())),
             None => {
                 let retry_at = if running.n_accepted == 0 {

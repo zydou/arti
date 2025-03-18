@@ -326,8 +326,8 @@ mod test {
         let path1 = dir.join("foo/foo.cookie");
         let path2 = dir.join("bar.cookie");
 
-        let s_c1 = Cookie::create(path1.as_path(), &mut rand::thread_rng(), &mistrust).unwrap();
-        let s_c2 = Cookie::create(path2.as_path(), &mut rand::thread_rng(), &mistrust).unwrap();
+        let s_c1 = Cookie::create(path1.as_path(), &mut rand::rng(), &mistrust).unwrap();
+        let s_c2 = Cookie::create(path2.as_path(), &mut rand::rng(), &mistrust).unwrap();
         assert_ne!(s_c1.as_ref(), s_c2.as_ref());
 
         let c_c1 = Cookie::load(path1.as_path(), &mistrust).unwrap();
@@ -351,7 +351,7 @@ mod test {
     #[test]
     fn auth_roundtrip() {
         let addr = "127.0.0.1:9999";
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let client_nonce = CookieAuthNonce::new(&mut rng);
         let server_nonce = CookieAuthNonce::new(&mut rng);
         let cookie = Cookie::new(&mut rng);

@@ -98,7 +98,7 @@ impl HsPowClientV1 {
 
         let (result_sender, result_receiver) = oneshot::channel();
         std::thread::spawn(move || {
-            let mut solver = input.solve(&mut rand::thread_rng());
+            let mut solver = input.solve(&mut rand::rng());
             let result = loop {
                 match solver.run_step() {
                     Err(e) => break Err(e),

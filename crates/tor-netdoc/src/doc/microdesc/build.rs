@@ -141,7 +141,7 @@ impl MicrodescBuilder {
 
         // We generate a random sha256 value here, since this is only
         // for testing.
-        let sha256 = rand::thread_rng().gen();
+        let sha256 = rand::rng().gen();
 
         Ok(Microdesc {
             sha256,

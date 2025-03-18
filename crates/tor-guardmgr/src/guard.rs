@@ -287,7 +287,7 @@ impl Guard {
         T: ChanTarget,
     {
         let added_at = randomize_time(
-            &mut rand::thread_rng(),
+            &mut rand::rng(),
             now,
             params.lifetime_unconfirmed / 10,
         );
@@ -666,7 +666,7 @@ impl Guard {
         self.set_reachable(Reachable::Unreachable);
         self.exploratory_circ_pending = false;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let retry_interval = self
             .retry_schedule
             .get_or_insert_with(|| retry_schedule(is_primary))
@@ -720,7 +720,7 @@ impl Guard {
         if self.confirmed_at.is_none() {
             self.confirmed_at = Some(
                 randomize_time(
-                    &mut rand::thread_rng(),
+                    &mut rand::rng(),
                     now,
                     params.lifetime_unconfirmed / 10,
                 )

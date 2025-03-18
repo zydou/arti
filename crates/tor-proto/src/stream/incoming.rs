@@ -252,7 +252,7 @@ mod test {
         // Convert an AnyRelayMsg to an UnparsedRelayCell.
         let u = |msg| {
             let body = AnyRelayMsgOuter::new(None, msg)
-                .encode(&mut rand::thread_rng())
+                .encode(&mut rand::rng())
                 .unwrap();
             UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, body).unwrap()
         };

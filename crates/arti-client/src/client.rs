@@ -328,7 +328,7 @@ impl InertTorClient {
         selector: KeystoreSelector,
         hsid: HsId,
     ) -> crate::Result<HsClientDescEncKey> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let spec = HsClientDescEncKeypairSpecifier::new(hsid);
         let key = self
             .keymgr
@@ -365,7 +365,7 @@ impl InertTorClient {
         selector: KeystoreSelector,
         hsid: HsId,
     ) -> crate::Result<HsClientDescEncKey> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let spec = HsClientDescEncKeypairSpecifier::new(hsid);
         let key = self
             .keymgr

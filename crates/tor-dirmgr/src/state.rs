@@ -1163,7 +1163,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
 /// is `lifetime`.
 fn pick_download_time(lifetime: &Lifetime) -> SystemTime {
     let (lowbound, uncertainty) = client_download_range(lifetime);
-    lowbound + rand::thread_rng().gen_range_infallible(..=uncertainty)
+    lowbound + rand::rng().gen_range_infallible(..=uncertainty)
 }
 
 /// Based on the lifetime for a consensus, return the time range during which

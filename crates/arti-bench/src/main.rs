@@ -77,10 +77,7 @@ use tracing::info;
 
 /// Generate a random payload of bytes of the given size
 fn random_payload(size: usize) -> Vec<u8> {
-    rand::thread_rng()
-        .sample_iter(Standard)
-        .take(size)
-        .collect()
+    rand::rng().sample_iter(Standard).take(size).collect()
 }
 
 /// Timing information from the benchmarking server.

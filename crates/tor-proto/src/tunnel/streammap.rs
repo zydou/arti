@@ -244,7 +244,7 @@ pub(super) struct StreamMap {
 impl StreamMap {
     /// Make a new empty StreamMap.
     pub(super) fn new() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let next_stream_id: NonZeroU16 = rng.gen();
         StreamMap {
             open_streams: StreamPollSet::new(),

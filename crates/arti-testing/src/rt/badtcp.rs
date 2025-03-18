@@ -156,7 +156,7 @@ impl<R: NetStreamProvider + SleepProvider> NetStreamProvider for BrokenTcpProvid
                 Ok(BreakableTcpStream::Present(conn))
             }
             Action::Fail(dur, kind) => {
-                let d = rand::thread_rng().gen_range_infallible(..=dur);
+                let d = rand::rng().gen_range_infallible(..=dur);
                 self.inner.sleep(d).await;
                 Err(IoError::new(kind, anyhow::anyhow!("intentional failure")))
             }

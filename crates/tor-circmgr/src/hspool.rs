@@ -560,7 +560,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             let found_usable_circ =
                 inner
                     .pool
-                    .take_one_where(&mut rand::thread_rng(), restrictions, &prefs);
+                    .take_one_where(&mut rand::rng(), restrictions, &prefs);
 
             // Tell the background task to fire immediately if we have very few circuits
             // circuits left, or if we found nothing.
@@ -661,7 +661,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                     &hops,
                     netdir,
                     &target_exclusion,
-                    &mut rand::thread_rng(),
+                    &mut rand::rng(),
                 )?;
 
                 // Since full vanguards are enabled and the circuit we got is NAIVE,

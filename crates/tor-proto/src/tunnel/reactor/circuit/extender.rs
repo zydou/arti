@@ -89,7 +89,7 @@ where
         done: ReactorResultChannel<()>,
     ) -> Result<(Self, SendRelayCell)> {
         match (|| {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let unique_id = circ.unique_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;

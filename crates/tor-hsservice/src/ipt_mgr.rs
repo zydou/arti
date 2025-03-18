@@ -1757,7 +1757,7 @@ impl<R: Runtime> Mockable<R> for Real<R> {
 
     /// Return a random number generator
     fn thread_rng(&mut self) -> Self::Rng<'_> {
-        rand::thread_rng()
+        rand::rng()
     }
 
     fn make_new_ipt(
