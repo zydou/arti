@@ -13,7 +13,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 const CONFLUX_LINK_VERSION: u8 = 1;
 
 /// The length of the nonce from a v1 CONFLUX_LINK message, in bytes.
-const V1_LINK_NONCE_LEN: usize = 32;
+pub const V1_LINK_NONCE_LEN: usize = 32;
 
 /// Helper macro for implementing wrapper types over [`Link`]
 macro_rules! impl_link_wrapper {
@@ -37,6 +37,18 @@ macro_rules! impl_link_wrapper {
 #[derive_deftly(HasMemoryCost)]
 pub struct ConfluxLink(Link);
 
+impl ConfluxLink {
+    /// Create a new v1 `CONFLUX_LINK` message.
+    pub fn new(payload: V1LinkPayload) -> Self {
+        let link = Link {
+            version: CONFLUX_LINK_VERSION,
+            payload,
+        };
+
+        Self(link)
+    }
+}
+
 impl_link_wrapper!(ConfluxLink);
 
 impl Body for ConfluxLink {
@@ -53,6 +65,18 @@ impl Body for ConfluxLink {
 #[derive(Debug, Clone, Deftly)]
 #[derive_deftly(HasMemoryCost)]
 pub struct ConfluxLinked(Link);
+
+impl ConfluxLinked {
+    /// Create a new v1 `CONFLUX_LINKED` message.
+    pub fn new(payload: V1LinkPayload) -> Self {
+        let link = Link {
+            version: CONFLUX_LINK_VERSION,
+            payload,
+        };
+
+        Self(link)
+    }
+}
 
 impl_link_wrapper!(ConfluxLinked);
 
@@ -81,18 +105,46 @@ struct Link {
     payload: V1LinkPayload,
 }
 
+/// Type alias for the nonce type of a [`V1LinkPayload`].
+pub type V1Nonce = [u8; V1_LINK_NONCE_LEN];
+
 /// The v1 payload of a v1 [`ConfluxLink`] or [`ConfluxLinked`] message.
 #[derive(Debug, Clone, Deftly, Getters)]
 #[derive_deftly(HasMemoryCost)]
 pub struct V1LinkPayload {
     /// Random 256-bit secret, for associating two circuits together.
-    nonce: [u8; V1_LINK_NONCE_LEN],
+    nonce: V1Nonce,
     /// The last sequence number sent.
     last_seqno_sent: u64,
     /// The last sequence number received.
     last_seqno_recv: u64,
     /// The desired UX properties.
     desired_ux: V1DesiredUx,
+}
+
+impl V1LinkPayload {
+    /// Create a new `V1LinkPayload`.
+    pub fn new(nonce: V1Nonce, desired_ux: V1DesiredUx) -> Self {
+        Self {
+            nonce,
+            // NOTE: the two sequence number fields are 0 on the initial link.
+            // We need to support setting these for reattachment/resumption
+            // (see [CONFLUX_SET_MANAGEMENT] and [RESUMPTION]).
+            last_seqno_sent: 0,
+            last_seqno_recv: 0,
+            desired_ux,
+        }
+    }
+
+    /// Set the last sequence number sent.
+    pub fn set_last_seqno_sent(&mut self, seqno: u64) {
+        self.last_seqno_sent = seqno;
+    }
+
+    /// Set the last sequence number received.
+    pub fn set_last_seqno_recv(&mut self, seqno: u64) {
+        self.last_seqno_recv = seqno;
+    }
 }
 
 caret_int! {
@@ -175,6 +227,13 @@ impl Body for V1LinkPayload {
 pub struct ConfluxSwitch {
     /// The relative sequence number.
     seqno: u32,
+}
+
+impl ConfluxSwitch {
+    /// Create a new v1 `CONFLUX_SWITCH` message.
+    pub fn new(seqno: u32) -> Self {
+        Self { seqno }
+    }
 }
 
 impl Body for ConfluxSwitch {
