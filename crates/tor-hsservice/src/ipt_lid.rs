@@ -53,7 +53,7 @@ impl IptLocalId {
 
 impl rand::distr::Distribution<IptLocalId> for rand::distr::StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> IptLocalId {
-        IptLocalId(rng.gen())
+        IptLocalId(rng.random())
     }
 }
 

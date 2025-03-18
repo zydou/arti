@@ -348,7 +348,7 @@ impl IptRelay {
         new_configs: &watch::Receiver<Arc<OnionServiceConfig>>,
         mockable: &mut M,
     ) -> Result<(), CreateIptError> {
-        let lid: IptLocalId = mockable.thread_rng().gen();
+        let lid: IptLocalId = mockable.thread_rng().random();
 
         let ipt = Ipt::start_establisher(
             imm,

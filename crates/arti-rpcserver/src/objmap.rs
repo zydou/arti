@@ -164,7 +164,7 @@ impl GenIdx {
             GenIdx::Weak(idx) => (1, idx.data().as_ffi()),
             GenIdx::Strong(idx) => (0, idx.data().as_ffi()),
         };
-        let x = rng.gen::<u64>() << 1;
+        let x = rng.random::<u64>() << 1;
         let mut bytes = Vec::with_capacity(Self::BYTE_LEN);
         bytes.write_u64(x | weak_bit);
         bytes.write_u64(ffi_idx.wrapping_add(x));
@@ -588,7 +588,7 @@ mod test {
             let a: u64 = a.into();
             let b: u64 = b.into();
             let data = KeyData::from_ffi((a << 33) | (1_u64 << 32) | b);
-            let idx = if rng.gen_bool(0.5) {
+            let idx = if rng.random_bool(0.5) {
                 GenIdx::Strong(StrongIdx::from(data))
             } else {
                 GenIdx::Weak(WeakIdx::from(data))
@@ -607,7 +607,7 @@ mod test {
         test_roundtrip(0xffffffff, 0xffffffff, &mut rng);
 
         for _ in 0..256 {
-            test_roundtrip(rng.gen(), rng.gen(), &mut rng);
+            test_roundtrip(rng.random(), rng.random(), &mut rng);
         }
     }
 }

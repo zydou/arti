@@ -169,7 +169,7 @@ impl RpcMgr {
         self: &Arc<Self>,
         require_auth: tor_rpc_connect::auth::RpcAuth,
     ) -> Arc<Connection> {
-        let connection_id = ConnectionId::from(rand::rng().gen::<[u8; 16]>());
+        let connection_id = ConnectionId::from(rand::rng().random::<[u8; 16]>());
         let connection = Connection::new(
             connection_id,
             self.dispatch_table.clone(),

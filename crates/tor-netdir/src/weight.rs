@@ -654,7 +654,7 @@ mod test {
         // and a reasonable amount of  measured bandwidth.
         for _ in 0..10 {
             rs_builder()
-                .identity(rng.gen::<[u8; 20]>().into()) // random id
+                .identity(rng.random::<[u8; 20]>().into()) // random id
                 .weight(RW::Unmeasured(1_000_000))
                 .set_flags(RelayFlags::GUARD | RelayFlags::EXIT)
                 .build_into(&mut bld)
@@ -662,7 +662,7 @@ mod test {
         }
         for n in 0..30 {
             rs_builder()
-                .identity(rng.gen::<[u8; 20]>().into()) // random id
+                .identity(rng.random::<[u8; 20]>().into()) // random id
                 .weight(RW::Measured(1_000 * n))
                 .set_flags(RelayFlags::GUARD | RelayFlags::EXIT)
                 .build_into(&mut bld)

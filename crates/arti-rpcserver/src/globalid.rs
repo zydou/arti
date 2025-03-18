@@ -56,7 +56,7 @@ impl MacKey {
     /// Construct a new random `MacKey`.
     pub(crate) fn new<Rng: rand::Rng + rand::CryptoRng>(rng: &mut Rng) -> Self {
         Self {
-            key: Zeroizing::new(rng.gen()),
+            key: Zeroizing::new(rng.random()),
         }
     }
 

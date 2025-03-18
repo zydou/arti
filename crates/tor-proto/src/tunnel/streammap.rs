@@ -245,7 +245,7 @@ impl StreamMap {
     /// Make a new empty StreamMap.
     pub(super) fn new() -> Self {
         let mut rng = rand::rng();
-        let next_stream_id: NonZeroU16 = rng.gen();
+        let next_stream_id: NonZeroU16 = rng.random();
         StreamMap {
             open_streams: StreamPollSet::new(),
             closed_streams: HashMap::new(),

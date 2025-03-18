@@ -1380,8 +1380,8 @@ mod test {
             };
             let mut rng = testing_rng();
             #[cfg(feature = "routerdesc")]
-            let rd_ids: Vec<DocId> = (0..1000).map(|_| DocId::RouterDesc(rng.gen())).collect();
-            let md_ids: Vec<DocId> = (0..1000).map(|_| DocId::Microdesc(rng.gen())).collect();
+            let rd_ids: Vec<DocId> = (0..1000).map(|_| DocId::RouterDesc(rng.random())).collect();
+            let md_ids: Vec<DocId> = (0..1000).map(|_| DocId::Microdesc(rng.random())).collect();
             let config = DirMgrConfig::default();
 
             // Try an authcert.

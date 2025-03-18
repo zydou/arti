@@ -42,7 +42,7 @@ impl SolverInput {
     /// Generates a new random [`Nonce`] using the provided [`Rng`].
     /// May be parallelized if desired, by cloning the [`SolverInput`] first.
     pub fn solve<R: RngCore + CryptoRng>(self, rng: &mut R) -> Solver {
-        self.solve_with_nonce(&rng.gen::<[u8; NONCE_LEN]>().into())
+        self.solve_with_nonce(&rng.random::<[u8; NONCE_LEN]>().into())
     }
 
     /// Begin solving with a specified [`Nonce`].

@@ -158,7 +158,7 @@ mod test {
         let mut rng = test_rng::testing_rng();
 
         let mut array: Vec<CtByteArray<32>> =
-            (0..num).map(|_| rng.gen::<[u8; 32]>().into()).collect();
+            (0..num).map(|_| rng.random::<[u8; 32]>().into()).collect();
         array.sort();
 
         for i in 0..num {

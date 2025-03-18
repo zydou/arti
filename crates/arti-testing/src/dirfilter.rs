@@ -54,7 +54,7 @@ struct ReplaceOnionKeysFilter;
 
 impl DirFilter for ReplaceOnionKeysFilter {
     fn filter_md(&self, mut md: Microdesc) -> tor_dirmgr::Result<Microdesc> {
-        let junk_key: [u8; 32] = rand::rng().gen();
+        let junk_key: [u8; 32] = rand::rng().random();
         md.ntor_onion_key = junk_key.into();
         Ok(md)
     }
@@ -164,7 +164,7 @@ impl DirFilter for NonexistentSigningKeysFilter {
         let (mut consensus, (start_time, end_time)) = consensus.dangerously_into_parts();
         let mut rng = rand::rng();
         for signature in consensus.siggroup.signatures.iter_mut() {
-            let sk_fingerprint: [u8; 20] = rng.gen();
+            let sk_fingerprint: [u8; 20] = rng.random();
             signature.key_ids.sk_fingerprint = sk_fingerprint.into();
         }
 
@@ -189,7 +189,7 @@ impl DirFilter for BadMicrodescDigestsFilter {
         let (mut consensus, (start_time, end_time)) = consensus.dangerously_into_parts();
         let mut rng = rand::rng();
         for rs in consensus.consensus.relays.iter_mut() {
-            rs.rs.doc_digest = rng.gen();
+            rs.rs.doc_digest = rng.random();
         }
 
         Ok(UncheckedMdConsensus::new_from_start_end(
