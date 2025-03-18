@@ -8,7 +8,7 @@ use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
 use tor_rtcompat::Runtime;
 
 use std::fs::OpenOptions;
-use std::io;
+use std::io::{self, Write};
 use std::str::FromStr;
 
 /// The hsc subcommands the arti CLI will be augmented with.
@@ -313,7 +313,8 @@ fn prompt(msg: &str) -> Result<bool> {
 fn get_onion_address(quiet: bool) -> Result<HsId, anyhow::Error> {
     let mut addr = String::new();
     if !quiet {
-        println!("Enter an onion address:");
+        print!("Enter an onion address: ");
+        io::stdout().flush().map_err(|e| anyhow!(e))?;
     };
     io::stdin().read_line(&mut addr).map_err(|e| anyhow!(e))?;
 
