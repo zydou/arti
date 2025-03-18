@@ -303,4 +303,38 @@ mod test {
             }"#;
         assert_same_json!(validated.as_ref(), expected_with_id);
     }
+
+    #[test]
+    fn ok_request_encode() {
+        let expected_encoded_request =
+            r#"{"obj":"connection","method":"arti:get_rpc_proxy_info","params":"123"}"#;
+        let obj_id = ObjectId::connection_id();
+        let encoded_request = Request::new(obj_id, "arti:get_rpc_proxy_info", "123")
+            .encode()
+            .unwrap();
+        assert_eq!(expected_encoded_request, encoded_request);
+    }
+
+    // This should not be possible
+    #[test]
+    fn err_request_encode() {
+        struct FailingSerialization;
+
+        impl serde::Serialize for FailingSerialization {
+            fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                Err(serde::ser::Error::custom(
+                    "Intentional serialization failure",
+                ))
+            }
+        }
+
+        let obj_id = ObjectId::connection_id();
+        let failing_request = Request::new(obj_id, "arti:get_rpc_proxy_info", FailingSerialization);
+
+        let err = failing_request.encode().unwrap_err();
+        assert!(matches!(err, ProtoError::CouldNotEncode(_)));
+    }
 }

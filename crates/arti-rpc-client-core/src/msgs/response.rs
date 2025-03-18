@@ -67,7 +67,7 @@ impl UnparsedResponse {
         // The alternative would be to preserve unrecognized fields using serde(flatten) and a
         // JsonMap in each struct.  But that creates a risk of forgetting to do so in some
         // struct that we create in the future.
-        let json: serde_json::Value = serde_json::from_str(&self.msg)?;
+        let json: serde_json::Value = serde_json::from_str(self.as_str())?;
         let mut msg: String = serde_json::to_string(&json)?;
         debug_assert!(!msg.contains('\n'));
         msg.push('\n');
