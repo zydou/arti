@@ -38,7 +38,7 @@ use derive_deftly::define_derive_deftly;
 /// use tor_key_forge::Keygen;
 /// use tor_key_forge::define_ed25519_keypair;
 /// use tor_llcrypto::pk::ValidatableSignature;
-/// use tor_llcrypto::pk::ed25519::Signer;
+/// use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
 ///
 /// define_ed25519_keypair!(
 ///     /// Our signing key.
@@ -100,8 +100,8 @@ define_derive_deftly! {
     }
 
     impl $crate::macro_deps::ed25519::Ed25519PublicKey for $PK_NAME {
-        fn public_key(&self) -> &$crate::macro_deps::ed25519::PublicKey {
-            &self.0
+        fn public_key(&self) -> $crate::macro_deps::ed25519::PublicKey {
+            self.0
         }
     }
 
@@ -131,17 +131,17 @@ define_derive_deftly! {
         }
     }
     impl $crate::macro_deps::ed25519::Ed25519PublicKey for $ttype {
-        fn public_key(&self) -> &$crate::macro_deps::ed25519::PublicKey {
-            self.0.as_ref()
+        fn public_key(&self) -> $crate::macro_deps::ed25519::PublicKey {
+            self.0.public_key()
         }
     }
 
-    impl $crate::macro_deps::ed25519::Signer<$crate::macro_deps::ed25519::Signature> for $ttype {
-        fn try_sign(
+    impl $crate::macro_deps::ed25519::Ed25519SigningKey for $ttype {
+        fn sign(
             &self,
             msg: &[u8])
-        -> Result<$crate::macro_deps::ed25519::Signature, $crate::macro_deps::signature::Error> {
-            self.0.try_sign(msg)
+        -> $crate::macro_deps::ed25519::Signature {
+            self.0.sign(msg)
         }
     }
 
@@ -353,7 +353,7 @@ pub mod deps {
 mod test {
     use crate::Keygen;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_llcrypto::pk::ed25519::Signer;
+    use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
 
     #[test]
     fn deftly_ed25519_keypair() {
