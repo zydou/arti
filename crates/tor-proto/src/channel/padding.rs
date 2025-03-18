@@ -384,7 +384,8 @@ impl Parameters {
             x_distribution_ms: rand::distr::Uniform::new_inclusive(
                 self.low.as_millis(),
                 self.high.as_millis(),
-            ),
+            )
+            .expect("XXXX Return a real bug or make this impossible"),
         }
     }
 }
