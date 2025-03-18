@@ -20,7 +20,7 @@ use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
 use ed25519_dalek::hazmat::ExpandedSecretKey;
 use ed25519_dalek::{Signer as _, Verifier as _};
 
-use crate::util::ct::CtByteArray;
+use crate::util::{ct::CtByteArray, rng::RngCompat};
 
 /// An Ed25519 signature.
 ///
@@ -72,7 +72,9 @@ impl PublicKey {
 impl Keypair {
     /// Generate a new random ed25519 keypair.
     pub fn generate<R: rand_core::RngCore + rand_core::CryptoRng>(csprng: &mut R) -> Self {
-        Self(ed25519_dalek::SigningKey::generate(csprng))
+        Self(ed25519_dalek::SigningKey::generate(&mut RngCompat::new(
+            csprng,
+        )))
     }
     /// Construct an ed25519 keypair from the byte representation of its secret key.
     pub fn from_bytes(bytes: &[u8; 32]) -> Self {

@@ -15,6 +15,8 @@ pub mod rsa;
 pub mod curve25519 {
     use educe::Educe;
 
+    use crate::util::rng::RngCompat;
+
     /// A keypair containing a [`StaticSecret`] and its corresponding public key.
     #[allow(clippy::exhaustive_structs)]
     #[derive(Clone, Educe)]
@@ -86,7 +88,9 @@ pub mod curve25519 {
     impl EphemeralSecret {
         /// Return a new random ephemeral secret key.
         pub fn random_from_rng<R: rand_core::RngCore + rand_core::CryptoRng>(csprng: R) -> Self {
-            Self(x25519_dalek::EphemeralSecret::random_from_rng(csprng))
+            Self(x25519_dalek::EphemeralSecret::random_from_rng(
+                RngCompat::new(csprng),
+            ))
         }
         /// Negotiate a shared secret using this secret key and a public key.
         pub fn diffie_hellman(self, their_public: &PublicKey) -> SharedSecret {
@@ -96,7 +100,9 @@ pub mod curve25519 {
     impl StaticSecret {
         /// Return a new random static secret key.
         pub fn random_from_rng<R: rand_core::RngCore + rand_core::CryptoRng>(csprng: R) -> Self {
-            Self(x25519_dalek::StaticSecret::random_from_rng(csprng))
+            Self(x25519_dalek::StaticSecret::random_from_rng(RngCompat::new(
+                csprng,
+            )))
         }
         /// Negotiate a shared secret using this secret key and a public key.
         pub fn diffie_hellman(&self, their_public: &PublicKey) -> SharedSecret {

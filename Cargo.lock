@@ -6308,6 +6308,7 @@ dependencies = [
  "hex-literal",
  "openssl",
  "rand 0.9.0",
+ "rand_core 0.6.4",
  "rand_core 0.9.3",
  "rsa",
  "safelog",
