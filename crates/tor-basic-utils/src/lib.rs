@@ -135,7 +135,6 @@ pub trait RngExt: Rng {
     /// ### Example
     ///
     /// ```
-    /// use rand::thread_rng;
     /// use tor_basic_utils::RngExt as _;
     //
     // Fake plastic imitation tor_error, since that's actually higher up the stack
@@ -150,7 +149,7 @@ pub trait RngExt: Rng {
     /// use tor_error::{Bug, internal};
     ///
     /// fn choose(slice: &[i32]) -> Result<i32, Bug> {
-    ///     let index = thread_rng()
+    ///     let index = rand::thread_rng()
     ///         .gen_range_checked(0..slice.len())
     ///         .ok_or_else(|| internal!("empty slice"))?;
     ///     Ok(slice[index])
@@ -184,11 +183,10 @@ pub trait RngExt: Rng {
     ///
     /// ```
     /// use std::time::Duration;
-    /// use rand::thread_rng;
     /// use tor_basic_utils::RngExt as _;
     ///
     /// fn stochastic_sleep(max: Duration) {
-    ///     let chosen_delay = thread_rng()
+    ///     let chosen_delay = rand::thread_rng()
     ///         .gen_range_infallible(..=max);
     ///     std::thread::sleep(chosen_delay);
     /// }

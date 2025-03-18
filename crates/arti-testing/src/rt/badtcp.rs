@@ -10,7 +10,6 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::io::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
-use rand::thread_rng;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -157,7 +156,7 @@ impl<R: NetStreamProvider + SleepProvider> NetStreamProvider for BrokenTcpProvid
                 Ok(BreakableTcpStream::Present(conn))
             }
             Action::Fail(dur, kind) => {
-                let d = thread_rng().gen_range_infallible(..=dur);
+                let d = rand::thread_rng().gen_range_infallible(..=dur);
                 self.inner.sleep(d).await;
                 Err(IoError::new(kind, anyhow::anyhow!("intentional failure")))
             }
