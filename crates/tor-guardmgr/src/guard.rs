@@ -286,11 +286,7 @@ impl Guard {
     where
         T: ChanTarget,
     {
-        let added_at = randomize_time(
-            &mut rand::rng(),
-            now,
-            params.lifetime_unconfirmed / 10,
-        );
+        let added_at = randomize_time(&mut rand::rng(), now, params.lifetime_unconfirmed / 10);
 
         let pt_target = match relay.chan_method() {
             #[cfg(feature = "pt-client")]
@@ -719,12 +715,8 @@ impl Guard {
 
         if self.confirmed_at.is_none() {
             self.confirmed_at = Some(
-                randomize_time(
-                    &mut rand::rng(),
-                    now,
-                    params.lifetime_unconfirmed / 10,
-                )
-                .max(self.added_at),
+                randomize_time(&mut rand::rng(), now, params.lifetime_unconfirmed / 10)
+                    .max(self.added_at),
             );
             // TODO-SPEC: The "max" above isn't specified by guard-spec,
             // but I think it's wise.
