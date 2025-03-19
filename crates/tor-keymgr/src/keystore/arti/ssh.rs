@@ -128,10 +128,23 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::test_utils::ssh_keys::*;
+    use crate::test_utils::sshkeygen;
 
+    use tempfile::tempdir;
     use tor_llcrypto::pk::{curve25519, ed25519};
 
     use super::*;
+
+    /// In-memory mangling. Pass private or public ED25519 key.
+    fn mangle_ed25519(key: &mut String) {
+        if key.len() > 150 {
+            // private
+            key.replace_range(107..178, "hello");
+        } else {
+            // public
+            key.insert_str(12, "garbage");
+        }
+    }
 
     macro_rules! test_parse_ssh_format_erased {
         ($key_ty:tt, $key:expr, $expected_ty:path) => {{
@@ -202,12 +215,60 @@ mod tests {
             ED25519_OPENSSH_BAD_PUB,
             err = "Failed to parse OpenSSH with type Ed25519PublicKey"
         );
+
+        if sshkeygen::exists() {
+            let (mut bad_priv, mut bad_pub) = sshkeygen::ed25519_encoded().unwrap();
+
+            mangle_ed25519(&mut bad_priv);
+            mangle_ed25519(&mut bad_pub);
+
+            test_parse_ssh_format_erased!(
+                Ed25519Keypair,
+                &bad_priv,
+                err = "Failed to parse OpenSSH with type Ed25519Keypair"
+            );
+
+            test_parse_ssh_format_erased!(
+                Ed25519Keypair,
+                &bad_pub,
+                err = "Failed to parse OpenSSH with type Ed25519Keypair"
+            );
+
+            test_parse_ssh_format_erased!(
+                Ed25519PublicKey,
+                &bad_pub,
+                err = "Failed to parse OpenSSH with type Ed25519PublicKey"
+            );
+        }
     }
 
     #[test]
     fn ed25519_key() {
         test_parse_ssh_format_erased!(Ed25519Keypair, ED25519_OPENSSH, ed25519::Keypair);
         test_parse_ssh_format_erased!(Ed25519PublicKey, ED25519_OPENSSH_PUB, ed25519::PublicKey);
+
+        if sshkeygen::exists() {
+            let (priv_en_1, pub_en_1) = sshkeygen::ed25519_encoded().unwrap();
+
+            // encoded1 to decoded1
+            let priv_de_1 = ssh_key::PrivateKey::from_openssh(priv_en_1).unwrap();
+            // decoded1 to encoded2
+            let priv_en_2 = priv_de_1
+                .to_openssh(ssh_key::LineEnding::LF)
+                .unwrap()
+                .to_string();
+            // encoded2 to decoded2
+            let priv_de_2 = ssh_key::PrivateKey::from_openssh(priv_en_2).unwrap();
+            assert_eq!(priv_de_1, priv_de_2);
+
+            // encoded1 to decoded1
+            let pub_de_1 = ssh_key::PublicKey::from_openssh(&pub_en_1).unwrap();
+            // decoded1 to encoded2
+            let pub_en_2 = pub_de_1.to_openssh().unwrap();
+            // encoded2 to decoded2
+            let pub_de_2 = ssh_key::PublicKey::from_openssh(&pub_en_2).unwrap();
+            assert_eq!(pub_de_1, pub_de_2);
+        }
     }
 
     #[test]
