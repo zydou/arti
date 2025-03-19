@@ -369,6 +369,7 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::test_utils::ssh_keys::*;
+    use crate::test_utils::sshkeygen;
     use crate::test_utils::{assert_found, TestSpecifier};
     use crate::{ArtiPath, KeyPath};
     use std::cmp::Ordering;
@@ -576,39 +577,57 @@ mod tests {
         );
         assert!(key_store.list().unwrap().is_empty());
 
-        // Insert the key
-        let key = UnparsedOpenSshKey::new(ED25519_OPENSSH.into(), PathBuf::from("/test/path"));
-        let erased_kp = key
-            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
-            .unwrap();
+        let mut keys = vec![(ED25519_OPENSSH.to_string(), "")];
 
-        let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
-            panic!("failed to downcast key to ed25519::Keypair")
-        };
+        if sshkeygen::exists() {
+            // Not using pub cause it will also mean parameterizing KeyType and downcast type. ugh.
+            let (sshkeygen_priv, _) = sshkeygen::ed25519_encoded().unwrap();
+            keys.push((sshkeygen_priv, "-sshkeygen"));
+        }
 
-        let key_spec = TestSpecifier::default();
-        let ed_key_type = &KeyType::Ed25519Keypair.into();
-        let path = keystore_dir.as_ref().join(
-            key_store
-                .rel_path(&key_spec, ed_key_type)
-                .unwrap()
-                .rel_path_unchecked(),
+        for (i, (key, suffix)) in keys.into_iter().enumerate() {
+            // Insert the key
+            let key = UnparsedOpenSshKey::new(key, PathBuf::from("/test/path"));
+            let erased_kp = key
+                .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
+                .unwrap();
+
+            let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
+                panic!("failed to downcast key to ed25519::Keypair")
+            };
+
+            let key_spec = TestSpecifier::new(suffix);
+            let ed_key_type = &KeyType::Ed25519Keypair.into();
+            let path = keystore_dir.as_ref().join(
+                key_store
+                    .rel_path(&key_spec, ed_key_type)
+                    .unwrap()
+                    .rel_path_unchecked(),
+            );
+
+            if i == 0 {
+                // The key and its parent directories don't exist yet.
+                assert!(!path.parent().unwrap().try_exists().unwrap());
+            }
+
+            assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_ok());
+
+            if i == 0 {
+                // insert() is supposed to create the missing directories
+                assert!(path.parent().unwrap().try_exists().unwrap());
+            }
+
+            // Found!
+            assert_found!(key_store, &key_spec, &KeyType::Ed25519Keypair, true);
+        }
+
+        assert_contains_arti_paths!(
+            [
+                TestSpecifier::path_prefix(),
+                format!("{}-sshkeygen", TestSpecifier::path_prefix()),
+            ],
+            key_store.list().unwrap()
         );
-
-        // The key and its parent directories don't exist yet.
-        assert!(!path.parent().unwrap().try_exists().unwrap());
-        assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_ok());
-        // insert() is supposed to create the missing directories
-        assert!(path.parent().unwrap().try_exists().unwrap());
-
-        // Found!
-        assert_found!(
-            key_store,
-            &TestSpecifier::default(),
-            &KeyType::Ed25519Keypair,
-            true
-        );
-        assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
     }
 
     #[test]
@@ -616,35 +635,40 @@ mod tests {
         // Initialize the key store
         let (key_store, _keystore_dir) = init_keystore(true);
 
-        assert_found!(
-            key_store,
-            &TestSpecifier::default(),
-            &KeyType::Ed25519Keypair,
-            true
-        );
+        let mut specs = vec![TestSpecifier::default()];
+        let ed_key_type = &KeyType::Ed25519Keypair.into();
 
-        // Now remove the key... remove() should indicate success by returning Ok(Some(()))
-        assert_eq!(
-            key_store
-                .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
-                .unwrap(),
-            Some(())
-        );
-        assert!(key_store.list().unwrap().is_empty());
+        if sshkeygen::exists() {
+            let (sshkeygen_priv, _) = sshkeygen::ed25519_encoded().unwrap();
+            specs.push(TestSpecifier::new("-sshkeygen"));
 
-        // Can't find it anymore!
-        assert_found!(
-            key_store,
-            &TestSpecifier::default(),
-            &KeyType::Ed25519Keypair,
-            false
-        );
+            // Insert `sssh-keygen` key
+            let key = UnparsedOpenSshKey::new(sshkeygen_priv, PathBuf::from("/test/path"));
+            let erased_kp = key
+                .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
+                .unwrap();
 
-        // remove() returns Ok(None) now.
-        assert!(key_store
-            .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
-            .unwrap()
-            .is_none());
+            let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
+                panic!("failed to downcast key to ed25519::Keypair")
+            };
+
+            let key_spec = TestSpecifier::new("-sshkeygen");
+            assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_ok());
+        }
+
+        for spec in specs {
+            assert_found!(key_store, &spec, &KeyType::Ed25519Keypair, true);
+
+            // Now remove the key... remove() should indicate success by returning Ok(Some(()))
+            assert_eq!(key_store.remove(&spec, ed_key_type).unwrap(), Some(()));
+
+            // Can't find it anymore!
+            assert_found!(key_store, &spec, &KeyType::Ed25519Keypair, false);
+
+            // remove() returns Ok(None) now.
+            assert!(key_store.remove(&spec, ed_key_type).unwrap().is_none());
+        }
+
         assert!(key_store.list().unwrap().is_empty());
     }
 
@@ -654,25 +678,36 @@ mod tests {
         let (key_store, _keystore_dir) = init_keystore(true);
         assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
 
-        // Insert another key
-        let key = UnparsedOpenSshKey::new(ED25519_OPENSSH.into(), PathBuf::from("/test/path"));
-        let erased_kp = key
-            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
-            .unwrap();
+        let mut keys = vec![(ED25519_OPENSSH.to_string(), "-i-am-a-suffix")];
 
-        let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
-            panic!("failed to downcast key to ed25519::Keypair")
-        };
+        if sshkeygen::exists() {
+            // Not using pub cause it will also mean parameterizing KeyType and downcast type. ugh.
+            let (sshkeygen_priv, _) = sshkeygen::ed25519_encoded().unwrap();
+            keys.push((sshkeygen_priv, "-sshkeygen"));
+        }
 
-        let key_spec = TestSpecifier::new("-i-am-a-suffix");
-        let ed_key_type = KeyType::Ed25519Keypair.into();
+        for (key, suffix) in keys {
+            // Insert another key
+            let key = UnparsedOpenSshKey::new(key, PathBuf::from("/test/path"));
+            let erased_kp = key
+                .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
+                .unwrap();
 
-        assert!(key_store.insert(&*key, &key_spec, &ed_key_type).is_ok());
+            let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
+                panic!("failed to downcast key to ed25519::Keypair")
+            };
+
+            let key_spec = TestSpecifier::new(suffix);
+            let ed_key_type = KeyType::Ed25519Keypair.into();
+
+            assert!(key_store.insert(&*key, &key_spec, &ed_key_type).is_ok());
+        }
 
         assert_contains_arti_paths!(
             [
                 TestSpecifier::path_prefix(),
                 format!("{}-i-am-a-suffix", TestSpecifier::path_prefix()),
+                format!("{}-sshkeygen", TestSpecifier::path_prefix()),
             ],
             key_store.list().unwrap()
         );
