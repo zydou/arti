@@ -278,3 +278,56 @@ mod internal {
 
     pub(crate) use assert_found;
 }
+
+#[cfg(test)]
+/// Utilities for testing `ssh-keygen` interop.
+pub(crate) mod sshkeygen {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::process::{Command, Stdio};
+    use tempfile::tempdir;
+
+    /// Check if the executable `ssh-keygen` is available or not.
+    //
+    // TODO: Solely for conditionally skipping ssh-keygen interop tests. Consider
+    // replacing with [`test-with`](https://crates.io/crates/test-with) if this
+    // pattern of conditionally skipping tests proliferates throughout the codebase.
+    pub(crate) fn exists() -> bool {
+        Command::new("ssh")
+            .arg("-V")
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+
+    /// Generates a pair of encoded OpenSSH-formatted private and public keys
+    /// using `ssh-keygen`.
+    ///
+    /// Returns (private_key, public_key) as a pair of Strings.
+    //
+    // TODO: Should we just call ed25519_encoded instead of exists? Maybe
+    // ed25519_encoded should return the success status along with the keys? If
+    // things go totally okay, (success() is true), run tests, otherwise skip?
+    pub(crate) fn ed25519_encoded() -> std::io::Result<(String, String)> {
+        let tempdir = tempdir().unwrap();
+        let filename = "tmp_id_ed25519";
+        let status = Command::new("ssh-keygen")
+            .current_dir(tempdir.path())
+            .arg("-q")
+            .args(["-P", ""])
+            .args(["-t", "ed25519"])
+            .args(["-f", filename])
+            .args(["-C", "armadillo@example.com"])
+            .status()?;
+
+        assert!(status.success());
+
+        let priv_path = tempdir.path().join(filename);
+        let pub_path = priv_path.with_extension("pub");
+
+        let private = fs::read_to_string(priv_path)?;
+        let public = fs::read_to_string(pub_path)?;
+
+        Ok((private, public))
+    }
+}
