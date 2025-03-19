@@ -57,6 +57,10 @@ Rust type, one *can* correctly refer to a "`Unix` address", but this
 is close to a deprecated usage and another formulation is often
 better.
 
-Apart from that, Rust identifiers at least in public APIs should avoid
-using `unix`, `UNIX` or `Unix` to mean "unix domain socket".
-Use `af_unix`, `AF_UNIX`, or `AfUnix`.
+Apart from that, ideally, Rust identifiers at least in public APIs
+should avoid using `unix`, `UNIX` or `Unix` to mean "unix domain
+socket".  Consider `af_unix`, `AF_UNIX`, or `AfUnix`.  However, Rust's
+stdlib and Tokio already (incorrectly) use names like `UnixSocket`,
+`UnixListener`, `UnixStream` (and have incorrect descriptions of these
+as "unix sockets").  In our APIs mirroring those APIs, use the same
+approach in identifiers, for consistency.
