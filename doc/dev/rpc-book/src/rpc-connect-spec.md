@@ -393,8 +393,9 @@ the connect point is claiming that no real authentication is necessary.
 > the client's ability to connect to the specified socket
 > is sufficient proof of its identity.
 >
-> (The RPC client must still send an `auth:none` command in this case
-> to get an RPC session object.)
+> (The RPC client must still send an `auth:authenticate` command in this case,
+> using the scheme `auth:inherent`, to get an RPC session object.
+> Note that the corresponding scheme here is called "inherent", not "none".)
 
 As a matter of policy we do not support `none` authentication
 for any socket address type other than:
