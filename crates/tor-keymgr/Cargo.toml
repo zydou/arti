@@ -59,7 +59,7 @@ itertools = "0.14.0"
 rand = "0.9"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "2"
-ssh-key = { version = "0.6.1", features = ["std"] }
+ssh-key = { version = "0.6.1", features = ["std", "alloc"] }
 thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.28.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.28.0", default-features = false }
