@@ -1,3 +1,4 @@
 bin.name = "arti"
-args = "-c ./tests/testcases/hsc/conf/hsc.toml hsc key get --key-type=service-discovery --onion-address fpqqmiwzqiv63jczrshh4qcmlxw6gujcai3arobq23wikt7hk7ojadid.onion --generate=no --output -"
+args = "-c ./tests/testcases/hsc/conf/hsc.toml hsc key get --key-type=service-discovery --generate=no --quiet --output -"
+stdin = "fpqqmiwzqiv63jczrshh4qcmlxw6gujcai3arobq23wikt7hk7ojadid.onion"
 status.code = 127
