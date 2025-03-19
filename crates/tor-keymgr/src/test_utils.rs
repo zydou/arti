@@ -143,8 +143,8 @@ mod specifier {
 
     impl TestSpecifier {
         /// Create a new [`TestSpecifier`].
-        pub(crate) fn new(prefix: impl AsRef<str>) -> Self {
-            Self(prefix.as_ref().into())
+        pub(crate) fn new(suffix: impl AsRef<str>) -> Self {
+            Self(suffix.as_ref().into())
         }
 
         /// Return the prefix of the [`ArtiPath`] of this specifier.
