@@ -100,7 +100,7 @@ itertools = "0.14.0"
 memchr = "2.5"
 once_cell = "1"
 phf = { version = "0.11.1", features = ["macros"] }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.9", optional = true }
 serde = "1.0.103"
 serde_with = "3.0.0"
 signature = "2"

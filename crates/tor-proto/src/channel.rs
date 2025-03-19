@@ -490,7 +490,7 @@ impl Channel {
         });
 
         // We start disabled; the channel manager will `reconfigure` us soon after creation.
-        let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov, None));
+        let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov, None)?);
 
         let reactor = Reactor {
             control: control_rx,

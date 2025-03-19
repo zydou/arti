@@ -38,7 +38,7 @@ dependencies = [
  "cfg-if",
  "once_cell",
  "version_check",
- "zerocopy",
+ "zerocopy 0.7.35",
 ]
 
 [[package]]
@@ -268,7 +268,7 @@ dependencies = [
  "float-ord",
  "fs-mistrust",
  "futures",
- "rand",
+ "rand 0.9.0",
  "serde",
  "serde_json",
  "tokio",
@@ -299,7 +299,7 @@ dependencies = [
  "libc",
  "once_cell",
  "postage",
- "rand",
+ "rand 0.9.0",
  "safelog",
  "serde",
  "strum 0.26.3",
@@ -353,7 +353,7 @@ dependencies = [
  "directories",
  "fs-mistrust",
  "once_cell",
- "rand",
+ "rand 0.9.0",
  "safelog",
  "serde",
  "strum 0.26.3",
@@ -384,8 +384,8 @@ dependencies = [
  "fs-mistrust",
  "paste",
  "percent-encoding",
- "rand",
- "rand_chacha",
+ "rand 0.9.0",
+ "rand_chacha 0.9.0",
  "serde",
  "serde_json",
  "socketpair",
@@ -414,7 +414,7 @@ dependencies = [
  "futures-await-test",
  "oneshot-fused-workaround",
  "pin-project",
- "rand",
+ "rand 0.9.0",
  "serde",
  "serde_json",
  "slotmap-careful",
@@ -447,7 +447,7 @@ dependencies = [
  "clap",
  "futures",
  "pin-project",
- "rand",
+ "rand 0.9.0",
  "tokio",
  "tor-basic-utils",
  "tor-config",
@@ -1474,7 +1474,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76"
 dependencies = [
  "generic-array",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
  "zeroize",
 ]
@@ -1979,7 +1979,7 @@ dependencies = [
  "curve25519-dalek",
  "ed25519",
  "merlin",
- "rand_core",
+ "rand_core 0.6.4",
  "serde",
  "sha2",
  "subtle",
@@ -2017,7 +2017,7 @@ dependencies = [
  "generic-array",
  "group",
  "pkcs8",
- "rand_core",
+ "rand_core 0.6.4",
  "sec1",
  "subtle",
  "zeroize",
@@ -2166,7 +2166,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -2565,7 +2565,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
  "ff",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -2631,7 +2631,7 @@ dependencies = [
  "fixed-capacity-vec",
  "hex",
  "hex-literal",
- "rand_core",
+ "rand_core 0.9.3",
  "thiserror 2.0.11",
 ]
 
@@ -2681,7 +2681,7 @@ dependencies = [
  "idna",
  "ipnet",
  "once_cell",
- "rand",
+ "rand 0.8.5",
  "thiserror 1.0.69",
  "tinyvec",
  "tokio",
@@ -3207,8 +3207,8 @@ version = "0.1.0"
 dependencies = [
  "base32",
  "clap",
- "rand",
- "rand_core",
+ "rand 0.9.0",
+ "rand_core 0.9.3",
  "ssh-key",
  "tor-basic-utils",
  "tor-keymgr",
@@ -3272,7 +3272,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -3399,7 +3399,7 @@ checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
 dependencies = [
  "byteorder",
  "keccak",
- "rand_core",
+ "rand_core 0.6.4",
  "zeroize",
 ]
 
@@ -3447,7 +3447,7 @@ dependencies = [
  "num-complex",
  "num-rational",
  "num-traits",
- "rand",
+ "rand 0.8.5",
  "rand_distr",
  "simba",
  "typenum",
@@ -3554,7 +3554,7 @@ dependencies = [
  "num-integer",
  "num-iter",
  "num-traits",
- "rand",
+ "rand 0.8.5",
  "smallvec",
  "zeroize",
 ]
@@ -3812,7 +3812,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "primeorder",
- "rand_core",
+ "rand_core 0.6.4",
  "sha2",
 ]
 
@@ -3889,7 +3889,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4076,7 +4076,7 @@ version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77957b295656769bb8ad2b6a6b09d897d94f05c41b069aede1fcdaa675eaea04"
 dependencies = [
- "zerocopy",
+ "zerocopy 0.7.35",
 ]
 
 [[package]]
@@ -4201,8 +4201,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
- "rand_chacha",
- "rand_core",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+dependencies = [
+ "rand_chacha 0.9.0",
+ "rand_core 0.9.3",
+ "zerocopy 0.8.23",
 ]
 
 [[package]]
@@ -4212,7 +4223,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -4225,13 +4246,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_core"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
+dependencies = [
+ "getrandom 0.3.1",
+]
+
+[[package]]
 name = "rand_distr"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
 dependencies = [
  "num-traits",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4418,7 +4448,7 @@ dependencies = [
  "num-traits",
  "pkcs1",
  "pkcs8",
- "rand_core",
+ "rand_core 0.6.4",
  "sha2",
  "signature",
  "spki",
@@ -4941,7 +4971,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest",
- "rand_core",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -5118,7 +5148,7 @@ dependencies = [
  "p256",
  "p384",
  "p521",
- "rand_core",
+ "rand_core 0.6.4",
  "rsa",
  "sec1",
  "sha1",
@@ -5151,7 +5181,7 @@ dependencies = [
  "approx",
  "nalgebra",
  "num-traits",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -5569,8 +5599,8 @@ dependencies = [
  "itertools 0.14.0",
  "libc",
  "paste",
- "rand",
- "rand_chacha",
+ "rand 0.9.0",
+ "rand_chacha 0.9.0",
  "serde",
  "serde-value",
  "serde_json",
@@ -5610,7 +5640,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "paste",
- "rand",
+ "rand 0.9.0",
  "smallvec",
  "thiserror 2.0.11",
  "tor-basic-utils",
@@ -5636,7 +5666,7 @@ dependencies = [
  "digest",
  "hex-literal",
  "humantime",
- "rand",
+ "rand 0.9.0",
  "thiserror 2.0.11",
  "tor-bytes",
  "tor-checkable",
@@ -5659,7 +5689,7 @@ dependencies = [
  "itertools 0.14.0",
  "oneshot-fused-workaround",
  "postage",
- "rand",
+ "rand 0.9.0",
  "safelog",
  "serde",
  "thiserror 2.0.11",
@@ -5712,7 +5742,7 @@ dependencies = [
  "once_cell",
  "oneshot-fused-workaround",
  "pin-project",
- "rand",
+ "rand 0.9.0",
  "retry-error",
  "safelog",
  "serde",
@@ -5864,7 +5894,7 @@ dependencies = [
  "oneshot-fused-workaround",
  "paste",
  "postage",
- "rand",
+ "rand 0.9.0",
  "rusqlite",
  "safelog",
  "scopeguard",
@@ -5970,7 +6000,7 @@ dependencies = [
  "oneshot-fused-workaround",
  "pin-project",
  "postage",
- "rand",
+ "rand 0.9.0",
  "safelog",
  "serde",
  "serde_json",
@@ -6010,7 +6040,7 @@ dependencies = [
  "itertools 0.14.0",
  "oneshot-fused-workaround",
  "postage",
- "rand",
+ "rand 0.9.0",
  "retry-error",
  "safelog",
  "slotmap-careful",
@@ -6060,7 +6090,7 @@ dependencies = [
  "humantime",
  "itertools 0.14.0",
  "paste",
- "rand",
+ "rand 0.9.0",
  "safelog",
  "signature",
  "subtle",
@@ -6127,8 +6157,8 @@ dependencies = [
  "once_cell",
  "oneshot-fused-workaround",
  "postage",
- "rand",
- "rand_core",
+ "rand 0.9.0",
+ "rand_core 0.9.3",
  "retry-error",
  "rmp-serde",
  "safelog",
@@ -6177,7 +6207,7 @@ dependencies = [
  "derive_more",
  "downcast-rs",
  "paste",
- "rand",
+ "rand 0.9.0",
  "signature",
  "ssh-key",
  "thiserror 2.0.11",
@@ -6208,7 +6238,7 @@ dependencies = [
  "inventory",
  "itertools 0.14.0",
  "paste",
- "rand",
+ "rand 0.9.0",
  "serde",
  "serde_json",
  "signature",
@@ -6277,8 +6307,9 @@ dependencies = [
  "hex",
  "hex-literal",
  "openssl",
- "rand",
- "rand_core",
+ "rand 0.9.0",
+ "rand_core 0.6.4",
+ "rand_core 0.9.3",
  "rsa",
  "safelog",
  "serde",
@@ -6323,7 +6354,7 @@ dependencies = [
  "itertools 0.14.0",
  "paste",
  "pin-project",
- "rand",
+ "rand 0.9.0",
  "safelog",
  "serde",
  "serde_json",
@@ -6359,7 +6390,7 @@ dependencies = [
  "itertools 0.14.0",
  "num_enum",
  "postage",
- "rand",
+ "rand 0.9.0",
  "serde",
  "static_assertions",
  "strum 0.26.3",
@@ -6399,7 +6430,7 @@ dependencies = [
  "memchr",
  "once_cell",
  "phf",
- "rand",
+ "rand 0.9.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -6487,8 +6518,8 @@ dependencies = [
  "itertools 0.14.0",
  "oneshot-fused-workaround",
  "pin-project",
- "rand",
- "rand_core",
+ "rand 0.9.0",
+ "rand_core 0.9.3",
  "regex",
  "safelog",
  "slotmap-careful",
@@ -6580,7 +6611,7 @@ name = "tor-relay-selection"
 version = "0.28.0"
 dependencies = [
  "once_cell",
- "rand",
+ "rand 0.9.0",
  "serde",
  "tor-basic-utils",
  "tor-geoip",
@@ -6601,7 +6632,7 @@ dependencies = [
  "fs-mistrust",
  "fslock-guard",
  "hex-literal",
- "rand",
+ "rand 0.9.0",
  "safelog",
  "serde",
  "serde_with",
@@ -6694,7 +6725,7 @@ dependencies = [
  "oneshot-fused-workaround",
  "pin-project",
  "priority-queue",
- "rand",
+ "rand 0.9.0",
  "slotmap-careful",
  "strum 0.26.3",
  "thiserror 2.0.11",
@@ -7535,7 +7566,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7e468321c81fb07fa7f4c636c3972b9100f0346e5b6a9f2bd0603a52f7ed277"
 dependencies = [
  "curve25519-dalek",
- "rand_core",
+ "rand_core 0.6.4",
  "serde",
  "zeroize",
 ]
@@ -7586,7 +7617,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b9b4fd18abc82b8136838da5d50bae7bdea537c574d8dc1a34ed098d6c166f0"
 dependencies = [
  "byteorder",
- "zerocopy-derive",
+ "zerocopy-derive 0.7.35",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.8.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd97444d05a4328b90e75e503a34bad781f14e28a823ad3557f0750df1ebcbc6"
+dependencies = [
+ "zerocopy-derive 0.8.23",
 ]
 
 [[package]]
@@ -7594,6 +7634,17 @@ name = "zerocopy-derive"
 version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.8.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6352c01d0edd5db859a63e2605f4ea3183ddbd15e2c4a9e7d32184df75e4f154"
 dependencies = [
  "proc-macro2",
  "quote",

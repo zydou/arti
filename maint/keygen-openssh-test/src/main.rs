@@ -2,6 +2,7 @@ mod args;
 
 use args::{Args, KeyType};
 use tor_llcrypto::pk::ed25519::Ed25519PublicKey as _;
+use tor_llcrypto::util::rng::RngCompat;
 
 use std::fs;
 
@@ -74,7 +75,7 @@ fn generate_ed25519(args: &Args) -> (PrivateKey, PublicKey) {
 
 /// Generate a DSA ssh key.
 fn generate_dsa(args: &Args) -> (PrivateKey, PublicKey) {
-    let mut rng = testing_rng();
+    let mut rng = RngCompat::new(testing_rng());
     let keypair = DsaKeypair::random(&mut rng).unwrap();
     let public = DsaPublicKey::from(&keypair);
 

@@ -140,7 +140,7 @@ async fn cookie_begin(
         ),
         _ => return Err(AuthenticationFailure::IncorrectMethod.into()),
     };
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let server_nonce = CookieAuthNonce::new(&mut rng);
 

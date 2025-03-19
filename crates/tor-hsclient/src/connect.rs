@@ -705,7 +705,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     intro_index,
                     intro_desc,
                     intro_target,
-                    sort_rand: self.mocks.thread_rng().gen(),
+                    sort_rand: self.mocks.thread_rng().random(),
                 })
             })
             .filter_map(|entry| match entry {
@@ -979,7 +979,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let rend_pt = rend_pt_identity_for_error(&rend_relay);
         *using_rend_pt = Some(rend_pt.clone());
 
-        let rend_cookie: RendCookie = self.mocks.thread_rng().gen();
+        let rend_cookie: RendCookie = self.mocks.thread_rng().random();
         let message = EstablishRendezvous::new(rend_cookie);
 
         let (rend_established_tx, rend_established_rx) = proto_oneshot::channel();
@@ -1422,7 +1422,7 @@ impl<R: Runtime> MocksForConnect<R> for () {
     type Rng = rand::rngs::ThreadRng;
 
     fn thread_rng(&self) -> Self::Rng {
-        rand::thread_rng()
+        rand::rng()
     }
 }
 #[async_trait]

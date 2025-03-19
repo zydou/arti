@@ -24,7 +24,7 @@ pub fn cell_set_digest_benchmark(c: &mut Criterion<CpuTime>) {
     group.bench_function("cell_set_digest_Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
             || {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
 
                 let cell = create_random_cell(&mut rng);
                 (cell, Sha1::new(), GenericArray::default())
@@ -39,7 +39,7 @@ pub fn cell_set_digest_benchmark(c: &mut Criterion<CpuTime>) {
     group.bench_function("cell_set_digest_Tor1Hsv3RelayCrypto", |b| {
         b.iter_batched_ref(
             || {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
 
                 let cell = create_random_cell(&mut rng);
                 (cell, Sha3_256::new(), GenericArray::default())

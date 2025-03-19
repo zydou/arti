@@ -51,9 +51,9 @@ impl IptLocalId {
     }
 }
 
-impl rand::distributions::Distribution<IptLocalId> for rand::distributions::Standard {
+impl rand::distr::Distribution<IptLocalId> for rand::distr::StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> IptLocalId {
-        IptLocalId(rng.gen())
+        IptLocalId(rng.random())
     }
 }
 

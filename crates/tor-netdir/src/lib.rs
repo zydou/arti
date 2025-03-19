@@ -74,7 +74,7 @@ use {hsdir_ring::HsDirRing, std::iter};
 use derive_more::{From, Into};
 use futures::{stream::BoxStream, StreamExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use rand::seq::SliceRandom;
+use rand::seq::{IndexedRandom as _, SliceRandom as _};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -1555,7 +1555,7 @@ impl NetDir {
         P: FnMut(&Relay<'a>) -> bool,
     {
         let relays: Vec<_> = self.relays().filter(usable).collect();
-        // This algorithm uses rand::distributions::WeightedIndex, and uses
+        // This algorithm uses rand::distr::WeightedIndex, and uses
         // gives O(n) time and space  to build the index, plus O(log n)
         // sampling time.
         //

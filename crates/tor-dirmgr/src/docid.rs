@@ -369,7 +369,7 @@ mod test {
 
         // Construct a big query.
         let mut rng = testing_rng();
-        let ids: HashSet<MdDigest> = (0..3400).map(|_| rng.gen()).collect();
+        let ids: HashSet<MdDigest> = (0..3400).map(|_| rng.random()).collect();
 
         // Test microdescs.
         let split = DocQuery::Microdesc(ids.clone().into_iter().collect()).split_for_download();
@@ -389,7 +389,7 @@ mod test {
         // Test routerdescs.
         #[cfg(feature = "routerdesc")]
         {
-            let ids: HashSet<RdDigest> = (0..1001).map(|_| rng.gen()).collect();
+            let ids: HashSet<RdDigest> = (0..1001).map(|_| rng.random()).collect();
             let split =
                 DocQuery::RouterDesc(ids.clone().into_iter().collect()).split_for_download();
             assert_eq!(split.len(), 3);
@@ -409,8 +409,8 @@ mod test {
         // Test authcerts.
         let ids: HashSet<AuthCertKeyIds> = (0..2500)
             .map(|_| {
-                let id_fingerprint = rng.gen::<[u8; 20]>().into();
-                let sk_fingerprint = rng.gen::<[u8; 20]>().into();
+                let id_fingerprint = rng.random::<[u8; 20]>().into();
+                let sk_fingerprint = rng.random::<[u8; 20]>().into();
                 AuthCertKeyIds {
                     id_fingerprint,
                     sk_fingerprint,

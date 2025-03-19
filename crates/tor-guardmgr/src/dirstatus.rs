@@ -57,7 +57,7 @@ impl DirStatus {
 
     /// Record that the associated fallback directory has failed.
     pub(crate) fn note_failure(&mut self, now: Instant) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         self.retry_at = Some(now + self.delay.next_delay(&mut rng));
     }
 }

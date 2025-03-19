@@ -540,7 +540,7 @@ fn maybe_generate_hsid(
             cause,
         })?;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let (hsid, generated) = match kp {
         Some(kp) => (kp.id(), false),
         None => {

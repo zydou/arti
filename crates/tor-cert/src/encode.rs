@@ -211,7 +211,7 @@ mod test {
 
     #[test]
     fn signed_cert_without_key() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let keypair = ed25519::Keypair::generate(&mut rng);
         let now = SystemTime::now();
         let day = Duration::from_secs(86400);

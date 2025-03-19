@@ -1,7 +1,6 @@
 //! Client support for the `v1` onion service proof of work scheme
 
 use crate::err::ProofOfWorkError;
-use rand::thread_rng;
 use std::time::Instant;
 use tor_async_utils::oneshot;
 use tor_async_utils::oneshot::Canceled;
@@ -99,7 +98,7 @@ impl HsPowClientV1 {
 
         let (result_sender, result_receiver) = oneshot::channel();
         std::thread::spawn(move || {
-            let mut solver = input.solve(&mut thread_rng());
+            let mut solver = input.solve(&mut rand::rng());
             let result = loop {
                 match solver.run_step() {
                     Err(e) => break Err(e),

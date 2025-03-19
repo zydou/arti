@@ -14,7 +14,7 @@ use tor_rtcompat::Runtime;
 
 /// Find a random relay suitable to use for a directory request.
 fn find_one_hop_dir_cache(netdir: &NetDir) -> Option<Relay> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let exclusion = RelayExclusion::no_relays_excluded();
     let selector = RelaySelector::new(RelayUsage::directory_cache(), exclusion);
     let (relay, _info) = selector.select_relay(&mut rng, netdir);

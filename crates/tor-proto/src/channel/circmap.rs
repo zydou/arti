@@ -12,7 +12,7 @@ use crate::tunnel::circuit::{celltypes::CreateResponse, CircuitRxSender};
 
 use oneshot_fused_workaround as oneshot;
 
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use rand::Rng;
 use std::collections::{hash_map::Entry, HashMap};
 use std::ops::{Deref, DerefMut};
@@ -33,7 +33,7 @@ pub(super) enum CircIdRange {
     // protocol version 4.
 }
 
-impl rand::distributions::Distribution<CircId> for CircIdRange {
+impl rand::distr::Distribution<CircId> for CircIdRange {
     /// Return a random circuit ID in the appropriate range.
     fn sample<R: Rng + ?Sized>(&self, mut rng: &mut R) -> CircId {
         let midpoint = 0x8000_0000_u32;

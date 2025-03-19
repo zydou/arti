@@ -31,7 +31,7 @@ async-trait = "0.1.54"
 clap = { version = "4.3.24", features = ["wrap_help"] }
 futures = "0.3.14"
 pin-project = "1"
-rand = "0.8"
+rand = "0.9"
 tokio = { version = "1.7", features = ["signal", "macros"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.28.0" }
 tor-config = { path = "../tor-config", version = "0.28.0" }

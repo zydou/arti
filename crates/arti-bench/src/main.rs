@@ -54,7 +54,7 @@ use arti::cfg::ArtiCombinedConfig;
 use arti_client::{IsolationToken, TorAddr, TorClient, TorClientConfig};
 use clap::{value_parser, Arg, ArgAction};
 use futures::StreamExt;
-use rand::distributions::Standard;
+use rand::distr::StandardUniform;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -77,8 +77,8 @@ use tracing::info;
 
 /// Generate a random payload of bytes of the given size
 fn random_payload(size: usize) -> Vec<u8> {
-    rand::thread_rng()
-        .sample_iter(Standard)
+    rand::rng()
+        .sample_iter(StandardUniform)
         .take(size)
         .collect()
 }

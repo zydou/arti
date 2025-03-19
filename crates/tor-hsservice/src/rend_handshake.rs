@@ -217,7 +217,7 @@ impl IntroRequest {
         context: &RendRequestContext,
     ) -> Result<Self, IntroRequestError> {
         use IntroRequestError as E;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // We need the subcredential for the *current time period* in order to do the hs_ntor
         // handshake. But that can change over time.  We will instead use KeyMgr::get_matching to

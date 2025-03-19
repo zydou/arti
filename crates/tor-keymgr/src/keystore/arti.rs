@@ -700,7 +700,7 @@ mod tests {
     fn certs() {
         let (key_store, _keystore_dir) = init_keystore(false);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let subject_key = ed25519::Keypair::generate(&mut rng);
         let signing_key = ed25519::Keypair::generate(&mut rng);
 

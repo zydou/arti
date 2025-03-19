@@ -39,6 +39,6 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.28.0" }
 base64ct = "1.5.1"
 hex-literal = "0.4"
 humantime = "2"
-rand = "0.8"
+rand = "0.9"
 [package.metadata.docs.rs]
 all-features = true

@@ -31,7 +31,7 @@ blake2 = "0.10.6"
 dynasmrt = { version = "3.0.1", optional = true }
 fixed-capacity-vec = "1.0"
 hex = { version = "0.4.3", optional = true }
-rand_core = "0.6.4"
+rand_core = "0.9.3"
 thiserror = "2"
 
 [dev-dependencies]

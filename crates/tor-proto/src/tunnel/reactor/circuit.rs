@@ -230,7 +230,7 @@ impl Circuit {
         msg: AnyRelayMsgOuter,
     ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
         let mut body: RelayCellBody = msg
-            .encode(&mut rand::thread_rng())
+            .encode(&mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
             .into();
         let tag = crypto_out.encrypt(&mut body, hop)?;
@@ -801,7 +801,7 @@ impl Circuit {
         let (state, msg) = {
             // done like this because holding the RNG across an await boundary makes the future
             // non-Send
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             H::client1(&mut rng, key, msg)?
         };
         let create_cell = wrap.to_chanmsg(msg);

@@ -13,10 +13,6 @@ impl<'a> rand_core::RngCore for FakePRNG<'a> {
     fn next_u64(&mut self) -> u64 {
         rand_core::impls::next_u64_via_fill(self)
     }
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> std::result::Result<(), rand_core::Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
     fn fill_bytes(&mut self, dest: &mut [u8]) {
         assert!(dest.len() <= self.bytes.len());
 

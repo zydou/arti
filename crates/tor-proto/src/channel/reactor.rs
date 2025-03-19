@@ -275,7 +275,7 @@ impl<S: SleepProvider> Reactor<S> {
                 sender,
                 tx,
             } => {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 let my_unique_id = self.unique_id;
                 let circ_unique_id = self.circ_unique_id_ctx.next(my_unique_id);
                 let ret: Result<_> = self
@@ -301,7 +301,7 @@ impl<S: SleepProvider> Reactor<S> {
                     padding_negotiate,
                 } = &*updates;
                 if let Some(parameters) = padding_parameters {
-                    self.padding_timer.as_mut().reconfigure(parameters);
+                    self.padding_timer.as_mut().reconfigure(parameters)?;
                 }
                 if let Some(enable) = padding_enable {
                     if *enable {

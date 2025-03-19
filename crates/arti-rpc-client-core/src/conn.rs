@@ -754,7 +754,7 @@ mod test {
         for th_idx in 0..n_threads {
             let conn = Arc::clone(&conn);
             let n_completed = Arc::clone(&n_completed);
-            let mut rng = rand_chacha::ChaCha12Rng::from_seed(rng.gen());
+            let mut rng = rand_chacha::ChaCha12Rng::from_seed(rng.random());
             let th = thread::spawn(move || {
                 for cmd_idx in 0..n_commands_per_thread {
                     // We are spawning a bunch of worker threads, each of which will run a number of
@@ -762,8 +762,8 @@ mod test {
                     // updates, and an error or a success.
                     // We will double-check that each request gets the response it asked for.
                     let s = format!("{}:{}", th_idx, cmd_idx);
-                    let want_updates: bool = rng.gen();
-                    let want_failure: bool = rng.gen();
+                    let want_updates: bool = rng.random();
+                    let want_failure: bool = rng.random();
                     let req = serde_json::json!({
                         "obj":"fred",
                         "method":"arti:x-echo",
@@ -801,7 +801,7 @@ mod test {
                         assert_eq!(map.get("echo"), Some(&serde_json::Value::String(s)));
                     }
                     n_completed.fetch_add(1, SeqCst);
-                    if rng.gen::<f32>() < 0.02 {
+                    if rng.random::<f32>() < 0.02 {
                         thread::sleep(Duration::from_millis(3));
                     }
                 }
@@ -817,7 +817,7 @@ mod test {
 
         // -----
         // Worker thread: handles user requests.
-        let worker_rng = rand_chacha::ChaCha12Rng::from_seed(rng.gen());
+        let worker_rng = rand_chacha::ChaCha12Rng::from_seed(rng.random());
         let worker_thread = thread::spawn(move || {
             let mut rng = worker_rng;
             let mut sock = BufReader::new(sock);

@@ -60,9 +60,9 @@ impl Seed {
     ///
     /// If old_seed is given, avoid generating a seed that shares a seed head.
     pub fn new<R: Rng + CryptoRng>(rng: &mut R, old_seed: Option<&Seed>) -> Self {
-        let mut new = Seed(rng.gen());
+        let mut new = Seed(rng.random());
         while Some(new.head()) == old_seed.as_ref().map(|seed| seed.head()) {
-            new = Seed(rng.gen());
+            new = Seed(rng.random());
         }
         new
     }

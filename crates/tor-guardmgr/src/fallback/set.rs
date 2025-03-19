@@ -251,9 +251,9 @@ mod test {
     /// Since there are 416 bits of random id here, the risk of collision is
     /// negligible.
     fn rand_fb<R: Rng>(rng: &mut R) -> FallbackDir {
-        let ed: [u8; 32] = rng.gen();
-        let rsa: [u8; 20] = rng.gen();
-        let ip: u32 = rng.gen();
+        let ed: [u8; 32] = rng.random();
+        let rsa: [u8; 20] = rng.random();
+        let ip: u32 = rng.random();
         let mut bld = FallbackDir::builder();
         bld.ed_identity(ed.into())
             .rsa_identity(rsa.into())

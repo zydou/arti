@@ -88,7 +88,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
         usage: &TargetCircUsage,
         dir: DirInfo<'_>,
     ) -> Result<(Plan, SupportedCircUsage)> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let (path, final_spec, guard_status, guard_usable) = usage.build_path(
             &mut rng,
             dir,

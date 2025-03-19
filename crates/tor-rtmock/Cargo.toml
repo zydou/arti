@@ -36,7 +36,7 @@ void = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-rand = "0.8"
+rand = "0.9"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.28.0" }
 tor-general-addr = { path = "../tor-general-addr", version = "0.28.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.28.0", features = ["tokio", "native-tls"] }

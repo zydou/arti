@@ -28,10 +28,6 @@ impl rand::RngCore for BadRng {
     fn fill_bytes(&mut self, dest: &mut [u8]) {
         dest.fill(0xf0);
     }
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
 }
 
 // I won't tell if you don't.
@@ -83,7 +79,7 @@ fn bad_rng() {
     assert_eq!(rng.next_u32(), 0xf0f0f0f0);
     assert_eq!(rng.next_u64(), 0xf0f0f0f0f0f0f0f0);
     let mut buf = [0u8; 19];
-    assert!(rng.try_fill_bytes(&mut buf).is_ok());
+    rng.fill_bytes(&mut buf);
     assert_eq!(
         &buf,
         &[

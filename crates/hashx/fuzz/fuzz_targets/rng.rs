@@ -126,10 +126,6 @@ fn test_instance_rust(op: &Arc<Op>, option: hashx::RuntimeOption) -> TestResult 
         fn fill_bytes(&mut self, _dest: &mut [u8]) {
             unreachable!();
         }
-
-        fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), rand::Error> {
-            unreachable!();
-        }
     }
 
     let result = hashx::HashXBuilder::new()

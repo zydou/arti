@@ -14,7 +14,7 @@ use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_linkspec::{ByRelayIds, HasRelayIds};
 
 use itertools::Itertools;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -922,7 +922,7 @@ impl GuardSet {
             options.truncate(1);
         }
 
-        match options.choose(&mut rand::thread_rng()) {
+        match options.choose(&mut rand::rng()) {
             Some((src, g)) => Ok((*src, g.guard_id().clone())),
             None => {
                 let retry_at = if running.n_accepted == 0 {

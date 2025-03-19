@@ -36,7 +36,7 @@ use educe::Educe;
 use futures::future::{self, FusedFuture};
 use futures::FutureExt;
 use pin_project::pin_project;
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use tracing::error;
 
 use tor_cell::chancell::msg::{Padding, PaddingNegotiate};
@@ -123,7 +123,7 @@ pub(crate) struct Timer<R: SleepProvider> {
 
 /// Timing parameters, as described in `padding-spec.txt`
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Builder)]
-#[builder(build_fn(error = "tor_error::Bug"))]
+#[builder(build_fn(error = "ParametersError", private, name = "build_inner"))]
 pub struct Parameters {
     /// Low end of the distribution of `X`
     #[builder(default = "1500.into()")]
@@ -131,6 +131,29 @@ pub struct Parameters {
     /// High end of the distribution of `X` (inclusive)
     #[builder(default = "9500.into()")]
     pub(crate) high: IntegerMilliseconds<u32>,
+}
+
+/// An error that occurred whil e constructing padding parameters.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ParametersError {
+    /// Could not construct a range: there were no members between low and high.
+    #[error("Cannot construct padding parameters: low bound was above the high bound.")]
+    InvalidRange,
+}
+
+impl ParametersBuilder {
+    /// Try to construct a [`Parameters`] from this builder.
+    ///
+    /// returns an error if the distribution is ill-defined.
+    pub fn build(&self) -> Result<Parameters, ParametersError> {
+        let parameters = self.build_inner()?;
+        if parameters.low > parameters.high {
+            return Err(ParametersError::InvalidRange);
+        }
+
+        Ok(parameters)
+    }
 }
 
 impl_standard_builder! { Parameters: !Deserialize + !Builder + !Default }
@@ -172,7 +195,7 @@ impl Parameters {
 #[derive(Debug, Clone)]
 struct PreparedParameters {
     /// The distribution of `X` (not of the ultimate delay, which is `max(X1,X2)`)
-    x_distribution_ms: rand::distributions::Uniform<u32>,
+    x_distribution_ms: rand::distr::Uniform<u32>,
 }
 
 /// Return value from `prepare_to_sleep`: instructions for what caller ought to do
@@ -193,28 +216,31 @@ enum SleepInstructions<'f, R: SleepProvider> {
 impl<R: SleepProvider> Timer<R> {
     /// Create a new `Timer`
     #[allow(dead_code)]
-    pub(crate) fn new(sleep_prov: R, parameters: Parameters) -> Self {
-        let parameters = parameters.prepare();
+    pub(crate) fn new(sleep_prov: R, parameters: Parameters) -> crate::Result<Self> {
+        let parameters = parameters.prepare()?;
         let selected_timeout = parameters.select_timeout();
         // Too different to new_disabled to share its code, sadly.
-        Timer {
+        Ok(Timer {
             sleep_prov,
             parameters: Some(parameters),
             selected_timeout: Some(selected_timeout),
             trigger_at: None,
             waker: None,
-        }
+        })
     }
 
     /// Create a new `Timer` which starts out disabled
-    pub(crate) fn new_disabled(sleep_prov: R, parameters: Option<Parameters>) -> Self {
-        Timer {
+    pub(crate) fn new_disabled(
+        sleep_prov: R,
+        parameters: Option<Parameters>,
+    ) -> crate::Result<Self> {
+        Ok(Timer {
             sleep_prov,
-            parameters: parameters.map(|p| p.prepare()),
+            parameters: parameters.map(|p| p.prepare()).transpose()?,
             selected_timeout: None,
             trigger_at: None,
             waker: None,
-        }
+        })
     }
 
     /// Disable this `Timer`
@@ -246,8 +272,12 @@ impl<R: SleepProvider> Timer<R> {
     /// longer than either of the configured values.)
     ///
     /// Idempotent.
-    pub(crate) fn reconfigure(self: &mut Pin<&mut Self>, parameters: &Parameters) {
-        *self.as_mut().project().parameters = Some(parameters.prepare());
+    pub(crate) fn reconfigure(
+        self: &mut Pin<&mut Self>,
+        parameters: &Parameters,
+    ) -> crate::Result<()> {
+        *self.as_mut().project().parameters = Some(parameters.prepare()?);
+        Ok(())
     }
 
     /// Enquire whether this `Timer` is currently enabled
@@ -379,20 +409,21 @@ impl<R: SleepProvider> Timer<R> {
 
 impl Parameters {
     /// "Compile" the parameters into a form which can be quickly sampled
-    fn prepare(self) -> PreparedParameters {
-        PreparedParameters {
-            x_distribution_ms: rand::distributions::Uniform::new_inclusive(
+    fn prepare(self) -> Result<PreparedParameters, tor_error::Bug> {
+        Ok(PreparedParameters {
+            x_distribution_ms: rand::distr::Uniform::new_inclusive(
                 self.low.as_millis(),
                 self.high.as_millis(),
-            ),
-        }
+            )
+            .map_err(into_internal!("Parameters were not a valid range."))?,
+        })
     }
 }
 
 impl PreparedParameters {
     /// Randomly select a timeout (as per `padding-spec.txt`)
     fn select_timeout(&self) -> Duration {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let ms = std::cmp::max(
             self.x_distribution_ms.sample(&mut rng),
             self.x_distribution_ms.sample(&mut rng),
@@ -423,7 +454,7 @@ mod test {
     use itertools::{izip, Itertools};
     use statrs::distribution::ContinuousCDF;
     use tokio::pin;
-    use tokio_crate as tokio;
+    use tokio_crate::{self as tokio};
     use tor_rtcompat::*;
 
     async fn assert_not_ready<R: Runtime>(timer: &mut Pin<&mut Timer<R>>) {
@@ -452,7 +483,7 @@ mod test {
         };
 
         let () = runtime.block_on(async {
-            let timer = Timer::new(runtime.clone(), parameters);
+            let timer = Timer::new(runtime.clone(), parameters).unwrap();
             pin!(timer);
             assert_eq! { true, timer.is_enabled() }
 
@@ -510,7 +541,7 @@ mod test {
         });
 
         let () = runtime.block_on(async {
-            let timer = Timer::new(runtime.clone(), parameters);
+            let timer = Timer::new(runtime.clone(), parameters).unwrap();
             pin!(timer);
 
             assert! { timer.as_mut().selected_timeout.is_some() };
@@ -524,7 +555,7 @@ mod test {
         });
 
         let () = runtime.block_on(async {
-            let timer = Timer::new_disabled(runtime.clone(), None);
+            let timer = Timer::new_disabled(runtime.clone(), None).unwrap();
             assert! { timer.parameters.is_none() };
             pin!(timer);
             assert_not_ready(&mut timer).await;
@@ -533,7 +564,7 @@ mod test {
         });
 
         let () = runtime.block_on(async {
-            let timer = Timer::new_disabled(runtime.clone(), Some(parameters));
+            let timer = Timer::new_disabled(runtime.clone(), Some(parameters)).unwrap();
             assert! { timer.parameters.is_some() };
             pin!(timer);
             assert_not_ready(&mut timer).await;
@@ -618,7 +649,8 @@ mod test {
                 low: min.into(),
                 high: (max - 1).into(), // convert exclusive to inclusive
             }
-            .prepare();
+            .prepare()
+            .unwrap();
 
             for _ in 0..N {
                 let xx = params.select_timeout();
@@ -665,5 +697,56 @@ mod test {
             // especially since we run this repeatedly in CI.
             N *= 10;
         }
+    }
+
+    #[test]
+    fn parameters_range() {
+        let ms100 = IntegerMilliseconds::new(100);
+        let ms1000 = IntegerMilliseconds::new(1000);
+        let ms1500 = IntegerMilliseconds::new(1500);
+        let ms9500 = IntegerMilliseconds::new(9500);
+
+        // default
+        let p = Parameters::builder().build().unwrap();
+        assert_eq!(
+            p,
+            Parameters {
+                low: ms1500,
+                high: ms9500
+            }
+        );
+        assert!(p.prepare().is_ok());
+
+        // low < high
+        let mut pb = Parameters::builder();
+        pb.low(ms100);
+        pb.high(ms1000);
+        let p = pb.build().unwrap();
+        assert_eq!(
+            p,
+            Parameters {
+                low: ms100,
+                high: ms1000
+            }
+        );
+        let p = p.prepare().unwrap();
+        let range = Duration::try_from(ms100).unwrap()..=Duration::try_from(ms1000).unwrap();
+        for _ in 1..100 {
+            assert!(range.contains(&p.select_timeout()));
+        }
+
+        // low == high
+        let mut pb = Parameters::builder();
+        pb.low(ms1000);
+        pb.high(ms1000);
+        let p = pb.build().unwrap();
+        assert!(p.prepare().is_ok());
+
+        // low > high (error case)
+        let mut pb = Parameters::builder();
+        pb.low(ms1000);
+        pb.high(ms100);
+        let e = pb.build().unwrap_err();
+        assert!(matches!(e, ParametersError::InvalidRange));
     }
 }

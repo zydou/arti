@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 memquota-memcost = ["tor-memquota", "derive-deftly"]
-full = ["memquota-memcost", "safelog/full", "tor-memquota?/full"]
+full = ["memquota-memcost", "rng-compat", "safelog/full", "tor-memquota?/full"]
 
 with-openssl = ["openssl", "typenum", "cipher", "__is_nonadditive"]
 with-sha1-asm = ["sha1/asm", "__is_nonadditive"]
@@ -31,6 +31,8 @@ hsv3-service = ["__is_experimental"]
 keymgr = ["cvt-x25519", "__is_experimental"]
 # Enable extra support for converting keys to and from x25519
 cvt-x25519 = []
+# Compatibility support for older versions of the rand crate.
+rng-compat = []
 
 __is_nonadditive = []
 __is_experimental = []
@@ -49,7 +51,8 @@ ed25519-dalek = { version = "2.1", features = ["batch", "hazmat"] }
 educe = "0.4.22"
 hex = "0.4"
 openssl = { version = "0.10.48", optional = true }
-rand_core = "0.6.2"
+rand_core = "0.9.3"
+rand_core_06 = { package = "rand_core", version = "0.6" }
 rsa = "0.9.0"
 safelog = { version = "0.4.2", path = "../safelog" }
 serde = "1.0.103"
@@ -68,7 +71,7 @@ zeroize = "1"
 [dev-dependencies]
 cipher = "0.4.1"
 hex-literal = "0.4"
-rand = "0.8"
+rand = "0.9"
 serde_test = "1.0.124"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.28.0" }
 

@@ -336,7 +336,7 @@ impl<R: Runtime> Mockable for Real<R> {
     type ClientCirc = ClientCirc;
 
     fn thread_rng(&self) -> Self::Rng {
-        rand::thread_rng()
+        rand::rng()
     }
 
     async fn get_or_launch_specific<T>(

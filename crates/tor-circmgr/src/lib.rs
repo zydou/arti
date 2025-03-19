@@ -872,7 +872,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
                             retry.reset();
                             base_delay
                         }
-                        Err(_) => retry.next_delay(&mut rand::thread_rng()),
+                        Err(_) => retry.next_delay(&mut rand::rng()),
                     };
 
                     sched.fire_in(delay);

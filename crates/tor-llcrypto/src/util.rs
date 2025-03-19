@@ -6,6 +6,7 @@
 use der_parser::ber::{BerObject, BerObjectContent};
 use der_parser::der::parse_der;
 pub mod ct;
+pub mod rng;
 
 /// Given an X.509 certificate in DER, return its SubjectPublicKey if that key
 /// is an RSA key.
