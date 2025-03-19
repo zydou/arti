@@ -38,6 +38,8 @@ use crate::{Error, Result};
 use circuit::{Circuit, CircuitCmd};
 use conflux::ConfluxSet;
 use control::ControlHandler;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::mem::size_of;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
@@ -64,7 +66,10 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::trace;
 
 #[cfg(feature = "conflux")]
-use crate::util::err::ConfluxHandshakeError;
+use {
+    crate::util::err::ConfluxHandshakeError,
+    conflux::OooRelayMsg,
+};
 
 pub(super) use control::CtrlCmd;
 pub(super) use control::CtrlMsg;
@@ -245,6 +250,14 @@ enum RunOnceCmdInner {
         /// Oneshot channel for notifying of conflux handshake completion.
         answer: ConfluxLinkResultChannel,
     },
+    /// Enqueue an out-of-order cell in ooo_msg.
+    #[cfg(feature = "conflux")]
+    Enqueue {
+        /// The leg the entry originated from.
+        leg: LegId,
+        /// The out-of-order message.
+        msg: OooRelayMsg,
+    },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
 }
@@ -282,6 +295,11 @@ impl RunOnceCmdInner {
             CircuitCmd::ConfluxHandshakeComplete(cell) => Self::ConfluxHandshakeComplete {
                 leg: LegId(leg),
                 cell,
+            },
+            #[cfg(feature = "conflux")]
+            CircuitCmd::Enqueue(msg) => Self::Enqueue {
+                leg: LegId(leg),
+                msg,
             },
             CircuitCmd::CleanShutdown => Self::CleanShutdown,
         }
@@ -476,6 +494,13 @@ pub struct Reactor {
     /// are currently in the conflux handshake phase.
     #[cfg(feature = "conflux")]
     conflux_hs_ctx: Option<ConfluxHandshakeCtx>,
+    /// A min-heap buffering all the out-of-order messages received so far.
+    ///
+    /// TODO(conflux): this becomes a DoS vector unless we impose a limit
+    /// on its size. We should make this participate in the memquota memory
+    /// tracking system, somehow.
+    #[cfg(feature = "conflux")]
+    ooo_msgs: BinaryHeap<ConfluxHeapEntry>,
 }
 
 /// The context for an on-going conflux handshake.
@@ -488,6 +513,40 @@ struct ConfluxHandshakeCtx {
     /// The handshake results we have collected so far.
     results: ConfluxTunnelResult,
 }
+
+/// An out-of-order message buffered in [`Reactor::ooo_msgs`].
+#[derive(Debug)]
+#[cfg(feature = "conflux")]
+struct ConfluxHeapEntry {
+    /// The leg id this message came from.
+    leg_id: LegId,
+    /// The out of order message
+    msg: OooRelayMsg,
+}
+
+#[cfg(feature = "conflux")]
+impl Ord for ConfluxHeapEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.msg.cmp(&other.msg).reverse()
+    }
+}
+
+#[cfg(feature = "conflux")]
+impl PartialOrd for ConfluxHeapEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[cfg(feature = "conflux")]
+impl PartialEq for ConfluxHeapEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.msg == other.msg
+    }
+}
+
+#[cfg(feature = "conflux")]
+impl Eq for ConfluxHeapEntry {}
 
 /// Cell handlers, shared between the Reactor and its underlying `Circuit`s.
 struct CellHandlers {
@@ -600,6 +659,8 @@ impl Reactor {
             runtime,
             #[cfg(feature = "conflux")]
             conflux_hs_ctx: None,
+            #[cfg(feature = "conflux")]
+            ooo_msgs: Default::default(),
         };
 
         (reactor, control_tx, command_tx, reactor_closed_rx, mutable)
@@ -909,6 +970,11 @@ impl Reactor {
                 //
                 // NOTE: this will block the reactor until all the cells are sent.
                 self.handle_link_circuits(circuits, answer).await;
+            }
+            #[cfg(feature = "conflux")]
+            RunOnceCmdInner::Enqueue { leg, msg } => {
+                let entry = ConfluxHeapEntry { leg_id: leg, msg };
+                self.ooo_msgs.push(entry);
             }
         }
 

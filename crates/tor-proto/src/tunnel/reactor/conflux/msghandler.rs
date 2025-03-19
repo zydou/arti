@@ -2,13 +2,14 @@
 
 mod client;
 
-use std::sync::atomic::AtomicU32;
+use std::cmp::Ordering;
+use std::sync::atomic::{self, AtomicU32};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tor_cell::relaycell::conflux::V1Nonce;
-use tor_cell::relaycell::UnparsedRelayMsg;
-use tor_error::Bug;
+use tor_cell::relaycell::{StreamId, UnparsedRelayMsg};
+use tor_error::{internal, Bug};
 
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
@@ -82,6 +83,85 @@ impl ConfluxMsgHandler {
     pub(crate) fn status(&self) -> ConfluxStatus {
         self.handler.status()
     }
+
+    /// Check our sequence numbers to see if the current msg is in order.
+    ///
+    /// Returns an internal error if the relative seqno is lower than the absolute seqno.
+    fn is_msg_in_order(&mut self) -> Result<bool, Bug> {
+        let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::SeqCst);
+        match self.handler.last_seq_recv().cmp(&(last_seq_delivered + 1)) {
+            Ordering::Less => {
+                // Our internal accounting is busted!
+                Err(internal!(
+                    "Got a conflux cell with a sequence number less than the last delivered"
+                ))
+            }
+            Ordering::Equal => Ok(true),
+            Ordering::Greater => Ok(false),
+        }
+    }
+
+    /// Return a [`OooRelayMsg`] for the reactor to buffer.
+    fn prepare_ooo_entry(
+        &mut self,
+        hopnum: HopNum,
+        cell_counts_towards_windows: bool,
+        streamid: StreamId,
+        msg: UnparsedRelayMsg,
+    ) -> OooRelayMsg {
+        OooRelayMsg {
+            seqno: self.handler.last_seq_recv(),
+            hopnum,
+            cell_counts_towards_windows,
+            streamid,
+            msg,
+        }
+    }
+
+    /// Check the sequence number of the specified `msg`,
+    /// and decide whether it should be delivered or buffered.
+    #[cfg(feature = "conflux")]
+    pub(crate) fn action_for_msg(
+        &mut self,
+        hopnum: HopNum,
+        cell_counts_towards_windows: bool,
+        streamid: StreamId,
+        msg: UnparsedRelayMsg,
+    ) -> Result<ConfluxAction, Bug> {
+        if !super::cmd_counts_towards_seqno(msg.cmd()) {
+            return Ok(ConfluxAction::Deliver(msg));
+        }
+
+        // Increment the relative seqno on this leg.
+        self.handler.inc_last_seq_recv();
+
+        let action = if self.is_msg_in_order()? {
+            // Increment the absolute *delivered* seqno
+            self.last_seq_delivered
+                .fetch_add(1, atomic::Ordering::SeqCst);
+
+            ConfluxAction::Deliver(msg)
+        } else {
+            ConfluxAction::Enqueue(self.prepare_ooo_entry(
+                hopnum,
+                cell_counts_towards_windows,
+                streamid,
+                msg,
+            ))
+        };
+
+        Ok(action)
+    }
+}
+
+/// An action to take after processing a potentially out of order message.
+#[derive(Debug)]
+#[cfg(feature = "conflux")]
+pub(crate) enum ConfluxAction {
+    /// Deliver the message to its corresponding stream
+    Deliver(UnparsedRelayMsg),
+    /// Enqueue the specified entry in the out-of-order queue.
+    Enqueue(OooRelayMsg),
 }
 
 /// An object that can process conflux relay messages
@@ -121,3 +201,41 @@ trait AbstractConfluxMsgHandler {
     /// Increment the sequence number of the last message sent on this leg.
     fn inc_last_seq_sent(&mut self);
 }
+
+/// An out-of-order message.
+#[derive(Debug)]
+pub(crate) struct OooRelayMsg {
+    /// The sequence number of the message.
+    seqno: u32,
+    /// The hop this message originated from.
+    hopnum: HopNum,
+    /// Whether the cell this message originated from counts towards
+    /// the stream-level SENDME window.
+    ///
+    /// See "SENDME window accounting" in prop340.
+    cell_counts_towards_windows: bool,
+    /// The stream ID of this message.
+    streamid: StreamId,
+    /// The actual message.
+    msg: UnparsedRelayMsg,
+}
+
+impl Ord for OooRelayMsg {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.seqno.cmp(&other.seqno).reverse()
+    }
+}
+
+impl PartialOrd for OooRelayMsg {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for OooRelayMsg {
+    fn eq(&self, other: &Self) -> bool {
+        self.seqno == other.seqno
+    }
+}
+
+impl Eq for OooRelayMsg {}

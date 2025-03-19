@@ -78,7 +78,10 @@ use {
 };
 
 #[cfg(feature = "conflux")]
-use crate::tunnel::reactor::RemoveLegReason;
+use {
+    super::conflux::{ConfluxAction, OooRelayMsg},
+    crate::tunnel::reactor::RemoveLegReason,
+};
 
 /// Initial value for outbound flow-control window on streams.
 pub(super) const SEND_WINDOW_INIT: u16 = 500;
@@ -218,6 +221,9 @@ pub(super) enum CircuitCmd {
     ConfluxHandshakeComplete(SendRelayCell),
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
+    /// Enqueue an out-of-order cell in the reactor.
+    #[cfg(feature = "conflux")]
+    Enqueue(OooRelayMsg),
 }
 
 /// Return a `CircProto` error for the specified unsupported cell.
@@ -597,6 +603,30 @@ impl Circuit {
         // not meant for a particular stream.
         let Some(streamid) = streamid else {
             return self.handle_meta_cell(handlers, hopnum, msg);
+        };
+
+        #[cfg(feature = "conflux")]
+        let msg = if let Some(conflux) = self.conflux_handler.as_mut() {
+            match conflux.action_for_msg(hopnum, cell_counts_toward_windows, streamid, msg)? {
+                ConfluxAction::Deliver(msg) => {
+                    // The message either doesn't count towards the sequence numbers
+                    // or is already well-ordered, so we're ready to handle it.
+
+                    // XXX we should also check if there are any other
+                    // messages we can dequeue (we need to change
+                    // the return type to RunOnceCmd, because we
+                    // might need to return multiple RunOnceCmds)
+                    msg
+                }
+                ConfluxAction::Enqueue(msg) => {
+                    // Tell the reactor to enqueue this msg
+                    return Ok(Some(CircuitCmd::Enqueue(msg)));
+                }
+            }
+        } else {
+            // If we don't have a conflux_handler, it means this circuit is not part of
+            // a conflux tunnel, so we can just process the message.
+            msg
         };
 
         self.handle_in_order_relay_msg(handlers, hopnum, cell_counts_toward_windows, streamid, msg)

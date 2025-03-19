@@ -33,7 +33,7 @@ use {
 };
 
 #[cfg(feature = "conflux")]
-pub(crate) use msghandler::ConfluxMsgHandler;
+pub(crate) use msghandler::{ConfluxAction, ConfluxMsgHandler, OooRelayMsg};
 
 /// A set of linked conflux circuits.
 pub(super) struct ConfluxSet {
