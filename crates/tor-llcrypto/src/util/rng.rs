@@ -38,3 +38,19 @@ impl<R: rand_core::RngCore> rand_core_06::RngCore for RngCompat<R> {
     }
 }
 impl<R: rand_core::CryptoRng> rand_core_06::CryptoRng for RngCompat<R> {}
+
+impl<R: rand_core_06::RngCore> rand_core::RngCore for RngCompat<R> {
+    fn next_u32(&mut self) -> u32 {
+        self.0.next_u32()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill_bytes(dest);
+    }
+}
+
+impl<R: rand_core_06::CryptoRng + rand_core_06::RngCore> rand_core::CryptoRng for RngCompat<R> {}

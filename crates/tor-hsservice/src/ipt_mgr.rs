@@ -391,7 +391,7 @@ impl Ipt {
         expect_existing_keys: Option<IptExpectExistingKeys>,
         _: PromiseLastDescriptorExpiryNoneIsGood,
     ) -> Result<Ipt, CreateIptError> {
-        let mut rng = mockable.thread_rng();
+        let mut rng = tor_llcrypto::rng::CautiousRng;
 
         /// Load (from disk) or generate an IPT key with role IptKeyRole::$role
         ///
@@ -457,7 +457,6 @@ impl Ipt {
 
         let k_hss_ntor = get_or_gen_key!(HsSvcNtorKeypair, KHssNtor)?;
         let k_sid = get_or_gen_key!(HsIntroPtSessionIdKeypair, KSid)?;
-        drop(rng);
 
         // we'll treat it as Establishing until we find otherwise
         let status_last = TS::Establishing {

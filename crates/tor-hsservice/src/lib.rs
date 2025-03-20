@@ -540,7 +540,7 @@ fn maybe_generate_hsid(
             cause,
         })?;
 
-    let mut rng = rand::rng();
+    let mut rng = tor_llcrypto::rng::CautiousRng;
     let (hsid, generated) = match kp {
         Some(kp) => (kp.id(), false),
         None => {

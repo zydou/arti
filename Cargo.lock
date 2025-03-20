@@ -363,6 +363,7 @@ dependencies = [
  "tor-config-path",
  "tor-error",
  "tor-keymgr",
+ "tor-llcrypto",
  "tor-memquota",
  "tor-netdir",
  "tor-netdoc",
