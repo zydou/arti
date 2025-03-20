@@ -8,12 +8,20 @@ set -euo pipefail
 # topological order.  But cargo sort doesn't support that.
 #  https://github.com/DevinR528/cargo-sort/issues/38
 
+#  for Arti we have 2 Cargo.toml files that should not follow lexical ordering and need topological ordering
+#  ../Cargo.toml - toplevel topological sort improves compilation times
+#  ../crates/arti/Cargo.toml - the main project crate, also needs topological sort
+#  this means this script will encounter errors twice
+#  toplevel - will return error about unsorted dependencies in cwd (hence cwd() trickery because forks and branches will have non-arti names in CI)
+#  the arti crate - this will result the unsorted deps in arti errors
+#  those two errors are counted towards omission in this script
+
 # So instead, we sed its output.  Urgh.
 
 (TERM=dumb cargo sort --check --workspace || test $? = 1) 2>&1 | perl -ne '
 
-use Cwd;              # Load the Cwd module to get the current working directory
-use File::Basename;   # Load the File::Basename module to extract the top folder name
+    use Cwd;              # Load the Cwd module to get the current working directory
+    use File::Basename;   # Load the File::Basename module to extract the top folder name
 
     # Get the current working directory
     my $current_dir = cwd();
