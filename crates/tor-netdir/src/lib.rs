@@ -1611,6 +1611,14 @@ impl NetDir {
         let mut relays = match relays[..].choose_multiple_weighted(rng, n, |r| {
             self.weights.weight_rs_for_role(r.rs, role) as f64
         }) {
+            Err(rand::seq::WeightError::InsufficientNonZero) => {
+                // Too few relays had nonzero weights: return all of those that are okay.
+                relays
+                    .iter()
+                    .filter(|r| self.weights.weight_rs_for_role(r.rs, role) > 0)
+                    .cloned()
+                    .collect()
+            }
             Err(_) => Vec::new(),
             Ok(iter) => iter.map(Relay::clone).collect(),
         };
