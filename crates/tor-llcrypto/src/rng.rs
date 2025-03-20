@@ -22,7 +22,50 @@ use rand_core::TryRngCore;
 use sha3::Shake256;
 use zeroize::Zeroizing;
 
-/// An exceptionally cautious wrapper for [`rand::OsRng`]
+/// Trait representing an Rng where every output is derived from
+/// supposedly strong entropy.
+///
+/// Implemented by [`CautiousRng`].
+///
+/// # Warning
+///
+/// Do not implement this trait for new Rngs unless you know what you are doing;
+/// any Rng to which you apply this trait should be _at least_ as
+/// unpredictable and secure as `OsRng`.
+///
+/// We recommend using [`CautiousRng`] when you need an instance of this trait.
+pub trait EntropicRng: rand_core::CryptoRng {}
+
+impl EntropicRng for CautiousRng {}
+
+/// Functionality for testing Rng code that requires an EntropicRng.
+#[cfg(feature = "testing")]
+mod testing {
+    /// Testing only: Pretend that an inner RNG truly implements `EntropicRng`.
+    #[allow(clippy::exhaustive_structs)]
+    pub struct FakeEntropicRng<R>(pub R);
+
+    impl<R: rand_core::RngCore> rand_core::RngCore for FakeEntropicRng<R> {
+        fn next_u32(&mut self) -> u32 {
+            self.0.next_u32()
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            self.0.next_u64()
+        }
+
+        fn fill_bytes(&mut self, dst: &mut [u8]) {
+            self.0.fill_bytes(dst);
+        }
+    }
+    impl<R: rand_core::CryptoRng> rand_core::CryptoRng for FakeEntropicRng<R> {}
+    impl<R: rand_core::CryptoRng> super::EntropicRng for FakeEntropicRng<R> {}
+}
+#[cfg(feature = "testing")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rpc")))]
+pub use testing::FakeEntropicRng;
+
+/// An exceptionally cautious wrapper for [`rand_core::OsRng`]
 ///
 /// Ordinarily, one trusts `OsRng`.
 /// But we want Arti to run on a wide variety of platforms,

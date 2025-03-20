@@ -34,6 +34,8 @@ use derive_deftly::define_derive_deftly;
 /// You can then use these objects like so:
 ///
 /// ```rust
+/// # use tor_llcrypto::rng::FakeEntropicRng;
+/// # let mut rng = FakeEntropicRng(rand::rng());
 /// use rand::Rng;
 /// use tor_key_forge::Keygen;
 /// use tor_key_forge::define_ed25519_keypair;
@@ -45,7 +47,6 @@ use derive_deftly::define_derive_deftly;
 ///     MySigning
 /// );
 ///
-/// let mut rng = rand::rng();
 /// let signing_kp = MySigningKeypair::generate(&mut rng).expect("Invalid keygen");
 /// let signing_pubkey = signing_kp.public();
 /// // Lets sign this wonderful message.
@@ -211,7 +212,9 @@ define_derive_deftly! {
 /// You can then use these objects like so:
 ///
 /// ```rust
-/// use rand::Rng;
+/// # use tor_llcrypto::rng::FakeEntropicRng;
+/// # let mut rng = FakeEntropicRng(rand::rng());
+/// # use rand::Rng;
 /// use tor_key_forge::define_curve25519_keypair;
 /// use tor_key_forge::Keygen;
 ///
@@ -221,7 +224,6 @@ define_derive_deftly! {
 /// );
 /// define_curve25519_keypair!(BobEnc);
 ///
-/// let mut rng = rand::rng();
 /// let alice_kp = AliceEncKeypair::generate(&mut rng).expect("Failed alice keygen");
 /// let bob_kp = BobEncKeypair::generate(&mut rng).expect("Failed bob keygen");
 ///
@@ -353,13 +355,13 @@ pub mod deps {
 mod test {
     use crate::Keygen;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
+    use tor_llcrypto::{pk::ed25519::Ed25519SigningKey, rng::FakeEntropicRng};
 
     #[test]
     fn deftly_ed25519_keypair() {
         define_ed25519_keypair!(SomeEd25519);
 
-        let mut rng = testing_rng();
+        let mut rng = FakeEntropicRng(testing_rng());
         let kp = SomeEd25519Keypair::generate(&mut rng).expect("Failed to gen key");
 
         // Make sure the generated public key from our wrapper is the same as the

@@ -42,3 +42,4 @@ tor-llcrypto = { version = "0.28.0", path = "../tor-llcrypto" }
 [dev-dependencies]
 signature = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.28.0" }
+tor-llcrypto = { version = "0.28.0", path = "../tor-llcrypto", features = ["testing"] }
