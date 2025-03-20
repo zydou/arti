@@ -283,7 +283,6 @@ mod internal {
 /// Utilities for testing `ssh-keygen` interop.
 pub(crate) mod sshkeygen {
     use std::fs;
-    use std::path::PathBuf;
     use std::process::{Command, Stdio};
     use tempfile::tempdir;
 

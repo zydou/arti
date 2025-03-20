@@ -130,7 +130,6 @@ mod tests {
     use crate::test_utils::ssh_keys::*;
     use crate::test_utils::sshkeygen;
 
-    use tempfile::tempdir;
     use tor_llcrypto::pk::{curve25519, ed25519};
 
     use super::*;
