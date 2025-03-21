@@ -18,6 +18,11 @@ use std::fmt::Debug;
 
 use crate::{ArtiPath, KeyPath, KeySpecifier};
 
+use std::io::Error;
+use std::io::ErrorKind::{Interrupted, NotFound};
+use std::process::{Command, Stdio};
+use tempfile::tempdir;
+
 /// Check that `spec` produces the [`ArtiPath`] from `path`, and that `path` parses to `spec`
 ///
 /// # Panics
@@ -32,6 +37,51 @@ where
     let apath = ArtiPath::new(path.to_string()).unwrap();
     assert_eq!(spec.arti_path().unwrap(), apath);
     assert_eq!(&S::try_from(&KeyPath::Arti(apath)).unwrap(), spec, "{path}");
+}
+
+/// Generates a pair of encoded OpenSSH-formatted Ed25519 keys using `ssh-keygen`.
+/// Field `.0` is the Private Key, and field `.1` is the Public Key.
+///
+/// # Errors
+///
+/// Will return an error if
+///
+/// * A temporary directory could be not created to generate keys in
+/// * `ssh-keygen` was not found, it exited with a non-zero status
+/// code, or it was terminated by a signal
+/// * The generated keys could not be read from the temporary directory
+pub(crate) fn sshkeygen_ed25519_strings() -> std::io::Result<(String, String)> {
+    let tempdir = tempdir()?;
+    const FILENAME: &str = "tmp_id_ed25519";
+    let status = Command::new("ssh-keygen")
+        .current_dir(tempdir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .args(["-q", "-P", "", "-t", "ed25519", "-f", FILENAME, "-C", ""])
+        .status()
+        .map_err(|e| match e.kind() {
+            NotFound => Error::new(NotFound, "could not find ssh-keygen"),
+            _ => e,
+        })?;
+
+    match status.code() {
+        Some(0) => {
+            let key = tempdir.path().join(FILENAME);
+            let key_pub = key.with_extension("pub");
+
+            let key = std::fs::read_to_string(key)?;
+            let key_pub = std::fs::read_to_string(key_pub)?;
+
+            Ok((key, key_pub))
+        }
+        Some(code) => Err(Error::other(format!(
+            "ssh-keygen exited with status code: {code}"
+        ))),
+        None => Err(Error::new(
+            Interrupted,
+            "ssh-keygen was terminated by a signal",
+        )),
+    }
 }
 
 /// OpenSSH keys used for testing.
@@ -277,56 +327,4 @@ mod internal {
     }
 
     pub(crate) use assert_found;
-}
-
-#[cfg(test)]
-/// Utilities for testing `ssh-keygen` interop.
-pub(crate) mod sshkeygen {
-    use std::fs;
-    use std::process::{Command, Stdio};
-    use tempfile::tempdir;
-
-    /// Check if the executable `ssh-keygen` is available or not.
-    //
-    // TODO: Solely for conditionally skipping ssh-keygen interop tests. Consider
-    // replacing with [`test-with`](https://crates.io/crates/test-with) if this
-    // pattern of conditionally skipping tests proliferates throughout the codebase.
-    pub(crate) fn exists() -> bool {
-        Command::new("ssh")
-            .arg("-V")
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
-    }
-
-    /// Generates a pair of encoded OpenSSH-formatted private and public keys
-    /// using `ssh-keygen`.
-    ///
-    /// Returns (private_key, public_key) as a pair of Strings.
-    //
-    // TODO: Should we just call ed25519_encoded instead of exists? Maybe
-    // ed25519_encoded should return the success status along with the keys? If
-    // things go totally okay, (success() is true), run tests, otherwise skip?
-    pub(crate) fn ed25519_encoded() -> std::io::Result<(String, String)> {
-        let tempdir = tempdir().unwrap();
-        let filename = "tmp_id_ed25519";
-        let status = Command::new("ssh-keygen")
-            .current_dir(tempdir.path())
-            .arg("-q")
-            .args(["-P", ""])
-            .args(["-t", "ed25519"])
-            .args(["-f", filename])
-            .args(["-C", "armadillo@example.com"])
-            .status()?;
-
-        assert!(status.success());
-
-        let priv_path = tempdir.path().join(filename);
-        let pub_path = priv_path.with_extension("pub");
-
-        let private = fs::read_to_string(priv_path)?;
-        let public = fs::read_to_string(pub_path)?;
-
-        Ok((private, public))
-    }
 }
