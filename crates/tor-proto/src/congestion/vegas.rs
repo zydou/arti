@@ -5,8 +5,9 @@
 //! Spec: prop324 section 3.3 (TOR_VEGAS)
 
 use super::{
-    params::VegasParams, rtt::RoundtripTimeEstimator, CongestionControlAlgorithm,
-    CongestionSignals, CongestionWindow, State,
+    params::{Algorithm, VegasParams},
+    rtt::RoundtripTimeEstimator,
+    CongestionControlAlgorithm, CongestionSignals, CongestionWindow, State,
 };
 use crate::Result;
 
@@ -312,6 +313,10 @@ impl CongestionControlAlgorithm for Vegas {
     #[cfg(test)]
     fn send_window(&self) -> u32 {
         self.cwnd.get()
+    }
+
+    fn algorithm(&self) -> Algorithm {
+        Algorithm::Vegas(self.params)
     }
 }
 
