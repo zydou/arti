@@ -29,7 +29,7 @@ impl_standard_builder! { FixedWindowParams: !Deserialize + !Default }
 /// Vegas queuing parameters taken from the consensus only which are different depending if the
 /// circuit is an onion service one, an exit or used for SBWS.
 #[non_exhaustive]
-#[derive(Clone, Debug, amplify::Getters)]
+#[derive(Copy, Clone, Debug, amplify::Getters)]
 pub struct VegasQueueParams {
     /// Alpha parameter is used to know when to increase the window.
     #[getter(as_copy)]
@@ -67,7 +67,7 @@ impl From<(u32, u32, u32, u32, u32)> for VegasQueueParams {
 
 /// Vegas algorithm parameters taken from the consensus.
 #[non_exhaustive]
-#[derive(Builder, Clone, Debug, amplify::Getters)]
+#[derive(Builder, Copy, Clone, Debug, amplify::Getters)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct VegasParams {
     /// The amount of queued cells that Vegas can tolerate before reacting.
