@@ -100,9 +100,9 @@ pub(crate) struct Vegas {
 
 impl Vegas {
     /// Create a new [`Vegas`] from the specified parameters, state, and cwnd.
-    pub(crate) fn new(params: &VegasParams, state: &State, cwnd: CongestionWindow) -> Self {
+    pub(crate) fn new(params: VegasParams, state: &State, cwnd: CongestionWindow) -> Self {
         Self {
-            params: params.clone(),
+            params,
             bdp: BdpEstimator::default(),
             num_cell_until_sendme: cwnd.sendme_inc(),
             num_inflight: 0,
@@ -411,7 +411,7 @@ pub(crate) mod test {
             Self {
                 params,
                 rtt: new_rtt_estimator(),
-                vegas: Vegas::new(&build_vegas_params(), &state, new_cwnd()),
+                vegas: Vegas::new(build_vegas_params(), &state, new_cwnd()),
                 state,
             }
         }

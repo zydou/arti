@@ -278,7 +278,7 @@ impl CongestionControl {
             Algorithm::FixedWindow(p) => Box::new(fixed::FixedWindow::new(p.circ_window_start())),
             Algorithm::Vegas(ref p) => {
                 let cwnd = CongestionWindow::new(params.cwnd_params());
-                Box::new(vegas::Vegas::new(p, &state, cwnd))
+                Box::new(vegas::Vegas::new(*p, &state, cwnd))
             }
         };
         Self {

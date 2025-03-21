@@ -210,7 +210,7 @@ impl CongestionControlParams {
 
     /// Make these parameters to use the fallback algorithm. This can't be reversed.
     pub(crate) fn use_fallback_alg(&mut self) {
-        self.alg = Algorithm::FixedWindow(self.fixed_window_params.clone());
+        self.alg = Algorithm::FixedWindow(self.fixed_window_params);
     }
 }
 
