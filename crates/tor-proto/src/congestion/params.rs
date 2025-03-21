@@ -11,7 +11,7 @@ use tor_units::Percentage;
 
 /// Fixed window parameters that are for the SENDME v0 world of fixed congestion window.
 #[non_exhaustive]
-#[derive(Builder, Clone, Debug, amplify::Getters)]
+#[derive(Builder, Copy, Clone, Debug, amplify::Getters)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct FixedWindowParams {
     /// Circuit window starting point. From the "circwindow" param.
