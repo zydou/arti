@@ -128,8 +128,9 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::test_utils::ssh_keys::*;
-    use crate::test_utils::sshkeygen;
+    use crate::test_utils::sshkeygen_ed25519_strings;
 
+    use tor_key_forge::{EncodableItem, KeystoreItem};
     use tor_llcrypto::pk::{curve25519, ed25519};
 
     use super::*;
@@ -163,6 +164,47 @@ mod tests {
                 .unwrap_err();
 
             assert_eq!(err.to_string(), $expect_err);
+        }};
+    }
+
+    macro_rules! test_parse_ssh_format_erased_sshkeygen {
+        ($key_ty:tt, $key:expr, err = $expect_err:expr) => {{
+            test_parse_ssh_format_erased!($key_ty, $key, err = $expect_err)
+        }};
+        ($key_ty:tt, $enc1:expr, $expected_ty:path) => {{
+            let enc1 = String::from($enc1);
+            let enc1 = enc1.trim();
+            let key_type = KeyType::$key_ty;
+
+            let key = UnparsedOpenSshKey::new(enc1.clone().into(), PathBuf::from("/test/path"));
+            let erased_key = key.parse_ssh_format_erased(&key_type).unwrap();
+            let Ok(dec1) = erased_key.downcast::<$expected_ty>() else {
+                panic!("failed to downcast");
+            };
+
+            let keystore_item = EncodableItem::as_keystore_item(&*dec1).unwrap();
+            let enc2 = match keystore_item {
+                KeystoreItem::Key(key) => key.to_openssh_string("").unwrap(),
+                _ => panic!("unexpected keystore item type {keystore_item:?}"),
+            };
+            let enc2 = enc2.trim();
+
+            // TODO: For two Ed25519 private keys, `enc1` and `enc2` turn out to be
+            // __different__. What's also weird is, for these two __different__ encoded
+            // private keys, the decoded `ed25519::Keypair`s `dec1` obtained from `enc1`
+            // and `dec2` obtained from `enc2` turn out to be equal. Write better tests
+            // or leave an explanation if you get what's going on.
+            if key_type == KeyType::Ed25519PublicKey {
+                assert_eq!(enc1, enc2);
+            }
+
+            let key = UnparsedOpenSshKey::new(enc2.into(), PathBuf::from("/test/path"));
+            let erased_key = key.parse_ssh_format_erased(&key_type).unwrap();
+            let Ok(dec2) = erased_key.downcast::<$expected_ty>() else {
+                panic!("failed to downcast");
+            };
+
+            assert_eq!(dec1.as_bytes(), dec2.as_bytes());
         }};
     }
 
@@ -215,25 +257,23 @@ mod tests {
             err = "Failed to parse OpenSSH with type Ed25519PublicKey"
         );
 
-        if sshkeygen::exists() {
-            let (mut bad_priv, mut bad_pub) = sshkeygen::ed25519_encoded().unwrap();
-
-            mangle_ed25519(&mut bad_priv);
+        if let Ok((mut bad, mut bad_pub)) = sshkeygen_ed25519_strings() {
+            mangle_ed25519(&mut bad);
             mangle_ed25519(&mut bad_pub);
 
-            test_parse_ssh_format_erased!(
+            test_parse_ssh_format_erased_sshkeygen!(
                 Ed25519Keypair,
-                &bad_priv,
+                &bad,
                 err = "Failed to parse OpenSSH with type Ed25519Keypair"
             );
 
-            test_parse_ssh_format_erased!(
+            test_parse_ssh_format_erased_sshkeygen!(
                 Ed25519Keypair,
                 &bad_pub,
                 err = "Failed to parse OpenSSH with type Ed25519Keypair"
             );
 
-            test_parse_ssh_format_erased!(
+            test_parse_ssh_format_erased_sshkeygen!(
                 Ed25519PublicKey,
                 &bad_pub,
                 err = "Failed to parse OpenSSH with type Ed25519PublicKey"
@@ -246,27 +286,9 @@ mod tests {
         test_parse_ssh_format_erased!(Ed25519Keypair, ED25519_OPENSSH, ed25519::Keypair);
         test_parse_ssh_format_erased!(Ed25519PublicKey, ED25519_OPENSSH_PUB, ed25519::PublicKey);
 
-        if sshkeygen::exists() {
-            let (priv_en_1, pub_en_1) = sshkeygen::ed25519_encoded().unwrap();
-
-            // encoded1 to decoded1
-            let priv_de_1 = ssh_key::PrivateKey::from_openssh(priv_en_1).unwrap();
-            // decoded1 to encoded2
-            let priv_en_2 = priv_de_1
-                .to_openssh(ssh_key::LineEnding::LF)
-                .unwrap()
-                .to_string();
-            // encoded2 to decoded2
-            let priv_de_2 = ssh_key::PrivateKey::from_openssh(priv_en_2).unwrap();
-            assert_eq!(priv_de_1, priv_de_2);
-
-            // encoded1 to decoded1
-            let pub_de_1 = ssh_key::PublicKey::from_openssh(&pub_en_1).unwrap();
-            // decoded1 to encoded2
-            let pub_en_2 = pub_de_1.to_openssh().unwrap();
-            // encoded2 to decoded2
-            let pub_de_2 = ssh_key::PublicKey::from_openssh(&pub_en_2).unwrap();
-            assert_eq!(pub_de_1, pub_de_2);
+        if let Ok((enc1, enc1_pub)) = sshkeygen_ed25519_strings() {
+            test_parse_ssh_format_erased_sshkeygen!(Ed25519Keypair, enc1, ed25519::Keypair);
+            test_parse_ssh_format_erased_sshkeygen!(Ed25519PublicKey, enc1_pub, ed25519::PublicKey);
         }
     }
 
