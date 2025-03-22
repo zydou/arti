@@ -18,10 +18,13 @@ use std::fmt::Debug;
 
 use crate::{ArtiPath, KeyPath, KeySpecifier};
 
-use std::io::Error;
-use std::io::ErrorKind::{Interrupted, NotFound};
-use std::process::{Command, Stdio};
-use tempfile::tempdir;
+#[cfg(test)]
+use {
+    std::io::Error,
+    std::io::ErrorKind::{Interrupted, NotFound},
+    std::process::{Command, Stdio},
+    tempfile::tempdir,
+};
 
 /// Check that `spec` produces the [`ArtiPath`] from `path`, and that `path` parses to `spec`
 ///
@@ -50,6 +53,7 @@ where
 /// * `ssh-keygen` was not found, it exited with a non-zero status
 /// code, or it was terminated by a signal
 /// * The generated keys could not be read from the temporary directory
+#[cfg(test)]
 pub(crate) fn sshkeygen_ed25519_strings() -> std::io::Result<(String, String)> {
     let tempdir = tempdir()?;
     const FILENAME: &str = "tmp_id_ed25519";
