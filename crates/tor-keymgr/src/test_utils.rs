@@ -188,7 +188,7 @@ mod specifier {
     /// A [`KeySpecifier`] with a fixed [`ArtiPath`] prefix and custom suffix.
     ///
     /// The inner String is the suffix of its `ArtiPath`.
-    #[derive(Default)]
+    #[derive(Default, PartialEq, Eq)]
     pub(crate) struct TestSpecifier(String);
 
     impl TestSpecifier {

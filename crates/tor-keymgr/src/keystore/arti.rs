@@ -615,8 +615,7 @@ mod tests {
             // the first key is inserted
             assert_eq!(
                 !path.parent().unwrap().try_exists().unwrap(),
-                key_spec.arti_path().unwrap()
-                    == keys_and_specs.first().unwrap().1.arti_path().unwrap()
+                *key_spec == keys_and_specs.first().unwrap().1
             );
 
             assert!(key_store.insert(&*key, key_spec, ed_key_type).is_ok());
