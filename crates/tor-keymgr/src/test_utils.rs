@@ -51,7 +51,7 @@ where
 ///
 /// * A temporary directory could be not created to generate keys in
 /// * `ssh-keygen` was not found, it exited with a non-zero status
-/// code, or it was terminated by a signal
+///   code, or it was terminated by a signal
 /// * The generated keys could not be read from the temporary directory
 #[cfg(test)]
 pub(crate) fn sshkeygen_ed25519_strings() -> std::io::Result<(String, String)> {
@@ -202,6 +202,7 @@ mod specifier {
         }
 
         /// Return the prefix of the [`ArtiPath`] of this specifier.
+        #[allow(dead_code)]
         pub(crate) fn path_prefix() -> &'static str {
             TEST_SPECIFIER_PATH
         }

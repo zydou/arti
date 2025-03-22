@@ -371,7 +371,7 @@ mod tests {
     use crate::test_utils::ssh_keys::*;
     use crate::test_utils::sshkeygen_ed25519_strings;
     use crate::test_utils::{assert_found, TestSpecifier};
-    use crate::{ArtiPath, KeyPath};
+    use crate::KeyPath;
     use std::cmp::Ordering;
     use std::fs;
     use std::path::PathBuf;
