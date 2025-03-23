@@ -159,7 +159,7 @@ impl ConfluxSet {
                         ret = ready_streams.next().fuse() => {
                             match ret {
                                 Some(cmd) => {
-                                    cmd.map(|cmd| Some(CircuitAction::Single { leg: leg_id, cmd }))
+                                    cmd.map(|cmd| Some(CircuitAction::RunCmd { leg: leg_id, cmd }))
                                 },
                                 None => {
                                     // There are no ready streams (for example, they may all be

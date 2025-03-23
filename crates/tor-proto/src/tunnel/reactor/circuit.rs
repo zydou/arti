@@ -24,7 +24,7 @@ use crate::tunnel::circuit::{
     CircParameters, CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
-use crate::tunnel::reactor::{LegIdKey, MetaCellDisposition};
+use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
@@ -1146,9 +1146,7 @@ impl Circuit {
     /// stream at a time!
     ///
     /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(
-        &self,
-    ) -> impl Stream<Item = Result<CircuitCmd>> {
+    pub(super) fn ready_streams_iterator(&self) -> impl Stream<Item = Result<CircuitCmd>> {
         self.hops
             .iter()
             .enumerate()

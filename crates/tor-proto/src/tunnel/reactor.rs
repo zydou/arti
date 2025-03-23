@@ -250,8 +250,8 @@ pub(crate) struct SendRelayCell {
 /// A command to execute at the end of [`Reactor::run_once`].
 #[derive(From, Debug)]
 enum CircuitAction {
-    /// Run a single `RunOnceCmdInner` command.
-    Single {
+    /// Run a single `CircuitCmd` command.
+    RunCmd {
         /// The unique identifier of the circuit leg to run the command on
         leg: LegIdKey,
         /// The command to run.
@@ -585,7 +585,7 @@ impl Reactor {
 
         let cmd = match action {
             None => None,
-            Some(CircuitAction::Single { leg, cmd }) => Some(RunOnceCmd::Single(
+            Some(CircuitAction::RunCmd { leg, cmd }) => Some(RunOnceCmd::Single(
                 RunOnceCmdInner::from_circuit_cmd(leg, cmd),
             )),
             Some(CircuitAction::HandleControl(ctrl)) => ControlHandler::new(self)
