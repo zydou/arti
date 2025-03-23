@@ -233,9 +233,9 @@ impl RunOnceCmdInner {
     }
 }
 
-// Cmd for sending a relay cell.
-//
-// The contents of this struct are passed to `send_relay_cell`
+/// Cmd for sending a relay cell.
+///
+/// The contents of this struct are passed to `send_relay_cell`
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub(crate) struct SendRelayCell {
