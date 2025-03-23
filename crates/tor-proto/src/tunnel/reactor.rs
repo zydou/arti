@@ -226,7 +226,12 @@ enum CircuitAction {
     /// Handle a control message
     HandleControl(CtrlMsg),
     /// Handle an input message.
-    HandleCell(ClientCircChanMsg),
+    HandleCell {
+        /// The unique identifier of the circuit leg the message was received on.
+        leg: LegIdKey,
+        /// The message to handle.
+        cell: ClientCircChanMsg,
+    },
     /// Remove the specified circuit leg.
     RemoveLeg(LegIdKey),
 }
@@ -550,12 +555,12 @@ impl Reactor {
             Some(CircuitAction::HandleControl(ctrl)) => ControlHandler::new(self)
                 .handle_msg(ctrl)?
                 .map(RunOnceCmd::Single),
-            Some(CircuitAction::HandleCell(cell)) => {
-                // TODO(conflux): put the LegId of the circuit the cell was received on
-                // inside HandleCell
-                //let circ = self.circuits.leg(leg_id)?;
+            Some(CircuitAction::HandleCell { leg, cell }) => {
+                let circ = self
+                    .circuits
+                    .leg_mut(LegId(leg))
+                    .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
 
-                let circ = self.circuits.primary_leg_mut()?;
                 circ.handle_cell(&mut self.cell_handlers, cell)?
             }
             Some(CircuitAction::RemoveLeg(leg_id)) => {

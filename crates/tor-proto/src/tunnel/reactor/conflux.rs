@@ -154,7 +154,7 @@ impl ConfluxSet {
                                 return Ok(Some(CircuitAction::RemoveLeg(leg_id)));
                             };
 
-                            Ok(Some(CircuitAction::HandleCell(cell)))
+                            Ok(Some(CircuitAction::HandleCell { leg: leg_id, cell }))
                         },
                         ret = ready_streams.next().fuse() => {
                             match ret {
