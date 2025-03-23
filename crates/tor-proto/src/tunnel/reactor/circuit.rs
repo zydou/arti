@@ -1141,11 +1141,6 @@ impl Circuit {
     /// representing the instructions for handling the ready-item, if any,
     /// of its highest priority stream.
     ///
-    /// The [`LegIdKey`] for this circuit is required so that we can communicate which leg to
-    /// operate on when we build a `CircuitCmd` to return from the stream.
-    /// For example, `CircuitCmd::CloseStream` requires a `hop: HopLocation` field so that the
-    /// reactor knows on which hop on which leg to close the stream.
-    ///
     /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
     /// To avoid contention, never create more than one [`Circuit::ready_streams_iterator`]
     /// stream at a time!
@@ -1153,7 +1148,6 @@ impl Circuit {
     /// This is cancellation-safe.
     pub(super) fn ready_streams_iterator(
         &self,
-        leg_id: LegIdKey,
     ) -> impl Stream<Item = Result<CircuitCmd>> {
         self.hops
             .iter()

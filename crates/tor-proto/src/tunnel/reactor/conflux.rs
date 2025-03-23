@@ -138,7 +138,7 @@ impl ConfluxSet {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
-                let mut ready_streams = leg.ready_streams_iterator(leg_id);
+                let mut ready_streams = leg.ready_streams_iterator();
                 let input = &mut leg.input;
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
