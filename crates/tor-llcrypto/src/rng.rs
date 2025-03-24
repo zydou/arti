@@ -114,8 +114,17 @@ impl rand_core::RngCore for CautiousRng {
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         if let Ok(mut rdrand) = rdrand::RdRand::new() {
-            // We'll tolerate a failure from rdrand here.
+            // We'll tolerate a failure from rdrand here,
+            // since it can indicate a few different error conditions,
+            // including a lack of hardware support, or exhausted CPU entropy
+            // (whatever that is supposed to mean).
+            // We only want to panic on a failure from OsRng.
             let _ignore_failure = rdrand.try_fill_bytes(buf.as_mut());
+
+            // We add the output from rdrand unconditionally, since a partial return is possible,
+            // and since there's no real harm in doing so.
+            // (Performance is likely swamped by syscall overhead, and call to our BackupRng.)
+            // In the worst case, we just add some NULs in this case, which is fine.
             xof.update(buf.as_ref());
         }
         // TODO: Consider using rndr on aarch64.
@@ -172,6 +181,8 @@ mod backup {
     fn new_backup_rng() -> Option<Mutex<BackupRng>> {
         let jitter = rand_jitter::JitterRng::new().ok()?;
         let jitter: Box<dyn RngCore + Send> = Box::new(jitter);
+        // The "1024" here is chosen more or less arbitrarily;
+        // we might want to tune it if we find that it matters.
         let reseeding = ReseedingRng::new(1024, jitter).ok()?;
         Some(Mutex::new(reseeding))
     }
