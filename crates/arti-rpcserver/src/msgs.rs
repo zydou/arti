@@ -316,17 +316,36 @@ mod test {
         // exact order.
         assert_eq!(s, r#"{"id":7,"result":{"hello":99,"world":"foo"}}"#);
 
-        let resp = BoxedResponse {
-            id: None,
-            body: ResponseBody::Error(Box::new(rpc::RpcError::from(
-                crate::err::RequestParseError::IdMissing,
-            ))),
-        };
+        let resp = BoxedResponse::from_error(
+            None,
+            rpc::RpcError::from(crate::err::RequestParseError::IdMissing),
+        );
         let s = serde_json::to_string(&resp).unwrap();
         // NOTE: as above.
         assert_eq!(
             s,
             r#"{"error":{"message":"Request did not have any `id` field.","code":-32600,"kinds":["rpc:InvalidRequest"]}}"#
         );
+    }
+
+    #[test]
+    fn response_body_is_final() {
+        let response_body_error = ResponseBody::from(rpc::RpcError::new(
+            "This is a test!".to_string(),
+            rpc::RpcErrorKind::ObjectNotFound,
+        ));
+        assert!(response_body_error.is_final());
+
+        let response_body_success = ResponseBody::Success(Box::new(DummyResponse {
+            hello: 99,
+            world: "foo".into(),
+        }));
+        assert!(response_body_success.is_final());
+
+        let response_body_update = ResponseBody::Update(Box::new(DummyResponse {
+            hello: 99,
+            world: "foo".into(),
+        }));
+        assert!(!response_body_update.is_final());
     }
 }
