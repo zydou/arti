@@ -1579,7 +1579,16 @@ impl NetDir {
         // set up `self.weights`.
         match relays[..].choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role)) {
             Ok(relay) => Some(relay.clone()),
-            Err(WeightError::InsufficientNonZero) => None,
+            Err(WeightError::InsufficientNonZero) => {
+                if relays.is_empty() {
+                    None
+                } else {
+                    warn!(?self.weights, ?role,
+                          "After filtering, all {} relays had zero weight. Choosing one at random. See bug #1907.",
+                          relays.len());
+                    relays.choose(rng).cloned()
+                }
+            }
             Err(e) => {
                 warn_report!(e, "Unexpected error while sampling a relay");
                 None
@@ -1618,11 +1627,26 @@ impl NetDir {
         }) {
             Err(WeightError::InsufficientNonZero) => {
                 // Too few relays had nonzero weights: return all of those that are okay.
-                relays
+                let remaining: Vec<_> = relays
                     .iter()
                     .filter(|r| self.weights.weight_rs_for_role(r.rs, role) > 0)
                     .cloned()
-                    .collect()
+                    .collect();
+                if remaining.is_empty() {
+                    warn!(?self.weights, ?role,
+                          "After filtering, all {} relays had zero weight! Picking some at random. See bug #1907.",
+                          relays.len());
+                    if relays.len() >= n {
+                        relays.choose_multiple(rng, n).cloned().collect()
+                    } else {
+                        relays
+                    }
+                } else {
+                    warn!(?self.weights, ?role,
+                          "After filtering, only had {}/{} relays with nonzero weight. Returning them all. See bug #1907.",
+                           remaining.len(), relays.len());
+                    remaining
+                }
             }
             Err(e) => {
                 warn_report!(e, "Unexpected error while sampling a set of relays");
