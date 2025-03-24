@@ -251,7 +251,12 @@ pub(crate) struct SendRelayCell {
 #[derive(From, Debug)]
 enum CircuitAction {
     /// Run a single `RunOnceCmdInner` command.
-    Single(RunOnceCmdInner),
+    Single {
+        /// The unique identifier of the circuit leg to run the command on
+        leg: LegIdKey,
+        /// The command to run.
+        cmd: CircuitCmd,
+    },
     /// Handle a control message
     HandleControl(CtrlMsg),
     /// Handle an input message.
@@ -580,7 +585,9 @@ impl Reactor {
 
         let cmd = match action {
             None => None,
-            Some(CircuitAction::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
+            Some(CircuitAction::Single { leg, cmd }) => Some(RunOnceCmd::Single(
+                RunOnceCmdInner::from_circuit_cmd(leg, cmd),
+            )),
             Some(CircuitAction::HandleControl(ctrl)) => ControlHandler::new(self)
                 .handle_msg(ctrl)?
                 .map(RunOnceCmd::Single),
@@ -590,7 +597,21 @@ impl Reactor {
                     .leg_mut(LegId(leg))
                     .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
 
-                circ.handle_cell(&mut self.cell_handlers, cell)?
+                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, cell)?;
+                if circ_cmds.is_empty() {
+                    None
+                } else {
+                    // Note: we return RunOnceCmd::Multiple even if there's a single command,
+                    // but that's ok. We probably could abolish the RunOnceCmd::Single entirely.
+                    let cmd = RunOnceCmd::Multiple(
+                        circ_cmds
+                            .into_iter()
+                            .map(|cmd| RunOnceCmdInner::from_circuit_cmd(leg, cmd))
+                            .collect(),
+                    );
+
+                    Some(cmd)
+                }
             }
             Some(CircuitAction::RemoveLeg(leg_id)) => {
                 self.circuits.remove(leg_id)?;

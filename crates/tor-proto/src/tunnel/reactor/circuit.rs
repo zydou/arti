@@ -24,11 +24,10 @@ use crate::tunnel::circuit::{
     CircParameters, CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
-use crate::tunnel::reactor::{LegId, LegIdKey, MetaCellDisposition};
+use crate::tunnel::reactor::{LegIdKey, MetaCellDisposition};
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
-use crate::tunnel::HopLocation;
 use crate::util::err::ReactorError;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
@@ -55,8 +54,7 @@ use safelog::sensitive as sv;
 use tracing::{debug, trace, warn};
 
 use super::{
-    CellHandlers, CircuitHandshake, CloseStreamBehavior, ReactorResultChannel, RunOnceCmd,
-    RunOnceCmdInner, SendRelayCell,
+    CellHandlers, CircuitHandshake, CloseStreamBehavior, ReactorResultChannel, SendRelayCell,
 };
 
 use std::borrow::Borrow;
@@ -335,7 +333,7 @@ impl Circuit {
         &mut self,
         handlers: &mut CellHandlers,
         cell: ClientCircChanMsg,
-    ) -> Result<Option<RunOnceCmd>> {
+    ) -> Result<Vec<CircuitCmd>> {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
         match cell {
@@ -349,8 +347,7 @@ impl Circuit {
                     reason
                 );
 
-                self.handle_destroy_cell()
-                    .map(|c| Some(RunOnceCmd::Single(c)))
+                self.handle_destroy_cell().map(|c| vec![c])
             }
         }
     }
@@ -397,7 +394,7 @@ impl Circuit {
         &mut self,
         handlers: &mut CellHandlers,
         cell: Relay,
-    ) -> Result<Option<RunOnceCmd>> {
+    ) -> Result<Vec<CircuitCmd>> {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
@@ -413,7 +410,7 @@ impl Circuit {
             false
         };
 
-        let mut run_once_cmds = vec![];
+        let mut circ_cmds = vec![];
         // If we do need to send a circuit-level SENDME cell, do so.
         if send_circ_sendme {
             // This always sends a V1 (tagged) sendme cell, and thereby assumes
@@ -422,14 +419,11 @@ impl Circuit {
             // become incorrect.  (Higher numbers are not currently defined.)
             let sendme = Sendme::new_tag(tag.into());
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
-            run_once_cmds.push(RunOnceCmdInner::Send {
-                cell: SendRelayCell {
-                    hop: hopnum,
-                    early: false,
-                    cell,
-                },
-                done: None,
-            });
+            circ_cmds.push(CircuitCmd::Send(SendRelayCell {
+                hop: hopnum,
+                early: false,
+                cell,
+            }));
 
             // Inform congestion control of the SENDME we are sending. This is a circuit level one.
             self.hop_mut(hopnum)
@@ -449,7 +443,7 @@ impl Circuit {
 
             match msg_status {
                 None => continue,
-                Some(msg @ RunOnceCmdInner::CleanShutdown) => {
+                Some(msg @ CircuitCmd::CleanShutdown) => {
                     for m in msgs {
                         debug!(
                             "{id}: Ignoring relay msg received after triggering shutdown: {m:?}",
@@ -463,16 +457,16 @@ impl Circuit {
                             id=self.unique_id,
                         );
                     }
-                    run_once_cmds.push(msg);
-                    return Ok(Some(RunOnceCmd::Multiple(run_once_cmds)));
+                    circ_cmds.push(msg);
+                    return Ok(circ_cmds);
                 }
                 Some(msg) => {
-                    run_once_cmds.push(msg);
+                    circ_cmds.push(msg);
                 }
             }
         }
 
-        Ok(Some(RunOnceCmd::Multiple(run_once_cmds)))
+        Ok(circ_cmds)
     }
 
     /// Handle a single incoming relay message.
@@ -482,7 +476,7 @@ impl Circuit {
         hopnum: HopNum,
         cell_counts_toward_windows: bool,
         msg: UnparsedRelayMsg,
-    ) -> Result<Option<RunOnceCmdInner>> {
+    ) -> Result<Option<CircuitCmd>> {
         // If this msg wants/refuses to have a Stream ID, does it
         // have/not have one?
         let streamid = msg_streamid(&msg)?;
@@ -601,7 +595,7 @@ impl Circuit {
         msg: UnparsedRelayMsg,
         stream_id: StreamId,
         hop_num: HopNum,
-    ) -> Result<Option<RunOnceCmdInner>> {
+    ) -> Result<Option<CircuitCmd>> {
         use super::syncview::ClientCircSyncView;
         use tor_cell::relaycell::msg::EndReason;
         use tor_error::into_internal;
@@ -669,7 +663,7 @@ impl Circuit {
 
             match handler.filter.as_mut().disposition(&ctx, &view)? {
                 Accept => {}
-                CloseCircuit => return Ok(Some(RunOnceCmdInner::CleanShutdown)),
+                CloseCircuit => return Ok(Some(CircuitCmd::CleanShutdown)),
                 RejectRequest(end) => {
                     let end_msg = AnyRelayMsgOuter::new(Some(stream_id), end.into());
                     let cell = SendRelayCell {
@@ -677,7 +671,7 @@ impl Circuit {
                         early: false,
                         cell: end_msg,
                     };
-                    return Ok(Some(RunOnceCmdInner::Send { cell, done: None }));
+                    return Ok(Some(CircuitCmd::Send(cell)));
                 }
             }
         }
@@ -736,7 +730,7 @@ impl Circuit {
                     early: false,
                     cell: end_msg,
                 };
-                return Ok(Some(RunOnceCmdInner::Send { cell, done: None }));
+                return Ok(Some(CircuitCmd::Send(cell)));
             } else if e.is_disconnected() {
                 // The IncomingStreamRequestHandler's stream has been dropped.
                 // In the Tor protocol as it stands, this always means that the
@@ -770,9 +764,9 @@ impl Circuit {
 
     /// Helper: process a destroy cell.
     #[allow(clippy::unnecessary_wraps)]
-    fn handle_destroy_cell(&mut self) -> Result<RunOnceCmdInner> {
+    fn handle_destroy_cell(&mut self) -> Result<CircuitCmd> {
         // I think there is nothing more to do here.
-        Ok(RunOnceCmdInner::CleanShutdown)
+        Ok(CircuitCmd::CleanShutdown)
     }
 
     /// Handle a [`CtrlMsg::Create`](super::CtrlMsg::Create) message.
@@ -1010,7 +1004,7 @@ impl Circuit {
         handlers: &mut CellHandlers,
         hopnum: HopNum,
         msg: UnparsedRelayMsg,
-    ) -> Result<Option<RunOnceCmdInner>> {
+    ) -> Result<Option<CircuitCmd>> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
 
         // TODO: This pattern (Check command, try to decode, map error) occurs
@@ -1026,7 +1020,7 @@ impl Circuit {
                 .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
                 .into_msg();
 
-            return Ok(Some(RunOnceCmdInner::HandleSendMe {
+            return Ok(Some(CircuitCmd::HandleSendMe {
                 hop: hopnum,
                 sendme,
             }));
@@ -1045,7 +1039,7 @@ impl Circuit {
                 reason
             );
 
-            return Ok(Some(RunOnceCmdInner::CleanShutdown));
+            return Ok(Some(CircuitCmd::CleanShutdown));
         }
 
         trace!("{}: Received meta-cell {:?}", self.unique_id, msg);
@@ -1073,7 +1067,7 @@ impl Circuit {
                     }
                     Ok(MetaCellDisposition::ConversationFinished) => Ok(None),
                     #[cfg(feature = "send-control-msg")]
-                    Ok(MetaCellDisposition::CloseCirc) => Ok(Some(RunOnceCmdInner::CleanShutdown)),
+                    Ok(MetaCellDisposition::CloseCirc) => Ok(Some(CircuitCmd::CleanShutdown)),
                     Err(e) => Err(e),
                 }
             } else {
@@ -1102,7 +1096,7 @@ impl Circuit {
         hopnum: HopNum,
         msg: Sendme,
         signals: CongestionSignals,
-    ) -> Result<Option<RunOnceCmdInner>> {
+    ) -> Result<Option<CircuitCmd>> {
         // No need to call "shutdown" on errors in this function;
         // it's called from the reactor task and errors will propagate there.
         let hop = self
@@ -1141,15 +1135,15 @@ impl Circuit {
         Ok(())
     }
 
-    /// Returns a [`Stream`] of [`RunOnceCmdInner`] to poll from the main loop.
+    /// Returns a [`Stream`] of [`CircuitCmd`] to poll from the main loop.
     ///
-    /// The iterator contains at most one [`RunOnceCmdInner`] for each hop,
+    /// The iterator contains at most one [`CircuitCmd`] for each hop,
     /// representing the instructions for handling the ready-item, if any,
     /// of its highest priority stream.
     ///
     /// The [`LegIdKey`] for this circuit is required so that we can communicate which leg to
-    /// operate on when we build a `RunOnceCmdInner` to return from the stream.
-    /// For example, `RunOnceCmdInner::CloseStream` requires a `hop: HopLocation` field so that the
+    /// operate on when we build a `CircuitCmd` to return from the stream.
+    /// For example, `CircuitCmd::CloseStream` requires a `hop: HopLocation` field so that the
     /// reactor knows on which hop on which leg to close the stream.
     ///
     /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
@@ -1160,7 +1154,7 @@ impl Circuit {
     pub(super) fn ready_streams_iterator(
         &self,
         leg_id: LegIdKey,
-    ) -> impl Stream<Item = Result<RunOnceCmdInner>> {
+    ) -> impl Stream<Item = Result<CircuitCmd>> {
         self.hops
             .iter()
             .enumerate()
@@ -1200,12 +1194,11 @@ impl Circuit {
                     };
 
                     if msg.is_none() {
-                        return Poll::Ready(Ok(RunOnceCmdInner::CloseStream {
-                            hop: HopLocation::Hop((LegId(leg_id), hop_num)),
+                        return Poll::Ready(Ok(CircuitCmd::CloseStream {
+                            hop: hop_num,
                             sid,
                             behav: CloseStreamBehavior::default(),
                             reason: streammap::TerminateReason::StreamTargetClosed,
-                            done: None,
                         }));
                     };
                     let msg = hop_map.take_ready_msg(sid).expect("msg disappeared");
@@ -1225,7 +1218,7 @@ impl Circuit {
                         early: false,
                         cell: AnyRelayMsgOuter::new(Some(sid), msg),
                     };
-                    Poll::Ready(Ok(RunOnceCmdInner::Send { cell, done: None }))
+                    Poll::Ready(Ok(CircuitCmd::Send(cell)))
                 }))
             })
             .collect::<FuturesUnordered<_>>()
