@@ -671,6 +671,7 @@ mod tests {
         CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
     };
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
+    use tor_llcrypto::rng::FakeEntropicRng;
 
     /// The type of "key" stored in the test key stores.
     #[derive(Clone, Debug)]
@@ -1136,6 +1137,7 @@ mod tests {
 
     #[test]
     fn keygen() {
+        let mut rng = FakeEntropicRng(testing_rng());
         let mgr = KeyMgrBuilder::default()
             .primary_store(Box::<Keystore1>::default())
             .build()
@@ -1160,7 +1162,7 @@ mod tests {
             .generate::<TestItem>(
                 &TestKeySpecifier1,
                 KeystoreSelector::Primary,
-                &mut testing_rng(),
+                &mut rng,
                 false,
             )
             .unwrap_err();
@@ -1186,7 +1188,7 @@ mod tests {
             .generate::<TestItem>(
                 &TestKeySpecifier1,
                 KeystoreSelector::Primary,
-                &mut testing_rng(),
+                &mut rng,
                 true,
             )
             .unwrap();
@@ -1209,6 +1211,7 @@ mod tests {
 
     #[test]
     fn get_or_generate() {
+        let mut rng = FakeEntropicRng(testing_rng());
         let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
 
         builder
@@ -1234,7 +1237,7 @@ mod tests {
             mgr.get_or_generate::<TestItem>(
                 &TestKeySpecifier1,
                 KeystoreSelector::Primary,
-                &mut testing_rng()
+                &mut rng,
             )
             .unwrap()
             .meta,
@@ -1255,7 +1258,7 @@ mod tests {
             mgr.get_or_generate::<TestItem>(
                 &TestKeySpecifier2,
                 KeystoreSelector::Id(&keystore3),
-                &mut testing_rng()
+                &mut rng
             )
             .unwrap()
             .meta,
@@ -1306,6 +1309,7 @@ mod tests {
         ) => {{
             use GenerateItem::*;
 
+            let mut rng = FakeEntropicRng(testing_rng());
             let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
 
             builder
@@ -1325,7 +1329,7 @@ mod tests {
                     .generate::<TestItem>(
                         &TestKeySpecifier1,
                         KeystoreSelector::Primary,
-                        &mut testing_rng(),
+                        &mut rng,
                         false,
                     )
                     .unwrap();
@@ -1336,7 +1340,7 @@ mod tests {
                     .generate::<TestItem>(
                         &TestKeySpecifier2,
                         KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
-                        &mut testing_rng(),
+                        &mut rng,
                         false,
                     )
                     .unwrap();
@@ -1353,7 +1357,7 @@ mod tests {
                 // cert from them. We can, however, pretend we did, for testing purposes.
                 // Eventually we might want to rewrite these tests to use real items
                 // (like the `ArtiNativeKeystore` tests)
-                let mut rng = rand::rng();
+                let mut rng = FakeEntropicRng(testing_rng());
                 let keypair = ed25519::Keypair::generate(&mut rng);
                 let encoded_cert = Ed25519Cert::constructor()
                     .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
@@ -1374,7 +1378,7 @@ mod tests {
                     &spec,
                     &make_certificate,
                     KeystoreSelector::Primary,
-                    &mut testing_rng(),
+                    &mut rng,
                 );
 
             #[allow(unused_assignments)]

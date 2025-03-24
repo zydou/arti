@@ -46,5 +46,6 @@
 pub mod cipher;
 pub mod d;
 pub mod pk;
+pub mod rng;
 pub mod traits;
 pub mod util;

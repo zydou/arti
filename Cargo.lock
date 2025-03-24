@@ -363,6 +363,7 @@ dependencies = [
  "tor-config-path",
  "tor-error",
  "tor-keymgr",
+ "tor-llcrypto",
  "tor-memquota",
  "tor-netdir",
  "tor-netdoc",
@@ -4265,6 +4266,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_jitter"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b16df48f071248e67b8fc5e866d9448d45c08ad8b672baaaf796e2f15e606ff0"
+dependencies = [
+ "libc",
+ "rand_core 0.9.3",
+ "winapi",
+]
+
+[[package]]
 name = "rangemap"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4294,6 +4306,15 @@ checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "rdrand"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d92195228612ac8eed47adbc2ed0f04e513a4ccb98175b6f2bd04d963b533655"
+dependencies = [
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -6306,10 +6327,14 @@ dependencies = [
  "getrandom 0.2.15",
  "hex",
  "hex-literal",
+ "once_cell",
  "openssl",
  "rand 0.9.0",
+ "rand_chacha 0.9.0",
  "rand_core 0.6.4",
  "rand_core 0.9.3",
+ "rand_jitter",
+ "rdrand",
  "rsa",
  "safelog",
  "serde",

@@ -8,7 +8,10 @@ use ssh_key::{
     Algorithm, AlgorithmName,
 };
 use tor_error::internal;
-use tor_llcrypto::pk::{curve25519, ed25519};
+use tor_llcrypto::{
+    pk::{curve25519, ed25519},
+    rng::EntropicRng,
+};
 
 use crate::certs::CertData;
 use crate::key_type::CertType;
@@ -20,9 +23,9 @@ use crate::{
 use std::result::Result as StdResult;
 
 /// A random number generator for generating [`EncodableItem`]s.
-pub trait KeygenRng: RngCore + CryptoRng {}
+pub trait KeygenRng: RngCore + CryptoRng + EntropicRng {}
 
-impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
+impl<T> KeygenRng for T where T: RngCore + CryptoRng + EntropicRng {}
 
 /// A trait for generating fresh keys.
 pub trait Keygen {
