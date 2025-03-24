@@ -115,7 +115,7 @@ pub(crate) mod net {
         }}
     }
 
-    /// Try to convert a tokio unix SocketAddr into a crate::SocketAddr.
+    /// Try to convert a tokio `unix::SocketAddr` into a crate::SocketAddr.
     ///
     /// Frustratingly, this information is _right there_: Tokio's SocketAddr has a
     /// std::unix::net::SocketAddr internally, but there appears to be no way to get it out.
@@ -129,7 +129,7 @@ pub(crate) mod net {
         } else if let Some(p) = addr.as_pathname() {
             unix::SocketAddr::from_pathname(p)
         } else {
-            Err(crate::unix::UnsupportedUnixAddressType.into())
+            Err(crate::unix::UnsupportedAfUnixAddressType.into())
         }
     }
 
@@ -236,14 +236,14 @@ impl crate::traits::NetStreamProvider<unix::SocketAddr> for TokioRuntimeHandle {
     async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
         let path = addr
             .as_pathname()
-            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+            .ok_or(crate::unix::UnsupportedAfUnixAddressType)?;
         let s = net::TokioUnixStream::connect(path).await?;
         Ok(s.into())
     }
     async fn listen(&self, addr: &unix::SocketAddr) -> IoResult<Self::Listener> {
         let path = addr
             .as_pathname()
-            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+            .ok_or(crate::unix::UnsupportedAfUnixAddressType)?;
         let lis = net::TokioUnixListener::bind(path)?;
         Ok(net::UnixListener { lis })
     }

@@ -1,4 +1,4 @@
-//! Definitions related to unix socket support.
+//! Definitions related to unix domain socket support.
 //!
 //! To avoid confusion, don't import `SocketAddr` from this module directly;
 //! instead, import the module and refer to `unix::SocketAddr`.
@@ -19,7 +19,7 @@ pub use std::os::unix::net::SocketAddr;
 /// (This is an uninhabited placeholder implementations for platforms without AF_UNIX support.)
 ///
 /// Note that we currently include Windows on platforms without AF_UNIX support:
-/// When we use Unix sockets in Arti, we rely on their filesystem-based security properties,
+/// When we use unix domain sockets in Arti, we rely on their filesystem-based security properties,
 /// which we haven't yet had a chance to fully analyze on non-Unix platforms.
 #[cfg(not(unix))]
 #[derive(Debug, Clone)]
@@ -44,18 +44,22 @@ impl SocketAddr {
     /// (Because this platform lacks AF_UNIX support, this method will always return an error.)
     pub fn from_pathname<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let _ = path;
-        Err(NoUnixAddressSupport.into())
+        Err(NoAfUnixSocketSupport.into())
     }
 }
 
-/// Error: Unix addresses are not supported on this platform.
+/// Error: Unix domain sockets are not supported on this platform.
 #[derive(Clone, Debug, Default, thiserror::Error)]
-#[error("No support for AF_UNIX addresses on this platform")]
+#[error("No support for unix domain sockets on this platform")]
 #[non_exhaustive]
-pub struct NoUnixAddressSupport;
+pub struct NoAfUnixSocketSupport;
 
-impl From<NoUnixAddressSupport> for std::io::Error {
-    fn from(value: NoUnixAddressSupport) -> Self {
+/// Deprecated name for `NoAfUnixSocketSupport`
+#[deprecated]
+pub type NoUnixAddressSupport = NoAfUnixSocketSupport;
+
+impl From<NoAfUnixSocketSupport> for std::io::Error {
+    fn from(value: NoAfUnixSocketSupport) -> Self {
         std::io::Error::new(std::io::ErrorKind::Unsupported, value)
     }
 }

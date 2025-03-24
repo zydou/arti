@@ -110,7 +110,7 @@ pub enum ResolveError {
     /// (This can only happen if somebody adds new variants to `general::SocketAddr`.)
     #[error("Address type not recognized")]
     AddressTypeNotRecognized,
-    /// The name of a file or unix socket address was a relative path.
+    /// The name of a file or AF_UNIX socket address was a relative path.
     #[error("Path was not absolute")]
     PathNotAbsolute,
 }
@@ -365,7 +365,7 @@ where
     /// The string representation of the address.
     ///
     /// For inet addresses, this is the value that appeared in the configuration.
-    /// For unix addresses, this is the value that appeared in the configuration,
+    /// For unix domain sockets, this is the value that appeared in the configuration,
     /// after shell expansion.
     string: String,
     /// The address itself.

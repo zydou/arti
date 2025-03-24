@@ -33,7 +33,7 @@ The major abstraction used in Tor is an **anonymous socket**, which
 presents a problem with RPC:
 
 It is not easy to transfer real sockets across all process boundaries.
-You can do it with unix sockets and `sendmsg`, and there is a similar
+You can do it with AF\_UNIX sockets and `sendmsg`, and there is a similar
 windows thing, but they are both slight forms of dark magic.
 
 Many RPC systems simply don't support transferring sockets.  We can
