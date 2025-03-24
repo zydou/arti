@@ -12,7 +12,7 @@ use crate::util::err::ReactorError;
 
 use super::{Circuit, CircuitAction, LegId, LegIdKey};
 
-/// Type alias for the result of [`ConfluxSet::circuit_action`].
+/// Type alias for the result of [`ConfluxSet::next_circ_action`].
 type CircuitActionResult = Result<Option<CircuitAction>, crate::Error>;
 
 /// A set of linked conflux circuits.
@@ -132,7 +132,7 @@ impl ConfluxSet {
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
     ///
     /// This is cancellation-safe.
-    pub(super) fn circuit_action<'a>(
+    pub(super) fn next_circ_action<'a>(
         &'a mut self,
     ) -> impl Stream<Item = Result<CircuitActionResult, crate::Error>> + 'a {
         self.legs
