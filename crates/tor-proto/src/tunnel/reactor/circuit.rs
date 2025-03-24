@@ -167,16 +167,16 @@ pub(crate) struct Circuit {
 /// This type gets mapped to a `RunOnceCmdInner` in the circuit reactor.
 #[derive(Debug)]
 pub(super) enum CircuitCmd {
-    /// Send a RELAY cell.
+    /// Send a RELAY cell on the circuit leg this command originates from.
     Send(SendRelayCell),
-    /// Handle a SENDME message.
+    /// Handle a SENDME message received on the circuit leg this command originates from.
     HandleSendMe {
         /// The hop number.
         hop: HopNum,
         /// The SENDME message to handle.
         sendme: Sendme,
     },
-    /// Close the specified stream.
+    /// Close the specified stream on the circuit leg this command originates from.
     CloseStream {
         /// The hop number.
         hop: HopNum,
