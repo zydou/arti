@@ -607,8 +607,9 @@ impl Reactor {
                 if circ_cmds.is_empty() {
                     None
                 } else {
-                    // Note: we return RunOnceCmd::Multiple even if there's a single command,
-                    // but that's ok. We probably could abolish the RunOnceCmd::Single entirely.
+                    // TODO(conflux): we return RunOnceCmd::Multiple even if there's a single command.
+                    //
+                    // See the TODO(conflux) on `Circuit::handle_cell`.
                     let cmd = RunOnceCmd::Multiple(
                         circ_cmds
                             .into_iter()

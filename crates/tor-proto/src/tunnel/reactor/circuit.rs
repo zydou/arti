@@ -329,6 +329,14 @@ impl Circuit {
     /// or rejected; a few get delivered to circuits.
     ///
     /// Return `CellStatus::CleanShutdown` if we should exit.
+    ///
+    // TODO(conflux): returning `Vec<CircuitCmd>` means we're unnecessarily
+    // allocating a `Vec` here. Generally, the number of commands is going to be small
+    // (usually 1, but > 1 when we start supporting packed cells).
+    //
+    // We should consider using smallvec instead. It might also be a good idea to have a
+    // separate higher-level type splitting this out into Single(CircuitCmd),
+    // and Multiple(SmallVec<[CircuitCmd; <capacity>]>).
     pub(super) fn handle_cell(
         &mut self,
         handlers: &mut CellHandlers,
