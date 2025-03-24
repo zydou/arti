@@ -61,6 +61,7 @@ use async_trait::async_trait;
 #[cfg(feature = "hs-service")]
 use itertools::chain;
 use static_assertions::const_assert;
+use tor_error::warn_report;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
 };
@@ -1576,10 +1577,14 @@ impl NetDir {
         // This code will give the wrong result if the total of all weights
         // can exceed u64::MAX.  We make sure that can't happen when we
         // set up `self.weights`.
-        relays[..]
-            .choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role))
-            .ok()
-            .cloned()
+        match relays[..].choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role)) {
+            Ok(relay) => Some(relay.clone()),
+            Err(WeightError::InsufficientNonZero) => None,
+            Err(e) => {
+                warn_report!(e, "Unexpected error while sampling a relay");
+                None
+            }
+        }
     }
 
     /// Choose `n` relay at random.
@@ -1619,7 +1624,10 @@ impl NetDir {
                     .cloned()
                     .collect()
             }
-            Err(_) => Vec::new(),
+            Err(e) => {
+                warn_report!(e, "Unexpected error while sampling a set of relays");
+                Vec::new()
+            }
             Ok(iter) => iter.map(Relay::clone).collect(),
         };
         relays.shuffle(rng);
