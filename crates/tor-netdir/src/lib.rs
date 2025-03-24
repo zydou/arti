@@ -74,7 +74,7 @@ use {hsdir_ring::HsDirRing, std::iter};
 use derive_more::{From, Into};
 use futures::{stream::BoxStream, StreamExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use rand::seq::{IndexedRandom as _, SliceRandom as _};
+use rand::seq::{IndexedRandom as _, SliceRandom as _, WeightError};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -1611,7 +1611,7 @@ impl NetDir {
         let mut relays = match relays[..].choose_multiple_weighted(rng, n, |r| {
             self.weights.weight_rs_for_role(r.rs, role) as f64
         }) {
-            Err(rand::seq::WeightError::InsufficientNonZero) => {
+            Err(WeightError::InsufficientNonZero) => {
                 // Too few relays had nonzero weights: return all of those that are okay.
                 relays
                     .iter()
@@ -2113,7 +2113,7 @@ mod test {
     use float_eq::assert_float_eq;
     use std::collections::HashSet;
     use std::time::Duration;
-    use tor_basic_utils::test_rng;
+    use tor_basic_utils::test_rng::{self, testing_rng};
     use tor_linkspec::{RelayIdType, RelayIds};
 
     #[cfg(feature = "hs-common")]
@@ -2889,5 +2889,39 @@ mod test {
         //
         // If we use relays [A, B, C] for replica 1, and hs_index(2) = E, then replica 2 _must_ get
         // relays [E, F, D]. We should have a test that checks this.
+    }
+
+    #[test]
+    fn zero_weights() {
+        // Here we check the behavior of IndexedRandom::{choose_weighted, choose_multiple_weighted}
+        // in the presence of items whose weight is 0.
+        //
+        // We think that the behavior is:
+        //   - nothing with weight 0 is ever returned.
+        //   - if the request for n items can't be completely satisfied with n items of weight >= 0,
+        //     we get InsufficientNonZero.
+        let items = vec![1, 2, 3];
+        let mut rng = testing_rng();
+
+        let a = items.choose_weighted(&mut rng, |_| 0);
+        assert!(matches!(a, Err(WeightError::InsufficientNonZero)));
+
+        let x = items.choose_multiple_weighted(&mut rng, 2, |_| 0);
+        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+
+        let only_one = |n: &i32| if *n == 1 { 1 } else { 0 };
+        let x = items.choose_multiple_weighted(&mut rng, 2, only_one);
+        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+
+        for _ in 0..100 {
+            let a = items.choose_weighted(&mut rng, only_one);
+            assert_eq!(a.unwrap(), &1);
+
+            let x = items
+                .choose_multiple_weighted(&mut rng, 1, only_one)
+                .unwrap()
+                .collect::<Vec<_>>();
+            assert_eq!(x, vec![&1]);
+        }
     }
 }
