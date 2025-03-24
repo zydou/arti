@@ -2932,4 +2932,21 @@ mod test {
             assert_eq!(x, vec![&1]);
         }
     }
+
+    #[test]
+    fn insufficient_but_nonzero() {
+        // Here we check IndexedRandom::choose_multiple_weighted when there no zero values,
+        // but there are insufficient values.
+        // (If this behavior changes, we need to change our usage.)
+
+        let items = vec![1, 2, 3];
+        let mut rng = testing_rng();
+        let mut a = items
+            .choose_multiple_weighted(&mut rng, 10, |_| 1)
+            .unwrap()
+            .copied()
+            .collect::<Vec<_>>();
+        a.sort();
+        assert_eq!(a, items);
+    }
 }
