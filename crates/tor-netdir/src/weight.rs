@@ -217,6 +217,14 @@ pub(crate) struct WeightSet {
     bandwidth_fn: BandwidthFn,
     /// Number of bits that we need to right-shift our weighted products
     /// so that their sum won't overflow u64::MAX.
+    //
+    // TODO: Perhaps we should use f64 to hold our weights instead,
+    // so we don't need to keep this ad-hoc fixed-point implementation?
+    // If we did so, we won't have to worry about overflows.
+    // (When we call choose_multiple_weighted, it already converts into
+    // f64 internally.  (Though choose_weighted doesn't.))
+    // Before making this change, however,
+    // we should think a little about performance and precision.
     shift: u8,
     /// A set of RelayWeight values, indexed by [`WeightKind::idx`], used
     /// to weight different kinds of relays.
