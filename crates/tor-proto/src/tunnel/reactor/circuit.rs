@@ -160,6 +160,39 @@ pub(crate) struct Circuit {
     memquota: CircuitAccount,
 }
 
+/// A command to run in response to a circuit event.
+///
+/// Unlike `RunOnceCmdInner`, doesn't know anything about `LegId`s.
+/// The user of the `CircuitCmd`s is supposed to know the `LegId`
+/// of the circuit the `CircuitCmd` came from.
+///
+/// This type gets mapped to a `RunOnceCmdInner` in the circuit reactor.
+#[derive(Debug)]
+pub(super) enum CircuitCmd {
+    /// Send a RELAY cell.
+    Send(SendRelayCell),
+    /// Handle a SENDME message.
+    HandleSendMe {
+        /// The hop number.
+        hop: HopNum,
+        /// The SENDME message to handle.
+        sendme: Sendme,
+    },
+    /// Close the specified stream.
+    CloseStream {
+        /// The hop number.
+        hop: HopNum,
+        /// The ID of the stream to close.
+        sid: StreamId,
+        /// The stream-closing behavior.
+        behav: CloseStreamBehavior,
+        /// The reason for closing the stream.
+        reason: streammap::TerminateReason,
+    },
+    /// Perform a clean shutdown on this circuit.
+    CleanShutdown,
+}
+
 impl Circuit {
     /// Create a new non-multipath circuit.
     pub(super) fn new(

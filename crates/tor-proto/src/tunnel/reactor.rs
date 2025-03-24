@@ -36,7 +36,7 @@ use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
-use circuit::Circuit;
+use circuit::{Circuit, CircuitCmd};
 use conflux::ConfluxSet;
 use control::ControlHandler;
 use std::mem::size_of;
@@ -202,6 +202,35 @@ enum RunOnceCmdInner {
     },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
+}
+
+impl RunOnceCmdInner {
+    /// Create a [`RunOnceCmdInner`] out of a [`CircuitCmd`] and [`LegIdKey`].
+    fn from_circuit_cmd(leg: LegIdKey, cmd: CircuitCmd) -> Self {
+        match cmd {
+            CircuitCmd::Send(cell) => {
+                // TODO(conflux): add leg ID to Send
+                Self::Send { cell, done: None }
+            }
+            CircuitCmd::HandleSendMe { hop, sendme } => {
+                // TODO(conflux): add leg to HandleSendMe
+                Self::HandleSendMe { hop, sendme }
+            }
+            CircuitCmd::CloseStream {
+                hop,
+                sid,
+                behav,
+                reason,
+            } => Self::CloseStream {
+                hop: HopLocation::Hop((LegId(leg), hop)),
+                sid,
+                behav,
+                reason,
+                done: None,
+            },
+            CircuitCmd::CleanShutdown => Self::CleanShutdown,
+        }
+    }
 }
 
 // Cmd for sending a relay cell.
