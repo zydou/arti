@@ -96,6 +96,23 @@
 #
 #time_granularity = "1s"
 
+[metrics]
+
+# Arti can export metrics, offering a Prometheus scraper endpoint.
+# Usually only used when providing Tor Hidden Services (Onion Services).
+#
+# WARNING: exposing these metrics publicly is dangerous, and must be avoided.
+# In Arti, only plaintest HTTP, over IPv4, on a localhost port, is supported.
+# There is no access control beyond that implied by listening only on localhost.
+#
+# The set of metrics currently available is quite limited, and not stable.
+# We expect to extend it; MRs welcome.
+
+# Thuis suggested port is the same as the example in the C Tor tor(1) manpage.
+# But note that the set of available metrics is quite different.
+#
+#    prometheus.listen = 9035
+
 # Locations to use for storing things on disk.
 #
 # These paths can use ~ to indicate the user's home directory, or a set

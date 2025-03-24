@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use cfg_if::cfg_if;
 use clap::ArgMatches;
 #[allow(unused)]
 use tor_config_path::CfgPathResolver;
@@ -51,6 +52,32 @@ pub(crate) fn run<R: ToplevelRuntime>(
             env!("CARGO_PKG_VERSION"),
             socks_listen
         );
+    }
+
+    if let Some(listen) = {
+        // https://github.com/metrics-rs/metrics/issues/567
+        config
+            .metrics
+            .prometheus
+            .listen
+            .single_address_legacy()
+            .context("can only listen on a single address for Prometheus metrics")?
+    } {
+        cfg_if! {
+            if #[cfg(feature = "metrics")] {
+                metrics_exporter_prometheus::PrometheusBuilder::new()
+                    .with_http_listener(listen)
+                    .install()
+                    .with_context(|| format!(
+                        "set up Prometheus metrics exporter on {listen}"
+                    ))?;
+                info!("Arti Prometheus metrics export scraper endpoint http://{listen}");
+            } else {
+                return Err(anyhow::anyhow!(
+        "`metrics.prometheus.listen` config set but `metrics` cargo feature compiled out in `arti` crate"
+                ));
+            }
+        }
     }
 
     process::use_max_file_limit(&config);

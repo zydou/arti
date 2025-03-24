@@ -224,6 +224,11 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(default))]
     logging: LoggingConfig,
 
+    /// Metrics configuration
+    #[builder(sub_builder(fn_name = "build"))]
+    #[builder_field_attr(serde(default))]
+    pub(crate) metrics: MetricsConfig,
+
     /// Configuration for RPC subsystem
     #[cfg(feature = "rpc")]
     #[builder(sub_builder(fn_name = "build"))]
@@ -308,6 +313,43 @@ define_list_builder_accessors! {
 ///
 /// Used primarily as a type parameter on calls to [`tor_config::resolve`]
 pub type ArtiCombinedConfig = (ArtiConfig, TorClientConfig);
+
+/// Configuration for exporting metrics (eg, perf data)
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+pub struct MetricsConfig {
+    /// Port to listen on for incoming HTTP connections.
+    #[builder(sub_builder(fn_name = "build"))]
+    #[builder_field_attr(serde(default))]
+    pub(crate) prometheus: PrometheusConfig,
+}
+impl_standard_builder! { MetricsConfig }
+
+/// Configuration for one or more proxy listeners.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
+pub struct PrometheusConfig {
+    /// Port on which to establish a Prometheus scrape endpoint
+    ///
+    /// We listen here, on IPv4-only localhost, incoming HTTP connections.
+    ///
+    /// We don't support IPv6 due to upstream limitations:
+    /// <https://github.com/metrics-rs/metrics/issues/567>.
+    ///
+    /// We don't use [`tor_config::Listen`] because we support non-localhost,
+    /// nor multiple addresses.  (See that same ticket.)
+    /// Non-localhost doesn't seem usual for Prometheus, and then we'd need access control.
+    ///
+    /// We could support all this in the future, with appropriate upstream changes
+    /// in `metrics-exporter-prometheus`.
+    #[builder(default)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) listen: Listen,
+}
+impl_standard_builder! { PrometheusConfig }
 
 impl ArtiConfig {
     /// Return the [`ApplicationConfig`] for this configuration.
@@ -587,6 +629,24 @@ mod test {
                 "system.memory",
                 "system.memory.max",
                 "system.memory.low_water",
+            ],
+        );
+
+        declare_exceptions(
+            None,
+            Some(InNew), // The top-level section is in the new file (only).
+            Recognized,
+            &["metrics"],
+        );
+
+        declare_exceptions(
+            None,
+            None, // The inner information is not formatted for auto-testing
+            Recognized,
+            &[
+                // Prometheus metrics exporter, tested by fn metrics (below)
+                "metrics.prometheus",
+                "metrics.prometheus.listen",
             ],
         );
 
@@ -1148,6 +1208,9 @@ example config file {which:?}, uncommented={uncommented:?}
         }
     }
 
+    // TODO there is quite some duplication between these next several functions
+    // Maybe it could be abstracted.
+
     #[test]
     fn transports() {
         // Extract and uncomment our transports lines.
@@ -1247,6 +1310,49 @@ example config file {which:?}, uncommented={uncommented:?}
                 println!("not testing memquota config, cannot figure out if it's enabled");
             }
         }
+    }
+
+    #[test]
+    fn metrics() {
+        // Test that uncommenting the example generates a config
+        // with prometheus enabled, iff support is compiled in.
+
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        file.narrow((r"^\[metrics\]", true), (r"^\[", false));
+        file.lines.retain(|line| {
+            [
+                //
+                "[",
+                "#    prometheus.",
+            ]
+            .iter()
+            .any(|t| line.starts_with(t))
+        });
+        file.strip_prefix("#    ");
+
+        let result = file.resolve_return_results::<(TorClientConfig, ArtiConfig)>();
+
+        let result = result.unwrap();
+
+        // Test that the example config doesn't have any unrecognised keys
+        assert_eq!(result.unrecognized, []);
+        assert_eq!(result.deprecated, []);
+
+        // Check that the example is as we expected
+        assert_eq!(
+            result
+                .value
+                .1
+                .metrics
+                .prometheus
+                .listen
+                .single_address_legacy()
+                .unwrap(),
+            Some("127.0.0.1:9035".parse().unwrap()),
+        );
+
+        // We don't test "compiled out but not used" here.
+        // That case is handled in proxy.rs at startup time.
     }
 
     #[test]
