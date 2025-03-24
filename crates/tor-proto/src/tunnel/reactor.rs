@@ -117,6 +117,12 @@ impl Default for CloseStreamBehavior {
     }
 }
 
+// TODO(conflux): the RunOnceCmd/RunOnceCmdInner/CircuitCmd/CircuitAction enum
+// proliferation is a bit bothersome, but unavoidable with the current design.
+//
+// We should consider getting rid of some of these enums (if possible),
+// and coming up with more intuitive names.
+
 /// One or more [`RunOnceCmdInner`] to run inside [`Reactor::run_once`].
 #[derive(From, Debug)]
 enum RunOnceCmd {
