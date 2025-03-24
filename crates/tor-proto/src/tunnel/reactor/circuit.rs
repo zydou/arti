@@ -520,6 +520,7 @@ impl Circuit {
                 // response
                 hop_map.ending_msg_received(streamid)?;
                 drop(hop_map);
+                // TODO(conflux): we will need a new CircuitCmd::SendOnPrimaryLeg for this
                 return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum);
             }
             Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
