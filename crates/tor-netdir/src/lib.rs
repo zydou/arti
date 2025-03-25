@@ -61,6 +61,7 @@ use async_trait::async_trait;
 #[cfg(feature = "hs-service")]
 use itertools::chain;
 use static_assertions::const_assert;
+use tor_error::warn_report;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
 };
@@ -74,7 +75,7 @@ use {hsdir_ring::HsDirRing, std::iter};
 use derive_more::{From, Into};
 use futures::{stream::BoxStream, StreamExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use rand::seq::{IndexedRandom as _, SliceRandom as _};
+use rand::seq::{IndexedRandom as _, SliceRandom as _, WeightError};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -1576,10 +1577,23 @@ impl NetDir {
         // This code will give the wrong result if the total of all weights
         // can exceed u64::MAX.  We make sure that can't happen when we
         // set up `self.weights`.
-        relays[..]
-            .choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role))
-            .ok()
-            .cloned()
+        match relays[..].choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role)) {
+            Ok(relay) => Some(relay.clone()),
+            Err(WeightError::InsufficientNonZero) => {
+                if relays.is_empty() {
+                    None
+                } else {
+                    warn!(?self.weights, ?role,
+                          "After filtering, all {} relays had zero weight. Choosing one at random. See bug #1907.",
+                          relays.len());
+                    relays.choose(rng).cloned()
+                }
+            }
+            Err(e) => {
+                warn_report!(e, "Unexpected error while sampling a relay");
+                None
+            }
+        }
     }
 
     /// Choose `n` relay at random.
@@ -1611,15 +1625,33 @@ impl NetDir {
         let mut relays = match relays[..].choose_multiple_weighted(rng, n, |r| {
             self.weights.weight_rs_for_role(r.rs, role) as f64
         }) {
-            Err(rand::seq::WeightError::InsufficientNonZero) => {
+            Err(WeightError::InsufficientNonZero) => {
                 // Too few relays had nonzero weights: return all of those that are okay.
-                relays
+                let remaining: Vec<_> = relays
                     .iter()
                     .filter(|r| self.weights.weight_rs_for_role(r.rs, role) > 0)
                     .cloned()
-                    .collect()
+                    .collect();
+                if remaining.is_empty() {
+                    warn!(?self.weights, ?role,
+                          "After filtering, all {} relays had zero weight! Picking some at random. See bug #1907.",
+                          relays.len());
+                    if relays.len() >= n {
+                        relays.choose_multiple(rng, n).cloned().collect()
+                    } else {
+                        relays
+                    }
+                } else {
+                    warn!(?self.weights, ?role,
+                          "After filtering, only had {}/{} relays with nonzero weight. Returning them all. See bug #1907.",
+                           remaining.len(), relays.len());
+                    remaining
+                }
             }
-            Err(_) => Vec::new(),
+            Err(e) => {
+                warn_report!(e, "Unexpected error while sampling a set of relays");
+                Vec::new()
+            }
             Ok(iter) => iter.map(Relay::clone).collect(),
         };
         relays.shuffle(rng);
@@ -2113,7 +2145,7 @@ mod test {
     use float_eq::assert_float_eq;
     use std::collections::HashSet;
     use std::time::Duration;
-    use tor_basic_utils::test_rng;
+    use tor_basic_utils::test_rng::{self, testing_rng};
     use tor_linkspec::{RelayIdType, RelayIds};
 
     #[cfg(feature = "hs-common")]
@@ -2889,5 +2921,56 @@ mod test {
         //
         // If we use relays [A, B, C] for replica 1, and hs_index(2) = E, then replica 2 _must_ get
         // relays [E, F, D]. We should have a test that checks this.
+    }
+
+    #[test]
+    fn zero_weights() {
+        // Here we check the behavior of IndexedRandom::{choose_weighted, choose_multiple_weighted}
+        // in the presence of items whose weight is 0.
+        //
+        // We think that the behavior is:
+        //   - nothing with weight 0 is ever returned.
+        //   - if the request for n items can't be completely satisfied with n items of weight >= 0,
+        //     we get InsufficientNonZero.
+        let items = vec![1, 2, 3];
+        let mut rng = testing_rng();
+
+        let a = items.choose_weighted(&mut rng, |_| 0);
+        assert!(matches!(a, Err(WeightError::InsufficientNonZero)));
+
+        let x = items.choose_multiple_weighted(&mut rng, 2, |_| 0);
+        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+
+        let only_one = |n: &i32| if *n == 1 { 1 } else { 0 };
+        let x = items.choose_multiple_weighted(&mut rng, 2, only_one);
+        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+
+        for _ in 0..100 {
+            let a = items.choose_weighted(&mut rng, only_one);
+            assert_eq!(a.unwrap(), &1);
+
+            let x = items
+                .choose_multiple_weighted(&mut rng, 1, only_one)
+                .unwrap()
+                .collect::<Vec<_>>();
+            assert_eq!(x, vec![&1]);
+        }
+    }
+
+    #[test]
+    fn insufficient_but_nonzero() {
+        // Here we check IndexedRandom::choose_multiple_weighted when there no zero values,
+        // but there are insufficient values.
+        // (If this behavior changes, we need to change our usage.)
+
+        let items = vec![1, 2, 3];
+        let mut rng = testing_rng();
+        let mut a = items
+            .choose_multiple_weighted(&mut rng, 10, |_| 1)
+            .unwrap()
+            .copied()
+            .collect::<Vec<_>>();
+        a.sort();
+        assert_eq!(a, items);
     }
 }
