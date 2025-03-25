@@ -1,7 +1,9 @@
 //! Conflux-related functionality
 
+use std::future::Future;
+
 use futures::StreamExt;
-use futures::{select_biased, stream::FuturesUnordered, FutureExt as _, Stream};
+use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
 use slotmap_careful::SlotMap;
 
 use tor_async_utils::SinkPrepareExt as _;
@@ -128,13 +130,16 @@ impl ConfluxSet {
         Ok(())
     }
 
-    /// Returns a stream of [`CircuitAction`] messages,
+    /// Returns the next ready [`CircuitAction`],
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
+    ///
+    /// Will return an error if there are no circuits in this set,
+    /// or other internal errors occur.
     ///
     /// This is cancellation-safe.
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
-    ) -> impl Stream<Item = Result<CircuitActionResult, crate::Error>> + 'a {
+    ) -> impl Future<Output = CircuitActionResult> + 'a {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
@@ -176,6 +181,12 @@ impl ConfluxSet {
             // Note: We don't actually use the returned SinkSendable,
             // and continue writing to the SometimesUboundedSink in the reactor :(
             .map(|res| res.map(|res| res.0))
+            // We only return the first ready action as a Future.
+            // Can't use `next()` since it borrows the stream.
+            .into_future()
+            .map(|(next, _)| next.ok_or(internal!("empty conflux set").into()))
+            // Clean up the nested `Result`s before returning to the caller.
+            .map(|res| flatten(flatten(res)))
     }
 
     /// The join point on the current primary leg.
@@ -183,6 +194,16 @@ impl ConfluxSet {
         // TODO(conflux): we need a way to get the join point on the primary leg once this tunnel
         // has been converted from a "non-conflux tunnel" to a "conflux tunnel"
         None
+    }
+}
+
+/// Flatten a `Result<Result<T, E>, E>` into a `Result<T, E>`.
+///
+/// See the nightly [`Result::flatten`].
+fn flatten<T, E>(x: Result<Result<T, E>, E>) -> Result<T, E> {
+    match x {
+        Ok(Ok(x)) => Ok(x),
+        Err(e) | Ok(Err(e)) => Err(e),
     }
 }
 

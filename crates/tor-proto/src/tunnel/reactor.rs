@@ -537,9 +537,7 @@ impl Reactor {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
                 Some(CircuitAction::HandleControl(msg))
             },
-            res = circ_actions.next().fuse() => {
-                unwrap_or_shutdown!(self, res, "empty conflux set")???
-            }
+            res = circ_actions.fuse() => res?,
         };
 
         drop(circ_actions);
