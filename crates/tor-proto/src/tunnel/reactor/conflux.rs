@@ -137,7 +137,7 @@ impl ConfluxSet {
     /// This is cancellation-safe.
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
-    ) -> impl Future<Output = Result<Option<CircuitAction>, crate::Error>> + 'a {
+    ) -> impl Future<Output = Result<CircuitAction, crate::Error>> + 'a {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
@@ -172,13 +172,13 @@ impl ConfluxSet {
                         // Check whether we've got an input message pending.
                         ret = input.next().fuse() => {
                             let Some(cell) = ret else {
-                                return Ok(Some(CircuitAction::RemoveLeg(leg_id)));
+                                return Ok(CircuitAction::RemoveLeg(leg_id));
                             };
 
-                            Ok(Some(CircuitAction::HandleCell { leg: leg_id, cell }))
+                            Ok(CircuitAction::HandleCell { leg: leg_id, cell })
                         },
                         ret = next_ready_stream.fuse() => {
-                            ret.map(|cmd| Some(CircuitAction::RunCmd { leg: leg_id, cmd }))
+                            ret.map(|cmd| CircuitAction::RunCmd { leg: leg_id, cmd })
                         },
                     }
                 })
