@@ -1,19 +1,19 @@
 //! Conflux-related functionality
 
+use std::future::Future;
+
 use futures::StreamExt;
-use futures::{select_biased, stream::FuturesUnordered, FutureExt as _, Stream};
+use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
 use slotmap_careful::SlotMap;
 
 use tor_async_utils::SinkPrepareExt as _;
+use tor_basic_utils::flatten;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
 use crate::crypto::cell::HopNum;
 use crate::util::err::ReactorError;
 
 use super::{Circuit, CircuitAction, LegId, LegIdKey};
-
-/// Type alias for the result of [`ConfluxSet::circuit_action`].
-type CircuitActionResult = Result<Option<CircuitAction>, crate::Error>;
 
 /// A set of linked conflux circuits.
 pub(super) struct ConfluxSet {
@@ -128,13 +128,16 @@ impl ConfluxSet {
         Ok(())
     }
 
-    /// Returns a stream of [`CircuitAction`] messages,
+    /// Returns the next ready [`CircuitAction`],
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
     ///
+    /// Will return an error if there are no circuits in this set,
+    /// or other internal errors occur.
+    ///
     /// This is cancellation-safe.
-    pub(super) fn circuit_action<'a>(
+    pub(super) fn next_circ_action<'a>(
         &'a mut self,
-    ) -> impl Stream<Item = Result<CircuitActionResult, crate::Error>> + 'a {
+    ) -> impl Future<Output = Result<Option<CircuitAction>, crate::Error>> + 'a {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
@@ -176,6 +179,12 @@ impl ConfluxSet {
             // Note: We don't actually use the returned SinkSendable,
             // and continue writing to the SometimesUboundedSink in the reactor :(
             .map(|res| res.map(|res| res.0))
+            // We only return the first ready action as a Future.
+            // Can't use `next()` since it borrows the stream.
+            .into_future()
+            .map(|(next, _)| next.ok_or(internal!("empty conflux set").into()))
+            // Clean up the nested `Result`s before returning to the caller.
+            .map(|res| flatten(flatten(res)))
     }
 
     /// The join point on the current primary leg.
