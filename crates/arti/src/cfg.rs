@@ -230,6 +230,22 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) rpc: RpcConfig,
 
+    /// Configuration for the RPC subsystem (disabled)
+    //
+    // This set of options allows us to detect and warn
+    // when anything is set under "rpc" in the config.
+    //
+    // The incantations are a bit subtle: we use an Option<toml::Value> in the builder,
+    // to ensure that our configuration will continue to round-trip thorough serde.
+    // We use () in the configuration type, since toml::Value isn't Eq,
+    // and since we don't want to expose whatever spurious options were in the config.
+    // We use builder(private), since using builder(setter(skip))
+    // would (apparently) override the type of the field in builder and make it a PhantomData.
+    #[cfg(not(feature = "rpc"))]
+    #[builder_field_attr(serde(default))]
+    #[builder(field(type = "Option<toml::Value>", build = "()"), private)]
+    rpc: (),
+
     /// Information on system resources used by Arti.
     ///
     /// Note that there are other settings in this section,
@@ -265,6 +281,11 @@ impl ArtiConfigBuilder {
             *svc.svc_cfg
                 .restricted_discovery_mut()
                 .watch_configuration_mut() = config.application.watch_configuration;
+        }
+
+        #[cfg(not(feature = "rpc"))]
+        if self.rpc.is_some() {
+            tracing::warn!("rpc options were set, but Arti was built without support for rpc.");
         }
 
         Ok(config)
