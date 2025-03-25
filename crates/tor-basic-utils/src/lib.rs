@@ -591,6 +591,20 @@ macro_rules! derive_serde_raw { {
 
 // ----------------------------------------------------------------------
 
+/// Flatten a `Result<Result<T, E>, E>` into a `Result<T, E>`.
+///
+/// See the nightly [`Result::flatten`].
+// TODO: When `Result::flatten` is stable and our MSRV allows,
+// remove this function and replace uses with `Result::flatten`.
+pub fn flatten<T, E>(x: Result<Result<T, E>, E>) -> Result<T, E> {
+    match x {
+        Ok(Ok(x)) => Ok(x),
+        Err(e) | Ok(Err(e)) => Err(e),
+    }
+}
+
+// ----------------------------------------------------------------------
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

@@ -7,6 +7,7 @@ use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
 use slotmap_careful::SlotMap;
 
 use tor_async_utils::SinkPrepareExt as _;
+use tor_basic_utils::flatten;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
 use crate::crypto::cell::HopNum;
@@ -191,16 +192,6 @@ impl ConfluxSet {
         // TODO(conflux): we need a way to get the join point on the primary leg once this tunnel
         // has been converted from a "non-conflux tunnel" to a "conflux tunnel"
         None
-    }
-}
-
-/// Flatten a `Result<Result<T, E>, E>` into a `Result<T, E>`.
-///
-/// See the nightly [`Result::flatten`].
-fn flatten<T, E>(x: Result<Result<T, E>, E>) -> Result<T, E> {
-    match x {
-        Ok(Ok(x)) => Ok(x),
-        Err(e) | Ok(Err(e)) => Err(e),
     }
 }
 
