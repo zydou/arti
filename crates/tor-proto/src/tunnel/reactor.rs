@@ -36,7 +36,7 @@ use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
-use circuit::Circuit;
+use circuit::{Circuit, CircuitCmd};
 use conflux::ConfluxSet;
 use control::ControlHandler;
 use std::mem::size_of;
@@ -116,6 +116,12 @@ impl Default for CloseStreamBehavior {
         Self::SendEnd(End::new_misc())
     }
 }
+
+// TODO(conflux): the RunOnceCmd/RunOnceCmdInner/CircuitCmd/CircuitAction enum
+// proliferation is a bit bothersome, but unavoidable with the current design.
+//
+// We should consider getting rid of some of these enums (if possible),
+// and coming up with more intuitive names.
 
 /// One or more [`RunOnceCmdInner`] to run inside [`Reactor::run_once`].
 #[derive(From, Debug)]
@@ -204,9 +210,38 @@ enum RunOnceCmdInner {
     CleanShutdown,
 }
 
-// Cmd for sending a relay cell.
-//
-// The contents of this struct are passed to `send_relay_cell`
+impl RunOnceCmdInner {
+    /// Create a [`RunOnceCmdInner`] out of a [`CircuitCmd`] and [`LegIdKey`].
+    fn from_circuit_cmd(leg: LegIdKey, cmd: CircuitCmd) -> Self {
+        match cmd {
+            CircuitCmd::Send(cell) => {
+                // TODO(conflux): add leg ID to Send
+                Self::Send { cell, done: None }
+            }
+            CircuitCmd::HandleSendMe { hop, sendme } => {
+                // TODO(conflux): add leg to HandleSendMe
+                Self::HandleSendMe { hop, sendme }
+            }
+            CircuitCmd::CloseStream {
+                hop,
+                sid,
+                behav,
+                reason,
+            } => Self::CloseStream {
+                hop: HopLocation::Hop((LegId(leg), hop)),
+                sid,
+                behav,
+                reason,
+                done: None,
+            },
+            CircuitCmd::CleanShutdown => Self::CleanShutdown,
+        }
+    }
+}
+
+/// Cmd for sending a relay cell.
+///
+/// The contents of this struct are passed to `send_relay_cell`
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub(crate) struct SendRelayCell {
@@ -221,12 +256,22 @@ pub(crate) struct SendRelayCell {
 /// A command to execute at the end of [`Reactor::run_once`].
 #[derive(From, Debug)]
 enum CircuitAction {
-    /// Run a single `RunOnceCmdInner` command.
-    Single(RunOnceCmdInner),
+    /// Run a single `CircuitCmd` command.
+    RunCmd {
+        /// The unique identifier of the circuit leg to run the command on
+        leg: LegIdKey,
+        /// The command to run.
+        cmd: CircuitCmd,
+    },
     /// Handle a control message
     HandleControl(CtrlMsg),
     /// Handle an input message.
-    HandleCell(ClientCircChanMsg),
+    HandleCell {
+        /// The unique identifier of the circuit leg the message was received on.
+        leg: LegIdKey,
+        /// The message to handle.
+        cell: ClientCircChanMsg,
+    },
     /// Remove the specified circuit leg.
     RemoveLeg(LegIdKey),
 }
@@ -546,17 +591,34 @@ impl Reactor {
 
         let cmd = match action {
             None => None,
-            Some(CircuitAction::Single(cmd)) => Some(RunOnceCmd::Single(cmd)),
+            Some(CircuitAction::RunCmd { leg, cmd }) => Some(RunOnceCmd::Single(
+                RunOnceCmdInner::from_circuit_cmd(leg, cmd),
+            )),
             Some(CircuitAction::HandleControl(ctrl)) => ControlHandler::new(self)
                 .handle_msg(ctrl)?
                 .map(RunOnceCmd::Single),
-            Some(CircuitAction::HandleCell(cell)) => {
-                // TODO(conflux): put the LegId of the circuit the cell was received on
-                // inside HandleCell
-                //let circ = self.circuits.leg(leg_id)?;
+            Some(CircuitAction::HandleCell { leg, cell }) => {
+                let circ = self
+                    .circuits
+                    .leg_mut(LegId(leg))
+                    .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
 
-                let circ = self.circuits.primary_leg_mut()?;
-                circ.handle_cell(&mut self.cell_handlers, cell)?
+                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, cell)?;
+                if circ_cmds.is_empty() {
+                    None
+                } else {
+                    // TODO(conflux): we return RunOnceCmd::Multiple even if there's a single command.
+                    //
+                    // See the TODO(conflux) on `Circuit::handle_cell`.
+                    let cmd = RunOnceCmd::Multiple(
+                        circ_cmds
+                            .into_iter()
+                            .map(|cmd| RunOnceCmdInner::from_circuit_cmd(leg, cmd))
+                            .collect(),
+                    );
+
+                    Some(cmd)
+                }
             }
             Some(CircuitAction::RemoveLeg(leg_id)) => {
                 self.circuits.remove(leg_id)?;

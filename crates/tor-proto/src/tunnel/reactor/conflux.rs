@@ -138,7 +138,7 @@ impl ConfluxSet {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
-                let mut ready_streams = leg.ready_streams_iterator(leg_id);
+                let mut ready_streams = leg.ready_streams_iterator();
                 let input = &mut leg.input;
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
@@ -154,12 +154,12 @@ impl ConfluxSet {
                                 return Ok(Some(CircuitAction::RemoveLeg(leg_id)));
                             };
 
-                            Ok(Some(CircuitAction::HandleCell(cell)))
+                            Ok(Some(CircuitAction::HandleCell { leg: leg_id, cell }))
                         },
                         ret = ready_streams.next().fuse() => {
                             match ret {
                                 Some(cmd) => {
-                                    cmd.map(|cmd| Some(CircuitAction::Single(cmd)))
+                                    cmd.map(|cmd| Some(CircuitAction::RunCmd { leg: leg_id, cmd }))
                                 },
                                 None => {
                                     // There are no ready streams (for example, they may all be
