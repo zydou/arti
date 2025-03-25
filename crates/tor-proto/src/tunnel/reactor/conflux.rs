@@ -147,6 +147,24 @@ impl ConfluxSet {
                 // because the inner select_biased! is cancel-safe.
                 // We should replace this with a simple sink readiness check
                 leg.chan_sender.prepare_send_from(async move {
+                    // A future to wait for the next ready stream.
+                    let next_ready_stream = async {
+                        match ready_streams.next().await {
+                            Some(x) => x,
+                            None => {
+                                // There are no ready streams (for example, they may all be
+                                // blocked due to congestion control), so there is nothing
+                                // to do.
+                                // We await an infinitely pending future so that we don't
+                                // immediately return a `None` in the `select_biased!` below.
+                                // We'd rather wait on `input.next()` than immediately return with
+                                // no `CircuitAction`, which could put the reactor into a spin loop.
+                                let () = std::future::pending().await;
+                                unreachable!();
+                            }
+                        }
+                    };
+
                     // NOTE: the stream returned by this function is polled in the select_biased!
                     // from Reactor::run_once(), so each block from *this* select_biased! must be
                     // cancellation-safe
@@ -159,19 +177,9 @@ impl ConfluxSet {
 
                             Ok(Some(CircuitAction::HandleCell { leg: leg_id, cell }))
                         },
-                        ret = ready_streams.next().fuse() => {
-                            match ret {
-                                Some(cmd) => {
-                                    cmd.map(|cmd| Some(CircuitAction::RunCmd { leg: leg_id, cmd }))
-                                },
-                                None => {
-                                    // There are no ready streams (for example, they may all be
-                                    // blocked due to congestion control), so there is nothing
-                                    // to do.
-                                    Ok(None)
-                                }
-                            }
-                        }
+                        ret = next_ready_stream.fuse() => {
+                            ret.map(|cmd| Some(CircuitAction::RunCmd { leg: leg_id, cmd }))
+                        },
                     }
                 })
             })
