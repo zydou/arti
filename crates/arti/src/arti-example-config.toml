@@ -547,6 +547,65 @@
 #    alice = "descriptor:x25519:PU63REQUH4PP464E2Y7AVQ35HBB5DXDH5XEUVUNP3KCPNOXZGIBA"
 #    bob = "descriptor:x25519:B5ZQGTPERMMUDA6VC63LHJUF5IHPOKJMUK26LY2XKSF7VG52AESQ"
 
+##### RPC
+# Configuration options for the RPC subsystem.
+# The RPC subsystem allows other applications to access Arti, and control its behavior.
+# It is only available if Arti was built with RPC support.
+#
+#    [rpc]
+#
+# A boolean to determine whether Arti should accept RPC connections.
+#
+#    enable = false
+#
+# A set of default locations where Arti should listen for RPC connections,
+# if none were configured. You should typically not override this.
+# Use specific rpc.listen options instead.
+#
+#    # listen_default = [ <A list of platform-dependent default connect points, as strings> ]
+#
+# Instead, if you want to override the ways in which Arti listens for RPC connections,
+# you should declare one or more of these [rpc.listen] sections.
+# Each of them specifies a place where Arti will look for "connect files".
+# (These are JSON files that tell Arti where to listen for connections,
+# and tell applications how to connect to Arti.
+# For more information on their format, see the RPC documentation at
+# https://gitlab.torproject.org/tpo/core/arti/-/tree/main/doc/dev/rpc-book)
+#
+# The defaults are:
+#
+#    [rpc.listen."user-default"]
+#    enable = true
+#    dir = "${ARTI_LOCAL_DATA}/rpc/connect.d"
+#
+#    [rpc.listen."system-default"]
+#    enable = false
+#    dir = "/etc/arti-rpc/connect.d"
+#
+# Available options for configuring connect points are as follows.
+# Each listener section is introduced with a label. This can be an arbitrary identifier.
+#
+#       [rpc.listen."label"]
+#
+# A boolean to enable or disable the entire listener section. (Default is 'true')
+#
+#       enable = true
+#
+# A single connect file.
+#
+#       file = "${HOME}/.arti_connect.json"
+#
+# A directory to search for connect files.  Only filenames ending with ".json" are considered.
+# This option is mutually exclusive with "file".
+# Exactly one of "file" and "dir" must be set.
+#
+#       dir = "${HOME}/.my_connect_files/"
+#
+# A map from filenames within "dir" to options to set on those files.
+# Currently only "enable" is supported.
+#
+#       file_options = { "bad_file.json" = { enable = false }}
+
 [vanguards]
 # The kind of vanguard to use when building onion service circuits.
 #

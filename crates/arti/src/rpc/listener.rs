@@ -132,7 +132,7 @@ impl RpcListenerSetConfigBuilder {
 define_map_builder! {
     /// Builder for the `FileOptionsMap` within an `RpcListenerSetConfig`.
     #[derive(Eq, PartialEq)]
-    pub(super) struct FileOptionsMapBuilder =>
+    pub(crate) struct FileOptionsMapBuilder =>
     type FileOptionsMap = BTreeMap<String, ConnectPointOptions>;
 }
 
@@ -155,7 +155,7 @@ define_map_builder! {
 #[derive_deftly(ExtendBuilder)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize, Eq, PartialEq))]
-pub(super) struct ConnectPointOptions {
+pub(crate) struct ConnectPointOptions {
     /// Used to explicitly disable an entry in a connect point directory.
     #[builder(default = "true")]
     enable: bool,

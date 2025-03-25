@@ -230,6 +230,22 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) rpc: RpcConfig,
 
+    /// Configuration for the RPC subsystem (disabled)
+    //
+    // This set of options allows us to detect and warn
+    // when anything is set under "rpc" in the config.
+    //
+    // The incantations are a bit subtle: we use an Option<toml::Value> in the builder,
+    // to ensure that our configuration will continue to round-trip thorough serde.
+    // We use () in the configuration type, since toml::Value isn't Eq,
+    // and since we don't want to expose whatever spurious options were in the config.
+    // We use builder(private), since using builder(setter(skip))
+    // would (apparently) override the type of the field in builder and make it a PhantomData.
+    #[cfg(not(feature = "rpc"))]
+    #[builder_field_attr(serde(default))]
+    #[builder(field(type = "Option<toml::Value>", build = "()"), private)]
+    rpc: (),
+
     /// Information on system resources used by Arti.
     ///
     /// Note that there are other settings in this section,
@@ -265,6 +281,11 @@ impl ArtiConfigBuilder {
             *svc.svc_cfg
                 .restricted_discovery_mut()
                 .watch_configuration_mut() = config.application.watch_configuration;
+        }
+
+        #[cfg(not(feature = "rpc"))]
+        if self.rpc.is_some() {
+            tracing::warn!("rpc options were set, but Arti was built without support for rpc.");
         }
 
         Ok(config)
@@ -1237,7 +1258,7 @@ example config file {which:?}, uncommented={uncommented:?}
         let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
         file.narrow(
             (r#"^#    \[onion_services."allium\-cepa"\]"#, true),
-            (r#"^\[vanguards\]"#, true),
+            (r#"^##### RPC"#, true),
         );
         file.lines.retain(|line| line.starts_with("#    "));
         file.strip_prefix("#    ");
@@ -1333,6 +1354,65 @@ example config file {which:?}, uncommented={uncommented:?}
         {
             expect_err_contains(result.unwrap_err(), "no support for running onion services");
         }
+    }
+
+    #[cfg(feature = "rpc")]
+    #[test]
+    fn rpc_defaults() {
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        // This will get us all the RPC entries that correspond to our defaults.
+        //
+        // The examples that _aren't_ in our defaults have '#      ' at the start.
+        file.narrow((r"^##### RPC", false), (r"^\[vanguards\]", false));
+        file.lines
+            .retain(|line| line.starts_with("#    ") && !line.starts_with("#      "));
+        file.strip_prefix("#    ");
+
+        let parsed = file
+            .resolve_return_results::<(TorClientConfig, ArtiConfig)>()
+            .unwrap();
+        assert!(parsed.unrecognized.is_empty());
+        assert!(parsed.deprecated.is_empty());
+        let rpc_parsed: &RpcConfig = parsed.value.1.rpc();
+        let rpc_default = RpcConfig::default();
+        assert_eq!(rpc_parsed, &rpc_default);
+    }
+
+    #[cfg(feature = "rpc")]
+    #[test]
+    fn rpc_full() {
+        use crate::rpc::listener::{ConnectPointOptionsBuilder, RpcListenerSetConfigBuilder};
+
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        // This will get us all the RPC entries, including those that _don't_ correspond to our defaults.
+        file.narrow((r"^##### RPC", false), (r"^\[vanguards\]", false));
+        // We skip the "file" item because it conflicts with "dir" and "file_options"
+        file.lines
+            .retain(|line| line.starts_with("#    ") && !line.contains("file ="));
+        file.strip_prefix("#    ");
+
+        let parsed = file
+            .resolve_return_results::<(TorClientConfig, ArtiConfig)>()
+            .unwrap();
+        let rpc_parsed: &RpcConfig = parsed.value.1.rpc();
+
+        let expected = {
+            let mut bld_opts = ConnectPointOptionsBuilder::default();
+            bld_opts.enable(false);
+
+            let mut bld_set = RpcListenerSetConfigBuilder::default();
+            bld_set.dir(CfgPath::new("${HOME}/.my_connect_files/".to_string()));
+            bld_set.listener_options().enable(true);
+            bld_set
+                .file_options()
+                .insert("bad_file.json".to_string(), bld_opts);
+
+            let mut bld = RpcConfigBuilder::default();
+            bld.listen().insert("label".to_string(), bld_set);
+            bld.build().unwrap()
+        };
+
+        assert_eq!(&expected, rpc_parsed);
     }
 
     /// Helper for fishing out parts of the config file and uncommenting them.
