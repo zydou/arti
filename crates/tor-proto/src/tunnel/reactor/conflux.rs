@@ -4,6 +4,8 @@
 mod msghandler;
 
 use std::future::Future;
+use std::sync::atomic::AtomicU32;
+use std::sync::Arc;
 
 use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
@@ -47,6 +49,20 @@ pub(super) struct ConfluxSet {
     /// The desired UX
     #[cfg(feature = "conflux")]
     desired_ux: V1DesiredUx,
+    /// The absolute sequence number of the last cell delivered to a stream.
+    ///
+    /// A clone of this is shared with each [`ConfluxMsgHandler`] created.
+    ///
+    /// When a message is received on a circuit leg, the `ConfluxMsgHandler`
+    /// of the leg compares the (leg-local) sequence number of the message
+    /// with this sequence number to determine whether the message is in-order.
+    ///
+    /// If the message is in-order, the `ConfluxMsgHandler` instructs the circuit
+    /// to deliver it to its corresponding stream.
+    ///
+    /// If the message is out-of-order, the `ConfluxMsgHandler` instructs the circuit
+    /// to instruct the reactor to buffer the message.
+    last_seq_delivered: Arc<AtomicU32>,
 }
 
 /// The conflux join point.
@@ -78,6 +94,7 @@ impl ConfluxSet {
             nonce: V1Nonce::new(&mut rand::rng()),
             #[cfg(feature = "conflux")]
             desired_ux,
+            last_seq_delivered: Arc::new(AtomicU32::new(0)),
         }
     }
 
