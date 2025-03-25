@@ -14,9 +14,6 @@ use crate::util::err::ReactorError;
 
 use super::{Circuit, CircuitAction, LegId, LegIdKey};
 
-/// Type alias for the result of [`ConfluxSet::next_circ_action`].
-type CircuitActionResult = Result<Option<CircuitAction>, crate::Error>;
-
 /// A set of linked conflux circuits.
 pub(super) struct ConfluxSet {
     /// The circuits in this conflux set.
@@ -139,7 +136,7 @@ impl ConfluxSet {
     /// This is cancellation-safe.
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
-    ) -> impl Future<Output = CircuitActionResult> + 'a {
+    ) -> impl Future<Output = Result<Option<CircuitAction>, crate::Error>> + 'a {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
