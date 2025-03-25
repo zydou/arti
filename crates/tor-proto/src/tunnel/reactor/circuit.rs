@@ -1187,6 +1187,11 @@ impl Circuit {
 
         // For all other command types, we'll only get them in response
         // to another command, which should have registered a responder.
+        //
+        // TODO:(conflux): should the conflux state machine be a meta cell handler?
+        // We'd need to add support for multiple meta handlers, and change the
+        // MetaCellHandler API to support returning Option<RunOnceCmdInner>
+        // (because some cells will require sending a response)
         if let Some(mut handler) = handlers.meta_handler.take() {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message
