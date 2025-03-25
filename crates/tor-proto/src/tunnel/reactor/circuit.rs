@@ -194,6 +194,33 @@ pub(super) enum CircuitCmd {
     CleanShutdown,
 }
 
+/// Return a `CircProto` error for the specified unsupported cell.
+///
+/// This error will shut down the reactor.
+///
+/// Note: this is a macro to simplify usage (this way the caller doesn't
+/// need to .map() the result to the appropriate type)
+macro_rules! unsupported_client_cell {
+    ($msg:expr) => {{
+        unsupported_client_cell!(@ $msg, "")
+    }};
+
+    ($msg:expr, $hopnum:expr) => {{
+        let hop_display = format!(" from hop {}", $hopnum.display());
+        unsupported_client_cell!(@ $msg, hop_display)
+    }};
+
+    (@ $msg:expr, $hopnum_display:expr) => {
+        Err(crate::Error::CircProto(format!(
+            "Unexpected {} cell{} on client circuit",
+            $msg.cmd(),
+            $hopnum_display,
+        )))
+    };
+}
+
+pub(super) use unsupported_client_cell;
+
 impl Circuit {
     /// Create a new non-multipath circuit.
     pub(super) fn new(
@@ -1121,19 +1148,13 @@ impl Circuit {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
                 handlers.meta_handler = Some(handler);
-                Err(Error::CircProto(format!(
-                    "Unexpected {} cell from hop {} on client circuit",
-                    msg.cmd(),
-                    hopnum.display(),
-                )))
+
+                unsupported_client_cell!(msg, hopnum)
             }
         } else {
             // No need to call shutdown here, since this error will
             // propagate to the reactor shut it down.
-            Err(Error::CircProto(format!(
-                "Unexpected {} cell on client circuit",
-                msg.cmd()
-            )))
+            unsupported_client_cell!(msg)
         }
     }
 
