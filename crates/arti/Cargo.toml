@@ -44,6 +44,7 @@ full = [
     "pt-client",
     "arti-rpcserver?/full",
     "fs-mistrust/full",
+    "rpc",
     "safelog/full",
     "tor-config/full",
     "tor-error/full",
@@ -73,6 +74,8 @@ hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
 
+rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "derive-deftly"]
+
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
 # which in turn introduces a GPL-incompatibility.
@@ -99,12 +102,10 @@ experimental = [
     "hs-pow-full",
     "keymgr",
     "restricted-discovery",
-    "rpc",
     "hsc",
     "tor-hsservice/experimental",
     "ctor-keystore",
 ]
-rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "derive-deftly", "__is_experimental"]
 
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental", "dialoguer"]

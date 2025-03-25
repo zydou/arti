@@ -29,6 +29,7 @@ full = [
     "compression",
     "bridge-client",
     "pt-client",
+    "rpc",
     "tor-rtcompat/full",
     "tor-proto/full",
     "tor-netdoc/full",
@@ -93,6 +94,8 @@ onion-service-service = ["tor-hsservice", "tor-hscrypto", "tor-persist/state-dir
 keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr"]
 vanguards = ["tor-guardmgr/vanguards", "tor-circmgr/vanguards"]
 
+rpc = ["dyn-clone", "tor-rpcbase"]
+
 __is_nonadditive = []
 
 compression = ["tor-dirmgr/compression"]
@@ -105,7 +108,6 @@ experimental = [
     "error_detail",
     "geoip",
     "hs-pow-full",
-    "rpc",
     "testing",
     "tor-proto/experimental",
     "tor-netdoc/experimental",
@@ -128,7 +130,6 @@ ephemeral-keystore = ["tor-keymgr/ephemeral-keystore", "__is_experimental"]
 ctor-keystore = ["tor-keymgr/ctor-keystore", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
-rpc = ["dyn-clone", "tor-rpcbase", "__is_experimental"]
 
 restricted-discovery = ["onion-service-service", "tor-hsservice/restricted-discovery", "__is_experimental"]
 __is_experimental = []
