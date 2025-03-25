@@ -516,13 +516,9 @@ impl Reactor {
         // TODO(conflux): support adding and linking circuits
         // TODO(conflux): support switching the primary leg
 
-        let mut circ_actions = self.circuits.next_circ_action();
-
         let action = select_biased! {
             res = self.command.next() => {
                 let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
-                // Drop circs so we can borrow self mutably.
-                drop(circ_actions);
                 return ControlHandler::new(self).handle_cmd(cmd);
             },
             // Check whether we've got a control message pending.
@@ -537,10 +533,8 @@ impl Reactor {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
                 Some(CircuitAction::HandleControl(msg))
             },
-            res = circ_actions.fuse() => res?,
+            res = self.circuits.next_circ_action().fuse() => res?,
         };
-
-        drop(circ_actions);
 
         let cmd = match action {
             None => None,
