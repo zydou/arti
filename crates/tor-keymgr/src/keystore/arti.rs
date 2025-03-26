@@ -593,7 +593,7 @@ mod tests {
             keys_and_specs.push((key, TestSpecifier::new("-sshkeygen")));
         }
 
-        for (key, key_spec) in &keys_and_specs {
+        for (i, (key, key_spec)) in keys_and_specs.iter().enumerate() {
             // Insert the keys
             let key = UnparsedOpenSshKey::new(key.into(), PathBuf::from("/test/path"));
             let erased_kp = key
@@ -611,12 +611,9 @@ mod tests {
                     .rel_path_unchecked(),
             );
 
-            // The key and its parent directories are created after
-            // the first key is inserted
-            assert_eq!(
-                !path.parent().unwrap().try_exists().unwrap(),
-                *key_spec == keys_and_specs.first().unwrap().1
-            );
+            // The key and its parent directories don't exist for first key.
+            // They are created after the first key is inserted.
+            assert_eq!(!path.parent().unwrap().try_exists().unwrap(), i == 0);
 
             assert!(key_store.insert(&*key, key_spec, ed_key_type).is_ok());
 
