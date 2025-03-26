@@ -576,20 +576,19 @@ impl Reactor {
             // circuit is ready for sending.
             ret = self.control.next() => {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
-                Some(CircuitAction::HandleControl(msg))
+                CircuitAction::HandleControl(msg)
             },
             res = self.circuits.next_circ_action().fuse() => res?,
         };
 
         let cmd = match action {
-            None => None,
-            Some(CircuitAction::RunCmd { leg, cmd }) => Some(RunOnceCmd::Single(
+            CircuitAction::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
                 RunOnceCmdInner::from_circuit_cmd(leg, cmd),
             )),
-            Some(CircuitAction::HandleControl(ctrl)) => ControlHandler::new(self)
+            CircuitAction::HandleControl(ctrl) => ControlHandler::new(self)
                 .handle_msg(ctrl)?
                 .map(RunOnceCmd::Single),
-            Some(CircuitAction::HandleCell { leg, cell }) => {
+            CircuitAction::HandleCell { leg, cell } => {
                 let circ = self
                     .circuits
                     .leg_mut(LegId(leg))
@@ -612,7 +611,7 @@ impl Reactor {
                     Some(cmd)
                 }
             }
-            Some(CircuitAction::RemoveLeg(leg_id)) => {
+            CircuitAction::RemoveLeg(leg_id) => {
                 self.circuits.remove(leg_id)?;
                 None
             }
