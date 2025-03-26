@@ -29,7 +29,7 @@ walkdir = { version = "2", optional = true }
 libc = "0.2"
 once_cell = "1"
 
-[target.'cfg(all(unix, not(target_os="ios"), not(target_os="android")))'.dependencies]
+[target.'cfg(all(unix, not(target_os="ios"), not(target_os="tvos"), not(target_os="android")))'.dependencies]
 pwd-grp = "1"
 
 [dev-dependencies]
