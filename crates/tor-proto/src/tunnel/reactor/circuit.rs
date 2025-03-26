@@ -599,6 +599,18 @@ impl Circuit {
             return self.handle_meta_cell(handlers, hopnum, msg);
         };
 
+        self.handle_in_order_relay_msg(handlers, hopnum, cell_counts_toward_windows, streamid, msg)
+    }
+
+    /// Handle a single incoming relay message that is known to be in order.
+    pub(super) fn handle_in_order_relay_msg(
+        &mut self,
+        handlers: &mut CellHandlers,
+        hopnum: HopNum,
+        cell_counts_toward_windows: bool,
+        streamid: StreamId,
+        msg: UnparsedRelayMsg,
+    ) -> Result<Option<CircuitCmd>> {
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
