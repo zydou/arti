@@ -431,7 +431,7 @@ mod tests {
         (key_store, keystore_dir)
     }
 
-    /// Checks if the expected `ArtiPath`s are also there in the keystore list
+    /// Checks if the `expected` list of `ArtiPath`s is the same as the specified `list`.
     macro_rules! assert_contains_arti_paths {
         ($expected:expr, $list:expr) => {{
             let mut expected = Vec::from_iter($expected.iter().cloned().map(KeyPath::Arti));

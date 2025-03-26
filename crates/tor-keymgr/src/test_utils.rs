@@ -18,6 +18,11 @@ use std::fmt::Debug;
 
 use crate::{ArtiPath, KeyPath, KeySpecifier};
 
+// TODO: #[cfg(test)] / feature `testing`:
+// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2873#note_3179873
+// > A better overall approach would've been to split out the test utils that are not
+// > pub into a different module (to avoid the confusing internal featute/test gating).
+
 #[cfg(test)]
 use {
     std::io::Error,
@@ -196,15 +201,9 @@ mod specifier {
     pub(crate) struct TestSpecifier(String);
 
     impl TestSpecifier {
-        /// Create a new [`TestSpecifier`].
+        /// Create a new [`TestSpecifier`] with the supplied `suffix`.
         pub(crate) fn new(suffix: impl AsRef<str>) -> Self {
             Self(suffix.as_ref().into())
-        }
-
-        /// Return the prefix of the [`ArtiPath`] of this specifier.
-        #[allow(dead_code)]
-        pub(crate) fn path_prefix() -> &'static str {
-            TEST_SPECIFIER_PATH
         }
     }
 
