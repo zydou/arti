@@ -638,7 +638,7 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
     }
 
     fn learning_timeouts(&self) -> bool {
-        self.p.use_estimates && self.history.n_times() < self.p.min_observations.into()
+        self.p.use_estimates && self.history.n_times() < usize::from(self.p.min_observations)
     }
 
     fn build_state(&mut self) -> Option<ParetoTimeoutState> {
