@@ -4,7 +4,7 @@
 mod msghandler;
 
 use std::future::Future;
-use std::sync::atomic::AtomicU32;
+use std::sync::atomic::{self, AtomicU32};
 use std::sync::Arc;
 
 use futures::StreamExt;
@@ -299,9 +299,7 @@ impl ConfluxSet {
         };
 
         if !legs.iter().all(leg_is_valid) {
-            return Err(bad_api_usage!(
-                "one more more conflux circuits are invalid"
-            ));
+            return Err(bad_api_usage!("one more more conflux circuits are invalid"));
         }
 
         let check_legs_disjoint = |(leg1, leg2): (&Circuit, &Circuit)| {
@@ -475,6 +473,13 @@ impl ConfluxSet {
         // of handshake completion/conflux set readiness
 
         Ok(())
+    }
+
+    /// Check if the specified sequence number is the sequence number of the
+    /// next message we're expecting to handle.
+    pub(super) fn is_seqno_in_order(&self, seq_recv: u32) -> bool {
+        let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::SeqCst);
+        seq_recv == last_seq_delivered + 1
     }
 }
 

@@ -711,6 +711,13 @@ impl Reactor {
             return Ok(());
         }
 
+        // Prioritize the buffered messages.
+        //
+        // Note: if any of the messages are ready to be handled,
+        // this will block the reactor until we are done processing them
+        #[cfg(feature = "conflux")]
+        self.try_dequeue_ooo_msgs().await?;
+
         // TODO(conflux): support switching the primary leg
 
         let action = select_biased! {
@@ -780,6 +787,44 @@ impl Reactor {
 
         if let Some(cmd) = cmd {
             self.handle_run_once_cmd(cmd).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Try to process the previously-out-of-order messages we might have buffered.
+    #[cfg(feature = "conflux")]
+    async fn try_dequeue_ooo_msgs(&mut self) -> StdResult<(), ReactorError> {
+        // Check if we're ready to dequeue any of the previously out-of-order cells.
+        while let Some(entry) = self.ooo_msgs.peek() {
+            let should_pop = self.circuits.is_seqno_in_order(entry.msg.seqno);
+
+            if !should_pop {
+                break;
+            }
+
+            let entry = self.ooo_msgs.pop().expect("item just disappeared?!");
+
+            let circ = self
+                .circuits
+                .leg_mut(entry.leg_id)
+                .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
+            let handlers = &mut self.cell_handlers;
+            let cmd = circ
+                .handle_in_order_relay_msg(
+                    handlers,
+                    entry.msg.hopnum,
+                    entry.msg.cell_counts_towards_windows,
+                    entry.msg.streamid,
+                    entry.msg.msg,
+                )?
+                .map(|cmd| {
+                    RunOnceCmd::Single(RunOnceCmdInner::from_circuit_cmd(entry.leg_id.0, cmd))
+                });
+
+            if let Some(cmd) = cmd {
+                self.handle_run_once_cmd(cmd).await?;
+            }
         }
 
         Ok(())

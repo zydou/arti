@@ -206,18 +206,18 @@ trait AbstractConfluxMsgHandler {
 #[derive(Debug)]
 pub(crate) struct OooRelayMsg {
     /// The sequence number of the message.
-    seqno: u32,
+    pub(crate) seqno: u32,
     /// The hop this message originated from.
-    hopnum: HopNum,
+    pub(crate) hopnum: HopNum,
     /// Whether the cell this message originated from counts towards
     /// the stream-level SENDME window.
     ///
     /// See "SENDME window accounting" in prop340.
-    cell_counts_towards_windows: bool,
+    pub(crate) cell_counts_towards_windows: bool,
     /// The stream ID of this message.
-    streamid: StreamId,
+    pub(crate) streamid: StreamId,
     /// The actual message.
-    msg: UnparsedRelayMsg,
+    pub(crate) msg: UnparsedRelayMsg,
 }
 
 impl Ord for OooRelayMsg {
