@@ -175,14 +175,16 @@ pub(crate) fn mistrust_build(ops: &[MistrustOp]) -> Mistrust {
                     #[cfg(all(
                         target_family = "unix",
                         not(target_os = "ios"),
-                        not(target_os = "android")
+                        not(target_os = "android"),
+                        not(target_os = "tvos")
                     ))]
                     return m.trust_no_group_id();
 
                     #[cfg(not(all(
                         target_family = "unix",
                         not(target_os = "ios"),
-                        not(target_os = "android")
+                        not(target_os = "android"),
+                        not(target_os = "tvos")
                     )))]
                     return m;
                 }
