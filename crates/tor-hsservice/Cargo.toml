@@ -90,7 +90,7 @@ retry-error = { version = "0.6.1", path = "../retry-error" }
 safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
-strum = { version = "0.26.3", features = ["derive"] }
+strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
 tor-async-utils = { path = "../tor-async-utils", version = "0.28.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.28.0" }

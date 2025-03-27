@@ -61,7 +61,7 @@ rand = "0.9"
 retry-error = { path = "../retry-error", version = "0.6.1" }
 safelog = { path = "../safelog", version = "0.4.2" }
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.2" }
-strum = { version = "0.26.3", features = ["derive"] }
+strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
 tor-async-utils = { version = "0.28.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.28.0" }

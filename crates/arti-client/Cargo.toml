@@ -187,7 +187,7 @@ void = "1"
 [dev-dependencies]
 anyhow = "1.0.23"
 rand = "0.9"
-strum = { version = "0.26.3", features = ["derive"] }
+strum = { version = "0.27.1", features = ["derive"] }
 tempfile = "3.3"
 tokio-crate = { package = "tokio", version = "1.7", features = [
     "rt",
