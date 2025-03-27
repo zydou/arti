@@ -128,20 +128,81 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::test_utils::ssh_keys::*;
+    use crate::test_utils::sshkeygen_ed25519_strings;
 
+    use tor_key_forge::{EncodableItem, KeystoreItem};
     use tor_llcrypto::pk::{curve25519, ed25519};
 
     use super::*;
 
+    /// Comments used for the various keys. Should be kept in sync with the comments
+    /// used in `maint/keygen-openssh-test/generate`, the fallback comment used in
+    /// `maint/keygen-openssh-test/src/main.rs: make_openssh_key! {}`, and the
+    /// comment used in `crate::test_utils::sshkeygen_ed25519_strings()`.
+    const ED25519_OPENSSH_COMMENT: &str = "armadillo@example.com";
+    const ED25519_EXPANDED_OPENSSH_COMMENT: &str = "armadillo@example.com";
+    const X25519_OPENSSH_COMMENT: &str = "test-key";
+    const ED25519_SSHKEYGEN_COMMENT: &str = "";
+
+    /// Convenience trait for getting the underlying bytes for key types.
+    trait ToBytes {
+        type Bytes;
+        fn to_bytes(&self) -> Self::Bytes;
+    }
+
+    impl ToBytes for ed25519::Keypair {
+        type Bytes = [u8; 32];
+        fn to_bytes(&self) -> Self::Bytes {
+            self.to_bytes()
+        }
+    }
+
+    impl ToBytes for ed25519::PublicKey {
+        type Bytes = [u8; 32];
+        fn to_bytes(&self) -> Self::Bytes {
+            self.to_bytes()
+        }
+    }
+
+    impl ToBytes for ed25519::ExpandedKeypair {
+        type Bytes = [u8; 64];
+        fn to_bytes(&self) -> Self::Bytes {
+            self.to_secret_key_bytes()
+        }
+    }
+
+    impl ToBytes for curve25519::StaticKeypair {
+        type Bytes = [u8; 32];
+        fn to_bytes(&self) -> Self::Bytes {
+            self.secret.to_bytes()
+        }
+    }
+
+    impl ToBytes for curve25519::PublicKey {
+        type Bytes = [u8; 32];
+        fn to_bytes(&self) -> Self::Bytes {
+            self.to_bytes()
+        }
+    }
+
+    /// In-memory mangling. Pass private or public ED25519 key.
+    fn mangle_ed25519(key: &mut String) {
+        if key.len() > 150 {
+            // private
+            key.replace_range(107..178, "hello");
+        } else {
+            // public
+            key.insert_str(12, "garbage");
+        }
+    }
+
+    /// This macro checks if the passed encoded key can be successfully parsed or not. For the
+    /// encoded<1> keys that are sucessfully parsed and decoded<2>, the decoded<2> keys are
+    /// re-encoded<3>, and these re-encoded<3> keys are re-decoded<4>. Then, it asserts that:
+    ///
+    /// * Encoded<1> and re-encoded<3> keys are the same.
+    /// * Decoded<2> and re-decoded<4> keys are the same.
     macro_rules! test_parse_ssh_format_erased {
-        ($key_ty:tt, $key:expr, $expected_ty:path) => {{
-            let key_type = KeyType::$key_ty;
-            let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/test/path"));
-            let erased_key = key.parse_ssh_format_erased(&key_type).unwrap();
-
-            assert!(erased_key.downcast::<$expected_ty>().is_ok());
-        }};
-
         ($key_ty:tt, $key:expr, err = $expect_err:expr) => {{
             let key_type = KeyType::$key_ty;
             let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/dummy/path"));
@@ -151,6 +212,49 @@ mod tests {
                 .unwrap_err();
 
             assert_eq!(err.to_string(), $expect_err);
+        }};
+
+        ($key_ty:tt, $enc1:expr, $expected_ty:path, $comment:expr) => {{
+            let enc1 = $enc1.trim();
+            let key_type = KeyType::$key_ty;
+            let key = UnparsedOpenSshKey::new(enc1.into(), PathBuf::from("/test/path"));
+            let erased_key = key.parse_ssh_format_erased(&key_type).unwrap();
+
+            let Ok(dec1) = erased_key.downcast::<$expected_ty>() else {
+                panic!("failed to downcast");
+            };
+
+            let keystore_item = EncodableItem::as_keystore_item(&*dec1).unwrap();
+            let enc2 = match keystore_item {
+                KeystoreItem::Key(key) => key.to_openssh_string($comment).unwrap(),
+                _ => panic!("unexpected keystore item type {keystore_item:?}"),
+            };
+            let enc2 = enc2.trim();
+
+            // TODO: From
+            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2873#note_3178959:
+            // > the problem is that the two keys have different checkint values. When a PrivateKey is
+            // > parsed, its checkint is saved, and used when reencoding the key, so technically the
+            // > checkints should be the same. However, arti only actually stores the underlying
+            // > KeypairData and not the actual PrivateKey, so in SshKeyData::to_openssh_string, we
+            // > create a brand new PrivateKey from that KeypairData, which winds up with a None
+            // > checkint. When that PrivateKey then gets serialized, the checkint is taken from
+            // > KeypairData::checkint, which isn't the same as the checkint ssh-keygen put in the
+            // > original key. It's a weird implementation detail, but technically not a bug.
+            match key_type {
+                KeyType::Ed25519Keypair |
+                KeyType::X25519StaticKeypair |
+                KeyType::Ed25519ExpandedKeypair => (),
+                _ => assert_eq!(enc1, enc2),
+            }
+
+            let key = UnparsedOpenSshKey::new(enc2.into(), PathBuf::from("/test/path"));
+            let erased_key = key.parse_ssh_format_erased(&key_type).unwrap();
+            let Ok(dec2) = erased_key.downcast::<$expected_ty>() else {
+                panic!("failed to downcast");
+            };
+
+            assert_eq!(dec1.to_bytes(), dec2.to_bytes());
         }};
     }
 
@@ -202,12 +306,60 @@ mod tests {
             ED25519_OPENSSH_BAD_PUB,
             err = "Failed to parse OpenSSH with type Ed25519PublicKey"
         );
+
+        if let Ok((mut bad, mut bad_pub)) = sshkeygen_ed25519_strings() {
+            mangle_ed25519(&mut bad);
+            mangle_ed25519(&mut bad_pub);
+
+            test_parse_ssh_format_erased!(
+                Ed25519Keypair,
+                &bad,
+                err = "Failed to parse OpenSSH with type Ed25519Keypair"
+            );
+
+            test_parse_ssh_format_erased!(
+                Ed25519Keypair,
+                &bad_pub,
+                err = "Failed to parse OpenSSH with type Ed25519Keypair"
+            );
+
+            test_parse_ssh_format_erased!(
+                Ed25519PublicKey,
+                &bad_pub,
+                err = "Failed to parse OpenSSH with type Ed25519PublicKey"
+            );
+        }
     }
 
     #[test]
     fn ed25519_key() {
-        test_parse_ssh_format_erased!(Ed25519Keypair, ED25519_OPENSSH, ed25519::Keypair);
-        test_parse_ssh_format_erased!(Ed25519PublicKey, ED25519_OPENSSH_PUB, ed25519::PublicKey);
+        test_parse_ssh_format_erased!(
+            Ed25519Keypair,
+            ED25519_OPENSSH,
+            ed25519::Keypair,
+            ED25519_OPENSSH_COMMENT
+        );
+        test_parse_ssh_format_erased!(
+            Ed25519PublicKey,
+            ED25519_OPENSSH_PUB,
+            ed25519::PublicKey,
+            ED25519_OPENSSH_COMMENT
+        );
+
+        if let Ok((enc1, enc1_pub)) = sshkeygen_ed25519_strings() {
+            test_parse_ssh_format_erased!(
+                Ed25519Keypair,
+                enc1,
+                ed25519::Keypair,
+                ED25519_SSHKEYGEN_COMMENT
+            );
+            test_parse_ssh_format_erased!(
+                Ed25519PublicKey,
+                enc1_pub,
+                ed25519::PublicKey,
+                ED25519_SSHKEYGEN_COMMENT
+            );
+        }
     }
 
     #[test]
@@ -224,7 +376,8 @@ mod tests {
         test_parse_ssh_format_erased!(
             Ed25519ExpandedKeypair,
             ED25519_EXPANDED_OPENSSH,
-            ed25519::ExpandedKeypair
+            ed25519::ExpandedKeypair,
+            ED25519_EXPANDED_OPENSSH_COMMENT
         );
 
         test_parse_ssh_format_erased!(
@@ -239,10 +392,16 @@ mod tests {
         test_parse_ssh_format_erased!(
             X25519StaticKeypair,
             X25519_OPENSSH,
-            curve25519::StaticKeypair
+            curve25519::StaticKeypair,
+            X25519_OPENSSH_COMMENT
         );
 
-        test_parse_ssh_format_erased!(X25519PublicKey, X25519_OPENSSH_PUB, curve25519::PublicKey);
+        test_parse_ssh_format_erased!(
+            X25519PublicKey,
+            X25519_OPENSSH_PUB,
+            curve25519::PublicKey,
+            X25519_OPENSSH_COMMENT
+        );
     }
 
     #[test]
