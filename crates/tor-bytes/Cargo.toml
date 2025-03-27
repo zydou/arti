@@ -26,7 +26,7 @@ zeroize = { version = "1", features = ["derive"] }
 hex-literal = "0.4"
 
 [target.wasm32-unknown-unknown.dependencies]
-getrandom = { version = "0.2.3", features = ["js"] }
+getrandom = "0.3.2"
 
 [features]
 default = ["tor-llcrypto"]
