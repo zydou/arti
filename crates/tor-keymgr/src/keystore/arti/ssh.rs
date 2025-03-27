@@ -136,7 +136,7 @@ mod tests {
     use super::*;
 
     /// Comments used for the various keys. Should be kept in sync with the comments
-    /// used in `maint/keygen-openssh-test/generate`, the fallback comment in
+    /// used in `maint/keygen-openssh-test/generate`, the fallback comment used in
     /// `maint/keygen-openssh-test/src/main.rs: make_openssh_key! {}`, and the
     /// comment used in `crate::test_utils::sshkeygen_ed25519_strings()`.
     const ED25519_OPENSSH_COMMENT: &str = "armadillo@example.com";
@@ -196,13 +196,12 @@ mod tests {
         }
     }
 
-    /// This macro checks if passed encoded key can be successfully parsed or not. For
-    /// encoded<sup>1</sup> keys that are sucessfully parsed an decoded<sup>2</sup>, the
-    /// decoded<sup>2</sup> keys are re-encoded<sup>3</sup>, and these re-encoded<sup>3</sup>
-    /// are re-decoded<sup>4</sup>. Then, it asserts that:
+    /// This macro checks if the passed encoded key can be successfully parsed or not. For the
+    /// encoded<1> keys that are sucessfully parsed and decoded<2>, the decoded<2> keys are
+    /// re-encoded<3>, and these re-encoded<3> keys are re-decoded<4>. Then, it asserts that:
     ///
-    /// * Encoded<sup>1</sup> and re-encoded<sup>3</sup> keys are the same.
-    /// * Decoded<sup>2</sup> and re-decoded<sup>4</sup> keys are the same.
+    /// * Encoded<1> and re-encoded<3> keys are the same.
+    /// * Decoded<2> and re-decoded<4> keys are the same.
     macro_rules! test_parse_ssh_format_erased {
         ($key_ty:tt, $key:expr, err = $expect_err:expr) => {{
             let key_type = KeyType::$key_ty;
@@ -241,7 +240,7 @@ mod tests {
             // > create a brand new PrivateKey from that KeypairData, which winds up with a None
             // > checkint. When that PrivateKey then gets serialized, the checkint is taken from
             // > KeypairData::checkint, which isn't the same as the checkint ssh-keygen put in the
-            // > original key. It's a weird implementation detail, but technically a bug
+            // > original key. It's a weird implementation detail, but technically not a bug.
             match key_type {
                 KeyType::Ed25519Keypair |
                 KeyType::X25519StaticKeypair |
