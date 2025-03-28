@@ -70,8 +70,8 @@ impl_standard_builder! { OnionServiceProxyConfig: !Default }
 #[cfg(feature = "onion-service-service")]
 pub(crate) type OnionServiceProxyConfigMap = BTreeMap<HsNickname, OnionServiceProxyConfig>;
 
-/// The serialized format of an OnionServiceProxyConfigListBuilder:
-/// a map from nickname to `OnionServiceConfigBuilder`
+/// The serialized format of an `OnionServiceProxyConfigMapBuilder`:
+/// a map from `HsNickname` to `OnionServiceConfigBuilder`
 type ProxyBuilderMap = BTreeMap<HsNickname, OnionServiceProxyConfigBuilder>;
 
 // TODO: Someday we might want to have an API for a MapBuilder that is distinct
@@ -87,13 +87,11 @@ define_list_builder_helper! {
     #[serde(try_from="ProxyBuilderMap", into="ProxyBuilderMap")]
 }
 
-/// Construct a OnionServiceProxyConfigList from a vec of OnionServiceProxyConfig;
+/// Construct a `OnionServiceProxyConfigMap` from a `Vec` of `OnionServiceProxyConfig`;
 /// enforce that nicknames are unique.
 fn build_list(
     services: Vec<OnionServiceProxyConfig>,
 ) -> Result<OnionServiceProxyConfigMap, ConfigBuildError> {
-    // TODO: Add a test for this function.
-    //
     // It *is* reachable from OnionServiceProxyConfigMapBuilder::build(), since
     // that builder's API uses push() to add OnionServiceProxyConfigBuilders to
     // an internal _list_.  Alternatively, we might want to have a distinct
@@ -216,7 +214,6 @@ impl Proxy {
                     );
                 }
             })?;
-
         }
 
         Ok(Proxy { svc, proxy })
@@ -345,5 +342,106 @@ impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
     fn reconfigure(&self, new: &crate::ArtiCombinedConfig) -> anyhow::Result<()> {
         ProxySet::reconfigure(self, new.0.onion_services.clone())?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    use tor_config::ConfigBuildError;
+    use tor_hsservice::{config::OnionServiceConfigBuilder, HsNickname};
+
+    /// Constructs an `OnionServiceConfigBuilder` with the given `HsNickname`
+    /// by cloning it, setting all other fields to default values.
+    macro_rules! onion_service_config_builder {
+        ($nick:expr) => {{
+            let mut config_builder = OnionServiceConfigBuilder::default();
+            config_builder.nickname($nick.clone());
+            config_builder
+        }};
+    }
+
+    /// Constructs an `OnionServiceProxyConfigBuilder` with a given `HsNickname`
+    /// by borrowing it, having:
+    ///
+    /// * An `OnionServiceConfigBuilder` having the `HsNickname`, and
+    /// * A default `ProxyConfigBuilder`.
+    macro_rules! onion_service_proxy_config_builder {
+        ($nick:expr) => {{
+            let mut proxy_config_builder = OnionServiceProxyConfigBuilder::default();
+            *proxy_config_builder.service() = onion_service_config_builder!($nick);
+            proxy_config_builder
+        }};
+    }
+
+    /// Takes either a `Vec` or a comma-separated list of
+    /// builders, producing a `Vec` of the results.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if any of the builders supplied are invalid.
+    macro_rules! build_all {
+        ($builders:expr) => (
+            $builders
+                .into_iter()
+                .map(|builder| builder.build().unwrap())
+                .collect::<Vec<_>>()
+        );
+        ($($builder:expr),+ $(,)?) => (
+            vec![ $($builder.build().unwrap()),+ ]
+        );
+    }
+
+    #[test]
+    fn fn_build_list() {
+        let nick_1 = HsNickname::new("nick_1".to_string()).unwrap();
+        let nick_2 = HsNickname::new("nick_2".to_string()).unwrap();
+
+        let proxy_configs = build_all![
+            onion_service_proxy_config_builder!(nick_1),
+            onion_service_proxy_config_builder!(nick_2),
+        ];
+        let actual = build_list(proxy_configs.clone());
+
+        assert!(actual.is_ok());
+
+        let actual = actual.unwrap();
+
+        let expected =
+            OnionServiceProxyConfigMap::from_iter([nick_1, nick_2].into_iter().zip(proxy_configs));
+
+        assert_eq!(actual, expected);
+
+        let nick_dup = HsNickname::new("nick_dup".to_string()).unwrap();
+        let proxy_configs_dup = build_all![
+            onion_service_proxy_config_builder!(nick_dup),
+            onion_service_proxy_config_builder!(nick_dup),
+        ];
+        let actual = build_list(proxy_configs_dup);
+
+        assert!(actual.is_err());
+
+        let actual = actual.unwrap_err();
+
+        let expected = ConfigBuildError::Inconsistent {
+            fields: vec!["nickname".into()],
+            problem: format!("Multiple onion services with the nickname {nick_dup}"),
+        };
+
+        assert_eq!(actual, expected);
     }
 }

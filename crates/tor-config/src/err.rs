@@ -13,7 +13,7 @@ use tor_error::{ErrorKind, HasKind};
 // part of the configuration was invalid.
 //
 // This is part of the public API.
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ConfigBuildError {
     /// A mandatory field was not present.
