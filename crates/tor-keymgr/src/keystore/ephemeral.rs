@@ -84,12 +84,13 @@ impl Keystore for ArtiEphemeralKeystore {
         &self,
         key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
-        item_type: &KeystoreItemType,
+        _item_type: &KeystoreItemType,
     ) -> Result<(), Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_data = key.as_keystore_item()?;
+        let item_type = key_data.item_type()?;
 
         // TODO: add item_type validation to Keystore::get and Keystore::remove.
         // The presence of a key with a mismatched item_type can be either due to keystore
@@ -97,7 +98,7 @@ impl Keystore for ArtiEphemeralKeystore {
         // that).
         //
         // TODO: add item_type validation to ArtiNativeKeystore
-        if key_data.item_type()? != *item_type {
+        if key_data.item_type()? != *_item_type {
             // This can never happen unless:
             //   * Keystore::insert is called directly with an incorrect KeystoreItemType for `key`, or
             //   * Keystore::insert is called via KeyMgr, but the EncodableItem implementation of
@@ -111,7 +112,7 @@ impl Keystore for ArtiEphemeralKeystore {
 
         // save to dictionary
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
-        let _ = key_dictionary.insert((arti_path, item_type.clone()), key_data);
+        let _ = key_dictionary.insert((arti_path, item_type), key_data);
         Ok(())
     }
 

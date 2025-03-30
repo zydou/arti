@@ -883,21 +883,20 @@ mod tests {
                     &self,
                     key: &dyn EncodableItem,
                     key_spec: &dyn KeySpecifier,
-                    item_type: &KeystoreItemType,
+                    _item_type: &KeystoreItemType,
                 ) -> Result<()> {
                     let key = key.downcast_ref::<TestItem>().unwrap();
 
+                    let item = key.as_keystore_item()?;
                     let meta = key.meta.clone();
 
-                    let key = TestItem {
-                        item: key.as_keystore_item()?,
-                        meta,
-                    };
+                    let item_type = item.item_type()?;
+                    let key = TestItem { item, meta };
 
                     self.inner
                         .write()
                         .unwrap()
-                        .insert((key_spec.arti_path().unwrap(), item_type.clone()), key);
+                        .insert((key_spec.arti_path().unwrap(), item_type), key);
 
                     Ok(())
                 }

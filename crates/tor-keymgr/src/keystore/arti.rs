@@ -205,10 +205,12 @@ impl Keystore for ArtiNativeKeystore {
         &self,
         key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
-        item_type: &KeystoreItemType,
+        _item_type: &KeystoreItemType,
     ) -> Result<()> {
+        let keystore_item = key.as_keystore_item()?;
+        let item_type = keystore_item.item_type()?;
         let path = self
-            .rel_path(key_spec, item_type)
+            .rel_path(key_spec, &item_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
         let unchecked_path = path.rel_path_unchecked();
 
@@ -224,7 +226,7 @@ impl Keystore for ArtiNativeKeystore {
                 .map_err(ArtiNativeKeystoreError::Filesystem)?;
         }
 
-        let item_bytes: Vec<u8> = match key.as_keystore_item()? {
+        let item_bytes: Vec<u8> = match keystore_item {
             KeystoreItem::Key(key) => {
                 // TODO (#1095): decide what information, if any, to put in the comment
                 let comment = "";
