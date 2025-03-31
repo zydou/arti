@@ -21,8 +21,9 @@ please see below.
   ([#1864], [!2828])
 - In `tor-llcrypto`, `curve25519` and `ed25519` types are now wrappers,
   with slight API changes. ([!2868])
-- In `tor-config-path`, `CfgAddrError::ConstructUnixAddress` is renamed
-  to `ConstructAfUnixAddress`,
+- In `tor-config-path`, `CfgAddrError::ConstructUnixAddress` and
+  `CfgAddrError::NoUnixAddressSupport` are renamed
+  to `ConstructAfUnixAddress` and `NoAfUnixSocketSupport`, respectively.
   No change to the semantics, just corrected terminology.
   We have removed the old variants so that any code which actively matches
   on this variant won't be silently broken.
