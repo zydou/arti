@@ -36,6 +36,8 @@ def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
         "CHUTNEY_ENABLE_CONTROLSOCKET": "no",
         # ipv6 isn't supported in shadow
         "CHUTNEY_DISABLE_IPV6": "yes",
+        # sandboxing isn't supported in shadow
+        "CHUTNEY_TOR_SANDBOX": "no",
         # re-export PATH. The test scripts assume that
         # usual shell utilities are on it.
         "PATH": os.getenv("PATH"),
