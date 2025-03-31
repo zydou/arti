@@ -2,6 +2,36 @@
 
 set -xeuo pipefail
 
+SCRIPT_NAME=$(basename "$0")
+
+function usage()
+{
+    cat <<EOF
+${SCRIPT_NAME}: Launch and validate a shadow simulation to test arti
+
+Usage:
+  ${SCRIPT_NAME} : Launch and  validate a shadow simulation
+
+Options:
+  -h: Print this message.
+  -s <seed>: Integer PRNG seed
+EOF
+}
+
+SEED=1
+while getopts "hs:" opt ; do
+    case "$opt" in
+	h) usage
+	   exit 0
+	   ;;
+	s) SEED="$OPTARG"
+	   ;;
+	*) echo "Unknown option. (Run $0 -h for usage)"
+	   exit 1
+	   ;;
+    esac
+done
+
 # Remove output of previous run
 rm -rf shadow.data
 
@@ -24,6 +54,7 @@ shadow \
   --progress=true \
   --use-memory-manager=false \
   --use-worker-spinning=false \
+  --seed="$SEED" \
   shadow.yaml \
   > shadow.log
 
