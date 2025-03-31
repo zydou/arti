@@ -26,6 +26,7 @@ full = [
     "tor-rtcompat/full",
     "tor-memquota/full",
     "tor-config-path/full",
+    "tor-llcrypto/full",
 ]
 
 [dependencies]
