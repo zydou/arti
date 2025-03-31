@@ -2061,7 +2061,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "equix"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2285,7 +2285,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs 6.0.0",
@@ -2620,7 +2620,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -4662,7 +4662,7 @@ dependencies = [
 
 [[package]]
 name = "safelog"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "derive_more",
  "educe",
@@ -5370,7 +5370,7 @@ dependencies = [
 
 [[package]]
 name = "test-temp-dir"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "derive_more",

@@ -79,7 +79,7 @@ oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.
 pin-project = "1"
 rand = "0.9"
 rand_core = "0.9.3"
-safelog = { path = "../safelog", version = "0.4.2" }
+safelog = { path = "../safelog", version = "0.4.5" }
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
 static_assertions = "1"
 subtle = "2"

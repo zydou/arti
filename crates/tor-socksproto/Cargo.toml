@@ -25,7 +25,7 @@ arbitrary = { version = "1.0.1", optional = true, features = ["derive"] }
 caret = { path = "../caret", version = "0.5.0" }
 derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
 educe = "0.4.22"
-safelog = { path = "../safelog", version = "0.4.2" }
+safelog = { path = "../safelog", version = "0.4.5" }
 subtle = "2"
 thiserror = "2"
 tor-bytes = { path = "../tor-bytes", version = "0.28.0", default-features = false }

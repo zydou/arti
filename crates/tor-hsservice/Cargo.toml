@@ -74,7 +74,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.22"
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.0", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.9.1", features = ["serde"] }
 futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
 hex = "0.4"
@@ -87,7 +87,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.9.0"
 rand_core = "0.9.3"
 retry-error = { version = "0.6.1", path = "../retry-error" }
-safelog = { path = "../safelog", version = "0.4.2" }
+safelog = { path = "../safelog", version = "0.4.5" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.27.1", features = ["derive"] }
@@ -126,7 +126,7 @@ rmp-serde = "1"
 serde_json = "1.0.104"
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.2" }
 tempfile = "3"
-test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
+test-temp-dir = { version = "0.3.3", path = "../test-temp-dir" }
 tor-config = { version = "0.28.0", path = "../tor-config", features = ["testing"] }
 tor-key-forge = { version = "0.28.0", path = "../tor-key-forge" }
 tor-keymgr = { version = "0.28.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
