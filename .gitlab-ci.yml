@@ -547,6 +547,8 @@ integration-chutney:
   artifacts:
     paths:
       - benchmark_results.json
+      # chutney network including tor logs etc
+      - nodes.*/
 
 # Runs the chutney integration test under shadow.
 integration-chutney-shadow:
@@ -588,6 +590,8 @@ integration-chutney-shadow:
       - shadow.chutney.yaml
       - shadow.chutney.data/
       - shadow.log
+      # chutney network including tor logs etc
+      - nodes.*/
     when: always
     expire_in: 1 week
 
