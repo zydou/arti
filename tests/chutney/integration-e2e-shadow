@@ -10,6 +10,7 @@ vs running it directly for several reasons.
   than when running natively.
 """
 
+import argparse
 import os
 import pathlib
 import shutil
@@ -80,6 +81,15 @@ def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        prog="integration-e2e-shadow",
+        description="Runs integration-e2e inside a shadow simulation",
+    )
+    parser.add_argument(
+        "-s", "--seed", type=int, default=1, help="Simulation PRNG seed"
+    )
+    args = parser.parse_args()
+
     toplevel = pathlib.Path(
         os.fsdecode(
             subprocess.check_output("git rev-parse --show-toplevel", shell=True)
@@ -105,6 +115,7 @@ def main():
         "--data-directory=" + SHADOW_DATA_DIR,
         "--progress=true",
         "--model-unblocked-syscall-latency=true",
+        "--seed=" + str(args.seed),
         SHADOW_CONFIG_FILE,
     ]
     with open(SHADOW_LOG_FILE, "w") as shadow_log_file:
