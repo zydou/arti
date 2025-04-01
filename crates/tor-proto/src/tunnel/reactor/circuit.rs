@@ -13,6 +13,7 @@ use crate::crypto::cell::{
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
+use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::{AnyCmdChecker, StreamStatus};
@@ -71,8 +72,6 @@ use {
     crate::stream::{DataCmdChecker, IncomingStreamRequest},
     tor_cell::relaycell::msg::Begin,
 };
-
-use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 
 /// Initial value for outbound flow-control window on streams.
 pub(super) const SEND_WINDOW_INIT: u16 = 500;
