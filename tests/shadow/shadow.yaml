@@ -297,6 +297,8 @@ hosts:
     host_options:
       # Enable pcap capture so we can check for leaks
       pcap_enabled: true
+      # Collect enough data for the IP fixed header
+      pcap_capture_size: "40 B"
     processes:
     - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
       args:
@@ -322,6 +324,8 @@ hosts:
     host_options:
       # Enable pcap capture so we can check for leaks
       pcap_enabled: true
+      # Collect enough data for the IP fixed header
+      pcap_capture_size: "40 B"
     processes:
     - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
       args:
