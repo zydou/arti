@@ -37,12 +37,3 @@ Start arti:
 ```
 ./target/release/arti proxy -o "rpc.rpc_listen = \"${HOME}/.local/run/arti/SOCKET\""
 ```
-
-Run the demo!
-
-```
-PYTHONPATH="./python/arti_rpc/src:${$PYTHONPATH:-}" python3 \
-        python/arti_rpc/samples/rpc_demo.py
-```
-
-
