@@ -226,6 +226,7 @@ impl Body for V1LinkPayload {
 #[derive_deftly(HasMemoryCost)]
 pub struct ConfluxSwitch {
     /// The relative sequence number.
+    #[getter(as_copy)]
     seqno: u32,
 }
 
