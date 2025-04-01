@@ -247,6 +247,35 @@ impl Protocols {
         self.supports_known_subver(protover.kind, protover.version)
     }
 
+    /// Return a Protocols holding every protocol flag that is present in `self`
+    /// but not `other`.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Desc=2-4 MicroDesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 MicroDesc=3".parse().unwrap();
+    /// assert_eq!(protos.difference(&protos2),
+    ///            "Desc=2,4 MicroDesc=1-2,4-5".parse().unwrap());
+    /// ```
+    pub fn difference(&self, other: &Protocols) -> Protocols {
+        let mut r = Protocols::default();
+
+        for i in 0..N_RECOGNIZED {
+            r.recognized[i] = self.recognized[i] & !other.recognized[i];
+        }
+        // This is not super efficient, but we don't have to do it often.
+        for ent in self.unrecognized.iter() {
+            let mut ent = ent.clone();
+            if let Some(other_ent) = other.unrecognized.iter().find(|e| e.proto == ent.proto) {
+                ent.supported &= !other_ent.supported;
+            }
+            if ent.supported != 0 {
+                r.unrecognized.push(ent);
+            }
+        }
+        r
+    }
+
     /// Parsing helper: Try to add a new entry `ent` to this set of protocols.
     ///
     /// Uses `foundmask`, a bit mask saying which recognized protocols
@@ -514,6 +543,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -600,6 +631,29 @@ mod test {
         assert!(!p.supports_subver("Lonk", 4));
         assert!(!p.supports_subver("lonk", 3));
         assert!(!p.supports_subver("Lonk", 64));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_difference() -> Result<(), ParseError> {
+        let p1: Protocols = "Link=1-10 Desc=5-10 Relay=1,3,5,7,9 Other=7-60 Mine=1-20".parse()?;
+        let p2: Protocols = "Link=3-4 Desc=1-6 Relay=2-6 Other=8 Theirs=20".parse()?;
+
+        assert_eq!(
+            p1.difference(&p2),
+            Protocols::from_str("Link=1-2,5-10 Desc=7-10 Relay=1,7,9 Other=7,9-60 Mine=1-20")?
+        );
+        assert_eq!(
+            p2.difference(&p1),
+            Protocols::from_str("Desc=1-4 Relay=2,4,6 Theirs=20")?,
+        );
+
+        let nil = Protocols::default();
+        assert_eq!(p1.difference(&nil), p1);
+        assert_eq!(p2.difference(&nil), p2);
+        assert_eq!(nil.difference(&p1), nil);
+        assert_eq!(nil.difference(&p2), nil);
 
         Ok(())
     }
