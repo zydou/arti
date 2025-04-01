@@ -19,6 +19,7 @@ use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTa
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
+use tor_protover::named::RELAY_NTORV3;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 
@@ -156,16 +157,12 @@ impl Buildable for ClientCirc {
         let unique_id = Some(circ.peek_unique_id());
 
         let params = params.clone();
-        let handshake_res;
-        {
-            // The target supports ntor_v3 iff it advertises the relevant protover.
-            use tor_protover::named::RELAY_NTORV3;
-            handshake_res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
-                circ.create_firsthop_ntor_v3(ct, params).await
-            } else {
-                circ.create_firsthop_ntor(ct, params).await
-            };
-        }
+        // The target supports ntor_v3 iff it advertises the relevant protover.
+        let handshake_res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
+            circ.create_firsthop_ntor_v3(ct, params).await
+        } else {
+            circ.create_firsthop_ntor(ct, params).await
+        };
 
         handshake_res.map_err(|error| Error::Protocol {
             peer: Some(ct.to_logged()),
@@ -180,17 +177,12 @@ impl Buildable for ClientCirc {
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<()> {
-        let res;
-
-        {
-            // The target supports ntor_v3 iff it advertises the relevant protover.
-            use tor_protover::named::RELAY_NTORV3;
-            res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
-                self.extend_ntor_v3(ct, params).await
-            } else {
-                self.extend_ntor(ct, params).await
-            };
-        }
+        // The target supports ntor_v3 iff it advertises the relevant protover.
+        let res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
+            self.extend_ntor_v3(ct, params).await
+        } else {
+            self.extend_ntor(ct, params).await
+        };
 
         res.map_err(|error| Error::Protocol {
             error,
