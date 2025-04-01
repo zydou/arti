@@ -303,6 +303,36 @@ impl Protocols {
         r
     }
 
+    /// Return a Protocols holding every protocol flag that is present in both `self`
+    /// and `other`.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Desc=2-4 MicroDesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 MicroDesc=10".parse().unwrap();
+    /// assert_eq!(protos.intersection(&protos2),
+    ///            "Desc=3".parse().unwrap());
+    /// ```
+    pub fn intersection(&self, other: &Protocols) -> Protocols {
+        let mut r = Protocols::default();
+        for i in 0..N_RECOGNIZED {
+            r.recognized[i] = self.recognized[i] & other.recognized[i];
+        }
+        for ent in self.unrecognized.iter() {
+            if let Some(other_ent) = other.unrecognized.iter().find(|e| e.proto == ent.proto) {
+                let supported = ent.supported & other_ent.supported;
+                if supported != 0 {
+                    r.unrecognized.push(SubprotocolEntry {
+                        proto: ent.proto.clone(),
+                        supported,
+                    });
+                }
+            }
+        }
+        r.unrecognized.sort();
+        r
+    }
+
     /// Parsing helper: Try to add a new entry `ent` to this set of protocols.
     ///
     /// Uses `foundmask`, a bit mask saying which recognized protocols
@@ -710,6 +740,29 @@ mod test {
         assert_eq!(p2.union(&nil), p2);
         assert_eq!(nil.union(&p1), p1);
         assert_eq!(nil.union(&p2), p2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_intersection() -> Result<(), ParseError> {
+        let p1: Protocols = "Link=1-10 Desc=5-10 Relay=1,3,5,7,9 Other=7-60 Mine=1-20".parse()?;
+        let p2: Protocols = "Link=3-4 Desc=1-6 Relay=2-6 Other=2,8 Theirs=20".parse()?;
+
+        assert_eq!(
+            p1.intersection(&p2),
+            Protocols::from_str("Link=3-4 Desc=5-6 Relay=3,5 Other=8")?
+        );
+        assert_eq!(
+            p2.intersection(&p1),
+            Protocols::from_str("Link=3-4 Desc=5-6 Relay=3,5 Other=8")?
+        );
+
+        let nil = Protocols::default();
+        assert_eq!(p1.intersection(&nil), nil);
+        assert_eq!(p2.intersection(&nil), nil);
+        assert_eq!(nil.intersection(&p1), nil);
+        assert_eq!(nil.intersection(&p2), nil);
 
         Ok(())
     }
