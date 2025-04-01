@@ -163,7 +163,8 @@ struct SubprotocolEntry {
 pub struct Protocols {
     /// A mapping from protocols' integer encodings to bit-vectors.
     recognized: [u64; N_RECOGNIZED],
-    /// A vector of unrecognized protocol versions.
+    /// A vector of unrecognized protocol versions,
+    /// in sorted order.
     unrecognized: Vec<SubprotocolEntry>,
 }
 
@@ -276,11 +277,39 @@ impl Protocols {
         r
     }
 
+    /// Return a Protocols holding every protocol flag that is present in `self`
+    /// or `other` or both.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Desc=2-4 MicroDesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 MicroDesc=10".parse().unwrap();
+    /// assert_eq!(protos.union(&protos2),
+    ///            "Desc=2-4 MicroDesc=1-5,10".parse().unwrap());
+    /// ```
+    pub fn union(&self, other: &Protocols) -> Protocols {
+        let mut r = self.clone();
+        for i in 0..N_RECOGNIZED {
+            r.recognized[i] |= other.recognized[i];
+        }
+        for ent in other.unrecognized.iter() {
+            if let Some(my_ent) = r.unrecognized.iter_mut().find(|e| e.proto == ent.proto) {
+                my_ent.supported |= ent.supported;
+            } else {
+                r.unrecognized.push(ent.clone());
+            }
+        }
+        r.unrecognized.sort();
+        r
+    }
+
     /// Parsing helper: Try to add a new entry `ent` to this set of protocols.
     ///
     /// Uses `foundmask`, a bit mask saying which recognized protocols
     /// we've already found entries for.  Returns an error if `ent` is
     /// for a protocol we've already added.
+    ///
+    /// Does not preserve sorting order; the caller must call `self.unrecognized.sort()` before returning.
     fn add(&mut self, foundmask: &mut u64, ent: SubprotocolEntry) -> Result<(), ParseError> {
         match ent.proto {
             Protocol::Proto(k) => {
@@ -654,6 +683,33 @@ mod test {
         assert_eq!(p2.difference(&nil), p2);
         assert_eq!(nil.difference(&p1), nil);
         assert_eq!(nil.difference(&p2), nil);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_union() -> Result<(), ParseError> {
+        let p1: Protocols = "Link=1-10 Desc=5-10 Relay=1,3,5,7,9 Other=7-60 Mine=1-20".parse()?;
+        let p2: Protocols = "Link=3-4 Desc=1-6 Relay=2-6 Other=2,8 Theirs=20".parse()?;
+
+        assert_eq!(
+            p1.union(&p2),
+            Protocols::from_str(
+                "Link=1-10 Desc=1-10 Relay=1-7,9 Other=2,7-60 Theirs=20 Mine=1-20"
+            )?
+        );
+        assert_eq!(
+            p2.union(&p1),
+            Protocols::from_str(
+                "Link=1-10 Desc=1-10 Relay=1-7,9 Other=2,7-60 Theirs=20 Mine=1-20"
+            )?
+        );
+
+        let nil = Protocols::default();
+        assert_eq!(p1.union(&nil), p1);
+        assert_eq!(p2.union(&nil), p2);
+        assert_eq!(nil.union(&p1), p1);
+        assert_eq!(nil.union(&p2), p2);
 
         Ok(())
     }
