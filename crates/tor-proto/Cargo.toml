@@ -40,8 +40,7 @@ full = [
     "caret/full",
 ]
 
-experimental = ["experimental-api", "ntor_v3", "conflux", "stream-ctrl", "testing", "bench"]
-ntor_v3 = ["__is_experimental"]
+experimental = ["experimental-api", "conflux", "stream-ctrl", "testing", "bench"]
 conflux = ["__is_experimental"]
 
 hs-client = ["hs-common"]

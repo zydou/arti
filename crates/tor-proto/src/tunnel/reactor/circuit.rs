@@ -72,7 +72,6 @@ use {
     tor_cell::relaycell::msg::Begin,
 };
 
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 
 /// Initial value for outbound flow-control window on streams.
@@ -795,7 +794,6 @@ impl Circuit {
                 self.create_firsthop_ntor(recv_created, ed_identity, public_key, params)
                     .await
             }
-            #[cfg(feature = "ntor_v3")]
             CircuitHandshake::NtorV3 { public_key } => {
                 self.create_firsthop_ntor_v3(recv_created, public_key, params)
                     .await
@@ -934,7 +932,6 @@ impl Circuit {
     ///
     /// Note that the provided key must match the channel's target,
     /// or the handshake will fail.
-    #[cfg(feature = "ntor_v3")]
     async fn create_firsthop_ntor_v3(
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
