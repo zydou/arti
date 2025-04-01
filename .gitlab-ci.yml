@@ -490,9 +490,9 @@ build-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # This commit has not-yet-released support for running scripts directly and
-    # for improved logging in the CI.
-    JOB_SHADOW_COMMIT: "4a1d8ac8d83266be2afa1f0c34fdc8a486688031"
+    # 2025-03-31.
+    # Last bumped primarily to get determinism fix https://github.com/shadow/shadow/pull/3542
+    JOB_SHADOW_COMMIT: "24343d0ef1da38e2e9fe6684bdffe3cf32c1153d"
   artifacts:
     paths:
       - opt/shadow
@@ -547,6 +547,8 @@ integration-chutney:
   artifacts:
     paths:
       - benchmark_results.json
+      # chutney network including tor logs etc
+      - nodes.*/
 
 # Runs the chutney integration test under shadow.
 integration-chutney-shadow:
@@ -588,6 +590,8 @@ integration-chutney-shadow:
       - shadow.chutney.yaml
       - shadow.chutney.data/
       - shadow.log
+      # chutney network including tor logs etc
+      - nodes.*/
     when: always
     expire_in: 1 week
 
