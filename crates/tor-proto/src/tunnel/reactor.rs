@@ -22,7 +22,6 @@ mod control;
 pub(super) mod syncview;
 
 use crate::crypto::cell::HopNum;
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
 use crate::stream::AnyCmdChecker;
@@ -89,7 +88,6 @@ pub(crate) enum CircuitHandshake {
         ed_identity: pk::ed25519::Ed25519Identity,
     },
     /// Use the ntor-v3 handshake.
-    #[cfg(feature = "ntor_v3")]
     NtorV3 {
         /// The public key of the relay.
         public_key: NtorV3PublicKey,

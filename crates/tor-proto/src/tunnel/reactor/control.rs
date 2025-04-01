@@ -7,7 +7,6 @@ use super::{
 };
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
@@ -82,7 +81,6 @@ pub(crate) enum CtrlMsg {
         done: ReactorResultChannel<()>,
     },
     /// Extend a circuit by one hop, using the ntorv3 handshake.
-    #[cfg(feature = "ntor_v3")]
     ExtendNtorV3 {
         /// The peer that we're extending to.
         ///
@@ -339,7 +337,6 @@ impl<'a> ControlHandler<'a> {
 
                 Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
             }
-            #[cfg(feature = "ntor_v3")]
             CtrlMsg::ExtendNtorV3 {
                 peer_id,
                 public_key,

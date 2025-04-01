@@ -5,7 +5,6 @@ use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircParameters;
@@ -243,7 +242,6 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     ) -> Result<()>;
 }
 
-#[cfg(feature = "ntor_v3")]
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(_params: &CircParameters, data: &Vec<NtorV3Extension>) -> Result<()> {
         // There are currently no accepted server extensions,

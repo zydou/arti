@@ -32,7 +32,7 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
       --target x86_64-unknown-linux-gnu \
       -p arti -p tor-circmgr \
       --bin arti \
-      --features full,restricted-discovery,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service,vanguards,ctor-keystore
+      --features full,restricted-discovery,arti-client/keymgr,onion-service-service,vanguards,ctor-keystore
   $ mv target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/debug/arti-extra
   ```
 

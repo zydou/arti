@@ -47,7 +47,6 @@ pub(crate) mod unique_id;
 use crate::channel::Channel;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
@@ -642,7 +641,6 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
-    #[cfg(feature = "ntor_v3")]
     pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
     where
         Tg: CircTarget,
@@ -1111,7 +1109,6 @@ impl PendingClientCirc {
     ///
     /// Note that the provided 'target' must match the channel's target,
     /// or the handshake will fail.
-    #[cfg(feature = "ntor_v3")]
     pub async fn create_firsthop_ntor_v3<Tg>(
         self,
         target: &Tg,
@@ -1177,7 +1174,6 @@ pub(crate) mod test {
     use crate::channel::{test::new_reactor, CodecError};
     use crate::congestion::sendme;
     use crate::crypto::cell::RelayCellBody;
-    #[cfg(feature = "ntor_v3")]
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
     #[cfg(feature = "hs-service")]
     use crate::stream::IncomingStreamRequestFilter;
@@ -1261,7 +1257,6 @@ pub(crate) mod test {
             EXAMPLE_RSA_ID.into(),
         )
     }
-    #[cfg(feature = "ntor_v3")]
     fn example_ntor_v3_key() -> crate::crypto::handshake::ntor_v3::NtorV3SecretKey {
         crate::crypto::handshake::ntor_v3::NtorV3SecretKey::new(
             EXAMPLE_SK.into(),
@@ -1290,7 +1285,6 @@ pub(crate) mod test {
     enum HandshakeType {
         Fast,
         Ntor,
-        #[cfg(feature = "ntor_v3")]
         NtorV3,
     }
 
@@ -1354,7 +1348,6 @@ pub(crate) mod test {
                     .unwrap();
                     CreateResponse::Created2(Created2::new(rep))
                 }
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => {
                     let c2 = match create_cell.msg() {
                         AnyChanMsg::Create2(c2) => c2,
@@ -1385,7 +1378,6 @@ pub(crate) mod test {
                     trace!("doing ntor create");
                     pending.create_firsthop_ntor(&target, params).await
                 }
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => {
                     trace!("doing ntor_v3 create");
                     pending.create_firsthop_ntor_v3(&target, params).await
@@ -1417,7 +1409,6 @@ pub(crate) mod test {
             test_create(&rt, HandshakeType::Ntor).await;
         });
     }
-    #[cfg(feature = "ntor_v3")]
     #[traced_test]
     #[test]
     fn test_create_ntor_v3() {
@@ -1540,7 +1531,6 @@ pub(crate) mod test {
             match handshake_type {
                 HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
                 HandshakeType::Ntor => circ.extend_ntor(&target, &params).await.unwrap(),
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, &params).await.unwrap(),
             };
             circ // gotta keep the circ alive, or the reactor would exit.
@@ -1574,7 +1564,6 @@ pub(crate) mod test {
                     .unwrap();
                     reply
                 }
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => {
                     let (_keygen, reply) = NtorV3Server::server(
                         &mut rng,
@@ -1629,7 +1618,6 @@ pub(crate) mod test {
         });
     }
 
-    #[cfg(feature = "ntor_v3")]
     #[traced_test]
     #[test]
     fn test_extend_ntor_v3() {
