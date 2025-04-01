@@ -4,6 +4,7 @@ use std::{fmt::Display, iter, net, num::NonZeroU16};
 
 use either::Either;
 use itertools::Itertools as _;
+use net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use serde::{Deserialize, Serialize};
 
 /// Specification of (possibly) something to listen on (eg, a port, or some addresses/ports)
@@ -87,6 +88,28 @@ impl Listen {
         })
     }
 
+    /// Get a single address to listen on
+    ///
+    /// Returns `None` if listening is configured to be disabled.
+    ///
+    /// If the configuration is "listen on a single port",
+    /// treats this as a request to listening on IPv4 only.
+    /// Use of this function implies a bug:
+    /// lack of proper support for the current internet protocol IPv6.
+    /// It should only be used if an underlying library or facility is likewise buggy.
+    ///
+    /// Fails, giving an unsupported error, if the configuration
+    /// isn't just "listen on a single port on one address family".
+    pub fn single_address_legacy(&self) -> Result<Option<net::SocketAddr>, ListenUnsupported> {
+        use ListenItem as LI;
+        Ok(match &*self.0 {
+            [] => None,
+            [LI::Localhost(port)] => Some((Ipv4Addr::LOCALHOST, u16::from(*port)).into()),
+            [LI::General(sa)] => Some(*sa),
+            _ => return Err(ListenUnsupported {}),
+        })
+    }
+
     /// Return true if this `Listen` only configures listening on localhost.
     pub fn is_localhost_only(&self) -> bool {
         self.0.iter().all(ListenItem::is_localhost)
@@ -128,7 +151,6 @@ enum ListenItem {
 impl ListenItem {
     /// Return the `SocketAddr`s implied by this item
     fn iter(&self) -> impl Iterator<Item = net::SocketAddr> + '_ {
-        use net::{IpAddr, Ipv4Addr, Ipv6Addr};
         use ListenItem as LI;
         match self {
             &LI::Localhost(port) => Either::Left({
