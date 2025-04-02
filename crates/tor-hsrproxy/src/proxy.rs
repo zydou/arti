@@ -19,7 +19,9 @@ use tor_log_ratelim::log_ratelim;
 use tor_proto::stream::{DataStream, IncomingStreamRequest};
 use tor_rtcompat::Runtime;
 
-use crate::config::{Encapsulation, ProxyAction, ProxyActionDiscriminants, ProxyConfig, TargetAddr};
+use crate::config::{
+    Encapsulation, ProxyAction, ProxyActionDiscriminants, ProxyConfig, TargetAddr,
+};
 
 /// A reverse proxy that handles connections from an `OnionService` by routing
 /// them to local addresses.
