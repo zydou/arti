@@ -5,7 +5,6 @@ pub(crate) mod err;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use tor_error::internal;
 use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
@@ -80,38 +79,21 @@ impl Keystore for ArtiEphemeralKeystore {
         }
     }
 
-    fn insert(
-        &self,
-        key: &dyn EncodableItem,
-        key_spec: &dyn KeySpecifier,
-        item_type: &KeystoreItemType,
-    ) -> Result<(), Error> {
+    fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<(), Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_data = key.as_keystore_item()?;
+        let item_type = key_data.item_type()?;
 
         // TODO: add item_type validation to Keystore::get and Keystore::remove.
         // The presence of a key with a mismatched item_type can be either due to keystore
         // corruption, or API misuse. We will need a new error type and corresponding ErrorKind for
         // that).
-        //
-        // TODO: add item_type validation to ArtiNativeKeystore
-        if key_data.item_type()? != *item_type {
-            // This can never happen unless:
-            //   * Keystore::insert is called directly with an incorrect KeystoreItemType for `key`, or
-            //   * Keystore::insert is called via KeyMgr, but the EncodableItem implementation of
-            //   the key is broken. EncodableItem can't be implemented by external types,
-            //   so a broken implementation means we have an internal bug.
-            return Err(internal!(
-                "the specified KeystoreItemType does not match key type of the inserted key?!"
-            )
-            .into());
-        }
 
         // save to dictionary
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
-        let _ = key_dictionary.insert((arti_path, item_type.clone()), key_data);
+        let _ = key_dictionary.insert((arti_path, item_type), key_data);
         Ok(())
     }
 
@@ -202,7 +184,7 @@ mod tests {
 
         // insert key and verify in store
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
         assert!(key_store
             .contains(key_spec().as_ref(), &key_type())
@@ -221,7 +203,7 @@ mod tests {
 
         // insert and verify get is a result
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
 
         let key = key_store
@@ -237,11 +219,6 @@ mod tests {
     fn insert() {
         let key_store = ArtiEphemeralKeystore::new("test-ephemeral".to_string());
 
-        // verify inserting a key with the wrong key type fails
-        assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type_bad())
-            .is_err());
-        // further ensure there are no side effects
         assert!(!key_store
             .contains(key_spec().as_ref(), &key_type_bad())
             .unwrap());
@@ -251,9 +228,9 @@ mod tests {
             .is_none());
         assert!(key_store.list().unwrap().is_empty());
 
-        // verify inserting a good key succeeds
+        // verify inserting a key succeeds
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
 
         // further ensure correct side effects
@@ -279,7 +256,7 @@ mod tests {
 
         // verify inserting and removing results in Some(())
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
         assert!(key_store
             .remove(key_spec().as_ref(), &key_type())
@@ -296,7 +273,7 @@ mod tests {
 
         // verify size 1 after inserting a key
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
         assert_eq!(key_store.list().unwrap().len(), 1);
     }

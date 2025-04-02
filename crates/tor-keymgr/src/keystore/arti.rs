@@ -201,14 +201,11 @@ impl Keystore for ArtiNativeKeystore {
         }
     }
 
-    fn insert(
-        &self,
-        key: &dyn EncodableItem,
-        key_spec: &dyn KeySpecifier,
-        item_type: &KeystoreItemType,
-    ) -> Result<()> {
+    fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<()> {
+        let keystore_item = key.as_keystore_item()?;
+        let item_type = keystore_item.item_type()?;
         let path = self
-            .rel_path(key_spec, item_type)
+            .rel_path(key_spec, &item_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
         let unchecked_path = path.rel_path_unchecked();
 
@@ -224,7 +221,7 @@ impl Keystore for ArtiNativeKeystore {
                 .map_err(ArtiNativeKeystoreError::Filesystem)?;
         }
 
-        let item_bytes: Vec<u8> = match key.as_keystore_item()? {
+        let item_bytes: Vec<u8> = match keystore_item {
             KeystoreItem::Key(key) => {
                 // TODO (#1095): decide what information, if any, to put in the comment
                 let comment = "";
@@ -586,7 +583,6 @@ mod tests {
         );
         assert!(key_store.list().unwrap().is_empty());
 
-        let ed_key_type = &KeyType::Ed25519Keypair.into();
         let mut keys_and_specs = vec![(ED25519_OPENSSH.into(), TestSpecifier::default())];
 
         if let Ok((key, _)) = sshkeygen_ed25519_strings() {
@@ -606,7 +602,7 @@ mod tests {
 
             let path = keystore_dir.as_ref().join(
                 key_store
-                    .rel_path(key_spec, ed_key_type)
+                    .rel_path(key_spec, &KeyType::Ed25519Keypair.into())
                     .unwrap()
                     .rel_path_unchecked(),
             );
@@ -615,7 +611,7 @@ mod tests {
             // They are created after the first key is inserted.
             assert_eq!(!path.parent().unwrap().try_exists().unwrap(), i == 0);
 
-            assert!(key_store.insert(&*key, key_spec, ed_key_type).is_ok());
+            assert!(key_store.insert(&*key, key_spec).is_ok());
 
             // Update expected_arti_paths after inserting key
             expected_arti_paths.push(key_spec.arti_path().unwrap());
@@ -638,7 +634,6 @@ mod tests {
 
         let mut expected_arti_paths = vec![TestSpecifier::default().arti_path().unwrap()];
         let mut specs = vec![TestSpecifier::default()];
-        let ed_key_type = &KeyType::Ed25519Keypair.into();
 
         assert_found!(
             key_store,
@@ -660,11 +655,13 @@ mod tests {
 
             let key_spec = TestSpecifier::new("-sshkeygen");
 
-            assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_ok());
+            assert!(key_store.insert(&*key, &key_spec).is_ok());
 
             expected_arti_paths.push(key_spec.arti_path().unwrap());
             specs.push(key_spec);
         }
+
+        let ed_key_type = &KeyType::Ed25519Keypair.into();
 
         for spec in specs {
             // Found!
@@ -701,7 +698,6 @@ mod tests {
 
         assert_contains_arti_paths!(expected_arti_paths, key_store.list().unwrap());
 
-        let ed_key_type = KeyType::Ed25519Keypair.into();
         let mut keys_and_specs =
             vec![(ED25519_OPENSSH.into(), TestSpecifier::new("-i-am-a-suffix"))];
 
@@ -720,7 +716,7 @@ mod tests {
                 panic!("failed to downcast key to ed25519::Keypair")
             };
 
-            assert!(key_store.insert(&*key, &key_spec, &ed_key_type).is_ok());
+            assert!(key_store.insert(&*key, &key_spec).is_ok());
 
             expected_arti_paths.push(key_spec.arti_path().unwrap());
 
@@ -768,9 +764,7 @@ mod tests {
 
         // The specifier doesn't really matter.
         let cert_spec = TestSpecifier::default();
-        assert!(key_store
-            .insert(&encoded_cert, &cert_spec, &CertType::Ed25519TorCert.into())
-            .is_ok());
+        assert!(key_store.insert(&encoded_cert, &cert_spec).is_ok());
 
         let erased_cert = key_store
             .get(&cert_spec, &CertType::Ed25519TorCert.into())
