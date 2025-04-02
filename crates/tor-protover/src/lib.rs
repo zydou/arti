@@ -95,18 +95,31 @@ caret_int! {
 /// How many recognized protocols are there?
 const N_RECOGNIZED: usize = 13;
 
+/// Maximum allowable value for a protocol's version field.
+const MAX_VER: usize = 63;
+
 /// A specific, named subversion of a protocol.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct NamedSubver {
     /// The protocol in question
+    ///
+    /// Must be in-range for ProtoKind (0..N_RECOGNIZED).
     kind: ProtoKind,
     /// The version of the protocol
+    ///
+    /// Must be in 0..=MAX_VER
     version: u8,
 }
 
 impl NamedSubver {
     /// Create a new NamedSubver.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `kind` is unrecognized or `version` is invalid.
     const fn new(kind: ProtoKind, version: u8) -> Self {
+        assert!((kind.0 as usize) < N_RECOGNIZED);
+        assert!((version as usize) <= MAX_VER);
         Self { kind, version }
     }
 }
@@ -115,6 +128,8 @@ impl NamedSubver {
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
 enum Protocol {
     /// A known protocol; represented by one of ProtoKind.
+    ///
+    /// ProtoKind must always be in the range 0..N_RECOGNIZED.
     Proto(ProtoKind),
     /// An unknown protocol; represented by its name.
     Unrecognized(String),
@@ -176,7 +191,7 @@ impl Protocols {
     /// Helper: return true iff this protocol set contains the
     /// version `ver` of the protocol represented by the integer `proto`.
     fn supports_recognized_ver(&self, proto: usize, ver: u8) -> bool {
-        if ver > 63 {
+        if usize::from(ver) > MAX_VER {
             return false;
         }
         if proto >= self.recognized.len() {
@@ -190,7 +205,7 @@ impl Protocols {
     ///
     /// Requires that `proto` is not the name of a recognized protocol.
     fn supports_unrecognized_ver(&self, proto: &str, ver: u8) -> bool {
-        if ver > 63 {
+        if usize::from(ver) > MAX_VER {
             return false;
         }
         let ent = self
@@ -344,6 +359,7 @@ impl Protocols {
         match ent.proto {
             Protocol::Proto(k) => {
                 let idx = k.get() as usize;
+                assert!(idx < N_RECOGNIZED); // guaranteed by invariant on Protocol::Proto
                 let bit = 1 << u64::from(k.get());
                 if (*foundmask & bit) != 0 {
                     return Err(ParseError::Duplicate);
@@ -456,7 +472,7 @@ impl std::str::FromStr for SubprotocolEntry {
             let lo: u64 = lo_s.parse().map_err(|_| ParseError::Malformed)?;
             let hi: u64 = hi_s.parse().map_err(|_| ParseError::Malformed)?;
             // Make sure that lo and hi are in-bounds and consistent.
-            if lo > 63 || hi > 63 {
+            if lo > (MAX_VER as u64) || hi > (MAX_VER as u64) {
                 return Err(ParseError::OutOfRange);
             }
             if lo > hi {
