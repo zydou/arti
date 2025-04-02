@@ -57,8 +57,9 @@ use crate::util::private::Sealed;
 use crate::util::PeekableIterator;
 use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
+use std::result::Result as StdResult;
 use std::{net, result, time};
-use tor_error::internal;
+use tor_error::{internal, HasKind};
 use tor_protover::Protocols;
 
 use bitflags::bitflags;
@@ -222,7 +223,6 @@ where
 /// A list of subprotocol versions that implementors should/must provide.
 ///
 /// Each consensus has two of these: one for relays, and one for clients.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct ProtoStatus {
     /// Set of protocols that are recommended; if we're missing a protocol
@@ -231,6 +231,59 @@ pub struct ProtoStatus {
     /// Set of protocols that are required; if we're missing a protocol
     /// in this list we should refuse to start.
     required: Protocols,
+}
+
+impl ProtoStatus {
+    /// Check whether the list of supported protocols
+    /// is sufficient to satisfy this list of recommendations and requirements.
+    ///
+    /// Return `Ok(())` if it is, and an error if it is not.
+    pub fn check_protocols(
+        &self,
+        supported_protocols: &Protocols,
+    ) -> StdResult<(), ProtocolSupportError> {
+        let missing_required = self.required.difference(supported_protocols);
+        if !missing_required.is_empty() {
+            return Err(ProtocolSupportError::MissingRequired(missing_required));
+        }
+        let missing_recommended = self.recommended.difference(supported_protocols);
+        if !missing_recommended.is_empty() {
+            return Err(ProtocolSupportError::MissingRecommended(
+                missing_recommended,
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// A subprotocol that is recommended or required in the consensus was not present.
+#[derive(Clone, Debug, thiserror::Error)]
+#[cfg_attr(test, derive(PartialEq))]
+#[non_exhaustive]
+pub enum ProtocolSupportError {
+    /// At least one required protocol was not in our list of supported protocols.
+    #[error("Required protocols are not implemented: {0}")]
+    MissingRequired(Protocols),
+
+    /// At least one recommended protocol was not in our list of supported protocols.
+    ///
+    /// Also implies that no _required_ protocols were missing.
+    #[error("Recommended protocols are not implemented: {0}")]
+    MissingRecommended(Protocols),
+}
+
+impl ProtocolSupportError {
+    /// Return true if the suggested behavior for this error is a shutdown.
+    pub fn should_shutdown(&self) -> bool {
+        matches!(self, Self::MissingRequired(_))
+    }
+}
+
+impl HasKind for ProtocolSupportError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::SoftwareDeprecated
+    }
 }
 
 /// A recognized 'flavor' of consensus document.
@@ -2063,5 +2116,41 @@ mod test {
         let sr = gettok("foo bar\n").unwrap();
         let sr = SharedRandStatus::from_item(&sr);
         assert!(sr.is_err());
+    }
+
+    #[test]
+    fn test_protostatus() {
+        let my_protocols: Protocols = "Link=7 Cons=1-5 Desc=3-10".parse().unwrap();
+
+        let outcome = ProtoStatus {
+            recommended: "Link=7".parse().unwrap(),
+            required: "Desc=5".parse().unwrap(),
+        }
+        .check_protocols(&my_protocols);
+        assert!(outcome.is_ok());
+
+        let outcome = ProtoStatus {
+            recommended: "Microdesc=4 Link=7".parse().unwrap(),
+            required: "Desc=5".parse().unwrap(),
+        }
+        .check_protocols(&my_protocols);
+        assert_eq!(
+            outcome,
+            Err(ProtocolSupportError::MissingRecommended(
+                "Microdesc=4".parse().unwrap()
+            ))
+        );
+
+        let outcome = ProtoStatus {
+            recommended: "Microdesc=4 Link=7".parse().unwrap(),
+            required: "Desc=5 Cons=5-12 Wombat=15".parse().unwrap(),
+        }
+        .check_protocols(&my_protocols);
+        assert_eq!(
+            outcome,
+            Err(ProtocolSupportError::MissingRequired(
+                "Cons=6-12 Wombat=15".parse().unwrap()
+            ))
+        );
     }
 }
