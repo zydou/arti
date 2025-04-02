@@ -130,23 +130,23 @@ impl OnionServiceReverseProxy {
                 }
             };
 
-            let action = self.choose_action(stream_request.request());
-            let a_clone = action.clone();
-            let rt_clone = runtime.clone();
-            let nn_clone = Arc::clone(&nickname);
-            let req = stream_request.request().clone();
+            runtime.spawn({
+                let action = self.choose_action(stream_request.request());
+                let runtime = runtime.clone();
+                let nickname = nickname.clone();
+                let req = stream_request.request().clone();
 
-            runtime
-                .spawn(async move {
+                async move {
                     let outcome =
-                        run_action(rt_clone, nn_clone.as_ref(), action, stream_request).await;
+                        run_action(runtime, nickname.as_ref(), action.clone(), stream_request).await;
 
                     log_ratelim!(
-                        "Performing action on {}", nn_clone;
+                        "Performing action on {}", nickname;
                         outcome;
-                        Err(_) => WARN, "Unable to take action {:?} for request {:?}", sv(a_clone), sv(req)
+                        Err(_) => WARN, "Unable to take action {:?} for request {:?}", sv(action), sv(req)
                     );
-                })
+                }
+            })
                 .map_err(|e| HandleRequestsError::Spawn(Arc::new(e)))?;
         }
     }
