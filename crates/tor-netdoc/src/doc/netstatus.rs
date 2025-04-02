@@ -58,6 +58,7 @@ use crate::util::PeekableIterator;
 use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
 use std::result::Result as StdResult;
+use std::sync::Arc;
 use std::{net, result, time};
 use tor_error::{internal, HasKind};
 use tor_protover::Protocols;
@@ -286,6 +287,28 @@ impl HasKind for ProtocolSupportError {
     }
 }
 
+/// A set of recommended and required protocols when running
+/// in various scenarios.
+#[derive(Clone, Debug)]
+pub struct ProtoStatuses {
+    /// Lists of recommended and required subprotocol versions for clients
+    client: ProtoStatus,
+    /// Lists of recommended and required subprotocol versions for relays
+    relay: ProtoStatus,
+}
+
+impl ProtoStatuses {
+    /// Return the list of recommended and required protocols for running as a client.
+    pub fn client(&self) -> &ProtoStatus {
+        &self.client
+    }
+
+    /// Return the list of recommended and required protocols for running as a relay.
+    pub fn relay(&self) -> &ProtoStatus {
+        &self.relay
+    }
+}
+
 /// A recognized 'flavor' of consensus document.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[non_exhaustive]
@@ -431,12 +454,9 @@ struct CommonHeader {
     /// List of recommended Tor relay versions.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     relay_versions: Vec<String>,
-    /// Lists of recommended and required subprotocol versions for clients
+    /// Lists of recommended and required subprotocols.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    client_protos: ProtoStatus,
-    /// Lists of recommended and required subprotocol versions for relays
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    relay_protos: ProtoStatus,
+    proto_statuses: Arc<ProtoStatuses>,
     /// Declared parameters for tunable settings about how to the
     /// network should operator. Some of these adjust timeouts and
     /// whatnot; some features things on and off.
@@ -755,13 +775,18 @@ impl<RS> Consensus<RS> {
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every relay must implement.  
     pub fn relay_protocol_status(&self) -> &ProtoStatus {
-        &self.header.hdr.relay_protos
+        &self.header.hdr.proto_statuses.relay
     }
 
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every client must implement.
     pub fn client_protocol_status(&self) -> &ProtoStatus {
-        &self.header.hdr.client_protos
+        &self.header.hdr.proto_statuses.client
+    }
+
+    /// Return a set of all known [`ProtoStatus`] values.
+    pub fn protocol_statuses(&self) -> &Arc<ProtoStatuses> {
+        &self.header.hdr.proto_statuses
     }
 }
 
@@ -1092,13 +1117,19 @@ impl CommonHeader {
             .map(str::to_string)
             .collect();
 
-        let client_protos = ProtoStatus::from_section(
-            sec,
-            RECOMMENDED_CLIENT_PROTOCOLS,
-            REQUIRED_CLIENT_PROTOCOLS,
-        )?;
-        let relay_protos =
-            ProtoStatus::from_section(sec, RECOMMENDED_RELAY_PROTOCOLS, REQUIRED_RELAY_PROTOCOLS)?;
+        let proto_statuses = {
+            let client = ProtoStatus::from_section(
+                sec,
+                RECOMMENDED_CLIENT_PROTOCOLS,
+                REQUIRED_CLIENT_PROTOCOLS,
+            )?;
+            let relay = ProtoStatus::from_section(
+                sec,
+                RECOMMENDED_RELAY_PROTOCOLS,
+                REQUIRED_RELAY_PROTOCOLS,
+            )?;
+            Arc::new(ProtoStatuses { client, relay })
+        };
 
         let params = sec.maybe(PARAMS).args_as_str().unwrap_or("").parse()?;
 
@@ -1115,8 +1146,7 @@ impl CommonHeader {
             lifetime,
             client_versions,
             relay_versions,
-            client_protos,
-            relay_protos,
+            proto_statuses,
             params,
             voting_delay,
         })
