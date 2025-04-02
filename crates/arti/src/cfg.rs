@@ -1005,8 +1005,8 @@ example config file {which:?}, uncommented={uncommented:?}
         // If this assert fails, it might be because in `fn exhaustive`, below,
         // a newly-defined config item has not been added to the list for OLDEST_SUPPORTED_CONFIG.
         assert! { problems.is_empty(),
-        "example config exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
-                  problems.join("\n"), example_file}
+        "example config {which:?} exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
+                         problems.join("\n"), example_file}
     }
 
     #[test]
