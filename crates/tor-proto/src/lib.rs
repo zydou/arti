@@ -128,3 +128,45 @@ pub(crate) fn fake_mpsc<T: HasMemoryCost + Debug + Send>(
         )
         .expect("create fake mpsc")
 }
+
+/// Return a list of the protocols supported by this crate, running as a client.
+pub fn supported_client_protocols() -> tor_protover::Protocols {
+    use tor_protover::named::*;
+    [
+        LINK_V4,
+        LINK_V5,
+        LINKAUTH_ED25519_SHA256_EXPORTER,
+        FLOWCTRL_AUTH_SENDME,
+        RELAY_NTOR,
+        RELAY_EXTEND_IPv6,
+        RELAY_NTORV3,
+    ]
+    .into_iter()
+    .collect()
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn protocols() {
+        let pr = supported_client_protocols();
+        let expected = "FlowCtrl=1 Link=4-5 LinkAuth=3 Relay=2-4".parse().unwrap();
+        assert_eq!(pr, expected);
+    }
+}

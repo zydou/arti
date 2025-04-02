@@ -1137,6 +1137,17 @@ pub(crate) fn default_consensus_cutoff(
     Ok(cutoff.into())
 }
 
+/// Return a list of the protocols supported by this crate when running as a client.
+pub fn supported_client_protocols() -> tor_protover::Protocols {
+    use tor_protover::named::*;
+    [
+        //
+        DIRCACHE_CONSDIFF,
+    ]
+    .into_iter()
+    .collect()
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -1160,6 +1171,13 @@ mod test {
     use tor_netdoc::doc::netstatus::ConsensusFlavor;
     use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::Lifetime};
     use tor_rtcompat::SleepProvider;
+
+    #[test]
+    fn protocols() {
+        let pr = supported_client_protocols();
+        let expected = "DirCache=2".parse().unwrap();
+        assert_eq!(pr, expected);
+    }
 
     pub(crate) fn new_mgr<R: Runtime>(runtime: R) -> (TempDir, DirMgr<R>) {
         let dir = TempDir::new().unwrap();

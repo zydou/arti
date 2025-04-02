@@ -87,3 +87,44 @@ pub enum AllowAnnotations {
     /// Parsing a document where annotations are not allowed.
     AnnotationsNotAllowed,
 }
+
+/// Return a list of the protocols supported by this crate.
+pub fn supported_protocols() -> tor_protover::Protocols {
+    use tor_protover::named::*;
+    [
+        DESC_CROSSSIGN,
+        DESC_NO_TAP,
+        DESC_FAMILY_IDS,
+        MICRODESC_ED25519_KEY,
+        MICRODESC_NO_TAP,
+        CONS_ED25519_MDS,
+    ]
+    .into_iter()
+    .collect()
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn protocols() {
+        let pr = supported_protocols();
+        let expected = "Cons=2 Desc=2-4 Microdesc=2-3".parse().unwrap();
+        assert_eq!(pr, expected);
+    }
+}

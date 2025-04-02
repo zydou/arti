@@ -217,6 +217,13 @@ impl Protocols {
             None => false,
         }
     }
+
+    /// Return true if this list of protocols is empty.
+    pub fn is_empty(&self) -> bool {
+        self.recognized.iter().all(|v| *v == 0)
+            && self.unrecognized.iter().all(|p| p.supported == 0)
+    }
+
     // TODO: Combine these next two functions into one by using a trait.
     /// Check whether a known protocol version is supported.
     ///
