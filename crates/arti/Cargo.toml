@@ -106,7 +106,7 @@ experimental = [
     "tor-hsservice/experimental",
     "ctor-keystore",
 ]
-metrics = ["metrics-exporter-prometheus"]
+metrics = ["metrics-exporter-prometheus", "tor-hsrproxy?/metrics"]
 
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental", "dialoguer"]

@@ -236,7 +236,10 @@ impl ProxyPattern {
     serde_with::SerializeDisplay,
     Eq,
     PartialEq,
+    strum::EnumDiscriminants,
 )]
+#[strum_discriminants(derive(Hash, strum::EnumIter))] //
+#[strum_discriminants(derive(strum::IntoStaticStr), strum(serialize_all = "snake_case"))]
 #[non_exhaustive]
 pub enum ProxyAction {
     /// Close the circuit immediately with an error.

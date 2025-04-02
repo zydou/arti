@@ -6,9 +6,12 @@ use futures::{
     select_biased, task::SpawnExt as _, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future,
     FutureExt as _, Stream, StreamExt as _,
 };
+use itertools::iproduct;
 use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
+use std::collections::HashMap;
 use std::io::{Error as IoError, Result as IoResult};
+use strum::IntoEnumIterator;
 use tor_cell::relaycell::msg as relaymsg;
 use tor_error::{debug_report, ErrorKind, HasKind};
 use tor_hsservice::{HsNickname, RendRequest, StreamRequest};
@@ -16,7 +19,7 @@ use tor_log_ratelim::log_ratelim;
 use tor_proto::stream::{DataStream, IncomingStreamRequest};
 use tor_rtcompat::Runtime;
 
-use crate::config::{Encapsulation, ProxyAction, ProxyConfig, TargetAddr};
+use crate::config::{Encapsulation, ProxyAction, ProxyActionDiscriminants, ProxyConfig, TargetAddr};
 
 /// A reverse proxy that handles connections from an `OnionService` by routing
 /// them to local addresses.
@@ -121,6 +124,28 @@ impl OnionServiceReverseProxy {
             .fuse();
         let nickname = Arc::new(nickname);
 
+        #[cfg(feature = "metrics")]
+        let metrics_counters = {
+            let counters = iproduct!(
+                ProxyActionDiscriminants::iter(),
+                [
+                    (None, "arti_hss_proxy_connections_total"),
+                    (Some(Ok(())), "arti_hss_proxy_connections_ok_total"),
+                    (Some(Err(())), "arti_hss_proxy_connections_failed_total"),
+                ],
+            )
+            .map(|(action, (outcome, name))| {
+                let k = (action, outcome);
+                let nickname = nickname.to_string();
+                let action: &str = action.into();
+                let v = metrics::counter!(name, "nickname" => nickname, "action" => action);
+                (k, v)
+            })
+            .collect::<HashMap<_, _>>();
+
+            Arc::new(counters)
+        };
+
         loop {
             let stream_request = select_biased! {
                 _ = shutdown_rx => return Ok(()),
@@ -136,9 +161,25 @@ impl OnionServiceReverseProxy {
                 let nickname = nickname.clone();
                 let req = stream_request.request().clone();
 
+                #[cfg(feature = "metrics")]
+                let metrics_counters = metrics_counters.clone();
+
                 async move {
                     let outcome =
                         run_action(runtime, nickname.as_ref(), action.clone(), stream_request).await;
+
+                    #[cfg(feature = "metrics")]
+                    {
+                        let action = ProxyActionDiscriminants::from(&action);
+                        let outcome = outcome.as_ref().map(|_|()).map_err(|_|());
+                        for outcome in [None, Some(outcome)] {
+                            if let Some(counter) = metrics_counters.get(&(action, outcome)) {
+                                counter.increment(1);
+                            } else {
+                                // statically be impossible, but let's not panic
+                            }
+                        }
+                    }
 
                     log_ratelim!(
                         "Performing action on {}", nickname;
