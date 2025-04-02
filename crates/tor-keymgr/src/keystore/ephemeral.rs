@@ -79,12 +79,7 @@ impl Keystore for ArtiEphemeralKeystore {
         }
     }
 
-    fn insert(
-        &self,
-        key: &dyn EncodableItem,
-        key_spec: &dyn KeySpecifier,
-        _item_type: &KeystoreItemType,
-    ) -> Result<(), Error> {
+    fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<(), Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
@@ -189,7 +184,7 @@ mod tests {
 
         // insert key and verify in store
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
         assert!(key_store
             .contains(key_spec().as_ref(), &key_type())
@@ -208,7 +203,7 @@ mod tests {
 
         // insert and verify get is a result
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
 
         let key = key_store
@@ -235,7 +230,7 @@ mod tests {
 
         // verify inserting a key succeeds
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
 
         // further ensure correct side effects
@@ -261,7 +256,7 @@ mod tests {
 
         // verify inserting and removing results in Some(())
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
         assert!(key_store
             .remove(key_spec().as_ref(), &key_type())
@@ -278,7 +273,7 @@ mod tests {
 
         // verify size 1 after inserting a key
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
+            .insert(key().as_ref(), key_spec().as_ref())
             .is_ok());
         assert_eq!(key_store.list().unwrap().len(), 1);
     }

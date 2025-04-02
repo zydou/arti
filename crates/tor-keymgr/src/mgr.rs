@@ -223,11 +223,10 @@ impl KeyMgr {
         K::Key: Keygen,
     {
         let store = self.select_keystore(&selector)?;
-        let key_type = K::Key::item_type();
 
-        if overwrite || !store.contains(key_spec, &key_type)? {
+        if overwrite || !store.contains(key_spec, &K::Key::item_type())? {
             let key = K::Key::generate(rng)?;
-            store.insert(&key, key_spec, &key_type)?;
+            store.insert(&key, key_spec)?;
 
             Ok(K::from_encodable_key(key))
         } else {
@@ -262,7 +261,7 @@ impl KeyMgr {
         if old_key.is_some() && !overwrite {
             Err(crate::Error::KeyAlreadyExists)
         } else {
-            let () = store.insert(&key, key_spec, &key_type)?;
+            let () = store.insert(&key, key_spec)?;
             Ok(old_key)
         }
     }
@@ -635,9 +634,8 @@ impl KeyMgr {
     {
         let cert = cert.to_encodable_cert();
         let store = self.select_keystore(&selector)?;
-        let cert_type = <C::EncodableCert as ItemType>::item_type();
 
-        let () = store.insert(&cert, cert_spec, &cert_type)?;
+        let () = store.insert(&cert, cert_spec)?;
         Ok(())
     }
 }
@@ -883,7 +881,6 @@ mod tests {
                     &self,
                     key: &dyn EncodableItem,
                     key_spec: &dyn KeySpecifier,
-                    _item_type: &KeystoreItemType,
                 ) -> Result<()> {
                     let key = key.downcast_ref::<TestItem>().unwrap();
 

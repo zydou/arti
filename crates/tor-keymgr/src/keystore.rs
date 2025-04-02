@@ -34,15 +34,7 @@ pub trait Keystore: Send + Sync + 'static {
     ) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
-    //
-    // TODO (BREAKING CHANGE):
-    // Param `_item_type` is now redundant. Drop `_item_type` in the next breaking change.
-    fn insert(
-        &self,
-        key: &dyn EncodableItem,
-        key_spec: &dyn KeySpecifier,
-        _item_type: &KeystoreItemType,
-    ) -> Result<()>;
+    fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<()>;
 
     /// Remove the specified key.
     ///
