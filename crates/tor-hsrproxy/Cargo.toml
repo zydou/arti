@@ -30,7 +30,11 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["tor-hsservice/experimental", "experimental-api", "restricted-discovery"]
+experimental = [
+    "tor-hsservice/experimental",
+    "experimental-api",
+    "restricted-discovery",
+]
 experimental-api = ["__is_experimental"]
 __is_experimental = []
 
