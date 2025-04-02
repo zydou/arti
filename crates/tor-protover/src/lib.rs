@@ -603,6 +603,22 @@ impl std::fmt::Display for Protocols {
     }
 }
 
+impl FromIterator<NamedSubver> for Protocols {
+    fn from_iter<T: IntoIterator<Item = NamedSubver>>(iter: T) -> Self {
+        let mut r = Protocols::new();
+        for named_subver in iter {
+            let proto_idx = usize::from(named_subver.kind.get());
+            let proto_ver = named_subver.version;
+
+            // These are guaranteed by invariants on NamedSubver.
+            assert!(proto_idx < N_RECOGNIZED);
+            assert!(usize::from(proto_ver) <= MAX_VER);
+            r.recognized[proto_idx] |= 1_u64 << proto_ver;
+        }
+        r
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -781,5 +797,26 @@ mod test {
         assert_eq!(nil.intersection(&p2), nil);
 
         Ok(())
+    }
+
+    #[test]
+    fn from_iter() {
+        use named as n;
+        let empty: [NamedSubver; 0] = [];
+        let prs: Protocols = empty.iter().copied().collect();
+        assert_eq!(prs, Protocols::default());
+        let prs: Protocols = empty.into_iter().collect();
+        assert_eq!(prs, Protocols::default());
+
+        let prs = [
+            n::LINK_V3,
+            n::HSDIR_V3,
+            n::LINK_V4,
+            n::LINK_V5,
+            n::CONFLUX_BASE,
+        ]
+        .into_iter()
+        .collect::<Protocols>();
+        assert_eq!(prs, "Link=3-5 HSDir=2 Conflux=1".parse().unwrap());
     }
 }
