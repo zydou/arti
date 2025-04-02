@@ -80,7 +80,7 @@ caret_int! {
         /// Describing a relay's functionality using router descriptors.
         Desc = 7,
         /// Describing a relay's functionality using microdescriptors.
-        MicroDesc = 8,
+        Microdesc = 8,
         /// Describing the network as a consensus directory document.
         Cons = 9,
         /// Sending and accepting circuit-level padding
@@ -268,10 +268,10 @@ impl Protocols {
     ///
     /// ```
     /// use tor_protover::*;
-    /// let protos: Protocols = "Desc=2-4 MicroDesc=1-5".parse().unwrap();
-    /// let protos2: Protocols = "Desc=3 MicroDesc=3".parse().unwrap();
+    /// let protos: Protocols = "Desc=2-4 Microdesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 Microdesc=3".parse().unwrap();
     /// assert_eq!(protos.difference(&protos2),
-    ///            "Desc=2,4 MicroDesc=1-2,4-5".parse().unwrap());
+    ///            "Desc=2,4 Microdesc=1-2,4-5".parse().unwrap());
     /// ```
     pub fn difference(&self, other: &Protocols) -> Protocols {
         let mut r = Protocols::default();
@@ -297,10 +297,10 @@ impl Protocols {
     ///
     /// ```
     /// use tor_protover::*;
-    /// let protos: Protocols = "Desc=2-4 MicroDesc=1-5".parse().unwrap();
-    /// let protos2: Protocols = "Desc=3 MicroDesc=10".parse().unwrap();
+    /// let protos: Protocols = "Desc=2-4 Microdesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 Microdesc=10".parse().unwrap();
     /// assert_eq!(protos.union(&protos2),
-    ///            "Desc=2-4 MicroDesc=1-5,10".parse().unwrap());
+    ///            "Desc=2-4 Microdesc=1-5,10".parse().unwrap());
     /// ```
     pub fn union(&self, other: &Protocols) -> Protocols {
         let mut r = self.clone();
@@ -323,8 +323,8 @@ impl Protocols {
     ///
     /// ```
     /// use tor_protover::*;
-    /// let protos: Protocols = "Desc=2-4 MicroDesc=1-5".parse().unwrap();
-    /// let protos2: Protocols = "Desc=3 MicroDesc=10".parse().unwrap();
+    /// let protos: Protocols = "Desc=2-4 Microdesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 Microdesc=10".parse().unwrap();
     /// assert_eq!(protos.intersection(&protos2),
     ///            "Desc=3".parse().unwrap());
     /// ```

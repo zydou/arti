@@ -121,7 +121,7 @@ def_named! {
         FAMILY_IDS = 4;
     }
 
-    MicroDesc {
+    Microdesc {
         /// Support for generating and parsing microdescriptors with Ed25159 identities
         /// (`KP_relayid_ed`)
         ED25519_KEY = 2;
