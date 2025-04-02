@@ -1163,7 +1163,7 @@ impl NetDir {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
     }
 
-    /// Look up a relay's `MicroDesc` by its `RouterStatusIdx`
+    /// Look up a relay's [`Microdesc`] by its [`RouterStatusIdx`]
     #[cfg_attr(not(feature = "hs-common"), allow(dead_code))]
     pub(crate) fn md_by_rsidx(&self, rsidx: RouterStatusIdx) -> Option<&Microdesc> {
         self.mds.get(rsidx)?.as_deref()
