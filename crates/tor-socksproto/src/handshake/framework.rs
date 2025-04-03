@@ -337,7 +337,7 @@ impl<P: ReadPrecision> Buffer<P> {
     ///
     ///  * `buf[..filled]` should contain data already read from the peer
     ///  * `buf[filled..]` should be zero (or other innocuous data),
-    ///                    and will not be used (except if there are bugs)
+    ///    and will not be used (except if there are bugs)
     ///
     /// Using this and `into_parts` to obtain a `Buffer`
     /// with a differetn the read precision (different `P` type parameter)
