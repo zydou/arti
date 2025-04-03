@@ -81,6 +81,9 @@ pub enum Error {
     /// Invalid hexadecimal value in the cache.
     #[error("Invalid hexadecimal id in directory cache")]
     BadHexInCache(#[source] hex::FromHexError),
+    /// Invalid json value in the cache
+    #[error("Invalid JSON in directory cache")]
+    BadJsonInCache(#[source] Arc<serde_json::Error>),
     /// An error given by the network document crate.
     #[error("Invalid document from {source}")]
     NetDocError {
@@ -247,6 +250,7 @@ impl Error {
             | Error::OfflineMode
             | Error::Spawn { .. }
             | Error::NetDirOlder
+            | Error::BadJsonInCache(_)
             | Error::Bug(_) => false,
 
             // For this one, we delegate.
@@ -316,6 +320,7 @@ impl Error {
             | Error::CachePermissions(_)
             | Error::CacheAccess(_)
             | Error::Spawn { .. }
+            | Error::BadJsonInCache(_)
             | Error::ExternalDirProvider { .. } => BootstrapAction::Fatal,
 
             // These should actually be impossible during the bootstrap process.
@@ -352,6 +357,7 @@ impl HasKind for Error {
             E::SqliteError(e) => sqlite_error_kind(e),
             E::ReadOnlyStorage(_) => EK::LocalResourceAlreadyInUse,
             E::UnrecognizedSchema { .. } => EK::CacheCorrupted,
+            E::BadJsonInCache(_) => EK::CacheCorrupted,
             E::DirectoryNotPresent => EK::DirectoryExpired,
             E::NetDirOlder => EK::TorDirectoryError,
             E::BadUtf8FromDirectory(_) => EK::TorProtocolViolation,

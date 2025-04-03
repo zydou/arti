@@ -6167,6 +6167,7 @@ dependencies = [
  "safelog",
  "scopeguard",
  "serde",
+ "serde_json",
  "signature",
  "static_assertions",
  "strum",
