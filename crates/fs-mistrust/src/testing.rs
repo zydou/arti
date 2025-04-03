@@ -189,11 +189,36 @@ pub(crate) fn mistrust_build(ops: &[MistrustOp]) -> Mistrust {
                     return m;
                 }
 
-                #[cfg(target_family = "unix")]
-                MistrustOp::TrustAdminOnly() => m.trust_admin_only(),
+                MistrustOp::TrustAdminOnly() => {
+                    #[cfg(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    ))]
+                    return m.trust_admin_only();
+                    #[cfg(not(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    )))]
+                    return m;
+                }
 
                 #[cfg(target_family = "unix")]
-                MistrustOp::TrustGroup(gid) => m.trust_group(*gid),
+                MistrustOp::TrustGroup(gid) => {
+                    #[cfg(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    ))]
+                    return m.trust_group(*gid);
+                    #[cfg(not(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    )))]
+                    return m;
+                }
             }
         })
         .build()
