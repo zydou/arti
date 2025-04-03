@@ -22,7 +22,14 @@ impl KeystoreError for ArtiEphemeralKeystoreError {}
 
 impl HasKind for ArtiEphemeralKeystoreError {
     fn kind(&self) -> ErrorKind {
-        ErrorKind::Other
+        match self {
+            // TODO: These could probably use more specific ErrorKinds. They
+            // are explicitly matched instead of using a default match to
+            // encourage future additions to use the appropriate ErrorKind
+            // rather than letting the default match handle it.
+            Self::ArtiPathUnavailableError(_) => ErrorKind::Other,
+            Self::SshKeySerialize(_) => ErrorKind::Other,
+        }
     }
 }
 
