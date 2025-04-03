@@ -612,10 +612,9 @@ impl Circuit {
                     // The message either doesn't count towards the sequence numbers
                     // or is already well-ordered, so we're ready to handle it.
 
-                    // XXX we should also check if there are any other
-                    // messages we can dequeue (we need to change
-                    // the return type to RunOnceCmd, because we
-                    // might need to return multiple RunOnceCmds)
+                    // It's possible that some of our buffered messages are now ready to be
+                    // handled. We don't check that here, however, because that's handled
+                    // by the reactor main loop.
                     msg
                 }
                 ConfluxAction::Enqueue(msg) => {
