@@ -168,10 +168,6 @@ macro_rules! implement_accessors {
                 self.rs.flags.contains(RelayFlags::FAST)
             }
             /// Return true if this routerstatus is listed with the MiddleOnly flag.
-            ///
-            /// Note that this flag is only used by authorities as part of
-            /// the voting process; clients do not and should not act
-            /// based on whether it is set.
             pub fn is_flagged_middle_only(&self) -> bool {
                 self.rs.flags.contains(RelayFlags::MIDDLE_ONLY)
             }

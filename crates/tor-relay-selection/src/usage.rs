@@ -51,6 +51,8 @@ enum RelayUsageInner {
     Vanguard,
     /// Allow any relay that's suitable as a one-hop directory cache.
     DirectoryCache,
+    /// Allow any relay that's suitable as a rendezvous point.
+    RendPoint,
 }
 
 impl RelayUsage {
@@ -176,6 +178,14 @@ impl RelayUsage {
         }
     }
 
+    /// Require a relay that is suitable as a newly selected rendezvous point.
+    pub fn rend_point() -> Self {
+        RelayUsage {
+            inner: RelayUsageInner::RendPoint,
+            need_stable: false,
+        }
+    }
+
     /// Return the [`WeightRole`] to use when picking a relay for this usage.
     pub(crate) fn selection_weight_role(&self) -> WeightRole {
         use RelayUsageInner::*;
@@ -188,6 +198,7 @@ impl RelayUsage {
             #[cfg(feature = "vanguards")]
             Vanguard => WeightRole::Middle,
             DirectoryCache => WeightRole::BeginDir,
+            RendPoint => WeightRole::HsRend,
         }
     }
 
@@ -205,6 +216,7 @@ impl RelayUsage {
             #[cfg(feature = "vanguards")]
             Vanguard => "not usable as vanguard",
             DirectoryCache => "not directory cache",
+            RendPoint => "useless for rendezvous point",
         }
     }
 }
@@ -246,6 +258,7 @@ impl LowLevelRelayPredicate for RelayUsage {
                 true
             }
             DirectoryCache => relay.is_dir_cache(),
+            RendPoint => relay.is_hs_rend_point(),
         }
     }
 }
