@@ -86,6 +86,7 @@ use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 use async_trait::async_trait;
 use futures::{stream::BoxStream, task::SpawnExt};
 use oneshot_fused_workaround as oneshot;
+use tor_netdoc::doc::netstatus::ProtoStatuses;
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
@@ -275,6 +276,9 @@ pub struct DirMgr<R: Runtime> {
     // TODO(eta): Eurgh! This is so many Arcs! (especially considering this
     //            gets wrapped in an Arc)
     netdir: Arc<SharedMutArc<NetDir>>,
+
+    /// Our latest set of recommended protocols.
+    protocols: Mutex<Option<(SystemTime, Arc<ProtoStatuses>)>>,
 
     /// A set of network parameters to hand out when we have no directory.
     default_parameters: Mutex<Arc<NetParameters>>,
@@ -898,10 +902,20 @@ impl<R: Runtime> DirMgr<R> {
         let (task_schedule, task_handle) = TaskSchedule::new(runtime.clone());
         let task_schedule = Mutex::new(Some(task_schedule));
 
+        // We load the cached protocol recommendations unconditionally: the caller needs them even
+        // if it does not try to load the reset of the cache.
+        let protocols = {
+            let store = store.store.lock().expect("lock poisoned");
+            store
+                .cached_protocol_recommendations()?
+                .map(|(t, p)| (t, Arc::new(p)))
+        };
+
         Ok(DirMgr {
             config: config.into(),
             store: store.store,
             netdir,
+            protocols: Mutex::new(protocols),
             default_parameters,
             events,
             send_status,
@@ -1086,6 +1100,15 @@ impl<R: Runtime> DirMgr<R> {
                         Ok(())
                     })?;
                     self.events.publish(DirEvent::NewDescriptors);
+                    Ok(())
+                }
+                NetDirChange::SetRequiredProtocol { timestamp, protos } => {
+                    if !store.is_readonly() {
+                        store.update_protocol_recommendations(timestamp, protos.as_ref())?;
+                    }
+                    let mut pr = self.protocols.lock().expect("Poisoned lock");
+                    *pr = Some((timestamp, protos));
+                    self.events.publish(DirEvent::NewProtocolRecommendation);
                     Ok(())
                 }
             }

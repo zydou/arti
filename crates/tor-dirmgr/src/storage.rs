@@ -337,7 +337,6 @@ pub(crate) trait Store: Send + 'static {
     fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()>;
 
     /// Try to update our cached protocol recommendations to those listed in `protocols`.
-    #[allow(unused)] // XXXX
     fn update_protocol_recommendations(
         &mut self,
         valid_after: SystemTime,
@@ -345,7 +344,6 @@ pub(crate) trait Store: Send + 'static {
     ) -> Result<()>;
 
     /// Return our most recent cached protocol recommendations.
-    #[allow(unused)] // XXXX
     fn cached_protocol_recommendations(&self) -> Result<Option<(SystemTime, ProtoStatuses)>>;
 }
 

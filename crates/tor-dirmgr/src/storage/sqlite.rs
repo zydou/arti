@@ -1402,10 +1402,8 @@ const DELETE_EXTDOC_BY_FILENAME: &str = "DELETE FROM ExtDocs WHERE filename = ?;
 const FIND_ALL_EXTDOC_FILENAMES: &str = "SELECT filename FROM ExtDocs;";
 
 /// Query: Get the latest protocol status.
-#[allow(unused)] // XXXX
 const FIND_LATEST_PROTOCOL_STATUS: &str = "SELECT date, statuses FROM ProtocolStatus WHERE zero=0;";
 /// Query: Update the latest protocol status.
-#[allow(unused)] // XXXX
 const UPDATE_PROTOCOL_STATUS: &str = "INSERT OR REPLACE INTO ProtocolStatus VALUES ( 0, ?, ? );";
 
 /// Query: Discard every router descriptor that hasn't been listed for 3

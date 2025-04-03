@@ -565,6 +565,10 @@ pub enum DirEvent {
     /// (This event is _not_ broadcast when receiving new descriptors for a
     /// consensus which is not yet ready to replace the current consensus.)
     NewDescriptors,
+
+    /// We have received updated recommendations and requirements
+    /// for which subprotocols we should have to use the network.
+    NewProtocolRecommendation,
 }
 
 /// The network directory provider is shutting down without giving us the
