@@ -1388,10 +1388,6 @@ impl<R: Runtime> TorClient<R> {
                 if let Some(keymgr) = &self.inert_client.keymgr {
                     let desc_enc_key_spec = HsClientDescEncKeypairSpecifier::new(hsid);
 
-                    // TODO hs: refactor to reduce code duplication.
-                    //
-                    // The code that reads ks_hsc_desc_enc and ks_hsc_intro_auth and builds the
-                    // HsClientSecretKeys is very repetitive and should be refactored.
                     let ks_hsc_desc_enc =
                         keymgr.get::<HsClientDescEncKeypair>(&desc_enc_key_spec)?;
 
