@@ -467,7 +467,7 @@ impl<'a, K: Keyword> Item<'a, K> {
     /// point to a newline.)
     fn last_arg_end_pos(&self) -> Pos {
         let args = self.args_as_vec();
-        if args.len() >= 1 {
+        if !args.is_empty() {
             let last_arg = args[args.len() - 1];
             Pos::at_end_of(last_arg)
         } else {
