@@ -175,6 +175,10 @@ struct SubprotocolEntry {
 /// let p: Result<Protocols,_> = "Link=1-3 LinkAuth=2-3 Relay=1-2".parse();
 /// ```
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_with::DeserializeFromStr, serde_with::SerializeDisplay)
+)]
 pub struct Protocols {
     /// A mapping from protocols' integer encodings to bit-vectors.
     recognized: [u64; N_RECOGNIZED],

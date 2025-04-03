@@ -224,7 +224,8 @@ where
 /// A list of subprotocol versions that implementors should/must provide.
 ///
 /// Each consensus has two of these: one for relays, and one for clients.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ProtoStatus {
     /// Set of protocols that are recommended; if we're missing a protocol
     /// in this list we should warn the user.
@@ -289,7 +290,8 @@ impl HasKind for ProtocolSupportError {
 
 /// A set of recommended and required protocols when running
 /// in various scenarios.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ProtoStatuses {
     /// Lists of recommended and required subprotocol versions for clients
     client: ProtoStatus,
@@ -2182,5 +2184,37 @@ mod test {
                 "Cons=6-12 Wombat=15".parse().unwrap()
             ))
         );
+    }
+
+    #[test]
+    fn serialize_protostatus() {
+        let ps = ProtoStatuses {
+            client: ProtoStatus {
+                recommended: "Link=1-5 LinkAuth=2-5".parse().unwrap(),
+                required: "Link=5 LinkAuth=3".parse().unwrap(),
+            },
+            relay: ProtoStatus {
+                recommended: "Wombat=20-30 Knish=20-30".parse().unwrap(),
+                required: "Wombat=20-22 Knish=25-27".parse().unwrap(),
+            },
+        };
+        let json = serde_json::to_string(&ps).unwrap();
+        let ps2 = serde_json::from_str(json.as_str()).unwrap();
+        assert_eq!(ps, ps2);
+
+        let ps3: ProtoStatuses = serde_json::from_str(
+            r#"{
+            "client":{
+                "required":"Link=5 LinkAuth=3",
+                "recommended":"Link=1-5 LinkAuth=2-5"
+            },
+            "relay":{
+                "required":"Wombat=20-22 Knish=25-27",
+                "recommended":"Wombat=20-30 Knish=20-30"
+            }
+        }"#,
+        )
+        .unwrap();
+        assert_eq!(ps, ps3);
     }
 }
