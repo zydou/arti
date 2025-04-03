@@ -947,6 +947,13 @@ impl Reactor {
             }
         }
     }
+
+    /// Does congestion control require stream SENDMEs for the given hop?
+    ///
+    /// Returns `None` if either the `leg` or `hop` don't exist.
+    fn stream_sendme_required(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+        self.circuits.stream_sendme_required(leg, hop)
+    }
 }
 
 /// The tunnel does not have any hops.

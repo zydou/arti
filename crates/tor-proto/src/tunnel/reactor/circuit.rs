@@ -1317,6 +1317,15 @@ impl Circuit {
     pub(super) fn clock_skew(&self) -> ClockSkew {
         self.channel.clock_skew()
     }
+
+    /// Does congestion control require stream SENDMEs for the given `hop`?
+    ///
+    /// Returns `None` if `hop` doesn't exist.
+    pub(super) fn stream_sendme_required(&self, hop: HopNum) -> Option<bool> {
+        let _hop = self.hop(hop)?;
+        // XXX
+        todo!()
+    }
 }
 
 /// Return the stream ID of `msg`, if it has one.

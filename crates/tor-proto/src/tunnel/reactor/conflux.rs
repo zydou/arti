@@ -206,6 +206,13 @@ impl ConfluxSet {
         // has been converted from a "non-conflux tunnel" to a "conflux tunnel"
         None
     }
+
+    /// Does congestion control require stream SENDMEs for the given hop?
+    ///
+    /// Returns `None` if either the `leg` or `hop` don't exist.
+    pub(super) fn stream_sendme_required(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+        self.leg(leg)?.stream_sendme_required(hop)
+    }
 }
 
 // TODO(conflux): replace this with Itertools::exactly_one()?
