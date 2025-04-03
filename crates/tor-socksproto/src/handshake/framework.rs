@@ -639,7 +639,7 @@ pub trait Handshake: HandshakeImpl + HasHandshakeOutput<Self::Output> {
                 reply,
                 finished: false,
             })),
-            Ok(ImplNextStep::Finished {}) => Ok(Ok(Action {
+            Ok(ImplNextStep::Finished) => Ok(Ok(Action {
                 drain,
                 reply: vec![],
                 finished: true,

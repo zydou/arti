@@ -606,7 +606,7 @@ impl<D: MockableConnectorData> Services<D> {
                     now <= expiry_time
                 }
                 ServiceState::Open { .. } | ServiceState::Working { .. } => true,
-                ServiceState::Dummy { .. } => {
+                ServiceState::Dummy => {
                     error!("found dummy data during HS housekeeping, for {}", sv(hsid));
                     false
                 }
