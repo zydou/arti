@@ -22,6 +22,7 @@ use tor_linkspec::HasRelayIds as _;
 use crate::circuit::path::HopDetail;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
+use crate::tunnel::reactor::CircuitCmd;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
@@ -536,6 +537,8 @@ impl ConfluxSet {
             .map(|(leg_id, leg)| {
                 let mut ready_streams = leg.ready_streams_iterator();
                 let input = &mut leg.input;
+                let primary_id = self.primary_id;
+                let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
                 // We should replace this with a simple sink readiness check
@@ -574,7 +577,50 @@ impl ConfluxSet {
                             Ok(CircuitAction::HandleCell { leg: leg_id, cell })
                         },
                         ret = next_ready_stream.fuse() => {
-                            ret.map(|cmd| CircuitAction::RunCmd { leg: leg_id, cmd })
+                            let ret = ret.map(|cmd| {
+                                // TODO(conflux): refactor this spaghetti
+                                let leg = if let Some(join_point) = conflux_join_point {
+                                    match &cmd {
+                                        CircuitCmd::Send(send) => {
+                                            // Conflux circuits always send multiplexed relay commands to
+                                            // to the last hop (the join point).
+                                            if cmd_counts_towards_seqno(send.cell.cmd()) {
+                                                if send.hop != join_point {
+                                                    return Err(crate::Error::Bug(internal!(
+                                                        "Leaky pipe on conflux circuit?! (target_hop={}, join_point={})",
+                                                        send.hop.display(),
+                                                        join_point.display(),
+                                                    )));
+                                                }
+                                                // TODO(conflux): validate the hop? We should
+                                                // ensure the target hop is the join point, and
+                                                // error otherwise?
+
+                                                primary_id
+                                            } else {
+                                                // Non-multiplexed commands go on their original
+                                                // circuit and hop
+                                                leg_id
+                                            }
+                                        }
+                                        // The leg_id doesn't need to change (or doesn't matter)
+                                        // for these other commands.
+                                        CircuitCmd::HandleSendMe { .. } | CircuitCmd::CloseStream { .. }
+                                        | CircuitCmd::CleanShutdown => leg_id,
+                                        #[cfg(feature = "conflux")]
+                                        CircuitCmd::ConfluxRemove(_) | CircuitCmd::ConfluxHandshakeComplete (_) | CircuitCmd::Enqueue(_) => leg_id,
+                                    }
+                                } else {
+                                    // If there is no join point, it means this is not
+                                    // a multi-path tunnel, so we continue using
+                                    // the leg_id/hop the cmd came from.
+                                    leg_id
+                                };
+
+                                Ok(CircuitAction::RunCmd { leg, cmd })
+                            });
+
+                            flatten(ret)
                         },
                     }
                 })
