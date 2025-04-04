@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tor_cell::relaycell::conflux::V1Nonce;
-use tor_cell::relaycell::{StreamId, UnparsedRelayMsg};
+use tor_cell::relaycell::{RelayCmd, StreamId, UnparsedRelayMsg};
 use tor_error::{internal, Bug};
 
 use crate::crypto::cell::HopNum;
@@ -161,6 +161,15 @@ impl ConfluxMsgHandler {
     /// Return the sequence number of the last message sent on this leg.
     pub(crate) fn last_seq_sent(&self) -> u32 {
         self.handler.last_seq_sent()
+    }
+
+    /// Note that a cell has been sent.
+    ///
+    /// Updates the internal sequence numbers.
+    pub(crate) fn note_cell_sent(&mut self, cmd: RelayCmd) {
+        if super::cmd_counts_towards_seqno(cmd) {
+            self.handler.inc_last_seq_sent();
+        }
     }
 }
 

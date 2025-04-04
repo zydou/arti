@@ -417,6 +417,12 @@ impl Circuit {
                 ent.take_capacity_to_send(msg.msg())?;
             }
         }
+
+        // Save the RelayCmd of the message before it gets consumed below.
+        // We need this to tell our ConfluxMsgHandler about the cell we've just sent,
+        // so that it can update its counters.
+        let relay_cmd = msg.cmd();
+
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
         let (msg, tag) =
@@ -429,6 +435,11 @@ impl Circuit {
 
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
         Pin::new(&mut self.chan_sender).send_unbounded(cell).await?;
+
+        #[cfg(feature = "conflux")]
+        if let Some(conflux) = self.conflux_handler.as_mut() {
+            conflux.note_cell_sent(relay_cmd);
+        }
 
         Ok(())
     }
