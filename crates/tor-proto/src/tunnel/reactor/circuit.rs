@@ -387,6 +387,11 @@ impl Circuit {
     ///
     /// Does not check whether the cell is well-formed or reasonable.
     pub(super) async fn send_relay_cell(&mut self, msg: SendRelayCell) -> Result<()> {
+        if self.is_conflux_pending() {
+            // TODO(conflux): is this right? Should we ensure all the legs are linked?
+            return Err(internal!("tried to send cell on unlinked circuit").into());
+        }
+
         let SendRelayCell {
             hop,
             early,
