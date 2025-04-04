@@ -167,6 +167,8 @@ enum RunOnceCmd {
 enum RunOnceCmdInner {
     /// Send a RELAY cell.
     Send {
+        /// The leg the cell should be sent on.
+        leg: LegId,
         /// The cell to send.
         cell: SendRelayCell,
         /// A channel for sending completion notifications.
@@ -268,10 +270,11 @@ impl RunOnceCmdInner {
     /// Create a [`RunOnceCmdInner`] out of a [`CircuitCmd`] and [`LegIdKey`].
     fn from_circuit_cmd(leg: LegIdKey, cmd: CircuitCmd) -> Self {
         match cmd {
-            CircuitCmd::Send(cell) => {
-                // TODO(conflux): add leg ID to Send
-                Self::Send { cell, done: None }
-            }
+            CircuitCmd::Send(cell) => Self::Send {
+                leg: LegId(leg),
+                cell,
+                done: None,
+            },
             CircuitCmd::HandleSendMe { hop, sendme } => Self::HandleSendMe {
                 leg: LegId(leg),
                 hop,
@@ -865,11 +868,13 @@ impl Reactor {
         cmd: RunOnceCmdInner,
     ) -> StdResult<(), ReactorError> {
         match cmd {
-            RunOnceCmdInner::Send { cell, done } => {
+            RunOnceCmdInner::Send { leg, cell, done } => {
                 // TODO: check the cc window
-
-                // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
-                let res = self.circuits.primary_leg_mut()?.send_relay_cell(cell).await;
+                let leg = self
+                    .circuits
+                    .leg_mut(leg)
+                    .ok_or_else(|| internal!("leg disappeared?!"))?;
+                let res = leg.send_relay_cell(cell).await;
                 if let Some(done) = done {
                     // Don't care if the receiver goes away
                     let _ = done.send(res.clone());

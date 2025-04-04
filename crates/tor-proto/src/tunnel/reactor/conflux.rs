@@ -188,6 +188,11 @@ impl ConfluxSet {
         self.legs.iter().map(|(id, leg)| (LegId(id), leg))
     }
 
+    /// Return the LegId of the primary leg.
+    pub(super) fn primary_leg_id(&self) -> LegId {
+        LegId(self.primary_id)
+    }
+
     /// Return the number of legs in this conflux set.
     pub(super) fn len(&self) -> usize {
         self.legs.len()
