@@ -473,6 +473,7 @@ impl<'a> ControlHandler<'a> {
 
                 let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
                 Ok(Some(RunOnceCmdInner::BeginStream {
+                    leg: leg_id,
                     cell,
                     hop: hop_location,
                     done,

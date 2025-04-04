@@ -208,6 +208,8 @@ enum RunOnceCmdInner {
         /// to worry about legs anyways), but need it so that we can pass it back in `done` to the
         /// caller.
         hop: HopLocation,
+        /// The circuit leg to begin the stream on.
+        leg: LegId,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
     },
@@ -905,14 +907,18 @@ impl Reactor {
                     }
                 }
             }
-            // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
-            // Currently, we always begin streams on the primary leg
-            RunOnceCmdInner::BeginStream { cell, hop, done } => {
+            RunOnceCmdInner::BeginStream {
+                leg,
+                cell,
+                hop,
+                done,
+            } => {
                 match cell {
                     Ok((cell, stream_id)) => {
-                        // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
-                        // (currently it is an error to use BeginStream on a multipath tunnel)
-                        let (_id, leg) = self.circuits.single_leg_mut()?;
+                        let leg = self
+                            .circuits
+                            .leg_mut(leg)
+                            .ok_or_else(|| internal!("leg disappeared?!"))?;
                         let cell_hop = cell.hop;
                         let relay_format = leg
                             .hop_mut(cell_hop)
