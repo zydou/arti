@@ -189,6 +189,8 @@ enum RunOnceCmdInner {
     },
     /// Handle a SENDME message.
     HandleSendMe {
+        /// The leg the SENDME was received on.
+        leg: LegId,
         /// The hop number.
         hop: HopNum,
         /// The SENDME message to handle.
@@ -270,10 +272,11 @@ impl RunOnceCmdInner {
                 // TODO(conflux): add leg ID to Send
                 Self::Send { cell, done: None }
             }
-            CircuitCmd::HandleSendMe { hop, sendme } => {
-                // TODO(conflux): add leg to HandleSendMe
-                Self::HandleSendMe { hop, sendme }
-            }
+            CircuitCmd::HandleSendMe { hop, sendme } => Self::HandleSendMe {
+                leg: LegId(leg),
+                hop,
+                sendme,
+            },
             CircuitCmd::CloseStream {
                 hop,
                 sid,
@@ -962,10 +965,11 @@ impl Reactor {
                     let _ = done.send(res);
                 }
             }
-            RunOnceCmdInner::HandleSendMe { hop, sendme } => {
-                // TODO(conflux): this should specify which leg of the circuit the SENDME
-                // came on
-                let (_id, leg) = self.circuits.single_leg_mut()?;
+            RunOnceCmdInner::HandleSendMe { leg, hop, sendme } => {
+                let leg = self
+                    .circuits
+                    .leg_mut(leg)
+                    .ok_or_else(|| internal!("leg disappeared?!"))?;
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
                 let signals = leg.congestion_signals().await;
