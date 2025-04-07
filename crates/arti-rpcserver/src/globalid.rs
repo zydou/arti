@@ -75,8 +75,7 @@ impl GlobalId {
     /// The number of bytes used to encode a `GlobalId` in binary form.
     const ENCODED_LEN: usize = MAC_LEN + ConnectionId::LEN + GenIdx::BYTE_LEN;
     /// The number of bytes used to encode a `GlobalId` in base-64 form.
-    // TODO: use div_ceil once it's stable.
-    pub(crate) const B64_ENCODED_LEN: usize = (Self::ENCODED_LEN * 8 + 5) / 6;
+    pub(crate) const B64_ENCODED_LEN: usize = (Self::ENCODED_LEN * 8).div_ceil(6);
 
     /// Create a new GlobalId from its parts.
     pub(crate) fn new(connection: ConnectionId, local_id: GenIdx) -> GlobalId {
