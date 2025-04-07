@@ -224,8 +224,7 @@ where
 /// A list of subprotocol versions that implementors should/must provide.
 ///
 /// Each consensus has two of these: one for relays, and one for clients.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatus {
     /// Set of protocols that are recommended; if we're missing a protocol
     /// in this list we should warn the user.
@@ -290,8 +289,7 @@ impl HasKind for ProtocolSupportError {
 
 /// A set of recommended and required protocols when running
 /// in various scenarios.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatuses {
     /// Lists of recommended and required subprotocol versions for clients
     client: ProtoStatus,
