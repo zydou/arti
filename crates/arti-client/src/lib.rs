@@ -50,6 +50,7 @@ mod address;
 mod builder;
 mod client;
 mod protostatus;
+mod release_date;
 #[cfg(feature = "rpc")]
 pub mod rpc;
 mod util;
@@ -134,6 +135,18 @@ pub(crate) fn supported_protocols() -> tor_protover::Protocols {
     protocols.union(&hs_protocols)
 }
 
+/// Return the approximate release date of this version of arti client.
+///
+/// See[`release_date::ARTI_CLIENT_RELEASE_DATE`] for rationale.
+pub(crate) fn software_release_date() -> std::time::SystemTime {
+    use time::OffsetDateTime;
+
+    let format = time::macros::format_description!("[year]-[month]-[day]");
+    let date = time::Date::parse(release_date::ARTI_CLIENT_RELEASE_DATE, &format)
+        .expect("Invalid hard-coded release date!?");
+    OffsetDateTime::new_utc(date, time::Time::MIDNIGHT).into()
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -190,5 +203,11 @@ mod test {
             let unsupported = rec.difference(&pr);
             assert_eq!(unsupported, expected_missing);
         }
+    }
+
+    #[test]
+    fn release_date_format() {
+        // Make sure we can parse the release date.
+        let _d: std::time::SystemTime = software_release_date();
     }
 }

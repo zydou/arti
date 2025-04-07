@@ -305,6 +305,7 @@ dependencies = [
  "strum",
  "tempfile",
  "thiserror 2.0.12",
+ "time",
  "tokio",
  "toml",
  "tor-async-utils",

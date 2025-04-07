@@ -928,11 +928,10 @@ impl<R: Runtime> TorClient<R> {
             )
             .map_err(crate::Error::into_detail)?;
 
-        let software_publication_time = std::time::SystemTime::now(); // XXXX ridiculously wrong.
         crate::protostatus::enforce_protocol_recommendations(
             &runtime,
-            Arc::clone(&dirmgr) as Arc<dyn NetDirProvider>,
-            software_publication_time,
+            Arc::clone(&dirmgr),
+            crate::software_release_date(),
             crate::supported_protocols(),
             // TODO #1932: It would be nice to have a cleaner shutdown mechanism here,
             // but that will take some work.

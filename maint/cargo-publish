@@ -107,6 +107,10 @@ check_equal "$arti" "$version" \
 	    "version of the arti crate, in-tree" \
 	    "specified version to release"
 
+#----- Check that our release date is reasonable.
+
+"$maint/update-release-date" --check
+
 #----- compare already-published versions -----
 
 "$maint"/list_crates --version >"$tmp/all-crates"
