@@ -81,6 +81,7 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::time::SystemTime;
 use strum::{EnumCount, EnumIter};
 use tracing::warn;
 use typed_index_collections::{TiSlice, TiVec};
@@ -713,6 +714,11 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
             }
         }
     }
+
+    /// Return the latest set of recommended and required protocols, if there is one.
+    ///
+    /// This may be more recent (or more available) than this provider's associated NetDir.
+    fn recommended_protocols(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)>;
 }
 
 impl<T> NetDirProvider for Arc<T>
@@ -733,6 +739,10 @@ where
 
     fn params(&self) -> Arc<dyn AsRef<NetParameters>> {
         self.deref().params()
+    }
+
+    fn recommended_protocols(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)> {
+        self.deref().recommended_protocols()
     }
 }
 

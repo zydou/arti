@@ -222,6 +222,10 @@ impl<R: Runtime> NetDirProvider for DirMgr<R> {
         // have a full directory.  That's significant refactoring, though, for
         // an unclear amount of benefit.
     }
+
+    fn recommended_protocols(&self) -> Option<(SystemTime, Arc<ProtoStatuses>)> {
+        self.protocols.lock().expect("Poisoned lock").clone()
+    }
 }
 
 #[async_trait]

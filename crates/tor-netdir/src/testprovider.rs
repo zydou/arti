@@ -100,4 +100,13 @@ impl NetDirProvider for TestNetDirProvider {
             Arc::new(crate::params::NetParameters::default())
         }
     }
+
+    fn recommended_protocols(
+        &self,
+    ) -> Option<(
+        std::time::SystemTime,
+        Arc<tor_netdoc::doc::netstatus::ProtoStatuses>,
+    )> {
+        None
+    }
 }
