@@ -1293,6 +1293,16 @@ impl Circuit {
             return self.handle_conflux_msg(hopnum, msg);
         }
 
+        if self.is_conflux_pending() {
+            warn!(
+                "{}: received unexpected cell {msg:?} on unlinked conflux circuit",
+                self.unique_id,
+            );
+            return Err(Error::CircProto(
+                "Received unexpected cell on unlinked circuit".into(),
+            ));
+        }
+
         // For all other command types, we'll only get them in response
         // to another command, which should have registered a responder.
         //
