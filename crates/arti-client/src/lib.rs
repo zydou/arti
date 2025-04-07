@@ -49,6 +49,7 @@
 mod address;
 mod builder;
 mod client;
+mod protostatus;
 #[cfg(feature = "rpc")]
 pub mod rpc;
 mod util;
@@ -95,7 +96,6 @@ pub use tor_geoip::CountryCode;
 /// Return a list of the protocols supported by this crate.
 ///
 /// (This is a crate-private method so as not to expose tor_protover in our public API.)
-#[allow(unused)] // XXXX
 pub(crate) fn supported_protocols() -> tor_protover::Protocols {
     let protocols = tor_proto::supported_client_protocols()
         .union(&tor_netdoc::supported_protocols())

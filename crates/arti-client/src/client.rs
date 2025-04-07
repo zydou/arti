@@ -928,6 +928,17 @@ impl<R: Runtime> TorClient<R> {
             )
             .map_err(crate::Error::into_detail)?;
 
+        let software_publication_time = std::time::SystemTime::now(); // XXXX ridiculously wrong.
+        crate::protostatus::enforce_protocol_recommendations(
+            &runtime,
+            Arc::clone(&dirmgr) as Arc<dyn NetDirProvider>,
+            software_publication_time,
+            crate::supported_protocols(),
+            // TODO #1932: It would be nice to have a cleaner shutdown mechanism here,
+            // but that will take some work.
+            |_| async { std::process::exit(1) },
+        )?;
+
         let mut periodic_task_handles = circmgr
             .launch_background_tasks(&runtime, &dirmgr, statemgr.clone())
             .map_err(ErrorDetail::CircMgrSetup)?;
