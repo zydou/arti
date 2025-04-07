@@ -327,7 +327,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
     fn reenter_block_on<F>(&self, future: F) -> F::Output
     where
-        F: Future + Send + 'static,
+        F: Future,
         F::Output: Send + 'static;
 
     /// Perform some blocking IO from an async future

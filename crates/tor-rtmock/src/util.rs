@@ -45,7 +45,7 @@ define_derive_deftly! {
 
         fn reenter_block_on<F>(&self, future: F) -> F::Output
         where
-            F: Future + Send + 'static,
+            F: Future,
             F::Output: Send + 'static
         {
             self.$fname.reenter_block_on(future)

@@ -487,7 +487,7 @@ impl Blocking for MockExecutor {
 
     fn reenter_block_on<F>(&self, future: F) -> F::Output
     where
-        F: Future + Send + 'static,
+        F: Future,
         F::Output: Send + 'static,
     {
         self.subthread_block_on_future(future)
