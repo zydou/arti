@@ -77,7 +77,11 @@ However, changing the set of Cargo features available can affect this; see
     Tokio runtime that you want to use, you can wrap it as a
     [`Runtime`] explicitly with `current()`.
 
+<div id="do-not-fork">
+
 ## `fork` on Unix, threads, and Rust
+
+</div>
 
 Rust is typically not sound in combination with `fork`.
 
