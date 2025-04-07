@@ -58,7 +58,7 @@ pub(crate) trait FlagEvent: Sized {
 ///  * `$ty` must implement [`strum::EnumCount`] [`strum::IntoEnumIterator`]
 ///
 ///  * `$ty` type must implement [`Into<u16>`] and [`TryFrom<u16>`]
-///     (for example using the `num_enum` crate).
+///    (for example using the `num_enum` crate).
 ///
 ///  * The discriminants must be densely allocated.
 ///    This will be done automatically by the compiler

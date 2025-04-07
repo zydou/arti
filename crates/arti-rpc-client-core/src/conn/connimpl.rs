@@ -319,7 +319,7 @@ impl Receiver {
     /// The caller is responsible for:
     ///
     /// - Removing the appropriate entry from `pending`, if the result
-    ///    indicates that no more messages will be received for this request.
+    ///   indicates that no more messages will be received for this request.
     /// - Possibly, notifying one or more condvars,
     ///   depending on the resulting `AlertWhom`.
     ///

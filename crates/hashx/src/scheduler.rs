@@ -71,17 +71,17 @@ mod model {
     #[inline(always)]
     pub(super) fn micro_operations(op: Opcode) -> (ExecPorts, Option<ExecPorts>) {
         match op {
-            Opcode::AddConst { .. } => (P015, None),
-            Opcode::Sub { .. } => (P015, None),
-            Opcode::Xor { .. } => (P015, None),
-            Opcode::XorConst { .. } => (P015, None),
-            Opcode::Mul { .. } => (P1, None),
-            Opcode::AddShift { .. } => (P01, None),
-            Opcode::Rotate { .. } => (P05, None),
-            Opcode::SMulH { .. } => (P1, Some(P5)),
-            Opcode::UMulH { .. } => (P1, Some(P5)),
-            Opcode::Branch { .. } => (P015, Some(P015)),
-            Opcode::Target { .. } => (P015, Some(P015)),
+            Opcode::AddConst => (P015, None),
+            Opcode::Sub => (P015, None),
+            Opcode::Xor => (P015, None),
+            Opcode::XorConst => (P015, None),
+            Opcode::Mul => (P1, None),
+            Opcode::AddShift => (P01, None),
+            Opcode::Rotate => (P05, None),
+            Opcode::SMulH => (P1, Some(P5)),
+            Opcode::UMulH => (P1, Some(P5)),
+            Opcode::Branch => (P015, Some(P015)),
+            Opcode::Target => (P015, Some(P015)),
         }
     }
 
