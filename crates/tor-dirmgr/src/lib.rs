@@ -1167,6 +1167,8 @@ pub(crate) fn default_consensus_cutoff(
 /// Return a list of the protocols supported by this crate when running as a client.
 pub fn supported_client_protocols() -> tor_protover::Protocols {
     use tor_protover::named::*;
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
     [
         //
         DIRCACHE_CONSDIFF,

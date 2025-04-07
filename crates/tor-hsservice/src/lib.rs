@@ -599,6 +599,8 @@ fn onion_address(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
 /// Return a list of the protocols supported by this crate, running as a hidden service client.
 pub fn supported_hsservice_protocols() -> tor_protover::Protocols {
     use tor_protover::named::*;
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
     [
         //
         HSINTRO_V3,

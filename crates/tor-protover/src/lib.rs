@@ -630,6 +630,41 @@ impl FromIterator<NamedSubver> for Protocols {
     }
 }
 
+/// Documentation about changing lists of supported versions.
+///
+/// # Warning
+///
+/// You need to be extremely careful when removing
+/// _any_ entry from a list of supported protocols.
+///
+/// If you remove an entry while it still appears as "recommended" in the consensus,
+/// you'll cause all the instances without it to warn.
+///
+/// If you remove an entry while it still appears as "required" in the
+///  consensus, you'll cause all the instances without it to refuse to connect
+/// to the network, and shut down.
+///
+/// If you need to remove a version from a list of supported protocols,
+/// you need to make sure that it is not listed in the _current consensuses_:
+/// just removing it from the list that the authorities vote for is NOT ENOUGH.
+/// You need to remove it from the required list,
+/// and THEN let the authorities upgrade and vote on new
+/// consensuses without it. Only once those consensuses are out is it safe to
+/// remove from the list of required protocols.
+///
+/// ## Example
+///
+/// One concrete example of a very dangerous race that could occur:
+///
+/// Suppose that the client supports protocols "HsDir=1-2" and the consensus
+/// requires protocols "HsDir=1-2.  If the client supported protocol list is
+/// then changed to "HSDir=2", while the consensus stills lists "HSDir=1-2",
+/// then these clients, even very recent ones, will shut down because they
+/// don't support "HSDir=1".
+///
+/// And so, changes need to be done in strict sequence as described above.
+pub mod doc_changing {}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

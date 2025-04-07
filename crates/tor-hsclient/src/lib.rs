@@ -228,6 +228,8 @@ impl<R: Runtime, D: MockableConnectorData> HsClientConnector<R, D> {
 /// Return a list of the protocols supported by this crate, running as a hidden service client.
 pub fn supported_hsclient_protocols() -> tor_protover::Protocols {
     use tor_protover::named::*;
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
     [
         HSINTRO_V3,
         // Technically, there is nothing for a client to do to support HSINTRO_RATELIM.

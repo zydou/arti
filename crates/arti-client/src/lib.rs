@@ -96,6 +96,9 @@ pub use tor_geoip::CountryCode;
 /// Return a list of the protocols supported by this crate.
 ///
 /// (This is a crate-private method so as not to expose tor_protover in our public API.)
+///
+/// *WARNING*: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+/// SEE [`tor_protover::doc_changing`]
 pub(crate) fn supported_protocols() -> tor_protover::Protocols {
     let protocols = tor_proto::supported_client_protocols()
         .union(&tor_netdoc::supported_protocols())

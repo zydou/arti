@@ -91,6 +91,8 @@ pub enum AllowAnnotations {
 /// Return a list of the protocols supported by this crate.
 pub fn supported_protocols() -> tor_protover::Protocols {
     use tor_protover::named::*;
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
     [
         DESC_CROSSSIGN,
         DESC_NO_TAP,
