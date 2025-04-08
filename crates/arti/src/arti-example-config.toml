@@ -109,7 +109,7 @@
 # The set of metrics currently available is quite limited, and not stable.
 # We expect to extend it; MRs welcome.
 
-# Thuis suggested port is the same as the example in the C Tor tor(1) manpage.
+# This suggested port is the same as the example in the C Tor tor(1) manpage.
 # But note that the set of available metrics is quite different.
 #
 #    prometheus.listen = 9035
