@@ -1,6 +1,3 @@
-<!-- Define markdownlint disables -->
-<!-- markdownlint-configure-file {"MD024": { "siblings_only": true }} -->
-
 # State and key management CLI
 
 > This document uses deprecated terminology: "client authorization" is
@@ -8,10 +5,10 @@
 
 Arti will need the following new subcommands:
 
-* `arti-keys`, porcelain key management commands, for general key management
-* `arti-keys-raw`, plumbing key management commands
-* `arti-hss`, for managing the state (including keys) of hidden services
-* `arti-hsc`, for managing the state (including keys) of hidden service
+  * `arti-keys`, porcelain key management commands, for general key management
+  * `arti-keys-raw`, plumbing key management commands
+  * `arti-hss`, for managing the state (including keys) of hidden services
+  * `arti-hsc`, for managing the state (including keys) of hidden service
     clients
 
 Initially, `arti-hss` and `arti-hsc` will be only used for listing,
@@ -22,10 +19,9 @@ also be used for manipulating the on-disk IPT records of the service).
 
 NOTE: The subcommands documented here do not exist yet. Rather than being the
 documentation for a finished product, this document is
-
-* a design document describing what needs to be implemented (which implicitly
+  * a design document describing what needs to be implemented (which implicitly
     highlights what `KeyMgr` features we are missing)
-* a starting point for the CLI docs (although it might require some
+  * a starting point for the CLI docs (although it might require some
     amendments, depending on how much the implementation deviates from what is
     described here)
 
@@ -45,8 +41,7 @@ keystore and associated state (calling it something like `arti-hss migrate` or
 `arti-hss ctor-migrate`)
 
 ## `arti-keys`
-
-```text
+```
 NAME
        arti-keys - Command-line key management tools for Arti
 
@@ -105,7 +100,7 @@ SUBCOMMANDS
 
 ### `arti-keys-list`
 
-```text
+```
 NAME
        arti-keys-list - List keys and certificates from the configured key
        stores
@@ -220,8 +215,8 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::list_matching`
-* `KeyMgr::describe`
+  * `KeyMgr::list_matching`
+  * `KeyMgr::describe`
 
 TODO: we might want to add a `KeyMgr::list_all` for listing all the keys from a
 given store (today this can be achieved by calling `list_matching` with a `"*"`
@@ -233,9 +228,8 @@ from all keystores. It will need to be modified to accept a `KeystoreSelector`
 argument to support only listing the keys from a given keystore (otherwise we
 can't implement the `--keystore` option). We'll also need some way of detecting
 which keys are expired: given a valid `KeyPath`, the API will:
-
-* parse it back into its corresponding `KeySpecifier`
-* check if the `TimePeriod` stored in the `KeySpecifier` is "relevant". If it
+  * parse it back into its corresponding `KeySpecifier`
+  * check if the `TimePeriod` stored in the `KeySpecifier` is "relevant". If it
     is not, it will declare the key expired. Checking if the `TimePeriod` is
     relevant or not can be done by checking if it's one of the
     `NetDir::hs_all_time_periods()` returned by a recent `NetDir`.
@@ -244,7 +238,7 @@ which keys are expired: given a valid `KeyPath`, the API will:
 
 ### `arti-keys-verify`
 
-```text
+```
 NAME
        arti-keys-verify - perform consistency, validity, and integrity checks
        on the specified stores
@@ -335,16 +329,16 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::list_matching`
-* `KeyMgr::describe`
-* `KeyMgr::remove`
+  * `KeyMgr::list_matching`
+  * `KeyMgr::describe`
+  * `KeyMgr::remove`
 
 This command is exactly like `arti-keys-list`, except it also removes the
 invalid keys if prompted to do so.
 
 ### `arti-keys-describe`
 
-```text
+```
 NAME
        arti-keys-describe - print information about a specific key
 
@@ -407,7 +401,7 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::describe`
+  * `KeyMgr::describe`
 
 This will be implemented by an API based on `KeyMgr::describe`. As mentioned
 under `arti-keys-list`, the API will also need to be able to detect if the
@@ -418,7 +412,7 @@ we'll need it for the CLI APIs too).
 
 ## `arti-keys-raw`
 
-```text
+```
 NAME
        arti-keys-raw - Command-line key management plumbing tools for Arti
 
@@ -477,7 +471,7 @@ SUBCOMMANDS
 
 ### `arti-keys-raw-list` (plumbing)
 
-```text
+```
 NAME
        arti-keys-raw-list - List all available keys, without interpreting their
        meaning
@@ -530,11 +524,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::list_matching`
+  * `KeyMgr::list_matching`
 
 ### `arti-keys-raw-remove-by-path` (plumbing)
 
-```text
+```
 NAME
        arti-keys-raw-remove-by-path - Remove a key, given its ArtiPath
 
@@ -582,11 +576,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::remove`
+  * `KeyMgr::remove`
 
 ## `arti-hsc`
 
-```text
+```
 NAME
        arti-hsc - Command-line tool for managing the state of Arti hidden
        service clients
@@ -641,7 +635,7 @@ SUBCOMMANDS
 
 ### `arti-hsc-generate-key`
 
-```text
+```
 NAME
        arti-hsc-generate-key-auth - Generate a hidden service client authorization key
 
@@ -708,11 +702,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::generate`
+  * `KeyMgr::generate`
 
 ### `arti-hsc-remove-key`
 
-```text
+```
 NAME
        arti-hsc-remove-key - remove a client authorization key from the specified
        key store
@@ -750,11 +744,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::remove`
+  * `KeyMgr::remove`
 
 ## `arti-hss`
 
-```text
+```
 NAME
        arti-hss - Command-line tool for managing the state of Arti hidden
        services
@@ -807,7 +801,7 @@ SUBCOMMANDS
 
 ### `arti-hss-new-service`
 
-```text
+```
 NAME
        arti-hss-new-service - initialize a new hidden service
 
@@ -888,11 +882,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::generate`
+  * `KeyMgr::generate`
 
 ### `arti-hss-generate-online-keys`
 
-```text
+```
 NAME
        arti-hss-generate-online-keys - generate the keys needed to run a hidden service in offline mode
 
@@ -974,11 +968,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::generate`
+  * `KeyMgr::generate`
 
 ### `arti-hss-destroy`
 
-```text
+```
 NAME
        arti-hss-destroy - remove the persistent state and all the keys of a hidden service
 
@@ -1007,11 +1001,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::remove`
+  * `KeyMgr::remove`
 
 ### `arti-hss-print-onion`
 
-```text
+```
 NAME
        arti-hss-print-onion - print the .onion address of a service
 
@@ -1039,11 +1033,11 @@ EXAMPLES
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::get`
+  * `KeyMgr::get`
 
 ### `arti-hss-auth-clients`
 
-```text
+```
 NAME
        arti-hss-auth-clients - Manage the authorized clients of this hidden service
 
@@ -1065,7 +1059,7 @@ SUBCOMMANDS
 
 ### `arti-hss-destroy-and-recreate`
 
-```text
+```
 NAME
        arti-hss-destroy-and-recreate - Generate a new identity keypair for a hidden service
 
@@ -1093,10 +1087,9 @@ OPTIONS
 
 Required `KeyMgr` APIs:
 
-* `KeyMgr::remove`
-* `KeyMgr::generate`
+  * `KeyMgr::remove`
+  * `KeyMgr::generate`
 
 [`KeyMgr`]: https://docs.rs/tor-keymgr/0.4.0/tor_keymgr/struct.KeyMgr.html
 [ROFF]: https://crates.io/crates/clap_mangen
 [arti#955]: https://gitlab.torproject.org/tpo/core/arti/-/issues/955
-[`Reactor`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/aa7c0e0a35d63bbd5ae8202101bd9bb9df2deec6/crates/tor-hsservice/src/publish/reactor.rs
