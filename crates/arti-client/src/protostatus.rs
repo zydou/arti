@@ -27,6 +27,8 @@ use std::{
     sync::{Arc, Weak},
     time::SystemTime,
 };
+use tor_config::MutCfg;
+use tor_dirmgr::DirProvider;
 use tor_error::{into_internal, warn_report};
 use tor_netdir::DirEvent;
 use tor_netdoc::doc::netstatus::{ProtoStatuses, ProtocolSupportError};
@@ -34,7 +36,7 @@ use tor_protover::Protocols;
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
 
-use crate::ErrorDetail;
+use crate::{config::SoftwareStatusOverrideConfig, err::ErrorDetail};
 
 /// Check whether we have any cached protocol recommendations,
 /// and report about them or enforce them immediately.
@@ -46,6 +48,7 @@ pub(crate) fn enforce_protocol_recommendations<R, F, Fut>(
     netdir_provider: Arc<dyn DirProvider>,
     software_publication_time: SystemTime,
     software_protocols: Protocols,
+    override_status: Arc<MutCfg<SoftwareStatusOverrideConfig>>,
     on_fatal: F,
 ) -> Result<(), ErrorDetail>
 where
@@ -59,7 +62,12 @@ where
     let initial_evaluated_proto_status = match netdir_provider.recommended_protocols() {
         Some((timestamp, recommended)) if timestamp >= software_publication_time => {
             // Here we exit if the initial (cached) status is bogus.
-            evaluate_protocol_status(timestamp, &recommended, &software_protocols)?;
+            evaluate_protocol_status(
+                timestamp,
+                &recommended,
+                &software_protocols,
+                override_status.get().as_ref(),
+            )?;
 
             Some(recommended)
         }
@@ -77,6 +85,7 @@ where
             initial_evaluated_proto_status,
             software_publication_time,
             software_protocols,
+            override_status,
             on_fatal,
         ))
         .map_err(|e| ErrorDetail::from_spawn("protocol status monitor", e))?;
@@ -97,6 +106,7 @@ async fn watch_protocol_statuses<S, F, Fut>(
     mut last_evaluated_proto_status: Option<Arc<ProtoStatuses>>,
     software_publication_time: SystemTime,
     software_protocols: Protocols,
+    override_status: Arc<MutCfg<SoftwareStatusOverrideConfig>>,
     on_fatal: F,
 ) where
     S: Stream<Item = DirEvent> + Send + Unpin,
@@ -132,7 +142,12 @@ async fn watch_protocol_statuses<S, F, Fut>(
             continue;
         }
 
-        if let Err(fatal) = evaluate_protocol_status(timestamp, &new_status, &software_protocols) {
+        if let Err(fatal) = evaluate_protocol_status(
+            timestamp,
+            &new_status,
+            &software_protocols,
+            override_status.get().as_ref(),
+        ) {
             on_fatal(fatal).await;
             return;
         }
@@ -160,6 +175,7 @@ pub(crate) fn evaluate_protocol_status(
     recommendation_timestamp: SystemTime,
     recommendation: &ProtoStatuses,
     software_protocols: &Protocols,
+    override_status: &SoftwareStatusOverrideConfig,
 ) -> Result<(), ErrorDetail> {
     let result = recommendation.client().check_protocols(software_protocols);
 
@@ -185,8 +201,16 @@ Please upgrade to a more recent version of Arti.",
         Err(e @ ProtocolSupportError::MissingRequired(missing)) => {
             error!(
 "At least one protocol not implemented by this version of Arti ({}) is listed as required for clients, as of {}.
-This version of Arti will not work correctly on the Tor network; please upgrade.",
+This version of Arti may not work correctly on the Tor network; please upgrade.",
                   &missing, rectime());
+            if missing
+                .difference(&override_status.ignore_missing_required_protocols)
+                .is_empty()
+            {
+                warn!(
+"(These protocols are listed in 'ignore_missing_required_protocols', so Arti won't exit now, but you should still upgrade.)");
+                return Ok(());
+            }
 
             Err(ErrorDetail::MissingProtocol(e.clone()))
         }

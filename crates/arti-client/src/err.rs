@@ -561,7 +561,8 @@ impl<'a> Display for ErrorHint<'a> {
                 writeln!(f, "The missing protocols are: {}", required)?;
                 writeln!(
                     f,
-                    "The best solution is to upgrade to a more recent version of Arti."
+"The best solution is to upgrade to a more recent version of Arti.  If this is not possible,
+you can list the missing protocols in the configuration option 'use_obsolete_software.ignore_missing_required_protocols'"
                 )?;
             }
         }

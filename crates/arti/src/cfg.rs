@@ -566,6 +566,7 @@ mod test {
                 "path_rules.long_lived_ports",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
+                "use_obsolete_software",
             ],
         );
 
