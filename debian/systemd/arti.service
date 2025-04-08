@@ -1,0 +1,29 @@
+[Unit]
+Description=System Tor Service (Arti)
+After=network.target
+Before=nss-lookup.target
+Wants=nss-lookup.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/arti --config /etc/arti/arti.toml proxy
+ExecReload=/bin/kill -HUP ${MAINPID}
+KillSignal=SIGINT
+User=_arti
+Group=_arti
+LimitNOFILE=1000
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadOnlyDirectories=/
+ReadWriteDirectories=-/var/lib/arti
+ReadWriteDirectories=-/var/log/arti
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+

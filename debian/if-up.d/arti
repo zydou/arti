@@ -1,0 +1,32 @@
+#! /bin/sh
+# Reload Arti proxy when an interface comes up, to allow Arti to
+# reconstruct new circuits.
+# https://gitlab.torproject.org/tpo/core/arti/-/issues/1861
+
+set -e
+
+# Don't bother to restart Arti when lo is configured.
+if [ "$IFACE" = "lo" ]; then
+	exit 0
+fi
+
+# Only run from ifup.
+if [ "$MODE" != "start" ]; then
+	exit 0
+fi
+
+# Arti only cares about inet and inet6.
+if [ "$ADDRFAM" != "inet" ] && [ "$ADDRFAM" != "inet6" ]; then
+	exit 0
+fi
+
+# Is Arti installed?
+if [ ! -e /usr/bin/arti ]; then
+	exit 0
+fi
+
+if [ "$(pgrep arti)" ]; then
+	service arti restart
+fi
+
+exit 0
