@@ -1,10 +1,10 @@
 //! Configuration for ports and addresses to listen on.
 
-use std::{fmt::Display, iter, net, num::NonZeroU16};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::{fmt::Display, iter, num::NonZeroU16};
 
 use either::Either;
 use itertools::Itertools as _;
-use net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use serde::{Deserialize, Serialize};
 
 /// Specification of (possibly) something to listen on (eg, a port, or some addresses/ports)
@@ -67,7 +67,7 @@ impl Listen {
     pub fn ip_addrs(
         &self,
     ) -> Result<
-        impl Iterator<Item = impl Iterator<Item = net::SocketAddr> + '_> + '_,
+        impl Iterator<Item = impl Iterator<Item = SocketAddr> + '_> + '_,
         ListenUnsupported,
     > {
         Ok(self.0.iter().map(|i| i.iter()))
@@ -100,7 +100,7 @@ impl Listen {
     ///
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single port on one address family".
-    pub fn single_address_legacy(&self) -> Result<Option<net::SocketAddr>, ListenUnsupported> {
+    pub fn single_address_legacy(&self) -> Result<Option<SocketAddr>, ListenUnsupported> {
         use ListenItem as LI;
         Ok(match &*self.0 {
             [] => None,
@@ -145,12 +145,12 @@ enum ListenItem {
     Localhost(NonZeroU16),
 
     /// Any other single socket address
-    General(net::SocketAddr),
+    General(SocketAddr),
 }
 
 impl ListenItem {
     /// Return the `SocketAddr`s implied by this item
-    fn iter(&self) -> impl Iterator<Item = net::SocketAddr> + '_ {
+    fn iter(&self) -> impl Iterator<Item = SocketAddr> + '_ {
         use ListenItem as LI;
         match self {
             &LI::Localhost(port) => Either::Left({
@@ -158,7 +158,7 @@ impl ListenItem {
                 let addrs: [IpAddr; 2] = [Ipv6Addr::LOCALHOST.into(), Ipv4Addr::LOCALHOST.into()];
                 addrs
                     .into_iter()
-                    .map(move |ip| net::SocketAddr::new(ip, port))
+                    .map(move |ip| SocketAddr::new(ip, port))
             }),
             LI::General(addr) => Either::Right(iter::once(addr).cloned()),
         }
@@ -246,7 +246,7 @@ pub enum InvalidListen {
 
     /// Specified listen was a string but couldn't parse to a [`net::SocketAddr`].
     #[error("Invalid listen specification: failed to parse string: {0}")]
-    InvalidString(#[from] net::AddrParseError),
+    InvalidString(#[from] std::net::AddrParseError),
 
     /// Specified listen was a list containing a zero integer
     #[error("Invalid listen specification: zero (for no port) not permitted in list")]
@@ -316,7 +316,6 @@ mod test {
 
     #[test]
     fn listen_parse() {
-        use net::{Ipv4Addr, Ipv6Addr, SocketAddr};
         use ListenItem as LI;
 
         let localhost6 = |p| SocketAddr::new(Ipv6Addr::LOCALHOST.into(), p);
