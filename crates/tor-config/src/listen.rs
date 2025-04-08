@@ -66,10 +66,8 @@ impl Listen {
     /// (Currently that is not possible.)
     pub fn ip_addrs(
         &self,
-    ) -> Result<
-        impl Iterator<Item = impl Iterator<Item = SocketAddr> + '_> + '_,
-        ListenUnsupported,
-    > {
+    ) -> Result<impl Iterator<Item = impl Iterator<Item = SocketAddr> + '_> + '_, ListenUnsupported>
+    {
         Ok(self.0.iter().map(|i| i.iter()))
     }
 
@@ -156,9 +154,7 @@ impl ListenItem {
             &LI::Localhost(port) => Either::Left({
                 let port = port.into();
                 let addrs: [IpAddr; 2] = [Ipv6Addr::LOCALHOST.into(), Ipv4Addr::LOCALHOST.into()];
-                addrs
-                    .into_iter()
-                    .map(move |ip| SocketAddr::new(ip, port))
+                addrs.into_iter().map(move |ip| SocketAddr::new(ip, port))
             }),
             LI::General(addr) => Either::Right(iter::once(addr).cloned()),
         }
@@ -244,7 +240,7 @@ pub enum InvalidListen {
     #[error("Invalid listen specification: need actual addr/port, or `false`; not `true`")]
     InvalidBool,
 
-    /// Specified listen was a string but couldn't parse to a [`net::SocketAddr`].
+    /// Specified listen was a string but couldn't parse to a [`SocketAddr`].
     #[error("Invalid listen specification: failed to parse string: {0}")]
     InvalidString(#[from] std::net::AddrParseError),
 
