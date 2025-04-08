@@ -49,7 +49,7 @@ to compile the code out when it's not wanted.
 ## Reporting and configuration
 
 Actual reporting of metrics is done by much higher level crates.
-There should be one global metrics exporter.
+There should be one global metrics exporter per process.
 
 `arti` can use `metrics-exporter-prometheus` to offer a Prometheus
 HTTP scrape endpoint.  This is disabled in the default configuration.
