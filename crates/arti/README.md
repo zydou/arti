@@ -180,6 +180,7 @@ implementation with another.
   crate was originally written to run as a binary only.)
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.
+* `metrics` -- Build support for exporting metrics (to Prometheus).
 * `restricted-discovery` -- Build with experimental restricted discovery
   support. Restricted discovery support will become non-experimental
   once [#1795] is closed.

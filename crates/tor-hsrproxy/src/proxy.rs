@@ -6,9 +6,12 @@ use futures::{
     select_biased, task::SpawnExt as _, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future,
     FutureExt as _, Stream, StreamExt as _,
 };
+use itertools::iproduct;
 use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
+use std::collections::HashMap;
 use std::io::{Error as IoError, Result as IoResult};
+use strum::IntoEnumIterator;
 use tor_cell::relaycell::msg as relaymsg;
 use tor_error::{debug_report, ErrorKind, HasKind};
 use tor_hsservice::{HsNickname, RendRequest, StreamRequest};
@@ -16,7 +19,9 @@ use tor_log_ratelim::log_ratelim;
 use tor_proto::stream::{DataStream, IncomingStreamRequest};
 use tor_rtcompat::Runtime;
 
-use crate::config::{Encapsulation, ProxyAction, ProxyConfig, TargetAddr};
+use crate::config::{
+    Encapsulation, ProxyAction, ProxyActionDiscriminants, ProxyConfig, TargetAddr,
+};
 
 /// A reverse proxy that handles connections from an `OnionService` by routing
 /// them to local addresses.
@@ -121,6 +126,40 @@ impl OnionServiceReverseProxy {
             .fuse();
         let nickname = Arc::new(nickname);
 
+        /// Which of the three counters for each action
+        #[cfg(feature = "metrics")]
+        #[derive(Clone, Copy, Eq, PartialEq, Hash)]
+        enum CounterSelector {
+            /// Two counters, one for successes, one for failures
+            Ret(Result<(), ()>),
+            /// One counter for the total
+            Total,
+        }
+
+        #[cfg(feature = "metrics")]
+        let metrics_counters = {
+            use CounterSelector as CS;
+
+            let counters = iproduct!(
+                ProxyActionDiscriminants::iter(),
+                [
+                    (CS::Total, "arti_hss_proxy_connections_total"),
+                    (CS::Ret(Ok(())), "arti_hss_proxy_connections_ok_total"),
+                    (CS::Ret(Err(())), "arti_hss_proxy_connections_failed_total"),
+                ],
+            )
+            .map(|(action, (outcome, name))| {
+                let k = (action, outcome);
+                let nickname = nickname.to_string();
+                let action: &str = action.into();
+                let v = metrics::counter!(name, "nickname" => nickname, "action" => action);
+                (k, v)
+            })
+            .collect::<HashMap<(ProxyActionDiscriminants, CounterSelector), _>>();
+
+            Arc::new(counters)
+        };
+
         loop {
             let stream_request = select_biased! {
                 _ = shutdown_rx => return Ok(()),
@@ -130,23 +169,41 @@ impl OnionServiceReverseProxy {
                 }
             };
 
-            let action = self.choose_action(stream_request.request());
-            let a_clone = action.clone();
-            let rt_clone = runtime.clone();
-            let nn_clone = Arc::clone(&nickname);
-            let req = stream_request.request().clone();
+            runtime.spawn({
+                let action = self.choose_action(stream_request.request());
+                let runtime = runtime.clone();
+                let nickname = nickname.clone();
+                let req = stream_request.request().clone();
 
-            runtime
-                .spawn(async move {
+                #[cfg(feature = "metrics")]
+                let metrics_counters = metrics_counters.clone();
+
+                async move {
                     let outcome =
-                        run_action(rt_clone, nn_clone.as_ref(), action, stream_request).await;
+                        run_action(runtime, nickname.as_ref(), action.clone(), stream_request).await;
+
+                    #[cfg(feature = "metrics")]
+                    {
+                        use CounterSelector as CS;
+
+                        let action = ProxyActionDiscriminants::from(&action);
+                        let outcome = outcome.as_ref().map(|_|()).map_err(|_|());
+                        for outcome in [CS::Total, CS::Ret(outcome)] {
+                            if let Some(counter) = metrics_counters.get(&(action, outcome)) {
+                                counter.increment(1);
+                            } else {
+                                // statically be impossible, but let's not panic
+                            }
+                        }
+                    }
 
                     log_ratelim!(
-                        "Performing action on {}", nn_clone;
+                        "Performing action on {}", nickname;
                         outcome;
-                        Err(_) => WARN, "Unable to take action {:?} for request {:?}", sv(a_clone), sv(req)
+                        Err(_) => WARN, "Unable to take action {:?} for request {:?}", sv(action), sv(req)
                     );
-                })
+                }
+            })
                 .map_err(|e| HandleRequestsError::Spawn(Arc::new(e)))?;
         }
     }
