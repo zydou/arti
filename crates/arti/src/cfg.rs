@@ -334,17 +334,12 @@ impl_standard_builder! { MetricsConfig }
 pub struct PrometheusConfig {
     /// Port on which to establish a Prometheus scrape endpoint
     ///
-    /// We listen here, on IPv4-only localhost, incoming HTTP connections.
+    /// We listen here for incoming HTTP connections.
     ///
-    /// We don't support IPv6 due to upstream limitations:
+    /// If just a port is provided, we don't support IPv6.
+    /// Alternatively, (only) a single address and port can be specified.
+    /// These restrictions are due to upstream limitations:
     /// <https://github.com/metrics-rs/metrics/issues/567>.
-    ///
-    /// We don't use [`tor_config::Listen`] because we support non-localhost,
-    /// nor multiple addresses.  (See that same ticket.)
-    /// Non-localhost doesn't seem usual for Prometheus, and then we'd need access control.
-    ///
-    /// We could support all this in the future, with appropriate upstream changes
-    /// in `metrics-exporter-prometheus`.
     #[builder(default)]
     #[builder_field_attr(serde(default))]
     pub(crate) listen: Listen,
