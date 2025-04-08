@@ -240,6 +240,7 @@ impl ProxyPattern {
 )]
 #[strum_discriminants(derive(Hash, strum::EnumIter))] //
 #[strum_discriminants(derive(strum::IntoStaticStr), strum(serialize_all = "snake_case"))]
+#[strum_discriminants(vis(pub(crate)))]
 #[non_exhaustive]
 pub enum ProxyAction {
     /// Close the circuit immediately with an error.
