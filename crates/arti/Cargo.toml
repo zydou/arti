@@ -61,7 +61,7 @@ async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "
 bridge-client = ["arti-client/bridge-client"]
 default-runtime = ["tokio", "native-tls"]
 dns-proxy = ["hickory-proto"]
-experimental-api = ["arti-client/experimental-api", "metrics", "visibility", "__is_experimental"]
+experimental-api = ["arti-client/experimental-api", "visibility", "__is_experimental"]
 harden = ["secmem-proc"]
 keymgr = ["arti-client/keymgr", "__is_experimental"]
 memquota = ["arti-client/memquota"]
@@ -101,6 +101,7 @@ experimental = [
     "experimental-api",
     "hs-pow-full",
     "keymgr",
+    "metrics",
     "restricted-discovery",
     "hsc",
     "tor-hsservice/experimental",
