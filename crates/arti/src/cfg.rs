@@ -319,7 +319,7 @@ pub type ArtiCombinedConfig = (ArtiConfig, TorClientConfig);
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 pub struct MetricsConfig {
-    /// Port to listen on for incoming HTTP connections.
+    /// Where to listen for incoming HTTP connections.
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     pub(crate) prometheus: PrometheusConfig,
