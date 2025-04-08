@@ -19,11 +19,11 @@ use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTa
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
+use tor_protover::named::RELAY_NTORV3;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 
-#[cfg(feature = "ntor_v3")]
-use {tor_linkspec::CircTarget, tor_protover::ProtoKind};
+use tor_linkspec::CircTarget;
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::VanguardMgr;
@@ -157,21 +157,12 @@ impl Buildable for ClientCirc {
         let unique_id = Some(circ.peek_unique_id());
 
         let params = params.clone();
-        let handshake_res;
-        #[cfg(feature = "ntor_v3")]
-        {
-            // The target supports ntor_v3 iff it supports Relay=4.
-            // <https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3>
-            handshake_res = if ct.protovers().supports_known_subver(ProtoKind::Relay, 4) {
-                circ.create_firsthop_ntor_v3(ct, params).await
-            } else {
-                circ.create_firsthop_ntor(ct, params).await
-            };
-        }
-        #[cfg(not(feature = "ntor_v3"))]
-        {
-            handshake_res = circ.create_firsthop_ntor(ct, params).await;
-        }
+        // The target supports ntor_v3 iff it advertises the relevant protover.
+        let handshake_res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
+            circ.create_firsthop_ntor_v3(ct, params).await
+        } else {
+            circ.create_firsthop_ntor(ct, params).await
+        };
 
         handshake_res.map_err(|error| Error::Protocol {
             peer: Some(ct.to_logged()),
@@ -186,22 +177,12 @@ impl Buildable for ClientCirc {
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<()> {
-        let res;
-
-        #[cfg(feature = "ntor_v3")]
-        {
-            // The target supports ntor_v3 iff it supports Relay=4.
-            // <https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3>
-            res = if ct.protovers().supports_known_subver(ProtoKind::Relay, 4) {
-                self.extend_ntor_v3(ct, params).await
-            } else {
-                self.extend_ntor(ct, params).await
-            };
-        }
-        #[cfg(not(feature = "ntor_v3"))]
-        {
-            res = self.extend_ntor(ct, params).await;
-        }
+        // The target supports ntor_v3 iff it advertises the relevant protover.
+        let res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
+            self.extend_ntor_v3(ct, params).await
+        } else {
+            self.extend_ntor(ct, params).await
+        };
 
         res.map_err(|error| Error::Protocol {
             error,
@@ -743,6 +724,7 @@ mod test {
 
             trace!("acquiesce after test1");
             #[allow(clippy::clone_on_copy)]
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that's ready after a short delay.
@@ -767,6 +749,7 @@ mod test {
 
             trace!("acquiesce after test2");
             #[allow(clippy::clone_on_copy)]
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that passes the first timeout, and make sure that
@@ -797,6 +780,7 @@ mod test {
 
             trace!("acquiesce after test3");
             #[allow(clippy::clone_on_copy)]
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that times out and gets abandoned.

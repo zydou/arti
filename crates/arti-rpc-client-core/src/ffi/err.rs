@@ -350,8 +350,7 @@ impl IntoFfiError for tor_rpc_connect::ConnectError {
             E::LoadCookie(_)
             | E::UnsupportedSocketType
             | E::UnsupportedAuthType
-            | E::InvalidUnixAddress
-            | E::UnixAddressAccess(_) => F::ConnectPointNotUsable,
+            | E::AfUnixSocketPathAccess(_) => F::ConnectPointNotUsable,
             _ => F::Internal,
         }
     }

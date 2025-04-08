@@ -122,7 +122,7 @@ impl<'a> ClientAuth<'a> {
         };
 
         // Generate a new `N_hs_desc_enc` descriptor_cookie key for this descriptor.
-        let descriptor_cookie = rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(rng);
+        let descriptor_cookie = rand::Rng::random::<[u8; HS_DESC_ENC_NONCE_LEN]>(rng);
 
         let secret = curve25519::StaticSecret::random_from_rng(rng);
         let ephemeral_key = HsSvcDescEncKeypair {

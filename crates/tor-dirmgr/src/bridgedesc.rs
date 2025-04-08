@@ -962,7 +962,7 @@ impl<R: Runtime, M: Mockable<R>> StateGuard<'_, R, M> {
                 let retry = err.retry_time();
                 // We retry at least as early as
                 let now = self.mgr.runtime.now();
-                let retry = retry.absolute(now, || retry_delay.next_delay(&mut rand::thread_rng()));
+                let retry = retry.absolute(now, || retry_delay.next_delay(&mut rand::rng()));
                 // Retry at least as early as max_refetch.  That way if a bridge is
                 // misconfigured we will see it be fixed eventually.
                 let retry = {

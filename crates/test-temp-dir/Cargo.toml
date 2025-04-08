@@ -1,6 +1,6 @@
 [package]
 name = "test-temp-dir"
-version = "0.3.1"
+version = "0.3.3"
 # TODO make this 1.x.  Let's say, do this in December 2024 or January 2025
 authors = ["The Tor Project, Inc.", "Ian Jackson <iwj@torproject.org>"]
 edition = "2021"
@@ -18,6 +18,6 @@ full = []
 
 [dependencies]
 anyhow = "1.0.23"
-derive_more = { version = "1.0.0", features = ["full"] }
-educe = "0.4.6"
+derive_more = { version = "2.0.1", features = ["full"] }
+educe = "0.4.22"
 tempfile = "3"

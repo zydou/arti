@@ -13,7 +13,7 @@ use thiserror::Error;
 use tor_basic_utils::{impl_debug_hex, StrExt as _};
 use tor_key_forge::ToEncodableKey;
 use tor_llcrypto::d::Sha3_256;
-use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Signer};
+use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Ed25519SigningKey};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
 
@@ -292,7 +292,7 @@ impl HsIdKey {
             let mut h = Sha3_256::new();
             h.update(b"subcredential");
             h.update(n_hs_cred);
-            h.update(blinded_key.as_ref());
+            h.update(blinded_key.as_bytes());
             h.finalize().into()
         };
 
@@ -426,15 +426,15 @@ impl From<ed25519::Ed25519Identity> for HsBlindId {
     }
 }
 
-impl Signer<ed25519::Signature> for HsBlindIdKeypair {
-    fn try_sign(&self, msg: &[u8]) -> Result<ed25519::Signature, signature::Error> {
-        Ok(self.0.sign(msg))
+impl Ed25519SigningKey for HsBlindIdKeypair {
+    fn sign(&self, message: &[u8]) -> ed25519::Signature {
+        self.0.sign(message)
     }
 }
 
 impl Ed25519PublicKey for HsBlindIdKeypair {
-    fn public_key(&self) -> &ed25519::PublicKey {
-        self.0.public()
+    fn public_key(&self) -> ed25519::PublicKey {
+        *self.0.public()
     }
 }
 
@@ -769,7 +769,6 @@ mod test {
     use hex_literal::hex;
     use itertools::izip;
     use safelog::Redactable;
-    use signature::Verifier;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
 

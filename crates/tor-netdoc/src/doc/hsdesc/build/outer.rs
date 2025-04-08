@@ -45,7 +45,6 @@ pub(super) struct HsDescOuter<'a> {
 
 impl<'a> NetdocBuilder for HsDescOuter<'a> {
     fn build_sign<R: RngCore + CryptoRng>(self, _: &mut R) -> Result<String, EncodeError> {
-        use tor_llcrypto::pk::ed25519::Signer as _;
         use HsOuterKwd::*;
 
         let HsDescOuter {

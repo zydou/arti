@@ -254,7 +254,6 @@ mod test {
     use crate::doc::hsdesc::pow::v1::PowParamsV1;
     use crate::doc::hsdesc::IntroAuthType;
 
-    use rand::thread_rng;
     use smallvec::SmallVec;
     use std::net::Ipv4Addr;
     use std::time::UNIX_EPOCH;
@@ -285,7 +284,7 @@ mod test {
             #[cfg(feature = "hs-pow-full")]
             pow_params,
         }
-        .build_sign(&mut thread_rng())
+        .build_sign(&mut rand::rng())
     }
 
     #[test]

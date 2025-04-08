@@ -10,7 +10,7 @@ use std::net;
 use std::time::{Duration, Instant, SystemTime};
 use tor_general_addr::unix;
 
-/// A runtime that we can use to run Tor as a client.
+/// A runtime for use by Tor client library code.
 ///
 /// This trait comprises several other traits that we require all of our
 /// runtimes to provide:
@@ -20,9 +20,19 @@ use tor_general_addr::unix;
 /// * [`CoarseTimeProvider`] for a cheaper but less accurate notion of time.
 /// * [`NetStreamProvider`] to launch and accept network connections.
 /// * [`TlsProvider`] to launch TLS connections.
-/// * [`BlockOn`] to block on a future and run it to completion
+/// * [`Blocking`] to be able to run synchronous (cpubound or IO) code,
+///   and *re*-enter the async context from synchronous thread
 ///   (This may become optional in the future, if/when we add WASM
 ///   support).
+///
+/// A value which is only `Runtime` cannot be used as an *entry point* to the runtime.
+/// For that, it must also implement [`ToplevelBlockOn`],
+/// making it a [`ToplevelRuntime`].
+/// Since you can only [enter a runtime](ToplevelBlockOn::block_on) once,
+/// typically you use a `ToplevelRuntime` to enter the runtime,
+/// and use it as only a `Runtime` afterwards.
+/// This means that library code should typically
+/// deal with `Runtime` rather than `ToplevelRuntime`.
 ///
 /// We require that every `Runtime` has an efficient [`Clone`] implementation
 /// that gives a new opaque reference to the same underlying runtime.
@@ -51,8 +61,7 @@ pub trait Runtime:
     Sync
     + Send
     + Spawn
-    + SpawnBlocking
-    + BlockOn
+    + Blocking
     + Clone
     + SleepProvider
     + CoarseTimeProvider
@@ -69,8 +78,7 @@ impl<T> Runtime for T where
     T: Sync
         + Send
         + Spawn
-        + SpawnBlocking
-        + BlockOn
+        + Blocking
         + Clone
         + SleepProvider
         + CoarseTimeProvider
@@ -82,6 +90,14 @@ impl<T> Runtime for T where
         + 'static
 {
 }
+
+/// A runtime that we can use to run Tor as a client.
+/// * [`ToplevelBlockOn`] to block on a top-level future and run it to completion
+///   (This may become optional in the future, if/when we add WASM
+///   support).
+///
+pub trait ToplevelRuntime: Runtime + ToplevelBlockOn {}
+impl<T: Runtime + ToplevelBlockOn> ToplevelRuntime for T {}
 
 /// Trait for a runtime that can wait until a timer has expired.
 ///
@@ -149,32 +165,222 @@ pub trait CoarseTimeProvider: Clone + Send + Sync + 'static {
     fn now_coarse(&self) -> crate::coarse_time::CoarseInstant;
 }
 
-/// Trait for a runtime that can block on a future.
-pub trait BlockOn: Clone + Send + Sync + 'static {
+/// Trait for a runtime that can be entered to block on a toplevel future.
+///
+/// This trait is *not* implied by `Runtime`, only by `ToplevelRuntime`.
+/// `ToplevelRuntime` is available at the toplevel of each program,
+/// typically, where a concrete async executor is selected.
+pub trait ToplevelBlockOn: Clone + Send + Sync + 'static {
     /// Run `future` until it is ready, and return its output.
+    ///
+    /// # Not reentrant!
+    ///
+    /// There should be one call to `block_on` (for each fresh `Runtime`),
+    /// at the toplevel of the program (or test case).
+    /// (Sequential calls to `block_on` from the same thread are allowed.)
+    ///
+    /// `block_on` may not function correctly if is called
+    /// from multiple threads simultaneously,
+    /// or if calls involving different `Runtime`s are interleaved on the same thread.
+    /// (Specific runtimes may offer better guarantees.)
+    ///
+    /// (`tor_rtmock::MockExecutor`'s implementation will often detect violations.)
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
 
-/// Trait to run a task on a threadpool for blocking tasks
-pub trait SpawnBlocking: Clone + Send + Sync + 'static {
-    /// The type of handle used to await the result of the task.
-    type Handle<T: Send + 'static>: Future<Output = T>;
-
-    /// Spawn a task on a threadpool specifically for blocking tasks.
+/// Support for interacting with blocking (non-async) code
+///
+/// This supports two use cases: blocking IO and CPU-intensive activities.
+/// (In both of these cases, simply calling the functions within an `async` task
+/// is a bad idea, because that can block the whole async runtime.)
+///
+/// ### Blocking IO
+///
+/// `Blocking` can be used to interact with libraries or OS primitives
+/// that only offer a synchronous, blocking, interface.
+///
+/// Use [`spawn_blocking`](Blocking::spawn_blocking)
+/// when it is convenient to have a long-running thread,
+/// for these operations.
+///
+/// Use [`blocking_io`](Blocking::blocking_io)
+/// when the blocking code is usually expected to complete quickly,
+/// and/or you will be switching back and forth a lot
+/// between sync and async contexts.
+/// Note that you cannot call back to async code from within `blocking_io`.
+///
+/// ### CPU-intensive activities
+///
+/// Perform CPU-intensive work, that ought not to block the program's main loop,
+/// via [`Blocking::spawn_blocking`].
+///
+/// `spawn_blocking` does not apply any limiting or prioritisation;
+/// its threads simply compete for CPU with other threads in the program.
+/// That must be done by the caller; therefore:
+///
+/// **Limit the number of cpu threads** spawned
+/// in order to limit the total amount of CPU time consumed by any part of the program.
+/// For example, consider using one CPU thread per Tor Hidden Service.
+///
+/// It is most performant to spawn a long-running thread,
+/// rather than to repeatedly spawn short-lived threads for individual work items.
+/// This also makes it easier to limit the number of concurrente cpu threads.
+/// For the same reason, [`Blocking::blocking_io`] should be avoided
+/// for the CPU-intensive use case.
+///
+/// ### Mapping to concrete functions from underlying libraries
+///
+/// The semantics of `Blocking` are heavily influenced by Tokio
+/// and by the desire to be able to use tor-rtmock's `MockExecutor` to test Arti code.
+///
+/// | `tor-rtcompat`               | Tokio                 | `MockExecutor`                 |
+/// |------------------------------|-----------------------|--------------------------------|
+/// | `ToplevelBlockOn::block_on`  | `Runtime::block_on`   | `ToplevelBlockOn::block_on`    |
+/// | `Blocking::spawn_blocking`   | `task::spawn_blocking`  | `subthread_spawn`            |
+/// | `Blocking::reenter_block_on` | `Handle::block_on`    | `subthread_block_on_future`    |
+/// | `Blocking::blocking_io`      | `block_in_place`      | `subthread_spawn`              |
+/// | (not available)              | (not implemented)     | `progress_until_stalled` etc.  |
+///
+/// Re `block_on`, see also the docs for the underlying implementations in
+/// [tokio][tokio-threadpool] and
+/// [async-std][async-std-threadpool].
+///
+/// [tokio-threadpool]: https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html
+/// [async-std-threadpool]: https://docs.rs/async-std/latest/async_std/task/fn.spawn_blocking.html
+pub trait Blocking: Clone + Send + Sync + 'static {
+    /// Spawn a thread for blocking IO or CPU-bound work.
     ///
-    /// Note that this is not the best long-term solution for CPU bound tasks, and is better for
-    /// IO-bound tasks. However, until we complete #1784, this is probably a somewhat reasonable
-    /// place to put CPU-bound tasks.
+    /// This is used in two situations:
     ///
-    /// See the docs for the underlying implementations in [tokio][tokio-threadpool] and
-    /// [async-std][async-std-threadpool].
+    ///  * To perform blocking IO
+    ///  * For cpu-intensive work
     ///
-    /// [tokio-threadpool]: https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html
-    /// [async-std-threadpool]: https://docs.rs/async-std/latest/async_std/task/fn.spawn_blocking.html
-    fn spawn_blocking<F, T>(&self, f: F) -> Self::Handle<T>
+    /// See [`Blocking`]'s trait level docs for advice on choosing
+    /// between `spawn_blocking` and [`Blocking::blocking_io`].
+    ///
+    /// `Blocking::spawn_blocking` is similar to `std::thread::spawn`
+    /// but also makes any necessary arrangements so that `reenter_block_on`,
+    /// can be called on the spawned thread.
+    ///
+    /// However, `Blocking::spawn_blocking` *does not guarantee*
+    /// to use a completely fresh thread.
+    /// The implementation may have a thread pool, allowing it reuse an existing thread.
+    /// Correspondingly, if a very large number of `Blocking::spawn_blocking` calls,
+    /// are in progress at once, some of them may block.
+    /// (For example, the implementation for Tokio uses `tokio::task::spawn_blocking`,
+    /// which has both of these properties.)
+    ///
+    /// ### Typical use of `spawn_blocking`
+    ///
+    ///  * Spawn the thread with `SpawnThread::spawn_blocking`.
+    ///  * On that thread, receive work items from from the async environment
+    ///    using async inter-task facilities (eg `futures::channel::mpsc::channel`),
+    ///    called via [`reenter_block_on`](Blocking::reenter_block_on).
+    ///  * Return answers with async inter-task facilities, calling either
+    ///    a non-blocking immediate send (eg `[try_send`])
+    ///    or an async send call via `reneter_block_on`.
+    ///
+    /// ### CPU-intensive work
+    ///
+    /// Limit the number of CPU-intensive concurrent threads spawned with `spawn_blocking`.
+    /// See the [trait-level docs](Blocking) for more details.
+    ///
+    /// ### Panics
+    ///
+    /// `Blocking::spawn_blocking` may only be called from within either:
+    ///
+    ///  * A task or future being polled by this `Runtime`; or
+    ///  * A thread itself spawned with `Blocking::spawn_blocking` on the this runtime.
+    ///
+    /// Otherwise it may malfunction or panic.
+    /// (`tor_rtmock::MockExecutor`'s implementation will usually detect violations.)
+    ///
+    /// If `f` panics, `ThreadHandle` will also panic when polled
+    /// (perhaps using `resume_unwind`).
+    fn spawn_blocking<F, T>(&self, f: F) -> Self::ThreadHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static;
+
+    /// Future from [`spawn_blocking`](Self::spawn_blocking)
+    type ThreadHandle<T: Send + 'static>: Future<Output = T>;
+
+    /// Block on a future, from within `Blocking::spawn_blocking`
+    ///
+    /// Reenters the executor, blocking this thread until `future` is `Ready`.
+    ///
+    /// See [`spawn_blocking`](Blocking::spawn_blocking) and
+    /// [`Blocking`]'s trait-level docs for more details.
+    ///
+    /// It is not guaranteed what thread the future will be polled on.
+    /// In production `Runtime`s, it will usually be the thread calling `reenter_block_on`.
+    // All existing runtimes other than MockExecutor accept a non-Send future, but
+    // MockExecutor::subthread_block_on_future does not.
+    // If this restriction turns out to be awkward, MockExecutor could be changed, with some work.
+    ///
+    /// ### Panics
+    ///
+    /// Must only be called on a thread made with `Blocking::spawn_blocking`.
+    /// **Not** allowed within [`blocking_io`](Blocking::blocking_io).
+    ///
+    /// Otherwise it may malfunction or panic.
+    /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
+    fn reenter_block_on<F>(&self, future: F) -> F::Output
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static;
+
+    /// Perform some blocking IO from an async future
+    ///
+    /// Call the blocking function `f`, informing the async executor
+    /// that we are going to perform blocking IO.
+    ///
+    /// This is a usually-faster, but simpler, alternative to [`Blocking::spawn_blocking`].
+    ///
+    /// Its API can be more convenient than `spawn_blocking`.
+    /// `blocking_io` is intended to be more performant than `spawn_blocking`
+    /// when called repeatedly (ie, when switching quickly between sync and async).
+    ///
+    /// See [`Blocking`]'s trait-level docs for more information about
+    /// the performance properties, and on choosing between `blocking_io`
+    /// and `spawn_blocking`.
+    /// (Avoid using `blocking_io` for CPU-intensive work.)
+    ///
+    /// ### Limitations
+    ///
+    ///  * `f` may **not** call [`Blocking::reenter_block_on`], so:
+    ///  * `f` cannot execute any futures.
+    ///    If this is needed, break up `f` into smaller pieces so that the
+    ///    futures can be awaited outside the call to `blocking_io`,
+    ///    or use `spawn_blocking` for the whole activity.
+    ///  * `f` *may* be called on the calling thread when `blocking_io` is called,
+    ///    on an executor thread when the returned future is polled,
+    ///    or a different thread.
+    ///  * Not suitable for CPU-intensive work
+    ///    (mostly because there is no practical way to ration or limit
+    ///    the amount of cpu time used).
+    ///    Use `spawn_blocking` for that.
+    ///  * Performance better than using `spawn_blocking` each time is not guaranteed.
+    ///
+    /// ### Panics
+    ///
+    /// `Blocking::block_in_place` may only be called from within
+    /// a task or future being polled by this `Runtime`.
+    ///
+    /// Otherwise it may malfunction or panic.
+    /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
+    ///
+    /// ### Fallback (provided) implementation
+    ///
+    /// The fallback implementation is currently used with `async_std`.
+    /// It spawns a thread with `spawn_blocking`, once for each `blocking_io` call.
+    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        self.spawn_blocking(f)
+    }
 }
 
 /// Trait providing additional operations on network sockets.

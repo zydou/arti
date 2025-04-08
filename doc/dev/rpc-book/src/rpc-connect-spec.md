@@ -257,7 +257,7 @@ the corresponding entry is *declined*.
    but no Arti process is listening at the location it describes.
  - The connect point tells us to try an embedded
    Arti client, but no embedded client is available.
- - The connect point tells us to use a Unix socket,
+ - The connect point tells us to use a Unix domain socket,
    but we are on windows.
  - The specified address for connect file,
    or a file that the connect point mentions,
@@ -393,8 +393,9 @@ the connect point is claiming that no real authentication is necessary.
 > the client's ability to connect to the specified socket
 > is sufficient proof of its identity.
 >
-> (The RPC client must still send an `auth:none` command in this case
-> to get an RPC session object.)
+> (The RPC client must still send an `auth:authenticate` command in this case,
+> using the scheme `auth:inherent`, to get an RPC session object.
+> Note that the corresponding scheme here is called "inherent", not "none".)
 
 As a matter of policy we do not support `none` authentication
 for any socket address type other than:

@@ -70,11 +70,6 @@ use crate::time_core::MockTimeCore;
 ///    coordination with the executor is required.
 ///    This coordination is provided by the integrated `MockRuntime`;
 ///    `SimpleMockTimeProvider` is of limited usefulness by itself.
-//
-// TODO: at some point we should add #[deprecated] to this type
-// and to the block_advance etc. methods in SleepProvider.
-// But right now that would involve rewriting a whole bunch of tests,
-// or generous sprinklings of #[allow].
 ///
 /// ### Examples
 ///
@@ -152,6 +147,10 @@ use crate::time_core::MockTimeCore;
 /// });
 /// ```
 #[derive(Clone)]
+// When we're used by external crates, we're always cfg(not(test)), so we seem deprecated
+// from outside this crate.  *Within* this crate, this cfg_attr means that if we use things
+// that are deprecated for other reasons, we will notice.
+#[cfg_attr(not(test), deprecated(since = "0.29.0"))]
 pub struct MockSleepProvider {
     /// The shared backend for this MockSleepProvider and its futures.
     state: Arc<Mutex<SleepSchedule>>,

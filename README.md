@@ -144,10 +144,6 @@ We won't increase MSRV just because we can: we'll only do so when we have a
 reason. (We don't guarantee that you'll agree with our reasoning; only that
 it will exist.)
 
-## Helping out
-
-Have a look at our [contributor guidelines](./CONTRIBUTING.md).
-
 ## Roadmap
 
 Thanks to a generous grant from
@@ -214,8 +210,8 @@ don't already have an account there, you can either
 
 ## How can I help out?
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for a few ideas for how to get
-started.
+Have a look at our [contributor guidelines](./CONTRIBUTING.md) for a few ideas
+on how to get started.
 
 ## License
 

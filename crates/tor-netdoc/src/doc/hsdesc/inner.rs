@@ -194,7 +194,7 @@ impl HsDescInner {
     /// inner document, and the inner document itself.
     #[cfg_attr(feature = "hsdesc-inner-docs", visibility::make(pub))]
     pub(super) fn parse(s: &str) -> Result<(Option<Ed25519Identity>, UncheckedHsDescInner)> {
-        let mut reader = NetDocReader::new(s);
+        let mut reader = NetDocReader::new(s)?;
         let result = Self::take_from_reader(&mut reader).map_err(|e| e.within(s))?;
         Ok(result)
     }

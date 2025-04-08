@@ -10,7 +10,7 @@ use tracing::{info, warn};
 
 use arti_client::TorClientConfig;
 use tor_config::{ConfigurationSources, Listen};
-use tor_rtcompat::Runtime;
+use tor_rtcompat::ToplevelRuntime;
 
 #[cfg(feature = "dns-proxy")]
 use crate::dns;
@@ -26,7 +26,7 @@ use crate::onion_proxy;
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
 
 /// Run the `proxy` subcommand.
-pub(crate) fn run<R: Runtime>(
+pub(crate) fn run<R: ToplevelRuntime>(
     runtime: R,
     proxy_matches: &ArgMatches,
     cfg_sources: ConfigurationSources,
@@ -75,7 +75,7 @@ pub(crate) fn run<R: Runtime>(
 /// Currently, might panic if things go badly enough wrong
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
-async fn run_proxy<R: Runtime>(
+async fn run_proxy<R: ToplevelRuntime>(
     runtime: R,
     socks_listen: Listen,
     dns_listen: Listen,

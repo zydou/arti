@@ -137,7 +137,7 @@ impl History {
     {
         use rand::seq::{IteratorRandom, SliceRandom};
         use std::iter;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // We want to build a vector with the elements of the old histogram in
         // random order, but we want to defend ourselves against bogus inputs
@@ -146,7 +146,7 @@ impl History {
             .take(TIME_HISTORY_LEN) // limit number of bins
             .flat_map(|(dur, n)| iter::repeat(dur).take(n as usize))
             .choose_multiple(&mut rng, TIME_HISTORY_LEN);
-        // choose_multiple doesn't guarantee anything about the order of its output.
+        // IteratorRand::choose_multiple doesn't guarantee anything about the order of its output.
         observations.shuffle(&mut rng);
 
         let mut result = History::new_empty();
@@ -596,10 +596,18 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
                 self.timeouts.take();
                 // If we already had a timeout that was at least the
                 // length of our fallback timeouts, we should double
-                // those fallback timeouts.
+                // those fallback timeouts, up to a maximum.
                 if base_timeouts.0 >= self.fallback_timeouts.0 {
-                    self.fallback_timeouts.0 *= 2;
-                    self.fallback_timeouts.1 *= 2;
+                    /// Largest value we'll allow a fallback timeout
+                    /// (the one we return when we have insufficient data)
+                    /// to reach.
+                    ///
+                    /// TODO: This is a ridiculous over-estimate.
+                    const MAX_FALLBACK_TIMEOUT: Duration = Duration::from_secs(7200);
+                    self.fallback_timeouts.0 =
+                        (self.fallback_timeouts.0 * 2).min(MAX_FALLBACK_TIMEOUT);
+                    self.fallback_timeouts.1 =
+                        (self.fallback_timeouts.1 * 2).min(MAX_FALLBACK_TIMEOUT);
                 }
             }
         }
@@ -630,7 +638,7 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
     }
 
     fn learning_timeouts(&self) -> bool {
-        self.p.use_estimates && self.history.n_times() < self.p.min_observations.into()
+        self.p.use_estimates && self.history.n_times() < usize::from(self.p.min_observations)
     }
 
     fn build_state(&mut self) -> Option<ParetoTimeoutState> {
@@ -946,6 +954,20 @@ mod test {
         let ms1 = est.timeouts(&act).0.as_millis() as i32;
         let ms2 = est2.timeouts(&act).0.as_millis() as i32;
         assert!((ms1 - ms2).abs() < 50);
+    }
+
+    #[test]
+    fn validate_iterator_choose_multiple() {
+        // The documentation for IteratorRandom::choose_multiple says that it
+        // returns fewer than N elements if the iterators has fewer than N elements.
+        // But rand has changed behavior in the past, so let's make sure this doesn't
+        // change in the future.
+        use rand::seq::IteratorRandom as _;
+        let mut rng = testing_rng();
+        let mut ten_elements = (1..=10).choose_multiple(&mut rng, 100);
+        ten_elements.sort();
+        assert_eq!(ten_elements.len(), 10);
+        assert_eq!(ten_elements, (1..=10).collect::<Vec<_>>());
     }
 
     // TODO: add tests from Tor.

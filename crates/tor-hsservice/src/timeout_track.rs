@@ -84,7 +84,7 @@
 //! use std::sync::{Arc, Mutex};
 //! use std::time::Duration;
 //! use futures::task::SpawnExt as _;
-//! use tor_rtcompat::{BlockOn as _, SleepProvider as _};
+//! use tor_rtcompat::{ToplevelBlockOn as _, SleepProvider as _};
 //!
 //! # use tor_hsservice::timeout_track_for_doctests_unstable_no_semver_guarantees as timeout_track;
 //! # #[cfg(all)] // works like #[cfg(FALSE)].  Instead, we have this workaround ^.
@@ -634,7 +634,7 @@ mod test {
     use oneshot_fused_workaround as oneshot;
     use std::future::Future;
     use std::task::Poll;
-    use tor_rtcompat::BlockOn;
+    use tor_rtcompat::ToplevelBlockOn;
     use tor_rtmock::MockRuntime;
 
     fn parse_rfc3339(s: &str) -> SystemTime {

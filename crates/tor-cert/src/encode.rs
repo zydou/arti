@@ -8,7 +8,7 @@ use crate::{
 };
 use std::time::{Duration, SystemTime};
 use tor_bytes::{EncodeResult, Writeable, Writer};
-use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey};
+use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey, Ed25519SigningKey};
 
 use derive_more::{AsRef, Deref, Into};
 
@@ -141,7 +141,7 @@ impl Ed25519CertConstructor {
     /// valid.
     pub fn encode_and_sign<S>(&self, skey: &S) -> Result<EncodedEd25519Cert, CertEncodeError>
     where
-        S: Ed25519PublicKey + ed25519::Signer<ed25519::Signature>,
+        S: Ed25519PublicKey + Ed25519SigningKey,
     {
         let Ed25519CertConstructor {
             exp_hours,
@@ -211,7 +211,7 @@ mod test {
 
     #[test]
     fn signed_cert_without_key() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let keypair = ed25519::Keypair::generate(&mut rng);
         let now = SystemTime::now();
         let day = Duration::from_secs(86400);

@@ -47,7 +47,6 @@ pub(crate) mod unique_id;
 use crate::channel::Channel;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
@@ -59,7 +58,7 @@ use crate::tunnel::reactor::CtrlCmd;
 use crate::tunnel::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
-use crate::tunnel::StreamTarget;
+use crate::tunnel::{HopLocation, LegId, StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
@@ -318,6 +317,19 @@ impl ClientCirc {
         self.mutable.lock().expect("poisoned_lock").path.clone()
     }
 
+    /// Get the [`LegId`] and [`Path`] of each leg of the tunnel.
+    // TODO(conflux): We probably want to replace uses of `path_ref` with
+    // this method and remove `path_ref`.
+    async fn legs(&self) -> Result<Vec<(LegId, Arc<Path>)>> {
+        let (tx, rx) = oneshot::channel();
+
+        self.command
+            .unbounded_send(CtrlCmd::QueryLegs { done: tx })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        rx.await.map_err(|_| Error::CircuitClosed)?
+    }
+
     /// Get the clock skew claimed by the first hop of the circuit.
     ///
     /// See [`Channel::clock_skew()`].
@@ -328,7 +340,7 @@ impl ClientCirc {
             .unbounded_send(CtrlMsg::FirstHopClockSkew { answer: tx })
             .map_err(|_| Error::CircuitClosed)?;
 
-        rx.await.map_err(|_| Error::CircuitClosed)
+        Ok(rx.await.map_err(|_| Error::CircuitClosed)??)
     }
 
     /// Return a reference to this circuit's memory quota account
@@ -521,6 +533,19 @@ impl ClientCirc {
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
+        // TODO(conflux): Support tunnels with more than one leg. This requires a different approach
+        // to `CellHandlers`, as they can't be shared between the tunnel reactor and the circuits.
+        let legs = self.legs().await?;
+        if legs.len() != 1 {
+            return Err(internal!(
+                "Cannot allow stream requests on tunnel with {} legs",
+                legs.len()
+            )
+            .into());
+        }
+        let (leg_id, _path) = &legs[0];
+        let leg_id = *leg_id;
+
         let time_prov = self.time_provider.clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
         let (incoming_sender, incoming_receiver) =
@@ -562,7 +587,7 @@ impl ClientCirc {
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
                 tx: msg_tx,
-                hop_num,
+                hop: HopLocation::Hop((leg_id, hop_num)),
                 stream_id,
             };
 
@@ -616,7 +641,6 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
-    #[cfg(feature = "ntor_v3")]
     pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
     where
         Tg: CircTarget,
@@ -721,16 +745,9 @@ impl ClientCirc {
     ) -> Result<(StreamReader, StreamTarget, StreamAccount)> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
+        let hop = TargetHop::LastHop;
 
         let time_prov = self.time_provider.clone();
-
-        let hop_num = self
-            .mutable
-            .lock()
-            .expect("poisoned lock")
-            .path
-            .last_hop_num()
-            .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
 
         let memquota = StreamAccount::new(self.mq_account())?;
         let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
@@ -741,7 +758,7 @@ impl ClientCirc {
 
         self.control
             .unbounded_send(CtrlMsg::BeginStream {
-                hop_num,
+                hop,
                 message: begin_msg,
                 sender,
                 rx: msg_rx,
@@ -750,12 +767,12 @@ impl ClientCirc {
             })
             .map_err(|_| Error::CircuitClosed)?;
 
-        let stream_id = rx.await.map_err(|_| Error::CircuitClosed)??;
+        let (stream_id, hop) = rx.await.map_err(|_| Error::CircuitClosed)??;
 
         let target = StreamTarget {
             circ: self.clone(),
             tx: msg_tx,
-            hop_num,
+            hop,
             stream_id,
         };
 
@@ -1092,7 +1109,6 @@ impl PendingClientCirc {
     ///
     /// Note that the provided 'target' must match the channel's target,
     /// or the handshake will fail.
-    #[cfg(feature = "ntor_v3")]
     pub async fn create_firsthop_ntor_v3<Tg>(
         self,
         target: &Tg,
@@ -1158,7 +1174,6 @@ pub(crate) mod test {
     use crate::channel::{test::new_reactor, CodecError};
     use crate::congestion::sendme;
     use crate::crypto::cell::RelayCellBody;
-    #[cfg(feature = "ntor_v3")]
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
     #[cfg(feature = "hs-service")]
     use crate::stream::IncomingStreamRequestFilter;
@@ -1242,7 +1257,6 @@ pub(crate) mod test {
             EXAMPLE_RSA_ID.into(),
         )
     }
-    #[cfg(feature = "ntor_v3")]
     fn example_ntor_v3_key() -> crate::crypto::handshake::ntor_v3::NtorV3SecretKey {
         crate::crypto::handshake::ntor_v3::NtorV3SecretKey::new(
             EXAMPLE_SK.into(),
@@ -1271,7 +1285,6 @@ pub(crate) mod test {
     enum HandshakeType {
         Fast,
         Ntor,
-        #[cfg(feature = "ntor_v3")]
         NtorV3,
     }
 
@@ -1335,7 +1348,6 @@ pub(crate) mod test {
                     .unwrap();
                     CreateResponse::Created2(Created2::new(rep))
                 }
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => {
                     let c2 = match create_cell.msg() {
                         AnyChanMsg::Create2(c2) => c2,
@@ -1366,7 +1378,6 @@ pub(crate) mod test {
                     trace!("doing ntor create");
                     pending.create_firsthop_ntor(&target, params).await
                 }
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => {
                     trace!("doing ntor_v3 create");
                     pending.create_firsthop_ntor_v3(&target, params).await
@@ -1398,7 +1409,6 @@ pub(crate) mod test {
             test_create(&rt, HandshakeType::Ntor).await;
         });
     }
-    #[cfg(feature = "ntor_v3")]
     #[traced_test]
     #[test]
     fn test_create_ntor_v3() {
@@ -1521,7 +1531,6 @@ pub(crate) mod test {
             match handshake_type {
                 HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
                 HandshakeType::Ntor => circ.extend_ntor(&target, &params).await.unwrap(),
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, &params).await.unwrap(),
             };
             circ // gotta keep the circ alive, or the reactor would exit.
@@ -1555,7 +1564,6 @@ pub(crate) mod test {
                     .unwrap();
                     reply
                 }
-                #[cfg(feature = "ntor_v3")]
                 HandshakeType::NtorV3 => {
                     let (_keygen, reply) = NtorV3Server::server(
                         &mut rng,
@@ -1610,7 +1618,6 @@ pub(crate) mod test {
         });
     }
 
-    #[cfg(feature = "ntor_v3")]
     #[traced_test]
     #[test]
     fn test_extend_ntor_v3() {

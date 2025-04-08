@@ -227,6 +227,7 @@ mod test {
         // succeeds or fails.
 
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            #[allow(deprecated)] // TODO #1885
             let rt = tor_rtmock::MockSleepRuntime::new(rt);
 
             const N_TRIES: usize = 1024;
@@ -241,8 +242,8 @@ mod test {
                 let cancel_succeeded = Arc::clone(&cancel_succeeded);
                 let rt1 = rt.clone();
                 let rt2 = rt.clone();
-                let t1 = rand::thread_rng().gen_range_infallible(..=SLEEP_CEIL);
-                let t2 = rand::thread_rng().gen_range_infallible(..=SLEEP_CEIL);
+                let t1 = rand::rng().gen_range_infallible(..=SLEEP_CEIL);
+                let t2 = rand::rng().gen_range_infallible(..=SLEEP_CEIL);
 
                 let work = future::ready(());
                 let (handle, work) = Cancel::new(work);

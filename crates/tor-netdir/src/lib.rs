@@ -61,6 +61,7 @@ use async_trait::async_trait;
 #[cfg(feature = "hs-service")]
 use itertools::chain;
 use static_assertions::const_assert;
+use tor_error::warn_report;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
 };
@@ -74,7 +75,7 @@ use {hsdir_ring::HsDirRing, std::iter};
 use derive_more::{From, Into};
 use futures::{stream::BoxStream, StreamExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use rand::seq::SliceRandom;
+use rand::seq::{IndexedRandom as _, SliceRandom as _, WeightError};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -241,6 +242,68 @@ impl SubnetConfig {
         Self {
             subnets_family_v4: min(self.subnets_family_v4, other.subnets_family_v4),
             subnets_family_v6: min(self.subnets_family_v6, other.subnets_family_v6),
+        }
+    }
+}
+
+/// Configuration for which listed family information to use when deciding
+/// whether relays belong to the same family.
+///
+/// Derived from network parameters.
+#[derive(Clone, Copy, Debug)]
+pub struct FamilyRules {
+    /// If true, we use family information from lists of family members.
+    use_family_lists: bool,
+    /// If true, we use family information from lists of family IDs and from family certs.
+    use_family_ids: bool,
+}
+
+impl<'a> From<&'a NetParameters> for FamilyRules {
+    fn from(params: &'a NetParameters) -> Self {
+        FamilyRules {
+            use_family_lists: bool::from(params.use_family_lists),
+            use_family_ids: bool::from(params.use_family_ids),
+        }
+    }
+}
+
+impl FamilyRules {
+    /// Return a `FamilyRules` that will use all recognized kinds of family information.
+    pub fn all_family_info() -> Self {
+        Self {
+            use_family_lists: true,
+            use_family_ids: true,
+        }
+    }
+
+    /// Return a `FamilyRules` that will ignore all family information declared by relays.
+    pub fn ignore_declared_families() -> Self {
+        Self {
+            use_family_lists: false,
+            use_family_ids: false,
+        }
+    }
+
+    /// Configure this `FamilyRules` to use (or not use) family information from
+    /// lists of family members.
+    pub fn use_family_lists(&mut self, val: bool) -> &mut Self {
+        self.use_family_lists = val;
+        self
+    }
+
+    /// Configure this `FamilyRules` to use (or not use) family information from
+    /// family IDs and family certs.
+    pub fn use_family_ids(&mut self, val: bool) -> &mut Self {
+        self.use_family_ids = val;
+        self
+    }
+
+    /// Return a `FamilyRules` that will look at every source of information
+    /// requested by `self` or by `other`.
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            use_family_lists: self.use_family_lists || other.use_family_lists,
+            use_family_ids: self.use_family_ids || other.use_family_ids,
         }
     }
 }
@@ -1493,7 +1556,7 @@ impl NetDir {
         P: FnMut(&Relay<'a>) -> bool,
     {
         let relays: Vec<_> = self.relays().filter(usable).collect();
-        // This algorithm uses rand::distributions::WeightedIndex, and uses
+        // This algorithm uses rand::distr::WeightedIndex, and uses
         // gives O(n) time and space  to build the index, plus O(log n)
         // sampling time.
         //
@@ -1514,10 +1577,23 @@ impl NetDir {
         // This code will give the wrong result if the total of all weights
         // can exceed u64::MAX.  We make sure that can't happen when we
         // set up `self.weights`.
-        relays[..]
-            .choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role))
-            .ok()
-            .cloned()
+        match relays[..].choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role)) {
+            Ok(relay) => Some(relay.clone()),
+            Err(WeightError::InsufficientNonZero) => {
+                if relays.is_empty() {
+                    None
+                } else {
+                    warn!(?self.weights, ?role,
+                          "After filtering, all {} relays had zero weight. Choosing one at random. See bug #1907.",
+                          relays.len());
+                    relays.choose(rng).cloned()
+                }
+            }
+            Err(e) => {
+                warn_report!(e, "Unexpected error while sampling a relay");
+                None
+            }
+        }
     }
 
     /// Choose `n` relay at random.
@@ -1549,7 +1625,33 @@ impl NetDir {
         let mut relays = match relays[..].choose_multiple_weighted(rng, n, |r| {
             self.weights.weight_rs_for_role(r.rs, role) as f64
         }) {
-            Err(_) => Vec::new(),
+            Err(WeightError::InsufficientNonZero) => {
+                // Too few relays had nonzero weights: return all of those that are okay.
+                let remaining: Vec<_> = relays
+                    .iter()
+                    .filter(|r| self.weights.weight_rs_for_role(r.rs, role) > 0)
+                    .cloned()
+                    .collect();
+                if remaining.is_empty() {
+                    warn!(?self.weights, ?role,
+                          "After filtering, all {} relays had zero weight! Picking some at random. See bug #1907.",
+                          relays.len());
+                    if relays.len() >= n {
+                        relays.choose_multiple(rng, n).cloned().collect()
+                    } else {
+                        relays
+                    }
+                } else {
+                    warn!(?self.weights, ?role,
+                          "After filtering, only had {}/{} relays with nonzero weight. Returning them all. See bug #1907.",
+                           remaining.len(), relays.len());
+                    remaining
+                }
+            }
+            Err(e) => {
+                warn_report!(e, "Unexpected error while sampling a set of relays");
+                Vec::new()
+            }
             Ok(iter) => iter.map(Relay::clone).collect(),
         };
         relays.shuffle(rng);
@@ -2043,7 +2145,7 @@ mod test {
     use float_eq::assert_float_eq;
     use std::collections::HashSet;
     use std::time::Duration;
-    use tor_basic_utils::test_rng;
+    use tor_basic_utils::test_rng::{self, testing_rng};
     use tor_linkspec::{RelayIdType, RelayIds};
 
     #[cfg(feature = "hs-common")]
@@ -2366,6 +2468,7 @@ mod test {
         )
         .unwrap();
         let subnet_config = SubnetConfig::default();
+        let all_family_info = FamilyRules::all_family_info();
         let mut dir = PartialNetDir::new(consensus, None);
         for md in microdescs.into_iter() {
             let wanted = dir.add_microdesc(md.clone());
@@ -2415,14 +2518,14 @@ mod test {
         assert!(!r3.low_level_details().policies_allow_some_port());
         assert!(r10.low_level_details().policies_allow_some_port());
 
-        assert!(r0.low_level_details().in_same_family(&r0));
-        assert!(r0.low_level_details().in_same_family(&r1));
-        assert!(r1.low_level_details().in_same_family(&r0));
-        assert!(r1.low_level_details().in_same_family(&r1));
-        assert!(!r0.low_level_details().in_same_family(&r2));
-        assert!(!r2.low_level_details().in_same_family(&r0));
-        assert!(r2.low_level_details().in_same_family(&r2));
-        assert!(r2.low_level_details().in_same_family(&r3));
+        assert!(r0.low_level_details().in_same_family(&r0, all_family_info));
+        assert!(r0.low_level_details().in_same_family(&r1, all_family_info));
+        assert!(r1.low_level_details().in_same_family(&r0, all_family_info));
+        assert!(r1.low_level_details().in_same_family(&r1, all_family_info));
+        assert!(!r0.low_level_details().in_same_family(&r2, all_family_info));
+        assert!(!r2.low_level_details().in_same_family(&r0, all_family_info));
+        assert!(r2.low_level_details().in_same_family(&r2, all_family_info));
+        assert!(r2.low_level_details().in_same_family(&r3, all_family_info));
 
         assert!(r0.low_level_details().in_same_subnet(&r10, &subnet_config));
         assert!(r10.low_level_details().in_same_subnet(&r10, &subnet_config));
@@ -2818,5 +2921,56 @@ mod test {
         //
         // If we use relays [A, B, C] for replica 1, and hs_index(2) = E, then replica 2 _must_ get
         // relays [E, F, D]. We should have a test that checks this.
+    }
+
+    #[test]
+    fn zero_weights() {
+        // Here we check the behavior of IndexedRandom::{choose_weighted, choose_multiple_weighted}
+        // in the presence of items whose weight is 0.
+        //
+        // We think that the behavior is:
+        //   - nothing with weight 0 is ever returned.
+        //   - if the request for n items can't be completely satisfied with n items of weight >= 0,
+        //     we get InsufficientNonZero.
+        let items = vec![1, 2, 3];
+        let mut rng = testing_rng();
+
+        let a = items.choose_weighted(&mut rng, |_| 0);
+        assert!(matches!(a, Err(WeightError::InsufficientNonZero)));
+
+        let x = items.choose_multiple_weighted(&mut rng, 2, |_| 0);
+        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+
+        let only_one = |n: &i32| if *n == 1 { 1 } else { 0 };
+        let x = items.choose_multiple_weighted(&mut rng, 2, only_one);
+        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+
+        for _ in 0..100 {
+            let a = items.choose_weighted(&mut rng, only_one);
+            assert_eq!(a.unwrap(), &1);
+
+            let x = items
+                .choose_multiple_weighted(&mut rng, 1, only_one)
+                .unwrap()
+                .collect::<Vec<_>>();
+            assert_eq!(x, vec![&1]);
+        }
+    }
+
+    #[test]
+    fn insufficient_but_nonzero() {
+        // Here we check IndexedRandom::choose_multiple_weighted when there no zero values,
+        // but there are insufficient values.
+        // (If this behavior changes, we need to change our usage.)
+
+        let items = vec![1, 2, 3];
+        let mut rng = testing_rng();
+        let mut a = items
+            .choose_multiple_weighted(&mut rng, 10, |_| 1)
+            .unwrap()
+            .copied()
+            .collect::<Vec<_>>();
+        a.sort();
+        assert_eq!(a, items);
     }
 }

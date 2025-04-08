@@ -43,7 +43,15 @@ async fn main() {
         .unwrap();
 
     let (service, request_stream) = client.launch_onion_service(svc_cfg).unwrap();
-    println!("{}", service.onion_name().unwrap());
+    println!("{}", service.onion_address().unwrap());
+
+    // Wait until the service is believed to be fully reachable.
+    eprintln!("waiting for service to become fully reachable");
+    while let Some(status) = service.status_events().next().await {
+        if status.state().is_fully_reachable() {
+            break;
+        }
+    }
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream);
     tokio::pin!(stream_requests);

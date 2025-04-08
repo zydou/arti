@@ -15,7 +15,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::SectionRules;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::family::RelayFamily;
+use crate::types::family::{RelayFamily, RelayFamilyId};
 use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
@@ -28,6 +28,7 @@ use tor_llcrypto::pk::{curve25519, ed25519, rsa};
 
 use digest::Digest;
 use once_cell::sync::Lazy;
+use std::str::FromStr as _;
 use std::sync::Arc;
 
 use std::time;
@@ -82,6 +83,9 @@ pub struct Microdesc {
     /// Ed25519 identity for this relay
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     ed25519_id: ed25519::Ed25519Identity,
+    /// Family identities for this relay.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
+    family_ids: Vec<RelayFamilyId>,
     // addr is obsolete and doesn't go here any more
     // pr is obsolete and doesn't go here any more.
     // The legacy "tap" onion-key is obsolete, and though we parse it, we don't
@@ -130,6 +134,10 @@ impl Microdesc {
     pub fn ed25519_id(&self) -> &ed25519::Ed25519Identity {
         &self.ed25519_id
     }
+    /// Return a list of family ids for this microdesc.
+    pub fn family_ids(&self) -> &[RelayFamilyId] {
+        &self.family_ids[..]
+    }
 }
 
 /// A microdescriptor annotated with additional data
@@ -172,6 +180,7 @@ decl_keyword! {
         "onion-key" => ONION_KEY,
         "ntor-onion-key" => NTOR_ONION_KEY,
         "family" => FAMILY,
+        "family-ids" => FAMILY_IDS,
         "p" => P,
         "p6" => P6,
         "id" => ID,
@@ -198,6 +207,7 @@ static MICRODESC_RULES: Lazy<SectionRules<MicrodescKwd>> = Lazy::new(|| {
     rules.add(ONION_KEY.rule().required().no_args().obj_optional());
     rules.add(NTOR_ONION_KEY.rule().required().args(1..));
     rules.add(FAMILY.rule().args(1..));
+    rules.add(FAMILY_IDS.rule().args(0..));
     rules.add(P.rule().args(2..));
     rules.add(P6.rule().args(2..));
     rules.add(ID.rule().may_repeat().args(2..));
@@ -229,7 +239,7 @@ impl MicrodescAnnotation {
 impl Microdesc {
     /// Parse a string into a new microdescriptor.
     pub fn parse(s: &str) -> Result<Microdesc> {
-        let mut items = crate::parse::tokenize::NetDocReader::new(s);
+        let mut items = crate::parse::tokenize::NetDocReader::new(s)?;
         let (result, _) = Self::parse_from_reader(&mut items).map_err(|e| e.within(s))?;
         items.should_be_exhausted()?;
         Ok(result)
@@ -308,6 +318,15 @@ impl Microdesc {
             .unwrap_or_else(RelayFamily::new)
             .intern();
 
+        // Family ids (happy families case).
+        let family_ids = body
+            .maybe(FAMILY_IDS)
+            .args_as_str()
+            .unwrap_or("")
+            .split_ascii_whitespace()
+            .map(RelayFamilyId::from_str)
+            .collect::<Result<_>>()?;
+
         // exit policies.
         let ipv4_policy = body
             .maybe(P)
@@ -355,6 +374,7 @@ impl Microdesc {
             ipv4_policy: ipv4_policy.intern(),
             ipv6_policy: ipv6_policy.intern(),
             ed25519_id,
+            family_ids,
         };
         Ok((md, location))
     }
@@ -402,10 +422,10 @@ pub struct MicrodescReader<'a> {
 impl<'a> MicrodescReader<'a> {
     /// Construct a MicrodescReader to take microdescriptors from a string
     /// 's'.
-    pub fn new(s: &'a str, allow: &AllowAnnotations) -> Self {
-        let reader = NetDocReader::new(s);
+    pub fn new(s: &'a str, allow: &AllowAnnotations) -> Result<Self> {
+        let reader = NetDocReader::new(s)?;
         let annotated = allow == &AllowAnnotations::AnnotationsAllowed;
-        MicrodescReader { annotated, reader }
+        Ok(MicrodescReader { annotated, reader })
     }
 
     /// If we're annotated, parse an annotation from the reader. Otherwise
@@ -482,6 +502,7 @@ mod test {
     const TESTDATA: &str = include_str!("../../testdata/microdesc1.txt");
     const TESTDATA2: &str = include_str!("../../testdata/microdesc2.txt");
     const TESTDATA3: &str = include_str!("../../testdata/microdesc3.txt");
+    const TESTDATA4: &str = include_str!("../../testdata/microdesc4.txt");
 
     fn read_bad(fname: &str) -> String {
         use std::fs;
@@ -510,7 +531,7 @@ mod test {
     fn parse_multi() -> Result<()> {
         use humantime::parse_rfc3339;
         let mds: Result<Vec<_>> =
-            MicrodescReader::new(TESTDATA2, &AllowAnnotations::AnnotationsAllowed).collect();
+            MicrodescReader::new(TESTDATA2, &AllowAnnotations::AnnotationsAllowed)?.collect();
         let mds = mds?;
         assert_eq!(mds.len(), 4);
 
@@ -534,6 +555,29 @@ mod test {
             mds[0].md().ed25519_id().as_bytes(),
             &hex!("2d85fdc88e6c1bcfb46897fca1dba6d1354f93261d68a79e0b5bc170dd923084")
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_family_ids() -> Result<()> {
+        let mds: Vec<AnnotatedMicrodesc> =
+            MicrodescReader::new(TESTDATA4, &AllowAnnotations::AnnotationsNotAllowed)?
+                .collect::<Result<_>>()?;
+        assert_eq!(mds.len(), 2);
+        let md0 = mds[0].md();
+        let md1 = mds[1].md();
+        assert_eq!(md0.family_ids().len(), 0);
+        assert_eq!(
+            md1.family_ids(),
+            &[
+                "ed25519:dXMgdGhlIHRyaXVtcGguICAgIC1UaG9tYXMgUGFpbmU"
+                    .parse()
+                    .unwrap(),
+                "other:Example".parse().unwrap()
+            ]
+        );
+        assert!(matches!(md1.family_ids()[0], RelayFamilyId::Ed25519(_)));
 
         Ok(())
     }
@@ -565,17 +609,18 @@ mod test {
     }
 
     #[test]
-    fn test_recover() {
+    fn test_recover() -> Result<()> {
         let mut data = read_bad("wrong-start");
         data += TESTDATA;
         data += &read_bad("wrong-id");
 
         let res: Vec<Result<_>> =
-            MicrodescReader::new(&data, &AllowAnnotations::AnnotationsAllowed).collect();
+            MicrodescReader::new(&data, &AllowAnnotations::AnnotationsAllowed)?.collect();
 
         assert_eq!(res.len(), 3);
         assert!(res[0].is_err());
         assert!(res[1].is_ok());
         assert!(res[2].is_err());
+        Ok(())
     }
 }

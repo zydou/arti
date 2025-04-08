@@ -20,7 +20,7 @@ CARGO_BUILD_BINS = arti
 CARGO_TARGET_FLAGS =
 # Crates to exclude from testing, space separated (by default the
 # entire workspace is tested)
-CARGO_TEST_EXCLUDED = arti-bench arti-config tor-congestion
+CARGO_TEST_EXCLUDED = arti-bench arti-config
 CARGO_TEST_EXCLUDED += tor-events tor-hspow
 
 

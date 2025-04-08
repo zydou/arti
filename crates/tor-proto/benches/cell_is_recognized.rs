@@ -32,7 +32,7 @@ pub fn cell_is_recognized_benchmark(c: &mut Criterion<CpuTime>) {
     group.bench_function("cell_is_recognized_Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
             || {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 let mut d = Sha1::new();
 
                 let cell = create_digested_cell::<_, RelayCellFormatV0>(&mut rng, &mut d);
@@ -48,7 +48,7 @@ pub fn cell_is_recognized_benchmark(c: &mut Criterion<CpuTime>) {
     group.bench_function("cell_is_recognized_Tor1Hsv3RelayCrypto", |b| {
         b.iter_batched_ref(
             || {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 let mut d = Sha3_256::new();
 
                 let cell = create_digested_cell::<_, RelayCellFormatV0>(&mut rng, &mut d);

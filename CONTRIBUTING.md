@@ -4,7 +4,7 @@ We welcome new contributors!  You can get in contact with us on
 [our gitlab instance](https://gitlab.torproject.org/), or on the
 [`\#tor-dev IRC` channel on OFTC](https://www.torproject.org/contact/).
 Make sure to familiarize yourself with our
-[Code of Conduct](https://gitweb.torproject.org/community/policies.git/plain/code_of_conduct.txt).
+[Code of Conduct](https://community.torproject.org/policies/code_of_conduct/).
 
 The new-account process on our gitlab instance is moderated, to reduce
 spam and abuse.  (*Insert instructions for anonymous usage here*)
@@ -38,7 +38,23 @@ the SQLite 3 development files and shellcheck to successfully run git hooks.
   some packages, but if you compile from source set `USE_LIBPCRE=YesPlease`
   when running `make` or `--with-libpcre` when running `./configure`.
 
+- A C compiler and C build tools (ex: GNU Make).
+
 - SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
+
+- Perl and possibly additional Perl packages
+  (depending on your operating system/distro)
+  required to build a vendored version of OpenSSL.
+  These are needed when building or testing with `--all-features`, as recommended below.
+  For example:
+
+  ```bash
+  apt install perl
+  ```
+
+  ```bash
+  dnf install perl-interpreter perl-FindBin perl-lib perl-IPC-Cmd perl-File-Compare perl-File-Copy
+  ```
   
 - For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing)
   (used in [`maint/shellcheck_all`](./maint/common/shellcheck-all))

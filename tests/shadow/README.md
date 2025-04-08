@@ -32,7 +32,7 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
       --target x86_64-unknown-linux-gnu \
       -p arti -p tor-circmgr \
       --bin arti \
-      --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service
+      --features full,restricted-discovery,arti-client/keymgr,onion-service-service,vanguards,ctor-keystore
   $ mv target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/debug/arti-extra
   ```
 
@@ -46,3 +46,25 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
 
 Once those are installed, you can invoke the [`run`](./run) script from
 this directory. 
+
+## Reproducibility
+
+Shadow aims to be deterministic. Running this test on a given machine with a
+given simulation seed *should* always produce the same result, down to precise
+packet sequences and timings, and even dynamically generated keys etc.
+
+Unfortunately this determinism *isn't* guaranteed across different machines. In
+particular changing the kernel version, any of the relevant binaries, any of the
+dynamically linked libraries (including libc), etc. will change the results.
+
+To more-thoroughly check that the test stably passes across machines (or to
+locally attempt to reproduce a failure seen in CI), you can run the test with
+multiple seeds. e.g.:
+
+```shell
+$ for i in `seq 10`; do if ! ./run -s$i; then break; fi; done
+```
+
+Once you've identified a seed that causes a failure or other interesting
+behavior, you should be able to reliably reproduce that behavior by rerunning
+with that seed on the same machine: `./run -s<seed>`.

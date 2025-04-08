@@ -56,7 +56,7 @@ impl MacKey {
     /// Construct a new random `MacKey`.
     pub(crate) fn new<Rng: rand::Rng + rand::CryptoRng>(rng: &mut Rng) -> Self {
         Self {
-            key: Zeroizing::new(rng.gen()),
+            key: Zeroizing::new(rng.random()),
         }
     }
 
@@ -75,8 +75,7 @@ impl GlobalId {
     /// The number of bytes used to encode a `GlobalId` in binary form.
     const ENCODED_LEN: usize = MAC_LEN + ConnectionId::LEN + GenIdx::BYTE_LEN;
     /// The number of bytes used to encode a `GlobalId` in base-64 form.
-    // TODO: use div_ceil once it's stable.
-    pub(crate) const B64_ENCODED_LEN: usize = (Self::ENCODED_LEN * 8 + 5) / 6;
+    pub(crate) const B64_ENCODED_LEN: usize = (Self::ENCODED_LEN * 8).div_ceil(6);
 
     /// Create a new GlobalId from its parts.
     pub(crate) fn new(connection: ConnectionId, local_id: GenIdx) -> GlobalId {
@@ -92,7 +91,7 @@ impl GlobalId {
     /// As with local IDs, this encoding is nondeterministic.
     pub(crate) fn encode(&self, key: &MacKey) -> ObjectId {
         use base64ct::{Base64Unpadded as B64, Encoding};
-        let bytes = self.encode_as_bytes(key, &mut rand::thread_rng());
+        let bytes = self.encode_as_bytes(key, &mut rand::rng());
         B64::encode_string(&bytes[..]).into()
     }
 

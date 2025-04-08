@@ -623,7 +623,9 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         let mut nonfatal_error = None;
         let mut newcerts = Vec::new();
-        for cert in AuthCert::parse_multiple(text) {
+        for cert in
+            AuthCert::parse_multiple(text).map_err(|e| Error::from_netdoc(source.clone(), e))?
+        {
             match self.check_parsed_certificate(cert, &source, text) {
                 Ok((cert, cert_text)) => {
                     newcerts.push((cert, cert_text));
@@ -1055,7 +1057,9 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let mut new_mds = Vec::new();
         let mut nonfatal_err = None;
 
-        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed) {
+        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed)
+            .map_err(|e| Error::from_netdoc(source.clone(), e))?
+        {
             let anno = match anno {
                 Err(e) => {
                     nonfatal_err.get_or_insert_with(|| Error::from_netdoc(source.clone(), e));
@@ -1159,7 +1163,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
 /// is `lifetime`.
 fn pick_download_time(lifetime: &Lifetime) -> SystemTime {
     let (lowbound, uncertainty) = client_download_range(lifetime);
-    lowbound + rand::thread_rng().gen_range_infallible(..=uncertainty)
+    lowbound + rand::rng().gen_range_infallible(..=uncertainty)
 }
 
 /// Based on the lifetime for a consensus, return the time range during which
@@ -1270,6 +1274,7 @@ mod test {
     use time::macros::datetime;
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
     use tor_rtcompat::RuntimeSubstExt as _;
+    #[allow(deprecated)] // TODO #1885
     use tor_rtmock::time::MockSleepProvider;
 
     #[test]
@@ -1310,6 +1315,7 @@ mod test {
     }
 
     fn make_time_shifted_runtime(now: SystemTime, rt: impl Runtime) -> impl Runtime {
+        #[allow(deprecated)] // TODO #1885
         let msp = MockSleepProvider::new(now);
         rt.with_sleep_provider(msp.clone())
             .with_coarse_time_provider(msp)
@@ -1378,6 +1384,7 @@ mod test {
         const MICRODESCS: &str = include_str!("../testdata/microdescs.txt");
         let text = MICRODESCS;
         MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed)
+            .unwrap()
             .map(|res| {
                 let anno = res.unwrap();
                 let text = anno.within(text).unwrap();

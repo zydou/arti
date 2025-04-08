@@ -18,6 +18,19 @@ use std::fmt::Debug;
 
 use crate::{ArtiPath, KeyPath, KeySpecifier};
 
+// TODO: #[cfg(test)] / feature `testing`:
+// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2873#note_3179873
+// > A better overall approach would've been to split out the test utils that are not
+// > pub into a different module (to avoid the confusing internal featute/test gating).
+
+#[cfg(test)]
+use {
+    std::io::Error,
+    std::io::ErrorKind::{Interrupted, NotFound},
+    std::process::{Command, Stdio},
+    tempfile::tempdir,
+};
+
 /// Check that `spec` produces the [`ArtiPath`] from `path`, and that `path` parses to `spec`
 ///
 /// # Panics
@@ -32,6 +45,52 @@ where
     let apath = ArtiPath::new(path.to_string()).unwrap();
     assert_eq!(spec.arti_path().unwrap(), apath);
     assert_eq!(&S::try_from(&KeyPath::Arti(apath)).unwrap(), spec, "{path}");
+}
+
+/// Generates a pair of encoded OpenSSH-formatted Ed25519 keys using `ssh-keygen`.
+/// Field `.0` is the Private Key, and field `.1` is the Public Key.
+///
+/// # Errors
+///
+/// Will return an error if
+///
+/// * A temporary directory could be not created to generate keys in
+/// * `ssh-keygen` was not found, it exited with a non-zero status
+///   code, or it was terminated by a signal
+/// * The generated keys could not be read from the temporary directory
+#[cfg(test)]
+pub(crate) fn sshkeygen_ed25519_strings() -> std::io::Result<(String, String)> {
+    let tempdir = tempdir()?;
+    const FILENAME: &str = "tmp_id_ed25519";
+    let status = Command::new("ssh-keygen")
+        .current_dir(tempdir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .args(["-q", "-P", "", "-t", "ed25519", "-f", FILENAME, "-C", ""])
+        .status()
+        .map_err(|e| match e.kind() {
+            NotFound => Error::new(NotFound, "could not find ssh-keygen"),
+            _ => e,
+        })?;
+
+    match status.code() {
+        Some(0) => {
+            let key = tempdir.path().join(FILENAME);
+            let key_pub = key.with_extension("pub");
+
+            let key = std::fs::read_to_string(key)?;
+            let key_pub = std::fs::read_to_string(key_pub)?;
+
+            Ok((key, key_pub))
+        }
+        Some(code) => Err(Error::other(format!(
+            "ssh-keygen exited with status code: {code}"
+        ))),
+        None => Err(Error::new(
+            Interrupted,
+            "ssh-keygen was terminated by a signal",
+        )),
+    }
 }
 
 /// OpenSSH keys used for testing.
@@ -138,18 +197,13 @@ mod specifier {
     /// A [`KeySpecifier`] with a fixed [`ArtiPath`] prefix and custom suffix.
     ///
     /// The inner String is the suffix of its `ArtiPath`.
-    #[derive(Default)]
+    #[derive(Default, PartialEq, Eq)]
     pub(crate) struct TestSpecifier(String);
 
     impl TestSpecifier {
-        /// Create a new [`TestSpecifier`].
-        pub(crate) fn new(prefix: impl AsRef<str>) -> Self {
-            Self(prefix.as_ref().into())
-        }
-
-        /// Return the prefix of the [`ArtiPath`] of this specifier.
-        pub(crate) fn path_prefix() -> &'static str {
-            TEST_SPECIFIER_PATH
+        /// Create a new [`TestSpecifier`] with the supplied `suffix`.
+        pub(crate) fn new(suffix: impl AsRef<str>) -> Self {
+            Self(suffix.as_ref().into())
         }
     }
 

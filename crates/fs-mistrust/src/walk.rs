@@ -676,6 +676,7 @@ mod test {
             assert_eq!(m1, m2);
         }
 
+        #[cfg(not(target_os = "android"))]
         if pwd_grp::getuid() == 0 {
             // We won't actually get a CouldNotInspect if we're running as root,
             // since root can read directories that are mode 000.

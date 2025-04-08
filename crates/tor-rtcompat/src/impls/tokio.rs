@@ -115,7 +115,7 @@ pub(crate) mod net {
         }}
     }
 
-    /// Try to convert a tokio unix SocketAddr into a crate::SocketAddr.
+    /// Try to convert a tokio `unix::SocketAddr` into a crate::SocketAddr.
     ///
     /// Frustratingly, this information is _right there_: Tokio's SocketAddr has a
     /// std::unix::net::SocketAddr internally, but there appears to be no way to get it out.
@@ -129,7 +129,7 @@ pub(crate) mod net {
         } else if let Some(p) = addr.as_pathname() {
             unix::SocketAddr::from_pathname(p)
         } else {
-            Err(crate::unix::UnsupportedUnixAddressType.into())
+            Err(crate::unix::UnsupportedAfUnixAddressType.into())
         }
     }
 
@@ -236,14 +236,14 @@ impl crate::traits::NetStreamProvider<unix::SocketAddr> for TokioRuntimeHandle {
     async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
         let path = addr
             .as_pathname()
-            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+            .ok_or(crate::unix::UnsupportedAfUnixAddressType)?;
         let s = net::TokioUnixStream::connect(path).await?;
         Ok(s.into())
     }
     async fn listen(&self, addr: &unix::SocketAddr) -> IoResult<Self::Listener> {
         let path = addr
             .as_pathname()
-            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+            .ok_or(crate::unix::UnsupportedAfUnixAddressType)?;
         let lis = net::TokioUnixListener::bind(path)?;
         Ok(net::UnixListener { lis })
     }
@@ -329,15 +329,15 @@ impl From<async_executors::TokioTp> for TokioRuntimeHandle {
     }
 }
 
-impl BlockOn for TokioRuntimeHandle {
+impl ToplevelBlockOn for TokioRuntimeHandle {
     #[track_caller]
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         self.handle.block_on(f)
     }
 }
 
-impl SpawnBlocking for TokioRuntimeHandle {
-    type Handle<T: Send + 'static> = async_executors::BlockingHandle<T>;
+impl Blocking for TokioRuntimeHandle {
+    type ThreadHandle<T: Send + 'static> = async_executors::BlockingHandle<T>;
 
     #[track_caller]
     fn spawn_blocking<F, T>(&self, f: F) -> async_executors::BlockingHandle<T>
@@ -346,6 +346,21 @@ impl SpawnBlocking for TokioRuntimeHandle {
         T: Send + 'static,
     {
         async_executors::BlockingHandle::tokio(self.handle.spawn_blocking(f))
+    }
+
+    #[track_caller]
+    fn reenter_block_on<F: Future>(&self, future: F) -> F::Output {
+        self.handle.block_on(future)
+    }
+
+    #[track_caller]
+    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        let r = tokio_crate::task::block_in_place(f);
+        std::future::ready(r)
     }
 }
 

@@ -400,7 +400,7 @@ mod test {
     }
 
     fn rand_msg<R: Rng>(rng: &mut R) -> [u8; OUTPUT_LEN] {
-        rng.gen()
+        rng.random()
     }
 
     /// Basic tests on an ephemeral IptReplayLog.

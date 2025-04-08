@@ -453,7 +453,7 @@ fn cache() {
                     x => panic!("{}", x),
                 };
 
-                if rng.gen() || qty > state.used {
+                if rng.random() || qty > state.used {
                     claim_via(p_use, p_use_i, &mut state.used, qty).unwrap();
                 } else {
                     release_via(p_use, p_use_i, &mut state.used, qty);

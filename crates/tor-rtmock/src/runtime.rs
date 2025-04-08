@@ -84,7 +84,7 @@ use crate::task::{MockExecutor, SchedulingPolicy};
 #[getter(prefix = "mock_")]
 pub struct MockRuntime {
     /// Tasks
-    #[deftly(mock(task))]
+    #[deftly(mock(task, toplevel))]
     task: MockExecutor,
     /// Time provider
     #[deftly(mock(sleep))]

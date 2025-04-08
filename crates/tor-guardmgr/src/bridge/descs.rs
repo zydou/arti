@@ -282,7 +282,7 @@ impl Universe for BridgeSet {
                 filter.permits(*bridge_conf)
                     && pre_existing.all_overlapping(*bridge_conf).is_empty()
             })
-            .choose_multiple(&mut rand::thread_rng(), n)
+            .choose_multiple(&mut rand::rng(), n)
             .into_iter()
             .map(|bridge_config| {
                 let relay = self.relay_by_bridge(bridge_config);

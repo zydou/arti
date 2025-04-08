@@ -699,7 +699,7 @@ impl<R: Runtime> DirMgr<R> {
                         BootstrapAction::Fatal => return Err(err),
                     }
 
-                    let delay = retry_delay.next_delay(&mut rand::thread_rng());
+                    let delay = retry_delay.next_delay(&mut rand::rng());
                     warn_report!(
                         err,
                         "Unable to download a usable directory. (We will restart in {})",
@@ -1380,8 +1380,8 @@ mod test {
             };
             let mut rng = testing_rng();
             #[cfg(feature = "routerdesc")]
-            let rd_ids: Vec<DocId> = (0..1000).map(|_| DocId::RouterDesc(rng.gen())).collect();
-            let md_ids: Vec<DocId> = (0..1000).map(|_| DocId::Microdesc(rng.gen())).collect();
+            let rd_ids: Vec<DocId> = (0..1000).map(|_| DocId::RouterDesc(rng.random())).collect();
+            let md_ids: Vec<DocId> = (0..1000).map(|_| DocId::Microdesc(rng.random())).collect();
             let config = DirMgrConfig::default();
 
             // Try an authcert.

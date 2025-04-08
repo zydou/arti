@@ -120,8 +120,8 @@ define_bytes! {
 pub struct RendCookie([u8; REND_COOKIE_LEN]);
 }
 
-impl rand::distributions::Distribution<RendCookie> for rand::distributions::Standard {
+impl rand::distr::Distribution<RendCookie> for rand::distr::StandardUniform {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> RendCookie {
-        RendCookie(rng.gen::<[u8; REND_COOKIE_LEN]>().into())
+        RendCookie(rng.random::<[u8; REND_COOKIE_LEN]>().into())
     }
 }

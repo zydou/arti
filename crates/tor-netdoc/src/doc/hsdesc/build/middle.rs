@@ -72,7 +72,7 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
 
                         // Encrypt the descriptor cookie with the public key of the client.
                         let mut encrypted_cookie = client_auth.descriptor_cookie;
-                        let iv = rng.gen::<[u8; HS_DESC_IV_LEN]>();
+                        let iv = rng.random::<[u8; HS_DESC_IV_LEN]>();
                         let mut cipher = Cipher::new(&cookie_key.into(), &iv.into());
                         cipher.apply_keystream(&mut encrypted_cookie);
 
@@ -89,9 +89,9 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
                     // Generate a single client-auth line filled with random values for client-id,
                     // iv, and encrypted-cookie.
                     let dummy_auth_client = AuthClient {
-                        client_id: CtByteArray::from(rng.gen::<[u8; HS_DESC_CLIENT_ID_LEN]>()),
-                        iv: rng.gen::<[u8; HS_DESC_IV_LEN]>(),
-                        encrypted_cookie: rng.gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(),
+                        client_id: CtByteArray::from(rng.random::<[u8; HS_DESC_CLIENT_ID_LEN]>()),
+                        iv: rng.random::<[u8; HS_DESC_IV_LEN]>(),
+                        encrypted_cookie: rng.random::<[u8; HS_DESC_ENC_NONCE_LEN]>(),
                     };
 
                     // As per section 2.5.1.2. of rend-spec-v3, if restricted discovery is disabled,
@@ -187,7 +187,7 @@ AQIDBA==
                 secret: secret.into(),
             },
             auth_clients: &[],
-            descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
+            descriptor_cookie: rand::Rng::random::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
         let err = HsDescMiddle {
@@ -220,7 +220,7 @@ AQIDBA==
                 secret: secret.into(),
             },
             auth_clients: &auth_clients,
-            descriptor_cookie: rand::Rng::gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
+            descriptor_cookie: rand::Rng::random::<[u8; HS_DESC_ENC_NONCE_LEN]>(&mut rng),
         };
 
         let hs_desc = HsDescMiddle {

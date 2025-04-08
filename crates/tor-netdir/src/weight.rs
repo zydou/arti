@@ -217,6 +217,14 @@ pub(crate) struct WeightSet {
     bandwidth_fn: BandwidthFn,
     /// Number of bits that we need to right-shift our weighted products
     /// so that their sum won't overflow u64::MAX.
+    //
+    // TODO: Perhaps we should use f64 to hold our weights instead,
+    // so we don't need to keep this ad-hoc fixed-point implementation?
+    // If we did so, we won't have to worry about overflows.
+    // (When we call choose_multiple_weighted, it already converts into
+    // f64 internally.  (Though choose_weighted doesn't.))
+    // Before making this change, however,
+    // we should think a little about performance and precision.
     shift: u8,
     /// A set of RelayWeight values, indexed by [`WeightKind::idx`], used
     /// to weight different kinds of relays.
@@ -654,7 +662,7 @@ mod test {
         // and a reasonable amount of  measured bandwidth.
         for _ in 0..10 {
             rs_builder()
-                .identity(rng.gen::<[u8; 20]>().into()) // random id
+                .identity(rng.random::<[u8; 20]>().into()) // random id
                 .weight(RW::Unmeasured(1_000_000))
                 .set_flags(RelayFlags::GUARD | RelayFlags::EXIT)
                 .build_into(&mut bld)
@@ -662,7 +670,7 @@ mod test {
         }
         for n in 0..30 {
             rs_builder()
-                .identity(rng.gen::<[u8; 20]>().into()) // random id
+                .identity(rng.random::<[u8; 20]>().into()) // random id
                 .weight(RW::Measured(1_000 * n))
                 .set_flags(RelayFlags::GUARD | RelayFlags::EXIT)
                 .build_into(&mut bld)

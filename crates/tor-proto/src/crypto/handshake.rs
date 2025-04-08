@@ -14,7 +14,6 @@ pub(crate) mod fast;
 #[cfg(feature = "hs-common")]
 pub mod hs_ntor;
 pub(crate) mod ntor;
-#[cfg(feature = "ntor_v3")]
 pub(crate) mod ntor_v3;
 
 use std::borrow::Borrow;

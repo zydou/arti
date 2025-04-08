@@ -252,7 +252,7 @@ impl IptsManagerView {
     pub(crate) fn borrow_for_update(
         &mut self,
         runtime: impl SleepProvider,
-    ) -> impl DerefMut<Target = PublishIptSet> + '_ {
+    ) -> impl std::ops::DerefMut<Target = PublishIptSet> + '_ {
         let guard = lock_shared(&self.shared);
         NotifyingBorrow {
             guard,
@@ -264,7 +264,7 @@ impl IptsManagerView {
     /// Peek at the list of introduction points we are providing to the publisher
     ///
     /// (Used for testing and during startup.)
-    pub(crate) fn borrow_for_read(&mut self) -> impl Deref<Target = PublishIptSet> + '_ {
+    pub(crate) fn borrow_for_read(&mut self) -> impl std::ops::Deref<Target = PublishIptSet> + '_ {
         lock_shared(&self.shared)
     }
 }
@@ -345,7 +345,9 @@ impl IptsPublisherView {
     ///
     /// The returned value is a lock guard.
     /// (It is not `Send` so cannot be held across await points.)
-    pub(crate) fn borrow_for_publish(&self) -> impl DerefMut<Target = PublishIptSet> + '_ {
+    pub(crate) fn borrow_for_publish(
+        &self,
+    ) -> impl std::ops::DerefMut<Target = PublishIptSet> + '_ {
         lock_shared(&self.shared)
     }
 
@@ -360,7 +362,9 @@ impl IptsPublisherUploadView {
     /// Look at the list of introduction points to publish
     ///
     /// See [`IptsPublisherView::borrow_for_publish`].
-    pub(crate) fn borrow_for_publish(&self) -> impl DerefMut<Target = PublishIptSet> + '_ {
+    pub(crate) fn borrow_for_publish(
+        &self,
+    ) -> impl std::ops::DerefMut<Target = PublishIptSet> + '_ {
         lock_shared(&self.shared)
     }
 }
@@ -536,7 +540,7 @@ mod test {
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
     use test_temp_dir::test_temp_dir;
-    use tor_rtcompat::BlockOn as _;
+    use tor_rtcompat::ToplevelBlockOn as _;
 
     fn test_intro_point() -> Ipt {
         use tor_netdoc::doc::hsdesc::test_data;

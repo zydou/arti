@@ -42,7 +42,7 @@ traits it provides.
 The `tor-rtcompat` crate provides several traits that
 encapsulate different runtime capabilities.
 
- * A runtime is a [`BlockOn`] if it can block on a future.
+ * A runtime is a [`ToplevelBlockOn`] if it can block on a top-level future.
  * A runtime is a [`SleepProvider`] if it can make timer futures that
    become Ready after a given interval of time.
  * A runtime is a [`CoarseTimeProvider`] if it provides a monotonic clock
@@ -126,7 +126,7 @@ to other environments (like WASM) in the future.
 We could simplify this code significantly by removing most of the
 traits it exposes, and instead just exposing a single
 implementation.  For example, instead of exposing a
-[`BlockOn`] trait to represent blocking until a task is
+[`ToplevelBlockOn`] trait to represent blocking until a task is
 done, we could just provide a single global `block_on` function.
 
 That simplification would come at a cost, however.  First of all,

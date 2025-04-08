@@ -43,7 +43,7 @@ use std::os::linux::net::SocketAddrExt as _;
 ///    Examples: `unix:/path/to/socket`, `inet:127.0.0.1:9999`,
 ///    `inet:[::1]:9999`.
 ///
-///    The "unnamed" unix address is represented as `unix:`.
+///    The "unnamed" AF_UNIX address is represented as `unix:`.
 ///
 /// 2. A _unqualified_ representation,
 ///    consisting of a `net::SocketAddr` address represented as a string.
@@ -205,7 +205,7 @@ pub enum AddrParseError {
     NoSchema,
     /// Tried to parse an address as an AF_UNIX address, but failed.
     #[error("Invalid AF_UNIX address")]
-    InvalidUnixAddress(#[source] Arc<IoError>),
+    InvalidAfUnixAddress(#[source] Arc<IoError>),
     /// Tried to parse an address as a inet address, but failed.
     #[error("Invalid internet address")]
     InvalidInetAddress(#[from] std::net::AddrParseError),
@@ -213,7 +213,7 @@ pub enum AddrParseError {
 
 impl From<IoError> for AddrParseError {
     fn from(e: IoError) -> Self {
-        Self::InvalidUnixAddress(Arc::new(e))
+        Self::InvalidAfUnixAddress(Arc::new(e))
     }
 }
 
@@ -290,6 +290,9 @@ impl<'a> arbitrary::Arbitrary<'a> for SocketAddr {
             }
             #[cfg(any(target_os = "android", target_os = "linux"))]
             Kind::UnixAbstract => {
+                #[cfg(target_os = "android")]
+                use std::os::android::net::SocketAddrExt as _;
+                #[cfg(target_os = "linux")]
                 use std::os::linux::net::SocketAddrExt as _;
                 let name: &[u8] = u.arbitrary()?;
                 Ok(SocketAddr::Unix(
@@ -366,7 +369,7 @@ mod test {
         assert_eq!(ga2.try_to_string().unwrap(), "inet:[::1]:9999");
     }
 
-    /// Treat `s` as a unix path, and build a `general::SocketAddr` from it.
+    /// Treat `s` as a path for an AF_UNIX socket, and build a `general::SocketAddr` from it.
     ///
     /// Testing only. Panics on error.
     #[cfg(unix)]
@@ -474,11 +477,11 @@ mod test {
     fn parse_err_no_unix() {
         assert_matches!(
             "unix:".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidUnixAddress(_))
+            Err(AddrParseError::InvalidAfUnixAddress(_))
         );
         assert_matches!(
             "unix:/any/path".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidUnixAddress(_))
+            Err(AddrParseError::InvalidAfUnixAddress(_))
         );
     }
 }

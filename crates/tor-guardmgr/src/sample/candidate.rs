@@ -184,7 +184,7 @@ impl Universe for NetDir {
         );
         filter.add_to_selector(&mut sel);
 
-        let (relays, _outcome) = sel.select_n_relays(&mut rand::thread_rng(), n, self);
+        let (relays, _outcome) = sel.select_n_relays(&mut rand::rng(), n, self);
         // TODO: report _outcome somehow.
         relays
             .iter()

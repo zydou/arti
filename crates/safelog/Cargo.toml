@@ -1,6 +1,6 @@
 [package]
 name = "safelog"
-version = "0.4.3"
+version = "0.4.5"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -17,8 +17,8 @@ default = []
 full = []
 
 [dependencies]
-derive_more = { version = "1.0.0", features = ["full"] }
-educe = "0.4.6"
+derive_more = { version = "2.0.1", features = ["full"] }
+educe = "0.4.22"
 either = "1"
 fluid-let = "1"
 serde = { version = "1.0.103", optional = true, features = ["derive"] }

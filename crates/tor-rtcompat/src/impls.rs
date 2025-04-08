@@ -26,11 +26,11 @@ macro_rules! impl_unix_non_provider {
             type Stream = crate::unimpl::FakeStream;
             type Listener = crate::unimpl::FakeListener<tor_general_addr::unix::SocketAddr>;
             async fn connect(&self, _a: &tor_general_addr::unix::SocketAddr) -> IoResult<Self::Stream> {
-                Err(tor_general_addr::unix::NoUnixAddressSupport::default().into())
+                Err(tor_general_addr::unix::NoAfUnixSocketSupport::default().into())
 
             }
             async fn listen(&self, _a: &tor_general_addr::unix::SocketAddr) -> IoResult<Self::Listener> {
-                Err(tor_general_addr::unix::NoUnixAddressSupport::default().into())
+                Err(tor_general_addr::unix::NoAfUnixSocketSupport::default().into())
             }
         }
     }

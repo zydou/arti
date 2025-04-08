@@ -308,7 +308,7 @@ mod test {
     use crate::task::MockExecutor;
     use futures::poll;
     use humantime::parse_rfc3339;
-    use tor_rtcompat::BlockOn as _;
+    use tor_rtcompat::ToplevelBlockOn as _;
     use Poll::*;
 
     fn ms(ms: u64) -> Duration {

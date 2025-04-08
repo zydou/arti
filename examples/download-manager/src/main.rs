@@ -30,7 +30,7 @@ struct Args {
     #[arg(long, short, default_value = "1")]
     connections: NonZeroU8,
     /// Version of the Tor Browser to download
-    #[clap(default_value = "14.0.4")]
+    #[clap(default_value = "14.0.7")]
     version: String,
 }
 
@@ -39,7 +39,7 @@ async fn connect_to_url(
     client: &TorClient<PreferredRuntime>,
     uri: &Uri,
 ) -> anyhow::Result<SendRequest<Empty<Bytes>>> {
-    // isolated client makes each connection run on a seperate circuit
+    // isolated client makes each connection run on a separate circuit
     let isolated = client.isolated_client();
 
     // Create TLS connector
@@ -210,6 +210,13 @@ async fn main() -> anyhow::Result<()> {
 
     // Generate download and checksum URL from Tor version
     let filename = format!("tor-browser-linux-x86_64-{}.tar.xz", args.version);
+
+    // Check if the file already exists
+    if tokio::fs::try_exists(&filename).await? {
+        tracing::info!("File already exists, skipping download");
+        return Err(anyhow::anyhow!("File {filename} already exists"));
+    }
+
     let url = format!(
         "https://dist.torproject.org/torbrowser/{}/{}",
         args.version, filename
@@ -220,12 +227,6 @@ async fn main() -> anyhow::Result<()> {
         args.version
     );
     let checksum_uri = Uri::from_str(checksum_url.as_str())?;
-
-    // Check if the file already exists
-    if tokio::fs::try_exists(&filename).await? {
-        tracing::info!("File already exists, skipping download");
-        return Err(anyhow::anyhow!("File {filename} already exists"));
-    }
 
     // Create the tor client
     let config = TorClientConfig::default();

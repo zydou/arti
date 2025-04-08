@@ -14,6 +14,7 @@ use crate::net::MockNetProvider;
 pub struct MockNetRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
     #[deftly(mock(task, sleep))]
+    #[deftly(mock(toplevel_where = "R: ToplevelBlockOn"))]
     runtime: R,
     /// A MockNetProvider.  Network-related calls get delegated here.
     #[deftly(mock(net))]

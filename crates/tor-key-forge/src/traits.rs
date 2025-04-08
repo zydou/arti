@@ -1,15 +1,17 @@
 //! All the traits of this crate.
 
 use downcast_rs::{impl_downcast, Downcast};
-use rand::RngCore;
+use rand::{CryptoRng, RngCore};
 use ssh_key::{
     private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair},
     public::{Ed25519PublicKey, KeyData, OpaquePublicKey},
-    rand_core::CryptoRng,
     Algorithm, AlgorithmName,
 };
 use tor_error::internal;
-use tor_llcrypto::pk::{curve25519, ed25519};
+use tor_llcrypto::{
+    pk::{curve25519, ed25519},
+    rng::EntropicRng,
+};
 
 use crate::certs::CertData;
 use crate::key_type::CertType;
@@ -21,9 +23,9 @@ use crate::{
 use std::result::Result as StdResult;
 
 /// A random number generator for generating [`EncodableItem`]s.
-pub trait KeygenRng: RngCore + CryptoRng {}
+pub trait KeygenRng: RngCore + CryptoRng + EntropicRng {}
 
-impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
+impl<T> KeygenRng for T where T: RngCore + CryptoRng + EntropicRng {}
 
 /// A trait for generating fresh keys.
 pub trait Keygen {
@@ -148,7 +150,7 @@ pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
     ///     (i.e. it is expired, or not yet valid), or
     ///   * the certificate is not well-signed, or
     ///   * the subject key or signing key in the certificate do not match
-    ///      the subject and signing keys specified in `cert_spec`
+    ///     the subject and signing keys specified in `cert_spec`
     fn validate(
         cert: Self::ParsedCert,
         subject: &K,

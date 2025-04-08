@@ -336,7 +336,7 @@ impl<R: Runtime> Mockable for Real<R> {
     type ClientCirc = ClientCirc;
 
     fn thread_rng(&self) -> Self::Rng {
-        rand::thread_rng()
+        rand::rng()
     }
 
     async fn get_or_launch_specific<T>(
@@ -1534,6 +1534,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 "building descriptor"
                             );
                             let mut rng = imm.mockable.thread_rng();
+                            let mut key_rng = tor_llcrypto::rng::CautiousRng;
 
                             // We're about to generate a new version of the descriptor,
                             // so let's generate a new revision counter.
@@ -1548,6 +1549,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 time_period,
                                 revision_counter,
                                 &mut rng,
+                                &mut key_rng,
                                 imm.runtime.wallclock(),
                             )?
                         };

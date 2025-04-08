@@ -16,8 +16,11 @@ pub(crate) fn construct_socketpair() -> io::Result<(SocketpairStream, Socketpair
     }
     #[cfg(windows)]
     {
-        // Alas, we can't use the socketpair crate on Windows!  It creates a named pipe,
-        // which for whatever reason *does not work the same as a socket!*
+        // Alas, we can't use the socketpair crate on Windows!  It creates a Windows
+        // "named pipe".  Windows "named pipe"s are not named pipes.  They are strange
+        // things which a bit like an unholy cross between a Unix named pipe (aka a FIFO)
+        // and an AF_UNIX socket.  This makes them bizarre and awkward.  They are best
+        // avoided if possible.
         //
         // We have to use this nonsense instead.  It will cause these tests to fail on
         // some absurdly restrictive windows firewalls; that's a price we can afford.

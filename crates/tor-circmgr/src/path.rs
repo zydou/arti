@@ -27,7 +27,7 @@ use tor_geoip::{CountryCode, HasCountryCode};
 use tor_guardmgr::fallback::FallbackDir;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget, OwnedCircTarget, RelayIdSet};
-use tor_netdir::{NetDir, Relay};
+use tor_netdir::{FamilyRules, NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 use tor_rtcompat::Runtime;
 
@@ -308,6 +308,7 @@ fn pick_path<'a, B: AnonymousPathBuilder, R: Rng, RT: Runtime>(
         }
     };
     let rs_cfg = config.relay_selection_config();
+    let family_rules = FamilyRules::from(netdir.params());
 
     let target_exclusion = match builder.compatible_with() {
         Some(ct) => {
@@ -331,6 +332,7 @@ fn pick_path<'a, B: AnonymousPathBuilder, R: Rng, RT: Runtime>(
         MaybeOwnedRelay::Relay(r) => RelayExclusion::exclude_relays_in_same_family(
             &config.relay_selection_config(),
             vec![r.clone()],
+            family_rules,
         ),
         MaybeOwnedRelay::Owned(ct) => RelayExclusion::exclude_channel_target_family(
             &config.relay_selection_config(),
@@ -344,7 +346,7 @@ fn pick_path<'a, B: AnonymousPathBuilder, R: Rng, RT: Runtime>(
     let (exit, middle_usage) = builder.pick_exit(rng, netdir, exclusion, &rs_cfg)?;
 
     let mut family_exclusion =
-        RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![exit.clone()]);
+        RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![exit.clone()], family_rules);
     family_exclusion.extend(&guard_exclusion);
     let mut exclusion = family_exclusion;
     exclusion.extend(&target_exclusion);

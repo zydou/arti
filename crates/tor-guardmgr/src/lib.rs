@@ -1536,7 +1536,7 @@ impl GuardMgrInner {
 
         let fallback = self
             .fallbacks
-            .choose(&mut rand::thread_rng(), now, filt)?
+            .choose(&mut rand::rng(), now, filt)?
             .as_guard();
         let fallback = filt.modify_hop(fallback)?;
         Ok((sample::ListKind::Fallback, fallback))
@@ -1685,6 +1685,15 @@ impl FirstHop {
             Some(s) if s.universe_type() == UniverseType::BridgeSet => None,
             // Otherwise ask the netdir.
             _ => netdir.by_ids(self),
+        }
+    }
+
+    /// Return true if this guard is a bridge.
+    pub fn is_bridge(&self) -> bool {
+        match &self.sample {
+            #[cfg(feature = "bridge-client")]
+            Some(s) if s.universe_type() == UniverseType::BridgeSet => true,
+            _ => false,
         }
     }
 

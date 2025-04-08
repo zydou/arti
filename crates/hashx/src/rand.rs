@@ -136,14 +136,6 @@ impl RngCore for SipRand {
     fn fill_bytes(&mut self, dest: &mut [u8]) {
         rand_core::impls::fill_bytes_via_next(self, dest);
     }
-
-    /// Fill `dest` with random data.
-    ///
-    /// Always succeeds.
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@
 //! of our ability to reproduce the scenario if the test fails.
 //!
 //! To achieve this,  just have your test use [`testing_rng()`] in place of
-//! [`rand::thread_rng()`].  Then the test will (by default) choose a new random
+//! [`rand::rng()`].  Then the test will (by default) choose a new random
 //! seed for every run, and print that seed to standard output.  If the test
 //! fails, the seed will be displayed as part of the failure message, and you
 //! will be able to use it to recreate the same PRNG seed as the one that caused
@@ -179,7 +179,7 @@ impl Config {
             Config::Seeded(seed) => seed,
             Config::Random => {
                 let mut seed = Seed::default();
-                rand::thread_rng().fill_bytes(&mut seed[..]);
+                rand::rng().fill_bytes(&mut seed[..]);
                 seed
             }
         }

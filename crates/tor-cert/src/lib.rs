@@ -49,7 +49,6 @@ pub mod rsa;
 use caret::caret_int;
 use tor_bytes::{Error as BytesError, Result as BytesResult};
 use tor_bytes::{Readable, Reader};
-use tor_llcrypto::pk::ed25519::Verifier as _;
 use tor_llcrypto::pk::*;
 
 use std::time;
@@ -133,6 +132,10 @@ caret_int! {
         /// meant to be a cross certificate, with the signing and signed keys
         /// reversed.
         HS_IP_CC_SIGNING = 0x0B,
+
+        /// For relays: family key certifying membership of a relay
+        /// by signing its identity.
+        FAMILY_V_IDENTITY = 0x0C,
     }
 }
 

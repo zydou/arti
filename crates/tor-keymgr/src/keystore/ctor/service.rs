@@ -183,12 +183,7 @@ impl Keystore for CTorServiceKeystore {
         Ok(Some(parsed_key))
     }
 
-    fn insert(
-        &self,
-        _key: &dyn EncodableItem,
-        _key_spec: &dyn KeySpecifier,
-        _item_type: &KeystoreItemType,
-    ) -> Result<()> {
+    fn insert(&self, _key: &dyn EncodableItem, _key_spec: &dyn KeySpecifier) -> Result<()> {
         Err(CTorKeystoreError::NotSupported { action: "insert" }.into())
     }
 
@@ -417,11 +412,7 @@ mod tests {
         assert_eq!(err.to_string(), "Operation not supported: remove");
 
         let err = keystore
-            .insert(
-                &DummyKey,
-                &TestCTorSpecifier(path.clone()),
-                &KeyType::Ed25519PublicKey.into(),
-            )
+            .insert(&DummyKey, &TestCTorSpecifier(path.clone()))
             .unwrap_err();
 
         assert_eq!(err.to_string(), "Operation not supported: insert");

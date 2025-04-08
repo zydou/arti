@@ -34,28 +34,7 @@ pub trait Keystore: Send + Sync + 'static {
     ) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
-    //
-    // Note: the item_type argument here might seem redundant: `key` implements `EncodableItem`,
-    // which has a `item_type` function. However:
-    //   * `item_type` is an associated function on `EncodableItem`, not a method, which means we
-    //   can't call it on `key: &dyn EncodableItem` (you can't call an associated function of trait
-    //   object). The caller of `Keystore::insert` (i.e. `KeyMgr`) OTOH _can_ call `K::item_type()`
-    //   on the `EncodableItem` because the concrete type `K` that implements `EncodableItem` is
-    //   known.
-    //  * one could argue I should make `item_type` a `&self` method rather than an associated function,
-    //   which would fix this problem (and enable us to remove the additional `item_type` param).
-    //   However, that would break `KeyMgr::remove`, which calls
-    //   `store.remove(key_spec, K::Key::item_type())`, where `K` is a type parameter specified by
-    //   the caller (in `KeyMgr::remove` we don't have a `value: K`, so we can't call `item_type` if
-    //   `item_type` is a `&self` method)...
-    //
-    // TODO: Maybe we can refactor this API and remove the "redundant" param somehow.
-    fn insert(
-        &self,
-        key: &dyn EncodableItem,
-        key_spec: &dyn KeySpecifier,
-        item_type: &KeystoreItemType,
-    ) -> Result<()>;
+    fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<()>;
 
     /// Remove the specified key.
     ///

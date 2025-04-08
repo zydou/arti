@@ -1,28 +1,27 @@
 //! Module providing [`CtrlMsg`].
 
+use super::circuit::extender::CircuitExtender;
 use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
 };
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::{path, CircParameters};
-use crate::tunnel::reactor::extender::CircuitExtender;
 use crate::tunnel::reactor::{NtorClient, ReactorError};
-use crate::tunnel::streammap;
+use crate::tunnel::{streammap, HopLocation, LegId, TargetHop};
 use crate::util::skew::ClockSkew;
-use crate::{Error, Result};
+use crate::Result;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0, StreamId,
     UnparsedRelayMsg,
 };
-use tor_error::internal;
+use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
 use tracing::trace;
 #[cfg(feature = "hs-service")]
 use {
@@ -33,6 +32,9 @@ use {
 #[cfg(test)]
 use crate::congestion::sendme::CircTag;
 
+#[cfg(feature = "conflux")]
+use super::Circuit;
+
 use oneshot_fused_workaround as oneshot;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -40,14 +42,15 @@ use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;
+use std::sync::Arc;
 
 /// A message telling the reactor to do something.
 ///
-/// The difference between this and [`CtrlCmd`] is that `CtrlMsg`s
-/// are only handled when the reactor's `chan_sender` is ready to receive cells,
-/// whereas `CtrlCmd` are handled immediately as they arrive.
-///
 /// For each `CtrlMsg`, the reactor will send a cell on the underlying channel.
+///
+/// The difference between this and [`CtrlCmd`] is that `CtrlMsg`s
+/// cause the reactor to send cells on the reactor's `chan_sender`,
+/// whereas `CtrlCmd` do not.
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub(crate) enum CtrlMsg {
@@ -78,7 +81,6 @@ pub(crate) enum CtrlMsg {
         done: ReactorResultChannel<()>,
     },
     /// Extend a circuit by one hop, using the ntorv3 handshake.
-    #[cfg(feature = "ntor_v3")]
     ExtendNtorV3 {
         /// The peer that we're extending to.
         ///
@@ -98,7 +100,7 @@ pub(crate) enum CtrlMsg {
     /// Allocates a stream ID, and sends the provided message to that hop.
     BeginStream {
         /// The hop number to begin the stream with.
-        hop_num: HopNum,
+        hop: TargetHop,
         /// The message to send.
         message: AnyRelayMsg,
         /// A channel to send messages on this stream down.
@@ -111,7 +113,7 @@ pub(crate) enum CtrlMsg {
         /// A channel to receive messages to send on this stream from.
         rx: StreamMpscReceiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
-        done: ReactorResultChannel<StreamId>,
+        done: ReactorResultChannel<(StreamId, HopLocation)>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
     },
@@ -125,7 +127,7 @@ pub(crate) enum CtrlMsg {
     #[cfg(feature = "hs-service")]
     ClosePendingStream {
         /// The hop number the stream is on.
-        hop_num: HopNum,
+        hop: HopLocation,
         /// The stream ID to send the END for.
         stream_id: StreamId,
         /// The END message to send, if any.
@@ -164,20 +166,21 @@ pub(crate) enum CtrlMsg {
         /// The stream ID to send a SENDME for.
         stream_id: StreamId,
         /// The hop number the stream is on.
-        hop_num: HopNum,
+        hop: HopLocation,
+        /// A sender that we use to tell the caller that the SENDME was sent.
+        sender: oneshot::Sender<Result<()>>,
     },
     /// Get the clock skew claimed by the first hop of the circuit.
     FirstHopClockSkew {
         /// Oneshot channel to return the clock skew.
-        answer: oneshot::Sender<ClockSkew>,
+        answer: oneshot::Sender<StdResult<ClockSkew, Bug>>,
     },
 }
 
 /// A message telling the reactor to do something.
 ///
 /// The difference between this and [`CtrlMsg`] is that `CtrlCmd`s
-/// are handled even if the reactor's `chan_sender` is not ready to receive cells.
-/// Another difference is that `CtrlCmd`s never cause cells to sent on the channel,
+/// never cause cells to sent on the channel,
 /// while `CtrlMsg`s potentially do: `CtrlMsg`s are mapped to [`RunOnceCmdInner`] commands,
 /// some of which instruct the reactor to send cells down the channel.
 #[derive(educe::Educe)]
@@ -222,6 +225,11 @@ pub(crate) enum CtrlCmd {
         #[cfg(feature = "hs-service")]
         filter: Box<dyn IncomingStreamRequestFilter>,
     },
+    /// Get the leg ID and path for each leg of the tunnel.
+    QueryLegs {
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<Vec<(LegId, Arc<path::Path>)>>,
+    },
     /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
     #[cfg(test)]
     AddFakeHop {
@@ -236,6 +244,17 @@ pub(crate) enum CtrlCmd {
     QuerySendWindow {
         hop: HopNum,
         done: ReactorResultChannel<(u32, Vec<CircTag>)>,
+    },
+    /// Shut down the reactor, and return the underlying [`Circuit`],
+    /// if the tunnel is not multi-path.
+    ///
+    /// Returns an error if called on a multi-path reactor.
+    #[cfg(feature = "conflux")]
+    #[allow(unused)] // TODO(conflux)
+    ShutdownAndReturnCircuit {
+        /// Oneshot channel to return the underlying [`Circuit`],
+        /// or an error if the reactor's tunnel is multi-path.
+        answer: oneshot::Sender<StdResult<Circuit, Bug>>,
     },
 }
 
@@ -255,11 +274,30 @@ impl<'a> ControlHandler<'a> {
     }
 
     /// Handle a control message.
-    pub(super) fn handle_msg(&mut self, msg: CtrlMsg) -> Result<RunOnceCmdInner> {
+    pub(super) fn handle_msg(&mut self, msg: CtrlMsg) -> Result<Option<RunOnceCmdInner>> {
         trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
         match msg {
             // This is handled earlier, since it requires blocking.
-            CtrlMsg::Create { .. } => panic!("got a CtrlMsg::Create in handle_control"),
+            CtrlMsg::Create { done, .. } => {
+                if self.reactor.circuits.len() == 1 {
+                    // This should've been handled in Reactor::run_once()
+                    // (ControlHandler::handle_msg() is never called before wait_for_create()).
+                    debug_assert!(self.reactor.circuits.single_leg()?.1.has_hops());
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot create first hop twice"
+                    )
+                    .into()));
+                } else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot create first hop on multipath tunnel"
+                    )
+                    .into()));
+                }
+
+                Ok(None)
+            }
             CtrlMsg::ExtendNtor {
                 peer_id,
                 public_key,
@@ -267,6 +305,16 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
+                let Ok((_id, circ)) = self.reactor.circuits.single_leg_mut() else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot extend multipath tunnel"
+                    )
+                    .into()));
+
+                    return Ok(None);
+                };
+
                 // ntor handshake only supports V0.
                 /// Local type alias to ensure consistency below.
                 type Rcf = RelayCellFormatV0;
@@ -280,14 +328,15 @@ impl<'a> ControlHandler<'a> {
                         linkspecs,
                         params,
                         &(),
-                        self.reactor,
+                        circ,
                         done,
                     )?;
-                self.reactor.set_meta_handler(Box::new(extender))?;
+                self.reactor
+                    .cell_handlers
+                    .set_meta_handler(Box::new(extender))?;
 
-                Ok(RunOnceCmdInner::Send { cell, done: None })
+                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
             }
-            #[cfg(feature = "ntor_v3")]
             CtrlMsg::ExtendNtorV3 {
                 peer_id,
                 public_key,
@@ -295,6 +344,16 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
+                let Ok((_id, circ)) = self.reactor.circuits.single_leg_mut() else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot extend multipath tunnel"
+                    )
+                    .into()));
+
+                    return Ok(None);
+                };
+
                 // TODO #1067: support negotiating other formats.
                 /// Local type alias to ensure consistency below.
                 type Rcf = RelayCellFormatV0;
@@ -311,53 +370,109 @@ impl<'a> ControlHandler<'a> {
                         linkspecs,
                         params,
                         &client_extensions,
-                        self.reactor,
+                        circ,
                         done,
                     )?;
-                self.reactor.set_meta_handler(Box::new(extender))?;
+                self.reactor
+                    .cell_handlers
+                    .set_meta_handler(Box::new(extender))?;
 
-                Ok(RunOnceCmdInner::Send { cell, done: None })
+                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
             }
             CtrlMsg::BeginStream {
-                hop_num,
+                hop,
                 message,
                 sender,
                 rx,
                 done,
                 cmd_checker,
             } => {
-                let Some(hop) = self.reactor.hop_mut(hop_num) else {
-                    return Err(Error::from(internal!(
-                        "{}: Attempting to send a BEGIN cell to an unknown hop {hop_num:?}",
-                        self.reactor.unique_id,
-                    )));
+                // If resolving the hop fails,
+                // we want to report an error back to the initiator and not shut down the reactor.
+                let hop_location = match self.reactor.resolve_target_hop(hop) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        let e = into_bad_api_usage!("Could not resolve {hop:?}")(e);
+                        // don't care if receiver goes away
+                        let _ = done.send(Err(e.into()));
+                        return Ok(None);
+                    }
                 };
-                let cell = hop.begin_stream(message, sender, rx, cmd_checker);
-                Ok(RunOnceCmdInner::BeginStream { cell, done })
+                let (leg_id, hop_num) = match self.reactor.resolve_hop_location(hop_location) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        let e = into_bad_api_usage!("Could not resolve {hop_location:?}")(e);
+                        // don't care if receiver goes away
+                        let _ = done.send(Err(e.into()));
+                        return Ok(None);
+                    }
+                };
+                let circ = match self.reactor.circuits.leg_mut(leg_id) {
+                    Some(x) => x,
+                    None => {
+                        let e = bad_api_usage!("Circuit leg {leg_id:?} does not exist");
+                        // don't care if receiver goes away
+                        let _ = done.send(Err(e.into()));
+                        return Ok(None);
+                    }
+                };
+
+                let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
+                Ok(Some(RunOnceCmdInner::BeginStream {
+                    cell,
+                    hop: hop_location,
+                    done,
+                }))
             }
             #[cfg(feature = "hs-service")]
             CtrlMsg::ClosePendingStream {
-                hop_num,
+                hop,
                 stream_id,
                 message,
                 done,
-            } => Ok(RunOnceCmdInner::CloseStream {
-                hop_num,
+            } => Ok(Some(RunOnceCmdInner::CloseStream {
+                hop,
                 sid: stream_id,
                 behav: message,
                 reason: streammap::TerminateReason::ExplicitEnd,
                 done: Some(done),
-            }),
-            CtrlMsg::SendSendme { stream_id, hop_num } => {
+            })),
+            // TODO(#1860): remove stream-level sendme support
+            CtrlMsg::SendSendme {
+                stream_id,
+                hop,
+                sender,
+            } => {
                 let sendme = Sendme::new_empty();
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
+                // If resolving the hop fails,
+                // we want to report an error back to the initiator and not shut down the reactor.
+                let (_leg_id, hop_num) = match self.reactor.resolve_hop_location(hop) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        let e = into_bad_api_usage!("Could not resolve hop {hop:?}")(e);
+                        // don't care if receiver goes away
+                        let _ = sender.send(Err(e.into()));
+                        return Ok(None);
+                    }
+                };
+
                 let cell = SendRelayCell {
                     hop: hop_num,
                     early: false,
                     cell,
                 };
-                Ok(RunOnceCmdInner::Send { cell, done: None })
+                // TODO(conflux): We need to pass the leg id in `RunOnceCmdInner::Send`, but we
+                // can't add this to `RunOnceCmdInner` until the stream map knows about legs.
+                // `Reactor::ready_streams_iterator` now knows the leg id, so we should be able to
+                // use that.
+                Ok(Some(RunOnceCmdInner::Send {
+                    cell,
+                    done: Some(sender),
+                }))
             }
+            // TODO(conflux): this should specify which leg to send the msg on
+            // (currently we send it down the primary leg)
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsg {
                 hop_num,
@@ -370,23 +485,25 @@ impl<'a> ControlHandler<'a> {
                     early: false,
                     cell,
                 };
-                Ok(RunOnceCmdInner::Send {
+                Ok(Some(RunOnceCmdInner::Send {
                     cell,
                     done: Some(sender),
-                })
+                }))
             }
+            // TODO(conflux): this should specify which leg to send the msg on
+            // (currently we send it down the primary leg)
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsgAndInstallHandler {
                 msg,
                 handler,
                 sender,
-            } => Ok(RunOnceCmdInner::SendMsgAndInstallHandler {
+            } => Ok(Some(RunOnceCmdInner::SendMsgAndInstallHandler {
                 msg,
                 handler,
                 done: sender,
-            }),
+            })),
             CtrlMsg::FirstHopClockSkew { answer } => {
-                Ok(RunOnceCmdInner::FirstHopClockSkew { answer })
+                Ok(Some(RunOnceCmdInner::FirstHopClockSkew { answer }))
             }
         }
     }
@@ -395,7 +512,7 @@ impl<'a> ControlHandler<'a> {
     pub(super) fn handle_cmd(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
         trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
         match msg {
-            CtrlCmd::Shutdown => Err(ReactorError::Shutdown),
+            CtrlCmd::Shutdown => self.reactor.handle_shutdown().map(|_| ()),
             #[cfg(feature = "hs-common")]
             #[allow(unreachable_code)]
             CtrlCmd::ExtendVirtual {
@@ -410,8 +527,17 @@ impl<'a> ControlHandler<'a> {
                 // describe why the virtual hop was added, or something?
                 let peer_id = path::HopDetail::Virtual;
 
-                self.reactor
-                    .add_hop(format, peer_id, outbound, inbound, binding, &params);
+                let Ok((_id, leg)) = self.reactor.circuits.single_leg_mut() else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot extend multipath tunnel"
+                    )
+                    .into()));
+
+                    return Ok(());
+                };
+
+                leg.add_hop(format, peer_id, outbound, inbound, binding, &params)?;
                 let _ = done.send(Ok(()));
 
                 Ok(())
@@ -433,9 +559,23 @@ impl<'a> ControlHandler<'a> {
                     filter,
                 };
 
-                let ret = self.reactor.set_incoming_stream_req_handler(handler);
+                let ret = self
+                    .reactor
+                    .cell_handlers
+                    .set_incoming_stream_req_handler(handler);
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
 
+                Ok(())
+            }
+            CtrlCmd::QueryLegs { done } => {
+                let ret = self
+                    .reactor
+                    .circuits
+                    .legs()
+                    .map(|(id, leg)| (id, leg.path()))
+                    .collect();
+                // TODO(conflux): Consider adding the leg id to the `Path`.
+                let _ = done.send(Ok(ret));
                 Ok(())
             }
             #[cfg(test)]
@@ -446,28 +586,45 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                self.reactor.handle_add_fake_hop(
-                    relay_cell_format,
-                    fwd_lasthop,
-                    rev_lasthop,
-                    &params,
-                    done,
-                );
+                let Ok((_id, leg)) = self.reactor.circuits.single_leg_mut() else {
+                    // Don't care if the receiver goes away
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "cannot add fake hop to multipath tunnel"
+                    )
+                    .into()));
+
+                    return Ok(());
+                };
+
+                leg.handle_add_fake_hop(relay_cell_format, fwd_lasthop, rev_lasthop, &params, done);
 
                 Ok(())
             }
             #[cfg(test)]
             CtrlCmd::QuerySendWindow { hop, done } => {
-                let _ = done.send(if let Some(hop) = self.reactor.hop_mut(hop) {
-                    Ok(hop.ccontrol.send_window_and_expected_tags())
-                } else {
-                    Err(Error::from(internal!(
+                // Immediately invoked function means that errors will be sent to the channel.
+                let _ = done.send((|| {
+                    let (_id, leg) =
+                        self.reactor
+                            .circuits
+                            .single_leg_mut()
+                            .map_err(into_bad_api_usage!(
+                                "cannot query send window of multipath tunnel"
+                            ))?;
+
+                    let hop = leg.hop_mut(hop).ok_or(bad_api_usage!(
                         "received QuerySendWindow for unknown hop {}",
                         hop.display()
-                    )))
-                });
+                    ))?;
+
+                    Ok(hop.send_window_and_expected_tags())
+                })());
 
                 Ok(())
+            }
+            #[cfg(feature = "conflux")]
+            CtrlCmd::ShutdownAndReturnCircuit { answer } => {
+                self.reactor.handle_shutdown_and_return_circuit(answer)
             }
         }
     }

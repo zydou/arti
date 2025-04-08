@@ -4,7 +4,7 @@ use std::cmp;
 use std::time::{Duration, SystemTime};
 
 use derive_deftly::{derive_deftly_adhoc, Deftly};
-use rand::{seq::SliceRandom as _, RngCore};
+use rand::{seq::IndexedRandom as _, RngCore};
 use serde::{Deserialize, Serialize};
 
 use tor_basic_utils::RngExt as _;
@@ -136,7 +136,7 @@ impl VanguardSets {
         // Resize the vanguard sets if necessary.
         self.l2_vanguards.update_target(params.l2_pool_size());
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Self::replenish_set(
             runtime,
             &mut rng,

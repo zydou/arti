@@ -1,14 +1,14 @@
 //! Module providing [`CircuitExtender`].
 
-use super::{MetaCellDisposition, MetaCellHandler, Reactor, ReactorResultChannel};
+use super::{Circuit, ReactorResultChannel};
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
-#[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircParameters;
+use crate::tunnel::reactor::MetaCellDisposition;
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
@@ -21,7 +21,7 @@ use tor_error::internal;
 use crate::crypto::handshake::ntor::NtorClient;
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::tunnel::circuit::path;
-use crate::tunnel::reactor::SendRelayCell;
+use crate::tunnel::reactor::{MetaCellHandler, SendRelayCell};
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 use tracing::trace;
@@ -30,7 +30,7 @@ use tracing::trace;
 ///
 /// Yes, I know having trait bounds on structs is bad, but in this case it's necessary
 /// since we want to be able to use `H::KeyType`.
-pub(super) struct CircuitExtender<H, L, FWD, REV>
+pub(crate) struct CircuitExtender<H, L, FWD, REV>
 where
     H: ClientHandshake,
 {
@@ -76,7 +76,7 @@ where
     /// current last hop which relay to connect to.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::blocks_in_conditions)]
-    pub(super) fn begin(
+    pub(crate) fn begin(
         relay_cell_format: RelayCellFormat,
         peer_id: OwnedChanTarget,
         handshake_id: HandshakeType,
@@ -84,15 +84,15 @@ where
         linkspecs: Vec<EncodedLinkSpec>,
         params: CircParameters,
         client_aux_data: &impl Borrow<H::ClientAuxData>,
-        reactor: &mut Reactor,
+        circ: &mut Circuit,
         done: ReactorResultChannel<()>,
     ) -> Result<(Self, SendRelayCell)> {
         match (|| {
-            let mut rng = rand::thread_rng();
-            let unique_id = reactor.unique_id;
+            let mut rng = rand::rng();
+            let unique_id = circ.unique_id;
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
-            let n_hops = reactor.crypto_out.n_layers();
+            let n_hops = circ.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(
                 "{}: Extending circuit to hop {} with {:?}",
@@ -142,7 +142,7 @@ where
     fn extend_circuit(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Reactor,
+        circ: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
         let msg = msg
             .decode::<Extended2>()
@@ -174,14 +174,14 @@ where
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back, binding) = layer.split();
-        reactor.add_hop(
+        circ.add_hop(
             self.relay_cell_format,
             path::HopDetail::Relay(self.peer_id.clone()),
             Box::new(layer_fwd),
             Box::new(layer_back),
             Some(binding),
             &self.params,
-        );
+        )?;
         Ok(MetaCellDisposition::ConversationFinished)
     }
 }
@@ -201,9 +201,9 @@ where
     fn handle_msg(
         &mut self,
         msg: UnparsedRelayMsg,
-        reactor: &mut Reactor,
+        circ: &mut Circuit,
     ) -> Result<MetaCellDisposition> {
-        let status = self.extend_circuit(msg, reactor);
+        let status = self.extend_circuit(msg, circ);
 
         if let Some(done) = self.operation_finished.take() {
             // ignore it if the receiving channel went away.
@@ -233,7 +233,7 @@ where
 // ```
 // trait HandshakeAuxDataHandler<H> where H: ClientHandshake
 // ```
-pub(super) trait HandshakeAuxDataHandler: ClientHandshake {
+pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     /// Handle auxiliary handshake data returned when creating or extending a
     /// circuit.
     fn handle_server_aux_data(
@@ -242,7 +242,6 @@ pub(super) trait HandshakeAuxDataHandler: ClientHandshake {
     ) -> Result<()>;
 }
 
-#[cfg(feature = "ntor_v3")]
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(_params: &CircParameters, data: &Vec<NtorV3Extension>) -> Result<()> {
         // There are currently no accepted server extensions,

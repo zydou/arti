@@ -76,7 +76,7 @@ impl<'a> HsDescEncryption<'a> {
     pub(super) fn encrypt<R: Rng + CryptoRng>(&self, rng: &mut R, data: &[u8]) -> Vec<u8> {
         let output_len = data.len() + SALT_LEN + MAC_LEN;
         let mut output = Vec::with_capacity(output_len);
-        let salt: [u8; SALT_LEN] = rng.gen();
+        let salt: [u8; SALT_LEN] = rng.random();
 
         let (mut cipher, mut mac) = self.init(&salt);
 
