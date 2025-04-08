@@ -241,3 +241,72 @@ fn missing_recommended_ok() -> Protocols {
     use tor_protover::named as n;
     [n::FLOWCTRL_CC].into_iter().collect()
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use tracing_test::traced_test;
+
+    use super::*;
+
+    #[test]
+    #[traced_test]
+    fn evaluate() {
+        let rec: ProtoStatuses = serde_json::from_str(
+            r#"{
+                "client": { "recommended" : "Relay=1-5", "required" : "Relay=3" },
+                "relay": { "recommended": "", "required" : ""}
+            }"#,
+        )
+        .unwrap();
+        let rec_date = humantime::parse_rfc3339("2025-03-08T10:16:00Z").unwrap();
+        let no_override = SoftwareStatusOverrideConfig {
+            ignore_missing_required_protocols: Protocols::default(),
+        };
+        let override_relay_3_4 = SoftwareStatusOverrideConfig {
+            ignore_missing_required_protocols: "Relay=3-4".parse().unwrap(),
+        };
+
+        // nothing missing.
+        let r =
+            evaluate_protocol_status(rec_date, &rec, &"Relay=1-10".parse().unwrap(), &no_override);
+        assert!(r.is_ok());
+        assert!(!logs_contain("listed as required"));
+        assert!(!logs_contain("listed as recommended"));
+
+        // Missing recommended.
+        let r =
+            evaluate_protocol_status(rec_date, &rec, &"Relay=1-4".parse().unwrap(), &no_override);
+        assert!(r.is_ok());
+        assert!(!logs_contain("listed as required"));
+        assert!(logs_contain("listed as recommended"));
+
+        // Missing required, but override is there.
+        let r = evaluate_protocol_status(
+            rec_date,
+            &rec,
+            &"Relay=1".parse().unwrap(),
+            &override_relay_3_4,
+        );
+        assert!(r.is_ok());
+        assert!(logs_contain("listed as required"));
+        assert!(logs_contain("but you should still upgrade"));
+
+        // Missing required, no override.
+        let r = evaluate_protocol_status(rec_date, &rec, &"Relay=1".parse().unwrap(), &no_override);
+        assert!(r.is_err());
+    }
+}

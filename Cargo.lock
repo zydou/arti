@@ -302,6 +302,7 @@ dependencies = [
  "rand 0.9.0",
  "safelog",
  "serde",
+ "serde_json",
  "strum",
  "tempfile",
  "thiserror 2.0.12",
@@ -336,6 +337,7 @@ dependencies = [
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
+ "tracing-test",
  "visibility",
  "void",
 ]
