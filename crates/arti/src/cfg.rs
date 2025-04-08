@@ -1313,7 +1313,7 @@ example config file {which:?}, uncommented={uncommented:?}
     #[test]
     fn metrics() {
         // Test that uncommenting the example generates a config
-        // with prometheus enabled, iff support is compiled in.
+        // with prometheus enabled.
 
         let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
         file.narrow((r"^\[metrics\]", true), (r"^\[", false));
