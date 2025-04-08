@@ -126,14 +126,26 @@ impl OnionServiceReverseProxy {
             .fuse();
         let nickname = Arc::new(nickname);
 
+        /// Which of the three counters for each action
+        #[cfg(feature = "metrics")]
+        #[derive(Clone, Copy, Eq, PartialEq, Hash)]
+        enum CounterSelector {
+            /// Two counters, one for successes, one for failures
+            Ret(Result<(), ()>),
+            /// One counter for the total
+            Total,
+        }
+
         #[cfg(feature = "metrics")]
         let metrics_counters = {
+            use CounterSelector as CS;
+
             let counters = iproduct!(
                 ProxyActionDiscriminants::iter(),
                 [
-                    (None, "arti_hss_proxy_connections_total"),
-                    (Some(Ok(())), "arti_hss_proxy_connections_ok_total"),
-                    (Some(Err(())), "arti_hss_proxy_connections_failed_total"),
+                    (CS::Total, "arti_hss_proxy_connections_total"),
+                    (CS::Ret(Ok(())), "arti_hss_proxy_connections_ok_total"),
+                    (CS::Ret(Err(())), "arti_hss_proxy_connections_failed_total"),
                 ],
             )
             .map(|(action, (outcome, name))| {
@@ -143,7 +155,7 @@ impl OnionServiceReverseProxy {
                 let v = metrics::counter!(name, "nickname" => nickname, "action" => action);
                 (k, v)
             })
-            .collect::<HashMap<_, _>>();
+            .collect::<HashMap<(ProxyActionDiscriminants, CounterSelector), _>>();
 
             Arc::new(counters)
         };
@@ -172,9 +184,11 @@ impl OnionServiceReverseProxy {
 
                     #[cfg(feature = "metrics")]
                     {
+                        use CounterSelector as CS;
+
                         let action = ProxyActionDiscriminants::from(&action);
                         let outcome = outcome.as_ref().map(|_|()).map_err(|_|());
-                        for outcome in [None, Some(outcome)] {
+                        for outcome in [CS::Total, CS::Ret(outcome)] {
                             if let Some(counter) = metrics_counters.get(&(action, outcome)) {
                                 counter.increment(1);
                             } else {
