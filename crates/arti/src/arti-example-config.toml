@@ -102,7 +102,8 @@
 # Usually only used when providing Tor Hidden Services (Onion Services).
 #
 # WARNING: exposing these metrics publicly is dangerous, and must be avoided.
-# In Arti, only plaintest HTTP, over IPv4, on a localhost port, is supported.
+# Currently only plaintest HTTP is supported, either on a localhost IPv4 port,
+# or on a single other IPv4 or IPv6 address and port.
 # There is no access control beyond that implied by listening only on localhost.
 #
 # The set of metrics currently available is quite limited, and not stable.
