@@ -34,9 +34,9 @@ pub struct ConsensusBuilder<RS> {
     client_versions: Vec<String>,
     /// See [`CommonHeader::relay_versions`]
     relay_versions: Vec<String>,
-    /// See [`CommonHeader::client_protos`]
+    /// See [`CommonHeader::proto_statuses`]
     client_protos: ProtoStatus,
-    /// See [`CommonHeader::relay_protos`]
+    /// See [`CommonHeader::proto_statuses`]
     relay_protos: ProtoStatus,
     /// See [`CommonHeader::params`]
     params: NetParams<i32>,
