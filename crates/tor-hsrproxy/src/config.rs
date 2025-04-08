@@ -228,6 +228,9 @@ impl ProxyPattern {
 }
 
 /// An action to take upon receiving an incoming request.
+//
+// The variant names (but not the payloads) are part of the metrics schema.
+// When changing them, see `doc/dev/MetricsStrategy.md` re schema stability policy.
 #[derive(
     Clone,
     Debug,

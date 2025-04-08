@@ -46,6 +46,12 @@ This is arguably clumsy.  We may consider introducing some kind of
 indirection layer, which could use uninhabited types rather than `cfg`
 to compile the code out when it's not wanted.
 
+## Stability of metrics schema
+
+Currently the whole metrics system is behind `experimental` feature flags.
+
+We need to decide what our stability policy is for the metrics schema.
+
 ## Reporting and configuration
 
 Actual reporting of metrics is done by much higher level crates.
