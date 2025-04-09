@@ -236,6 +236,15 @@ enum RunOnceCmdInner {
         /// The cell to send.
         cell: SendRelayCell,
     },
+    /// Send a LINK cell on each of the unlinked circuit legs in the conflux set of this reactor.
+    #[cfg(feature = "conflux")]
+    Link {
+        /// The circuits to link into the tunnel
+        #[educe(Debug(ignore))]
+        circuits: Vec<Circuit>,
+        /// Oneshot channel for notifying of conflux handshake completion.
+        answer: ConfluxLinkResultChannel,
+    },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
 }
@@ -444,9 +453,6 @@ pub struct Reactor {
     /// Contains 1 or more circuits.
     ///
     /// Circuits may be added to this set throughout the lifetime of the reactor.
-    //
-    // TODO(conflux): add a control command for adding a circuit leg,
-    // and update these docs to explain how legs are added
     ///
     /// Sometimes, the reactor will remove circuits from this set,
     /// for example if the `LINKED` message takes too long to arrive,
@@ -644,7 +650,6 @@ impl Reactor {
             return Ok(());
         }
 
-        // TODO(conflux): support adding and linking circuits
         // TODO(conflux): support switching the primary leg
 
         let action = select_biased! {
@@ -897,6 +902,14 @@ impl Reactor {
 
                 res?;
             }
+            #[cfg(feature = "conflux")]
+            RunOnceCmdInner::Link { circuits, answer } => {
+                // Add the specified circuits to our conflux set,
+                // and send a LINK cell down each unlinked leg.
+                //
+                // NOTE: this will block the reactor until all the cells are sent.
+                self.handle_link_circuits(circuits, answer).await;
+            }
         }
 
         Ok(())
@@ -1112,6 +1125,41 @@ impl Reactor {
     /// Returns `None` if either the `leg` or `hop` don't exist.
     fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
         self.circuits.uses_stream_sendme(leg, hop)
+    }
+
+    /// Handle a request to link some extra circuits in the reactor's conflux set.
+    ///
+    /// The circuits are validated, and if they do not have the same length,
+    /// or if they do not all have the same last hop, an error is returned on
+    /// the `answer` channel, and the conflux handshake is *not* initiated.
+    ///
+    /// If validation succeeds, the circuits are added to this reactor's conflux set,
+    /// and the conflux handshake is initiated (by sending a LINK cell on each leg).
+    ///
+    /// NOTE: this blocks the reactor main loop until all the cells are sent.
+    #[cfg(feature = "conflux")]
+    async fn handle_link_circuits(
+        &mut self,
+        circuits: Vec<Circuit>,
+        answer: ConfluxLinkResultChannel,
+    ) {
+        // Note: add_legs validates `circuits`
+        let res = async {
+            self.circuits.add_legs(circuits)?;
+
+            // TODO(conflux): check if we negotiated prop324 cc on *all* circuits,
+            // returning an error if not?
+
+            self.circuits.link_circuits().await
+        }
+        .await;
+
+        if let Err(e) = res {
+            // don't care if the receiver goes away
+            let _ = answer.send(Err(e));
+        }
+        // XXX save answer in the reactor, to notify the initiator
+        // of tunnel completion
     }
 }
 

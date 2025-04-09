@@ -34,7 +34,7 @@ use {
 use crate::congestion::sendme::CircTag;
 
 #[cfg(feature = "conflux")]
-use super::Circuit;
+use super::{Circuit, ConfluxLinkResultChannel};
 
 use oneshot_fused_workaround as oneshot;
 
@@ -175,6 +175,23 @@ pub(crate) enum CtrlMsg {
     FirstHopClockSkew {
         /// Oneshot channel to return the clock skew.
         answer: oneshot::Sender<StdResult<ClockSkew, Bug>>,
+    },
+    /// Link the specified circuits into the current tunnel,
+    /// to form a multi-path tunnel.
+    #[cfg(feature = "conflux")]
+    #[allow(unused)] // TODO(conflux)
+    LinkCircuits {
+        /// The circuits to link into the tunnel,
+        #[educe(Debug(ignore))]
+        circuits: Vec<Circuit>,
+        /// Oneshot channel to notify sender when all the specified circuits have finished linking,
+        /// or have failed to link.
+        ///
+        /// A client circuit is said to be fully linked once the `RELAY_CONFLUX_LINKED_ACK` is sent
+        /// (see [set construction]).
+        ///
+        /// [set construction]: https://spec.torproject.org/proposals/329-traffic-splitting.html#set-construction
+        answer: ConfluxLinkResultChannel,
     },
 }
 
@@ -553,6 +570,10 @@ impl<'a> ControlHandler<'a> {
             })),
             CtrlMsg::FirstHopClockSkew { answer } => {
                 Ok(Some(RunOnceCmdInner::FirstHopClockSkew { answer }))
+            }
+            #[cfg(feature = "conflux")]
+            CtrlMsg::LinkCircuits { circuits, answer } => {
+                Ok(Some(RunOnceCmdInner::Link { circuits, answer }))
             }
         }
     }
