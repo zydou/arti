@@ -1700,7 +1700,7 @@ mod test {
 
     #[cfg_attr(not(miri), traced_test)]
     #[test]
-    fn subthread() {
+    fn subthread_oneshot() {
         for runtime in various_mock_executors() {
             runtime.block_on(async {
                 let (tx, rx) = oneshot::channel();
@@ -1720,6 +1720,48 @@ mod test {
                 let r = thr.await.unwrap();
                 info!("main task thr => {r}");
                 assert_eq!(r, 13);
+            });
+        }
+    }
+
+    #[cfg_attr(not(miri), traced_test)]
+    #[test]
+    fn subthread_pingpong() {
+        for runtime in various_mock_executors() {
+            runtime.block_on(async {
+                let (mut i_tx, mut i_rx) = mpsc::channel(1);
+                let (mut o_tx, mut o_rx) = mpsc::channel(1);
+                info!("spawning subthread");
+                let thr = runtime.subthread_spawn("thr", {
+                    let runtime = runtime.clone();
+                    move || {
+                        while let Some(i) = {
+                            info!("thread receiving ...");
+                            runtime.subthread_block_on_future(i_rx.next())
+                        } {
+                            let o = i + 12;
+                            info!("thread received {i}, sending {o}");
+                            runtime.subthread_block_on_future(o_tx.send(o)).unwrap();
+                            info!("thread sent {o}");
+                        }
+                        info!("thread exiting");
+                        42
+                    }
+                });
+                for i in 0..2 {
+                    info!("main task sending {i}");
+                    i_tx.send(i).await.unwrap();
+                    info!("main task sent {i}");
+                    let o = o_rx.next().await.unwrap();
+                    info!("main task recv => {o}");
+                    assert_eq!(o, i + 12);
+                }
+                info!("main task dropping sender");
+                drop(i_tx);
+                info!("main task awaiting thread");
+                let r = thr.await.unwrap();
+                info!("main task complete");
+                assert_eq!(r, 42);
             });
         }
     }
