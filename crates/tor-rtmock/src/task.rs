@@ -226,9 +226,11 @@ struct Task {
 }
 
 /// A future as stored in our record of a [`Task`]
+#[derive(Educe)]
+#[educe(Debug)]
 enum TaskFutureInfo {
     /// The [`Future`].  All is normal.
-    Normal(TaskFuture),
+    Normal(#[educe(Debug(ignore))] TaskFuture),
     /// The future isn't here because this task is the main future for `block_on`
     Main,
 }
