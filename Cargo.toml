@@ -69,6 +69,7 @@ members = [
     "crates/arti",
     "crates/arti-bench",
     "crates/arti-testing",
+    "crates/arti-ureq",
 
     "crates/arti-rpc-client-core",
 
@@ -83,6 +84,7 @@ members = [
     "examples/hyper/hyper-http-hs-example",
     "examples/axum/axum-hello-world",
     "examples/download-manager",
+    "examples/ureq-examples",
 ]
 
 resolver = "2"
