@@ -1055,7 +1055,7 @@ impl Shared {
 
         trace!("MockExecutor thread {id:?}, completed user code");
 
-        // This makes SubthreadFuture ready.
+        // This makes the return value from subthread_spawn ready.
         // It will be polled by the executor in due course, presumably.
 
         output_tx.send(ret).unwrap_or_else(
