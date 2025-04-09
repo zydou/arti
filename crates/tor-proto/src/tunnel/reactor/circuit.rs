@@ -1241,7 +1241,12 @@ impl Circuit {
         .await
     }
 
-    /// Return the hop corresponding to `hopnum`, if there is one.
+    /// Return a reference to the hop corresponding to `hopnum`, if there is one.
+    pub(super) fn hop(&self, hopnum: HopNum) -> Option<&CircHop> {
+        self.hops.get(Into::<usize>::into(hopnum))
+    }
+
+    /// Return a mutable reference to the hop corresponding to `hopnum`, if there is one.
     pub(super) fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
         self.hops.get_mut(Into::<usize>::into(hopnum))
     }

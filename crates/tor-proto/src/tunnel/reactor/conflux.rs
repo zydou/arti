@@ -88,6 +88,11 @@ impl ConfluxSet {
         }
     }
 
+    /// Return a reference to the leg of this conflux set with the given id.
+    pub(super) fn leg(&self, leg_id: LegId) -> Option<&Circuit> {
+        self.legs.get(leg_id.0)
+    }
+
     /// Return a mutable reference to the leg of this conflux set with the given id.
     pub(super) fn leg_mut(&mut self, leg_id: LegId) -> Option<&mut Circuit> {
         self.legs.get_mut(leg_id.0)
