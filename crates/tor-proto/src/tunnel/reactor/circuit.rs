@@ -115,6 +115,10 @@ pub(super) struct CircHop {
     ccontrol: CongestionControl,
     /// Decodes relay cells received from this hop.
     inbound: RelayCellDecoder,
+    /// Format to use for relay cells.
+    //
+    // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
+    relay_format: RelayCellFormat,
 }
 
 /// A circuit "leg" from a tunnel.
@@ -254,14 +258,13 @@ impl Circuit {
     /// in response to that cell.
     fn encode_relay_cell(
         crypto_out: &mut OutboundClientCrypt,
+        relay_format: RelayCellFormat,
         hop: HopNum,
         early: bool,
         msg: AnyRelayMsgOuter,
     ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
-        // TODO #1944: Select another format when appropriate!
-        let rfmt = RelayCellFormat::V0;
         let mut body: RelayCellBody = msg
-            .encode(rfmt, &mut rand::rng())
+            .encode(relay_format, &mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
             .into();
         let tag = crypto_out.encrypt(&mut body, hop)?;
@@ -312,7 +315,8 @@ impl Circuit {
         }
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let (msg, tag) = Self::encode_relay_cell(&mut self.crypto_out, hop, early, msg)?;
+        let (msg, tag) =
+            Self::encode_relay_cell(&mut self.crypto_out, circhop.relay_format, hop, early, msg)?;
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
@@ -1333,7 +1337,7 @@ impl CircHop {
     pub(super) fn new(
         unique_id: UniqId,
         hop_num: HopNum,
-        format: RelayCellFormat,
+        relay_format: RelayCellFormat,
         params: &CircParameters,
     ) -> Self {
         CircHop {
@@ -1341,7 +1345,8 @@ impl CircHop {
             hop_num,
             map: Arc::new(Mutex::new(streammap::StreamMap::new())),
             ccontrol: CongestionControl::new(&params.ccontrol),
-            inbound: RelayCellDecoder::new(format),
+            inbound: RelayCellDecoder::new(relay_format),
+            relay_format,
         }
     }
 
