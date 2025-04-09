@@ -467,6 +467,11 @@ pub(crate) mod tor1 {
     /// this one, seeded with an initial value (either Df or Db in the spec).
     ///
     /// These operations is described in tor-spec section 6.1 "Relay cells"
+    //
+    // TODO: It may be that we should un-parameterize the functions
+    // that use RCF: given our timeline for deployment of CGO encryption,
+    // it is likely that we will never actually want to  support `tor1` encryption
+    // with any other format than RelayCellFormat::V0.
     impl RelayCellBody {
         /// Returns the byte slice of the `recognized` field.
         fn recognized<RCF: RelayCellFormatTrait>(&self) -> &[u8] {

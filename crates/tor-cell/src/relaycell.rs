@@ -148,6 +148,8 @@ impl RelayCmd {
             | RelayCmd::INTRO_ESTABLISHED
             | RelayCmd::RENDEZVOUS_ESTABLISHED
             | RelayCmd::INTRODUCE_ACK => StreamIdReq::WantNone,
+            // TODO #1944: this is going to be dependent on the CC algorithm in
+            // use and/or the relay format.
             RelayCmd::SENDME => StreamIdReq::Any,
             _ => StreamIdReq::Any,
         }
@@ -223,6 +225,14 @@ pub enum RelayCellFormat {
 }
 
 /// Specifies a relay cell format and associated types.
+///
+// TODO: This trait was created while we were working on packed/fragmented cells
+// (proposal 340), in order to parameterize the old `tor1` encryption algorithm
+// to support the improved format.
+// But due to roadmap shifts, it seems that we are implementing CGO encryption
+// before packed/fragmented cells, so this trait is not likely to be needed.
+// We can, possibly, remove this trait:
+// Nothing but `tor1` encryption uses it, and there is only one implementation.
 pub trait RelayCellFormatTrait {
     /// Which format this object is for.
     const FORMAT: RelayCellFormat;
@@ -242,6 +252,8 @@ impl RelayCellFormatTrait for RelayCellFormatV0 {
 }
 
 /// Specifies field layout for a particular relay cell format.
+//
+// TODO: See notes on RelayCellFormatTrait.
 pub trait RelayCellFields {
     /// The range containing the `recognized` field, within a relay cell's body.
     const RECOGNIZED_RANGE: std::ops::Range<usize>;
@@ -556,6 +568,8 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
     }
     /// Consume this relay message and encode it as a 509-byte padded cell
     /// body.
+    //
+    // TODO #1944: Take a format.
     pub fn encode<R: Rng + CryptoRng>(self, rng: &mut R) -> crate::Result<BoxedCellBody> {
         /// We skip this much space before adding any random padding to the
         /// end of the cell
@@ -572,6 +586,8 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
 
     /// Consume a relay cell and return its contents, encoded for use
     /// in a RELAY or RELAY_EARLY cell.
+    //
+    // TODO #1944: this is V0-only.
     fn encode_to_cell(self) -> EncodeResult<(BoxedCellBody, usize)> {
         // NOTE: This implementation is a bit optimized, since it happens to
         // literally every relay cell that we produce.

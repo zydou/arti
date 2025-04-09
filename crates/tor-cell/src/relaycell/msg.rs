@@ -318,6 +318,7 @@ pub struct Data {
 impl Data {
     /// The longest allowable body length for a single data cell.
     /// Relay command (1) + 'Recognized' (2) + StreamID (2) + Digest (4) + Length (2) = 11
+    // TODO #1944: This is now dependent on the format!
     pub const MAXLEN: usize = CELL_DATA_LEN - 11;
 
     /// Construct a new data cell.

@@ -944,7 +944,7 @@ impl Circuit {
             .expect("Unable to build RelayIds");
         self.channel.check_match(&target)?;
 
-        // TODO: Add support for negotiating other formats.
+        // TODO #1947: Add support for negotiating other formats.
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
         // TODO: Set client extensions. e.g. request congestion control

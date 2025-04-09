@@ -354,7 +354,7 @@ impl<'a> ControlHandler<'a> {
                     return Ok(None);
                 };
 
-                // TODO #1067: support negotiating other formats.
+                // TODO #1067, TODO #1947: support negotiating other formats.
                 /// Local type alias to ensure consistency below.
                 type Rcf = RelayCellFormatV0;
 
