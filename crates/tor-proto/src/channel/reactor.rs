@@ -18,7 +18,12 @@ use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg::AnyChanMsg, AnyChanCell, CircId};
 use tor_memquota::mq_queue;
-use tor_rtcompat::{SleepProvider, StreamOps};
+use tor_rtcompat::SleepProvider;
+
+#[cfg_attr(not(target_os = "linux"), allow(unused))]
+use tor_error::error_report;
+#[cfg_attr(not(target_os = "linux"), allow(unused))]
+use tor_rtcompat::StreamOps;
 
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
@@ -28,7 +33,7 @@ use futures::stream::Stream;
 use futures::Sink;
 use futures::StreamExt as _;
 use futures::{select, select_biased};
-use tor_error::{error_report, internal};
+use tor_error::internal;
 
 use std::fmt;
 use std::pin::Pin;
@@ -123,6 +128,7 @@ pub struct Reactor<S: SleepProvider> {
     /// This should also be backed by a TLS connection if you want it to be secure.
     pub(super) output: BoxedChannelSink,
     /// A handler for setting stream options on the underlying stream.
+    #[cfg_attr(not(target_os = "linux"), allow(unused))]
     pub(super) streamops: BoxedChannelStreamOps,
     /// Timer tracking when to generate channel padding
     pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,

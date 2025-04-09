@@ -369,10 +369,10 @@ impl<R: Runtime + ToplevelBlockOn> Transport for HttpTransport<R> {
         // We use `TorClient::connect` without `StreamPrefs::optimistic`,
         // so `.is_connected()` tells us whether the stream has *ceased to be* open;
         // i.e., we don't risk returning `false` because the stream isn't open *yet*.
-        self.r.lock().map_or(false, |guard| {
+        self.r.lock().is_ok_and(|guard| {
             guard
                 .client_stream_ctrl()
-                .map_or(false, |ctrl| ctrl.is_connected())
+                .is_some_and(|ctrl| ctrl.is_connected())
         })
     }
 }
@@ -687,7 +687,7 @@ mod arti_ureq_test {
     // Helper function to check if the enviroment variable ARTI_TEST_LIVE_NETWORK is set to 1.
     // We only want to run tests using the live network when the user explicitly wants to.
     fn test_live_network() -> bool {
-        let run_test = std::env::var(ARTI_TEST_LIVE_NETWORK).map_or(false, |v| v == "1");
+        let run_test = std::env::var(ARTI_TEST_LIVE_NETWORK).is_ok_and(|v| v == "1");
         if !run_test {
             println!("Skipping test, set {}=1 to run.", ARTI_TEST_LIVE_NETWORK);
         }
@@ -699,7 +699,7 @@ mod arti_ureq_test {
     // Some tests, especially those that create default `Connector` instances, or test the `ConnectorBuilder`,
     // are not reliable when run on CI.  We don't know why that is.  It's probably a bug.  TODO fix the tests!
     fn testing_on_local() -> bool {
-        let run_test = std::env::var(ARTI_TESTING_ON_LOCAL).map_or(false, |v| v == "1");
+        let run_test = std::env::var(ARTI_TESTING_ON_LOCAL).is_ok_and(|v| v == "1");
         if !run_test {
             println!("Skipping test, set {}=1 to run.", ARTI_TESTING_ON_LOCAL);
         }
