@@ -428,11 +428,7 @@ impl MockExecutor {
 
 impl Data {
     /// Insert a task given its `TaskFutureInfo` and return its `TaskId`.
-    fn insert_task(
-        &mut self,
-        desc: String,
-        fut: TaskFutureInfo,
-    ) -> TaskId {
+    fn insert_task(&mut self, desc: String, fut: TaskFutureInfo) -> TaskId {
         let state = Awake;
         let id = self.tasks.insert(Task {
             state,
@@ -971,10 +967,7 @@ impl MockExecutor {
     ///
     /// If the executor isn't running, `subthread_block_on_future` will hang indefinitely.
     /// See `spawn_subthread`.
-    pub fn subthread_block_on_future<T: Send + 'static>(
-        &self,
-        fut: impl Future<Output = T>,
-    ) -> T {
+    pub fn subthread_block_on_future<T: Send + 'static>(&self, fut: impl Future<Output = T>) -> T {
         let id = match THREAD_DESCRIPTOR.get() {
             ThreadDescriptor::Subthread(id) => id,
             ThreadDescriptor::Executor => {
@@ -1446,11 +1439,7 @@ impl Debug for DebugDump<'_> {
 // See `impl Debug for Data` for notes on the output
 impl Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let Task {
-            desc,
-            state,
-            fut,
-        } = self;
+        let Task { desc, state, fut } = self;
         write!(f, "{:?}", desc)?;
         write!(f, "=")?;
         match fut {
