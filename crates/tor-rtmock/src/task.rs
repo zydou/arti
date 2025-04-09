@@ -206,10 +206,15 @@ struct Task {
     state: TaskState,
     /// The actual future (or a placeholder for it)
     ///
-    /// May be `None` because we've temporarily moved it out so we can poll it,
+    /// May be `None` briefly in the executor main loop, because we've
+    /// temporarily moved it out so we can poll it,
     /// or if this is a Subthread task which is currently running sync code
     /// (in which case we're blocked in the executor waiting to be
     /// woken up by [`thread_context_switch`](Shared::thread_context_switch).
+    ///
+    /// Note that the `None` can be observed outside the main loop, because
+    /// the main loop unlocks while it polls, so other (non-main-loop) code
+    /// might see it.
     fut: Option<TaskFutureInfo>,
     /// Is this task actually a [`Subthread`](MockExecutor::subthread_spawn)?
     ///
