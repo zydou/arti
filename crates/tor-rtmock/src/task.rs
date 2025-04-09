@@ -22,7 +22,7 @@ use futures::FutureExt as _;
 
 use assert_matches::assert_matches;
 use educe::Educe;
-use itertools::Either;
+use itertools::Either::{self, *};
 use itertools::{chain, izip};
 use slotmap_careful::DenseSlotMap;
 use std::backtrace::Backtrace;
@@ -1409,14 +1409,14 @@ impl MockExecutor {
     /// see [`.debug_dump()`](MockExecutor::debug_dump).
     pub fn as_debug_dump(&self) -> DebugDump {
         let data = self.shared.lock();
-        DebugDump(Either::Right(data))
+        DebugDump(Right(data))
     }
 }
 
 impl Data {
     /// Convenience function: dump including backtraces, to stderr
     fn debug_dump(&mut self) {
-        DebugDump(Either::Left(self)).to_stderr();
+        DebugDump(Left(self)).to_stderr();
     }
 }
 
