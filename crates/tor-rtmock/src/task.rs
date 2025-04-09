@@ -695,12 +695,8 @@ impl MockExecutor {
             };
 
             // Poll the selected task
-            let waker = ActualWaker {
-                data: Arc::downgrade(&self.shared),
-                id,
-            }
-            .new_waker();
             trace!("MockExecutor {id:?} polling...");
+            let waker = ActualWaker::make_waker(&self.shared, id);
             let mut cx = Context::from_waker(&waker);
             let r = match &mut fut {
                 TaskFutureInfo::Normal(fut) => fut.poll_unpin(&mut cx),
@@ -805,6 +801,15 @@ impl ActualWaker {
             return;
         };
         task.set_awake(self.id, &mut data.awake);
+    }
+
+    /// Create and return a `Waker` for task `id`
+    fn make_waker(shared: &Arc<Shared>, id: TaskId) -> Waker {
+        ActualWaker {
+            data: Arc::downgrade(shared),
+            id,
+        }
+        .new_waker()
     }
 }
 
