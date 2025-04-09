@@ -980,10 +980,17 @@ impl MockExecutor {
         trace!("MockExecutor thread {id:?}, subthread_block_on_future...");
         let mut fut = pin!(fut);
 
+        /// `yield_` should set our task awake before switching to the executor
+        struct SetAwake;
+
         // Yield back to the executor.
         //
         // Checks that things are in order, and switches to the executor thread.
-        let yield_ = || {
+        //
+        // With `SetAwake`, sets our task awake, so that we'll be polled
+        // again as soon as we get to the top of the executor's queue.
+        // Otherwise, we'll be reentered after someone wakes our Waker.
+        let yield_ = |set_awake: Option<SetAwake>| {
             let mut data = self.shared.lock();
             {
                 let data = &mut *data;
@@ -992,6 +999,9 @@ impl MockExecutor {
                     Some(TaskFutureInfo::Subthread) => {}
                     other => panic!("subthread_block_on_future but TFI {other:?}"),
                 };
+                if let Some(SetAwake) = set_awake {
+                    task.set_awake(id, &mut data.awake);
+                }
             }
             self.shared.thread_context_switch(
                 data,
@@ -999,6 +1009,10 @@ impl MockExecutor {
                 ThreadDescriptor::Executor,
             );
         };
+
+        // We yield once before the first poll, and once after Ready, to shake up the
+        // execution order a bit, depending on the scheduling policy.
+        yield_(Some(SetAwake));
 
         let ret = loop {
             // Poll the provided future
@@ -1017,8 +1031,10 @@ impl MockExecutor {
             // so that the executor will "poll" us again.
             trace!("MockExecutor thread {id:?}, s.t._block_on_future poll -> Pending");
 
-            yield_();
+            yield_(None);
         };
+
+        yield_(Some(SetAwake));
 
         trace!("MockExecutor thread {id:?}, subthread_block_on_future complete.");
 
