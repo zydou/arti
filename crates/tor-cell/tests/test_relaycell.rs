@@ -65,8 +65,9 @@ fn cell(body: &str, id: Option<StreamId>, msg: AnyRelayMsg) {
         format!("{:?}", decoded_from_partial)
     );
 
-    let encoded1 = decoded.encode(&mut bad_rng).unwrap();
-    let encoded2 = expected.encode(&mut bad_rng).unwrap();
+    let fmt = RelayCellFormat::V0;
+    let encoded1 = decoded.encode(fmt, &mut bad_rng).unwrap();
+    let encoded2 = expected.encode(fmt, &mut bad_rng).unwrap();
 
     assert_eq!(&encoded1[..], &encoded2[..]);
 }

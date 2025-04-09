@@ -101,7 +101,7 @@ mod test {
         UnparsedRelayMsg::from_singleton_body(
             RelayCellFormat::V0,
             AnyRelayMsgOuter::new(StreamId::new(77), val)
-                .encode(rng)
+                .encode(RelayCellFormat::V0, rng)
                 .expect("encoding failed"),
         )
         .unwrap()

@@ -569,13 +569,19 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
     /// Consume this relay message and encode it as a 509-byte padded cell
     /// body.
     //
-    // TODO #1944: Take a format.
-    pub fn encode<R: Rng + CryptoRng>(self, rng: &mut R) -> crate::Result<BoxedCellBody> {
+    // TODO prop340: This API won't work for packed or fragmented messages.
+    pub fn encode<R: Rng + CryptoRng>(
+        self,
+        format: RelayCellFormat,
+        rng: &mut R,
+    ) -> crate::Result<BoxedCellBody> {
         /// We skip this much space before adding any random padding to the
         /// end of the cell
         const MIN_SPACE_BEFORE_PADDING: usize = 4;
 
-        let (mut body, enc_len) = self.encode_to_cell()?;
+        let (mut body, enc_len) = match format {
+            RelayCellFormat::V0 => self.encode_to_cell_v0()?,
+        };
         debug_assert!(enc_len <= CELL_DATA_LEN);
         if enc_len < CELL_DATA_LEN - MIN_SPACE_BEFORE_PADDING {
             rng.fill_bytes(&mut body[enc_len + MIN_SPACE_BEFORE_PADDING..]);
@@ -586,9 +592,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
 
     /// Consume a relay cell and return its contents, encoded for use
     /// in a RELAY or RELAY_EARLY cell.
-    //
-    // TODO #1944: this is V0-only.
-    fn encode_to_cell(self) -> EncodeResult<(BoxedCellBody, usize)> {
+    fn encode_to_cell_v0(self) -> EncodeResult<(BoxedCellBody, usize)> {
         // NOTE: This implementation is a bit optimized, since it happens to
         // literally every relay cell that we produce.
 

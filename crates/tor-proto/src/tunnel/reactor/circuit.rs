@@ -258,8 +258,10 @@ impl Circuit {
         early: bool,
         msg: AnyRelayMsgOuter,
     ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
+        // TODO #1944: Select another format when appropriate!
+        let rfmt = RelayCellFormat::V0;
         let mut body: RelayCellBody = msg
-            .encode(&mut rand::rng())
+            .encode(rfmt, &mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
             .into();
         let tag = crypto_out.encrypt(&mut body, hop)?;
