@@ -1016,10 +1016,12 @@ impl MockExecutor {
 
         {
             let mut data = self.shared.lock();
-            let data_ = &mut *data;
-            let task = data_.tasks.get_mut(id).expect("Subthread task vanished!");
-            task.fut = Some(fut);
-            task.set_awake(id, &mut data_.awake);
+            {
+                let data = &mut *data;
+                let task = data.tasks.get_mut(id).expect("Subthread task vanished!");
+                task.fut = Some(fut);
+                task.set_awake(id, &mut data.awake);
+            }
 
             self.shared.thread_context_switch(
                 data,
