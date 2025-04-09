@@ -222,6 +222,11 @@ impl StreamId {
 pub enum RelayCellFormat {
     /// This is the "legacy" pre-prop340 format. No packing or fragmentation.
     V0,
+    /// A "transitional" format for use with Counter Galois Onion encryption.
+    ///
+    /// It provides a 16-byte tag field, and a simplified layout for the rest of
+    /// the cell.
+    V1,
 }
 
 /// Specifies a relay cell format and associated types.
@@ -280,6 +285,8 @@ impl RelayCellFields for RelayCellFieldsV0 {
 enum RelayCellDecoderInternal {
     /// Internal state for `RelayCellFormat::V0`
     V0,
+    /// Internal state for `RelayCellFormat::V1`
+    V1,
 }
 
 // TODO prop340: We should also fuzz RelayCellDecoder, but not in this fuzzer.
@@ -299,6 +306,9 @@ impl RelayCellDecoder {
             RelayCellFormat::V0 => Self {
                 internal: RelayCellDecoderInternal::V0,
             },
+            RelayCellFormat::V1 => Self {
+                internal: RelayCellDecoderInternal::V1,
+            },
         }
     }
     /// Parse a RELAY or RELAY_EARLY cell body.
@@ -306,22 +316,24 @@ impl RelayCellDecoder {
     /// Requires that the cryptographic checks on the message have already been
     /// performed
     pub fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
-        match &self.internal {
-            RelayCellDecoderInternal::V0 => Ok(RelayCellDecoderResult {
-                msgs: smallvec![UnparsedRelayMsg {
-                    internal: UnparsedRelayMsgInternal::V0(cell)
-                }],
-                incomplete: None,
-            }),
-        }
+        let msg_internal = match &self.internal {
+            RelayCellDecoderInternal::V0 => UnparsedRelayMsgInternal::V0(cell),
+            RelayCellDecoderInternal::V1 => UnparsedRelayMsgInternal::V1(cell),
+        };
+        Ok(RelayCellDecoderResult {
+            msgs: smallvec![UnparsedRelayMsg {
+                internal: msg_internal
+            }],
+            incomplete: None,
+        })
     }
     /// Returns the `IncompleteRelayMsgInfo` describing the partial
     /// (fragmented) relay message at the end of the so-far-processed relay cell
     /// stream.
     pub fn incomplete_info(&self) -> Option<IncompleteRelayMsgInfo> {
         match &self.internal {
-            // V0 doesn't support fragmentation, so there is never a pending fragment.
-            RelayCellDecoderInternal::V0 => None,
+            // V0 and V1 don't support fragmentation, so there is never a pending fragment.
+            RelayCellDecoderInternal::V0 | RelayCellDecoderInternal::V1 => None,
         }
     }
 }
@@ -424,6 +436,10 @@ enum UnparsedRelayMsgInternal {
     // It *is* a bit ugly to have to encode so much knowledge about the format in
     // different functions here, but that information shouldn't leak out of this module.
     V0(BoxedCellBody),
+
+    /// For `V1` we can also avoid copies, since there is still exactly one
+    /// relay message per cell.
+    V1(BoxedCellBody),
 }
 
 /// An enveloped relay message that has not yet been fully parsed, but where we
@@ -475,6 +491,7 @@ impl UnparsedRelayMsg {
                 const CMD_OFFSET: usize = 0;
                 body[CMD_OFFSET].into()
             }
+            UnparsedRelayMsgInternal::V1(_body) => todo!(), // TODO #1944
         }
     }
     /// Return the stream ID for the stream that this msg corresponds to, if any.
@@ -485,6 +502,7 @@ impl UnparsedRelayMsg {
                     .try_into()
                     .expect("two-byte slice was not two bytes long!?"),
             )),
+            UnparsedRelayMsgInternal::V1(_body) => todo!(), // TODO #1944
         }
     }
     /// Decode this unparsed cell into a given cell type.
@@ -494,6 +512,7 @@ impl UnparsedRelayMsg {
                 let mut reader = Reader::from_slice(body.as_ref());
                 RelayMsgOuter::decode_v0_from_reader(&mut reader)
             }
+            UnparsedRelayMsgInternal::V1(_body) => todo!(), // TODO #1944
         }
     }
 }
@@ -581,6 +600,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
 
         let (mut body, enc_len) = match format {
             RelayCellFormat::V0 => self.encode_to_cell_v0()?,
+            RelayCellFormat::V1 => todo!(), // TODO #1944
         };
         debug_assert!(enc_len <= CELL_DATA_LEN);
         if enc_len < CELL_DATA_LEN - MIN_SPACE_BEFORE_PADDING {
