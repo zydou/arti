@@ -5,15 +5,17 @@ use super::msg::{empty_body, Body};
 use amplify::Getters;
 use caret::caret_int;
 use derive_deftly::Deftly;
+use rand::{CryptoRng, Rng, RngCore};
 
-use tor_bytes::{EncodeResult, Error, Reader, Result, Writer};
+use tor_bytes::{EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
+use tor_llcrypto::util::ct::CtByteArray;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 /// The supported CONFLUX_LINK version.
 const CONFLUX_LINK_VERSION: u8 = 1;
 
 /// The length of the nonce from a v1 CONFLUX_LINK message, in bytes.
-pub const V1_LINK_NONCE_LEN: usize = 32;
+const V1_LINK_NONCE_LEN: usize = 32;
 
 /// Helper macro for implementing wrapper types over [`Link`]
 macro_rules! impl_link_wrapper {
@@ -105,8 +107,31 @@ struct Link {
     payload: V1LinkPayload,
 }
 
-/// Type alias for the nonce type of a [`V1LinkPayload`].
-pub type V1Nonce = [u8; V1_LINK_NONCE_LEN];
+/// The nonce type of a [`V1LinkPayload`].
+#[derive(Debug, Clone, Copy, Deftly, PartialEq, Eq)]
+#[derive_deftly(HasMemoryCost)]
+pub struct V1Nonce(CtByteArray<V1_LINK_NONCE_LEN>);
+
+impl V1Nonce {
+    /// Create a random `V1Nonce` to put in a LINK cell.
+    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> V1Nonce {
+        let mut nonce = [0_u8; V1_LINK_NONCE_LEN];
+        rng.fill(&mut nonce[..]);
+        Self(nonce.into())
+    }
+}
+
+impl Readable for V1Nonce {
+    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+        Ok(Self(Readable::take_from(r)?))
+    }
+}
+
+impl Writeable for V1Nonce {
+    fn write_onto<W: Writer + ?Sized>(&self, w: &mut W) -> EncodeResult<()> {
+        self.0.write_onto(w)
+    }
+}
 
 /// The v1 payload of a v1 [`ConfluxLink`] or [`ConfluxLinked`] message.
 #[derive(Debug, Clone, Deftly, Getters)]
@@ -188,9 +213,7 @@ impl Body for Link {
 
 impl Body for V1LinkPayload {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        let mut nonce = [0; V1_LINK_NONCE_LEN];
-        r.take_into(&mut nonce)?;
-
+        let nonce = r.extract()?;
         let last_seqno_sent = r.take_u64()?;
         let last_seqno_recv = r.take_u64()?;
         let desired_ux = r.take_u8()?.into();
@@ -226,6 +249,7 @@ impl Body for V1LinkPayload {
 #[derive_deftly(HasMemoryCost)]
 pub struct ConfluxSwitch {
     /// The relative sequence number.
+    #[getter(as_copy)]
     seqno: u32,
 }
 
