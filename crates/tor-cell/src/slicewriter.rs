@@ -51,6 +51,20 @@ where
         }
     }
 }
+impl<T> SliceWriter<T>
+where
+    T: AsMut<[u8]>,
+{
+    /// Move this writer ahead by `n` bytes, leaving the original data unchanged.
+    pub(crate) fn advance(&mut self, n: usize) {
+        let new_offset = self.offset.saturating_add(n);
+        if new_offset <= self.data.as_mut().len() {
+            self.offset = new_offset;
+        } else {
+            self.offset = usize::MAX;
+        }
+    }
+}
 impl<T> SliceWriter<T> {
     /// Construct a new SliceWriter
     ///
