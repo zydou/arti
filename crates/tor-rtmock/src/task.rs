@@ -339,6 +339,10 @@ enum ThreadDescriptor {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct IsSubthread;
 
+/// [`Shared::subthread_yield`] should set our task awake before switching to the executor
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+struct SetAwake;
+
 thread_local! {
     /// Identifies this thread.
     pub static THREAD_DESCRIPTOR: Cell<ThreadDescriptor> = const {
@@ -980,38 +984,9 @@ impl MockExecutor {
         trace!("MockExecutor thread {id:?}, subthread_block_on_future...");
         let mut fut = pin!(fut);
 
-        /// `yield_` should set our task awake before switching to the executor
-        struct SetAwake;
-
-        // Yield back to the executor.
-        //
-        // Checks that things are in order, and switches to the executor thread.
-        //
-        // With `SetAwake`, sets our task awake, so that we'll be polled
-        // again as soon as we get to the top of the executor's queue.
-        // Otherwise, we'll be reentered after someone wakes our Waker.
-        let yield_ = |set_awake: Option<SetAwake>| {
-            let mut data = self.shared.lock();
-            {
-                let data = &mut *data;
-                let task = data.tasks.get_mut(id).expect("Subthread task vanished!");
-                match &task.fut {
-                    Some(TaskFutureInfo::Subthread) => {}
-                    other => panic!("subthread_block_on_future but TFI {other:?}"),
-                };
-                if let Some(SetAwake) = set_awake {
-                    task.set_awake(id, &mut data.awake);
-                }
-            }
-            self.shared.thread_context_switch(
-                data,
-                ThreadDescriptor::Subthread(id),
-                ThreadDescriptor::Executor,
-            );
-        };
-
         // We yield once before the first poll, and once after Ready, to shake up the
         // execution order a bit, depending on the scheduling policy.
+        let yield_ = |set_awake| self.shared.subthread_yield(id, set_awake);
         yield_(Some(SetAwake));
 
         let ret = loop {
@@ -1098,6 +1073,37 @@ impl Shared {
                 ThreadDescriptor::Executor,
             );
         }
+    }
+
+    /// Yield back to the executor from a subthread
+    ///
+    /// Checks that things are in order
+    /// (in particular, that this task is in the data structure as a subhtread)
+    /// and switches to the executor thread.
+    ///
+    /// The caller must arrange that the task gets woken.
+    ///
+    /// With [`SetAwake`], sets our task awake, so that we'll be polled
+    /// again as soon as we get to the top of the executor's queue.
+    /// Otherwise, we'll be reentered after someone wakes a [`Waker`] for the task.
+    fn subthread_yield(&self, us: TaskId, set_awake: Option<SetAwake>) {
+        let mut data = self.lock();
+        {
+            let data = &mut *data;
+            let task = data.tasks.get_mut(us).expect("Subthread task vanished!");
+            match &task.fut {
+                Some(TaskFutureInfo::Subthread) => {}
+                other => panic!("subthread_block_on_future but TFI {other:?}"),
+            };
+            if let Some(SetAwake) = set_awake {
+                task.set_awake(us, &mut data.awake);
+            }
+        }
+        self.thread_context_switch(
+            data,
+            ThreadDescriptor::Subthread(us),
+            ThreadDescriptor::Executor,
+        );
     }
 
     /// Switch from (sub)thread `us` to (sub)thread `them`
