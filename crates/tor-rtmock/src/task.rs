@@ -1742,6 +1742,7 @@ mod test {
 
     #[cfg_attr(not(miri), traced_test)]
     #[test]
+    #[allow(clippy::cognitive_complexity)] // It's is not that complicated, really.
     fn subthread_pingpong() {
         for runtime in various_mock_executors() {
             runtime.block_on(async {
