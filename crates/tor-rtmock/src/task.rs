@@ -971,6 +971,7 @@ impl MockExecutor {
     ///
     /// If the executor isn't running, `subthread_block_on_future` will hang indefinitely.
     /// See `spawn_subthread`.
+    #[allow(clippy::cognitive_complexity)] // Splitting this up would be worse
     pub fn subthread_block_on_future<T: Send + 'static>(&self, fut: impl Future<Output = T>) -> T {
         let id = match THREAD_DESCRIPTOR.get() {
             ThreadDescriptor::Subthread(id) => id,
