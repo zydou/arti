@@ -150,7 +150,7 @@ pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
     ///     (i.e. it is expired, or not yet valid), or
     ///   * the certificate is not well-signed, or
     ///   * the subject key or signing key in the certificate do not match
-    ///      the subject and signing keys specified in `cert_spec`
+    ///     the subject and signing keys specified in `cert_spec`
     fn validate(
         cert: Self::ParsedCert,
         subject: &K,

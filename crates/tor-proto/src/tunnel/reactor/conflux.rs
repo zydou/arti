@@ -203,6 +203,8 @@ impl ConfluxSet {
     }
 }
 
+// TODO(conflux): replace this with Itertools::exactly_one()?
+//
 /// Get the only item from an iterator.
 ///
 /// Returns an error if the iterator is empty or has more than one item.

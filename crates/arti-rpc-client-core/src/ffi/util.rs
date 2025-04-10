@@ -535,7 +535,7 @@ macro_rules! ffi_initialize {
 ///
 /// - It returns  `Err(InvalidInput)` if the conversion fails,
 ///   and `Ok($ty)` if the conversion succeeds.
-///     (Infallible conversions always return `Ok`.)
+///   (Infallible conversions always return `Ok`.)
 ///
 /// Nothing outside of the `ffi_initialize!` macro should actually invoke these functions!
 #[allow(clippy::unnecessary_wraps)]

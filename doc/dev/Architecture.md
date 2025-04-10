@@ -85,6 +85,7 @@ The current crates are:
 * [`arti-config`](../../crates/arti-config/README.md) -- Removed crate.  (Tools for configuration management in Arti)
 * [`arti`](../../crates/arti/README.md) -- A minimal command line program for connecting to the Tor network
 * [`arti-testing`](../../crates/arti-testing/README.md) -- Tool for running an Arti client with unusual behavior or limitations.
+* [`arti-ureq`](../../crates/arti-ureq/README.md) -- Use ureq in combination with ureq to make requests over the Tor network.
 * [`caret`](../../crates/caret/README.md) -- Integers with some named values.
 * [`fs-mistrust`](../../crates/fs-mistrust/README.md) -- Check whether file permissions are private.
 * [`retry-error`](../../crates/retry-error/README.md) -- An error attempt to represent multiple failures.

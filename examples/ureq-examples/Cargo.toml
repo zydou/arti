@@ -1,0 +1,12 @@
+[package]
+name = "ureq-examples"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Niel Duysters"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Examples demonstrating the usage of the arti-ureq crate"
+publish = false
+
+[dependencies]
+anyhow = "1.0.75"
+arti-ureq = { path = "../../crates/arti-ureq" }

@@ -1051,10 +1051,6 @@ impl Circuit {
 
         // For all other command types, we'll only get them in response
         // to another command, which should have registered a responder.
-        //
-        // TODO: that means that service-introduction circuits will need
-        // a different implementation, but that should be okay. We'll work
-        // something out.
         if let Some(mut handler) = handlers.meta_handler.take() {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message

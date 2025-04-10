@@ -8,6 +8,7 @@ use {
     std::os::fd::{AsRawFd, RawFd},
 };
 
+#[cfg_attr(not(target_os = "linux"), allow(unused))]
 use crate::StreamOps;
 #[cfg(not(target_os = "linux"))]
 use crate::UnsupportedStreamOp;

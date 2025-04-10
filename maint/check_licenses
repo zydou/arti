@@ -41,6 +41,7 @@ RECOGNIZED_LICENSES=(
     # See https://gitlab.torproject.org/tpo/core/arti/-/issues/493 for
     # our related ticket on OpenSSL license here.
     "ISC AND (Apache-2.0 OR ISC) AND OpenSSL"
+    "(Apache-2.0 OR MIT) AND BSD-3-Clause"
 )
 
 # List of packages that don't list a license.
@@ -84,6 +85,8 @@ MPL_20_OK=(
     option-ext
     dynasm
     dynasmrt
+    webpki-roots
+    webpki-root-certs
 )
 
 # List of packages allowed to use the LGPL-3.0-only license.

@@ -603,7 +603,7 @@ fn intersect_unrecognized_lists(
             let item = inputs
                 .iter_mut()
                 .map(|input| input.next().expect("but peeked"))
-                .last()
+                .next_back()
                 .expect("wrong #");
             output.insert(item);
             continue;
