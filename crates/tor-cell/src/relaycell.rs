@@ -108,8 +108,11 @@ enum StreamIdReq {
     WantNone,
     /// Can only be used with a stream ID that isn't 0
     WantSome,
-    /// Can be used with any stream ID
-    Any,
+    /// Can only be used with a stream ID along with RelayCommandFormat::V0;
+    /// can be used with or without a StreamID in V1.
+    WantNoneInV1,
+    /// Unrecognized; might be used with a stream ID or without.
+    Unrecognized,
 }
 
 impl RelayCmd {
@@ -148,19 +151,22 @@ impl RelayCmd {
             | RelayCmd::INTRO_ESTABLISHED
             | RelayCmd::RENDEZVOUS_ESTABLISHED
             | RelayCmd::INTRODUCE_ACK => StreamIdReq::WantNone,
-            // TODO #1944: this is going to be dependent on the CC algorithm in
-            // use and/or the relay format.
-            RelayCmd::SENDME => StreamIdReq::Any,
-            _ => StreamIdReq::Any,
+            RelayCmd::SENDME => StreamIdReq::WantNoneInV1,
+            _ => StreamIdReq::Unrecognized,
         }
     }
     /// Return true if this command is one that accepts the particular
-    /// stream ID `id`
+    /// stream ID `id`.
+    ///
+    /// Note that this method does not consider the [`RelayCellFormat`] in use:
+    /// it will return "true" for _any_ stream ID if the command is `SENDME`,
+    /// and if the command is unrecognized.
     pub fn accepts_streamid_val(self, id: Option<StreamId>) -> bool {
         match self.expects_streamid() {
             StreamIdReq::WantNone => id.is_none(),
             StreamIdReq::WantSome => id.is_some(),
-            StreamIdReq::Any => true,
+            StreamIdReq::WantNoneInV1 => true,
+            StreamIdReq::Unrecognized => true,
         }
     }
 }
