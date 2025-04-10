@@ -406,9 +406,9 @@ Required `KeyMgr` APIs:
 This will be implemented by an API based on `KeyMgr::describe`. As mentioned
 under `arti-keys-list`, the API will also need to be able to detect if the
 specified key is expired or not (this is not something `KeyMgr` can do. See
-`KeystoreSweeper` for an example of how key expiration is detected and handled
-today. The key expiration logic will need to be factored out of
-`KeystoreSweeper`, because we'll need it for the CLI APIs too).
+[`Reactor`] for an example of how key expiration is detected and handled today.
+The key expiration logic will need to be factored out of [`Reactor`], because
+we'll need it for the CLI APIs too).
 
 ## `arti-keys-raw`
 
@@ -470,7 +470,6 @@ SUBCOMMANDS
 ```
 
 ### `arti-keys-raw-list` (plumbing)
-
 
 ```
 NAME
@@ -1091,9 +1090,6 @@ Required `KeyMgr` APIs:
   * `KeyMgr::remove`
   * `KeyMgr::generate`
 
-
-
 [`KeyMgr`]: https://docs.rs/tor-keymgr/0.4.0/tor_keymgr/struct.KeyMgr.html
 [ROFF]: https://crates.io/crates/clap_mangen
 [arti#955]: https://gitlab.torproject.org/tpo/core/arti/-/issues/955
-
