@@ -1450,6 +1450,17 @@ impl Circuit {
         Ok(())
     }
 
+    /// Returns true if there are any streams on this circuit
+    ///
+    /// Important: this function locks the stream map of its each of the [`CircHop`]s
+    /// in this circuit, so it must **not** be called from any function where the
+    /// stream map lock is held (such as [`ready_streams_iterator`](Self::ready_streams_iterator).
+    pub(super) fn has_streams(&self) -> bool {
+        self.hops
+            .iter()
+            .any(|hop| hop.map.lock().expect("lock poisoned").n_open_streams() > 0)
+    }
+
     /// The number of hops in this circuit.
     pub(super) fn num_hops(&self) -> u8 {
         // `Circuit::add_hop` checks to make sure that we never have more than `u8::MAX` hops,
