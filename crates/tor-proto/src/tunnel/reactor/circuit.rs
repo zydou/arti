@@ -1723,4 +1723,9 @@ impl CircHop {
     pub(super) fn n_open_streams(&self) -> usize {
         self.map.lock().expect("lock poisoned").n_open_streams()
     }
+
+    /// Return a reference to our CongestionControl object.
+    pub(crate) fn ccontrol(&self) -> &CongestionControl {
+        &self.ccontrol
+    }
 }

@@ -73,6 +73,11 @@ impl CongestionControlAlgorithm for FixedWindow {
         self.sendwindow.take()
     }
 
+    #[cfg(feature = "conflux")]
+    fn inflight(&self) -> Option<u32> {
+        None
+    }
+
     #[cfg(test)]
     fn send_window(&self) -> u32 {
         u32::from(self.sendwindow.window())
