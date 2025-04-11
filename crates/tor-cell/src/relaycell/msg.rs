@@ -340,20 +340,6 @@ impl Data {
     /// Return the data cell, and a slice holding any bytes that
     /// wouldn't fit (if any).
     ///
-    /// # Panics
-    ///
-    /// Panics if `inp` is empty.
-    #[deprecated(since = "0.16.1", note = "Use try_split_from instead.")]
-    pub fn split_from(inp: &[u8]) -> (Self, &[u8]) {
-        Self::try_split_from(inp).expect("Tried to split a Data message from an empty input.")
-    }
-
-    /// Construct a new data cell, taking as many bytes from `inp`
-    /// as possible.
-    ///
-    /// Return the data cell, and a slice holding any bytes that
-    /// wouldn't fit (if any).
-    ///
     /// Returns None if the input was empty.
     pub fn try_split_from(inp: &[u8]) -> Option<(Self, &[u8])> {
         if inp.is_empty() {
