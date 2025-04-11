@@ -84,6 +84,15 @@ impl<T> SliceWriter<T> {
             Err(SliceWriterError::Truncated)
         }
     }
+
+    /// As "offset", but panic if if the `SliceWriter` has overflowed.
+    ///
+    /// Only available for debugging assertions.
+    #[cfg(debug_assertions)]
+    pub(crate) fn offset_in_header(&self) -> usize {
+        self.offset()
+            .expect("Overflowed a cell with just the header!")
+    }
 }
 
 #[cfg(test)]
