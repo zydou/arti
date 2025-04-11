@@ -754,6 +754,19 @@ impl Circuit {
         Ok(handler.last_seq_sent())
     }
 
+    /// For conflux: return the sequence number of the last cell received on this leg.
+    ///
+    /// Returns an error if this circuit is not part of a conflux set.
+    #[cfg(feature = "conflux")]
+    pub(super) fn last_seq_recv(&self) -> Result<u32> {
+        let handler = self
+            .conflux_handler
+            .as_ref()
+            .ok_or_else(|| internal!("tried to get last_seq_recv of non-conflux circ"))?;
+
+        Ok(handler.last_seq_recv())
+    }
+
     /// Deliver `msg` to the specified open stream entry `ent`.
     fn deliver_msg_to_stream(
         streamid: StreamId,

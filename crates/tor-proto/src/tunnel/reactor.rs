@@ -347,7 +347,16 @@ enum CircuitAction {
         /// The message to handle.
         cell: ClientCircChanMsg,
     },
-    /// Remove the specified circuit leg.
+    /// Remove the specified circuit leg from the conflux set.
+    ///
+    /// Returned whenever a single circuit leg needs to be be removed
+    /// from the reactor's conflux set, without necessarily tearing down
+    /// the whole set or shutting down the reactor.
+    ///
+    /// Note: this action *can* cause the reactor to shut down
+    /// (and the conflux set to be closed).
+    ///
+    /// See the [`ConfluxSet::remove`] docs for more on the exact behavior of this command.
     RemoveLeg {
         /// The leg to remove.
         leg: LegIdKey,

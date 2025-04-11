@@ -205,22 +205,133 @@ impl ConfluxSet {
 
     /// Remove the specified leg from this conflux set.
     ///
-    /// Returns an error if the given leg doesn't exist in the set,
-    /// or if after removing the leg the set is depleted (empty).
+    /// Returns an error if the given leg doesn't exist in the set.
+    ///
+    /// Returns an error instructing the reactor to perform a clean shutdown
+    /// ([`ReactorError::Shutdown`]), tearing down the entire [`ConfluxSet`], if
+    ///
+    ///   * the set is depleted (empty) after removing the specified leg
+    ///   * `leg` is currently the sending (primary) leg of this set
+    ///   * the closed leg had the highest non-zero last_seq_recv/sent
+    ///   * the closed leg had some in-progress data (inflight > cc_sendme_inc)
+    ///
+    /// We do not yet support resumption. See [2.4.3. Closing circuits] in prop329.
+    ///
+    /// [2.4.3. Closing circuits]: https://spec.torproject.org/proposals/329-traffic-splitting.html#243-closing-circuits
     pub(super) fn remove(&mut self, leg: LegIdKey) -> Result<(), ReactorError> {
-        let _ = self
+        let circ = self
             .legs
             .remove(leg)
             .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
-
-        // TODO(conflux): if leg == primary_leg, reassign the next best leg to primary_leg
 
         if self.legs.is_empty() {
             // The last circuit in the set has just died, so the reactor should exit.
             return Err(ReactorError::Shutdown);
         }
 
-        Ok(())
+        if leg == self.primary_id {
+            // We have just removed our sending leg,
+            // so it's time to close the entire conflux set.
+            return Err(ReactorError::Shutdown);
+        }
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "conflux")] {
+                self.remove_conflux(circ)
+            } else {
+                // Conflux is disabled, so we can't possible continue running if the only
+                // leg in the tunnel is gone.
+                //
+                // Technically this should be unreachable (because of the is_empty()
+                // check above)
+                return Err(internal!("Multiple legs in single-path tunnel?!").into());
+            }
+        }
+    }
+
+    /// Handle the removal of a circuit,
+    /// returning an error if the reactor needs to shut down.
+    #[cfg(feature = "conflux")]
+    fn remove_conflux(&self, circ: Circuit) -> Result<(), ReactorError> {
+        let Some(status) = circ.conflux_status() else {
+            return Err(internal!("Found non-conflux circuit in conflux set?!").into());
+        };
+
+        // TODO(conflux): should the circmgr be notified about the leg removal?
+        //
+        // "For circuits that are unlinked, the origin SHOULD immediately relaunch a new leg when it
+        // is closed, subject to the limits in [SIDE_CHANNELS]."
+
+        // If we've reached this point and the conflux set is non-empty,
+        // it means it's a multi-path set.
+        //
+        // Time to check if we need to tear down the entire set.
+        match status {
+            ConfluxStatus::Unlinked => {
+                // This circuit hasn't yet begun the conflux handshake,
+                // so we can safely remove it from the set
+                Ok(())
+            }
+            ConfluxStatus::Pending | ConfluxStatus::Linked => {
+                let (circ_last_seq_recv, circ_last_seq_sent) =
+                    (|| Ok::<_, ReactorError>((circ.last_seq_recv()?, circ.last_seq_sent()?)))()?;
+
+                // If the closed leg had the highest non-zero last_seq_recv/sent, close the set
+                if let Some(max_last_seq_recv) = self.max_last_seq_recv() {
+                    if circ_last_seq_recv > max_last_seq_recv {
+                        return Err(ReactorError::Shutdown);
+                    }
+                }
+
+                if let Some(max_last_seq_sent) = self.max_last_seq_sent() {
+                    if circ_last_seq_sent > max_last_seq_sent {
+                        return Err(ReactorError::Shutdown);
+                    }
+                }
+
+                let hop = self.join_point_hop(&circ)?;
+
+                let (inflight, cwnd) = (|| {
+                    let ccontrol = hop.ccontrol();
+                    let inflight = ccontrol.inflight()?;
+                    let cwnd = ccontrol.cwnd()?;
+
+                    Some((inflight, cwnd))
+                })()
+                .ok_or_else(|| {
+                    internal!("Congestion control algorithm doesn't track inflight cells or cwnd?!")
+                })?;
+
+                // If data is in progress on the leg (inflight > cc_sendme_inc),
+                // then all legs must be closed
+                if inflight >= cwnd.params().sendme_inc() {
+                    return Err(ReactorError::Shutdown);
+                }
+
+                Ok(())
+            }
+        }
+
+        // The removed leg is dropped, which will cause it to close
+        // if it's not already closed.
+    }
+
+    /// Return the maximum relative last_seq_recv across all circuits.
+    #[cfg(feature = "conflux")]
+    fn max_last_seq_recv(&self) -> Option<u32> {
+        self.legs
+            .iter()
+            .filter_map(|(_id, leg)| leg.last_seq_recv().ok())
+            .max()
+    }
+
+    /// Return the maximum relative last_seq_sent across all circuits.
+    #[cfg(feature = "conflux")]
+    fn max_last_seq_sent(&self) -> Option<u32> {
+        self.legs
+            .iter()
+            .filter_map(|(_id, leg)| leg.last_seq_sent().ok())
+            .max()
     }
 
     /// Get the [`CircHop`] of the join point on the specified `circ`,

@@ -163,6 +163,11 @@ impl ConfluxMsgHandler {
         self.handler.last_seq_sent()
     }
 
+    /// Return the sequence number of the last message received on this leg.
+    pub(crate) fn last_seq_recv(&self) -> u32 {
+        self.handler.last_seq_recv()
+    }
+
     /// Note that a cell has been sent.
     ///
     /// Updates the internal sequence numbers.
