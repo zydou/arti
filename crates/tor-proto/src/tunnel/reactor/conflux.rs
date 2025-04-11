@@ -23,6 +23,7 @@ use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
 use crate::util::err::ReactorError;
 
+use super::circuit::CircHop;
 use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason};
 
 #[cfg(feature = "conflux")]
@@ -209,6 +210,17 @@ impl ConfluxSet {
         }
 
         Ok(())
+    }
+
+    /// Get the [`CircHop`] of the join point on the specified `circ`,
+    /// returning an error if this is a single path conflux set.
+    fn join_point_hop<'c>(&self, circ: &'c Circuit) -> Result<&'c CircHop, Bug> {
+        let Some(join_point) = self.join_point.as_ref().map(|p| p.hop) else {
+            return Err(internal!("No join point on conflux tunnel?!"));
+        };
+
+        circ.hop(join_point)
+            .ok_or_else(|| internal!("Conflux join point disappeared?!"))
     }
 
     /// Return an iterator of all circuits in the conflux set.
