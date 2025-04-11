@@ -4,7 +4,7 @@
 use crate::{Error, Result};
 use static_assertions::assert_impl_all;
 use tor_cell::relaycell::msg::EndReason;
-use tor_cell::relaycell::RelayCmd;
+use tor_cell::relaycell::{RelayCellFormat, RelayCmd};
 
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::{Context, Poll};
@@ -374,6 +374,9 @@ impl DataStream {
         connected: bool,
         memquota: StreamAccount,
     ) -> Self {
+        let relay_cell_format = target.relay_cell_format();
+        let out_buf_len = Data::max_body_len(relay_cell_format);
+
         #[cfg(feature = "stream-ctrl")]
         let status = {
             let mut data_stream_status = DataStreamStatus::default();
@@ -405,10 +408,11 @@ impl DataStream {
         let w = DataWriter {
             state: Some(DataWriterState::Ready(DataWriterImpl {
                 s: target,
-                buf: Box::new([0; Data::MAXLEN]),
+                buf: vec![0; out_buf_len].into_boxed_slice(),
                 n_pending: 0,
                 #[cfg(feature = "stream-ctrl")]
                 status,
+                relay_cell_format,
             })),
             _memquota: memquota,
             #[cfg(feature = "stream-ctrl")]
@@ -546,15 +550,22 @@ struct DataWriterImpl {
     s: StreamTarget,
 
     /// Buffered data to send over the connection.
+    ///
+    /// This buffer is currently allocated using a number of bytes
+    /// equal to the maximum that we can package at a time.
+    //
     // TODO: this buffer is probably smaller than we want, but it's good
     // enough for now.  If we _do_ make it bigger, we'll have to change
     // our use of Data::split_from to handle the case where we can't fit
     // all the data.
     #[educe(Debug(method = "skip_fmt"))]
-    buf: Box<[u8; Data::MAXLEN]>,
+    buf: Box<[u8]>,
 
     /// Number of unflushed bytes in buf.
     n_pending: usize,
+
+    /// Relay cell format in use
+    relay_cell_format: RelayCellFormat,
 
     /// Shared user-visible information about the state of this stream.
     #[cfg(feature = "stream-ctrl")]
@@ -718,16 +729,17 @@ impl TokioAsyncWrite for DataWriter {
 impl DataWriterImpl {
     /// Try to flush the current buffer contents as a data cell.
     async fn flush_buf(mut self) -> (Self, Result<()>) {
-        let result =
-            if let Some((cell, remainder)) = Data::try_split_from(&self.buf[..self.n_pending]) {
-                // TODO: Eventually we may want a larger buffer; if we do,
-                // this invariant will become false.
-                assert!(remainder.is_empty());
-                self.n_pending = 0;
-                self.s.send(cell.into()).await
-            } else {
-                Ok(())
-            };
+        let result = if let Some((cell, remainder)) =
+            Data::try_split_from(self.relay_cell_format, &self.buf[..self.n_pending])
+        {
+            // TODO: Eventually we may want a larger buffer; if we do,
+            // this invariant will become false.
+            assert!(remainder.is_empty());
+            self.n_pending = 0;
+            self.s.send(cell.into()).await
+        } else {
+            Ok(())
+        };
 
         (self, result)
     }

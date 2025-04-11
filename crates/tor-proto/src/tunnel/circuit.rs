@@ -62,6 +62,7 @@ use crate::tunnel::{HopLocation, LegId, StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
+use tor_cell::relaycell::RelayCellFormat;
 use tor_cell::{
     chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -589,6 +590,7 @@ impl ClientCirc {
                 tx: msg_tx,
                 hop: HopLocation::Hop((leg_id, hop_num)),
                 stream_id,
+                relay_cell_format: RelayCellFormat::V0, // XXXX #1944: Use actual value.
             };
 
             let reader = StreamReader {
@@ -774,6 +776,7 @@ impl ClientCirc {
             tx: msg_tx,
             hop,
             stream_id,
+            relay_cell_format: RelayCellFormat::V0, // XXXX #1944: Use actual value.
         };
 
         let reader = StreamReader {
@@ -2058,14 +2061,15 @@ pub(crate) mod test {
         const N_CELLS: usize = 20;
         // Number of bytes that *each* stream will send, and that we'll read
         // from the channel.
-        const N_BYTES: usize = relaymsg::Data::MAXLEN * N_CELLS;
+        const N_BYTES: usize = relaymsg::Data::MAXLEN_V0 * N_CELLS;
         // Ignoring cell granularity, with perfect fairness we'd expect
         // `N_BYTES/N_STREAMS` bytes from each stream.
         //
         // We currently allow for up to a full cell less than that.  This is
         // somewhat arbitrary and can be changed as needed, since we don't
         // provide any specific fairness guarantees.
-        const MIN_EXPECTED_BYTES_PER_STREAM: usize = N_BYTES / N_STREAMS - relaymsg::Data::MAXLEN;
+        const MIN_EXPECTED_BYTES_PER_STREAM: usize =
+            N_BYTES / N_STREAMS - relaymsg::Data::MAXLEN_V0;
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
