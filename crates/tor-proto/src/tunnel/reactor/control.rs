@@ -113,7 +113,7 @@ pub(crate) enum CtrlMsg {
         /// A channel to receive messages to send on this stream from.
         rx: StreamMpscReceiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
-        done: ReactorResultChannel<(StreamId, HopLocation)>,
+        done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
     },

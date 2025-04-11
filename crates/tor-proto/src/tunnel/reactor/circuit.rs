@@ -695,6 +695,7 @@ impl Circuit {
             .hops
             .get_mut(Into::<usize>::into(hop_num))
             .ok_or(Error::CircuitClosed)?;
+        let relay_cell_format = hop.relay_format;
 
         let memquota = StreamAccount::new(&self.memquota)?;
 
@@ -724,6 +725,7 @@ impl Circuit {
             msg_tx,
             receiver,
             memquota,
+            relay_cell_format,
         });
 
         log_ratelim!("Delivering message to incoming stream handler"; outcome);
@@ -1411,6 +1413,14 @@ impl CircHop {
             return Ok(Some(cell));
         }
         Ok(None)
+    }
+
+    /// Return the format that is used for relay cells sent to this hop.
+    ///
+    /// For the most part, this format isn't necessary to interact with a CircHop;
+    /// it becomes relevant when we are deciding _what_ we can encode for the hop.
+    pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
+        self.relay_format
     }
 
     /// Delegate to CongestionControl, for testing purposes

@@ -62,7 +62,6 @@ use crate::tunnel::{HopLocation, LegId, StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
-use tor_cell::relaycell::RelayCellFormat;
 use tor_cell::{
     chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -577,6 +576,7 @@ impl ClientCirc {
                 receiver,
                 msg_tx,
                 memquota,
+                relay_cell_format,
             } = req_ctx;
 
             // We already enforce this in handle_incoming_stream_request; this
@@ -590,7 +590,7 @@ impl ClientCirc {
                 tx: msg_tx,
                 hop: HopLocation::Hop((leg_id, hop_num)),
                 stream_id,
-                relay_cell_format: RelayCellFormat::V0, // XXXX #1944: Use actual value.
+                relay_cell_format,
             };
 
             let reader = StreamReader {
@@ -769,14 +769,14 @@ impl ClientCirc {
             })
             .map_err(|_| Error::CircuitClosed)?;
 
-        let (stream_id, hop) = rx.await.map_err(|_| Error::CircuitClosed)??;
+        let (stream_id, hop, relay_cell_format) = rx.await.map_err(|_| Error::CircuitClosed)??;
 
         let target = StreamTarget {
             circ: self.clone(),
             tx: msg_tx,
             hop,
             stream_id,
-            relay_cell_format: RelayCellFormat::V0, // XXXX #1944: Use actual value.
+            relay_cell_format,
         };
 
         let reader = StreamReader {
