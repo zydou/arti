@@ -184,6 +184,8 @@ pub struct Protocols {
     recognized: [u64; N_RECOGNIZED],
     /// A vector of unrecognized protocol versions,
     /// in sorted order.
+    ///
+    /// Every entry in this list has supported != 0.
     unrecognized: Vec<SubprotocolEntry>,
 }
 
@@ -386,7 +388,9 @@ impl Protocols {
                 {
                     return Err(ParseError::Duplicate);
                 }
-                self.unrecognized.push(ent);
+                if ent.supported != 0 {
+                    self.unrecognized.push(ent);
+                }
             }
         }
         Ok(())
