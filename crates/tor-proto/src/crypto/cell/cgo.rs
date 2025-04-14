@@ -19,7 +19,7 @@
 #![allow(dead_code)] // TODO #1943
 
 // TODO:
-//  - UIV+
+//  - Round-trip tests.
 //  - KDF code
 //  - Relay operations
 //    - Forward
@@ -234,6 +234,129 @@ mod prf {
     }
 }
 
+/// Define the UIV+ tweakable wide-block cipher.
+///
+/// This construction is a "rugged pseudorandom permutation"; see above.
+mod uiv {
+    use super::*;
+
+    /// Type of tweak used as input to the UIV encryption and decryption algorithms.
+    pub(super) type UivTweak<'a> = (&'a [u8; BLK_LEN], u8);
+
+    /// Keys for a UIV cipher.
+    #[derive(Clone)]
+    pub(super) struct Uiv<BC: BlkCipher> {
+        /// Tweakable block cipher key; corresponds to J in the specification.
+        j: et::EtCipher<BC>,
+        /// PRF keys; corresponds to S in the specification.
+        s: prf::Prf<BC>,
+
+        /// Testing only: a copy of our current key material.
+        ///
+        /// (Used because otherwise, we cannot extract keys from our components,
+        /// but we _do_ need to test that our key update code works sensibly.)
+        #[cfg(test)]
+        pub(super) keys: Zeroizing<Vec<u8>>,
+    }
+
+    /// Helper: split a mutable cell body into the left-hand (tag) and
+    /// right-hand (body) parts.
+    fn split(
+        cell_body: &mut [u8; CELL_DATA_LEN],
+    ) -> (&mut [u8; CGO_TAG_LEN], &mut [u8; CGO_PAYLOAD_LEN]) {
+        //TODO PERF: Make sure that there is no actual checking done here!
+        let (left, right) = cell_body.split_at_mut(CGO_TAG_LEN);
+        (
+            left.try_into().expect("split_at_mut returned wrong size!"),
+            right.try_into().expect("split_at_mut returned wrong size!"),
+        )
+    }
+
+    impl<BC: BlkCipher> Uiv<BC> {
+        /// Encrypt `cell_body`, using the provided `tweak`.
+        ///
+        /// Corresponds to `ENC_UIV.`
+        pub(super) fn encrypt(&self, tweak: UivTweak<'_>, cell_body: &mut [u8; CELL_DATA_LEN]) {
+            // ENC_UIV((J,S), H, (X_L,X_R)):
+            //     Y_L <-- ENC_ET(J, (H || X_R), X_L)
+            //     Y_R <-- X_R ^ PRF_n0(S, Y_L, 0)
+            //     return (Y_L, Y_R)
+            let (left, right) = split(cell_body);
+            self.j.encrypt((tweak.0, tweak.1, right), left);
+            self.s.xor_n0_stream(left, right);
+        }
+
+        /// Decrypt `cell_body`, using the provided `tweak`.
+        ///
+        /// Corresponds to `DEC_UIV`.
+        pub(super) fn decrypt(&self, tweak: UivTweak<'_>, cell_body: &mut [u8; CELL_DATA_LEN]) {
+            // DEC_UIV((J,S), H, (Y_L,Y_R)):
+            //    X_R <-- Y_R xor PRF_n0(S, Y_L, 0)
+            //    X_L <-- DEC_ET(J, (H || X_R), Y_L)
+            //    return (X_L, X_R)
+            let (left, right) = split(cell_body);
+            self.s.xor_n0_stream(left, right);
+            self.j.decrypt((tweak.0, tweak.1, right), left);
+        }
+
+        /// Modify this Uiv, and the provided nonce, so that its current state
+        /// cannot be recovered.
+        ///
+        /// Corresponds to `UPDATE_UIV`
+        pub(super) fn update(&mut self, nonce: &mut [u8; BLK_LEN]) {
+            // UPDATE_UIV((J,S), N):
+            //     ((J',S'), N') = PRF_{n1}(S, N, 1)
+            //     return ((J', S'), N')
+
+            // TODO PERF: We could allocate significantly less here, by using
+            // reinitialize functions, and by not actually expanding the key
+            // stream.
+            let n_bytes = Self::seed_len() + BLK_LEN;
+            let seed = self.s.get_n1_stream(nonce, n_bytes);
+            #[cfg(test)]
+            {
+                self.keys = Zeroizing::new(seed[..Self::seed_len()].to_vec());
+            }
+            let (j, s, n) = Self::split_seed(&seed);
+            self.j = et::EtCipher::initialize(j).expect("Invalid slice len");
+            self.s = prf::Prf::initialize(s).expect("invalid slice len");
+            nonce[..].copy_from_slice(n);
+        }
+
+        /// Helper: divide seed into J, S, and N.
+        fn split_seed(seed: &[u8]) -> (&[u8], &[u8], &[u8]) {
+            let len_j = et::EtCipher::<BC>::seed_len();
+            let len_s = prf::Prf::<BC>::seed_len();
+            (
+                &seed[0..len_j],
+                &seed[len_j..len_j + len_s],
+                &seed[len_j + len_s..],
+            )
+        }
+    }
+
+    impl<BC: BlkCipher> CryptInit for Uiv<BC> {
+        fn seed_len() -> usize {
+            super::et::EtCipher::<BC>::seed_len() + super::prf::Prf::<BC>::seed_len()
+        }
+        fn initialize(seed: &[u8]) -> crate::Result<Self> {
+            if seed.len() != Self::seed_len() {
+                return Err(internal!("Invalid seed length").into());
+            }
+            #[cfg(test)]
+            let keys = Zeroizing::new(seed.to_vec());
+            let (j, s, n) = Self::split_seed(seed);
+            debug_assert!(n.is_empty());
+            Ok(Self {
+                j: et::EtCipher::initialize(j)?,
+                s: prf::Prf::initialize(s)?,
+                #[cfg(test)]
+                keys,
+            })
+        }
+    }
+}
+
 /// Xor all bytes from `input` into `output`.
 fn xor_into<const N: usize>(output: &mut [u8; N], input: &[u8; N]) {
     for i in 0..N {
@@ -259,6 +382,8 @@ mod test {
 
     use super::*;
     use hex_literal::hex;
+    use rand::Rng as _;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn testvec_xor() {
@@ -291,6 +416,7 @@ mod test {
     const True: bool = true;
     include!("../../../testdata/cgo_et.rs");
     include!("../../../testdata/cgo_prf.rs");
+    include!("../../../testdata/cgo_uiv.rs");
 
     /// Decode s as a N-byte hex string, or panic.
     fn unhex<const N: usize>(s: &str) -> [u8; N] {
@@ -336,6 +462,53 @@ mod test {
                 let data = prf.get_n1_stream(&tweak, expect_output.len());
                 assert_eq!(expect_output[..], data[..]);
             }
+        }
+    }
+
+    #[test]
+    fn testvec_uiv() {
+        for (encrypt, keys, tweak, left, right, (expect_left, expect_right)) in UIV_TEST_VECTORS {
+            let keys: [u8; 64] = unhex(keys);
+            let tweak: [u8; 17] = unhex(tweak);
+            let mut cell: [u8; 509] = unhex(&format!("{left}{right}"));
+            let expected: [u8; 509] = unhex(&format!("{expect_left}{expect_right}"));
+
+            let uiv: uiv::Uiv<Aes128> = uiv::Uiv::initialize(&keys).unwrap();
+            let htweak = (tweak[0..16].try_into().unwrap(), tweak[16]);
+            if *encrypt {
+                uiv.encrypt(htweak, &mut cell);
+            } else {
+                uiv.decrypt(htweak, &mut cell);
+            }
+            assert_eq!(cell, expected);
+        }
+    }
+
+    #[test]
+    fn testvec_uiv_update() {
+        let mut rng = testing_rng();
+
+        for (keys, nonce, (expect_keys, expect_nonce)) in UIV_UPDATE_TEST_VECTORS {
+            let keys: [u8; 64] = unhex(keys);
+            let mut nonce: [u8; 16] = unhex(nonce);
+            let mut uiv: uiv::Uiv<Aes128> = uiv::Uiv::initialize(&keys).unwrap();
+            let expect_keys: [u8; 64] = unhex(expect_keys);
+            let expect_nonce: [u8; 16] = unhex(expect_nonce);
+            uiv.update(&mut nonce);
+            assert_eq!(&nonce, &expect_nonce);
+            assert_eq!(&uiv.keys[..], &expect_keys[..]);
+
+            // Make sure that we can get the same results when we initialize a new UIV with the keys
+            // allegedly used to reinitialize this one.
+            let uiv2: uiv::Uiv<Aes128> = uiv::Uiv::initialize(&uiv.keys[..]).unwrap();
+
+            let tweak: [u8; 16] = rng.random();
+            let cmd = rng.random();
+            let mut msg1: [u8; CELL_DATA_LEN] = rng.random();
+            let mut msg2 = msg1.clone();
+
+            uiv.encrypt((&tweak, cmd), &mut msg1);
+            uiv2.encrypt((&tweak, cmd), &mut msg2);
         }
     }
 }
