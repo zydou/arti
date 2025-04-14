@@ -35,10 +35,7 @@ pub(crate) mod tor1;
 use crate::{Error, Result};
 use derive_deftly::Deftly;
 use tor_cell::chancell::BoxedCellBody;
-use tor_error::internal;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
-
-use digest::generic_array::GenericArray;
 
 use super::binding::CircuitBinding;
 

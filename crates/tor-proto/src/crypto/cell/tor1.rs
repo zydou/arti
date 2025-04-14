@@ -10,13 +10,18 @@
 
 use std::marker::PhantomData;
 
-use crate::crypto::binding::CIRC_BINDING_LEN;
+use crate::{circuit::CircuitBinding, crypto::binding::CIRC_BINDING_LEN, Error, Result};
 
-use super::*;
 use cipher::{KeyIvInit, StreamCipher};
-use digest::Digest;
+use digest::{generic_array::GenericArray, Digest};
 use tor_cell::relaycell::{RelayCellFields, RelayCellFormatTrait};
+use tor_error::internal;
 use typenum::Unsigned;
+
+use super::{
+    ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, RelayCellBody, RelayCrypt,
+    SENDME_TAG_LEN,
+};
 
 /// A CryptState represents one layer of shared cryptographic state between
 /// a relay and a client for a single hop, in a single direction.
