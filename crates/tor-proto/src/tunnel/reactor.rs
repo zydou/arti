@@ -42,6 +42,7 @@ use std::mem::size_of;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
+use tor_rtcompat::DynTimeProvider;
 
 use futures::channel::mpsc;
 use futures::StreamExt;
@@ -400,6 +401,8 @@ pub struct Reactor {
     unique_id: UniqId,
     /// Handlers, shared with `Circuit`.
     cell_handlers: CellHandlers,
+    /// The time provider, used for conflux handshake timeouts.
+    runtime: DynTimeProvider,
 }
 
 /// Cell handlers, shared between the Reactor and its underlying `Circuit`s.
@@ -473,6 +476,7 @@ impl Reactor {
         channel_id: CircId,
         unique_id: UniqId,
         input: CircuitRxReceiver,
+        runtime: DynTimeProvider,
         memquota: CircuitAccount,
     ) -> (
         Self,
@@ -509,6 +513,7 @@ impl Reactor {
             reactor_closed_tx,
             unique_id,
             cell_handlers,
+            runtime,
         };
 
         (reactor, control_tx, command_tx, reactor_closed_rx, mutable)
