@@ -933,6 +933,8 @@ impl<R: Runtime> TorClient<R> {
             .map_err(crate::Error::into_detail)?;
 
         let software_status_cfg = Arc::new(MutCfg::new(config.use_obsolete_software.clone()));
+        let rtclone = runtime.clone();
+        #[allow(clippy::print_stderr)]
         crate::protostatus::enforce_protocol_recommendations(
             &runtime,
             Arc::clone(&dirmgr),
@@ -941,7 +943,21 @@ impl<R: Runtime> TorClient<R> {
             Arc::clone(&software_status_cfg),
             // TODO #1932: It would be nice to have a cleaner shutdown mechanism here,
             // but that will take some work.
-            |_| async { std::process::exit(1) },
+            |fatal| async move {
+                use tor_error::ErrorReport as _;
+                // We already logged this error, but let's tell stderr too.
+                eprintln!(
+                    "Shutting down because of unsupported software version.\nError was:\n{}",
+                    fatal.report(),
+                );
+                if let Some(hint) = crate::err::Error::from(fatal).hint() {
+                    eprintln!("{}", hint);
+                }
+                // Give the tracing module a while to flush everything, since it has no built-in
+                // flush function.
+                rtclone.sleep(std::time::Duration::new(5, 0)).await;
+                std::process::exit(1);
+            },
         )?;
 
         let mut periodic_task_handles = circmgr
