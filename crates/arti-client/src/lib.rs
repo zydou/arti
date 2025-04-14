@@ -94,7 +94,7 @@ pub use {
 #[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
 pub use tor_geoip::CountryCode;
 
-/// Return a list of the protocols supported by this crate.
+/// Return a list of the protocols [supported](tor_protover::doc_supported) by this crate.
 ///
 /// (This is a crate-private method so as not to expose tor_protover in our public API.)
 ///

@@ -634,6 +634,27 @@ impl FromIterator<NamedSubver> for Protocols {
     }
 }
 
+/// Documentation: when is a protocol "supported"?
+///
+/// Arti should consider itself to "support" a protocol if, _as built_,
+/// it implements the protocol completely.
+///
+/// Just having the protocol listed among the [`named`]
+/// protocols is not enough, and neither is an incomplete
+/// or uncompliant implementation.
+///
+/// Similarly, if the protocol is not compiled in,
+/// it is not technically _supported_.
+///
+/// When in doubt, ask yourself:
+/// - If another Tor implementation believed that we implemented this protocol,
+///   and began to speak it to us, would we be able to do so?
+/// - If the protocol were required,
+///   would this software as built actually meet that requirement?
+///
+/// If either answer is no, the protocol is not supported.
+pub mod doc_supported {}
+
 /// Documentation about changing lists of supported versions.
 ///
 /// # Warning
