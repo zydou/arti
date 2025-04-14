@@ -110,7 +110,7 @@ experimental = [
 metrics = ["dep:metrics-exporter-prometheus", "tor-hsrproxy?/metrics"]
 
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
-hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental", "dialoguer"]
+hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
@@ -120,7 +120,6 @@ arti-client = { package = "arti-client", path = "../arti-client", version = "0.2
 ] }
 arti-rpcserver = { path = "../arti-rpcserver", version = "0.29.0", optional = true }
 async-ctrlc = { version = "1.2.0", optional = true }
-dialoguer = { version = "0.11.0", optional = true }
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
