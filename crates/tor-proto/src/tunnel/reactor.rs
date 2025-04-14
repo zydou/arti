@@ -63,11 +63,26 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::trace;
 
+#[cfg(feature = "conflux")]
+use crate::util::err::ConfluxHandshakeError;
+
 pub(super) use control::CtrlCmd;
 pub(super) use control::CtrlMsg;
 
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
+
+/// Contains a list of conflux handshake results.
+#[cfg(feature = "conflux")]
+pub(super) type ConfluxTunnelResult = Vec<StdResult<(), ConfluxHandshakeError>>;
+
+/// The type of oneshot channel used to inform reactor users of the outcome
+/// of a client-side conflux handshake.
+///
+/// Contains a list of handshake results, one for each circuit that we were asked
+/// to link in the tunnel.
+#[cfg(feature = "conflux")]
+pub(super) type ConfluxLinkResultChannel = ReactorResultChannel<ConfluxTunnelResult>;
 
 pub(crate) use circuit::{RECV_WINDOW_INIT, STREAM_READER_BUFFER};
 
