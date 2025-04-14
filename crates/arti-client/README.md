@@ -157,6 +157,11 @@ environments where you want lots of control over how it uses the network.
 [**View the `tor_rtcompat` crate documentation**](tor_rtcompat) for more
 about these features.
 
+**Note**:
+The process [**may not fork**](tor_rtcompat#do-not-fork)
+(except, very carefully, before exec)
+after creating a Rust async runtime.
+
 ## Reporting Arti errors
 
 Arti often outputs very long Debug messages that are hard to understand,

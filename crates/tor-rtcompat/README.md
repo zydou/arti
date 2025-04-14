@@ -77,6 +77,51 @@ However, changing the set of Cargo features available can affect this; see
     Tokio runtime that you want to use, you can wrap it as a
     [`Runtime`] explicitly with `current()`.
 
+<div id="do-not-fork">
+
+## `fork` on Unix, threads, and Rust
+
+</div>
+
+Rust is typically not sound in combination with `fork`.
+
+This is mostly because
+(i) if there are any other threads in the program,
+the environment after `fork` (but before any `exec`)
+is extremely restricted and hazardous, and
+(ii) Rust code is allowed to make threads, and often does so.
+
+For this reason, Rust `fork` APIs are always `unsafe`.
+
+Most async runtimes create threads.
+Therefore, for example,
+[Tokio doesn't work if you fork](https://github.com/tokio-rs/tokio/issues/4301).
+
+Therefore:
+
+### Do not `fork` after creating any `Runtime`
+
+After instantiating any `Runtime`, you **must not** fork.
+
+This restriction applies to the *whole process*, and applies
+to forking from Rust, from C, or from any other language.
+You may not fork even after that `Runtime` value has been dropped or shut down.
+
+You may use safe facilities like [`std::process::Command`]
+and [`tokio::process::Command`](tokio_crate::process::Command).
+You may also use C libraries (and facilities in other languages)
+that wrap up fork/exec,
+so long as those facilities are safe to use in the presence of multiple threads
+(even threads that the other language doesn't know about).
+
+You *may* fork and then exec, or fork and then `_exit`,
+but the execution environment between between fork and exec/`_exit`
+is *extremely* restrictive.
+[`std::os::unix::process::CommandExt::pre_exec`] has a summary.
+
+`Runtime`s for which fork without exec is permitted,
+will document that explicitly.
+
 ## Advanced usage: implementing runtimes yourself
 
 You might want to implement some of the traits above (especially [`NetStreamProvider`] and

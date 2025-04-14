@@ -111,6 +111,10 @@ use tokio as preferred_backend_mod;
 /// performance.
 /// If `native_tls` and `rustls` are both available, we prefer `native_tls` since
 /// it has been used in Arti for longer.
+///
+/// The process [**may not fork**](crate#do-not-fork)
+/// (except, very carefully, before exec)
+/// after creating this or any other `Runtime`.
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
     any(feature = "async-std", feature = "tokio")
@@ -158,6 +162,9 @@ impl PreferredRuntime {
     /// If the `tor-rtcompat` crate was compiled with `tokio` support,
     /// this function will never return a runtime based on `async_std`.
     ///
+    /// The process [**may not fork**](crate#do-not-fork)
+    /// (except, very carefully, before exec)
+    /// after creating this or any other `Runtime`.
     //
     // ## Note to Arti developers
     //
@@ -183,6 +190,10 @@ impl PreferredRuntime {
     ///
     /// If you need more fine-grained control over a runtime, you can create it
     /// using an appropriate builder type or function.
+    ///
+    /// The process [**may not fork**](crate#do-not-fork)
+    /// (except, very carefully, before exec)
+    /// after creating this or any other `Runtime`.
     //
     // ## Note to Arti developers
     //

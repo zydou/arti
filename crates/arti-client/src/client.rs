@@ -782,6 +782,12 @@ impl TorClient<PreferredRuntime> {
     /// If using `async-std`, either take care to ensure Arti is not compiled with Tokio support,
     /// or manually create an `async-std` runtime using [`tor_rtcompat`] and use it with
     /// [`TorClient::with_runtime`].
+    ///
+    /// # Do not fork
+    ///
+    /// The process [**may not fork**](tor_rtcompat#do-not-fork)
+    /// (except, very carefully, before exec)
+    /// after calling this function, because it creates a [`PreferredRuntime`].
     pub async fn create_bootstrapped(config: TorClientConfig) -> crate::Result<Self> {
         let runtime = PreferredRuntime::current()
             .expect("TorClient could not get an asynchronous runtime; are you running in the right context?");
@@ -806,6 +812,12 @@ impl TorClient<PreferredRuntime> {
     /// If using `async-std`, either take care to ensure Arti is not compiled with Tokio support,
     /// or manually create an `async-std` runtime using [`tor_rtcompat`] and use it with
     /// [`TorClient::with_runtime`].
+    ///
+    /// # Do not fork
+    ///
+    /// The process [**may not fork**](tor_rtcompat#do-not-fork)
+    /// (except, very carefully, before exec)
+    /// after calling this function, because it creates a [`PreferredRuntime`].
     pub fn builder() -> TorClientBuilder<PreferredRuntime> {
         let runtime = PreferredRuntime::current()
             .expect("TorClient could not get an asynchronous runtime; are you running in the right context?");
