@@ -85,7 +85,8 @@ where
 /// Represents a relay's view of the crypto state on a given circuit.
 #[allow(dead_code)] // TODO #1383 ????
 pub(crate) trait RelayCrypt {
-    /// Prepare a RelayCellBody to be sent towards the client.
+    /// Prepare a RelayCellBody to be sent towards the client,
+    /// and encrypt it.
     fn originate(&mut self, cell: &mut RelayCellBody);
     /// Encrypt a RelayCellBody that is moving towards the client.
     fn encrypt_inbound(&mut self, cell: &mut RelayCellBody);
@@ -361,7 +362,6 @@ mod test {
             let mut cell = cell.into();
 
             r3.originate(&mut cell);
-            r3.encrypt_inbound(&mut cell);
             r2.encrypt_inbound(&mut cell);
             r1.encrypt_inbound(&mut cell);
             let (layer, _tag) = cc_in.decrypt(&mut cell).unwrap();

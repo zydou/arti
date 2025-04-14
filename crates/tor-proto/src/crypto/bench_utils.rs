@@ -105,8 +105,9 @@ pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormat
         let pair = &mut pair.0;
         if i == 0 {
             pair.originate(cell);
+        } else {
+            pair.encrypt_inbound(cell);
         }
-        pair.encrypt_inbound(cell);
     }
 }
 

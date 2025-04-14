@@ -137,6 +137,7 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> RelayCrypt
     fn originate(&mut self, cell: &mut RelayCellBody) {
         let mut d_ignored = GenericArray::default();
         cell.set_digest::<_, RCF>(&mut self.back.digest, &mut d_ignored);
+        self.encrypt_inbound(cell);
     }
     fn encrypt_inbound(&mut self, cell: &mut RelayCellBody) {
         // This is describe in tor-spec 5.5.3.1, "Relaying Backward at Onion Routers"
