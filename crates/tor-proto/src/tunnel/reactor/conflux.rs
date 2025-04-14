@@ -20,7 +20,7 @@ pub(super) struct ConfluxSet {
     /// The circuits in this conflux set.
     legs: SlotMap<LegIdKey, Circuit>,
     /// The unique identifier of the primary leg
-    pub(super) primary_id: LegIdKey,
+    primary_id: LegIdKey,
 }
 
 impl ConfluxSet {
