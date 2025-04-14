@@ -238,11 +238,17 @@ impl ProtoStatus {
     /// Check whether the list of supported protocols
     /// is sufficient to satisfy this list of recommendations and requirements.
     ///
-    /// Return `Ok(())` if it is, and an error if it is not.
+    /// If any required protocol is missing, returns [`ProtocolSupportError::MissingRequired`].
+    ///
+    /// Otherwise, if no required protocol is missing, but some recommended protocol is missing,
+    /// returns [`ProtocolSupportError::MissingRecommended`].
+    ///
+    /// Otherwise, if no recommended or required protocol is missing, returns `Ok(())`.
     pub fn check_protocols(
         &self,
         supported_protocols: &Protocols,
     ) -> StdResult<(), ProtocolSupportError> {
+        // Required protocols take precedence, so we check them first.
         let missing_required = self.required.difference(supported_protocols);
         if !missing_required.is_empty() {
             return Err(ProtocolSupportError::MissingRequired(missing_required));
