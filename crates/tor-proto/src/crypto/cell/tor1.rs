@@ -313,3 +313,81 @@ pub(crate) mod bench_utils {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use tor_cell::relaycell::RelayCellFormatV0;
+
+    use crate::crypto::cell::{
+        test::add_layers, InboundClientCrypt, OutboundClientCrypt, Tor1RelayCrypto,
+    };
+
+    use super::*;
+
+    // From tor's test_relaycrypt.c
+
+    #[test]
+    fn testvec() {
+        use digest::XofReader;
+        use digest::{ExtendableOutput, Update};
+
+        // (The ....s at the end here are the KH ca)
+        const K1: &[u8; 92] =
+            b"    'My public key is in this signed x509 object', said Tom assertively.      (N-PREG-VIRYL)";
+        const K2: &[u8; 92] =
+            b"'Let's chart the pedal phlanges in the tomb', said Tom cryptographically.  (PELCG-GBR-TENCU)";
+        const K3: &[u8; 92] =
+            b"     'Segmentation fault bugs don't _just happen_', said Tom seethingly.        (P-GUVAT-YL)";
+
+        const SEED: &[u8;108] = b"'You mean to tell me that there's a version of Sha-3 with no limit on the output length?', said Tom shakily.";
+
+        // These test vectors were generated from Tor.
+        let data: &[(usize, &str)] = &include!("../../../testdata/cell_crypt.rs");
+
+        let mut cc_out = OutboundClientCrypt::new();
+        let mut cc_in = InboundClientCrypt::new();
+        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K1[..]).unwrap();
+        add_layers(&mut cc_out, &mut cc_in, pair);
+        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K2[..]).unwrap();
+        add_layers(&mut cc_out, &mut cc_in, pair);
+        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K3[..]).unwrap();
+        add_layers(&mut cc_out, &mut cc_in, pair);
+
+        let mut xof = tor_llcrypto::d::Shake256::default();
+        xof.update(&SEED[..]);
+        let mut stream = xof.finalize_xof();
+
+        let mut j = 0;
+        for cellno in 0..51 {
+            let mut body = Box::new([0_u8; 509]);
+            body[0] = 2; // command: data.
+            body[4] = 1; // streamid: 1.
+            body[9] = 1; // length: 498
+            body[10] = 242;
+            stream.read(&mut body[11..]);
+
+            let mut cell = body.into();
+            let _ = cc_out.encrypt(&mut cell, 2.into());
+
+            if cellno == data[j].0 {
+                let expected = hex::decode(data[j].1).unwrap();
+                assert_eq!(cell.as_ref(), &expected[..]);
+                j += 1;
+            }
+        }
+    }
+}

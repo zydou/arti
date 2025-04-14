@@ -298,7 +298,7 @@ mod test {
     use tor_bytes::SecretBuf;
     use tor_cell::relaycell::RelayCellFormatV0;
 
-    fn add_layers(
+    pub(crate) fn add_layers(
         cc_out: &mut OutboundClientCrypt,
         cc_in: &mut InboundClientCrypt,
         // TODO #1067: test other formats
@@ -383,59 +383,6 @@ mod test {
             let mut cell = Box::new([0_u8; 509]).into();
             let err = cc_in.decrypt(&mut cell);
             assert!(matches!(err, Err(Error::BadCellAuth)));
-        }
-    }
-
-    // From tor's test_relaycrypt.c
-
-    #[test]
-    fn testvec() {
-        use digest::XofReader;
-        use digest::{ExtendableOutput, Update};
-
-        // (The ....s at the end here are the KH ca)
-        const K1: &[u8; 92] =
-            b"    'My public key is in this signed x509 object', said Tom assertively.      (N-PREG-VIRYL)";
-        const K2: &[u8; 92] =
-            b"'Let's chart the pedal phlanges in the tomb', said Tom cryptographically.  (PELCG-GBR-TENCU)";
-        const K3: &[u8; 92] =
-            b"     'Segmentation fault bugs don't _just happen_', said Tom seethingly.        (P-GUVAT-YL)";
-
-        const SEED: &[u8;108] = b"'You mean to tell me that there's a version of Sha-3 with no limit on the output length?', said Tom shakily.";
-
-        // These test vectors were generated from Tor.
-        let data: &[(usize, &str)] = &include!("../../testdata/cell_crypt.rs");
-
-        let mut cc_out = OutboundClientCrypt::new();
-        let mut cc_in = InboundClientCrypt::new();
-        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K1[..]).unwrap();
-        add_layers(&mut cc_out, &mut cc_in, pair);
-        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K2[..]).unwrap();
-        add_layers(&mut cc_out, &mut cc_in, pair);
-        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K3[..]).unwrap();
-        add_layers(&mut cc_out, &mut cc_in, pair);
-
-        let mut xof = tor_llcrypto::d::Shake256::default();
-        xof.update(&SEED[..]);
-        let mut stream = xof.finalize_xof();
-
-        let mut j = 0;
-        for cellno in 0..51 {
-            let mut body = Box::new([0_u8; 509]);
-            body[0] = 2; // command: data.
-            body[4] = 1; // streamid: 1.
-            body[9] = 1; // length: 498
-            body[10] = 242;
-            stream.read(&mut body[11..]);
-
-            let mut cell = body.into();
-            let _ = cc_out.encrypt(&mut cell, 2.into());
-
-            if cellno == data[j].0 {
-                let expected = hex::decode(data[j].1).unwrap();
-                assert_eq!(cell.as_ref(), &expected[..]);
-                j += 1;
-            }
         }
     }
 
