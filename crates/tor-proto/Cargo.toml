@@ -40,7 +40,7 @@ full = [
     "caret/full",
 ]
 
-experimental = ["experimental-api", "conflux", "flowctl-cc", "stream-ctrl", "testing", "bench"]
+experimental = ["experimental-api", "conflux", "flowctl-cc", "stream-ctrl", "testing", "bench", "cgo"]
 conflux = ["__is_experimental"]
 flowctl-cc = ["__is_experimental"]
 
@@ -51,6 +51,8 @@ experimental-api = ["__is_experimental"]
 # start_conversation etc.; TODO HS should be renamed
 send-control-msg = ["visibility"]
 stream-ctrl = ["__is_experimental"]
+cgo = ["__is_experimental"]
+
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["__is_experimental"]
