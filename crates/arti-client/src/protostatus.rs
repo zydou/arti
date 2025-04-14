@@ -131,10 +131,13 @@ async fn watch_protocol_statuses<S, F, Fut>(
             warn!("Bug: Got DirEvent::NewProtocolRecommendation, but recommended_protocols returned None.");
             continue;
         };
+        // It information is older than this software, there is a good chance
+        // that it has come from an invalid piece of data that somebody has cached.
+        // We'll ignore it.
+        //
+        // For more information about this behavior, see:
+        // https://spec.torproject.org/tor-spec/subprotocol-versioning.html#required-recommended
         if timestamp < software_publication_time {
-            // This information is older than this software, so there is a good chance
-            // that it has come from an invalid piece of data that somebody has cached.
-            // We'll ignore it.
             continue;
         }
         if last_evaluated_proto_status.as_ref() == Some(&new_status) {
