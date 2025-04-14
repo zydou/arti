@@ -1961,8 +1961,7 @@ impl<R: Runtime> TorClient<R> {
             .keymgr(keymgr)
             .state_dir(state_dir)
             .build()
-            // TODO: do we need an ErrorDetail::CreateOnionService?
-            .map_err(ErrorDetail::LaunchOnionService)?)
+            .map_err(ErrorDetail::OnionServiceSetup)?)
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client

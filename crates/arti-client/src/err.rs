@@ -171,6 +171,11 @@ enum ErrorDetail {
     #[cfg(feature = "onion-service-client")]
     HsClientConnectorSetup(#[from] tor_hsclient::StartupError),
 
+    /// Error setting up onion service.
+    #[cfg(feature= "onion-service-service")]
+    #[error("Error setting up onion service")]
+    OnionServiceSetup(#[source] tor_hsservice::StartupError),
+
     /// Failed to obtain exit circuit
     #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
@@ -412,6 +417,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::StateMgrSetup(e) => e.kind(),
             #[cfg(feature = "onion-service-client")]
             E::HsClientConnectorSetup(e) => e.kind(),
+            #[cfg(feature = "onion-service-service")]
+            E::OnionServiceSetup(e) => e.kind(),
             E::DirMgrBootstrap(e) => e.kind(),
             #[cfg(feature = "pt-client")]
             E::PluggableTransport(e) => e.kind(),
