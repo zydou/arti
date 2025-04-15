@@ -30,6 +30,8 @@
 //! should work for all current future versions of the relay cell crypto design.
 //! The current Tor protocols are instantiated in a `tor1` submodule.
 
+#[cfg(feature = "cgo")]
+pub(crate) mod cgo;
 pub(crate) mod tor1;
 
 use crate::{Error, Result};
@@ -319,11 +321,12 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use super::*;
-    use rand::RngCore;
-    use tor_basic_utils::test_rng::testing_rng;
+    use rand::{seq::IndexedRandom as _, RngCore};
+    use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
     use tor_bytes::SecretBuf;
-    use tor_cell::relaycell::RelayCellFormatV0;
+    use tor_cell::relaycell::{RelayCellFields, RelayCellFormatTrait, RelayCellFormatV0};
 
     pub(crate) fn add_layers(
         cc_out: &mut OutboundClientCrypt,
@@ -422,4 +425,208 @@ mod test {
             assert_eq!(expect, hop_num.display().to_string());
         }
     }
+
+    /// Helper: Clear every field in `cell` that is reserved for cryptography by relay cell
+    /// format `version.
+    ///
+    /// We do this so that we can be sure that the _other_ fields have all been transmitted correctly.
+    ///
+    /// TODO: once #1944 is merged, use RelayCellFormat instead of u8.
+    fn clean_cell_fields(cell: &mut RelayCellBody, format: u8) {
+        match format {
+            0 => {
+                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::RECOGNIZED_RANGE]
+                    .fill(0);
+                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::DIGEST_RANGE].fill(0);
+            }
+            1 => {
+                cell.0[0..16].fill(0);
+            }
+            _ => {
+                panic!("Unrecognized format!");
+            }
+        }
+    }
+
+    /// Helper: Test a single-hop message, forward from the client.
+    fn test_fwd_one_hop<CS, RS, CF, CB, RF, RB>(format: u8)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer,
+        CB: InboundClientLayer,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut seed = vec![0; CS::seed_len()];
+        rng.fill_bytes(&mut seed[..]);
+        let (mut client, _, _) = CS::initialize(&seed).unwrap().split_client_layer();
+        let (mut relay, _, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+
+        for _ in 0..5 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+
+            let ctag = client.originate_for(ChanCmd::RELAY, &mut cell);
+            assert_ne!(cell.0[16..], msg_orig.0[16..]);
+            let rtag = relay.decrypt_outbound(ChanCmd::RELAY, &mut cell);
+            clean_cell_fields(&mut cell, format);
+            assert_eq!(cell.0[..], msg_orig.0[..]);
+            assert_eq!(rtag, Some(ctag));
+        }
+    }
+
+    /// Helper: Test a single-hop message, backwards towards the client.
+    fn test_rev_one_hop<CS, RS, CF, CB, RF, RB>(format: u8)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer,
+        CB: InboundClientLayer,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut seed = vec![0; CS::seed_len()];
+        rng.fill_bytes(&mut seed[..]);
+        let (_, mut client, _) = CS::initialize(&seed).unwrap().split_client_layer();
+        let (_, mut relay, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+
+        for _ in 0..5 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+
+            let rtag = relay.originate(ChanCmd::RELAY, &mut cell);
+            assert_ne!(cell.0[16..], msg_orig.0[16..]);
+            let ctag = client.decrypt_inbound(ChanCmd::RELAY, &mut cell);
+            clean_cell_fields(&mut cell, format);
+            assert_eq!(cell.0[..], msg_orig.0[..]);
+            assert_eq!(ctag, Some(rtag));
+        }
+    }
+
+    fn test_fwd_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: u8)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer + Send + 'static,
+        CB: InboundClientLayer,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut client = OutboundClientCrypt::new();
+        let mut relays = Vec::new();
+        for _ in 0..3 {
+            let mut seed = vec![0; CS::seed_len()];
+            rng.fill_bytes(&mut seed[..]);
+            let (client_layer, _, _) = CS::initialize(&seed).unwrap().split_client_layer();
+            let (relay_layer, _, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+            client.add_layer(Box::new(client_layer));
+            relays.push(relay_layer);
+        }
+
+        'cell_loop: for _ in 0..32 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+            let cmd = *[ChanCmd::RELAY, ChanCmd::RELAY_EARLY]
+                .choose(&mut rng)
+                .unwrap();
+            let hop: u8 = rng.gen_range_checked(0_u8..=2).unwrap();
+
+            let ctag = client.encrypt(cmd, &mut cell, hop.into()).unwrap();
+
+            for r_idx in 0..=hop {
+                let rtag = relays[r_idx as usize].decrypt_outbound(cmd, &mut cell);
+                if let Some(rtag) = rtag {
+                    clean_cell_fields(&mut cell, format);
+                    assert_eq!(cell.0[..], msg_orig.0[..]);
+                    assert_eq!(rtag, ctag);
+                    continue 'cell_loop;
+                }
+            }
+            panic!("None of the relays thought that this cell was recognized!");
+        }
+    }
+
+    fn test_rev_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: u8)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer,
+        CB: InboundClientLayer + Send + 'static,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut client = InboundClientCrypt::new();
+        let mut relays = Vec::new();
+        for _ in 0..3 {
+            let mut seed = vec![0; CS::seed_len()];
+            rng.fill_bytes(&mut seed[..]);
+            let (_, client_layer, _) = CS::initialize(&seed).unwrap().split_client_layer();
+            let (_, relay_layer, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+            client.add_layer(Box::new(client_layer));
+            relays.push(relay_layer);
+        }
+
+        for _ in 0..32 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+            let cmd = *[ChanCmd::RELAY, ChanCmd::RELAY_EARLY]
+                .choose(&mut rng)
+                .unwrap();
+            let hop: u8 = rng.gen_range_checked(0_u8..=2).unwrap();
+
+            let rtag = relays[hop as usize].originate(cmd, &mut cell).to_vec();
+            for r_idx in (0..hop.into()).rev() {
+                relays[r_idx as usize].encrypt_inbound(cmd, &mut cell);
+            }
+
+            let (observed_hop, ctag) = client.decrypt(cmd, &mut cell).unwrap();
+            assert_eq!(observed_hop, hop.into());
+            clean_cell_fields(&mut cell, format);
+            assert_eq!(cell.0[..], msg_orig.0[..]);
+            assert_eq!(ctag, rtag);
+        }
+    }
+
+    macro_rules! integration_tests { { $modname:ident($fmt:expr, $ctype:ty, $rtype:ty) } => {
+        mod $modname {
+            use super::*;
+            #[test]
+            fn test_fwd_one_hop() {
+                super::test_fwd_one_hop::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+            #[test]
+            fn test_rev_one_hop() {
+                super::test_rev_one_hop::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+            #[test]
+            fn test_fwd_three_hops_leaky() {
+                super::test_fwd_three_hops_leaky::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+            #[test]
+            fn test_rev_three_hops_leaky() {
+                super::test_rev_three_hops_leaky::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+        }
+    }}
+
+    integration_tests! { tor1(0, Tor1RelayCrypto<RelayCellFormatV0>, Tor1RelayCrypto<RelayCellFormatV0>) }
+    #[cfg(feature = "hs-common")]
+    integration_tests! { tor1_hs(0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
 }
