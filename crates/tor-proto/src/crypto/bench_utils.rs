@@ -5,7 +5,7 @@ use crate::Result;
 use cipher::{KeyIvInit, StreamCipher};
 use digest::Digest;
 use tor_bytes::SecretBuf;
-use tor_cell::relaycell::RelayCellFormatTrait;
+use tor_cell::{chancell::ChanCmd, relaycell::RelayCellFormatTrait};
 
 pub use super::cell::tor1::bench_utils::*;
 use super::cell::{
@@ -104,9 +104,9 @@ pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormat
     for (i, pair) in router_states.iter_mut().rev().enumerate() {
         let pair = &mut pair.0;
         if i == 0 {
-            pair.originate(cell);
+            pair.originate(ChanCmd::RELAY, cell);
         } else {
-            pair.encrypt_inbound(cell);
+            pair.encrypt_inbound(ChanCmd::RELAY, cell);
         }
     }
 }
@@ -115,7 +115,7 @@ pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormat
 /// for benchmarking purposes.
 pub fn client_decrypt(cell: &mut RelayBody, cc_in: &mut InboundCryptWrapper) -> Result<()> {
     let cell = &mut cell.0;
-    cc_in.0.decrypt(cell)?;
+    cc_in.0.decrypt(ChanCmd::RELAY, cell)?;
 
     Ok(())
 }
@@ -128,7 +128,7 @@ pub fn client_encrypt(
     hop_num: u8,
 ) -> Result<()> {
     let cell = &mut cell.0;
-    cc_out.0.encrypt(cell, hop_num.into())?;
+    cc_out.0.encrypt(ChanCmd::RELAY, cell, hop_num.into())?;
 
     Ok(())
 }

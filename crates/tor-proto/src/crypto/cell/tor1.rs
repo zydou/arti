@@ -14,7 +14,10 @@ use crate::{circuit::CircuitBinding, crypto::binding::CIRC_BINDING_LEN, Error, R
 
 use cipher::{KeyIvInit, StreamCipher};
 use digest::{generic_array::GenericArray, Digest};
-use tor_cell::relaycell::{RelayCellFields, RelayCellFormatTrait};
+use tor_cell::{
+    chancell::ChanCmd,
+    relaycell::{RelayCellFields, RelayCellFormatTrait},
+};
 use tor_error::internal;
 use typenum::Unsigned;
 
@@ -134,12 +137,12 @@ where
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRelayLayer
     for CryptState<SC, D, RCF>
 {
-    fn originate(&mut self, cell: &mut RelayCellBody) {
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
         let mut d_ignored = GenericArray::default();
         cell.set_digest::<_, RCF>(&mut self.digest, &mut d_ignored);
-        self.encrypt_inbound(cell);
+        self.encrypt_inbound(cmd, cell);
     }
-    fn encrypt_inbound(&mut self, cell: &mut RelayCellBody) {
+    fn encrypt_inbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) {
         // This is describe in tor-spec 5.5.3.1, "Relaying Backward at Onion Routers"
         self.cipher.apply_keystream(cell.as_mut());
     }
@@ -147,7 +150,7 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRela
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundRelayLayer
     for CryptState<SC, D, RCF>
 {
-    fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool {
+    fn decrypt_outbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) -> bool {
         // This is describe in tor-spec 5.5.2.2, "Relaying Forward at Onion Routers"
         self.cipher.apply_keystream(cell.as_mut());
         let mut d_ignored = GenericArray::default();
@@ -173,12 +176,12 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait>
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRelayLayer
     for CryptStatePair<SC, D, RCF>
 {
-    fn originate(&mut self, cell: &mut RelayCellBody) {
-        self.back.originate(cell);
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
+        self.back.originate(cmd, cell);
     }
 
-    fn encrypt_inbound(&mut self, cell: &mut RelayCellBody) {
-        self.back.encrypt_inbound(cell);
+    fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
+        self.back.encrypt_inbound(cmd, cell);
     }
 }
 // This impl is used for testing and benchmarks, but nothing else.
@@ -186,22 +189,22 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRela
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundRelayLayer
     for CryptStatePair<SC, D, RCF>
 {
-    fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool {
-        self.fwd.decrypt_outbound(cell)
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> bool {
+        self.fwd.decrypt_outbound(cmd, cell)
     }
 }
 
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundClientLayer
     for CryptState<SC, D, RCF>
 {
-    fn originate_for(&mut self, cell: &mut RelayCellBody) -> &[u8] {
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
         cell.set_digest::<_, RCF>(&mut self.digest, &mut self.last_digest_val);
-        self.encrypt_outbound(cell);
+        self.encrypt_outbound(cmd, cell);
         // Note that we truncate the authentication tag here if we are using
         // a digest with a more-than-20-byte length.
         &self.last_digest_val[..SENDME_TAG_LEN]
     }
-    fn encrypt_outbound(&mut self, cell: &mut RelayCellBody) {
+    fn encrypt_outbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) {
         // This is a single iteration of the loop described in tor-spec
         // 5.5.2.1, "routing away from the origin."
         self.cipher.apply_keystream(&mut cell.0[..]);
@@ -211,7 +214,7 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundCli
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundClientLayer
     for CryptState<SC, D, RCF>
 {
-    fn decrypt_inbound(&mut self, cell: &mut RelayCellBody) -> Option<&[u8]> {
+    fn decrypt_inbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
         // This is a single iteration of the loop described in tor-spec
         // 5.5.3, "routing to the origin."
         self.cipher.apply_keystream(&mut cell.0[..]);
@@ -395,6 +398,7 @@ mod test {
             b"     'Segmentation fault bugs don't _just happen_', said Tom seethingly.        (P-GUVAT-YL)";
 
         const SEED: &[u8;108] = b"'You mean to tell me that there's a version of Sha-3 with no limit on the output length?', said Tom shakily.";
+        let cmd = ChanCmd::RELAY;
 
         // These test vectors were generated from Tor.
         let data: &[(usize, &str)] = &include!("../../../testdata/cell_crypt.rs");
@@ -422,7 +426,7 @@ mod test {
             stream.read(&mut body[11..]);
 
             let mut cell = body.into();
-            let _ = cc_out.encrypt(&mut cell, 2.into());
+            let _ = cc_out.encrypt(cmd, &mut cell, 2.into());
 
             if cellno == data[j].0 {
                 let expected = hex::decode(data[j].1).unwrap();

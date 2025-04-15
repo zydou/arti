@@ -34,7 +34,7 @@ pub(crate) mod tor1;
 
 use crate::{Error, Result};
 use derive_deftly::Deftly;
-use tor_cell::chancell::BoxedCellBody;
+use tor_cell::{chancell::BoxedCellBody, chancell::ChanCmd};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use super::binding::CircuitBinding;
@@ -101,9 +101,9 @@ where
 pub(crate) trait InboundRelayLayer {
     /// Prepare a RelayCellBody to be sent towards the client,
     /// and encrypt it.
-    fn originate(&mut self, cell: &mut RelayCellBody);
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
     /// Encrypt a RelayCellBody that is moving towards the client.
-    fn encrypt_inbound(&mut self, cell: &mut RelayCellBody);
+    fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
 
 /// Represent a relay's view of the outbound crypto state on a given circuit.
@@ -112,7 +112,7 @@ pub(crate) trait OutboundRelayLayer {
     /// Decrypt a RelayCellBody that is moving towards the client.
     ///
     /// Return true if it is addressed to us.
-    fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool;
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> bool;
 }
 
 /// A client's view of the cryptographic state shared with a single relay on a
@@ -122,9 +122,9 @@ pub(crate) trait OutboundClientLayer {
     /// encrypt it.
     ///
     /// Return the authentication tag.
-    fn originate_for(&mut self, cell: &mut RelayCellBody) -> &[u8];
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
     /// Encrypt a RelayCellBody to be decrypted by this layer.
-    fn encrypt_outbound(&mut self, cell: &mut RelayCellBody);
+    fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
 
 /// A client's view of the crypto state shared with a single relay on a circuit,
@@ -133,7 +133,7 @@ pub(crate) trait InboundClientLayer {
     /// Decrypt a CellBody that passed through this layer.
     ///
     /// Return an authentication tag if this layer is the originator.
-    fn decrypt_inbound(&mut self, cell: &mut RelayCellBody) -> Option<&[u8]>;
+    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
 }
 
 /// Type to store hop indices on a circuit.
@@ -224,6 +224,7 @@ impl OutboundClientCrypt {
     /// for an authenticated SENDME sent in response to this cell.
     pub(crate) fn encrypt(
         &mut self,
+        cmd: ChanCmd,
         cell: &mut RelayCellBody,
         hop: HopNum,
     ) -> Result<&[u8; SENDME_TAG_LEN]> {
@@ -234,9 +235,9 @@ impl OutboundClientCrypt {
 
         let mut layers = self.layers.iter_mut().take(hop + 1).rev();
         let first_layer = layers.next().ok_or(Error::NoSuchHop)?;
-        let tag = first_layer.originate_for(cell);
+        let tag = first_layer.originate_for(cmd, cell);
         for layer in layers {
-            layer.encrypt_outbound(cell);
+            layer.encrypt_outbound(cmd, cell);
         }
         Ok(tag.try_into().expect("wrong SENDME digest size"))
     }
@@ -262,9 +263,13 @@ impl InboundClientCrypt {
     ///
     /// On success, return which hop was the originator of the cell.
     // TODO(nickm): Use a real type for the tag, not just `&[u8]`.
-    pub(crate) fn decrypt(&mut self, cell: &mut RelayCellBody) -> Result<(HopNum, &[u8])> {
+    pub(crate) fn decrypt(
+        &mut self,
+        cmd: ChanCmd,
+        cell: &mut RelayCellBody,
+    ) -> Result<(HopNum, &[u8])> {
         for (hopnum, layer) in self.layers.iter_mut().enumerate() {
-            if let Some(tag) = layer.decrypt_inbound(cell) {
+            if let Some(tag) = layer.decrypt_inbound(cmd, cell) {
                 let hopnum = HopNum(u8::try_from(hopnum).expect("Somehow > 255 hops"));
                 return Ok((hopnum, tag));
             }
@@ -356,6 +361,7 @@ mod test {
         let mut r1 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed1)).unwrap();
         let mut r2 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed2)).unwrap();
         let mut r3 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed3)).unwrap();
+        let cmd = ChanCmd::RELAY;
 
         let mut rng = testing_rng();
         for _ in 1..300 {
@@ -365,11 +371,11 @@ mod test {
             rng.fill_bytes(&mut cell_orig);
             cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
-            let _tag = cc_out.encrypt(&mut cell, 2.into()).unwrap();
+            let _tag = cc_out.encrypt(cmd, &mut cell, 2.into()).unwrap();
             assert_ne!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
-            assert!(!r1.decrypt_outbound(&mut cell));
-            assert!(!r2.decrypt_outbound(&mut cell));
-            assert!(r3.decrypt_outbound(&mut cell));
+            assert!(!r1.decrypt_outbound(cmd, &mut cell));
+            assert!(!r2.decrypt_outbound(cmd, &mut cell));
+            assert!(r3.decrypt_outbound(cmd, &mut cell));
 
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
@@ -380,10 +386,10 @@ mod test {
             cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
 
-            r3.originate(&mut cell);
-            r2.encrypt_inbound(&mut cell);
-            r1.encrypt_inbound(&mut cell);
-            let (layer, _tag) = cc_in.decrypt(&mut cell).unwrap();
+            r3.originate(cmd, &mut cell);
+            r2.encrypt_inbound(cmd, &mut cell);
+            r1.encrypt_inbound(cmd, &mut cell);
+            let (layer, _tag) = cc_in.decrypt(cmd, &mut cell).unwrap();
             assert_eq!(layer, 2.into());
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
@@ -393,14 +399,14 @@ mod test {
         // Try a failure: sending a cell to a nonexistent hop.
         {
             let mut cell = Box::new([0_u8; 509]).into();
-            let err = cc_out.encrypt(&mut cell, 10.into());
+            let err = cc_out.encrypt(cmd, &mut cell, 10.into());
             assert!(matches!(err, Err(Error::NoSuchHop)));
         }
 
         // Try a failure: A junk cell with no correct auth from any layer.
         {
             let mut cell = Box::new([0_u8; 509]).into();
-            let err = cc_in.decrypt(&mut cell);
+            let err = cc_in.decrypt(cmd, &mut cell);
             assert!(matches!(err, Err(Error::BadCellAuth)));
         }
     }

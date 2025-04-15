@@ -36,7 +36,7 @@ use crate::{ClockSkew, Error, Result};
 
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
-use tor_cell::chancell::{AnyChanCell, CircId};
+use tor_cell::chancell::{AnyChanCell, ChanCmd, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, Truncated};
@@ -268,7 +268,12 @@ impl Circuit {
             .encode(relay_format, &mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
             .into();
-        let tag = crypto_out.encrypt(&mut body, hop)?;
+        let cmd = if early {
+            ChanCmd::RELAY_EARLY
+        } else {
+            ChanCmd::RELAY
+        };
+        let tag = crypto_out.encrypt(cmd, &mut body, hop)?;
         let msg = Relay::from(BoxedCellBody::from(body));
         let msg = if early {
             AnyChanMsg::RelayEarly(msg.into())
@@ -373,11 +378,13 @@ impl Circuit {
         &mut self,
         cell: Relay,
     ) -> Result<(HopNum, CircTag, RelayCellDecoderResult)> {
+        // This is always RELAY, not RELAY_EARLY, so long as this code is client-only.
+        let cmd = cell.cmd();
         let mut body = cell.into_relay_body().into();
 
         // Decrypt the cell. If it's recognized, then find the
         // corresponding hop.
-        let (hopnum, tag) = self.crypto_in.decrypt(&mut body)?;
+        let (hopnum, tag) = self.crypto_in.decrypt(cmd, &mut body)?;
         // Make a copy of the authentication tag. TODO: I'd rather not
         // copy it, but I don't see a way around it right now.
         let tag = {
