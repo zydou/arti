@@ -174,7 +174,7 @@ where
         trace!("{}: Handshake complete; circuit extended.", self.unique_id);
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
-        let (layer_fwd, layer_back, binding) = layer.split();
+        let (layer_fwd, layer_back, binding) = layer.split_client_layer();
         circ.add_hop(
             self.relay_cell_format,
             path::HopDetail::Relay(self.peer_id.clone()),

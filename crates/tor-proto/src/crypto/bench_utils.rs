@@ -9,8 +9,8 @@ use tor_cell::relaycell::RelayCellFormatTrait;
 
 pub use super::cell::tor1::bench_utils::*;
 use super::cell::{
-    tor1::CryptStatePair, ClientLayer, CryptInit, InboundClientCrypt, OutboundClientCrypt,
-    RelayCrypt,
+    tor1::CryptStatePair, ClientLayer, CryptInit, InboundClientCrypt, InboundRelayLayer as _,
+    OutboundClientCrypt,
 };
 
 /// Public wrapper around the `CryptStatePair` struct.
@@ -52,7 +52,7 @@ impl InboundCryptWrapper {
         seed: SecretBuf,
     ) -> Result<()> {
         let layer: CryptStatePair<SC, D, RCF> = CryptStatePair::construct(KGen::new(seed))?;
-        let (_outbound, inbound, _binding) = layer.split();
+        let (_outbound, inbound, _binding) = layer.split_client_layer();
         self.0.add_layer(Box::new(inbound));
 
         Ok(())
@@ -81,7 +81,7 @@ impl OutboundCryptWrapper {
         seed: SecretBuf,
     ) -> Result<()> {
         let layer: CryptStatePair<SC, D, RCF> = CryptStatePair::construct(KGen::new(seed))?;
-        let (outbound, _inbound, _binding) = layer.split();
+        let (outbound, _inbound, _binding) = layer.split_client_layer();
         self.0.add_layer(Box::new(outbound));
 
         Ok(())

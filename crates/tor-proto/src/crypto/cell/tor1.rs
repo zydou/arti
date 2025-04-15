@@ -19,8 +19,8 @@ use tor_error::internal;
 use typenum::Unsigned;
 
 use super::{
-    ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, RelayCellBody, RelayCrypt,
-    SENDME_TAG_LEN,
+    ClientLayer, CryptInit, InboundClientLayer, InboundRelayLayer, OutboundClientLayer,
+    OutboundRelayLayer, RelayCellBody, RelayLayer, SENDME_TAG_LEN,
 };
 
 /// A CryptState represents one layer of shared cryptographic state between
@@ -30,7 +30,7 @@ use super::{
 /// `CryptState`s, one for each relay, for each direction of communication.
 ///
 /// Note that although `CryptState` implements [`OutboundClientLayer`],
-/// [`InboundClientLayer`], and [`RelayCrypt`], any single `CryptState`
+/// [`InboundClientLayer`], [`OutboundRelayLayer`], and [`InboundRelayLayer`],
 /// instance will only be used for one of these roles.
 ///
 /// It is parameterized on a stream cipher and a digest type: most circuits
@@ -120,7 +120,7 @@ where
     D: Digest + Clone,
     RCF: RelayCellFormatTrait,
 {
-    fn split(
+    fn split_client_layer(
         self,
     ) -> (
         CryptState<SC, D, RCF>,
@@ -131,23 +131,63 @@ where
     }
 }
 
-impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> RelayCrypt
-    for CryptStatePair<SC, D, RCF>
+impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRelayLayer
+    for CryptState<SC, D, RCF>
 {
     fn originate(&mut self, cell: &mut RelayCellBody) {
         let mut d_ignored = GenericArray::default();
-        cell.set_digest::<_, RCF>(&mut self.back.digest, &mut d_ignored);
+        cell.set_digest::<_, RCF>(&mut self.digest, &mut d_ignored);
         self.encrypt_inbound(cell);
     }
     fn encrypt_inbound(&mut self, cell: &mut RelayCellBody) {
         // This is describe in tor-spec 5.5.3.1, "Relaying Backward at Onion Routers"
-        self.back.cipher.apply_keystream(cell.as_mut());
+        self.cipher.apply_keystream(cell.as_mut());
     }
+}
+impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundRelayLayer
+    for CryptState<SC, D, RCF>
+{
     fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool {
         // This is describe in tor-spec 5.5.2.2, "Relaying Forward at Onion Routers"
-        self.fwd.cipher.apply_keystream(cell.as_mut());
+        self.cipher.apply_keystream(cell.as_mut());
         let mut d_ignored = GenericArray::default();
-        cell.is_recognized::<_, RCF>(&mut self.fwd.digest, &mut d_ignored)
+        cell.is_recognized::<_, RCF>(&mut self.digest, &mut d_ignored)
+    }
+}
+impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait>
+    RelayLayer<CryptState<SC, D, RCF>, CryptState<SC, D, RCF>> for CryptStatePair<SC, D, RCF>
+{
+    fn split_relay_layer(
+        self,
+    ) -> (
+        CryptState<SC, D, RCF>,
+        CryptState<SC, D, RCF>,
+        CircuitBinding,
+    ) {
+        let CryptStatePair { fwd, back, binding } = self;
+        (fwd, back, binding)
+    }
+}
+// This impl is used for testing and benchmarks, but nothing else.
+#[cfg(any(test, feature = "bench"))]
+impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRelayLayer
+    for CryptStatePair<SC, D, RCF>
+{
+    fn originate(&mut self, cell: &mut RelayCellBody) {
+        self.back.originate(cell);
+    }
+
+    fn encrypt_inbound(&mut self, cell: &mut RelayCellBody) {
+        self.back.encrypt_inbound(cell);
+    }
+}
+// This impl is used for testing and benchmarks, but nothing else.
+#[cfg(any(test, feature = "bench"))]
+impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundRelayLayer
+    for CryptStatePair<SC, D, RCF>
+{
+    fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool {
+        self.fwd.decrypt_outbound(cell)
     }
 }
 

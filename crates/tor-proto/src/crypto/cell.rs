@@ -79,17 +79,36 @@ where
 {
     /// Consume this ClientLayer and return a paired forward and reverse
     /// crypto layer, and a [`CircuitBinding`] object
-    fn split(self) -> (F, B, CircuitBinding);
+    fn split_client_layer(self) -> (F, B, CircuitBinding);
 }
 
-/// Represents a relay's view of the crypto state on a given circuit.
-#[allow(dead_code)] // TODO #1383 ????
-pub(crate) trait RelayCrypt {
+/// A paired object containing the inbound and outbound cryptographic layers
+/// used by a relay to implement a client's circuits.
+///
+#[allow(dead_code)] // To be used by relays.
+pub(crate) trait RelayLayer<F, B>
+where
+    F: OutboundRelayLayer,
+    B: InboundRelayLayer,
+{
+    /// Consume this ClientLayer and return a paired forward and reverse
+    /// crypto layers, and a [`CircuitBinding`] object
+    fn split_relay_layer(self) -> (F, B, CircuitBinding);
+}
+
+/// Represents a relay's view of the inbound crypto state on a given circuit.
+#[allow(dead_code)] // Relays are not yet implemented.
+pub(crate) trait InboundRelayLayer {
     /// Prepare a RelayCellBody to be sent towards the client,
     /// and encrypt it.
     fn originate(&mut self, cell: &mut RelayCellBody);
     /// Encrypt a RelayCellBody that is moving towards the client.
     fn encrypt_inbound(&mut self, cell: &mut RelayCellBody);
+}
+
+/// Represent a relay's view of the outbound crypto state on a given circuit.
+#[allow(dead_code)]
+pub(crate) trait OutboundRelayLayer {
     /// Decrypt a RelayCellBody that is moving towards the client.
     ///
     /// Return true if it is addressed to us.
@@ -305,7 +324,7 @@ mod test {
         // TODO #1067: test other formats
         pair: Tor1RelayCrypto<RelayCellFormatV0>,
     ) {
-        let (outbound, inbound, _) = pair.split();
+        let (outbound, inbound, _) = pair.split_relay_layer();
         cc_out.add_layer(Box::new(outbound));
         cc_in.add_layer(Box::new(inbound));
     }
