@@ -2882,6 +2882,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-custom-connector-example"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arti-client",
+ "bytes",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "tokio",
+ "tokio-rustls",
+ "tor-rtcompat",
+ "tower-service",
+ "webpki-roots",
+]
+
+[[package]]
 name = "hyper-http-client-example"
 version = "0.1.0"
 dependencies = [
@@ -5802,6 +5820,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
 dependencies = [
  "native-tls",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-rustls"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e727b36a1a0e8b74c376ac2211e40c2c8af09fb4013c60d910495810f008e9b"
+dependencies = [
+ "rustls",
  "tokio",
 ]
 
