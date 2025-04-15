@@ -418,6 +418,24 @@ pub struct Reactor {
     cell_handlers: CellHandlers,
     /// The time provider, used for conflux handshake timeouts.
     runtime: DynTimeProvider,
+    /// The conflux handshake context, if there is an on-going handshake.
+    ///
+    /// Set to `None` if this is a single-path tunnel,
+    /// or if none of the circuit legs from our conflux set
+    /// are currently in the conflux handshake phase.
+    #[cfg(feature = "conflux")]
+    conflux_hs_ctx: Option<ConfluxHandshakeCtx>,
+}
+
+/// The context for an on-going conflux handshake.
+#[cfg(feature = "conflux")]
+struct ConfluxHandshakeCtx {
+    /// A channel for notifying the caller of the outcome of a CONFLUX_LINK request.
+    answer: ConfluxLinkResultChannel,
+    /// The number of legs that are currently doing the handshake.
+    num_legs: usize,
+    /// The handshake results we have collected so far.
+    results: ConfluxTunnelResult,
 }
 
 /// Cell handlers, shared between the Reactor and its underlying `Circuit`s.
@@ -529,6 +547,8 @@ impl Reactor {
             unique_id,
             cell_handlers,
             runtime,
+            #[cfg(feature = "conflux")]
+            conflux_hs_ctx: None,
         };
 
         (reactor, control_tx, command_tx, reactor_closed_rx, mutable)
