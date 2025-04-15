@@ -127,7 +127,7 @@ impl<R: Runtime> Service<hyper::Uri> for ArtiHttpConnector<R> {
         Box::pin(async move {
             // Retrieve host, port and if TLS is required from the URI.
             let (host, port, use_tls) =
-                uri_to_host_port_tls(&req).expect("Failed to retrieve host and port from Uri");
+                uri_to_host_port_tls(&req).expect("Failed to retrieve host and port from URI");
             let addr = match (host.to_string(), port).into_tor_addr() {
                 Ok(addr) => addr,
                 Err(_) => {
