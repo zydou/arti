@@ -137,10 +137,10 @@ where
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRelayLayer
     for CryptState<SC, D, RCF>
 {
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
-        let mut d_ignored = GenericArray::default();
-        cell.set_digest::<_, RCF>(&mut self.digest, &mut d_ignored);
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+        cell.set_digest::<_, RCF>(&mut self.digest, &mut self.last_digest_val);
         self.encrypt_inbound(cmd, cell);
+        &self.last_digest_val[..SENDME_TAG_LEN]
     }
     fn encrypt_inbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) {
         // This is describe in tor-spec 5.5.3.1, "Relaying Backward at Onion Routers"
@@ -150,11 +150,14 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRela
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundRelayLayer
     for CryptState<SC, D, RCF>
 {
-    fn decrypt_outbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) -> bool {
+    fn decrypt_outbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
         // This is describe in tor-spec 5.5.2.2, "Relaying Forward at Onion Routers"
         self.cipher.apply_keystream(cell.as_mut());
-        let mut d_ignored = GenericArray::default();
-        cell.is_recognized::<_, RCF>(&mut self.digest, &mut d_ignored)
+        if cell.is_recognized::<_, RCF>(&mut self.digest, &mut self.last_digest_val) {
+            Some(&self.last_digest_val[..SENDME_TAG_LEN])
+        } else {
+            None
+        }
     }
 }
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait>
@@ -176,8 +179,8 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait>
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRelayLayer
     for CryptStatePair<SC, D, RCF>
 {
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
-        self.back.originate(cmd, cell);
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+        self.back.originate(cmd, cell)
     }
 
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
@@ -189,7 +192,7 @@ impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundRela
 impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundRelayLayer
     for CryptStatePair<SC, D, RCF>
 {
-    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> bool {
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
         self.fwd.decrypt_outbound(cmd, cell)
     }
 }

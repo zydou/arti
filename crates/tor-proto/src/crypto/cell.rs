@@ -101,7 +101,9 @@ where
 pub(crate) trait InboundRelayLayer {
     /// Prepare a RelayCellBody to be sent towards the client,
     /// and encrypt it.
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
+    ///
+    /// Return the authentication tag.
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
     /// Encrypt a RelayCellBody that is moving towards the client.
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
@@ -111,8 +113,8 @@ pub(crate) trait InboundRelayLayer {
 pub(crate) trait OutboundRelayLayer {
     /// Decrypt a RelayCellBody that is moving towards the client.
     ///
-    /// Return true if it is addressed to us.
-    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> bool;
+    /// Return an authentication tag if it is addressed to us.
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
 }
 
 /// A client's view of the cryptographic state shared with a single relay on a
@@ -373,9 +375,9 @@ mod test {
             let mut cell = cell.into();
             let _tag = cc_out.encrypt(cmd, &mut cell, 2.into()).unwrap();
             assert_ne!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
-            assert!(!r1.decrypt_outbound(cmd, &mut cell));
-            assert!(!r2.decrypt_outbound(cmd, &mut cell));
-            assert!(r3.decrypt_outbound(cmd, &mut cell));
+            assert!(r1.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r2.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r3.decrypt_outbound(cmd, &mut cell).is_some());
 
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
