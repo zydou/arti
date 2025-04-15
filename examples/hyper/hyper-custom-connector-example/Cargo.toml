@@ -1,0 +1,22 @@
+[package]
+name = "hyper-custom-connector-example"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Niel Duysters"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Example demonstrating how to create a custom ArtiHttpConnector to use with hyper"
+publish = false
+
+[dependencies]
+anyhow = "1.0.75"
+arti-client = { path = "../../../crates/arti-client" }
+bytes = "1.10.1"
+http = "1.3.1"
+http-body-util = "0.1.0"
+hyper = { version = "1.6", features = ["http1"] }
+hyper-util = { version = "0.1.11", features = ["tokio", "client-legacy", "http1"] }
+tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio-rustls = "0.26.2"
+tower-service = "0.3.3"
+webpki-roots = "0.26.8"
