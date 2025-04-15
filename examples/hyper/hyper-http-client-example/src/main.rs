@@ -9,6 +9,8 @@ use tokio_native_tls::native_tls::TlsConnector;
 
 use arti_client::{TorClient, TorClientConfig};
 
+const TEST_URL: &str = "https://check.torproject.org/api/ip";
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Arti uses the `tracing` crate for logging. Install a handler for this, to print Arti's logs.
@@ -20,7 +22,7 @@ async fn main() -> Result<()> {
     // because it's a good way of demonstrating that the connection is via Tor.
     let url: Uri = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "https://icanhazip.com".into())
+        .unwrap_or_else(|| TEST_URL.into())
         .parse()?;
     let host = url.host().unwrap();
     let https = url.scheme() == Some(&Scheme::HTTPS);
