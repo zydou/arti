@@ -629,4 +629,9 @@ mod test {
     integration_tests! { tor1(0, Tor1RelayCrypto<RelayCellFormatV0>, Tor1RelayCrypto<RelayCellFormatV0>) }
     #[cfg(feature = "hs-common")]
     integration_tests! { tor1_hs(0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
+
+    #[cfg(feature = "cgo")]
+    integration_tests! { cgo_aes128(1, cgo::CryptStatePair<aes::Aes128>, cgo::CryptStatePair<aes::Aes128>) }
+    #[cfg(feature = "cgo")]
+    integration_tests! { cgo_aes256(1, cgo::CryptStatePair<aes::Aes256>, cgo::CryptStatePair<aes::Aes256>) }
 }

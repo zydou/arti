@@ -16,18 +16,7 @@
 // Implementation note: For naming, I'm trying to use the symbols from the paper
 // and the spec (which should be the same) wherever possible.
 
-#![allow(dead_code)] // TODO #1943
-
-// TODO:
-//  - Round-trip tests.
-//  - KDF code
-//  - Relay operations
-//    - Forward
-//    - Backward
-//    - Originating
-//  - Client operations
-//    - Originating
-//    - Receiving
+#![allow(dead_code)] // TODO CGO: Remove this once we actually use CGO encryption.
 
 use aes::{Aes128, Aes256};
 use cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, BlockSizeUser, StreamCipher as _};
@@ -37,6 +26,9 @@ use static_assertions::const_assert;
 use tor_cell::{chancell::ChanCmd, chancell::CELL_DATA_LEN};
 use tor_error::internal;
 use zeroize::Zeroizing;
+
+use super::{CryptInit, RelayCellBody, SENDME_TAG_LEN};
+use crate::{circuit::CircuitBinding, util::ct};
 
 /// Size of CGO tag, in bytes.
 const CGO_TAG_LEN: usize = 16;
@@ -64,7 +56,7 @@ type Block = [u8; BLK_LEN];
 /// and make our "where" declarations smaller.
 ///
 /// Not sealed because it is never used outside of this crate.
-trait BlkCipher:
+pub(crate) trait BlkCipher:
     BlockCipher + KeyInit + BlockSizeUser<BlockSize = BlockLen> + BlockEncrypt + BlockDecrypt + Clone
 {
     /// Length of the key used by this block cipher.
@@ -364,6 +356,188 @@ fn xor_into<const N: usize>(output: &mut [u8; N], input: &[u8; N]) {
     }
 }
 
+/// Helper: return the first `BLK_LEN` bytes of a slice as an array.
+///
+/// TODO PERF: look for other ways to express this, and/or make sure that it
+/// compiles down to something minimal.
+#[inline]
+fn first_block(bytes: &[u8]) -> &[u8; BLK_LEN] {
+    bytes[0..BLK_LEN].try_into().expect("Slice too short!")
+}
+
+/// State of a single direction of a CGO layer, at the client or at a relay.
+#[derive(Clone)]
+struct CryptState<BC: BlkCipher> {
+    /// The currebnt key "K" for this direction.
+    uiv: uiv::Uiv<BC>,
+    /// The current nonce value "N" for this direction.
+    nonce: Zeroizing<[u8; BLK_LEN]>,
+    /// The current tag value "T'" for this direction, padded with 4 bytes of zeros.
+    ///
+    /// TODO #1956: This is only padded because SENDME_TAG_LEN is currently fixed at
+    /// 20.  We should remove SENDME_TAG_LEN, or make it a maximum.
+    tag: Zeroizing<[u8; SENDME_TAG_LEN]>,
+}
+
+impl<BC: BlkCipher> CryptState<BC> {
+    /// Return the current tag value.
+    ///
+    /// TODO: (This might go away once #1956 is done)
+    #[inline]
+    fn tag(&self) -> &[u8; BLK_LEN] {
+        first_block(&self.tag[..])
+    }
+
+    /// Replace the tag with new_tag.
+    ///
+    /// TODO: (This might go away once #1956 is done)
+    #[inline]
+    fn set_tag(&mut self, new_tag: &[u8; BLK_LEN]) {
+        self.tag[..BLK_LEN].copy_from_slice(new_tag);
+    }
+}
+
+impl<BC: BlkCipher> CryptInit for CryptState<BC> {
+    fn seed_len() -> usize {
+        uiv::Uiv::<BC>::seed_len() + BLK_LEN
+    }
+    /// Construct this state from a seed of the appropriate length.
+    fn initialize(seed: &[u8]) -> crate::Result<Self> {
+        if seed.len() != Self::seed_len() {
+            return Err(internal!("Invalid seed length").into());
+        }
+        let (j_s, n) = seed.split_at(uiv::Uiv::<BC>::seed_len());
+        Ok(Self {
+            uiv: uiv::Uiv::initialize(j_s)?,
+            nonce: Zeroizing::new(n.try_into().expect("invalid splice length")),
+            tag: Zeroizing::new([0; SENDME_TAG_LEN]),
+        })
+    }
+}
+
+/// An instance of CGO used for outbound client encryption.
+#[derive(Clone, derive_more::From)]
+pub(crate) struct ClientOutbound<BC: BlkCipher>(CryptState<BC>);
+impl<BC: BlkCipher> super::OutboundClientLayer for ClientOutbound<BC> {
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+        cell.0[0..BLK_LEN].copy_from_slice(&self.0.nonce[..]);
+        self.encrypt_outbound(cmd, cell);
+        self.0.uiv.update(&mut self.0.nonce);
+        &self.0.tag[..]
+    }
+    fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
+        // TODO PERF: consider swap here.
+        let t_new: [u8; BLK_LEN] = *first_block(&*cell.0);
+
+        // Note use of decrypt here: Client operations always use _decrypt_,
+        // and relay operations always use _encrypt_.
+        self.0.uiv.decrypt((self.0.tag(), cmd.into()), &mut cell.0);
+        self.0.set_tag(&t_new);
+    }
+}
+
+/// An instance of CGO used for inbound client encryption.
+#[derive(Clone, derive_more::From)]
+pub(crate) struct ClientInbound<BC: BlkCipher>(CryptState<BC>);
+impl<BC: BlkCipher> super::InboundClientLayer for ClientInbound<BC> {
+    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
+        let mut t_orig: [u8; BLK_LEN] = *first_block(&*cell.0);
+
+        // Note use of decrypt here: Client operations always use _decrypt_,
+        // and relay operations always use _encrypt_.
+        self.0.uiv.decrypt((self.0.tag(), cmd.into()), &mut cell.0);
+        self.0.set_tag(&t_orig);
+        if ct::bytes_eq(&cell.0[..CGO_TAG_LEN], &self.0.nonce[..]) {
+            self.0.uiv.update(&mut t_orig);
+            *self.0.nonce = t_orig;
+            Some(&self.0.tag[..])
+        } else {
+            None
+        }
+    }
+}
+
+/// An instance of CGO used for outbound (away from the client) relay encryption.
+#[derive(Clone, derive_more::From)]
+pub(crate) struct RelayOutbound<BC: BlkCipher>(CryptState<BC>);
+impl<BC: BlkCipher> super::OutboundRelayLayer for RelayOutbound<BC> {
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
+        // Note use of encrypt here: Client operations always use _decrypt_,
+        // and relay operations always use _encrypt_.
+        self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
+        self.0.set_tag(first_block(&*cell.0));
+        if ct::bytes_eq(self.0.tag(), &self.0.nonce[..]) {
+            self.0.uiv.update(&mut self.0.nonce);
+            Some(&self.0.tag[..])
+        } else {
+            None
+        }
+    }
+}
+
+/// An instance of CGO used for inbound (towards the client) relay encryption.
+#[derive(Clone, derive_more::From)]
+pub(crate) struct RelayInbound<BC: BlkCipher>(CryptState<BC>);
+impl<BC: BlkCipher> super::InboundRelayLayer for RelayInbound<BC> {
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+        cell.0[0..BLK_LEN].copy_from_slice(&self.0.nonce[..]);
+        self.encrypt_inbound(cmd, cell);
+        self.0.nonce.copy_from_slice(&cell.0[0..BLK_LEN]);
+        self.0.uiv.update(&mut self.0.nonce);
+        &self.0.tag[..]
+    }
+    fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
+        // Note use of encrypt here: Client operations always use _decrypt_,
+        // and relay operations always use _encrypt_.
+        self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
+        self.0.set_tag(first_block(&*cell.0));
+    }
+}
+
+/// A set of cryptographic information as shared by the client and a single relay,
+/// and
+#[derive(Clone)]
+pub(crate) struct CryptStatePair<BC: BlkCipher> {
+    /// State for the outbound direction (away from client)
+    outbound: CryptState<BC>,
+    /// State for the inbound direction (towards client)
+    inbound: CryptState<BC>,
+    /// Circuit binding information.
+    binding: CircuitBinding,
+}
+
+impl<BC: BlkCipher> CryptInit for CryptStatePair<BC> {
+    fn seed_len() -> usize {
+        CryptState::<BC>::seed_len() * 2 + crate::crypto::binding::CIRC_BINDING_LEN
+    }
+    fn initialize(seed: &[u8]) -> crate::Result<Self> {
+        if seed.len() != Self::seed_len() {
+            return Err(internal!("Invalid seed length").into());
+        }
+        let slen = CryptState::<BC>::seed_len();
+        let (outb, inb, binding) = (&seed[0..slen], &seed[slen..slen * 2], &seed[slen * 2..]);
+        Ok(Self {
+            outbound: CryptState::initialize(outb)?,
+            inbound: CryptState::initialize(inb)?,
+            binding: binding.try_into().expect("Invalid slice length"),
+        })
+    }
+}
+
+impl<BC: BlkCipher> super::ClientLayer<ClientOutbound<BC>, ClientInbound<BC>>
+    for CryptStatePair<BC>
+{
+    fn split_client_layer(self) -> (ClientOutbound<BC>, ClientInbound<BC>, CircuitBinding) {
+        (self.outbound.into(), self.inbound.into(), self.binding)
+    }
+}
+
+impl<BC: BlkCipher> super::RelayLayer<RelayOutbound<BC>, RelayInbound<BC>> for CryptStatePair<BC> {
+    fn split_relay_layer(self) -> (RelayOutbound<BC>, RelayInbound<BC>, CircuitBinding) {
+        (self.outbound.into(), self.inbound.into(), self.binding)
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -379,6 +553,10 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use crate::crypto::cell::{
+        InboundRelayLayer, OutboundClientCrypt, OutboundClientLayer, OutboundRelayLayer,
+    };
 
     use super::*;
     use hex_literal::hex;
@@ -417,6 +595,8 @@ mod test {
     include!("../../../testdata/cgo_et.rs");
     include!("../../../testdata/cgo_prf.rs");
     include!("../../../testdata/cgo_uiv.rs");
+    include!("../../../testdata/cgo_relay.rs");
+    include!("../../../testdata/cgo_client.rs");
 
     /// Decode s as a N-byte hex string, or panic.
     fn unhex<const N: usize>(s: &str) -> [u8; N] {
@@ -509,6 +689,124 @@ mod test {
 
             uiv.encrypt((&tweak, cmd), &mut msg1);
             uiv2.encrypt((&tweak, cmd), &mut msg2);
+        }
+    }
+
+    #[test]
+    fn testvec_cgo_relay() {
+        for (inbound, (k, n, tprime), ad, t, c, output) in CGO_RELAY_TEST_VECTORS {
+            let k_n: [u8; 80] = unhex(&format!("{k}{n}"));
+            let tprime: [u8; 16] = unhex(tprime);
+            let ad: [u8; 1] = unhex(ad);
+            let msg: [u8; CELL_DATA_LEN] = unhex(&format!("{t}{c}"));
+            let mut msg = RelayCellBody(Box::new(msg));
+
+            let mut state = CryptState::<Aes128>::initialize(&k_n).unwrap();
+            state.set_tag(&tprime);
+            let state = if *inbound {
+                let mut s = RelayInbound::from(state);
+                s.encrypt_inbound(ad[0].into(), &mut msg);
+                s.0
+            } else {
+                let mut s = RelayOutbound::from(state);
+                s.decrypt_outbound(ad[0].into(), &mut msg);
+                s.0
+            };
+
+            // expected values
+            let ((ex_k, ex_n, ex_tprime), (ex_t, ex_c)) = output;
+            let ex_msg: [u8; CELL_DATA_LEN] = unhex(&format!("{ex_t}{ex_c}"));
+            let ex_k: [u8; 64] = unhex(ex_k);
+            let ex_n: [u8; 16] = unhex(ex_n);
+            let ex_tprime: [u8; 16] = unhex(ex_tprime);
+            assert_eq!(&ex_msg[..], &msg.0[..]);
+            assert_eq!(&state.uiv.keys[..], &ex_k[..]);
+            assert_eq!(&state.nonce[..], &ex_n[..]);
+            assert_eq!(state.tag(), &ex_tprime[..]);
+        }
+    }
+
+    #[test]
+    fn testvec_cgo_relay_originate() {
+        for ((k, n, tprime), ad, m, output) in CGO_RELAY_ORIGINATE_TEST_VECTORS {
+            let k_n: [u8; 80] = unhex(&format!("{k}{n}"));
+            let tprime: [u8; 16] = unhex(tprime);
+            let ad: [u8; 1] = unhex(ad);
+            let msg_body: [u8; CGO_PAYLOAD_LEN] = unhex(m);
+            let mut msg = [0_u8; CELL_DATA_LEN];
+            msg[16..].copy_from_slice(&msg_body[..]);
+            let mut msg = RelayCellBody(Box::new(msg));
+
+            let mut state = CryptState::<Aes128>::initialize(&k_n).unwrap();
+            state.set_tag(&tprime);
+            let mut state = RelayInbound::from(state);
+            state.originate(ad[0].into(), &mut msg);
+            let state = state.0;
+
+            let ((ex_k, ex_n, ex_tprime), (ex_t, ex_c)) = output;
+            let ex_msg: [u8; CELL_DATA_LEN] = unhex(&format!("{ex_t}{ex_c}"));
+            let ex_k: [u8; 64] = unhex(ex_k);
+            let ex_n: [u8; 16] = unhex(ex_n);
+            let ex_tprime: [u8; 16] = unhex(ex_tprime);
+            assert_eq!(&ex_msg[..], &msg.0[..]);
+            assert_eq!(&state.uiv.keys[..], &ex_k[..]);
+            assert_eq!(&state.nonce[..], &ex_n[..]);
+            assert_eq!(state.tag(), &ex_tprime[..]);
+        }
+    }
+
+    #[test]
+    fn testvec_cgo_client_originate() {
+        for (ss, hop, ad, m, output) in CGO_CLIENT_ORIGINATE_TEST_VECTORS {
+            assert!(*hop > 0); // the test vectors are 1-indexed.
+            let mut client = OutboundClientCrypt::new();
+            let mut individual_layers = Vec::new();
+            for (k, n, tprime) in ss {
+                let k_n: [u8; 80] = unhex(&format!("{k}{n}"));
+                let tprime: [u8; 16] = unhex(tprime);
+                let mut state = CryptState::<Aes128>::initialize(&k_n).unwrap();
+                state.set_tag(&tprime);
+                client.add_layer(Box::new(ClientOutbound::from(state.clone())));
+                individual_layers.push(ClientOutbound::from(state));
+            }
+
+            let ad: [u8; 1] = unhex(ad);
+            let msg_body: [u8; CGO_PAYLOAD_LEN] = unhex(m);
+            let mut msg = [0_u8; CELL_DATA_LEN];
+            msg[16..].copy_from_slice(&msg_body[..]);
+            let mut msg = RelayCellBody(Box::new(msg));
+            let mut msg2 = msg.clone();
+
+            // Encrypt using the OutboundClientCrypt object...
+            client
+                .encrypt(ad[0].into(), &mut msg, (*hop - 1).into())
+                .unwrap();
+            // And a second time manually, using individual_layers.
+            //
+            // (We do this so we can actually inspect that their internal state matches the test vectors.)
+            {
+                let hop_idx = usize::from(*hop) - 1;
+                individual_layers[hop_idx].originate_for(ad[0].into(), &mut msg2);
+                for idx in (0..hop_idx).rev() {
+                    individual_layers[idx].encrypt_outbound(ad[0].into(), &mut msg2);
+                }
+            }
+            assert_eq!(&msg.0[..], &msg2.0[..]);
+
+            let (ex_ss, (ex_t, ex_c)) = output;
+            let ex_msg: [u8; CELL_DATA_LEN] = unhex(&format!("{ex_t}{ex_c}"));
+            assert_eq!(&ex_msg[..], &msg.0[..]);
+
+            for (layer, (ex_k, ex_n, ex_tprime)) in individual_layers.iter().zip(ex_ss.iter()) {
+                let state = &layer.0;
+                let ex_k: [u8; 64] = unhex(ex_k);
+                let ex_n: [u8; 16] = unhex(ex_n);
+                let ex_tprime: [u8; 16] = unhex(ex_tprime);
+
+                assert_eq!(&state.uiv.keys[..], &ex_k[..]);
+                assert_eq!(&state.nonce[..], &ex_n[..]);
+                assert_eq!(state.tag(), &ex_tprime);
+            }
         }
     }
 }
