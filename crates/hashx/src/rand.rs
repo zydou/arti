@@ -8,7 +8,7 @@
 //! allowing substitute random number generators for testing or for special
 //! purposes that don't require compatibility with HashX proper.
 //!
-//! The stateful u8 and u32 layer comes from this module's ['RngBuffer'].
+//! The stateful u8 and u32 layer comes from this module's [`RngBuffer`].
 //! It's important for the u8 and u32 queues to share a common generator.
 //! The order of dequeueing u8 items vs u32 items intentionally modifies the
 //! assignment of particular u64 [`RngCore`] values to the two queues.
