@@ -121,7 +121,7 @@ fn net_error_action(err: &std::io::Error) -> ClientErrorAction {
     match err.kind() {
         EK::ConnectionRefused => A::Decline,
         EK::ConnectionReset => A::Decline,
-        // TODO Rust 1.83; revisit once some of `io_error_more` is stabilized.
+        // TODO MSRV 1.83; revisit once some of `io_error_more` is stabilized.
         // see https://github.com/rust-lang/rust/pull/128316
         _ => A::Abort,
     }
