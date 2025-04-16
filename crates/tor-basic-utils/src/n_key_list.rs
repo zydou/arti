@@ -392,9 +392,9 @@ $crate::n_key_list::deps::paste!{
         ///
         /// **NOTE:** This function is weird and will be removed in the future. We can fix this once
         /// we support a minimum rust version of 1.79.
-        // TODO: The problem is that we need to assign `values` some value. In rust 1.79 we can just
-        // use a constant expression, but without constant expressions, there's no way to get a
-        // reference to a `Slab` with the generic types of `$V`. Once we support a minimum rust
+        // TODO MSRV 1.79: The problem is that we need to assign `values` some value. In rust 1.79 we
+        // can just use a constant expression, but without constant expressions, there's no way to get
+        // a reference to a `Slab` with the generic types of `$V`. Once we support a minimum rust
         // version of 1.79, remove this function and uncomment the `Default` impl for the iterator
         // below.
         #[deprecated]
