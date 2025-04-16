@@ -853,7 +853,7 @@ dependencies = [
  "http",
  "http-body",
  "http-body-util",
- "hyper 1.6.0",
+ "hyper",
  "hyper-util",
  "itoa",
  "matchit",
@@ -902,7 +902,7 @@ dependencies = [
  "arti-client",
  "axum",
  "futures",
- "hyper 1.6.0",
+ "hyper",
  "hyper-util",
  "safelog",
  "tokio",
@@ -1828,7 +1828,7 @@ dependencies = [
  "futures",
  "hex",
  "http-body-util",
- "hyper 1.6.0",
+ "hyper",
  "hyper-util",
  "sha2",
  "tokio",
@@ -2703,32 +2703,6 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arti-client",
- "bytes",
- "futures",
- "http",
- "http-body-util",
- "hyper 1.6.0",
- "hyper-util",
- "safelog",
- "tokio",
- "tokio-native-tls",
- "tokio-rustls",
- "tokio-util",
- "tor-cell",
- "tor-hsservice",
- "tor-proto",
- "tor-rtcompat",
- "tower-service",
- "tracing-subscriber",
- "webpki-roots",
-]
-
-[[package]]
-name = "hyper"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc2b571658e38e0c01b1fdca3bbbe93c00d3d71693ff2770043f8c29bc7d6f80"
@@ -2749,6 +2723,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-examples"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arti-client",
+ "bytes",
+ "futures",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "safelog",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-rustls",
+ "tokio-util",
+ "tor-cell",
+ "tor-hsservice",
+ "tor-proto",
+ "tor-rtcompat",
+ "tower-service",
+ "tracing-subscriber",
+ "webpki-roots",
+]
+
+[[package]]
 name = "hyper-util"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2760,7 +2760,7 @@ dependencies = [
  "futures-util",
  "http",
  "http-body",
- "hyper 1.6.0",
+ "hyper",
  "libc",
  "pin-project-lite",
  "socket2",
@@ -3308,7 +3308,7 @@ checksum = "2b166dea96003ee2531cf14833efedced545751d800f03535801d833313f8c15"
 dependencies = [
  "base64",
  "http-body-util",
- "hyper 1.6.0",
+ "hyper",
  "hyper-util",
  "indexmap 2.10.0",
  "ipnet",
