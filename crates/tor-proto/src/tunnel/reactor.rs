@@ -66,10 +66,7 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::trace;
 
 #[cfg(feature = "conflux")]
-use {
-    crate::util::err::ConfluxHandshakeError,
-    conflux::OooRelayMsg,
-};
+use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
 
 pub(super) use control::CtrlCmd;
 pub(super) use control::CtrlMsg;
