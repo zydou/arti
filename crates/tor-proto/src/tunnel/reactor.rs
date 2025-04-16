@@ -220,6 +220,22 @@ enum RunOnceCmdInner {
         /// Oneshot channel to return the clock skew.
         answer: oneshot::Sender<StdResult<ClockSkew, Bug>>,
     },
+    /// Remove a circuit leg from the conflux set.
+    RemoveLeg {
+        /// The leg the entry originated from.
+        leg: LegId,
+        /// The reason for removal.
+        reason: RemoveLegReason,
+    },
+    /// This circuit has completed the conflux handshake,
+    /// and wants to send the specified cell.
+    #[cfg(feature = "conflux")]
+    ConfluxHandshakeComplete {
+        /// The leg the cell should be sent on.
+        leg: LegId,
+        /// The cell to send.
+        cell: SendRelayCell,
+    },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
 }
@@ -247,6 +263,16 @@ impl RunOnceCmdInner {
                 behav,
                 reason,
                 done: None,
+            },
+            #[cfg(feature = "conflux")]
+            CircuitCmd::ConfluxRemove(reason) => Self::RemoveLeg {
+                leg: LegId(leg),
+                reason,
+            },
+            #[cfg(feature = "conflux")]
+            CircuitCmd::ConfluxHandshakeComplete(cell) => Self::ConfluxHandshakeComplete {
+                leg: LegId(leg),
+                cell,
             },
             CircuitCmd::CleanShutdown => Self::CleanShutdown,
         }
@@ -840,6 +866,37 @@ impl Reactor {
                 trace!("{}: reactor shutdown due to handled cell", self.unique_id);
                 return Err(ReactorError::Shutdown);
             }
+            RunOnceCmdInner::RemoveLeg { leg, reason } => {
+                self.circuits.remove(leg.0)?;
+
+                // If we reach this point, it means we have more than one leg
+                // (otherwise the .remove() would've returned a Shutdown error),
+                // so we expect there to be a ConfluxHandshakeContext installed.
+
+                // TODO(conflux): add the outcome to our list of circuit outcomes
+                // to share via the conflux_tx channel with the conflux handshake initiator
+                #[cfg(feature = "conflux")]
+                let error = match reason {
+                    RemoveLegReason::ConfluxHandshakeTimeout => ConfluxHandshakeError::Timeout,
+                    RemoveLegReason::ConfluxHandshakeErr(e) => ConfluxHandshakeError::Link(e),
+                    RemoveLegReason::ChannelClosed => ConfluxHandshakeError::ChannelClosed,
+                };
+
+                #[cfg(feature = "conflux")]
+                self.note_conflux_handshake_result(Err(error))?;
+            }
+            #[cfg(feature = "conflux")]
+            RunOnceCmdInner::ConfluxHandshakeComplete { leg, cell } => {
+                self.note_conflux_handshake_result(Ok(()))?;
+
+                let leg = self
+                    .circuits
+                    .leg_mut(leg)
+                    .ok_or_else(|| internal!("leg disappeared?!"))?;
+                let res = leg.send_relay_cell(cell).await;
+
+                res?;
+            }
         }
 
         Ok(())
@@ -894,6 +951,45 @@ impl Reactor {
                 Err(Error::CircProto(format!("Unexpected {msg:?} cell on client circuit")).into())
             }
         }
+    }
+
+    /// Add the specified handshake result to our `ConfluxHandshakeContext`.
+    ///
+    /// If all the circuits we were waiting on have finished the conflux handshake,
+    /// the `ConfluxHandshakeContext` is consumed, and the results we have collected
+    /// are sent to the handshake initiator.
+    #[cfg(feature = "conflux")]
+    fn note_conflux_handshake_result(
+        &mut self,
+        res: StdResult<(), ConfluxHandshakeError>,
+    ) -> StdResult<(), Bug> {
+        let tunnel_complete = match self.conflux_hs_ctx.as_mut() {
+            Some(conflux_ctx) => {
+                conflux_ctx.results.push(res);
+                // Whether all the legs have finished linking:
+                conflux_ctx.results.len() == conflux_ctx.num_legs
+            }
+            None => {
+                return Err(internal!("no conflux handshake context"));
+            }
+        };
+
+        if tunnel_complete {
+            // Time to remove the conflux handshake context
+            // and extract the results we have collected
+            let conflux_ctx = self.conflux_hs_ctx.take().expect("context disappeared?!");
+
+            if conflux_ctx.answer.send(Ok(conflux_ctx.results)).is_err() {
+                tracing::warn!("conflux initiator went away before handshake completed?");
+            }
+
+            // We don't expect to receive any more handshake results,
+            // at least not until we get another LinkCircuits control message,
+            // which will install a new ConfluxHandshakeCtx with a channel
+            // for us to send updates on
+        }
+
+        Ok(())
     }
 
     /// Prepare a `SendRelayCell` request, and install the given meta-cell handler.

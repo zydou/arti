@@ -74,6 +74,9 @@ use {
     tor_cell::relaycell::msg::Begin,
 };
 
+#[cfg(feature = "conflux")]
+use crate::tunnel::reactor::RemoveLegReason;
+
 /// Initial value for outbound flow-control window on streams.
 pub(super) const SEND_WINDOW_INIT: u16 = 500;
 /// Initial value for inbound flow-control window on streams.
@@ -190,6 +193,20 @@ pub(super) enum CircuitCmd {
         /// The reason for closing the stream.
         reason: streammap::TerminateReason,
     },
+    /// Remove this circuit from the conflux set.
+    ///
+    /// Returned by `ConfluxMsgHandler::handle_conflux_msg` for invalid messages
+    /// (originating from wrong hop), and for messages that are rejected
+    /// by its inner `AbstractMsgHandler`.
+    #[cfg(feature = "conflux")]
+    ConfluxRemove(RemoveLegReason),
+    /// This circuit has completed the conflux handshake,
+    /// and wants to send the specified cell.
+    ///
+    /// Returned by an `AbstractMsgHandler` to signal to the reactor that
+    /// the conflux handshake is complete.
+    #[cfg(feature = "conflux")]
+    ConfluxHandshakeComplete(SendRelayCell),
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
 }
@@ -1393,6 +1410,17 @@ impl Circuit {
         let hop = self.hop(hop)?;
         Some(hop.ccontrol.uses_stream_sendme())
     }
+}
+
+/// The conflux status of a conflux [`Circuit`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(super) enum ConfluxStatus {
+    /// Circuit has not begun the conflux handshake yet.
+    Unlinked,
+    /// Conflux handshake is in progress.
+    Pending,
+    /// A linked conflux circuit.
+    Linked,
 }
 
 /// Return the stream ID of `msg`, if it has one.

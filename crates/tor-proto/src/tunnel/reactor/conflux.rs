@@ -1,5 +1,8 @@
 //! Conflux-related functionality
 
+#[cfg(feature = "conflux")]
+mod msghandler;
+
 use std::future::Future;
 
 use futures::StreamExt;
