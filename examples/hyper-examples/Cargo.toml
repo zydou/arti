@@ -1,5 +1,5 @@
 [package]
-name = "hyper"
+name = "hyper-examples"
 version = "0.1.0"
 authors = ["The Tor Project, Inc.", "Ramid Khan <ramidzkh@gmail.com>", "Niel Duysters"]
 edition = "2021"
