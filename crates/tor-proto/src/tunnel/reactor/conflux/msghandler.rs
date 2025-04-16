@@ -5,7 +5,7 @@ mod client;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicU32};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 use tor_cell::relaycell::conflux::V1Nonce;
 use tor_cell::relaycell::{RelayCmd, StreamId, UnparsedRelayMsg};
@@ -43,9 +43,10 @@ impl ConfluxMsgHandler {
         hop: HopNum,
         nonce: V1Nonce,
         last_seq_delivered: Arc<AtomicU32>,
+        runtime: tor_rtcompat::DynTimeProvider,
     ) -> Self {
         Self {
-            handler: Box::new(ClientConfluxMsgHandler::new(hop, nonce)),
+            handler: Box::new(ClientConfluxMsgHandler::new(hop, nonce, runtime)),
             last_seq_delivered,
         }
     }
@@ -75,7 +76,7 @@ impl ConfluxMsgHandler {
     /// Client-only: note that the LINK cell was sent.
     ///
     /// Used for the initial RTT measurement.
-    pub(crate) fn note_link_sent(&mut self, ts: Instant) -> Result<(), Bug> {
+    pub(crate) fn note_link_sent(&mut self, ts: SystemTime) -> Result<(), Bug> {
         self.handler.note_link_sent(ts)
     }
 
@@ -208,7 +209,7 @@ trait AbstractConfluxMsgHandler {
     fn status(&self) -> ConfluxStatus;
 
     /// Client-only: note that the LINK cell was sent.
-    fn note_link_sent(&mut self, ts: Instant) -> Result<(), Bug>;
+    fn note_link_sent(&mut self, ts: SystemTime) -> Result<(), Bug>;
 
     /// Returns the initial RTT measured by this handler.
     fn init_rtt(&self) -> Option<Duration>;

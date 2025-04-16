@@ -1,11 +1,12 @@
 //! Client-side conflux message handling.
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 use tor_cell::relaycell::conflux::V1Nonce;
 use tor_cell::relaycell::msg::{ConfluxLinked, ConfluxLinkedAck, ConfluxSwitch};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd, UnparsedRelayMsg};
-use tor_error::{internal, Bug};
+use tor_error::{internal, warn_report, Bug};
+use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 
 use crate::tunnel::reactor::circuit::{unsupported_client_cell, ConfluxStatus};
 use crate::tunnel::reactor::{CircuitCmd, SendRelayCell};
@@ -34,7 +35,9 @@ pub(super) struct ClientConfluxMsgHandler {
     /// TODO(conflux): we currently assume this is a *client* ConfluxMsgHandler.
     init_rtt: Option<Duration>,
     /// Client-only: the time when the handshake was initiated.
-    link_sent: Option<Instant>,
+    link_sent: Option<SystemTime>,
+    /// A handle to the time provider.
+    runtime: DynTimeProvider,
     /// The sequence number of the last message received on this leg.
     ///
     /// This is a *relative* number.
@@ -97,7 +100,7 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
         }
     }
 
-    fn note_link_sent(&mut self, ts: Instant) -> Result<(), Bug> {
+    fn note_link_sent(&mut self, ts: SystemTime) -> Result<(), Bug> {
         match self.state {
             ConfluxState::Unlinked => {
                 self.state = ConfluxState::AwaitingLink(self.nonce);
@@ -135,12 +138,13 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
 
 impl ClientConfluxMsgHandler {
     /// Create a new client conflux message handler.
-    pub(super) fn new(join_point: HopNum, nonce: V1Nonce) -> Self {
+    pub(super) fn new(join_point: HopNum, nonce: V1Nonce, runtime: DynTimeProvider) -> Self {
         Self {
             state: ConfluxState::Unlinked,
             nonce,
             join_point,
             link_sent: None,
+            runtime,
             init_rtt: None,
             last_seq_recv: 0,
             last_seq_sent: 0,
@@ -218,9 +222,17 @@ impl ClientConfluxMsgHandler {
             }
         }
 
-        let now = Instant::now();
+        let now = self.runtime.wallclock();
         // Measure the initial RTT between the time we sent the LINK and received the LINKED
-        self.init_rtt = Some(now.duration_since(link_sent));
+        self.init_rtt = Some(now.duration_since(link_sent).unwrap_or_else(|e| {
+            warn_report!(e, "failed to calculate initial RTT for conflux circuit",);
+
+            // TODO(conflux): this is terrible, because SystemTime is not monotonic.
+            // Can we somehow use Instant instead of SystemTime?
+            // (DynTimeProvider doesn't have a way of sleeping until an Instant,
+            // it only has sleep_until_wallclock)
+            Duration::from_secs(u64::MAX)
+        }));
 
         let link = ConfluxLinkedAck::default();
         let cell = AnyRelayMsgOuter::new(None, link.into());

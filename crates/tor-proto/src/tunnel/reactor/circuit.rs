@@ -66,7 +66,7 @@ use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
@@ -298,7 +298,10 @@ impl Circuit {
         &mut self,
         hop: HopNum,
         cell: AnyRelayMsgOuter,
+        runtime: &tor_rtcompat::DynTimeProvider,
     ) -> Result<()> {
+        use tor_rtcompat::SleepProvider as _;
+
         let Some(conflux_handler) = self.conflux_handler.as_mut() else {
             return Err(internal!(
                 "tried to send LINK cell before installing a ConfluxMsgHandler?!"
@@ -306,8 +309,7 @@ impl Circuit {
             .into());
         };
 
-        // XXX: use DynTimeProvider to get the time
-        conflux_handler.note_link_sent(Instant::now())?;
+        conflux_handler.note_link_sent(runtime.wallclock())?;
 
         let cell = SendRelayCell {
             hop,

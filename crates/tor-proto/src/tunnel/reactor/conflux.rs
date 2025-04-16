@@ -369,7 +369,11 @@ impl ConfluxSet {
     /// Note: the circuits will not begin linking until
     /// [`link_circuits`](Self::link_circuits) is called.
     #[cfg(feature = "conflux")]
-    pub(super) fn add_legs(&mut self, legs: Vec<Circuit>) -> Result<(), Bug> {
+    pub(super) fn add_legs(
+        &mut self,
+        legs: Vec<Circuit>,
+        runtime: &tor_rtcompat::DynTimeProvider,
+    ) -> Result<(), Bug> {
         if legs.is_empty() {
             return Err(bad_api_usage!("asked to add empty leg list to conflux set"));
         }
@@ -484,6 +488,7 @@ impl ConfluxSet {
                 join_point.hop,
                 self.nonce,
                 Arc::clone(&self.last_seq_delivered),
+                runtime.clone(),
             );
 
             circ.install_conflux_handler(conflux_handler);
@@ -769,7 +774,10 @@ impl ConfluxSet {
 
     /// Send a LINK cell down each unlinked leg.
     #[cfg(feature = "conflux")]
-    pub(super) async fn link_circuits(&mut self) -> crate::Result<()> {
+    pub(super) async fn link_circuits(
+        &mut self,
+        runtime: &tor_rtcompat::DynTimeProvider,
+    ) -> crate::Result<()> {
         let (_leg_id, join_point) = self
             .primary_join_point()
             .ok_or_else(|| internal!("no join point when trying to send LINK"))?;
@@ -786,7 +794,7 @@ impl ConfluxSet {
             let link = ConfluxLink::new(v1_payload);
             let cell = AnyRelayMsgOuter::new(None, link.into());
 
-            circ.begin_conflux_link(join_point, cell).await?;
+            circ.begin_conflux_link(join_point, cell, runtime).await?;
         }
 
         // TODO(conflux): the caller should take care to not allow opening streams
