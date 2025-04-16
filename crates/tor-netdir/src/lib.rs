@@ -718,7 +718,7 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     /// Return the latest set of recommended and required protocols, if there is one.
     ///
     /// This may be more recent (or more available) than this provider's associated NetDir.
-    fn recommended_protocols(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)>;
+    fn protocol_statuses(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)>;
 }
 
 impl<T> NetDirProvider for Arc<T>
@@ -741,8 +741,8 @@ where
         self.deref().params()
     }
 
-    fn recommended_protocols(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)> {
-        self.deref().recommended_protocols()
+    fn protocol_statuses(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)> {
+        self.deref().protocol_statuses()
     }
 }
 

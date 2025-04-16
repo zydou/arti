@@ -101,7 +101,7 @@ impl NetDirProvider for TestNetDirProvider {
         }
     }
 
-    fn recommended_protocols(
+    fn protocol_statuses(
         &self,
     ) -> Option<(
         std::time::SystemTime,

@@ -223,7 +223,7 @@ impl<R: Runtime> NetDirProvider for DirMgr<R> {
         // an unclear amount of benefit.
     }
 
-    fn recommended_protocols(&self) -> Option<(SystemTime, Arc<ProtoStatuses>)> {
+    fn protocol_statuses(&self) -> Option<(SystemTime, Arc<ProtoStatuses>)> {
         self.protocols.lock().expect("Poisoned lock").clone()
     }
 }

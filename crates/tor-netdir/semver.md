@@ -1,2 +1,2 @@
-BREAKING: New recommended_protocols() method on NetDirProvider trait.
+BREAKING: New protocol_statuses() method on NetDirProvider trait.
 

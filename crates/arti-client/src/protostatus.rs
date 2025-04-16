@@ -59,7 +59,7 @@ where
     // We need to get this stream before we check the initial status, to avoid race conditions.
     let events = netdir_provider.events();
 
-    let initial_evaluated_proto_status = match netdir_provider.recommended_protocols() {
+    let initial_evaluated_proto_status = match netdir_provider.protocol_statuses() {
         Some((timestamp, recommended)) if timestamp >= software_publication_time => {
             // Here we exit if the initial (cached) status is bogus.
             evaluate_protocol_status(
@@ -125,10 +125,10 @@ async fn watch_protocol_statuses<S, F, Fut>(
             let Some(provider) = Weak::upgrade(&weak_netdir_provider) else {
                 break;
             };
-            provider.recommended_protocols()
+            provider.protocol_statuses()
         };
         let Some((timestamp, new_status)) = new_status else {
-            warn!("Bug: Got DirEvent::NewProtocolRecommendation, but recommended_protocols returned None.");
+            warn!("Bug: Got DirEvent::NewProtocolRecommendation, but protocol_statuses() returned None.");
             continue;
         };
         // It information is older than this software, there is a good chance
