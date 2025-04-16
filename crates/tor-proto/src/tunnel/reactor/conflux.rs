@@ -14,7 +14,7 @@ use crate::circuit::path::HopDetail;
 use crate::crypto::cell::HopNum;
 use crate::util::err::ReactorError;
 
-use super::{Circuit, CircuitAction, LegId, LegIdKey};
+use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason};
 
 #[cfg(feature = "conflux")]
 use tor_cell::relaycell::conflux::{V1DesiredUx, V1Nonce};
@@ -223,7 +223,10 @@ impl ConfluxSet {
                         // Check whether we've got an input message pending.
                         ret = input.next().fuse() => {
                             let Some(cell) = ret else {
-                                return Ok(CircuitAction::RemoveLeg(leg_id));
+                                return Ok(CircuitAction::RemoveLeg {
+                                    leg: leg_id,
+                                    reason: RemoveLegReason::ChannelClosed,
+                                });
                             };
 
                             Ok(CircuitAction::HandleCell { leg: leg_id, cell })

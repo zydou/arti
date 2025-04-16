@@ -287,7 +287,26 @@ enum CircuitAction {
         cell: ClientCircChanMsg,
     },
     /// Remove the specified circuit leg.
-    RemoveLeg(LegIdKey),
+    RemoveLeg {
+        /// The leg to remove.
+        leg: LegIdKey,
+        /// The reason for removal.
+        reason: RemoveLegReason,
+    },
+}
+
+/// The reason for removing a circuit leg from the conflux set.
+#[derive(Debug)]
+enum RemoveLegReason {
+    /// The conflux handshake timed out.
+    ///
+    /// On the client-side, this means we didn't receive
+    /// the CONFLUX_LINKED response in time.
+    ConfluxHandshakeTimeout,
+    /// An error occurred during conflux handshake.
+    ConfluxHandshakeErr(Error),
+    /// The channel was closed.
+    ChannelClosed,
 }
 
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
@@ -652,8 +671,17 @@ impl Reactor {
                     Some(cmd)
                 }
             }
-            CircuitAction::RemoveLeg(leg_id) => {
-                self.circuits.remove(leg_id)?;
+            CircuitAction::RemoveLeg { leg, reason } => {
+                self.circuits.remove(leg)?;
+
+                // XXX: store this reason and share it with the conflux
+                // handshake initiator.
+                match reason {
+                    RemoveLegReason::ConfluxHandshakeTimeout => {}
+                    RemoveLegReason::ConfluxHandshakeErr(_) => {}
+                    RemoveLegReason::ChannelClosed => {}
+                }
+
                 None
             }
         };
