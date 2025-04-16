@@ -1,8 +1,8 @@
 use anyhow::Context;
 use http_body_util::BodyExt;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use hyper::rt::{Read as HyperRead, Write as HyperWrite};
 use hyper_util::client::legacy::{connect::Connection, Client};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 // We use `tower_service::Service` instead of `hyper::service::Service` because
 // `hyper_util::client::legacy::Client` requires the former.
