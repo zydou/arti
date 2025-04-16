@@ -656,13 +656,13 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         let mut w = crate::slicewriter::SliceWriter::new(body);
         w.write_u8(self.msg.cmd().into());
         w.write_u16(0); // "Recognized"
-        debug_assert_eq!(w.offset_in_header(), STREAM_ID_OFFSET);
+        w.assert_offset_is(STREAM_ID_OFFSET);
         w.write_u16(StreamId::get_or_zero(self.streamid));
         w.write_u32(0); // Digest
                         // (It would be simpler to use NestedWriter at this point, but it uses an internal Vec that we are trying to avoid.)
-        debug_assert_eq!(w.offset_in_header(), LEN_POS);
+        w.assert_offset_is(LEN_POS);
         w.write_u16(0); // Length.
-        debug_assert_eq!(w.offset_in_header(), BODY_POS);
+        w.assert_offset_is(BODY_POS);
         self.msg.encode_onto(&mut w)?; // body
         let (mut body, written) = w.try_unwrap().map_err(|_| {
             EncodeError::Bug(internal!(
@@ -693,7 +693,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         let mut w = crate::slicewriter::SliceWriter::new(body);
         w.advance(16); // Tag: 16 bytes
         w.write_u8(cmd.get()); // Command: 1 byte.
-        debug_assert_eq!(w.offset_in_header(), LEN_POS_V1);
+        w.assert_offset_is(LEN_POS_V1);
         w.advance(2); //  Length: 2 bytes.
         let mut body_pos = 16 + 1 + 2;
         match (cmd.expects_streamid(), self.streamid) {
@@ -708,7 +708,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
                 )))
             }
         }
-        debug_assert_eq!(w.offset_in_header(), body_pos);
+        w.assert_offset_is(body_pos);
 
         self.msg.encode_onto(&mut w)?; // body
         let (mut body, written) = w.try_unwrap().map_err(|_| {

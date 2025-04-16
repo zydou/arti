@@ -99,13 +99,15 @@ impl<T> SliceWriter<T> {
         }
     }
 
-    /// As "offset", but panic if if the `SliceWriter` has overflowed.
+    /// `debug_assert` that this writer is at position `n`.
     ///
-    /// Only available for debugging assertions.
-    #[cfg(debug_assertions)]
-    pub(crate) fn offset_in_header(&self) -> usize {
-        self.offset()
-            .expect("Overflowed a cell with just the header!")
+    /// # Panics
+    ///
+    /// Panics if debugging assertions are enabled and the write has overflowed,
+    /// or is at a position other than `n`.
+    #[inline]
+    pub(crate) fn assert_offset_is(&self, n: usize) {
+        debug_assert_eq!(self.offset, n);
     }
 }
 
