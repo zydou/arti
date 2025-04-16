@@ -7,6 +7,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
 use arti_client::{TorClient, TorClientConfig};
@@ -16,14 +17,19 @@ use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_hsservice::StreamRequest;
 use tor_proto::stream::IncomingStreamRequest;
 
+use std::io::Write;
+
 struct WebHandler {
     shutdown: CancellationToken,
 }
 
 impl WebHandler {
     async fn serve(&self, request: Request<Incoming>) -> Result<Response<String>> {
+        println!("[+] Incoming request: {:?}", request);
+
         let path = request.uri().path();
 
+        // Path to shutdown the service.
         // TODO: Unauthenticated management. This route is accessible by anyone, and exists solely
         //  to demonstrate how to safely shutdown further incoming requests. You should probably
         //  move this elsewhere to ensure proper checks are in place!
@@ -31,8 +37,9 @@ impl WebHandler {
             self.shutdown.cancel();
         }
 
+        // Default path.
         Ok(Response::builder().status(StatusCode::OK).body(format!(
-            "{} {}",
+            "You have succesfully reached your onion service served by Arti and hyper.\n\nYour request:\n\n{} {}",
             request.method(),
             path
         ))?)
@@ -40,7 +47,7 @@ impl WebHandler {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Make sure you read doc/OnionService.md to extract your Onion service hostname
 
     // Arti uses the `tracing` crate for logging. Install a handler for this, to print Arti's logs.
@@ -63,22 +70,63 @@ async fn main() {
     // (This takes a while to gather the necessary consensus state, etc.)
     let client = TorClient::create_bootstrapped(config).await.unwrap();
 
+    // Launch onion service.
+    println!("[+] Launching onion service...");
     let svc_cfg = OnionServiceConfigBuilder::default()
-        .nickname("allium-ampeloprasum".parse().unwrap())
+        .nickname("test".parse().unwrap())
         .build()
         .unwrap();
-    let (service, request_stream) = client.launch_onion_service(svc_cfg).unwrap();
+    let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
 
     // Wait until the service is believed to be fully reachable.
-    eprintln!("waiting for service to become fully reachable");
-    while let Some(status) = service.status_events().next().await {
-        if status.state().is_fully_reachable() {
+    // `is_fully_reachable` is no guarantee that the service is reachable or not, so we implement
+    // a timeout to avoid waiting indefinitely.
+    let timeout = tokio::time::Duration::from_secs(60);
+    let start = tokio::time::Instant::now();
+    let mut status_stream = service.status_events();
+
+    print!(
+        "[+] Waiting for onion service to be reachable. Please wait {} seconds...\r",
+        timeout.as_secs()
+    );
+    loop {
+        let elapsed = tokio::time::Instant::now().duration_since(start);
+        let remaining = timeout.checked_sub(elapsed).unwrap_or_default();
+
+        // If the timeout has elapsed we stop checking the status of the onion service.
+        // Because `is_fully_reachable` is no guarantee, the service may still be reachable.
+        if remaining.is_zero() {
+            eprintln!(
+                "[-] Timeout for status check reached. Still trying to serve onion address..."
+            );
             break;
         }
+
+        tokio::select! {
+            // Check status of onion service.
+            // Note that `is_fully_reachable` is not a guarantee that the service is reachable or not.
+            maybe_status = status_stream.next() => {
+                if let Some(status) = maybe_status {
+                    if status.state().is_fully_reachable() {
+                        break;
+                    }
+                } else {
+                    eprintln!("[-] Status stream ended unexpectedly.");
+                    break;
+                }
+            }
+
+            // Output remaining seconds until timeout.
+            _ = sleep(tokio::time::Duration::from_secs(1)) => {
+                print!("[+] Waiting for onion service to be reachable. Please wait {} seconds...\r", remaining.as_secs());
+                std::io::stdout().flush().unwrap();
+            }
+        }
     }
-    eprintln!(
-        "ready to serve connections via {}",
-        service.onion_address().unwrap()
+
+    println!(
+        "\n\n[+] Onion service is reachable at: {}",
+        service.onion_address().expect("Onion address not found")
     );
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)
@@ -86,7 +134,7 @@ async fn main() {
     tokio::pin!(stream_requests);
 
     while let Some(stream_request) = stream_requests.next().await {
-        // incoming connection
+        // Incoming connection.
         let handler = handler.clone();
 
         tokio::spawn(async move {
@@ -96,14 +144,20 @@ async fn main() {
             match result {
                 Ok(()) => {}
                 Err(err) => {
-                    eprintln!("error serving connection {:?}: {}", sensitive(request), err);
+                    eprintln!(
+                        "[-] Error serving connection {:?}: {}",
+                        sensitive(request),
+                        err
+                    );
                 }
             }
         });
     }
 
     drop(service);
-    eprintln!("onion service exited cleanly");
+    println!("[+] Onion service exited cleanly.");
+
+    Ok(())
 }
 
 async fn handle_stream_request(
