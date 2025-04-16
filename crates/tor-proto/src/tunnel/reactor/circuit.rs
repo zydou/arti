@@ -289,7 +289,7 @@ impl Circuit {
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
         let hop_num = Into::<usize>::into(hop);
-        let circhop = &mut self.hops[hop_num];
+        let circhop = &mut self.hops.get_mut(hop_num).ok_or(Error::NoSuchHop)?;
 
         // We need to apply stream-level flow control *before* encoding the message.
         if c_t_w {
