@@ -471,8 +471,7 @@ impl<'a> DiffResult<'a> {
     /// Construct a new DiffResult containing the provided string
     /// split into lines, and an expected post-transformation digest.
     fn from_str(s: &'a str, d_post: [u8; 32]) -> Self {
-        // I'd like to use str::split_inclusive here, but that isn't stable yet
-        // as of rust 1.48.
+        // TODO MSRV 1.51: I'd like to use str::split_inclusive here
 
         let lines: Vec<_> = s.lines().collect();
 
