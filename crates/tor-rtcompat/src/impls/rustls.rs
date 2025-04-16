@@ -5,7 +5,7 @@ use crate::StreamOps;
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use futures_rustls::rustls::crypto::CryptoProvider;
+use futures_rustls::rustls::{self, crypto::CryptoProvider};
 use rustls::client::danger;
 use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSupportedAlgorithms};
 use rustls::{CertificateError, Error as TLSError};
