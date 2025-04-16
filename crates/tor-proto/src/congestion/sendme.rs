@@ -328,6 +328,7 @@ mod test {
     #[test]
     fn what_counts() {
         let mut rng = testing_rng();
+        let fmt = RelayCellFormat::V0;
         let m = msg::Begin::new("www.torproject.org", 443, 0)
             .unwrap()
             .into();
@@ -336,7 +337,7 @@ mod test {
             &UnparsedRelayMsg::from_singleton_body(
                 RelayCellFormat::V0,
                 AnyRelayMsgOuter::new(StreamId::new(77), m)
-                    .encode(&mut rng)
+                    .encode(fmt, &mut rng)
                     .unwrap()
             )
             .unwrap()
@@ -348,7 +349,7 @@ mod test {
             &UnparsedRelayMsg::from_singleton_body(
                 RelayCellFormat::V0,
                 AnyRelayMsgOuter::new(StreamId::new(128), m)
-                    .encode(&mut rng)
+                    .encode(fmt, &mut rng)
                     .unwrap()
             )
             .unwrap()

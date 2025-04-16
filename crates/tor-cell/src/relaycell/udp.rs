@@ -271,13 +271,20 @@ pub struct Datagram {
 impl Datagram {
     /// NOTE: Proposal 340, fragmented relay message, might change this value reality.
     /// The longest allowable body length for a single data cell.
+    //
+    // TODO: This length is incorrect for the RelayCellFormat::V1 cell format.
+    // If/when we return to developing UDP support, we might want to take an approach similar
+    // to that used in Data cells.
+    // Alternatively, we might want to remove the maximum entirely
+    // (if we have implemented prop340 message fragmentation),
+    // or make this message type only usable along with the V1 format.
     pub const MAXLEN: usize = CELL_DATA_LEN - 11;
 
     /// Construct a new data cell.
     ///
     /// Returns an error if `inp` is longer than [`Datagram::MAXLEN`] bytes.
     pub fn new(inp: &[u8]) -> crate::Result<Self> {
-        if inp.len() > msg::Data::MAXLEN {
+        if inp.len() > msg::Data::MAXLEN_V0 {
             return Err(crate::Error::CantEncode("Datagram too long"));
         }
         Ok(Self::new_unchecked(inp.into()))

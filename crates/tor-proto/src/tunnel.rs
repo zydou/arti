@@ -21,7 +21,7 @@ use reactor::{CtrlMsg, LegId};
 
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
-use tor_cell::relaycell::StreamId;
+use tor_cell::relaycell::{RelayCellFormat, StreamId};
 
 // TODO(#1857): Make this pub and not `allow(dead_code)`.
 /// A precise position in a tunnel.
@@ -65,6 +65,11 @@ pub(crate) struct StreamTarget {
     hop: HopLocation,
     /// Reactor ID for this stream.
     stream_id: StreamId,
+    /// Encoding to use for relay cells sent on this stream.
+    ///
+    /// This is mostly irrelevant, except when deciding
+    /// how many bytes we can pack in a DATA message.
+    relay_cell_format: RelayCellFormat,
     /// Channel to send cells down.
     tx: StreamMpscSender<AnyRelayMsg>,
     /// Reference to the circuit that this stream is on.
@@ -170,5 +175,10 @@ impl StreamTarget {
     #[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
     pub(crate) fn circuit(&self) -> &Arc<ClientCirc> {
         &self.circ
+    }
+
+    /// Return the kind of relay cell in use on this `StreamTarget`.
+    pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
+        self.relay_cell_format
     }
 }

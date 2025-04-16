@@ -576,6 +576,7 @@ impl ClientCirc {
                 receiver,
                 msg_tx,
                 memquota,
+                relay_cell_format,
             } = req_ctx;
 
             // We already enforce this in handle_incoming_stream_request; this
@@ -589,6 +590,7 @@ impl ClientCirc {
                 tx: msg_tx,
                 hop: HopLocation::Hop((leg_id, hop_num)),
                 stream_id,
+                relay_cell_format,
             };
 
             let reader = StreamReader {
@@ -767,13 +769,14 @@ impl ClientCirc {
             })
             .map_err(|_| Error::CircuitClosed)?;
 
-        let (stream_id, hop) = rx.await.map_err(|_| Error::CircuitClosed)??;
+        let (stream_id, hop, relay_cell_format) = rx.await.map_err(|_| Error::CircuitClosed)??;
 
         let target = StreamTarget {
             circ: self.clone(),
             tx: msg_tx,
             hop,
             stream_id,
+            relay_cell_format,
         };
 
         let reader = StreamReader {
@@ -1214,8 +1217,10 @@ pub(crate) mod test {
     }
 
     fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg {
+        // TODO #1947: test other formats.
+        let rfmt = RelayCellFormat::V0;
         let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
-            .encode(&mut testing_rng())
+            .encode(rfmt, &mut testing_rng())
             .unwrap();
         let chanmsg = chanmsg::Relay::from(body);
         ClientCircChanMsg::Relay(chanmsg)
@@ -2056,14 +2061,15 @@ pub(crate) mod test {
         const N_CELLS: usize = 20;
         // Number of bytes that *each* stream will send, and that we'll read
         // from the channel.
-        const N_BYTES: usize = relaymsg::Data::MAXLEN * N_CELLS;
+        const N_BYTES: usize = relaymsg::Data::MAXLEN_V0 * N_CELLS;
         // Ignoring cell granularity, with perfect fairness we'd expect
         // `N_BYTES/N_STREAMS` bytes from each stream.
         //
         // We currently allow for up to a full cell less than that.  This is
         // somewhat arbitrary and can be changed as needed, since we don't
         // provide any specific fairness guarantees.
-        const MIN_EXPECTED_BYTES_PER_STREAM: usize = N_BYTES / N_STREAMS - relaymsg::Data::MAXLEN;
+        const MIN_EXPECTED_BYTES_PER_STREAM: usize =
+            N_BYTES / N_STREAMS - relaymsg::Data::MAXLEN_V0;
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
@@ -2240,6 +2246,8 @@ pub(crate) mod test {
             let (chan, _rx, _sink) = working_fake_channel(&rt);
             let (circ, mut send) = newcirc(&rt, chan).await;
 
+            let rfmt = RelayCellFormat::V0;
+
             // A helper channel for coordinating the "client"/"service" interaction
             let (tx, rx) = oneshot::channel();
             let mut incoming = circ
@@ -2272,7 +2280,7 @@ pub(crate) mod test {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
-                        .encode(&mut testing_rng())
+                        .encode(rfmt, &mut testing_rng())
                         .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
@@ -2291,7 +2299,7 @@ pub(crate) mod test {
                 let data = relaymsg::Data::new(TEST_DATA).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Data(data))
-                        .encode(&mut testing_rng())
+                        .encode(rfmt, &mut testing_rng())
                         .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
 
@@ -2313,6 +2321,7 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             const TEST_DATA: &[u8] = b"ping";
             const STREAM_COUNT: usize = 2;
+            let rfmt = RelayCellFormat::V0;
 
             let (chan, _rx, _sink) = working_fake_channel(&rt);
             let (circ, mut send) = newcirc(&rt, chan).await;
@@ -2365,7 +2374,7 @@ pub(crate) mod test {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
-                        .encode(&mut testing_rng())
+                        .encode(rfmt, &mut testing_rng())
                         .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 
@@ -2384,7 +2393,7 @@ pub(crate) mod test {
                 let data = relaymsg::Data::new(TEST_DATA).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Data(data))
-                        .encode(&mut testing_rng())
+                        .encode(rfmt, &mut testing_rng())
                         .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
 
@@ -2405,6 +2414,7 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             /// Expect the originator of the BEGIN cell to be hop 1.
             const EXPECTED_HOP: u8 = 1;
+            let rfmt = RelayCellFormat::V0;
 
             let (chan, _rx, _sink) = working_fake_channel(&rt);
             let (circ, mut send) = newcirc(&rt, chan).await;
@@ -2430,7 +2440,7 @@ pub(crate) mod test {
                 let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
-                        .encode(&mut testing_rng())
+                        .encode(rfmt, &mut testing_rng())
                         .unwrap();
                 let begin_msg = chanmsg::Relay::from(body);
 

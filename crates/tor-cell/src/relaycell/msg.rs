@@ -3,7 +3,7 @@
 //! Relay messages are sent along circuits, inside RELAY or RELAY_EARLY
 //! cells.
 
-use super::RelayCmd;
+use super::{RelayCellFormat, RelayCmd};
 use crate::chancell::msg::{
     DestroyReason, HandshakeType, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_LEN,
 };
@@ -316,9 +316,22 @@ pub struct Data {
     body: Vec<u8>,
 }
 impl Data {
-    /// The longest allowable body length for a single data cell.
+    /// The longest allowable body length for a single V0 data cell.
+    ///
     /// Relay command (1) + 'Recognized' (2) + StreamID (2) + Digest (4) + Length (2) = 11
-    pub const MAXLEN: usize = CELL_DATA_LEN - 11;
+    pub const MAXLEN_V0: usize = CELL_DATA_LEN - 11;
+
+    /// The longest allowable body length for a single V1 data cell.
+    ///
+    /// Tag (16) + Relay command (1) + Length (2) + StreamID (2) = 21
+    pub const MAXLEN_V1: usize = CELL_DATA_LEN - 21;
+
+    /// The longest allowable body length for any data cell.
+    ///
+    /// Note that this value is too large to fit into a v1 relay cell;
+    /// see [`MAXLEN_V1`](Data::MAXLEN_V1) if you are making a v1 data cell.
+    ///
+    pub const MAXLEN: usize = Data::MAXLEN_V0;
 
     /// Construct a new data cell.
     ///
@@ -339,26 +352,13 @@ impl Data {
     /// Return the data cell, and a slice holding any bytes that
     /// wouldn't fit (if any).
     ///
-    /// # Panics
-    ///
-    /// Panics if `inp` is empty.
-    #[deprecated(since = "0.16.1", note = "Use try_split_from instead.")]
-    pub fn split_from(inp: &[u8]) -> (Self, &[u8]) {
-        Self::try_split_from(inp).expect("Tried to split a Data message from an empty input.")
-    }
-
-    /// Construct a new data cell, taking as many bytes from `inp`
-    /// as possible.
-    ///
-    /// Return the data cell, and a slice holding any bytes that
-    /// wouldn't fit (if any).
-    ///
     /// Returns None if the input was empty.
-    pub fn try_split_from(inp: &[u8]) -> Option<(Self, &[u8])> {
+    pub fn try_split_from(version: RelayCellFormat, inp: &[u8]) -> Option<(Self, &[u8])> {
         if inp.is_empty() {
             return None;
         }
-        let len = std::cmp::min(inp.len(), Data::MAXLEN);
+        let upper_bound = Self::max_body_len(version);
+        let len = std::cmp::min(inp.len(), upper_bound);
         let (data, remainder) = inp.split_at(len);
         Some((Self::new_unchecked(data.into()), remainder))
     }
@@ -370,6 +370,15 @@ impl Data {
     fn new_unchecked(body: Vec<u8>) -> Self {
         debug_assert!((1..=Data::MAXLEN).contains(&body.len()));
         Data { body }
+    }
+
+    /// Return the maximum allowable body length for a Data message
+    /// using the provided `format`.
+    pub fn max_body_len(format: RelayCellFormat) -> usize {
+        match format {
+            RelayCellFormat::V0 => Self::MAXLEN_V0,
+            RelayCellFormat::V1 => Self::MAXLEN_V1,
+        }
     }
 }
 impl From<Data> for Vec<u8> {

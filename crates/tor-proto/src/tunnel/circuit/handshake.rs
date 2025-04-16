@@ -65,6 +65,7 @@ pub(crate) enum RelayCryptLayerProtocol {
 impl From<RelayProtocol> for RelayCryptLayerProtocol {
     fn from(value: RelayProtocol) -> Self {
         match value {
+            // TODO #1948
             RelayProtocol::HsV3 => RelayCryptLayerProtocol::HsV3(RelayCellFormat::V0),
         }
     }

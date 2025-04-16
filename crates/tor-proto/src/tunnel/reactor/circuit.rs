@@ -115,6 +115,10 @@ pub(super) struct CircHop {
     ccontrol: CongestionControl,
     /// Decodes relay cells received from this hop.
     inbound: RelayCellDecoder,
+    /// Format to use for relay cells.
+    //
+    // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
+    relay_format: RelayCellFormat,
 }
 
 /// A circuit "leg" from a tunnel.
@@ -254,12 +258,13 @@ impl Circuit {
     /// in response to that cell.
     fn encode_relay_cell(
         crypto_out: &mut OutboundClientCrypt,
+        relay_format: RelayCellFormat,
         hop: HopNum,
         early: bool,
         msg: AnyRelayMsgOuter,
     ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
         let mut body: RelayCellBody = msg
-            .encode(&mut rand::rng())
+            .encode(relay_format, &mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
             .into();
         let tag = crypto_out.encrypt(&mut body, hop)?;
@@ -310,7 +315,8 @@ impl Circuit {
         }
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let (msg, tag) = Self::encode_relay_cell(&mut self.crypto_out, hop, early, msg)?;
+        let (msg, tag) =
+            Self::encode_relay_cell(&mut self.crypto_out, circhop.relay_format, hop, early, msg)?;
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
@@ -689,6 +695,7 @@ impl Circuit {
             .hops
             .get_mut(Into::<usize>::into(hop_num))
             .ok_or(Error::CircuitClosed)?;
+        let relay_cell_format = hop.relay_format;
 
         let memquota = StreamAccount::new(&self.memquota)?;
 
@@ -718,6 +725,7 @@ impl Circuit {
             msg_tx,
             receiver,
             memquota,
+            relay_cell_format,
         });
 
         log_ratelim!("Delivering message to incoming stream handler"; outcome);
@@ -944,7 +952,7 @@ impl Circuit {
             .expect("Unable to build RelayIds");
         self.channel.check_match(&target)?;
 
-        // TODO: Add support for negotiating other formats.
+        // TODO #1947: Add support for negotiating other formats.
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
         // TODO: Set client extensions. e.g. request congestion control
@@ -1331,7 +1339,7 @@ impl CircHop {
     pub(super) fn new(
         unique_id: UniqId,
         hop_num: HopNum,
-        format: RelayCellFormat,
+        relay_format: RelayCellFormat,
         params: &CircParameters,
     ) -> Self {
         CircHop {
@@ -1339,7 +1347,8 @@ impl CircHop {
             hop_num,
             map: Arc::new(Mutex::new(streammap::StreamMap::new())),
             ccontrol: CongestionControl::new(&params.ccontrol),
-            inbound: RelayCellDecoder::new(format),
+            inbound: RelayCellDecoder::new(relay_format),
+            relay_format,
         }
     }
 
@@ -1404,6 +1413,14 @@ impl CircHop {
             return Ok(Some(cell));
         }
         Ok(None)
+    }
+
+    /// Return the format that is used for relay cells sent to this hop.
+    ///
+    /// For the most part, this format isn't necessary to interact with a CircHop;
+    /// it becomes relevant when we are deciding _what_ we can encode for the hop.
+    pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
+        self.relay_format
     }
 
     /// Delegate to CongestionControl, for testing purposes

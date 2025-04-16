@@ -40,7 +40,7 @@ use conflux::ConfluxSet;
 use control::ControlHandler;
 use std::mem::size_of;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
-use tor_cell::relaycell::{AnyRelayMsgOuter, StreamId, UnparsedRelayMsg};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 
 use futures::channel::mpsc;
@@ -184,7 +184,7 @@ enum RunOnceCmdInner {
         /// caller.
         hop: HopLocation,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
-        done: ReactorResultChannel<(StreamId, HopLocation)>,
+        done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
     },
     /// Close the specified stream.
     CloseStream {
@@ -428,6 +428,9 @@ pub(crate) struct StreamReqInfo {
     // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
     // incoming stream request from two separate hops.  (There is only one that's valid.)
     pub(crate) hop_num: HopNum,
+    /// The format which must be used with this stream to encode messages.
+    #[deftly(has_memory_cost(indirect_size = "0"))]
+    pub(crate) relay_cell_format: RelayCellFormat,
     /// A channel for receiving messages from this stream.
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate
     pub(crate) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
@@ -690,9 +693,15 @@ impl Reactor {
                         // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
                         // (currently it is an error to use BeginStream on a multipath tunnel)
                         let (_id, leg) = self.circuits.single_leg_mut()?;
+                        let cell_hop = cell.hop;
+                        let relay_format = leg
+                            .hop_mut(cell_hop)
+                            // TODO: Is this the right error type here? Or should there be a "HopDisappeared"?
+                            .ok_or(Error::NoSuchHop)?
+                            .relay_cell_format();
                         let outcome = leg.send_relay_cell(cell).await;
                         // don't care if receiver goes away.
-                        let _ = done.send(outcome.clone().map(|_| (stream_id, hop)));
+                        let _ = done.send(outcome.clone().map(|_| (stream_id, hop, relay_format)));
                         outcome?;
                     }
                     Err(e) => {
