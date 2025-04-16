@@ -754,7 +754,7 @@ impl Reactor {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
                 CircuitAction::HandleControl(msg)
             },
-            res = self.circuits.next_circ_action().fuse() => res?,
+            res = self.circuits.next_circ_action(&self.runtime).fuse() => res?,
         };
 
         let cmd = match action {
@@ -787,19 +787,13 @@ impl Reactor {
                     Some(cmd)
                 }
             }
-            CircuitAction::RemoveLeg { leg, reason } => {
-                self.circuits.remove(leg)?;
-
-                // XXX: store this reason and share it with the conflux
-                // handshake initiator.
-                match reason {
-                    RemoveLegReason::ConfluxHandshakeTimeout => {}
-                    RemoveLegReason::ConfluxHandshakeErr(_) => {}
-                    RemoveLegReason::ChannelClosed => {}
+            CircuitAction::RemoveLeg { leg, reason } => Some(
+                RunOnceCmdInner::RemoveLeg {
+                    leg: LegId(leg),
+                    reason,
                 }
-
-                None
-            }
+                .into(),
+            ),
         };
 
         if let Some(cmd) = cmd {
@@ -1011,7 +1005,11 @@ impl Reactor {
                 return Err(ReactorError::Shutdown);
             }
             RunOnceCmdInner::RemoveLeg { leg, reason } => {
-                self.circuits.remove(leg.0)?;
+                let circ = self.circuits.remove(leg.0)?;
+                let is_conflux_pending = circ.is_conflux_pending();
+
+                // Drop the removed leg. This will cause it to close if it's not already closed.
+                drop(circ);
 
                 // If we reach this point, it means we have more than one leg
                 // (otherwise the .remove() would've returned a Shutdown error),
@@ -1027,7 +1025,9 @@ impl Reactor {
                 };
 
                 #[cfg(feature = "conflux")]
-                self.note_conflux_handshake_result(Err(error))?;
+                if is_conflux_pending {
+                    self.note_conflux_handshake_result(Err(error))?;
+                }
             }
             #[cfg(feature = "conflux")]
             RunOnceCmdInner::ConfluxHandshakeComplete { leg, cell } => {
@@ -1287,6 +1287,15 @@ impl Reactor {
         circuits: Vec<Circuit>,
         answer: ConfluxLinkResultChannel,
     ) {
+        if self.conflux_hs_ctx.is_some() {
+            // Maybe we should care if the receiver goes away?
+            // It means the user is misusing the API and not waiting for an answer
+            let _ = answer.send(Err(internal!("conflux linking already in progress").into()));
+            return;
+        }
+
+        let num_legs = circuits.len();
+
         // Note: add_legs validates `circuits`
         let res = async {
             self.circuits.add_legs(circuits, &self.runtime)?;
@@ -1301,9 +1310,14 @@ impl Reactor {
         if let Err(e) = res {
             // don't care if the receiver goes away
             let _ = answer.send(Err(e));
+        } else {
+            // Save the channel, to notify the user of completion.
+            self.conflux_hs_ctx = Some(ConfluxHandshakeCtx {
+                answer,
+                num_legs,
+                results: Default::default(),
+            });
         }
-        // XXX save answer in the reactor, to notify the initiator
-        // of tunnel completion
     }
 }
 

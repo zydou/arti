@@ -319,6 +319,19 @@ impl Circuit {
         self.send_relay_cell(cell).await
     }
 
+    /// Get the wallclock time when the handshake on this circuit is supposed to time out.
+    ///
+    /// Returns `None` if this handler hasn't started the handshake yet.
+    pub(super) fn conflux_hs_timeout(&self) -> Option<SystemTime> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "conflux")] {
+                self.conflux_handler.as_ref().map(|handler| handler.handshake_timeout())?
+            } else {
+                None
+            }
+        }
+    }
+
     /// Handle a [`CtrlMsg::AddFakeHop`](super::CtrlMsg::AddFakeHop) message.
     #[cfg(test)]
     pub(super) fn handle_add_fake_hop(
@@ -740,7 +753,7 @@ impl Circuit {
             )));
         };
 
-        conflux_handler.handle_conflux_msg(msg, hop)
+        Ok(conflux_handler.handle_conflux_msg(msg, hop))
     }
 
     /// For conflux: return the sequence number of the last cell sent on this leg.

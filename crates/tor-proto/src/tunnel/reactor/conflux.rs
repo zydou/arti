@@ -4,6 +4,7 @@
 mod msghandler;
 
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::{self, AtomicU32};
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
 use itertools::Itertools as _;
 use slotmap_careful::SlotMap;
+use tor_rtcompat::SleepProviderExt as _;
 use tracing::warn;
 
 use tor_async_utils::SinkPrepareExt as _;
@@ -218,7 +220,7 @@ impl ConfluxSet {
     /// We do not yet support resumption. See [2.4.3. Closing circuits] in prop329.
     ///
     /// [2.4.3. Closing circuits]: https://spec.torproject.org/proposals/329-traffic-splitting.html#243-closing-circuits
-    pub(super) fn remove(&mut self, leg: LegIdKey) -> Result<(), ReactorError> {
+    pub(super) fn remove(&mut self, leg: LegIdKey) -> Result<Circuit, ReactorError> {
         let circ = self
             .legs
             .remove(leg)
@@ -252,7 +254,7 @@ impl ConfluxSet {
     /// Handle the removal of a circuit,
     /// returning an error if the reactor needs to shut down.
     #[cfg(feature = "conflux")]
-    fn remove_conflux(&self, circ: Circuit) -> Result<(), ReactorError> {
+    fn remove_conflux(&self, circ: Circuit) -> Result<Circuit, ReactorError> {
         let Some(status) = circ.conflux_status() else {
             return Err(internal!("Found non-conflux circuit in conflux set?!").into());
         };
@@ -270,7 +272,7 @@ impl ConfluxSet {
             ConfluxStatus::Unlinked => {
                 // This circuit hasn't yet begun the conflux handshake,
                 // so we can safely remove it from the set
-                Ok(())
+                Ok(circ)
             }
             ConfluxStatus::Pending | ConfluxStatus::Linked => {
                 let (circ_last_seq_recv, circ_last_seq_sent) =
@@ -308,12 +310,9 @@ impl ConfluxSet {
                     return Err(ReactorError::Shutdown);
                 }
 
-                Ok(())
+                Ok(circ)
             }
         }
-
-        // The removed leg is dropped, which will cause it to close
-        // if it's not already closed.
     }
 
     /// Return the maximum relative last_seq_recv across all circuits.
@@ -652,10 +651,22 @@ impl ConfluxSet {
     /// This is cancellation-safe.
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
+        runtime: &'a tor_rtcompat::DynTimeProvider,
     ) -> impl Future<Output = Result<CircuitAction, crate::Error>> + 'a {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
+                // The client SHOULD abandon and close circuit if the LINKED message takes too long to
+                // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
+                // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
+                // implementation currently uses Circuit Build Timeout).
+                let conflux_hs_timeout = if let Some(timeout) =  leg.conflux_hs_timeout() {
+                    // TODO: ask Diziet if we can have a sleep_until_instant() function
+                    Box::pin(runtime.sleep_until_wallclock(timeout)) as Pin<Box<dyn Future<Output = ()> + Send>>
+                } else {
+                    Box::pin(std::future::pending())
+                };
+
                 let mut ready_streams = leg.ready_streams_iterator();
                 let input = &mut leg.input;
                 let primary_id = self.primary_id;
@@ -663,7 +674,7 @@ impl ConfluxSet {
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
                 // We should replace this with a simple sink readiness check
-                leg.chan_sender.prepare_send_from(async move {
+                let send_fut = leg.chan_sender.prepare_send_from(async move {
                     // A future to wait for the next ready stream.
                     let next_ready_stream = async {
                         match ready_streams.next().await {
@@ -744,12 +755,29 @@ impl ConfluxSet {
                             flatten(ret)
                         },
                     }
-                })
+                });
+
+                let mut send_fut = Box::pin(send_fut);
+
+                async move {
+                    select_biased! {
+                        () = conflux_hs_timeout.fuse() => {
+                            // Conflux handshake has timed out, time to remove this circuit leg,
+                            // and notify the handshake initiator.
+                            Ok(Ok(CircuitAction::RemoveLeg {
+                                leg: leg_id,
+                                reason: RemoveLegReason::ConfluxHandshakeTimeout,
+                            }))
+                        }
+                        ret = send_fut => {
+                            // Note: We don't actually use the returned SinkSendable,
+                            // and continue writing to the SometimesUboundedSink in the reactor :(
+                            ret.map(|ret| ret.0)
+                        }
+                    }
+                }
             })
             .collect::<FuturesUnordered<_>>()
-            // Note: We don't actually use the returned SinkSendable,
-            // and continue writing to the SometimesUboundedSink in the reactor :(
-            .map(|res| res.map(|res| res.0))
             // We only return the first ready action as a Future.
             // Can't use `next()` since it borrows the stream.
             .into_future()

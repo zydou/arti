@@ -13,7 +13,7 @@ use tor_error::{internal, Bug};
 
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
-use crate::tunnel::reactor::CircuitCmd;
+use crate::tunnel::reactor::{CircuitCmd, RemoveLegReason};
 
 use client::ClientConfluxMsgHandler;
 
@@ -66,11 +66,29 @@ impl ConfluxMsgHandler {
         &mut self,
         msg: UnparsedRelayMsg,
         hop: HopNum,
-    ) -> crate::Result<Option<CircuitCmd>> {
-        // Ensure the conflux cell came from the expected hop
-        // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329).
-        let () = self.validate_source_hop(&msg, hop)?;
-        self.handler.handle_msg(msg, hop)
+    ) -> Option<CircuitCmd> {
+        let res = (|| {
+            // Ensure the conflux cell came from the expected hop
+            // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329).
+            let () = self.validate_source_hop(&msg, hop)?;
+            self.handler.handle_msg(msg, hop)
+        })();
+
+        // Returning an error here would cause the reactor to shut down,
+        // so we return a CircuitCmd::ConfluxRemove command instead.
+        //
+        // After removing the leg, the reactor will decide whether it needs
+        // to shut down or not.
+        match res {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                // Tell the reactor to remove this leg from the conflux set,
+                // and to notify the handshake initiator of the error
+                Some(CircuitCmd::ConfluxRemove(
+                    RemoveLegReason::ConfluxHandshakeErr(e),
+                ))
+            }
+        }
     }
 
     /// Client-only: note that the LINK cell was sent.
@@ -78,6 +96,11 @@ impl ConfluxMsgHandler {
     /// Used for the initial RTT measurement.
     pub(crate) fn note_link_sent(&mut self, ts: SystemTime) -> Result<(), Bug> {
         self.handler.note_link_sent(ts)
+    }
+
+    /// Get the wallclock time when the handshake on this circuit is supposed to time out.
+    pub(crate) fn handshake_timeout(&self) -> Option<SystemTime> {
+        self.handler.handshake_timeout()
     }
 
     /// Returns the conflux status of this handler.
@@ -210,6 +233,11 @@ trait AbstractConfluxMsgHandler {
 
     /// Client-only: note that the LINK cell was sent.
     fn note_link_sent(&mut self, ts: SystemTime) -> Result<(), Bug>;
+
+    /// Get the wallclock time when the handshake on this circuit is supposed to time out.
+    ///
+    /// Returns `None` if this handler hasn't started the handshake yet.
+    fn handshake_timeout(&self) -> Option<SystemTime>;
 
     /// Returns the initial RTT measured by this handler.
     fn init_rtt(&self) -> Option<Duration>;

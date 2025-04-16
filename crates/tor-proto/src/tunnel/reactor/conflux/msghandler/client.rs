@@ -114,6 +114,20 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
         Ok(())
     }
 
+    /// Get the wallclock time when the handshake on this circuit is supposed to time out.
+    ///
+    /// Returns `None` if this handler hasn't started the handshake yet.
+    fn handshake_timeout(&self) -> Option<SystemTime> {
+        /// The maximum amount of time to wait for the LINKED cell to arrive.
+        //
+        // TODO(conflux): "This timeout MUST be no larger than the normal SOCKS/stream timeout in
+        // use for RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
+        // implementation currently uses Circuit Build Timeout)".
+        const LINK_TIMEOUT: Duration = Duration::from_secs(60);
+
+        self.link_sent.map(|link_sent| link_sent + LINK_TIMEOUT)
+    }
+
     /// Returns the initial RTT measured by this handler.
     fn init_rtt(&self) -> Option<Duration> {
         self.init_rtt
@@ -177,14 +191,6 @@ impl ClientConfluxMsgHandler {
         msg: UnparsedRelayMsg,
         hop: HopNum,
     ) -> crate::Result<Option<CircuitCmd>> {
-        // XXX: We should impose a timeout, and bail if the linked message doesn't arrive in time.
-        // If either circuit does not receive a RELAY_CONFLUX_LINKED response, both circuits MUST be closed.
-        //
-        // The client SHOULD abandon and close circuit if the LINKED message takes too long to
-        // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
-        // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
-        // implementation currently uses Circuit Build Timeout).
-
         // See [SIDE_CHANNELS] for rules for when to reject unexpected handshake cells.
 
         let linked = msg
