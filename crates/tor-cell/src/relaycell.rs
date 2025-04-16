@@ -108,17 +108,20 @@ enum StreamIdReq {
     WantNone,
     /// Can only be used with a stream ID that isn't 0
     WantSome,
-    /// Can only be used with a stream ID along with RelayCommandFormat::V0;
-    /// can be used with or without a StreamID in V1.
-    WantNoneInV1,
+    /// Can be used with any stream ID.
+    ///
+    /// This result is impossible with `RelayCellFormat::V1`.
+    Any,
     /// Unrecognized; might be used with a stream ID or without.
     Unrecognized,
 }
 
 impl RelayCmd {
     /// Check whether this command requires a certain kind of
-    /// StreamId, and return a corresponding StreamIdReq.
-    fn expects_streamid(self) -> StreamIdReq {
+    /// StreamId in the provided `format`, and return a corresponding StreamIdReq.
+    ///
+    /// If `format` is None, return a result that is correct for _any_ version.
+    fn expects_streamid(self, format: Option<RelayCellFormat>) -> StreamIdReq {
         match self {
             RelayCmd::BEGIN
             | RelayCmd::DATA
@@ -154,7 +157,17 @@ impl RelayCmd {
             | RelayCmd::INTRO_ESTABLISHED
             | RelayCmd::RENDEZVOUS_ESTABLISHED
             | RelayCmd::INTRODUCE_ACK => StreamIdReq::WantNone,
-            RelayCmd::SENDME => StreamIdReq::WantNoneInV1,
+            RelayCmd::SENDME => match format {
+                // There are no stream-level SENDMES in V1, since CC is mandatory.
+                // Further, the 'Any' result is not possible with V1, since
+                // we need be able to decide whether a stream ID is present
+                // from the value of the command.
+                Some(RelayCellFormat::V1) => StreamIdReq::WantNone,
+                // In V0, CC is not mandatory, so stream-level SENDMES are possible.
+                Some(RelayCellFormat::V0) => StreamIdReq::Any,
+                // When we're checking for general compatibility, we need to allow V0 or V1.
+                None => StreamIdReq::Any,
+            },
             _ => StreamIdReq::Unrecognized,
         }
     }
@@ -165,10 +178,10 @@ impl RelayCmd {
     /// it will return "true" for _any_ stream ID if the command is `SENDME`,
     /// and if the command is unrecognized.
     pub fn accepts_streamid_val(self, id: Option<StreamId>) -> bool {
-        match self.expects_streamid() {
+        match self.expects_streamid(None) {
             StreamIdReq::WantNone => id.is_none(),
             StreamIdReq::WantSome => id.is_some(),
-            StreamIdReq::WantNoneInV1 => true,
+            StreamIdReq::Any => true,
             StreamIdReq::Unrecognized => true,
         }
     }
@@ -518,15 +531,17 @@ impl UnparsedRelayMsg {
                     .try_into()
                     .expect("two-byte slice was not two bytes long!?"),
             )),
-            UnparsedRelayMsgInternal::V1(body) => match self.cmd().expects_streamid() {
-                StreamIdReq::WantNone | StreamIdReq::WantNoneInV1 => None,
-                StreamIdReq::Unrecognized => None,
-                StreamIdReq::WantSome => StreamId::new(u16::from_be_bytes(
-                    body[STREAM_ID_OFFSET_V1..STREAM_ID_OFFSET_V1 + 2]
-                        .try_into()
-                        .expect("two-byte slice was not two bytes long!?"),
-                )),
-            },
+            UnparsedRelayMsgInternal::V1(body) => {
+                match self.cmd().expects_streamid(Some(RelayCellFormat::V1)) {
+                    StreamIdReq::WantNone => None,
+                    StreamIdReq::Unrecognized | StreamIdReq::Any => None,
+                    StreamIdReq::WantSome => StreamId::new(u16::from_be_bytes(
+                        body[STREAM_ID_OFFSET_V1..STREAM_ID_OFFSET_V1 + 2]
+                            .try_into()
+                            .expect("two-byte slice was not two bytes long!?"),
+                    )),
+                }
+            }
         }
     }
     /// Decode this unparsed cell into a given cell type.
@@ -696,8 +711,11 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         w.assert_offset_is(LEN_POS_V1);
         w.advance(2); //  Length: 2 bytes.
         let mut body_pos = 16 + 1 + 2;
-        match (cmd.expects_streamid(), self.streamid) {
-            (StreamIdReq::WantNone, None) | (StreamIdReq::WantNoneInV1, None) => {}
+        match (
+            cmd.expects_streamid(Some(RelayCellFormat::V1)),
+            self.streamid,
+        ) {
+            (StreamIdReq::WantNone, None) => {}
             (StreamIdReq::WantSome, Some(id)) => {
                 w.write_u16(id.into());
                 body_pos += 2;
@@ -769,9 +787,9 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         r.advance(16)?; // Tag
         let cmd: RelayCmd = r.take_u8()?.into();
         let len = r.take_u16()?.into();
-        let streamid = match cmd.expects_streamid() {
+        let streamid = match cmd.expects_streamid(Some(RelayCellFormat::V1)) {
             // If no stream ID is expected, then the body begins immediately.
-            StreamIdReq::WantNone | StreamIdReq::WantNoneInV1 => None,
+            StreamIdReq::WantNone => None,
             // In this case, a stream ID _is_ expected.
             //
             // (If it happens to be zero, we will reject the message,
@@ -790,7 +808,10 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
             // where an attacker can learn whether we have a version of Arti that recognizes this
             // command, at the expense of our killing this circuit immediately if they are wrong.
             // This is not a very bad attack.
-            StreamIdReq::Unrecognized => {
+            //
+            // Note that StreamIdReq::Any should be impossible here, since we're using the V1
+            // format.
+            StreamIdReq::Unrecognized | StreamIdReq::Any => {
                 return Err(Error::InvalidMessage(
                     format!("Unrecognized relay command {cmd}").into(),
                 ))
