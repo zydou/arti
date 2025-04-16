@@ -649,7 +649,7 @@ mod test {
             }
 
             let demand_efbig = |e| match e {
-                // MSRV:: io::ErrorKind::FileTooLarge is still unstable
+                // TODO MSRV 1.83: replace with io::ErrorKind::FileTooLarge?
                 ReplayError::Log(e) if e.raw_os_error() == Some(libc::EFBIG) => {}
                 other => panic!("expected EFBUG, got {other:?}"),
             };
