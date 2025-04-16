@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     // =debug for more detailed logging.)
     tracing_subscriber::fmt::init();
 
-    // You can run this example with any arbitrary HTTP/1.1 (raw or within TLS) URL, but we'll default to icanhazip
+    // You can run this example with any arbitrary HTTP/1.1 (raw or within TLS) URL, but we'll default to check.torproject.org
     // because it's a good way of demonstrating that the connection is via Tor.
     let url: Uri = TEST_URL.parse().unwrap();
     let host = url.host().unwrap();
