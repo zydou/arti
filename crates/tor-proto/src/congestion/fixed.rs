@@ -35,7 +35,7 @@ impl FixedWindow {
 }
 
 impl CongestionControlAlgorithm for FixedWindow {
-    fn allow_stream_sendme(&self) -> bool {
+    fn uses_stream_sendme(&self) -> bool {
         true
     }
 

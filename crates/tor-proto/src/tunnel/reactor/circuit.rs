@@ -1326,7 +1326,7 @@ impl Circuit {
     /// Returns `None` if `hop` doesn't exist.
     pub(super) fn stream_sendme_required(&self, hop: HopNum) -> Option<bool> {
         let hop = self.hop(hop)?;
-        Some(hop.ccontrol.allow_stream_sendme())
+        Some(hop.ccontrol.uses_stream_sendme())
     }
 }
 
@@ -1443,7 +1443,7 @@ impl CircHop {
 
     /// Builds the (sending) flow control handler for a new stream.
     fn build_send_flow_ctrl(&self) -> StreamSendFlowControl {
-        if self.ccontrol.allow_stream_sendme() {
+        if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
             StreamSendFlowControl::new_window_based(window)
         } else {

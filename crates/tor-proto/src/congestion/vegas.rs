@@ -115,7 +115,7 @@ impl Vegas {
 }
 
 impl CongestionControlAlgorithm for Vegas {
-    fn allow_stream_sendme(&self) -> bool {
+    fn uses_stream_sendme(&self) -> bool {
         // Not allowed as in Vegas doesn't need them.
         false
     }
