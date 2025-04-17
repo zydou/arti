@@ -16,7 +16,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::{AnyCmdChecker, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
 use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
@@ -725,12 +725,11 @@ impl Circuit {
             memquota.as_raw_account(),
         )?;
 
-        let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
         let cmd_checker = DataCmdChecker::new_connected();
         hop.map.lock().expect("lock poisoned").add_ent_with_id(
             sender,
             msg_rx,
-            send_window,
+            hop.build_send_flow_ctrl(),
             stream_id,
             cmd_checker,
         )?;
@@ -1393,13 +1392,12 @@ impl CircHop {
         rx: StreamMpscReceiver<AnyRelayMsg>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-        let r = self.map.lock().expect("lock poisoned").add_ent(
-            sender,
-            rx,
-            send_window,
-            cmd_checker,
-        )?;
+        let flow_ctrl = self.build_send_flow_ctrl();
+        let r =
+            self.map
+                .lock()
+                .expect("lock poisoned")
+                .add_ent(sender, rx, flow_ctrl, cmd_checker)?;
         let cell = AnyRelayMsgOuter::new(Some(r), message);
         Ok((
             SendRelayCell {
@@ -1453,6 +1451,12 @@ impl CircHop {
     /// it becomes relevant when we are deciding _what_ we can encode for the hop.
     pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
         self.relay_format
+    }
+
+    /// Builds the (sending) flow control handler for a new stream.
+    fn build_send_flow_ctrl(&self) -> StreamSendFlowControl {
+        let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
+        StreamSendFlowControl::new_window_based(window)
     }
 
     /// Delegate to CongestionControl, for testing purposes

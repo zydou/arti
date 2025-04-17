@@ -271,13 +271,13 @@ impl StreamMap {
         &mut self,
         sink: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        send_window: sendme::StreamSendWindow,
+        flow_ctrl: StreamSendFlowControl,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
         let mut stream_ent = OpenStreamEntStream {
             inner: OpenStreamEnt {
                 sink,
-                flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
+                flow_ctrl,
                 dropped: 0,
                 cmd_checker,
                 rx: StreamUnobtrusivePeeker::new(rx),
@@ -311,14 +311,14 @@ impl StreamMap {
         &mut self,
         sink: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        send_window: sendme::StreamSendWindow,
+        flow_ctrl: StreamSendFlowControl,
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
         let stream_ent = OpenStreamEntStream {
             inner: OpenStreamEnt {
                 sink,
-                flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
+                flow_ctrl,
                 dropped: 0,
                 cmd_checker,
                 rx: StreamUnobtrusivePeeker::new(rx),
@@ -542,7 +542,7 @@ mod test {
             let id = map.add_ent(
                 sink,
                 rx,
-                StreamSendWindow::new(500),
+                StreamSendFlowControl::new_window_based(StreamSendWindow::new(500)),
                 DataCmdChecker::new_any(),
             )?;
             let expect_id: StreamId = next_id;
