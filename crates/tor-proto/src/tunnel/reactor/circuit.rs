@@ -509,14 +509,8 @@ impl Circuit {
         match hop_map.get_mut(streamid) {
             Some(StreamEntMut::Open(ent)) => {
                 // Can't have a stream level SENDME when congestion control is enabled.
-                let allow_stream_sendme = hop.ccontrol.allow_stream_sendme();
-                let message_closes_stream = Self::deliver_msg_to_stream(
-                    streamid,
-                    ent,
-                    cell_counts_toward_windows,
-                    allow_stream_sendme,
-                    msg,
-                )?;
+                let message_closes_stream =
+                    Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
 
                 if message_closes_stream {
                     hop_map.ending_msg_received(streamid)?;
@@ -571,7 +565,6 @@ impl Circuit {
         streamid: StreamId,
         ent: &mut OpenStreamEnt,
         cell_counts_toward_windows: bool,
-        allow_stream_sendme: bool,
         msg: UnparsedRelayMsg,
     ) -> Result<bool> {
         // The stream for this message exists, and is open.
@@ -581,12 +574,7 @@ impl Circuit {
                 .decode::<Sendme>()
                 .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
                 .into_msg();
-            // Can't have a stream level SENDME when congestion control is enabled.
-            if !allow_stream_sendme {
-                return Err(Error::CircProto(
-                    "Stream level SENDME not allowed due to congestion control".into(),
-                ));
-            }
+
             // We need to handle sendmes here, not in the stream's
             // recv() method, or else we'd never notice them if the
             // stream isn't reading.
