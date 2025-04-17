@@ -51,7 +51,8 @@ testing = ["tor-guardmgr/testing", "__is_experimental"]
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "testing", "geoip"]
+experimental = ["experimental-api", "testing", "flowctl-cc", "geoip"]
+flowctl-cc = ["__is_experimental", "tor-proto/flowctl-cc"]
 geoip = ["tor-geoip", "tor-netdir/geoip", "tor-relay-selection/geoip", "__is_experimental"]
 experimental-api = ["visibility", "__is_experimental"]
 hs-client = ["hs-common"]
