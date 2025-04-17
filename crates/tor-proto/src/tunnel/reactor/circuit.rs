@@ -1455,8 +1455,12 @@ impl CircHop {
 
     /// Builds the (sending) flow control handler for a new stream.
     fn build_send_flow_ctrl(&self) -> StreamSendFlowControl {
-        let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-        StreamSendFlowControl::new_window_based(window)
+        if self.ccontrol.allow_stream_sendme() {
+            let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
+            StreamSendFlowControl::new_window_based(window)
+        } else {
+            StreamSendFlowControl::new_xon_xoff_based()
+        }
     }
 
     /// Delegate to CongestionControl, for testing purposes
