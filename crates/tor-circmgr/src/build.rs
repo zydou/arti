@@ -19,8 +19,8 @@ use tor_linkspec::{ChanTarget, CircTarget, IntoOwnedChanTarget, OwnedChanTarget,
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
-use tor_protover::named::RELAY_NTORV3;
-use tor_protover::{ProtoKind, Protocols};
+use tor_protover::named::{FLOWCTRL_CC, RELAY_NTORV3};
+use tor_protover::Protocols;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 
@@ -229,7 +229,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     fn apply_protovers_to_circparams(params: &mut CircParameters, protocols: &Protocols) {
         // Not supporting FlowCtrl=2 means we have to use the fallback congestion control algorithm
         // which is the FixedWindow one.
-        if !protocols.supports_known_subver(ProtoKind::FlowCtrl, 2) {
+        if !protocols.supports_named_subver(FLOWCTRL_CC) {
             params.ccontrol.use_fallback_alg();
         }
     }
