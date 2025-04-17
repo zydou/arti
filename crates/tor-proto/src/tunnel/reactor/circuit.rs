@@ -1321,10 +1321,10 @@ impl Circuit {
         self.channel.clock_skew()
     }
 
-    /// Does congestion control require stream SENDMEs for the given `hop`?
+    /// Does congestion control use stream SENDMEs for the given `hop`?
     ///
     /// Returns `None` if `hop` doesn't exist.
-    pub(super) fn stream_sendme_required(&self, hop: HopNum) -> Option<bool> {
+    pub(super) fn uses_stream_sendme(&self, hop: HopNum) -> Option<bool> {
         let hop = self.hop(hop)?;
         Some(hop.ccontrol.uses_stream_sendme())
     }

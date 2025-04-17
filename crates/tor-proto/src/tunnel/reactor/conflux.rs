@@ -207,11 +207,11 @@ impl ConfluxSet {
         None
     }
 
-    /// Does congestion control require stream SENDMEs for the given hop?
+    /// Does congestion control use stream SENDMEs for the given hop?
     ///
     /// Returns `None` if either the `leg` or `hop` don't exist.
-    pub(super) fn stream_sendme_required(&self, leg: LegId, hop: HopNum) -> Option<bool> {
-        self.leg(leg)?.stream_sendme_required(hop)
+    pub(super) fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+        self.leg(leg)?.uses_stream_sendme(hop)
     }
 }
 

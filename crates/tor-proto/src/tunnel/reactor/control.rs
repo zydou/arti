@@ -460,7 +460,7 @@ impl<'a> ControlHandler<'a> {
                 };
 
                 // Congestion control decides if we can send stream level SENDMEs or not.
-                let sendme_required = match self.reactor.stream_sendme_required(leg_id, hop_num) {
+                let sendme_required = match self.reactor.uses_stream_sendme(leg_id, hop_num) {
                     Some(x) => x,
                     None => {
                         // don't care if receiver goes away

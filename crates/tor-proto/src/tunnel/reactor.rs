@@ -948,11 +948,11 @@ impl Reactor {
         }
     }
 
-    /// Does congestion control require stream SENDMEs for the given hop?
+    /// Does congestion control use stream SENDMEs for the given hop?
     ///
     /// Returns `None` if either the `leg` or `hop` don't exist.
-    fn stream_sendme_required(&self, leg: LegId, hop: HopNum) -> Option<bool> {
-        self.circuits.stream_sendme_required(leg, hop)
+    fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+        self.circuits.uses_stream_sendme(leg, hop)
     }
 }
 
