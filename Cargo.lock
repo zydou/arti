@@ -6778,6 +6778,7 @@ dependencies = [
  "bitvec",
  "bytes",
  "caret",
+ "cfg-if",
  "cipher",
  "coarsetime",
  "cpu-time",

@@ -249,27 +249,38 @@ impl HandshakeAuxDataHandler for NtorV3Client {
         data: &Vec<NtorV3Extension>,
     ) -> Result<()> {
         // Process all extensions.
+        // If "flowctl-cc" is not enabled, this loop will always return an error, so tell clippy
+        // that it's okay.
+        #[cfg_attr(not(feature = "flowctl-cc"), allow(clippy::never_loop))]
         for ext in data {
             match ext {
                 NtorV3Extension::AckCongestionControl { sendme_inc } => {
-                    // Unexpected ACK extension as in if CC is disabled on our side, we would never have
-                    // requested it. Reject and circuit must be closed.
-                    if !params.ccontrol.is_enabled() {
-                        return Err(Error::HandshakeProto(
-                            "Received unexpected ntorv3 CC ack extension".into(),
-                        ));
+                    cfg_if::cfg_if! {
+                        if #[cfg(feature = "flowctl-cc")] {
+                            // Unexpected ACK extension as in if CC is disabled on our side, we would never have
+                            // requested it. Reject and circuit must be closed.
+                            if !params.ccontrol.is_enabled() {
+                                return Err(Error::HandshakeProto(
+                                    "Received unexpected ntorv3 CC ack extension".into(),
+                                ));
+                            }
+                            // Invalid increment, reject and circuit must be closed.
+                            if !congestion::params::is_sendme_inc_valid(*sendme_inc, params) {
+                                return Err(Error::HandshakeProto(
+                                    "Received invalid sendme increment in CC ntorv3 extension".into(),
+                                ));
+                            }
+                            // Excellent, we have a negotiated sendme increment. Set it for this circuit.
+                            params
+                                .ccontrol
+                                .cwnd_params_mut()
+                                .set_sendme_inc(*sendme_inc);
+                        } else {
+                            return Err(Error::HandshakeProto(
+                                "Received unexpected `AckCongestionControl` ntorv3 extension".into(),
+                            ));
+                        }
                     }
-                    // Invalid increment, reject and circuit must be closed.
-                    if !congestion::params::is_sendme_inc_valid(*sendme_inc, params) {
-                        return Err(Error::HandshakeProto(
-                            "Received invalid sendme increment in CC ntorv3 extension".into(),
-                        ));
-                    }
-                    // Excellent, we have a negotiated sendme increment. Set it for this circuit.
-                    params
-                        .ccontrol
-                        .cwnd_params_mut()
-                        .set_sendme_inc(*sendme_inc);
                 }
                 // Any other extensions is not expected. Reject and circuit must be closed.
                 _ => {

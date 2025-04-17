@@ -1445,6 +1445,7 @@ pub(crate) mod test {
     }
     #[traced_test]
     #[test]
+    #[cfg(feature = "flowctl-cc")]
     fn test_create_ntor_v3_with_cc() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             test_create(&rt, HandshakeType::NtorV3, true).await;

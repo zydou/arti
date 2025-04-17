@@ -961,8 +961,20 @@ impl Circuit {
 
         // Set the client extensions.
         let mut client_extensions = Vec::new();
+
         if params.ccontrol.is_enabled() {
-            client_extensions.push(NtorV3Extension::RequestCongestionControl);
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "flowctl-cc")] {
+                    client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                } else {
+                    return Err(
+                        internal!(
+                            "Congestion control is enabled on this circuit, but 'flowctl-cc' feature is not enabled"
+                        )
+                        .into()
+                    );
+                }
+            }
         }
 
         let wrap = Create2Wrap {
