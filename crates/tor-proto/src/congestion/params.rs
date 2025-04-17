@@ -170,7 +170,11 @@ pub struct CongestionWindowParams {
 impl_standard_builder! { CongestionWindowParams: !Deserialize + !Default}
 
 impl CongestionWindowParams {
-    /// Set the sendme_inc value.
+    /// Set the `sendme_inc` value.
+    ///
+    /// This is used to override the default increment value from when this was constructed with a
+    /// [`CongestionWindowParamsBuilder`].
+    /// Typically the default when built should be from the network parameters from the consensus.
     pub(crate) fn set_sendme_inc(&mut self, inc: u8) {
         self.sendme_inc = u32::from(inc);
     }
