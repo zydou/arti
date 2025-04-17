@@ -91,11 +91,18 @@ if [ "$(id -u)" = "0" ] ; then
     ARTI_FLAGS+=("-o" "application.allow_running_as_root=true")
 fi
 
+# It's not really possible to know where the user built the arti binary.
+# Was it a debug build, a release build, did they use '--target <triple>', etc?
+# Try the platform triple build directory first, and then the usual build directory.
+# It's possible we may choose a stale binary, but there's not much else we can
+# do here other than maybe comparing timestamps.
 if [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
 	cmd=./target/x86_64-unknown-linux-gnu/debug/arti
-else
-	cargo build
+elif [ -x ./target/debug/arti ]; then
 	cmd=./target/debug/arti
+else
+	echo "Could not find a debug arti binary. You can build it with 'cargo build -p arti'."
+	exit 1
 fi
 
 (
