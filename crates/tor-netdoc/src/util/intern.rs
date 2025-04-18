@@ -1,8 +1,7 @@
 //! Declare types for interning various objects.
 
 use std::hash::Hash;
-use std::sync::OnceLock;
-use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 use weak_table::WeakHashSet;
 
 /// An InternCache is a lazily-constructed weak set of objects.
