@@ -13,7 +13,7 @@ use tor_error::ErrorReport;
 /// can install it globally.
 pub(crate) mod rt {
     use futures::{future::BoxFuture, task::Spawn};
-    use once_cell::sync::OnceCell;
+    use std::sync::OnceLock;
     use std::time::{Duration, Instant};
 
     /// A dyn-safe view of the parts of an async runtime that we need for rate-limiting.
@@ -35,8 +35,7 @@ pub(crate) mod rt {
     }
 
     /// A global view of our runtime, used for rate-limited logging.
-    // TODO MSRV 1.70: We could use OnceSync instead.
-    static RUNTIME_SUPPORT: OnceCell<Box<dyn RuntimeSupport>> = OnceCell::new();
+    static RUNTIME_SUPPORT: OnceLock<Box<dyn RuntimeSupport>> = OnceLock::new();
 
     /// Try to install `runtime` as a global runtime to be used for rate-limited logging.
     ///
