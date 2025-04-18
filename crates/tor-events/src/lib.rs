@@ -51,17 +51,17 @@ use futures::channel::mpsc;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::future::Either;
 use futures::StreamExt;
-use once_cell::sync::OnceCell;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use thiserror::Error;
 use tracing::{error, warn};
 
 /// Pointer to an `UnboundedSender`, used to send events into the `EventReactor`.
-static EVENT_SENDER: OnceCell<UnboundedSender<TorEvent>> = OnceCell::new();
+static EVENT_SENDER: OnceLock<UnboundedSender<TorEvent>> = OnceLock::new();
 /// An inactive receiver for the currently active broadcast channel, if there is one.
-static CURRENT_RECEIVER: OnceCell<InactiveReceiver<TorEvent>> = OnceCell::new();
+static CURRENT_RECEIVER: OnceLock<InactiveReceiver<TorEvent>> = OnceLock::new();
 /// The number of `TorEventKind`s there are.
 const EVENT_KIND_COUNT: usize = 1;
 /// An array containing one `AtomicUsize` for each `TorEventKind`, used to track subscriptions.
@@ -307,8 +307,7 @@ mod test {
     use crate::{
         broadcast, event_has_subscribers, EventReactor, StreamExt, TorEvent, TorEventKind,
     };
-    use once_cell::sync::OnceCell;
-    use std::sync::{Mutex, MutexGuard};
+    use std::sync::{Mutex, MutexGuard, OnceLock};
     use std::time::Duration;
     use tokio::runtime::Runtime;
 
@@ -318,7 +317,7 @@ mod test {
     //            the need to have a background singleton EventReactor.
     //
     //            To hack around this, we just have a global runtime protected by a mutex!
-    static TEST_MUTEX: OnceCell<Mutex<Runtime>> = OnceCell::new();
+    static TEST_MUTEX: OnceLock<Mutex<Runtime>> = OnceLock::new();
 
     /// Locks the mutex, and makes sure the event reactor is initialized.
     fn test_setup() -> MutexGuard<'static, Runtime> {
