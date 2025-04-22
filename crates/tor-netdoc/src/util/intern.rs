@@ -1,8 +1,7 @@
 //! Declare types for interning various objects.
 
-use once_cell::sync::OnceCell;
 use std::hash::Hash;
-use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 use weak_table::WeakHashSet;
 
 /// An InternCache is a lazily-constructed weak set of objects.
@@ -17,14 +16,14 @@ use weak_table::WeakHashSet;
 /// Later, the hash entry is (lazily) removed.
 pub(crate) struct InternCache<T: ?Sized> {
     /// Underlying hashset for interned objects
-    cache: OnceCell<Mutex<WeakHashSet<Weak<T>>>>,
+    cache: OnceLock<Mutex<WeakHashSet<Weak<T>>>>,
 }
 
 impl<T: ?Sized> InternCache<T> {
     /// Create a new, empty, InternCache.
     pub(crate) const fn new() -> Self {
         InternCache {
-            cache: OnceCell::new(),
+            cache: OnceLock::new(),
         }
     }
 }
