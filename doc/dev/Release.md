@@ -262,7 +262,10 @@ before you continue!
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
 
-4. Then make sure that CI passes, again.
+4. Run `maint/update-release-date` to make sure
+   that Arti has an accurate sense of when its version was bumped.
+
+5. Then make sure that CI passes, again.
 
 ## The actual release itself.
 

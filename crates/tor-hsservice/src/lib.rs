@@ -596,6 +596,23 @@ fn onion_address(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
         .map(|hsid| hsid.id())
 }
 
+/// Return a list of the protocols[supported](tor_protover::doc_supported)
+/// by this crate, running as a hidden service.
+pub fn supported_hsservice_protocols() -> tor_protover::Protocols {
+    use tor_protover::named::*;
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
+    [
+        //
+        HSINTRO_V3,
+        HSINTRO_RATELIM,
+        HSREND_V3,
+        HSDIR_V3,
+    ]
+    .into_iter()
+    .collect()
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -630,6 +647,13 @@ pub(crate) mod test {
 
     /// The nickname of the test service.
     const TEST_SVC_NICKNAME: &str = "test-svc";
+
+    #[test]
+    fn protocols() {
+        let pr = supported_hsservice_protocols();
+        let expected = "HSIntro=4-5 HSRend=2 HSDir=2".parse().unwrap();
+        assert_eq!(pr, expected);
+    }
 
     /// Make a fresh `KeyMgr` (containing no keys) using files in `temp_dir`
     pub(crate) fn create_keymgr(temp_dir: &TestTempDir) -> TestTempDirGuard<Arc<KeyMgr>> {

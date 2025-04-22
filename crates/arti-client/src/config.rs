@@ -142,6 +142,38 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
     Duration::new(10, 0)
 }
 
+/// Configuration for overriding the status of our software.
+///
+/// # Issues
+///
+/// We only check these configuration values when we receive a new consensus,
+/// or when we're starting up.  Therefore, if you change these values,
+/// they won't have any effect until the next consensus is received.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+pub struct SoftwareStatusOverrideConfig {
+    /// A list of protocols to pretend that we have,
+    /// when checking whether our software is obsolete.
+    //
+    // We make this type a String in the builder, to avoid exposing Protocols in our API.
+    #[builder(field(type = "String", build = "self.parse_protos()?"))]
+    pub(crate) ignore_missing_required_protocols: tor_protover::Protocols,
+}
+
+impl SoftwareStatusOverrideConfigBuilder {
+    /// Helper: Parse the ignore_missing_required_protocols field.
+    fn parse_protos(&self) -> Result<tor_protover::Protocols, ConfigBuildError> {
+        use std::str::FromStr as _;
+        tor_protover::Protocols::from_str(&self.ignore_missing_required_protocols).map_err(|e| {
+            ConfigBuildError::Invalid {
+                field: "ignore_missing_required_protocols".to_string(),
+                problem: e.to_string(),
+            }
+        })
+    }
+}
+
 /// Configuration for where information should be stored on disk.
 ///
 /// By default, cache information will be stored in `${ARTI_CACHE}`, and
@@ -632,6 +664,11 @@ pub struct TorClientConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) vanguards: vanguards::VanguardConfig,
+
+    /// Support for running with known-obsolete versions.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) use_obsolete_software: SoftwareStatusOverrideConfig,
 
     /// Resolves paths in this configuration.
     ///

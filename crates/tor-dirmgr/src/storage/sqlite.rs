@@ -11,7 +11,7 @@ use crate::{Error, Result};
 
 use fs_mistrust::CheckedDir;
 use tor_basic_utils::PathExt as _;
-use tor_error::warn_report;
+use tor_error::{into_internal, warn_report};
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
@@ -951,6 +951,40 @@ impl Store for SqliteStore {
         self.conn.execute(DELETE_BRIDGEDESC, params![bridge_line])?;
         Ok(())
     }
+
+    fn update_protocol_recommendations(
+        &mut self,
+        valid_after: SystemTime,
+        protocols: &tor_netdoc::doc::netstatus::ProtoStatuses,
+    ) -> Result<()> {
+        let json =
+            serde_json::to_string(&protocols).map_err(into_internal!("Cannot encode protocols"))?;
+        let params = params![OffsetDateTime::from(valid_after), json];
+        self.conn.execute(UPDATE_PROTOCOL_STATUS, params)?;
+        Ok(())
+    }
+
+    fn cached_protocol_recommendations(
+        &self,
+    ) -> Result<Option<(SystemTime, tor_netdoc::doc::netstatus::ProtoStatuses)>> {
+        let opt_row: Option<(OffsetDateTime, String)> = self
+            .conn
+            .query_row(FIND_LATEST_PROTOCOL_STATUS, [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()?;
+
+        let (date, json) = match opt_row {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        let date = date.into();
+        let statuses: tor_netdoc::doc::netstatus::ProtoStatuses =
+            serde_json::from_str(json.as_str()).map_err(|e| Error::BadJsonInCache(Arc::new(e)))?;
+
+        Ok(Some((date, statuses)))
+    }
 }
 
 /// Functionality related to uncommitted blobs.
@@ -1180,6 +1214,22 @@ const UPDATE_SCHEMA: &[&str] = &["
     until DATE NOT NULL,
     contents BLOB NOT NULL
   );
+","
+ -- Update the database schema from version 2 to version 3.
+
+ -- Table to hold our latest ProtocolStatuses object, to tell us if we're obsolete.
+ -- We hold this independently from our consensus,
+ -- since we want to read it very early in our startup process,
+ -- even if the consensus is expired.
+ CREATE TABLE ProtocolStatus (
+    -- Enforce that there is only one row in this table.
+    -- (This is a bit kludgy, but I am assured that it is a common practice.)
+    zero INTEGER PRIMARY KEY NOT NULL,
+    -- valid-after date of the consensus from which we got this status
+    date DATE NOT NULL,
+    -- ProtoStatuses object, encoded as json
+    statuses TEXT NOT NULL
+ );
 "];
 
 /// Update the database schema version tracking, from each version to the next
@@ -1350,6 +1400,11 @@ const DELETE_EXTDOC_BY_FILENAME: &str = "DELETE FROM ExtDocs WHERE filename = ?;
 
 /// Query: List all extdoc filenames.
 const FIND_ALL_EXTDOC_FILENAMES: &str = "SELECT filename FROM ExtDocs;";
+
+/// Query: Get the latest protocol status.
+const FIND_LATEST_PROTOCOL_STATUS: &str = "SELECT date, statuses FROM ProtocolStatus WHERE zero=0;";
+/// Query: Update the latest protocol status.
+const UPDATE_PROTOCOL_STATUS: &str = "INSERT OR REPLACE INTO ProtocolStatus VALUES ( 0, ?, ? );";
 
 /// Query: Discard every router descriptor that hasn't been listed for 3
 /// months.
@@ -1873,6 +1928,66 @@ pub(crate) mod test {
                 })?;
         assert_eq!(n_1, 0);
         assert_eq!(n_2, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn protocol_statuses() -> Result<()> {
+        let (_tmp_dir, mut store) = new_empty()?;
+
+        let now = SystemTime::now();
+        let hour = 1.hours();
+
+        let valid_after = now;
+        let protocols = serde_json::from_str(
+            r#"{
+            "client":{
+                "required":"Link=5 LinkAuth=3",
+                "recommended":"Link=1-5 LinkAuth=2-5"
+            },
+            "relay":{
+                "required":"Wombat=20-22 Knish=25-27",
+                "recommended":"Wombat=20-30 Knish=20-30"
+            }
+            }"#,
+        )
+        .unwrap();
+
+        let v = store.cached_protocol_recommendations()?;
+        assert!(v.is_none());
+
+        store.update_protocol_recommendations(valid_after, &protocols)?;
+        let v = store.cached_protocol_recommendations()?.unwrap();
+        assert_eq!(v.0, now);
+        assert_eq!(
+            serde_json::to_string(&protocols).unwrap(),
+            serde_json::to_string(&v.1).unwrap()
+        );
+
+        let protocols2 = serde_json::from_str(
+            r#"{
+            "client":{
+                "required":"Link=5 ",
+                "recommended":"Link=1-5"
+            },
+            "relay":{
+                "required":"Wombat=20",
+                "recommended":"Cons=6"
+            }
+            }"#,
+        )
+        .unwrap();
+
+        let valid_after_2 = now + hour;
+        store.update_protocol_recommendations(valid_after_2, &protocols2)?;
+
+        let v = store.cached_protocol_recommendations()?.unwrap();
+        assert_eq!(v.0, now + hour);
+        assert_eq!(
+            serde_json::to_string(&protocols2).unwrap(),
+            serde_json::to_string(&v.1).unwrap()
+        );
+
         Ok(())
     }
 }

@@ -57,8 +57,10 @@ use crate::util::private::Sealed;
 use crate::util::PeekableIterator;
 use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
+use std::result::Result as StdResult;
+use std::sync::Arc;
 use std::{net, result, time};
-use tor_error::internal;
+use tor_error::{internal, HasKind};
 use tor_protover::Protocols;
 
 use bitflags::bitflags;
@@ -222,8 +224,7 @@ where
 /// A list of subprotocol versions that implementors should/must provide.
 ///
 /// Each consensus has two of these: one for relays, and one for clients.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatus {
     /// Set of protocols that are recommended; if we're missing a protocol
     /// in this list we should warn the user.
@@ -231,6 +232,87 @@ pub struct ProtoStatus {
     /// Set of protocols that are required; if we're missing a protocol
     /// in this list we should refuse to start.
     required: Protocols,
+}
+
+impl ProtoStatus {
+    /// Check whether the list of supported protocols
+    /// is sufficient to satisfy this list of recommendations and requirements.
+    ///
+    /// If any required protocol is missing, returns [`ProtocolSupportError::MissingRequired`].
+    ///
+    /// Otherwise, if no required protocol is missing, but some recommended protocol is missing,
+    /// returns [`ProtocolSupportError::MissingRecommended`].
+    ///
+    /// Otherwise, if no recommended or required protocol is missing, returns `Ok(())`.
+    pub fn check_protocols(
+        &self,
+        supported_protocols: &Protocols,
+    ) -> StdResult<(), ProtocolSupportError> {
+        // Required protocols take precedence, so we check them first.
+        let missing_required = self.required.difference(supported_protocols);
+        if !missing_required.is_empty() {
+            return Err(ProtocolSupportError::MissingRequired(missing_required));
+        }
+        let missing_recommended = self.recommended.difference(supported_protocols);
+        if !missing_recommended.is_empty() {
+            return Err(ProtocolSupportError::MissingRecommended(
+                missing_recommended,
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+/// A subprotocol that is recommended or required in the consensus was not present.
+#[derive(Clone, Debug, thiserror::Error)]
+#[cfg_attr(test, derive(PartialEq))]
+#[non_exhaustive]
+pub enum ProtocolSupportError {
+    /// At least one required protocol was not in our list of supported protocols.
+    #[error("Required protocols are not implemented: {0}")]
+    MissingRequired(Protocols),
+
+    /// At least one recommended protocol was not in our list of supported protocols.
+    ///
+    /// Also implies that no _required_ protocols were missing.
+    #[error("Recommended protocols are not implemented: {0}")]
+    MissingRecommended(Protocols),
+}
+
+impl ProtocolSupportError {
+    /// Return true if the suggested behavior for this error is a shutdown.
+    pub fn should_shutdown(&self) -> bool {
+        matches!(self, Self::MissingRequired(_))
+    }
+}
+
+impl HasKind for ProtocolSupportError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::SoftwareDeprecated
+    }
+}
+
+/// A set of recommended and required protocols when running
+/// in various scenarios.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProtoStatuses {
+    /// Lists of recommended and required subprotocol versions for clients
+    client: ProtoStatus,
+    /// Lists of recommended and required subprotocol versions for relays
+    relay: ProtoStatus,
+}
+
+impl ProtoStatuses {
+    /// Return the list of recommended and required protocols for running as a client.
+    pub fn client(&self) -> &ProtoStatus {
+        &self.client
+    }
+
+    /// Return the list of recommended and required protocols for running as a relay.
+    pub fn relay(&self) -> &ProtoStatus {
+        &self.relay
+    }
 }
 
 /// A recognized 'flavor' of consensus document.
@@ -378,12 +460,9 @@ struct CommonHeader {
     /// List of recommended Tor relay versions.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     relay_versions: Vec<String>,
-    /// Lists of recommended and required subprotocol versions for clients
+    /// Lists of recommended and required subprotocols.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    client_protos: ProtoStatus,
-    /// Lists of recommended and required subprotocol versions for relays
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    relay_protos: ProtoStatus,
+    proto_statuses: Arc<ProtoStatuses>,
     /// Declared parameters for tunable settings about how to the
     /// network should operator. Some of these adjust timeouts and
     /// whatnot; some features things on and off.
@@ -702,13 +781,18 @@ impl<RS> Consensus<RS> {
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every relay must implement.  
     pub fn relay_protocol_status(&self) -> &ProtoStatus {
-        &self.header.hdr.relay_protos
+        &self.header.hdr.proto_statuses.relay
     }
 
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every client must implement.
     pub fn client_protocol_status(&self) -> &ProtoStatus {
-        &self.header.hdr.client_protos
+        &self.header.hdr.proto_statuses.client
+    }
+
+    /// Return a set of all known [`ProtoStatus`] values.
+    pub fn protocol_statuses(&self) -> &Arc<ProtoStatuses> {
+        &self.header.hdr.proto_statuses
     }
 }
 
@@ -1039,13 +1123,19 @@ impl CommonHeader {
             .map(str::to_string)
             .collect();
 
-        let client_protos = ProtoStatus::from_section(
-            sec,
-            RECOMMENDED_CLIENT_PROTOCOLS,
-            REQUIRED_CLIENT_PROTOCOLS,
-        )?;
-        let relay_protos =
-            ProtoStatus::from_section(sec, RECOMMENDED_RELAY_PROTOCOLS, REQUIRED_RELAY_PROTOCOLS)?;
+        let proto_statuses = {
+            let client = ProtoStatus::from_section(
+                sec,
+                RECOMMENDED_CLIENT_PROTOCOLS,
+                REQUIRED_CLIENT_PROTOCOLS,
+            )?;
+            let relay = ProtoStatus::from_section(
+                sec,
+                RECOMMENDED_RELAY_PROTOCOLS,
+                REQUIRED_RELAY_PROTOCOLS,
+            )?;
+            Arc::new(ProtoStatuses { client, relay })
+        };
 
         let params = sec.maybe(PARAMS).args_as_str().unwrap_or("").parse()?;
 
@@ -1062,8 +1152,7 @@ impl CommonHeader {
             lifetime,
             client_versions,
             relay_versions,
-            client_protos,
-            relay_protos,
+            proto_statuses,
             params,
             voting_delay,
         })
@@ -2063,5 +2152,73 @@ mod test {
         let sr = gettok("foo bar\n").unwrap();
         let sr = SharedRandStatus::from_item(&sr);
         assert!(sr.is_err());
+    }
+
+    #[test]
+    fn test_protostatus() {
+        let my_protocols: Protocols = "Link=7 Cons=1-5 Desc=3-10".parse().unwrap();
+
+        let outcome = ProtoStatus {
+            recommended: "Link=7".parse().unwrap(),
+            required: "Desc=5".parse().unwrap(),
+        }
+        .check_protocols(&my_protocols);
+        assert!(outcome.is_ok());
+
+        let outcome = ProtoStatus {
+            recommended: "Microdesc=4 Link=7".parse().unwrap(),
+            required: "Desc=5".parse().unwrap(),
+        }
+        .check_protocols(&my_protocols);
+        assert_eq!(
+            outcome,
+            Err(ProtocolSupportError::MissingRecommended(
+                "Microdesc=4".parse().unwrap()
+            ))
+        );
+
+        let outcome = ProtoStatus {
+            recommended: "Microdesc=4 Link=7".parse().unwrap(),
+            required: "Desc=5 Cons=5-12 Wombat=15".parse().unwrap(),
+        }
+        .check_protocols(&my_protocols);
+        assert_eq!(
+            outcome,
+            Err(ProtocolSupportError::MissingRequired(
+                "Cons=6-12 Wombat=15".parse().unwrap()
+            ))
+        );
+    }
+
+    #[test]
+    fn serialize_protostatus() {
+        let ps = ProtoStatuses {
+            client: ProtoStatus {
+                recommended: "Link=1-5 LinkAuth=2-5".parse().unwrap(),
+                required: "Link=5 LinkAuth=3".parse().unwrap(),
+            },
+            relay: ProtoStatus {
+                recommended: "Wombat=20-30 Knish=20-30".parse().unwrap(),
+                required: "Wombat=20-22 Knish=25-27".parse().unwrap(),
+            },
+        };
+        let json = serde_json::to_string(&ps).unwrap();
+        let ps2 = serde_json::from_str(json.as_str()).unwrap();
+        assert_eq!(ps, ps2);
+
+        let ps3: ProtoStatuses = serde_json::from_str(
+            r#"{
+            "client":{
+                "required":"Link=5 LinkAuth=3",
+                "recommended":"Link=1-5 LinkAuth=2-5"
+            },
+            "relay":{
+                "required":"Wombat=20-22 Knish=25-27",
+                "recommended":"Wombat=20-30 Knish=20-30"
+            }
+        }"#,
+        )
+        .unwrap();
+        assert_eq!(ps, ps3);
     }
 }

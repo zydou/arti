@@ -6,7 +6,8 @@
 use super::rs::build::RouterStatusBuilder;
 use super::{
     CommonHeader, Consensus, ConsensusFlavor, ConsensusHeader, ConsensusVoterInfo, DirSource,
-    Footer, Lifetime, NetParams, ProtoStatus, RouterStatus, SharedRandStatus, SharedRandVal,
+    Footer, Lifetime, NetParams, ProtoStatus, ProtoStatuses, RouterStatus, SharedRandStatus,
+    SharedRandVal,
 };
 
 use crate::{BuildError as Error, BuildResult as Result};
@@ -14,6 +15,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
 use std::net::IpAddr;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 /// A builder object used to construct a consensus.
@@ -32,9 +34,9 @@ pub struct ConsensusBuilder<RS> {
     client_versions: Vec<String>,
     /// See [`CommonHeader::relay_versions`]
     relay_versions: Vec<String>,
-    /// See [`CommonHeader::client_protos`]
+    /// See [`CommonHeader::proto_statuses`]
     client_protos: ProtoStatus,
-    /// See [`CommonHeader::relay_protos`]
+    /// See [`CommonHeader::proto_statuses`]
     relay_protos: ProtoStatus,
     /// See [`CommonHeader::params`]
     params: NetParams<i32>,
@@ -225,13 +227,17 @@ impl<RS: RouterStatus + Clone> ConsensusBuilder<RS> {
             .ok_or(Error::CannotBuild("Missing lifetime."))?
             .clone();
 
+        let proto_statuses = Arc::new(ProtoStatuses {
+            client: self.client_protos.clone(),
+            relay: self.relay_protos.clone(),
+        });
+
         let hdr = CommonHeader {
             flavor: self.flavor,
             lifetime,
             client_versions: self.client_versions.clone(),
             relay_versions: self.relay_versions.clone(),
-            client_protos: self.client_protos.clone(),
-            relay_protos: self.relay_protos.clone(),
+            proto_statuses,
             params: self.params.clone(),
             voting_delay: self.voting_delay,
         };

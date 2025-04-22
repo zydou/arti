@@ -155,6 +155,7 @@ rand = "0.9"
 safelog = { path = "../safelog", version = "0.4.5" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "2"
+time = { version = "0.3.20", features = ["parsing", "macros"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.29.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.29.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.29.0" }
@@ -177,6 +178,7 @@ tor-netdir = { path = "../tor-netdir", version = "0.29.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.29.0" }
 tor-persist = { path = "../tor-persist", version = "0.29.0" }
 tor-proto = { path = "../tor-proto", version = "0.29.0" }
+tor-protover = { path = "../tor-protover", version = "0.29.0" }
 tor-ptmgr = { path = "../tor-ptmgr", version = "0.29.0", optional = true }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.29.0", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.29.0" }
@@ -187,6 +189,7 @@ void = "1"
 [dev-dependencies]
 anyhow = "1.0.23"
 rand = "0.9"
+serde_json = "1.0.104"
 strum = { version = "0.27.1", features = ["derive"] }
 tempfile = "3.3"
 tokio-crate = { package = "tokio", version = "1.7", features = [
@@ -201,6 +204,7 @@ toml = "0.8.8"
 tor-relay-selection = { path = "../tor-relay-selection", version = "0.29.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.29.0", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.0"
+tracing-test = "0.2.4"
 
 [package.metadata.docs.rs]
 all-features = true

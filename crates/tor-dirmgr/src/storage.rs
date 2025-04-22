@@ -8,7 +8,7 @@
 
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
-use tor_netdoc::doc::netstatus::ConsensusFlavor;
+use tor_netdoc::doc::netstatus::{ConsensusFlavor, ProtoStatuses};
 
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
@@ -335,6 +335,16 @@ pub(crate) trait Store: Send + 'static {
     // Nothing uses this yet; removal is handled from `expire_all`.
     #[allow(dead_code)] // see also allow on DELETE_BRIDGEDESC
     fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()>;
+
+    /// Try to update our cached protocol recommendations to those listed in `protocols`.
+    fn update_protocol_recommendations(
+        &mut self,
+        valid_after: SystemTime,
+        protocols: &ProtoStatuses,
+    ) -> Result<()>;
+
+    /// Return our most recent cached protocol recommendations.
+    fn cached_protocol_recommendations(&self) -> Result<Option<(SystemTime, ProtoStatuses)>>;
 }
 
 /// Value in the bridge descriptor cache

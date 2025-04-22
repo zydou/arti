@@ -49,6 +49,8 @@
 mod address;
 mod builder;
 mod client;
+mod protostatus;
+mod release_date;
 #[cfg(feature = "rpc")]
 pub mod rpc;
 mod util;
@@ -91,3 +93,121 @@ pub use {
 #[cfg(feature = "geoip")]
 #[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
 pub use tor_geoip::CountryCode;
+
+/// Return a list of the protocols [supported](tor_protover::doc_supported) by this crate.
+///
+/// (This is a crate-private method so as not to expose tor_protover in our public API.)
+///
+/// *WARNING*: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+/// SEE [`tor_protover::doc_changing`]
+pub(crate) fn supported_protocols() -> tor_protover::Protocols {
+    let protocols = tor_proto::supported_client_protocols()
+        .union(&tor_netdoc::supported_protocols())
+        .union(&tor_dirmgr::supported_client_protocols());
+
+    // TODO: the behavior for here seems most questionable!
+    // We will warn if any hs protocol happens to be recommended and we do not support onion
+    // services.
+    // We will also fail to warn if any hs protocol is required, and we support it only as a client
+    // or only as a service.
+    // We ought to determine the right behavior here.
+    // See torspec#319 at https://gitlab.torproject.org/tpo/core/torspec/-/issues/319.
+    #[cfg(feature = "onion-service-service")]
+    let protocols = protocols.union(&tor_hsservice::supported_hsservice_protocols());
+    #[cfg(feature = "onion-service-client")]
+    let protocols = protocols.union(&tor_hsclient::supported_hsclient_protocols());
+
+    let hs_protocols = {
+        // As a temporary workaround (again see torspec#319) we are unconditionally adding the
+        // conditionally supported HSService protocols.
+        use tor_protover::named::*;
+        [
+            //
+            HSINTRO_V3,
+            HSINTRO_RATELIM,
+            HSREND_V3,
+            HSDIR_V3,
+        ]
+        .into_iter()
+        .collect()
+    };
+
+    protocols.union(&hs_protocols)
+}
+
+/// Return the approximate release date of this version of arti client.
+///
+/// See[`release_date::ARTI_CLIENT_RELEASE_DATE`] for rationale.
+pub(crate) fn software_release_date() -> std::time::SystemTime {
+    use time::OffsetDateTime;
+
+    let format = time::macros::format_description!("[year]-[month]-[day]");
+    let date = time::Date::parse(release_date::ARTI_CLIENT_RELEASE_DATE, &format)
+        .expect("Invalid hard-coded release date!?");
+    OffsetDateTime::new_utc(date, time::Time::MIDNIGHT).into()
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn protocols_enforced() {
+        let pr = supported_protocols();
+
+        for recommendation in [
+            // Required in consensus as of 2024-04-02
+            "Cons=2 Desc=2 Link=4 Microdesc=2 Relay=2",
+            // Recommended in consensus as of 2024-04-02
+            "Cons=2 Desc=2 DirCache=2 HSDir=2 HSIntro=4 HSRend=2 Link=4-5 Microdesc=2 Relay=2",
+            // Required by c-tor main-branch authorities as of 2024-04-02
+            "Cons=2 Desc=2 FlowCtrl=1 Link=4 Microdesc=2 Relay=2",
+            // // Recommended by c-tor main-branch authorities as of 2024-04-02
+            // TODO: (Cannot deploy yet, see below.)
+            // "Cons=2 Desc=2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4 HSRend=2 Link=4-5 Microdesc=2 Relay=2-4",
+        ] {
+            let rec: tor_protover::Protocols = recommendation.parse().unwrap();
+
+            let unsupported = rec.difference(&pr);
+
+            assert!(unsupported.is_empty(), "{} not supported", unsupported);
+        }
+
+        // TODO: Remove this once congestion control is fully implemented.
+        {
+            // Recommended by c-tor main-branch authorities as of 2024-04-02
+            let rec: tor_protover::Protocols =
+                "Cons=2 Desc=2 DirCache=2 FlowCtrl=1-2 HSDir=2 HSIntro=4 \
+                 HSRend=2 Link=4-5 Microdesc=2 Relay=2-4"
+                    .parse()
+                    .unwrap();
+
+            // Although this is recommended, Arti hasn't built it yet.
+            let expected_missing: tor_protover::Protocols =
+                [tor_protover::named::FLOWCTRL_CC].into_iter().collect();
+
+            let unsupported = rec.difference(&pr);
+            assert_eq!(unsupported, expected_missing);
+        }
+    }
+
+    #[test]
+    fn release_date_format() {
+        // Make sure we can parse the release date.
+        let _d: std::time::SystemTime = software_release_date();
+    }
+}

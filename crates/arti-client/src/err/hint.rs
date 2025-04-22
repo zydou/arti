@@ -88,12 +88,26 @@ impl HintableErrorImpl for fs_mistrust::Error {
     }
 }
 
+impl HintableErrorImpl for tor_netdoc::doc::netstatus::ProtocolSupportError {
+    fn hint_specific(&self) -> Option<ErrorHint<'_>> {
+        use tor_netdoc::doc::netstatus::ProtocolSupportError as E;
+        match self {
+            E::MissingRequired(protocols) => Some(ErrorHint {
+                inner: super::ErrorHintInner::MissingProtocols {
+                    required: protocols,
+                },
+            }),
+            _ => None,
+        }
+    }
+}
+
 /// Declare one or more error types as having hints.
 ///
 /// This macro implements Sealed for those types, and makes them participate
 /// in `downcast_to_hintable_impl`.
 macro_rules! hintable_impl {
-    { $( $e:ty )+, $(,)? } =>
+    { $( $e:ty ),+ $(,)? } =>
     {
         $(
             impl seal::OnlyTheMacroShouldImplementThis__ for $e {}
@@ -114,6 +128,7 @@ macro_rules! hintable_impl {
 
 hintable_impl! {
     fs_mistrust::Error,
+    tor_netdoc::doc::netstatus::ProtocolSupportError,
 }
 
 #[cfg(test)]

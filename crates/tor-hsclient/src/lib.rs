@@ -224,3 +224,47 @@ impl<R: Runtime, D: MockableConnectorData> HsClientConnector<R, D> {
             })
     }
 }
+
+/// Return a list of the protocols [supported](tor_protover::doc_supported) by this crate,
+/// running as a hidden service client.
+pub fn supported_hsclient_protocols() -> tor_protover::Protocols {
+    use tor_protover::named::*;
+    // WARNING: REMOVING ELEMENTS FROM THIS LIST CAN BE DANGEROUS!
+    // SEE [`tor_protover::doc_changing`]
+    [
+        HSINTRO_V3,
+        // Technically, there is nothing for a client to do to support HSINTRO_RATELIM.
+        // See torspec#319
+        HSINTRO_RATELIM,
+        HSREND_V3,
+        HSDIR_V3,
+    ]
+    .into_iter()
+    .collect()
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn protocols() {
+        let pr = supported_hsclient_protocols();
+        let expected = "HSIntro=4-5 HSRend=2 HSDir=2".parse().unwrap();
+        assert_eq!(pr, expected);
+    }
+}

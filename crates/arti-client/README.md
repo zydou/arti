@@ -28,7 +28,18 @@ we intend to add this in the future.
 
 ### ⚠ Warnings ⚠
 
-Also note that the APIs for this crate are not all yet completely stable.
+If you integrate Arti, you need to be prepared to upgrade it over time,
+or it might stop working entirely.
+The Tor network protocols change over time, and sufficiently obsolete protocols
+are not supported.
+
+This library can call `exit(1)` and terminate your process
+if it receives a network consensus document telling it that it is obsolete.
+We know that this is not desirable behavior for a library;
+[we plan to improve it in the future.](https://gitlab.torproject.org/tpo/core/arti/-/issues/1932).
+(This behavior may occur while Arti is running, but never occurs on startup.)
+
+Note that the APIs for this crate are not all yet completely stable.
 We'll try not to break things without good reason, and we'll follow semantic
 versioning when we do, but please expect a certain amount of breakage
 between now and us declaring `arti-client` 1.x.

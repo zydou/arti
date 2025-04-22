@@ -81,6 +81,7 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::time::SystemTime;
 use strum::{EnumCount, EnumIter};
 use tracing::warn;
 use typed_index_collections::{TiSlice, TiVec};
@@ -565,6 +566,10 @@ pub enum DirEvent {
     /// (This event is _not_ broadcast when receiving new descriptors for a
     /// consensus which is not yet ready to replace the current consensus.)
     NewDescriptors,
+
+    /// We have received updated recommendations and requirements
+    /// for which subprotocols we should have to use the network.
+    NewProtocolRecommendation,
 }
 
 /// The network directory provider is shutting down without giving us the
@@ -709,6 +714,11 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
             }
         }
     }
+
+    /// Return the latest set of recommended and required protocols, if there is one.
+    ///
+    /// This may be more recent (or more available) than this provider's associated NetDir.
+    fn protocol_statuses(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)>;
 }
 
 impl<T> NetDirProvider for Arc<T>
@@ -729,6 +739,10 @@ where
 
     fn params(&self) -> Arc<dyn AsRef<NetParameters>> {
         self.deref().params()
+    }
+
+    fn protocol_statuses(&self) -> Option<(SystemTime, Arc<netstatus::ProtoStatuses>)> {
+        self.deref().protocol_statuses()
     }
 }
 
@@ -1163,7 +1177,7 @@ impl NetDir {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
     }
 
-    /// Look up a relay's `MicroDesc` by its `RouterStatusIdx`
+    /// Look up a relay's [`Microdesc`] by its [`RouterStatusIdx`]
     #[cfg_attr(not(feature = "hs-common"), allow(dead_code))]
     pub(crate) fn md_by_rsidx(&self, rsidx: RouterStatusIdx) -> Option<&Microdesc> {
         self.mds.get(rsidx)?.as_deref()

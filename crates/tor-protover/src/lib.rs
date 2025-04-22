@@ -80,7 +80,7 @@ caret_int! {
         /// Describing a relay's functionality using router descriptors.
         Desc = 7,
         /// Describing a relay's functionality using microdescriptors.
-        MicroDesc = 8,
+        Microdesc = 8,
         /// Describing the network as a consensus directory document.
         Cons = 9,
         /// Sending and accepting circuit-level padding
@@ -95,18 +95,31 @@ caret_int! {
 /// How many recognized protocols are there?
 const N_RECOGNIZED: usize = 13;
 
+/// Maximum allowable value for a protocol's version field.
+const MAX_VER: usize = 63;
+
 /// A specific, named subversion of a protocol.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct NamedSubver {
     /// The protocol in question
+    ///
+    /// Must be in-range for ProtoKind (0..N_RECOGNIZED).
     kind: ProtoKind,
     /// The version of the protocol
+    ///
+    /// Must be in 0..=MAX_VER
     version: u8,
 }
 
 impl NamedSubver {
     /// Create a new NamedSubver.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `kind` is unrecognized or `version` is invalid.
     const fn new(kind: ProtoKind, version: u8) -> Self {
+        assert!((kind.0 as usize) < N_RECOGNIZED);
+        assert!((version as usize) <= MAX_VER);
         Self { kind, version }
     }
 }
@@ -115,6 +128,8 @@ impl NamedSubver {
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
 enum Protocol {
     /// A known protocol; represented by one of ProtoKind.
+    ///
+    /// ProtoKind must always be in the range 0..N_RECOGNIZED.
     Proto(ProtoKind),
     /// An unknown protocol; represented by its name.
     Unrecognized(String),
@@ -160,10 +175,17 @@ struct SubprotocolEntry {
 /// let p: Result<Protocols,_> = "Link=1-3 LinkAuth=2-3 Relay=1-2".parse();
 /// ```
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_with::DeserializeFromStr, serde_with::SerializeDisplay)
+)]
 pub struct Protocols {
     /// A mapping from protocols' integer encodings to bit-vectors.
     recognized: [u64; N_RECOGNIZED],
-    /// A vector of unrecognized protocol versions.
+    /// A vector of unrecognized protocol versions,
+    /// in sorted order.
+    ///
+    /// Every entry in this list has supported != 0.
     unrecognized: Vec<SubprotocolEntry>,
 }
 
@@ -175,7 +197,7 @@ impl Protocols {
     /// Helper: return true iff this protocol set contains the
     /// version `ver` of the protocol represented by the integer `proto`.
     fn supports_recognized_ver(&self, proto: usize, ver: u8) -> bool {
-        if ver > 63 {
+        if usize::from(ver) > MAX_VER {
             return false;
         }
         if proto >= self.recognized.len() {
@@ -189,7 +211,7 @@ impl Protocols {
     ///
     /// Requires that `proto` is not the name of a recognized protocol.
     fn supports_unrecognized_ver(&self, proto: &str, ver: u8) -> bool {
-        if ver > 63 {
+        if usize::from(ver) > MAX_VER {
             return false;
         }
         let ent = self
@@ -201,6 +223,13 @@ impl Protocols {
             None => false,
         }
     }
+
+    /// Return true if this list of protocols is empty.
+    pub fn is_empty(&self) -> bool {
+        self.recognized.iter().all(|v| *v == 0)
+            && self.unrecognized.iter().all(|p| p.supported == 0)
+    }
+
     // TODO: Combine these next two functions into one by using a trait.
     /// Check whether a known protocol version is supported.
     ///
@@ -247,15 +276,103 @@ impl Protocols {
         self.supports_known_subver(protover.kind, protover.version)
     }
 
+    /// Return a Protocols holding every protocol flag that is present in `self`
+    /// but not `other`.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Desc=2-4 Microdesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 Microdesc=3".parse().unwrap();
+    /// assert_eq!(protos.difference(&protos2),
+    ///            "Desc=2,4 Microdesc=1-2,4-5".parse().unwrap());
+    /// ```
+    pub fn difference(&self, other: &Protocols) -> Protocols {
+        let mut r = Protocols::default();
+
+        for i in 0..N_RECOGNIZED {
+            r.recognized[i] = self.recognized[i] & !other.recognized[i];
+        }
+        // This is not super efficient, but we don't have to do it often.
+        for ent in self.unrecognized.iter() {
+            let mut ent = ent.clone();
+            if let Some(other_ent) = other.unrecognized.iter().find(|e| e.proto == ent.proto) {
+                ent.supported &= !other_ent.supported;
+            }
+            if ent.supported != 0 {
+                r.unrecognized.push(ent);
+            }
+        }
+        r
+    }
+
+    /// Return a Protocols holding every protocol flag that is present in `self`
+    /// or `other` or both.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Desc=2-4 Microdesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 Microdesc=10".parse().unwrap();
+    /// assert_eq!(protos.union(&protos2),
+    ///            "Desc=2-4 Microdesc=1-5,10".parse().unwrap());
+    /// ```
+    pub fn union(&self, other: &Protocols) -> Protocols {
+        let mut r = self.clone();
+        for i in 0..N_RECOGNIZED {
+            r.recognized[i] |= other.recognized[i];
+        }
+        for ent in other.unrecognized.iter() {
+            if let Some(my_ent) = r.unrecognized.iter_mut().find(|e| e.proto == ent.proto) {
+                my_ent.supported |= ent.supported;
+            } else {
+                r.unrecognized.push(ent.clone());
+            }
+        }
+        r.unrecognized.sort();
+        r
+    }
+
+    /// Return a Protocols holding every protocol flag that is present in both `self`
+    /// and `other`.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Desc=2-4 Microdesc=1-5".parse().unwrap();
+    /// let protos2: Protocols = "Desc=3 Microdesc=10".parse().unwrap();
+    /// assert_eq!(protos.intersection(&protos2),
+    ///            "Desc=3".parse().unwrap());
+    /// ```
+    pub fn intersection(&self, other: &Protocols) -> Protocols {
+        let mut r = Protocols::default();
+        for i in 0..N_RECOGNIZED {
+            r.recognized[i] = self.recognized[i] & other.recognized[i];
+        }
+        for ent in self.unrecognized.iter() {
+            if let Some(other_ent) = other.unrecognized.iter().find(|e| e.proto == ent.proto) {
+                let supported = ent.supported & other_ent.supported;
+                if supported != 0 {
+                    r.unrecognized.push(SubprotocolEntry {
+                        proto: ent.proto.clone(),
+                        supported,
+                    });
+                }
+            }
+        }
+        r.unrecognized.sort();
+        r
+    }
+
     /// Parsing helper: Try to add a new entry `ent` to this set of protocols.
     ///
     /// Uses `foundmask`, a bit mask saying which recognized protocols
     /// we've already found entries for.  Returns an error if `ent` is
     /// for a protocol we've already added.
+    ///
+    /// Does not preserve sorting order; the caller must call `self.unrecognized.sort()` before returning.
     fn add(&mut self, foundmask: &mut u64, ent: SubprotocolEntry) -> Result<(), ParseError> {
         match ent.proto {
             Protocol::Proto(k) => {
                 let idx = k.get() as usize;
+                assert!(idx < N_RECOGNIZED); // guaranteed by invariant on Protocol::Proto
                 let bit = 1 << u64::from(k.get());
                 if (*foundmask & bit) != 0 {
                     return Err(ParseError::Duplicate);
@@ -271,7 +388,9 @@ impl Protocols {
                 {
                     return Err(ParseError::Duplicate);
                 }
-                self.unrecognized.push(ent);
+                if ent.supported != 0 {
+                    self.unrecognized.push(ent);
+                }
             }
         }
         Ok(())
@@ -368,7 +487,7 @@ impl std::str::FromStr for SubprotocolEntry {
             let lo: u64 = lo_s.parse().map_err(|_| ParseError::Malformed)?;
             let hi: u64 = hi_s.parse().map_err(|_| ParseError::Malformed)?;
             // Make sure that lo and hi are in-bounds and consistent.
-            if lo > 63 || hi > 63 {
+            if lo > (MAX_VER as u64) || hi > (MAX_VER as u64) {
                 return Err(ParseError::OutOfRange);
             }
             if lo > hi {
@@ -499,6 +618,78 @@ impl std::fmt::Display for Protocols {
     }
 }
 
+impl FromIterator<NamedSubver> for Protocols {
+    fn from_iter<T: IntoIterator<Item = NamedSubver>>(iter: T) -> Self {
+        let mut r = Protocols::new();
+        for named_subver in iter {
+            let proto_idx = usize::from(named_subver.kind.get());
+            let proto_ver = named_subver.version;
+
+            // These are guaranteed by invariants on NamedSubver.
+            assert!(proto_idx < N_RECOGNIZED);
+            assert!(usize::from(proto_ver) <= MAX_VER);
+            r.recognized[proto_idx] |= 1_u64 << proto_ver;
+        }
+        r
+    }
+}
+
+/// Documentation: when is a protocol "supported"?
+///
+/// Arti should consider itself to "support" a protocol if, _as built_,
+/// it implements the protocol completely.
+///
+/// Just having the protocol listed among the [`named`]
+/// protocols is not enough, and neither is an incomplete
+/// or uncompliant implementation.
+///
+/// Similarly, if the protocol is not compiled in,
+/// it is not technically _supported_.
+///
+/// When in doubt, ask yourself:
+/// - If another Tor implementation believed that we implemented this protocol,
+///   and began to speak it to us, would we be able to do so?
+/// - If the protocol were required,
+///   would this software as built actually meet that requirement?
+///
+/// If either answer is no, the protocol is not supported.
+pub mod doc_supported {}
+
+/// Documentation about changing lists of supported versions.
+///
+/// # Warning
+///
+/// You need to be extremely careful when removing
+/// _any_ entry from a list of supported protocols.
+///
+/// If you remove an entry while it still appears as "recommended" in the consensus,
+/// you'll cause all the instances without it to warn.
+///
+/// If you remove an entry while it still appears as "required" in the
+///  consensus, you'll cause all the instances without it to refuse to connect
+/// to the network, and shut down.
+///
+/// If you need to remove a version from a list of supported protocols,
+/// you need to make sure that it is not listed in the _current consensuses_:
+/// just removing it from the list that the authorities vote for is NOT ENOUGH.
+/// You need to remove it from the required list,
+/// and THEN let the authorities upgrade and vote on new
+/// consensuses without it. Only once those consensuses are out is it safe to
+/// remove from the list of required protocols.
+///
+/// ## Example
+///
+/// One concrete example of a very dangerous race that could occur:
+///
+/// Suppose that the client supports protocols "HsDir=1-2" and the consensus
+/// requires protocols "HsDir=1-2.  If the client supported protocol list is
+/// then changed to "HSDir=2", while the consensus stills lists "HSDir=1-2",
+/// then these clients, even very recent ones, will shut down because they
+/// don't support "HSDir=1".
+///
+/// And so, changes need to be done in strict sequence as described above.
+pub mod doc_changing {}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -514,6 +705,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -602,5 +795,99 @@ mod test {
         assert!(!p.supports_subver("Lonk", 64));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_difference() -> Result<(), ParseError> {
+        let p1: Protocols = "Link=1-10 Desc=5-10 Relay=1,3,5,7,9 Other=7-60 Mine=1-20".parse()?;
+        let p2: Protocols = "Link=3-4 Desc=1-6 Relay=2-6 Other=8 Theirs=20".parse()?;
+
+        assert_eq!(
+            p1.difference(&p2),
+            Protocols::from_str("Link=1-2,5-10 Desc=7-10 Relay=1,7,9 Other=7,9-60 Mine=1-20")?
+        );
+        assert_eq!(
+            p2.difference(&p1),
+            Protocols::from_str("Desc=1-4 Relay=2,4,6 Theirs=20")?,
+        );
+
+        let nil = Protocols::default();
+        assert_eq!(p1.difference(&nil), p1);
+        assert_eq!(p2.difference(&nil), p2);
+        assert_eq!(nil.difference(&p1), nil);
+        assert_eq!(nil.difference(&p2), nil);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_union() -> Result<(), ParseError> {
+        let p1: Protocols = "Link=1-10 Desc=5-10 Relay=1,3,5,7,9 Other=7-60 Mine=1-20".parse()?;
+        let p2: Protocols = "Link=3-4 Desc=1-6 Relay=2-6 Other=2,8 Theirs=20".parse()?;
+
+        assert_eq!(
+            p1.union(&p2),
+            Protocols::from_str(
+                "Link=1-10 Desc=1-10 Relay=1-7,9 Other=2,7-60 Theirs=20 Mine=1-20"
+            )?
+        );
+        assert_eq!(
+            p2.union(&p1),
+            Protocols::from_str(
+                "Link=1-10 Desc=1-10 Relay=1-7,9 Other=2,7-60 Theirs=20 Mine=1-20"
+            )?
+        );
+
+        let nil = Protocols::default();
+        assert_eq!(p1.union(&nil), p1);
+        assert_eq!(p2.union(&nil), p2);
+        assert_eq!(nil.union(&p1), p1);
+        assert_eq!(nil.union(&p2), p2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_intersection() -> Result<(), ParseError> {
+        let p1: Protocols = "Link=1-10 Desc=5-10 Relay=1,3,5,7,9 Other=7-60 Mine=1-20".parse()?;
+        let p2: Protocols = "Link=3-4 Desc=1-6 Relay=2-6 Other=2,8 Theirs=20".parse()?;
+
+        assert_eq!(
+            p1.intersection(&p2),
+            Protocols::from_str("Link=3-4 Desc=5-6 Relay=3,5 Other=8")?
+        );
+        assert_eq!(
+            p2.intersection(&p1),
+            Protocols::from_str("Link=3-4 Desc=5-6 Relay=3,5 Other=8")?
+        );
+
+        let nil = Protocols::default();
+        assert_eq!(p1.intersection(&nil), nil);
+        assert_eq!(p2.intersection(&nil), nil);
+        assert_eq!(nil.intersection(&p1), nil);
+        assert_eq!(nil.intersection(&p2), nil);
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_iter() {
+        use named as n;
+        let empty: [NamedSubver; 0] = [];
+        let prs: Protocols = empty.iter().copied().collect();
+        assert_eq!(prs, Protocols::default());
+        let prs: Protocols = empty.into_iter().collect();
+        assert_eq!(prs, Protocols::default());
+
+        let prs = [
+            n::LINK_V3,
+            n::HSDIR_V3,
+            n::LINK_V4,
+            n::LINK_V5,
+            n::CONFLUX_BASE,
+        ]
+        .into_iter()
+        .collect::<Protocols>();
+        assert_eq!(prs, "Link=3-5 HSDir=2 Conflux=1".parse().unwrap());
     }
 }

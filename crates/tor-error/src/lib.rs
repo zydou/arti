@@ -270,6 +270,15 @@ pub enum ErrorKind {
     #[display("Tor client is shutting down.")]
     ArtiShuttingDown,
 
+    /// This Tor client software is missing some feature that is recommended
+    /// (or required) for operation on the network.
+    ///
+    /// This occurs when the directory authorities tell us that we ought to have
+    /// a particular protocol feature that we do not support.
+    /// The correct solution is likely to upgrade to a more recent version of Arti.
+    #[display("Software version is deprecated")]
+    SoftwareDeprecated,
+
     /// An operation failed because we waited too long for an exit to do
     /// something.
     ///
