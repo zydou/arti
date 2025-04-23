@@ -600,17 +600,27 @@ fn circparameters_from_netparameters(
 pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
     let alg = match AlgorithmType::from(inp.cc_alg.get()) {
         #[cfg(feature = "flowctl-cc")]
-        AlgorithmType::VEGAS => build_cc_vegas(
-            inp,
-            (
-                inp.cc_vegas_alpha_exit.into(),
-                inp.cc_vegas_beta_exit.into(),
-                inp.cc_vegas_delta_exit.into(),
-                inp.cc_vegas_gamma_exit.into(),
-                inp.cc_vegas_sscap_exit.into(),
-            )
-                .into(),
-        ),
+        AlgorithmType::VEGAS => {
+            // TODO(arti#88): We always use fixed window for now,
+            // even with the "flowctl-cc" feature enabled:
+            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2932#note_3191196
+            // We use `if false` so that the vegas cc code is still type checked.
+            if false {
+                build_cc_vegas(
+                    inp,
+                    (
+                        inp.cc_vegas_alpha_exit.into(),
+                        inp.cc_vegas_beta_exit.into(),
+                        inp.cc_vegas_delta_exit.into(),
+                        inp.cc_vegas_gamma_exit.into(),
+                        inp.cc_vegas_sscap_exit.into(),
+                    )
+                        .into(),
+                )
+            } else {
+                build_cc_fixedwindow(inp)
+            }
+        }
         // Unrecognized, fallback to fixed window as in SENDME v0.
         _ => build_cc_fixedwindow(inp),
     };
@@ -622,17 +632,27 @@ pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParamet
 pub fn onion_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
     let alg = match AlgorithmType::from(inp.cc_alg.get()) {
         #[cfg(feature = "flowctl-cc")]
-        AlgorithmType::VEGAS => build_cc_vegas(
-            inp,
-            (
-                inp.cc_vegas_alpha_onion.into(),
-                inp.cc_vegas_beta_onion.into(),
-                inp.cc_vegas_delta_onion.into(),
-                inp.cc_vegas_gamma_onion.into(),
-                inp.cc_vegas_sscap_onion.into(),
-            )
-                .into(),
-        ),
+        AlgorithmType::VEGAS => {
+            // TODO(arti#88): We always use fixed window for now,
+            // even with the "flowctl-cc" feature enabled:
+            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2932#note_3191196
+            // We use `if false` so that the vegas cc code is still type checked.
+            if false {
+                build_cc_vegas(
+                    inp,
+                    (
+                        inp.cc_vegas_alpha_onion.into(),
+                        inp.cc_vegas_beta_onion.into(),
+                        inp.cc_vegas_delta_onion.into(),
+                        inp.cc_vegas_gamma_onion.into(),
+                        inp.cc_vegas_sscap_onion.into(),
+                    )
+                        .into(),
+                )
+            } else {
+                build_cc_fixedwindow(inp)
+            }
+        }
         // Unrecognized, fallback to fixed window as in SENDME v0.
         _ => build_cc_fixedwindow(inp),
     };
