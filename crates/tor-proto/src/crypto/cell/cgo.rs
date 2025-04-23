@@ -420,13 +420,14 @@ impl<BC: BlkCipher> CryptInit for CryptState<BC> {
 
 /// An instance of CGO used for outbound client encryption.
 #[derive(Clone, derive_more::From)]
-pub(crate) struct ClientOutbound<BC: BlkCipher>(CryptState<BC>);
+pub(crate) struct ClientOutbound<BC: BlkCipher>(CryptState<BC>, [u8; 20]);
 impl<BC: BlkCipher> super::OutboundClientLayer for ClientOutbound<BC> {
     fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
         cell.0[0..BLK_LEN].copy_from_slice(&self.0.nonce[..]);
         self.encrypt_outbound(cmd, cell);
         self.0.uiv.update(&mut self.0.nonce);
-        &self.0.tag[..]
+        self.1[0..BLK_LEN].copy_from_slice(&cell.0[0..BLK_LEN]);
+        &self.1[..]
     }
     fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
         // TODO PERF: consider swap here.
@@ -438,6 +439,11 @@ impl<BC: BlkCipher> super::OutboundClientLayer for ClientOutbound<BC> {
         self.0.set_tag(&t_new);
     }
 }
+impl<BC: BlkCipher> From<CryptState<BC>> for ClientOutbound<BC> {
+    fn from(val: CryptState<BC>) -> Self {
+        Self(val, [0_u8; 20])
+    }
+}
 
 /// An instance of CGO used for inbound client encryption.
 #[derive(Clone, derive_more::From)]
@@ -445,6 +451,7 @@ pub(crate) struct ClientInbound<BC: BlkCipher>(CryptState<BC>);
 impl<BC: BlkCipher> super::InboundClientLayer for ClientInbound<BC> {
     fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
         let mut t_orig: [u8; BLK_LEN] = *first_block(&*cell.0);
+        // let t_orig_orig = t_orig;
 
         // Note use of decrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
@@ -453,6 +460,7 @@ impl<BC: BlkCipher> super::InboundClientLayer for ClientInbound<BC> {
         if ct::bytes_eq(&cell.0[..CGO_TAG_LEN], &self.0.nonce[..]) {
             self.0.uiv.update(&mut t_orig);
             *self.0.nonce = t_orig;
+            // assert_eq!(self.0.tag[..BLK_LEN], t_orig_orig[..]);
             Some(&self.0.tag[..])
         } else {
             None
@@ -461,20 +469,26 @@ impl<BC: BlkCipher> super::InboundClientLayer for ClientInbound<BC> {
 }
 
 /// An instance of CGO used for outbound (away from the client) relay encryption.
-#[derive(Clone, derive_more::From)]
-pub(crate) struct RelayOutbound<BC: BlkCipher>(CryptState<BC>);
+#[derive(Clone)]
+pub(crate) struct RelayOutbound<BC: BlkCipher>(CryptState<BC>, [u8; 20]);
 impl<BC: BlkCipher> super::OutboundRelayLayer for RelayOutbound<BC> {
     fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
+        self.1[0..BLK_LEN].copy_from_slice(&cell.0[0..BLK_LEN]);
         // Note use of encrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
         self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
         self.0.set_tag(first_block(&*cell.0));
         if ct::bytes_eq(self.0.tag(), &self.0.nonce[..]) {
             self.0.uiv.update(&mut self.0.nonce);
-            Some(&self.0.tag[..])
+            Some(&self.1[..])
         } else {
             None
         }
+    }
+}
+impl<BC: BlkCipher> From<CryptState<BC>> for RelayOutbound<BC> {
+    fn from(val: CryptState<BC>) -> Self {
+        Self(val, [0_u8; 20])
     }
 }
 
@@ -487,6 +501,7 @@ impl<BC: BlkCipher> super::InboundRelayLayer for RelayInbound<BC> {
         self.encrypt_inbound(cmd, cell);
         self.0.nonce.copy_from_slice(&cell.0[0..BLK_LEN]);
         self.0.uiv.update(&mut self.0.nonce);
+        // assert_eq!(self.0.tag[..BLK_LEN], cell.0[0..BLK_LEN]);
         &self.0.tag[..]
     }
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
