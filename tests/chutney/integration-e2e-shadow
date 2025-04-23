@@ -49,6 +49,7 @@ def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
     return {
         "general": {
             "stop_time": "10m",
+            "model_unblocked_syscall_latency": True,
         },
         "network": {
             "graph": {"type": "1_gbit_switch"},
@@ -134,7 +135,6 @@ def main():
         "shadow",
         "--data-directory=" + SHADOW_DATA_DIR,
         "--progress=true",
-        "--model-unblocked-syscall-latency=true",
         "--seed=" + str(args.seed),
         SHADOW_CONFIG_FILE,
     ]
