@@ -26,7 +26,7 @@ SHADOW_LOG_FILE = "shadow.log"
 TEST_DOMAIN = "example.com"
 
 
-def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
+def gen_shadow_config(seed: int, chutney_bin: Optional[str]) -> dict[str, Any]:
     """
     Generate a shadow config file, as a string, for the given parameters.
     """
@@ -49,9 +49,31 @@ def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
     return {
         "general": {
             "stop_time": "10m",
+            "model_unblocked_syscall_latency": True,
+            "seed": seed,
         },
         "network": {
             "graph": {"type": "1_gbit_switch"},
+        },
+        "experimental": {
+            # shadow only actually increments simulated time (and potentially
+            # switches threads) if this much time would have been consumed by an
+            # unbroken sequence of unblocked syscalls. Using a relatively large
+            # value here (vs the default 1us) makes the simulation scheduling
+            # more stable and predictable; e.g. adding additional logging to
+            # debug an issue is less likely to make the issue disappear.
+            #
+            # The primary tradeoffs are:
+            # * Time will move forward at a larger granularity when unblocked syscall
+            #   latency is applied. 10ms is still small enough though that this
+            #   shouldn't be terribly strange; e.g. larger time jumps are likely
+            #   to be observed on over-loaded systems with normal preemptive
+            #   scheduling.
+            # * when the simulation does hit a
+            #   busy loop, it may spend a bit longer "spinning" before moving
+            #   time forward, potentially causing the simulation to take a bit
+            #   longer to run. (if it would have otherwise timed out earlier than 10ms)
+            "max_unapplied_cpu_latency": "10ms",
         },
         "hosts": {
             "host": {
@@ -102,7 +124,7 @@ def main():
 
     # Write out shadow config. We could just pipe it directly to the shadow
     # process below, but writing it out is useful for debugging.
-    shadow_config = gen_shadow_config(chutney_bin)
+    shadow_config = gen_shadow_config(args.seed, chutney_bin)
     with open(SHADOW_CONFIG_FILE, "w") as f:
         f.write(yaml.safe_dump(shadow_config))
 
@@ -114,8 +136,6 @@ def main():
         "shadow",
         "--data-directory=" + SHADOW_DATA_DIR,
         "--progress=true",
-        "--model-unblocked-syscall-latency=true",
-        "--seed=" + str(args.seed),
         SHADOW_CONFIG_FILE,
     ]
     with open(SHADOW_LOG_FILE, "w") as shadow_log_file:
