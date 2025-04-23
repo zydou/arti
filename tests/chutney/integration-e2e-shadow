@@ -26,7 +26,7 @@ SHADOW_LOG_FILE = "shadow.log"
 TEST_DOMAIN = "example.com"
 
 
-def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
+def gen_shadow_config(seed: int, chutney_bin: Optional[str]) -> dict[str, Any]:
     """
     Generate a shadow config file, as a string, for the given parameters.
     """
@@ -50,6 +50,7 @@ def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
         "general": {
             "stop_time": "10m",
             "model_unblocked_syscall_latency": True,
+            "seed": seed,
         },
         "network": {
             "graph": {"type": "1_gbit_switch"},
@@ -123,7 +124,7 @@ def main():
 
     # Write out shadow config. We could just pipe it directly to the shadow
     # process below, but writing it out is useful for debugging.
-    shadow_config = gen_shadow_config(chutney_bin)
+    shadow_config = gen_shadow_config(args.seed, chutney_bin)
     with open(SHADOW_CONFIG_FILE, "w") as f:
         f.write(yaml.safe_dump(shadow_config))
 
@@ -135,7 +136,6 @@ def main():
         "shadow",
         "--data-directory=" + SHADOW_DATA_DIR,
         "--progress=true",
-        "--seed=" + str(args.seed),
         SHADOW_CONFIG_FILE,
     ]
     with open(SHADOW_LOG_FILE, "w") as shadow_log_file:
