@@ -62,6 +62,9 @@ pub(crate) trait BlkCipher:
     /// Length of the key used by this block cipher.
     const KEY_LEN: usize;
 }
+
+// TODO PERF: We should be using Aes{128,256}DecEnc rather than Aes{128,256}:
+// that can save us some time and space, with some AES implementations.
 impl BlkCipher for Aes128 {
     const KEY_LEN: usize = 16;
 }
