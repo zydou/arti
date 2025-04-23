@@ -1265,6 +1265,7 @@ impl Circuit {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
+    #[allow(clippy::cognitive_complexity)]
     fn handle_meta_cell(
         &mut self,
         handlers: &mut CellHandlers,
