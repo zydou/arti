@@ -1732,7 +1732,6 @@ impl<R: Runtime> TorClient<R> {
                 action: "launch onion service",
             })?
             .clone();
-        // NOTE: Intended usage is via StateDirectory::acquire_instance(), but OnionServiceBuilder requires ownership.
         let state_dir = self.state_directory.clone();
 
         let service = tor_hsservice::OnionService::builder()
