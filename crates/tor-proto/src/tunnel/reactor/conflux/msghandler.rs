@@ -111,7 +111,7 @@ impl ConfluxMsgHandler {
     /// Check our sequence numbers to see if the current msg is in order.
     ///
     /// Returns an internal error if the relative seqno is lower than the absolute seqno.
-    fn is_msg_in_order(&mut self) -> Result<bool, Bug> {
+    fn is_msg_in_order(&self) -> Result<bool, Bug> {
         let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::SeqCst);
         match self.handler.last_seq_recv().cmp(&(last_seq_delivered + 1)) {
             Ordering::Less => {
