@@ -1044,7 +1044,7 @@ impl Reactor {
                 // and send a LINK cell down each unlinked leg.
                 //
                 // NOTE: this will block the reactor until all the cells are sent.
-                self.handle_link_circuits(circuits, answer).await;
+                self.handle_link_circuits(circuits, answer).await?;
             }
             #[cfg(feature = "conflux")]
             RunOnceCmdInner::Enqueue { leg, msg } => {
@@ -1116,7 +1116,7 @@ impl Reactor {
     fn note_conflux_handshake_result(
         &mut self,
         res: StdResult<(), ConfluxHandshakeError>,
-    ) -> StdResult<(), Bug> {
+    ) -> StdResult<(), ReactorError> {
         let tunnel_complete = match self.conflux_hs_ctx.as_mut() {
             Some(conflux_ctx) => {
                 conflux_ctx.results.push(res);
@@ -1124,7 +1124,7 @@ impl Reactor {
                 conflux_ctx.results.len() == conflux_ctx.num_legs
             }
             None => {
-                return Err(internal!("no conflux handshake context"));
+                return Err(internal!("no conflux handshake context").into());
             }
         };
 
@@ -1133,9 +1133,7 @@ impl Reactor {
             // and extract the results we have collected
             let conflux_ctx = self.conflux_hs_ctx.take().expect("context disappeared?!");
 
-            if conflux_ctx.answer.send(Ok(conflux_ctx.results)).is_err() {
-                tracing::warn!("conflux initiator went away before handshake completed?");
-            }
+            send_conflux_outcome(conflux_ctx.answer, Ok(conflux_ctx.results))?;
 
             // We don't expect to receive any more handshake results,
             // at least not until we get another LinkCircuits control message,
@@ -1283,12 +1281,12 @@ impl Reactor {
         &mut self,
         circuits: Vec<Circuit>,
         answer: ConfluxLinkResultChannel,
-    ) {
+    ) -> StdResult<(), ReactorError> {
         if self.conflux_hs_ctx.is_some() {
-            // Maybe we should care if the receiver goes away?
-            // It means the user is misusing the API and not waiting for an answer
-            let _ = answer.send(Err(internal!("conflux linking already in progress").into()));
-            return;
+            let err = internal!("conflux linking already in progress");
+            send_conflux_outcome(answer, Err(err.into()))?;
+
+            return Ok(());
         }
 
         let num_legs = circuits.len();
@@ -1305,8 +1303,7 @@ impl Reactor {
         .await;
 
         if let Err(e) = res {
-            // don't care if the receiver goes away
-            let _ = answer.send(Err(e));
+            send_conflux_outcome(answer, Err(e))?;
         } else {
             // Save the channel, to notify the user of completion.
             self.conflux_hs_ctx = Some(ConfluxHandshakeCtx {
@@ -1315,7 +1312,25 @@ impl Reactor {
                 results: Default::default(),
             });
         }
+
+        Ok(())
     }
+}
+
+/// Notify the conflux handshake initiator of the handshake outcome.
+///
+/// Returns an error if the initiator has done away.
+#[cfg(feature = "conflux")]
+fn send_conflux_outcome(
+    tx: ConfluxLinkResultChannel,
+    res: Result<ConfluxTunnelResult>,
+) -> StdResult<(), ReactorError> {
+    if tx.send(res).is_err() {
+        tracing::warn!("conflux initiator went away before handshake completed?");
+        return Err(ReactorError::Shutdown);
+    }
+
+    Ok(())
 }
 
 /// The tunnel does not have any hops.
