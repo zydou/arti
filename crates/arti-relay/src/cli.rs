@@ -49,7 +49,7 @@ fn cli_cmd_post_processing(cli: Command) -> Command {
             .collect();
         let paths = paths.join("\n");
 
-        /// TODO MSRV: remove this comment once MSRV is >= 1.84:
+        /// TODO MSRV 1.84: remove this comment
         /// https://github.com/rust-lang/rust-clippy/issues/13802
         const DESC: &str =
             "If no paths are provided, the following config paths will be used if they exist:";

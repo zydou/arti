@@ -471,9 +471,9 @@ impl<'a> DiffResult<'a> {
     /// Construct a new DiffResult containing the provided string
     /// split into lines, and an expected post-transformation digest.
     fn from_str(s: &'a str, d_post: [u8; 32]) -> Self {
-        // I'd like to use str::split_inclusive here, but that isn't stable yet
-        // as of rust 1.48.
-
+        // As per the [netdoc syntax], newlines should be discarded and ignored.
+        //
+        // [netdoc syntax]: https://spec.torproject.org/dir-spec/netdoc.html#netdoc-syntax
         let lines: Vec<_> = s.lines().collect();
 
         DiffResult { d_post, lines }
