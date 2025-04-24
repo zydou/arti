@@ -188,16 +188,16 @@ impl ClientConfluxMsgHandler {
     ) -> crate::Result<Option<CircuitCmd>> {
         // See [SIDE_CHANNELS] for rules for when to reject unexpected handshake cells.
 
-        let linked = msg
-            .decode::<ConfluxLinked>()
-            .map_err(|e| Error::from_bytes_err(e, "linked message"))?
-            .into_msg();
-
         let Some(link_sent) = self.link_sent else {
             return Err(Error::CircProto(
                 "Received CONFLUX_LINKED cell before sending CONFLUX_LINK?!".into(),
             ));
         };
+
+        let linked = msg
+            .decode::<ConfluxLinked>()
+            .map_err(|e| Error::from_bytes_err(e, "linked message"))?
+            .into_msg();
 
         let linked_nonce = *linked.payload().nonce();
 
