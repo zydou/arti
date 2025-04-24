@@ -71,7 +71,7 @@ use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
 pub(super) use control::CtrlCmd;
 pub(super) use control::CtrlMsg;
 
-/// The type of a oneshot channel used to inform reactor users of the result of an operation.
+/// The type of a oneshot channel used to inform reactor of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
 /// Contains a list of conflux handshake results.
@@ -1039,6 +1039,15 @@ impl Reactor {
             }
             #[cfg(feature = "conflux")]
             RunOnceCmdInner::ConfluxHandshakeComplete { leg, cell } => {
+                // Note: on the client-side, the handshake is considered complete once the
+                // RELAY_CONFLUX_LINKED_ACK is sent (roughly upon receipt of the LINKED cell).
+                //
+                // We're optimistic here, and declare the handshake a success *before*
+                // sending the LINKED_ACK response. I think this is OK though,
+                // because if the send_relay_cell() below fails, the reactor will shut
+                // down anyway. OTOH, marking the handshake as complete slightly early
+                // means that on the happy path, the circuit is marked as usable sooner,
+                // instead of blocking on the sending of the LINKED_ACK.
                 self.note_conflux_handshake_result(Ok(()))?;
 
                 let leg = self
