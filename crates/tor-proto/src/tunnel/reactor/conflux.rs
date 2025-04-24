@@ -48,12 +48,9 @@ pub(super) struct ConfluxSet {
     primary_id: LegIdKey,
     /// The join point of the set, if this is a multi-path set.
     ///
-    /// The exact leg this is located on depends on which leg is currently the primary.
-    ///
     /// Initially the conflux set starts out as a single-path set with no join point.
     /// When it is converted to a multipath set using [`add_legs`](Self::add_legs),
-    /// the join point is initialized to the last hop in the tunnel
-    /// (which should be the same for all the circuits in the set).
+    /// the join point is initialized to the last hop in the tunnel.
     //
     // TODO(conflux): for simplicity, we currently we force all legs to have the same length,
     // to ensure the HopNum of the join point is the same for all of them.
