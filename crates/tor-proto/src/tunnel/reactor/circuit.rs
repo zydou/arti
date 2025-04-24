@@ -238,7 +238,8 @@ macro_rules! unsupported_client_cell {
     }};
 
     ($msg:expr, $hopnum:expr) => {{
-        let hop_display = format!(" from hop {}", $hopnum.display());
+        let hop: HopNum = $hopnum;
+        let hop_display = format!(" from hop {}", hop.display());
         unsupported_client_cell!(@ $msg, hop_display)
     }};
 
