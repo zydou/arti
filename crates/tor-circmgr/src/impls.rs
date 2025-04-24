@@ -48,7 +48,7 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
     async fn extend_ntor<T: CircTarget + std::marker::Sync>(
         &self,
         target: &T,
-        params: &CircParameters,
+        params: CircParameters,
     ) -> tor_proto::Result<()> {
         self.extend_ntor(target, params).await
     }

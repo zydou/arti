@@ -21,21 +21,46 @@ pub(crate) mod params {
 
     use crate::ccparams::{
         Algorithm, CongestionControlParams, CongestionControlParamsBuilder, CongestionWindowParams,
-        CongestionWindowParamsBuilder, FixedWindowParamsBuilder, RoundTripEstimatorParams,
-        RoundTripEstimatorParamsBuilder,
+        CongestionWindowParamsBuilder, FixedWindowParams, FixedWindowParamsBuilder,
+        RoundTripEstimatorParams, RoundTripEstimatorParamsBuilder, VegasParamsBuilder,
     };
 
-    pub(crate) fn build_cc_fixed_params() -> CongestionControlParams {
-        let params = FixedWindowParamsBuilder::default()
+    fn build_fixed_params() -> FixedWindowParams {
+        FixedWindowParamsBuilder::default()
             .circ_window_start(1000)
             .circ_window_min(100)
             .circ_window_max(1000)
             .build()
-            .expect("Unable to build fixed window params");
+            .expect("Unable to build fixed window params")
+    }
+
+    pub(crate) fn build_cc_vegas_params() -> CongestionControlParams {
+        // Following values are the default from the proposal. They likely differ from what the
+        // consensus uses today.
+        let params = VegasParamsBuilder::default()
+            .cell_in_queue_params((186, 248, 310, 186, 600).into())
+            .ss_cwnd_max(5000)
+            .cwnd_full_gap(4)
+            .cwnd_full_min_pct(Percentage::new(25))
+            .cwnd_full_per_cwnd(1)
+            .build()
+            .expect("Unable to build Vegas params");
         CongestionControlParamsBuilder::default()
             .rtt_params(build_rtt_params())
             .cwnd_params(build_cwnd_params())
-            .alg(Algorithm::FixedWindow(params))
+            .alg(Algorithm::Vegas(params.clone()))
+            .fallback_alg(Algorithm::FixedWindow(build_fixed_params()))
+            .build()
+            .expect("Unable to build CC params")
+    }
+
+    pub(crate) fn build_cc_fixed_params() -> CongestionControlParams {
+        let params = build_fixed_params();
+        CongestionControlParamsBuilder::default()
+            .rtt_params(build_rtt_params())
+            .cwnd_params(build_cwnd_params())
+            .alg(Algorithm::FixedWindow(params.clone()))
+            .fallback_alg(Algorithm::FixedWindow(params))
             .build()
             .expect("Unable to build CC params")
     }

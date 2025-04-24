@@ -606,7 +606,7 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
-    pub async fn extend_ntor<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
+    pub async fn extend_ntor<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
     where
         Tg: CircTarget,
     {
@@ -631,7 +631,7 @@ impl ClientCirc {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -643,7 +643,7 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
-    pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
+    pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
     where
         Tg: CircTarget,
     {
@@ -668,7 +668,7 @@ impl ClientCirc {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1048,14 +1048,14 @@ impl PendingClientCirc {
     /// There's no authentication in CRATE_FAST,
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
-    pub async fn create_firsthop_fast(self, params: &CircParameters) -> Result<Arc<ClientCirc>> {
+    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<Arc<ClientCirc>> {
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
             .unbounded_send(CtrlMsg::Create {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::CreateFast,
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1094,7 +1094,7 @@ impl PendingClientCirc {
                         .ed_identity()
                         .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
                 },
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1134,7 +1134,7 @@ impl PendingClientCirc {
                         pk: *target.ntor_onion_key(),
                     },
                 },
-                params: params.clone(),
+                params,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1176,6 +1176,7 @@ pub(crate) mod test {
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
     use crate::congestion::sendme;
+    use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
     #[cfg(feature = "hs-service")]
@@ -1293,7 +1294,7 @@ pub(crate) mod test {
         NtorV3,
     }
 
-    async fn test_create<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
+    async fn test_create<R: Runtime>(rt: &R, handshake_type: HandshakeType, with_cc: bool) {
         // We want to try progressing from a pending circuit to a circuit
         // via a crate_fast handshake.
 
@@ -1358,9 +1359,24 @@ pub(crate) mod test {
                         AnyChanMsg::Create2(c2) => c2,
                         other => panic!("{:?}", other),
                     };
+                    let mut reply_fn = if with_cc {
+                        |client_exts: &[NtorV3Extension]| {
+                            let _ = client_exts
+                                .iter()
+                                .find(|e| matches!(e, NtorV3Extension::RequestCongestionControl))
+                                .expect("Client failed to request CC");
+                            Some(vec![NtorV3Extension::AckCongestionControl {
+                                // This needs to be aligned to test_utils params
+                                // value due to validation that needs it in range.
+                                sendme_inc: 31,
+                            }])
+                        }
+                    } else {
+                        |_: &_| Some(vec![])
+                    };
                     let (_, rep) = NtorV3Server::server(
                         &mut rng,
-                        &mut |_: &_| Some(vec![]),
+                        &mut reply_fn,
                         &[example_ntor_v3_key()],
                         c2.body(),
                     )
@@ -1377,13 +1393,19 @@ pub(crate) mod test {
             let ret = match handshake_type {
                 HandshakeType::Fast => {
                     trace!("doing fast create");
-                    pending.create_firsthop_fast(&params).await
+                    pending.create_firsthop_fast(params).await
                 }
                 HandshakeType::Ntor => {
                     trace!("doing ntor create");
                     pending.create_firsthop_ntor(&target, params).await
                 }
                 HandshakeType::NtorV3 => {
+                    let params = if with_cc {
+                        // Setup CC vegas parameters.
+                        CircParameters::new(true, build_cc_vegas_params())
+                    } else {
+                        params
+                    };
                     trace!("doing ntor_v3 create");
                     pending.create_firsthop_ntor_v3(&target, params).await
                 }
@@ -1404,21 +1426,29 @@ pub(crate) mod test {
     #[test]
     fn test_create_fast() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            test_create(&rt, HandshakeType::Fast).await;
+            test_create(&rt, HandshakeType::Fast, false).await;
         });
     }
     #[traced_test]
     #[test]
     fn test_create_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            test_create(&rt, HandshakeType::Ntor).await;
+            test_create(&rt, HandshakeType::Ntor, false).await;
         });
     }
     #[traced_test]
     #[test]
     fn test_create_ntor_v3() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            test_create(&rt, HandshakeType::NtorV3).await;
+            test_create(&rt, HandshakeType::NtorV3, false).await;
+        });
+    }
+    #[traced_test]
+    #[test]
+    #[cfg(feature = "flowctl-cc")]
+    fn test_create_ntor_v3_with_cc() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_create(&rt, HandshakeType::NtorV3, true).await;
         });
     }
 
@@ -1535,8 +1565,8 @@ pub(crate) mod test {
             let target = example_target();
             match handshake_type {
                 HandshakeType::Fast => panic!("Can't extend with Fast handshake"),
-                HandshakeType::Ntor => circ.extend_ntor(&target, &params).await.unwrap(),
-                HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, &params).await.unwrap(),
+                HandshakeType::Ntor => circ.extend_ntor(&target, params).await.unwrap(),
+                HandshakeType::NtorV3 => circ.extend_ntor_v3(&target, params).await.unwrap(),
             };
             circ // gotta keep the circ alive, or the reactor would exit.
         };
@@ -1650,7 +1680,7 @@ pub(crate) mod test {
                 sink
             })
             .unwrap();
-        let outcome = circ.extend_ntor(&target, &params).await;
+        let outcome = circ.extend_ntor(&target, params).await;
         let _sink = sink_handle.await;
 
         assert_eq!(circ.n_hops(), 3);

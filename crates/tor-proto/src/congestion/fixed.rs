@@ -35,6 +35,10 @@ impl FixedWindow {
 }
 
 impl CongestionControlAlgorithm for FixedWindow {
+    fn uses_stream_sendme(&self) -> bool {
+        true
+    }
+
     fn is_next_cell_sendme(&self) -> bool {
         self.sendwindow.should_record_tag()
     }

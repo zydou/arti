@@ -9,6 +9,8 @@ use derive_builder::Builder;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_units::Percentage;
 
+use crate::circuit::CircParameters;
+
 /// Fixed window parameters that are for the SENDME v0 world of fixed congestion window.
 #[non_exhaustive]
 #[derive(Builder, Clone, Debug, amplify::Getters)]
@@ -167,6 +169,17 @@ pub struct CongestionWindowParams {
 }
 impl_standard_builder! { CongestionWindowParams: !Deserialize + !Default}
 
+impl CongestionWindowParams {
+    /// Set the `sendme_inc` value.
+    ///
+    /// This is used to override the default increment value from when this was constructed with a
+    /// [`CongestionWindowParamsBuilder`].
+    /// Typically the default when built should be from the network parameters from the consensus.
+    pub(crate) fn set_sendme_inc(&mut self, inc: u8) {
+        self.sendme_inc = u32::from(inc);
+    }
+}
+
 /// Global congestion control parameters taken from consensus. These are per-circuit.
 #[non_exhaustive]
 #[derive(Builder, Clone, Debug, amplify::Getters)]
@@ -174,9 +187,72 @@ impl_standard_builder! { CongestionWindowParams: !Deserialize + !Default}
 pub struct CongestionControlParams {
     /// The congestion control algorithm to use.
     alg: Algorithm,
+    /// This is the fallback algorithm in case the one we have in the consensus is not supported by
+    /// the relay we are connecting to. Reminder that these parameteres are per-hop.
+    ///
+    /// It is put in here because by the time we do path selection, we don't have access to the
+    /// consensus and so we have to keep our fallback ready.
+    fallback_alg: Algorithm,
     /// Congestion window parameters.
+    #[getter(as_mut)]
     cwnd_params: CongestionWindowParams,
     /// RTT calculation parameters.
     rtt_params: RoundTripEstimatorParams,
 }
 impl_standard_builder! { CongestionControlParams: !Deserialize + !Default }
+
+impl CongestionControlParams {
+    /// Return true iff congestion control is enabled that is the algorithm is anything other than
+    /// the fixed window SENDMEs.
+    ///
+    /// C-tor ref: congestion_control_enabled()
+    pub(crate) fn is_enabled(&self) -> bool {
+        !matches!(self.alg(), Algorithm::FixedWindow(_))
+    }
+
+    /// Make these parameters to use the fallback algorithm. This can't be reversed.
+    pub fn use_fallback_alg(&mut self) {
+        self.alg = self.fallback_alg.clone();
+    }
+}
+
+/// Return true iff the given sendme increment is valid with regards to the value in the circuit
+/// parameters that is taken from the consensus.
+pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CircParameters) -> bool {
+    // Ease our lives a bit because the consensus value is u32.
+    let inc_u32 = u32::from(inc);
+    // A consensus value of 1 would allow this sendme increment to be 0 and thus
+    // we have to special case it before evaluating.
+    if inc == 0 {
+        return false;
+    }
+    let inc_consensus = params.ccontrol.cwnd_params().sendme_inc();
+    // See prop324 section 10.3
+    if inc_u32 > (inc_consensus.saturating_add(1)) || inc_u32 < (inc_consensus.saturating_sub(1)) {
+        return false;
+    }
+    true
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        ccparams::is_sendme_inc_valid, circuit::CircParameters,
+        congestion::test_utils::params::build_cc_vegas_params,
+    };
+
+    #[test]
+    fn test_sendme_inc_valid() {
+        let params = CircParameters::new(true, build_cc_vegas_params());
+        let ref_inc = params.ccontrol.cwnd_params().sendme_inc() as u8;
+
+        // In range.
+        assert!(is_sendme_inc_valid(ref_inc, &params));
+        assert!(is_sendme_inc_valid(ref_inc + 1, &params));
+        assert!(is_sendme_inc_valid(ref_inc - 1, &params));
+        // Out of range.
+        assert!(!is_sendme_inc_valid(0, &params));
+        assert!(!is_sendme_inc_valid(ref_inc + 2, &params));
+        assert!(!is_sendme_inc_valid(ref_inc - 2, &params));
+    }
+}

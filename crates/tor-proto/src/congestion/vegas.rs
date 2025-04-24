@@ -115,6 +115,10 @@ impl Vegas {
 }
 
 impl CongestionControlAlgorithm for Vegas {
+    fn uses_stream_sendme(&self) -> bool {
+        // Not allowed as in Vegas doesn't need them.
+        false
+    }
     fn is_next_cell_sendme(&self) -> bool {
         // Matching inflight number to the SENDME increment, time to send a SENDME. Contrary to
         // C-tor, this is called after num_inflight is incremented.

@@ -40,8 +40,9 @@ full = [
     "caret/full",
 ]
 
-experimental = ["experimental-api", "conflux", "stream-ctrl", "testing", "bench"]
+experimental = ["experimental-api", "conflux", "flowctl-cc", "stream-ctrl", "testing", "bench"]
 conflux = ["__is_experimental"]
+flowctl-cc = ["__is_experimental"]
 
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
@@ -63,6 +64,7 @@ asynchronous-codec = "0.7.0"
 bitvec = "1.0.1"
 bytes = "1"
 caret = { path = "../caret", version = "0.5.0" }
+cfg-if = "1.0.0"
 cipher = { version = "0.4.1", features = ["zeroize"] }
 coarsetime = "0.1.20"
 derive-deftly = "1.0.0"

@@ -1,6 +1,7 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{Circuit, ReactorResultChannel};
+use crate::congestion;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
@@ -166,7 +167,7 @@ where
 
         // Handle auxiliary data returned from the server, e.g. validating that
         // requested extensions have been acknowledged.
-        H::handle_server_aux_data(&self.params, &server_aux_data)?;
+        H::handle_server_aux_data(&mut self.params, &server_aux_data)?;
 
         let layer = L::construct(keygen)?;
 
@@ -237,33 +238,71 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     /// Handle auxiliary handshake data returned when creating or extending a
     /// circuit.
     fn handle_server_aux_data(
-        params: &CircParameters,
+        params: &mut CircParameters,
         data: &<Self as ClientHandshake>::ServerAuxData,
     ) -> Result<()>;
 }
 
 impl HandshakeAuxDataHandler for NtorV3Client {
-    fn handle_server_aux_data(_params: &CircParameters, data: &Vec<NtorV3Extension>) -> Result<()> {
-        // There are currently no accepted server extensions,
-        // particularly since we don't request any extensions yet.
-        if !data.is_empty() {
-            return Err(Error::HandshakeProto(
-                "Received unexpected ntorv3 extension".into(),
-            ));
+    fn handle_server_aux_data(
+        params: &mut CircParameters,
+        data: &Vec<NtorV3Extension>,
+    ) -> Result<()> {
+        // Process all extensions.
+        // If "flowctl-cc" is not enabled, this loop will always return an error, so tell clippy
+        // that it's okay.
+        #[cfg_attr(not(feature = "flowctl-cc"), allow(clippy::never_loop))]
+        for ext in data {
+            match ext {
+                NtorV3Extension::AckCongestionControl { sendme_inc } => {
+                    cfg_if::cfg_if! {
+                        if #[cfg(feature = "flowctl-cc")] {
+                            // Unexpected ACK extension as in if CC is disabled on our side, we would never have
+                            // requested it. Reject and circuit must be closed.
+                            if !params.ccontrol.is_enabled() {
+                                return Err(Error::HandshakeProto(
+                                    "Received unexpected ntorv3 CC ack extension".into(),
+                                ));
+                            }
+                            // Invalid increment, reject and circuit must be closed.
+                            if !congestion::params::is_sendme_inc_valid(*sendme_inc, params) {
+                                return Err(Error::HandshakeProto(
+                                    "Received invalid sendme increment in CC ntorv3 extension".into(),
+                                ));
+                            }
+                            // Excellent, we have a negotiated sendme increment. Set it for this circuit.
+                            params
+                                .ccontrol
+                                .cwnd_params_mut()
+                                .set_sendme_inc(*sendme_inc);
+                        } else {
+                            return Err(Error::HandshakeProto(
+                                "Received unexpected `AckCongestionControl` ntorv3 extension".into(),
+                            ));
+                        }
+                    }
+                }
+                // Any other extensions is not expected. Reject and circuit must be closed.
+                _ => {
+                    return Err(Error::HandshakeProto(
+                        "Received unexpected ntorv3 extension".into(),
+                    ));
+                }
+            }
         }
         Ok(())
     }
 }
 
 impl HandshakeAuxDataHandler for NtorClient {
-    fn handle_server_aux_data(_params: &CircParameters, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_params: &mut CircParameters, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }
 }
 
 impl HandshakeAuxDataHandler for CreateFastClient {
-    fn handle_server_aux_data(_params: &CircParameters, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_params: &mut CircParameters, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }

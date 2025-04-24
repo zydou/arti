@@ -16,7 +16,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::{AnyCmdChecker, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
 use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
@@ -38,6 +38,7 @@ use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
+use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
@@ -291,6 +292,8 @@ impl Circuit {
             cell: msg,
         } = msg;
 
+        trace!("{}: sending relay cell: {:?}", self.unique_id, msg);
+
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
         let hop_num = Into::<usize>::into(hop);
@@ -505,6 +508,7 @@ impl Circuit {
         let mut hop_map = hop.map.lock().expect("lock poisoned");
         match hop_map.get_mut(streamid) {
             Some(StreamEntMut::Open(ent)) => {
+                // Can't have a stream level SENDME when congestion control is enabled.
                 let message_closes_stream =
                     Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
 
@@ -570,6 +574,7 @@ impl Circuit {
                 .decode::<Sendme>()
                 .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
                 .into_msg();
+
             // We need to handle sendmes here, not in the stream's
             // recv() method, or else we'd never notice them if the
             // stream isn't reading.
@@ -708,12 +713,11 @@ impl Circuit {
             memquota.as_raw_account(),
         )?;
 
-        let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
         let cmd_checker = DataCmdChecker::new_connected();
         hop.map.lock().expect("lock poisoned").add_ent_with_id(
             sender,
             msg_rx,
-            send_window,
+            hop.build_send_flow_ctrl(),
             stream_id,
             cmd_checker,
         )?;
@@ -789,7 +793,7 @@ impl Circuit {
         &mut self,
         recv_created: oneshot::Receiver<CreateResponse>,
         handshake: CircuitHandshake,
-        params: &CircParameters,
+        params: &mut CircParameters,
         done: ReactorResultChannel<()>,
     ) -> StdResult<(), ReactorError> {
         let ret = match handshake {
@@ -826,7 +830,7 @@ impl Circuit {
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
-        params: &CircParameters,
+        params: &mut CircParameters,
         msg: &M,
     ) -> Result<()>
     where
@@ -890,7 +894,7 @@ impl Circuit {
     async fn create_firsthop_fast(
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
-        params: &CircParameters,
+        params: &mut CircParameters,
     ) -> Result<()> {
         // In a CREATE_FAST handshake, we can't negotiate a format other than this.
         let protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
@@ -908,7 +912,7 @@ impl Circuit {
         recvcreated: oneshot::Receiver<CreateResponse>,
         ed_identity: pk::ed25519::Ed25519Identity,
         pubkey: NtorPublicKey,
-        params: &CircParameters,
+        params: &mut CircParameters,
     ) -> Result<()> {
         // In an ntor handshake, we can't negotiate a format other than this.
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
@@ -943,7 +947,7 @@ impl Circuit {
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
         pubkey: NtorV3PublicKey,
-        params: &CircParameters,
+        params: &mut CircParameters,
     ) -> Result<()> {
         // Exit now if we have a mismatched key.
         let target = RelayIds::builder()
@@ -955,9 +959,36 @@ impl Circuit {
         // TODO #1947: Add support for negotiating other formats.
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
-        // TODO: Set client extensions. e.g. request congestion control
-        // if specified in `params`.
-        let client_extensions = [];
+        // Set the client extensions.
+        // allow 'unused_mut' because of the combinations of `cfg` conditions below
+        #[allow(unused_mut)]
+        let mut client_extensions = Vec::new();
+
+        if params.ccontrol.is_enabled() {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "flowctl-cc")] {
+                    // TODO(arti#88): We have an `if false` in `exit_circparams_from_netparams`
+                    // which should prevent the above `is_enabled()` from ever being true,
+                    // even with the "flowctl-cc" feature enabled:
+                    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2932#note_3191196
+                    // The panic here is so that CI tests will hopefully catch if congestion
+                    // control is unexpectedly enabled.
+                    // We should remove this panic once xon/xoff flow is supported.
+                    #[cfg(not(test))]
+                    panic!("Congestion control is enabled on this circuit, but we don't yet support congestion control");
+
+                    #[allow(unreachable_code)]
+                    client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                } else {
+                    return Err(
+                        internal!(
+                            "Congestion control is enabled on this circuit, but 'flowctl-cc' feature is not enabled"
+                        )
+                        .into()
+                    );
+                }
+            }
+        }
 
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,
@@ -1238,7 +1269,12 @@ impl Circuit {
         .await
     }
 
-    /// Return the hop corresponding to `hopnum`, if there is one.
+    /// Return a reference to the hop corresponding to `hopnum`, if there is one.
+    pub(super) fn hop(&self, hopnum: HopNum) -> Option<&CircHop> {
+        self.hops.get(Into::<usize>::into(hopnum))
+    }
+
+    /// Return a mutable reference to the hop corresponding to `hopnum`, if there is one.
     pub(super) fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
         self.hops.get_mut(Into::<usize>::into(hopnum))
     }
@@ -1309,6 +1345,14 @@ impl Circuit {
     pub(super) fn clock_skew(&self) -> ClockSkew {
         self.channel.clock_skew()
     }
+
+    /// Does congestion control use stream SENDMEs for the given `hop`?
+    ///
+    /// Returns `None` if `hop` doesn't exist.
+    pub(super) fn uses_stream_sendme(&self, hop: HopNum) -> Option<bool> {
+        let hop = self.hop(hop)?;
+        Some(hop.ccontrol.uses_stream_sendme())
+    }
 }
 
 /// Return the stream ID of `msg`, if it has one.
@@ -1361,13 +1405,12 @@ impl CircHop {
         rx: StreamMpscReceiver<AnyRelayMsg>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-        let r = self.map.lock().expect("lock poisoned").add_ent(
-            sender,
-            rx,
-            send_window,
-            cmd_checker,
-        )?;
+        let flow_ctrl = self.build_send_flow_ctrl();
+        let r =
+            self.map
+                .lock()
+                .expect("lock poisoned")
+                .add_ent(sender, rx, flow_ctrl, cmd_checker)?;
         let cell = AnyRelayMsgOuter::new(Some(r), message);
         Ok((
             SendRelayCell {
@@ -1421,6 +1464,16 @@ impl CircHop {
     /// it becomes relevant when we are deciding _what_ we can encode for the hop.
     pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
         self.relay_format
+    }
+
+    /// Builds the (sending) flow control handler for a new stream.
+    fn build_send_flow_ctrl(&self) -> StreamSendFlowControl {
+        if self.ccontrol.uses_stream_sendme() {
+            let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
+            StreamSendFlowControl::new_window_based(window)
+        } else {
+            StreamSendFlowControl::new_xon_xoff_based()
+        }
     }
 
     /// Delegate to CongestionControl, for testing purposes

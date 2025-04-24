@@ -118,7 +118,7 @@ pub(crate) trait AbstractCirc: Debug {
     async fn extend_ntor<T: CircTarget + Sync>(
         &self,
         target: &T,
-        params: &CircParameters,
+        params: CircParameters,
     ) -> tor_proto::Result<()>;
 }
 

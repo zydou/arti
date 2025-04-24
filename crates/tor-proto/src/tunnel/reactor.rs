@@ -811,13 +811,13 @@ impl Reactor {
             CtrlMsg::Create {
                 recv_created,
                 handshake,
-                params,
+                mut params,
                 done,
             } => {
                 // TODO(conflux): instead of crashing the reactor, it might be better
                 // to send the error via the done channel instead
                 let (_id, leg) = self.circuits.single_leg_mut()?;
-                leg.handle_create(recv_created, handshake, &params, done)
+                leg.handle_create(recv_created, handshake, &mut params, done)
                     .await
             }
             _ => {
@@ -946,6 +946,13 @@ impl Reactor {
                 }
             }
         }
+    }
+
+    /// Does congestion control use stream SENDMEs for the given hop?
+    ///
+    /// Returns `None` if either the `leg` or `hop` don't exist.
+    fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+        self.circuits.uses_stream_sendme(leg, hop)
     }
 }
 

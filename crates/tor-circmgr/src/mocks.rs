@@ -68,7 +68,7 @@ impl AbstractCirc for FakeCirc {
     async fn extend_ntor<T: CircTarget + std::marker::Sync>(
         &self,
         _target: &T,
-        _params: &CircParameters,
+        _params: CircParameters,
     ) -> tor_proto::Result<()> {
         todo!()
     }

@@ -16,6 +16,7 @@ use crate::tunnel::{streammap, HopLocation, LegId, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
 use tor_cell::chancell::msg::HandshakeType;
+use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0, StreamId,
@@ -358,8 +359,11 @@ impl<'a> ControlHandler<'a> {
                 /// Local type alias to ensure consistency below.
                 type Rcf = RelayCellFormatV0;
 
-                // TODO: Set extensions, e.g. based on `params`.
-                let client_extensions = [];
+                // Set client extensions.
+                let mut client_extensions = Vec::new();
+                if params.ccontrol.is_enabled() {
+                    client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                }
 
                 let (extender, cell) =
                     CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
@@ -443,11 +447,9 @@ impl<'a> ControlHandler<'a> {
                 hop,
                 sender,
             } => {
-                let sendme = Sendme::new_empty();
-                let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
                 // If resolving the hop fails,
                 // we want to report an error back to the initiator and not shut down the reactor.
-                let (_leg_id, hop_num) = match self.reactor.resolve_hop_location(hop) {
+                let (leg_id, hop_num) = match self.reactor.resolve_hop_location(hop) {
                     Ok(x) => x,
                     Err(e) => {
                         let e = into_bad_api_usage!("Could not resolve hop {hop:?}")(e);
@@ -456,6 +458,28 @@ impl<'a> ControlHandler<'a> {
                         return Ok(None);
                     }
                 };
+
+                // Congestion control decides if we can send stream level SENDMEs or not.
+                let sendme_required = match self.reactor.uses_stream_sendme(leg_id, hop_num) {
+                    Some(x) => x,
+                    None => {
+                        // don't care if receiver goes away
+                        let _ = sender.send(Err(bad_api_usage!(
+                            "Unknown hop {hop_num:?} on leg {leg_id:?}"
+                        )
+                        .into()));
+                        return Ok(None);
+                    }
+                };
+
+                if !sendme_required {
+                    // don't care if receiver goes away
+                    let _ = sender.send(Ok(()));
+                    return Ok(None);
+                }
+
+                let sendme = Sendme::new_empty();
+                let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
 
                 let cell = SendRelayCell {
                     hop: hop_num,

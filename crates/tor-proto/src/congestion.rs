@@ -43,7 +43,9 @@ use self::{
 /// Note that all functions informing the algorithm, as in not getters, return a Result meaning
 /// that on error, it means we can't recover or that there is a protocol violation. In both
 /// cases, the circuit MUST be closed.
-pub(crate) trait CongestionControlAlgorithm: Send {
+pub(crate) trait CongestionControlAlgorithm: Send + std::fmt::Debug {
+    /// Return true iff this algorithm uses stream level SENDMEs.
+    fn uses_stream_sendme(&self) -> bool;
     /// Return true iff the next cell is expected to be a SENDME.
     fn is_next_cell_sendme(&self) -> bool;
     /// Return true iff a cell can be sent on the wire according to the congestion control
@@ -277,6 +279,12 @@ impl CongestionControl {
             sendme_validator: SendmeValidator::new(),
             state,
         }
+    }
+
+    /// Return true iff the underlying algorithm uses stream level SENDMEs.
+    /// At the moment, only FixedWindow uses it. It has been eliminated with Vegas.
+    pub(crate) fn uses_stream_sendme(&self) -> bool {
+        self.algorithm.uses_stream_sendme()
     }
 
     /// Return true iff a DATA cell is allowed to be sent based on the congestion control state.

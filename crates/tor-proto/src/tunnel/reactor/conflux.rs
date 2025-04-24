@@ -88,6 +88,11 @@ impl ConfluxSet {
         }
     }
 
+    /// Return a reference to the leg of this conflux set with the given id.
+    pub(super) fn leg(&self, leg_id: LegId) -> Option<&Circuit> {
+        self.legs.get(leg_id.0)
+    }
+
     /// Return a mutable reference to the leg of this conflux set with the given id.
     pub(super) fn leg_mut(&mut self, leg_id: LegId) -> Option<&mut Circuit> {
         self.legs.get_mut(leg_id.0)
@@ -200,6 +205,13 @@ impl ConfluxSet {
         // TODO(conflux): we need a way to get the join point on the primary leg once this tunnel
         // has been converted from a "non-conflux tunnel" to a "conflux tunnel"
         None
+    }
+
+    /// Does congestion control use stream SENDMEs for the given hop?
+    ///
+    /// Returns `None` if either the `leg` or `hop` don't exist.
+    pub(super) fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+        self.leg(leg)?.uses_stream_sendme(hop)
     }
 }
 

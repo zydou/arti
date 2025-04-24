@@ -3,14 +3,15 @@
 use tor_cell::relaycell::RelayMsg;
 
 use crate::congestion::sendme;
-use crate::Result;
+use crate::{Error, Result};
 
 /// Private internals of [`StreamSendFlowControl`].
 #[derive(Debug)]
 enum StreamSendFlowControlEnum {
     /// "legacy" sendme-window-based flow control.
     WindowBased(sendme::StreamSendWindow),
-    // TODO: add xon/xoff alternative
+    /// XON/XOFF flow control.
+    XonXoffBased,
 }
 
 /// Manages outgoing flow control for a stream.
@@ -31,13 +32,27 @@ impl StreamSendFlowControl {
         }
     }
 
+    /// Returns a new xon/xoff-based [`StreamSendFlowControl`].
+    ///
+    /// **NOTE:** This isn't actually implemented yet,
+    /// and is currently a no-op congestion control.
+    // TODO(#534): remove the note above
+    pub(crate) fn new_xon_xoff_based() -> Self {
+        Self {
+            e: StreamSendFlowControlEnum::XonXoffBased,
+        }
+    }
+
     /// Whether this stream is ready to send `msg`.
     pub(crate) fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
         match &self.e {
             StreamSendFlowControlEnum::WindowBased(w) => {
                 !sendme::cmd_counts_towards_windows(msg.cmd()) || w.window() > 0
-            } // xon-based will depend on number of bytes in the body of DATA
-              // messages.
+            }
+            StreamSendFlowControlEnum::XonXoffBased => {
+                // TODO(#534): xon-based will depend on number of bytes in the body of DATA messages
+                true
+            }
         }
     }
 
@@ -58,8 +73,12 @@ impl StreamSendFlowControl {
                     // Ideally caller would have checked this already.
                     Ok(())
                 }
-            } // xon-based will update state based on number of bytes in the body
-              // of DATA messages.
+            }
+            StreamSendFlowControlEnum::XonXoffBased => {
+                // TODO(#534): xon-based will update state based on number of bytes in the body of
+                // DATA messages
+                Ok(())
+            }
         }
     }
 
@@ -72,9 +91,11 @@ impl StreamSendFlowControl {
     pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<()> {
         match &mut self.e {
             StreamSendFlowControlEnum::WindowBased(w) => w.put(),
-            // xon-based will return an error.
+            StreamSendFlowControlEnum::XonXoffBased => Err(Error::CircProto(
+                "Stream level SENDME not allowed due to congestion control".into(),
+            )),
         }
     }
 
-    // TODO: Add methods for handling incoming xon, xoff.
+    // TODO(#534): Add methods for handling incoming xon, xoff.
 }
