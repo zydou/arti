@@ -326,7 +326,9 @@ mod test {
     use rand::{seq::IndexedRandom as _, RngCore};
     use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
     use tor_bytes::SecretBuf;
-    use tor_cell::relaycell::{RelayCellFields, RelayCellFormatTrait, RelayCellFormatV0};
+    use tor_cell::relaycell::{
+        RelayCellFields, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
+    };
 
     pub(crate) fn add_layers(
         cc_out: &mut OutboundClientCrypt,
@@ -430,16 +432,14 @@ mod test {
     /// format `version.
     ///
     /// We do this so that we can be sure that the _other_ fields have all been transmitted correctly.
-    ///
-    /// TODO: once #1944 is merged, use RelayCellFormat instead of u8.
-    fn clean_cell_fields(cell: &mut RelayCellBody, format: u8) {
+    fn clean_cell_fields(cell: &mut RelayCellBody, format: RelayCellFormat) {
         match format {
-            0 => {
+            RelayCellFormat::V0 => {
                 cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::RECOGNIZED_RANGE]
                     .fill(0);
                 cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::DIGEST_RANGE].fill(0);
             }
-            1 => {
+            RelayCellFormat::V1 => {
                 cell.0[0..16].fill(0);
             }
             _ => {
@@ -449,7 +449,7 @@ mod test {
     }
 
     /// Helper: Test a single-hop message, forward from the client.
-    fn test_fwd_one_hop<CS, RS, CF, CB, RF, RB>(format: u8)
+    fn test_fwd_one_hop<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
     where
         CS: CryptInit + ClientLayer<CF, CB>,
         RS: CryptInit + RelayLayer<RF, RB>,
@@ -481,7 +481,7 @@ mod test {
     }
 
     /// Helper: Test a single-hop message, backwards towards the client.
-    fn test_rev_one_hop<CS, RS, CF, CB, RF, RB>(format: u8)
+    fn test_rev_one_hop<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
     where
         CS: CryptInit + ClientLayer<CF, CB>,
         RS: CryptInit + RelayLayer<RF, RB>,
@@ -512,7 +512,7 @@ mod test {
         }
     }
 
-    fn test_fwd_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: u8)
+    fn test_fwd_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
     where
         CS: CryptInit + ClientLayer<CF, CB>,
         RS: CryptInit + RelayLayer<RF, RB>,
@@ -559,7 +559,7 @@ mod test {
         }
     }
 
-    fn test_rev_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: u8)
+    fn test_rev_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
     where
         CS: CryptInit + ClientLayer<CF, CB>,
         RS: CryptInit + RelayLayer<RF, RB>,
@@ -626,12 +626,12 @@ mod test {
         }
     }}
 
-    integration_tests! { tor1(0, Tor1RelayCrypto<RelayCellFormatV0>, Tor1RelayCrypto<RelayCellFormatV0>) }
+    integration_tests! { tor1(RelayCellFormat::V0, Tor1RelayCrypto<RelayCellFormatV0>, Tor1RelayCrypto<RelayCellFormatV0>) }
     #[cfg(feature = "hs-common")]
-    integration_tests! { tor1_hs(0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
+    integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
 
     #[cfg(feature = "counter-galois-onion")]
-    integration_tests! { cgo_aes128(1, cgo::CryptStatePair<aes::Aes128>, cgo::CryptStatePair<aes::Aes128>) }
+    integration_tests! { cgo_aes128(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes128>, cgo::CryptStatePair<aes::Aes128>) }
     #[cfg(feature = "counter-galois-onion")]
-    integration_tests! { cgo_aes256(1, cgo::CryptStatePair<aes::Aes256>, cgo::CryptStatePair<aes::Aes256>) }
+    integration_tests! { cgo_aes256(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes256>, cgo::CryptStatePair<aes::Aes256>) }
 }
