@@ -235,11 +235,12 @@ enum RunOnceCmdInner {
         /// The reason for removal.
         reason: RemoveLegReason,
     },
-    /// This circuit has completed the conflux handshake,
+    /// A circuit has completed the conflux handshake,
     /// and wants to send the specified cell.
     #[cfg(feature = "conflux")]
     ConfluxHandshakeComplete {
-        /// The leg the cell should be sent on.
+        /// The circuit leg that has completed the handshake,
+        /// This is the leg the cell should be sent on.
         leg: LegId,
         /// The cell to send.
         cell: SendRelayCell,
