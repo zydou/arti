@@ -127,7 +127,7 @@ impl ConfluxMsgHandler {
 
     /// Return a [`OooRelayMsg`] for the reactor to buffer.
     fn prepare_ooo_entry(
-        &mut self,
+        &self,
         hopnum: HopNum,
         cell_counts_towards_windows: bool,
         streamid: StreamId,
