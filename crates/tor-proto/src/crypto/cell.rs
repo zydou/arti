@@ -30,7 +30,7 @@
 //! should work for all current future versions of the relay cell crypto design.
 //! The current Tor protocols are instantiated in a `tor1` submodule.
 
-#[cfg(feature = "cgo")]
+#[cfg(feature = "counter-galois-onion")]
 pub(crate) mod cgo;
 pub(crate) mod tor1;
 
@@ -630,8 +630,8 @@ mod test {
     #[cfg(feature = "hs-common")]
     integration_tests! { tor1_hs(0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
 
-    #[cfg(feature = "cgo")]
+    #[cfg(feature = "counter-galois-onion")]
     integration_tests! { cgo_aes128(1, cgo::CryptStatePair<aes::Aes128>, cgo::CryptStatePair<aes::Aes128>) }
-    #[cfg(feature = "cgo")]
+    #[cfg(feature = "counter-galois-onion")]
     integration_tests! { cgo_aes256(1, cgo::CryptStatePair<aes::Aes256>, cgo::CryptStatePair<aes::Aes256>) }
 }
