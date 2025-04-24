@@ -394,10 +394,7 @@ impl ConfluxSet {
                 })()
                 .ok_or_else(|| bad_api_usage!("asked to join circuit with no hops"))?;
 
-                JoinPoint {
-                    hop,
-                    detail: detail.clone(),
-                }
+                JoinPoint { hop, detail }
             }
         };
 
