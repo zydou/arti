@@ -1024,14 +1024,13 @@ impl Reactor {
                 // so we expect there to be a ConfluxHandshakeContext installed.
 
                 #[cfg(feature = "conflux")]
-                let error = match reason {
-                    RemoveLegReason::ConfluxHandshakeTimeout => ConfluxHandshakeError::Timeout,
-                    RemoveLegReason::ConfluxHandshakeErr(e) => ConfluxHandshakeError::Link(e),
-                    RemoveLegReason::ChannelClosed => ConfluxHandshakeError::ChannelClosed,
-                };
-
-                #[cfg(feature = "conflux")]
                 if is_conflux_pending {
+                    let error = match reason {
+                        RemoveLegReason::ConfluxHandshakeTimeout => ConfluxHandshakeError::Timeout,
+                        RemoveLegReason::ConfluxHandshakeErr(e) => ConfluxHandshakeError::Link(e),
+                        RemoveLegReason::ChannelClosed => ConfluxHandshakeError::ChannelClosed,
+                    };
+
                     self.note_conflux_handshake_result(Err(error))?;
                 }
             }
