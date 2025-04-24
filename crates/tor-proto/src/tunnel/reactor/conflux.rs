@@ -5,7 +5,7 @@ mod msghandler;
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{self, AtomicU32};
+use std::sync::atomic::{self, AtomicU64};
 use std::sync::Arc;
 
 use futures::StreamExt;
@@ -79,7 +79,7 @@ pub(super) struct ConfluxSet {
     ///
     /// If the message is out-of-order, the `ConfluxMsgHandler` instructs the circuit
     /// to instruct the reactor to buffer the message.
-    last_seq_delivered: Arc<AtomicU32>,
+    last_seq_delivered: Arc<AtomicU64>,
     /// Whether we have selected our initial primary leg,
     /// if this is a multipath conflux set.
     selected_init_primary: bool,
@@ -114,7 +114,7 @@ impl ConfluxSet {
             nonce: V1Nonce::new(&mut rand::rng()),
             #[cfg(feature = "conflux")]
             desired_ux,
-            last_seq_delivered: Arc::new(AtomicU32::new(0)),
+            last_seq_delivered: Arc::new(AtomicU64::new(0)),
             selected_init_primary: false,
         }
     }
@@ -317,7 +317,7 @@ impl ConfluxSet {
 
     /// Return the maximum relative last_seq_recv across all circuits.
     #[cfg(feature = "conflux")]
-    fn max_last_seq_recv(&self) -> Option<u32> {
+    fn max_last_seq_recv(&self) -> Option<u64> {
         self.legs
             .iter()
             .filter_map(|(_id, leg)| leg.last_seq_recv().ok())
@@ -326,7 +326,7 @@ impl ConfluxSet {
 
     /// Return the maximum relative last_seq_sent across all circuits.
     #[cfg(feature = "conflux")]
-    fn max_last_seq_sent(&self) -> Option<u32> {
+    fn max_last_seq_sent(&self) -> Option<u64> {
         self.legs
             .iter()
             .filter_map(|(_id, leg)| leg.last_seq_sent().ok())
@@ -504,6 +504,8 @@ impl ConfluxSet {
     /// if we switched primary leg.
     #[cfg(feature = "conflux")]
     pub(super) fn maybe_update_primary_leg(&mut self) -> crate::Result<Option<SendRelayCell>> {
+        use tor_error::into_internal;
+
         let Some(join_point) = self.join_point.as_ref() else {
             // Return early if this is not a multi-path tunnel
             return Ok(None);
@@ -531,7 +533,15 @@ impl ConfluxSet {
         self.primary_id = new_primary_id;
         let new_last_seq_sent = self.primary_leg_mut()?.last_seq_sent()?;
 
-        let seqno_delta = prev_last_seq_sent - new_last_seq_sent;
+        // If this fails, it means we haven't updated our primary leg in a very long time.
+        //
+        // TODO(conflux): there are currently no safeguards to prevent us from staying
+        // on the same leg for "too long". Perhaps we should design should_update_primary_leg()
+        // such that it forces us to switch legs periodically, to prevent the seqno delta from
+        // getting too big?
+        let seqno_delta = u32::try_from(prev_last_seq_sent - new_last_seq_sent).map_err(
+            into_internal!("Seqno delta for switch does not fit in u32?!"),
+        )?;
 
         let switch = ConfluxSwitch::new(seqno_delta);
         let cell = AnyRelayMsgOuter::new(None, switch.into());
@@ -837,7 +847,7 @@ impl ConfluxSet {
 
     /// Check if the specified sequence number is the sequence number of the
     /// next message we're expecting to handle.
-    pub(super) fn is_seqno_in_order(&self, seq_recv: u32) -> bool {
+    pub(super) fn is_seqno_in_order(&self, seq_recv: u64) -> bool {
         let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::SeqCst);
         seq_recv == last_seq_delivered + 1
     }

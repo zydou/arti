@@ -3,7 +3,7 @@
 mod client;
 
 use std::cmp::Ordering;
-use std::sync::atomic::{self, AtomicU32};
+use std::sync::atomic::{self, AtomicU64};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -34,7 +34,7 @@ pub(crate) struct ConfluxMsgHandler {
     /// The absolute sequence number of the last message delivered to a stream.
     ///
     /// This is shared by all the circuits in a conflux set.
-    last_seq_delivered: Arc<AtomicU32>,
+    last_seq_delivered: Arc<AtomicU64>,
 }
 
 impl ConfluxMsgHandler {
@@ -42,7 +42,7 @@ impl ConfluxMsgHandler {
     pub(super) fn new_client(
         hop: HopNum,
         nonce: V1Nonce,
-        last_seq_delivered: Arc<AtomicU32>,
+        last_seq_delivered: Arc<AtomicU64>,
         runtime: tor_rtcompat::DynTimeProvider,
     ) -> Self {
         Self {
@@ -183,12 +183,12 @@ impl ConfluxMsgHandler {
     }
 
     /// Return the sequence number of the last message sent on this leg.
-    pub(crate) fn last_seq_sent(&self) -> u32 {
+    pub(crate) fn last_seq_sent(&self) -> u64 {
         self.handler.last_seq_sent()
     }
 
     /// Return the sequence number of the last message received on this leg.
-    pub(crate) fn last_seq_recv(&self) -> u32 {
+    pub(crate) fn last_seq_recv(&self) -> u64 {
         self.handler.last_seq_recv()
     }
 
@@ -243,10 +243,10 @@ trait AbstractConfluxMsgHandler {
     fn init_rtt(&self) -> Option<Duration>;
 
     /// Return the sequence number of the last message received on this leg.
-    fn last_seq_recv(&self) -> u32;
+    fn last_seq_recv(&self) -> u64;
 
     /// Return the sequence number of the last message sent on this leg.
-    fn last_seq_sent(&self) -> u32;
+    fn last_seq_sent(&self) -> u64;
 
     /// Increment the sequence number of the last message received on this leg.
     fn inc_last_seq_recv(&mut self);
@@ -259,7 +259,7 @@ trait AbstractConfluxMsgHandler {
 #[derive(Debug)]
 pub(crate) struct OooRelayMsg {
     /// The sequence number of the message.
-    pub(crate) seqno: u32,
+    pub(crate) seqno: u64,
     /// The hop this message originated from.
     pub(crate) hopnum: HopNum,
     /// Whether the cell this message originated from counts towards

@@ -760,7 +760,7 @@ impl Circuit {
     ///
     /// Returns an error if this circuit is not part of a conflux set.
     #[cfg(feature = "conflux")]
-    pub(super) fn last_seq_sent(&self) -> Result<u32> {
+    pub(super) fn last_seq_sent(&self) -> Result<u64> {
         let handler = self
             .conflux_handler
             .as_ref()
@@ -773,7 +773,7 @@ impl Circuit {
     ///
     /// Returns an error if this circuit is not part of a conflux set.
     #[cfg(feature = "conflux")]
-    pub(super) fn last_seq_recv(&self) -> Result<u32> {
+    pub(super) fn last_seq_recv(&self) -> Result<u64> {
         let handler = self
             .conflux_handler
             .as_ref()

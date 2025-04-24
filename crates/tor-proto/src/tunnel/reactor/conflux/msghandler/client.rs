@@ -39,14 +39,14 @@ pub(super) struct ClientConfluxMsgHandler {
     ///
     /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::action_for_msg)
     /// each time a cell that counts towards sequence numbers is received on this leg.
-    last_seq_recv: u32,
+    last_seq_recv: u64,
     /// The sequence number of the last message sent on this leg.
     ///
     /// This is a *relative* number.
     ///
     /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::note_cell_sent)
     /// each time a cell that counts towards sequence numbers is sent on this leg.
-    last_seq_sent: u32,
+    last_seq_sent: u64,
 }
 
 /// The state of a client circuit from a conflux set.
@@ -128,11 +128,11 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
         self.init_rtt
     }
 
-    fn last_seq_recv(&self) -> u32 {
+    fn last_seq_recv(&self) -> u64 {
         self.last_seq_recv
     }
 
-    fn last_seq_sent(&self) -> u32 {
+    fn last_seq_sent(&self) -> u64 {
         self.last_seq_sent
     }
 
@@ -293,7 +293,7 @@ impl ClientConfluxMsgHandler {
         // Since this cell is not multiplexed, we do not count it towards
         // absolute sequence numbers. We only increment the sequence
         // numbers for multiplexed cells. Hence there is no +1 here.
-        self.last_seq_recv += rel_seqno;
+        self.last_seq_recv += u64::from(rel_seqno);
 
         Ok(None)
     }
