@@ -194,6 +194,20 @@ impl ClientConfluxMsgHandler {
             ));
         };
 
+        let expected_nonce = match self.state {
+            ConfluxState::Unlinked => {
+                return Err(Error::CircProto(
+                    "Received CONFLUX_LINKED cell before sending CONFLUX_LINK?!".into(),
+                ));
+            }
+            ConfluxState::AwaitingLink(expected_nonce) => expected_nonce,
+            ConfluxState::Linked => {
+                return Err(Error::CircProto(
+                    "Received CONFLUX_LINKED on already linked circuit".into(),
+                ));
+            }
+        };
+
         let linked = msg
             .decode::<ConfluxLinked>()
             .map_err(|e| Error::from_bytes_err(e, "linked message"))?
@@ -201,26 +215,12 @@ impl ClientConfluxMsgHandler {
 
         let linked_nonce = *linked.payload().nonce();
 
-        match self.state {
-            ConfluxState::Unlinked => {
-                return Err(Error::CircProto(
-                    "Received CONFLUX_LINKED cell before sending CONFLUX_LINK?!".into(),
-                ));
-            }
-            ConfluxState::AwaitingLink(expected_nonce) => {
-                if expected_nonce == linked_nonce {
-                    self.state = ConfluxState::Linked;
-                } else {
-                    return Err(Error::CircProto(
-                        "Received CONFLUX_LINKED cell with mismatched nonce".into(),
-                    ));
-                }
-            }
-            ConfluxState::Linked => {
-                return Err(Error::CircProto(
-                    "Received CONFLUX_LINKED on already linked circuit".into(),
-                ));
-            }
+        if expected_nonce == linked_nonce {
+            self.state = ConfluxState::Linked;
+        } else {
+            return Err(Error::CircProto(
+                "Received CONFLUX_LINKED cell with mismatched nonce".into(),
+            ));
         }
 
         let now = self.runtime.wallclock();
