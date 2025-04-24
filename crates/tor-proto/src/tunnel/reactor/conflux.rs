@@ -414,7 +414,7 @@ impl ConfluxSet {
         };
 
         // Check if the last hop of leg is the same as the one from the first hop.
-        let cmp_hop_detail = |hop: Option<&HopDetail>| {
+        let hop_eq_joint_point = |hop: Option<&HopDetail>| {
             hop.map(|hop| hops_eq(hop, &join_point.detail))
                 .unwrap_or_default()
         };
@@ -429,7 +429,7 @@ impl ConfluxSet {
         //   * the circuit is not already part of a conflux tunnel
         let leg_is_valid = |leg: &Circuit| {
             leg.last_hop_num() == Some(join_point.hop)
-                && cmp_hop_detail(leg.path().all_hops().last())
+                && hop_eq_joint_point(leg.path().all_hops().last())
                 && !leg.has_streams()
                 && leg.conflux_status().is_none()
         };
