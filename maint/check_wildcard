@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#
+# Check whether wildcards are used in the Cargo.toml files, which is prohibited
+# when publishing it to crates.io.
+
+set -euo pipefail
+
+# Obtain the root path of the git directory.
+REPO=$(git rev-parse --show-toplevel)
+readarray -d '' FILES < <(find "$REPO" -name "Cargo.toml" -print0)
+
+echo -n "searching for wildcard version requirements ... "
+
+grep -nE "^[[:alnum:]\-\_]+ = \"[[:digit:]\.]*\*\"$" "${FILES[@]}" && exit 1
+grep -nE "version = \"[[:digit:]\.]*\*\"" "${FILES[@]}" && exit 1
+
+echo "ok"
+
