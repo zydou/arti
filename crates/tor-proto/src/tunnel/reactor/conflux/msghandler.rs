@@ -160,10 +160,6 @@ impl ConfluxMsgHandler {
         self.handler.inc_last_seq_recv();
 
         let action = if self.is_msg_in_order()? {
-            // Increment the absolute *delivered* seqno
-            self.last_seq_delivered
-                .fetch_add(1, atomic::Ordering::SeqCst);
-
             ConfluxAction::Deliver(msg)
         } else {
             ConfluxAction::Enqueue(self.prepare_ooo_entry(
@@ -175,6 +171,15 @@ impl ConfluxMsgHandler {
         };
 
         Ok(action)
+    }
+
+    /// Increment the absolute "delivered" seqno for this conflux set
+    /// if the specified message counts towards sequence numbers.
+    pub(crate) fn inc_last_seq_delivered(&self, msg: &UnparsedRelayMsg) {
+        if super::cmd_counts_towards_seqno(msg.cmd()) {
+            self.last_seq_delivered
+                .fetch_add(1, atomic::Ordering::SeqCst);
+        }
     }
 
     /// Returns the initial RTT measured by this handler.

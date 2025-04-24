@@ -675,6 +675,11 @@ impl Circuit {
         streamid: StreamId,
         msg: UnparsedRelayMsg,
     ) -> Result<Option<CircuitCmd>> {
+        #[cfg(feature = "conflux")]
+        if let Some(conflux) = self.conflux_handler.as_mut() {
+            conflux.inc_last_seq_delivered(&msg);
+        }
+
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
