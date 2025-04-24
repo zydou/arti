@@ -76,7 +76,7 @@ pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
 /// Contains a list of conflux handshake results.
 #[cfg(feature = "conflux")]
-pub(super) type ConfluxTunnelResult = Vec<StdResult<(), ConfluxHandshakeError>>;
+pub(super) type ConfluxHandshakeResult = Vec<StdResult<(), ConfluxHandshakeError>>;
 
 /// The type of oneshot channel used to inform reactor users of the outcome
 /// of a client-side conflux handshake.
@@ -84,7 +84,7 @@ pub(super) type ConfluxTunnelResult = Vec<StdResult<(), ConfluxHandshakeError>>;
 /// Contains a list of handshake results, one for each circuit that we were asked
 /// to link in the tunnel.
 #[cfg(feature = "conflux")]
-pub(super) type ConfluxLinkResultChannel = ReactorResultChannel<ConfluxTunnelResult>;
+pub(super) type ConfluxLinkResultChannel = ReactorResultChannel<ConfluxHandshakeResult>;
 
 pub(crate) use circuit::{RECV_WINDOW_INIT, STREAM_READER_BUFFER};
 
@@ -526,7 +526,7 @@ struct ConfluxHandshakeCtx {
     /// The number of legs that are currently doing the handshake.
     num_legs: usize,
     /// The handshake results we have collected so far.
-    results: ConfluxTunnelResult,
+    results: ConfluxHandshakeResult,
 }
 
 /// An out-of-order message buffered in [`Reactor::ooo_msgs`].
@@ -1326,7 +1326,7 @@ impl Reactor {
 #[cfg(feature = "conflux")]
 fn send_conflux_outcome(
     tx: ConfluxLinkResultChannel,
-    res: Result<ConfluxTunnelResult>,
+    res: Result<ConfluxHandshakeResult>,
 ) -> StdResult<(), ReactorError> {
     if tx.send(res).is_err() {
         tracing::warn!("conflux initiator went away before handshake completed?");
