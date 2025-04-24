@@ -691,8 +691,6 @@ impl Reactor {
             match self.run_once().await {
                 Ok(()) => (),
                 Err(ReactorError::Shutdown) => break Ok(()),
-                // TODO(conflux): if we detect e.g. a proto violation on an unlinked leg,
-                // should we tear down the entire set, or support resumption?
                 Err(ReactorError::Err(e)) => break Err(e),
             }
         };
