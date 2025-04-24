@@ -40,7 +40,34 @@ use {
 #[cfg(feature = "conflux")]
 pub(crate) use msghandler::{ConfluxAction, ConfluxMsgHandler, OooRelayMsg};
 
-/// A set of linked conflux circuits.
+/// A set with one or more circuits.
+///
+/// ### Conflux set life cycle
+///
+/// Conflux sets are created by the reactor using [`ConfluxSet::new`].
+///
+/// Every `ConfluxSet` starts out as a single-path set consisting of a single 0-length circuit.
+///
+/// After constructing a `ConfluxSet`, the reactor will proceed to extend its (only) circuit.
+/// At this point, the `ConfluxSet` will be a single-path set with a single n-length circuit.
+///
+/// The reactor can then turn the `ConfluxSet` into a multi-path set
+/// (a multi-path set is a conflux set that contains more than 1 circuit).
+/// This is done using [`ConfluxSet::add_legs`], in response to a `CtrlMsg` sent
+/// by the reactor user (also referred to as the "conflux handshake initiator").
+/// After that, the conflux set is said to be a multi-path set with multiple N-length circuits.
+///
+/// Circuits can be removed from the set using [`ConfluxSet::remove`].
+///
+/// The lifetime of a `ConfluxSet` is tied to the lifetime of the reactor.
+/// When the reactor is dropped, its underlying `ConfluxSet` is dropped too.
+/// This can happen on an explicit shutdown request, or if a fatal error occurs.
+///
+/// Conversely, the `ConfluxSet` can also trigger a reactor shutdown.
+/// For example, if after being instructed to remove a circuit from the set
+/// using [`ConfluxSet::remove`], the set is completely depleted,
+/// the `ConfluxSet` will return a [`ReactorError::Shutdown`] error,
+/// which will cause the reactor to shut down.
 pub(super) struct ConfluxSet {
     /// The circuits in this conflux set.
     legs: SlotMap<LegIdKey, Circuit>,
