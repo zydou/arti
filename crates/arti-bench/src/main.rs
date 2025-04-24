@@ -68,7 +68,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_socks::tcp::Socks5Stream;
 use tor_config::{ConfigurationSource, ConfigurationSources};
@@ -220,16 +220,6 @@ fn run_timing(mut stream: TcpStream, send: &Arc<[u8]>, receive: &Arc<[u8]>) -> R
     };
     serde_json::to_writer(&mut stream, &st)?;
     info!("Wrote timing payload to {}.", peer_addr);
-
-    // Workaround for a shadow networking issue. If we don't wait a bit after
-    // flushing the data and before dropping the writer, then the
-    // `socket.read_to_end` in `client` never completes.
-    // See <https://gitlab.torproject.org/tpo/core/arti/-/issues/1972>.
-    {
-        stream.flush()?;
-        std::thread::sleep(Duration::from_millis(10));
-    }
-
     Ok(())
 }
 
