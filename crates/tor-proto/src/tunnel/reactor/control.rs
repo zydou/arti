@@ -359,10 +359,35 @@ impl<'a> ControlHandler<'a> {
                 /// Local type alias to ensure consistency below.
                 type Rcf = RelayCellFormatV0;
 
-                // Set client extensions.
+                // Set the client extensions.
+                // allow 'unused_mut' because of the combinations of `cfg` conditions below
+                #[allow(unused_mut)]
                 let mut client_extensions = Vec::new();
+
                 if params.ccontrol.is_enabled() {
-                    client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                    cfg_if::cfg_if! {
+                        if #[cfg(feature = "flowctl-cc")] {
+                            // TODO(arti#88): We have an `if false` in `exit_circparams_from_netparams`
+                            // which should prevent the above `is_enabled()` from ever being true,
+                            // even with the "flowctl-cc" feature enabled:
+                            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2932#note_3191196
+                            // The panic here is so that CI tests will hopefully catch if congestion
+                            // control is unexpectedly enabled.
+                            // We should remove this panic once xon/xoff flow is supported.
+                            #[cfg(not(test))]
+                            panic!("Congestion control is enabled on this circuit, but we don't yet support congestion control");
+
+                            #[allow(unreachable_code)]
+                            client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                        } else {
+                            return Err(
+                                tor_error::internal!(
+                                    "Congestion control is enabled on this circuit, but 'flowctl-cc' feature is not enabled"
+                                )
+                                .into()
+                            );
+                        }
+                    }
                 }
 
                 let (extender, cell) =
