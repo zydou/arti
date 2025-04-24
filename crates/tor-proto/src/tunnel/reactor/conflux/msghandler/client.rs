@@ -64,7 +64,7 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
     fn validate_source_hop(&self, msg: &UnparsedRelayMsg, hop: HopNum) -> crate::Result<()> {
         if hop != self.join_point {
             return Err(Error::CircProto(format!(
-                "Received {} cell from unexpected hop {} on client circuit",
+                "Received {} cell from unexpected hop {} on client conflux circuit",
                 msg.cmd(),
                 hop.display(),
             )));
