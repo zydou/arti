@@ -798,6 +798,10 @@ impl Reactor {
         }
 
         // Check if it's time to switch our primary leg.
+        //
+        // TODO(conflux): this only be done just before sending a cell.
+        //
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2946#note_3192013
         #[cfg(feature = "conflux")]
         if let Some(switch_cell) = self.circuits.maybe_update_primary_leg()? {
             self.circuits
