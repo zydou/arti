@@ -233,6 +233,13 @@ enum RunOnceCmdInner {
         /// The circuit leg to remove.
         leg: LegId,
         /// The reason for removal.
+        ///
+        /// This is only used for conflux circuits that get removed
+        /// before the conflux handshake is complete.
+        ///
+        /// The [`RemoveLegReason`] is mapped by the reactor to a
+        /// [`ConfluxHandshakeError`] that is sent to the initiator of the
+        /// handshake to indicate the reason the handshake failed.
         reason: RemoveLegReason,
     },
     /// A circuit has completed the conflux handshake,
@@ -367,6 +374,13 @@ enum CircuitAction {
         /// The leg to remove.
         leg: LegIdKey,
         /// The reason for removal.
+        ///
+        /// This is only used for conflux circuits that get removed
+        /// before the conflux handshake is complete.
+        ///
+        /// The [`RemoveLegReason`] is mapped by the reactor to a
+        /// [`ConfluxHandshakeError`] that is sent to the initiator of the
+        /// handshake to indicate the reason the handshake failed.
         reason: RemoveLegReason,
     },
 }
