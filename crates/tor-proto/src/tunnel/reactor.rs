@@ -1023,8 +1023,6 @@ impl Reactor {
                 // (otherwise the .remove() would've returned a Shutdown error),
                 // so we expect there to be a ConfluxHandshakeContext installed.
 
-                // TODO(conflux): add the outcome to our list of circuit outcomes
-                // to share via the conflux_tx channel with the conflux handshake initiator
                 #[cfg(feature = "conflux")]
                 let error = match reason {
                     RemoveLegReason::ConfluxHandshakeTimeout => ConfluxHandshakeError::Timeout,
