@@ -237,6 +237,14 @@ enum RunOnceCmdInner {
     },
     /// A circuit has completed the conflux handshake,
     /// and wants to send the specified cell.
+    ///
+    /// This is similar to [`RunOnceCmdInner::Send`],
+    /// but needs to remain a separate variant,
+    /// because in addition to instructing the reactor to send a cell,
+    /// it also notifies it that the conflux handshake is complete on the specified `leg`.
+    /// This enables the reactor to save the handshake result (`Ok(())`),
+    /// and, if there are no other legs still in the handshake phase,
+    /// send the result to the handshake initiator.
     #[cfg(feature = "conflux")]
     ConfluxHandshakeComplete {
         /// The circuit leg that has completed the handshake,
