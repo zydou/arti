@@ -90,7 +90,7 @@ pub(super) struct ConfluxSet {
 struct JoinPoint {
     /// The hop number.
     hop: HopNum,
-    /// The HopDetail of the hop.
+    /// The [`HopDetail`] of the hop.
     detail: HopDetail,
 }
 
