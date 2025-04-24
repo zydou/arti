@@ -278,12 +278,6 @@ impl ClientConfluxMsgHandler {
             .into_msg();
 
         let rel_seqno = switch.seqno();
-        // The sequence number from the switch must be non-zero.
-        if rel_seqno == 0 {
-            return Err(Error::CircProto(
-                "Received SWITCH cell with seqno = 0".into(),
-            ));
-        }
 
         // TODO(conflux): bail if we receive two consecutive SWITCH cells
 
@@ -302,8 +296,14 @@ impl ClientConfluxMsgHandler {
     ///
     /// TODO(conflux): the exact validation logic will presumably depend on
     /// the configured UX?
-    #[allow(clippy::unnecessary_wraps)] // TODO(conflux): implement
-    fn validate_switch_seqno(&self, _rel_seqno: u32) -> crate::Result<()> {
+    fn validate_switch_seqno(&self, rel_seqno: u32) -> crate::Result<()> {
+        // The sequence number from the switch must be non-zero.
+        if rel_seqno == 0 {
+            return Err(Error::CircProto(
+                "Received SWITCH cell with seqno = 0".into(),
+            ));
+        }
+
         // TODO(conflux): from c-tor:
         //
         // We have to make sure that the switch command is truely
