@@ -230,7 +230,7 @@ enum RunOnceCmdInner {
     },
     /// Remove a circuit leg from the conflux set.
     RemoveLeg {
-        /// The leg the entry originated from.
+        /// The circuit leg to remove.
         leg: LegId,
         /// The reason for removal.
         reason: RemoveLegReason,
