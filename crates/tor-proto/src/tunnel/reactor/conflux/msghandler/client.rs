@@ -235,8 +235,8 @@ impl ClientConfluxMsgHandler {
             Duration::from_secs(u64::MAX)
         }));
 
-        let link = ConfluxLinkedAck::default();
-        let cell = AnyRelayMsgOuter::new(None, link.into());
+        let linked_ack = ConfluxLinkedAck::default();
+        let cell = AnyRelayMsgOuter::new(None, linked_ack.into());
 
         let cell = SendRelayCell {
             hop,
