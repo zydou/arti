@@ -414,8 +414,8 @@ impl ConfluxSet {
         };
 
         // Check if the last hop of leg is the same as the one from the first hop.
-        let cmp_hop_detail = |leg: Option<&HopDetail>| {
-            leg.map(|leg| hops_eq(leg, &join_point.detail))
+        let cmp_hop_detail = |hop: Option<&HopDetail>| {
+            hop.map(|hop| hops_eq(hop, &join_point.detail))
                 .unwrap_or_default()
         };
 
