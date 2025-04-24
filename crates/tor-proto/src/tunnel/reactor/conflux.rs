@@ -351,6 +351,8 @@ impl ConfluxSet {
 
     /// Add legs to the this conflux set.
     ///
+    // TODO(conflux): update this with the latest changes from torspec!369
+    ///
     /// Returns an error if any of the legs are invalid,
     /// or if adding the legs would cause the conflux set to contain
     /// any circuits that have the same hop in the middle and guard positions
