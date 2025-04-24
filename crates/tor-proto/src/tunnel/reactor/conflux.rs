@@ -589,7 +589,7 @@ impl ConfluxSet {
             _ => {
                 // Default to MIN_RTT if we don't recognized the desired UX value
                 warn!(
-                    "Ignoring unrecognized conflux desired UX {}, using MIN_LATNECY",
+                    "Ignoring unrecognized conflux desired UX {}, using MIN_LATENCY",
                     self.desired_ux
                 );
                 self.select_primary_leg_min_rtt(false)
