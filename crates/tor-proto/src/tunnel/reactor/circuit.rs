@@ -302,21 +302,25 @@ impl Circuit {
     ) -> Result<()> {
         use tor_rtcompat::SleepProvider as _;
 
-        let Some(conflux_handler) = self.conflux_handler.as_mut() else {
+        if self.conflux_handler.is_none() {
             return Err(internal!(
                 "tried to send LINK cell before installing a ConfluxMsgHandler?!"
             )
             .into());
-        };
-
-        conflux_handler.note_link_sent(runtime.wallclock())?;
+        }
 
         let cell = SendRelayCell {
             hop,
             early: false,
             cell,
         };
-        self.send_relay_cell(cell).await
+        self.send_relay_cell(cell).await?;
+
+        let Some(conflux_handler) = self.conflux_handler.as_mut() else {
+            return Err(internal!("ConfluxMsgHandler disappeared?!").into());
+        };
+
+        Ok(conflux_handler.note_link_sent(runtime.wallclock())?)
     }
 
     /// Get the wallclock time when the handshake on this circuit is supposed to time out.
