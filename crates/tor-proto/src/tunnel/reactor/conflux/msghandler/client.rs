@@ -28,13 +28,8 @@ pub(super) struct ClientConfluxMsgHandler {
     ///
     /// On the client side, this is the RTT between
     /// `RELAY_CONFLUX_LINK` and `RELAY_CONFLUX_LINKED`.
-    ///
-    /// On the service/exit-side, it is the RTT between
-    /// `RELAY_CONFLUX_LINKED` and `RELAY_CONFLUX_LINKED_ACK`.
-    ///
-    /// TODO(conflux): we currently assume this is a *client* ConfluxMsgHandler.
     init_rtt: Option<Duration>,
-    /// Client-only: the time when the handshake was initiated.
+    /// The time when the handshake was initiated.
     link_sent: Option<SystemTime>,
     /// A handle to the time provider.
     runtime: DynTimeProvider,
