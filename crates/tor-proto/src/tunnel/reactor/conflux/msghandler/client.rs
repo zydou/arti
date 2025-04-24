@@ -266,16 +266,16 @@ impl ClientConfluxMsgHandler {
         msg: UnparsedRelayMsg,
         _hop: HopNum,
     ) -> crate::Result<Option<CircuitCmd>> {
-        let switch = msg
-            .decode::<ConfluxSwitch>()
-            .map_err(|e| Error::from_bytes_err(e, "switch message"))?
-            .into_msg();
-
         if self.state != ConfluxState::Linked {
             return Err(Error::CircProto(
                 "Received CONFLUX_SWITCH on unlinked circuit?!".into(),
             ));
         }
+
+        let switch = msg
+            .decode::<ConfluxSwitch>()
+            .map_err(|e| Error::from_bytes_err(e, "switch message"))?
+            .into_msg();
 
         let rel_seqno = switch.seqno();
         // The sequence number from the switch must be non-zero.
