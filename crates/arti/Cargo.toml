@@ -57,7 +57,7 @@ full = [
     "tor-config-path/full", "tor-basic-utils/full", "tor-rpc-connect?/full",
 ]
 
-async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "signal-hook", "signal-hook-async-std"]
+async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "async-signal"]
 bridge-client = ["arti-client/bridge-client"]
 default-runtime = ["tokio", "native-tls"]
 dns-proxy = ["hickory-proto"]
@@ -143,8 +143,7 @@ rustls-crate = { package = "rustls", version = "0.23.5", optional = true, defaul
 safelog = { path = "../safelog", version = "0.4.5" }
 secmem-proc = { version = "0.3.4", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
-signal-hook = { version = "0.3", optional = true }
-signal-hook-async-std = { version = "0.2", optional = true }
+async-signal = { version = "0.2.10", optional = true }
 thiserror = "2"
 time = "0.3.18"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }

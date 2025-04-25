@@ -84,11 +84,10 @@ pub(crate) fn sighup_stream() -> crate::Result<impl futures::Stream<Item = ()>> 
             let mut signal = s::signal(s::SignalKind::hangup())?;
             Ok(futures::stream::poll_fn(move |ctx| signal.poll_recv(ctx)))
         } else if #[cfg(feature="async-std")] {
-            use signal_hook_async_std as s;
-            use signal_hook::consts::signal;
+            use async_signal::{Signal, Signals};
             use futures::stream::StreamExt as _;
-            let signal = s::Signals::new(&[signal::SIGHUP])?;
-            Ok(signal.map(|_| ()))
+            let signals = Signals::new(&[Signal::Hup])?;
+            Ok(signals.map(|_| ()))
         } else {
             // Not backend, so we won't ever get a SIGHUP.
             Ok(futures::stream::pending())
