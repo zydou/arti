@@ -189,6 +189,7 @@ pub(crate) fn mistrust_build(ops: &[MistrustOp]) -> Mistrust {
                     return m;
                 }
 
+                #[cfg(target_family = "unix")]
                 MistrustOp::TrustAdminOnly() => {
                     #[cfg(all(
                         target_family = "unix",
