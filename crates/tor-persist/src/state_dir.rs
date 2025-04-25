@@ -368,7 +368,7 @@ pub enum Liveness {
 ///
 /// Each type implementing this trait mutually excludes independently-acquired
 /// [`InstanceStateHandle`]s, and anything derived from them
-/// (including, therefore, `ContainsInstanceStateGuard` implementors
+/// (including, therefore, `ContainsInstanceStateGuard` implementors
 /// with independent provenance.)
 pub trait ContainsInstanceStateGuard {
     /// Obtain a raw clone of the underlying filesystem lock
