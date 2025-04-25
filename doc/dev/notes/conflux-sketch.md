@@ -67,7 +67,7 @@ We have two possibilities:
 
    Problem: A conflux set can have N legs which can be above 2 meaning that if
    we have, for example, 3 legs in a set, it means we would have 3 reactors
-   meaning they would need to each talk to each other seemlessly likely
+   meaning they would need to each talk to each other seamlessly likely
    requiring us to build a MPMC communication system along an entire protocol
    in order to inform each reactor the state of the conflux construction.
 
