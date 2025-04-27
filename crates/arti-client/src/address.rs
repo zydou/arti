@@ -585,7 +585,10 @@ mod test {
     fn test_error_kind() {
         use tor_error::ErrorKind as EK;
 
-        assert_eq!(TorAddrError::InvalidHostname.kind(), EK::InvalidStreamTarget);
+        assert_eq!(
+            TorAddrError::InvalidHostname.kind(),
+            EK::InvalidStreamTarget
+        );
         assert_eq!(TorAddrError::NoPort.kind(), EK::InvalidStreamTarget);
         assert_eq!(TorAddrError::BadPort.kind(), EK::InvalidStreamTarget);
     }
