@@ -114,8 +114,8 @@ pub(crate) trait AbstractCirc: Debug {
     /// Return a process-unique identifier for this circuit.
     fn unique_id(&self) -> UniqId;
 
-    /// Extend the circuit via the ntor handshake to a new target last hop.
-    async fn extend_ntor<T: CircTarget + Sync>(
+    /// Extend the circuit via the most appropriate handshake to a new `target` hop.
+    async fn extend<T: CircTarget + Sync>(
         &self,
         target: &T,
         params: CircParameters,

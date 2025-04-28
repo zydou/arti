@@ -45,8 +45,7 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
         self.unique_id()
     }
 
-    // TODO: Rename this method! XXXX
-    async fn extend_ntor<T: CircTarget + std::marker::Sync>(
+    async fn extend<T: CircTarget + std::marker::Sync>(
         &self,
         target: &T,
         params: CircParameters,
