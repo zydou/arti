@@ -72,7 +72,7 @@ fn analyse_particip(precord: &PRecord, defer_drop: &mut DeferredDrop) -> PStatus
         Ok(None) => {}
         Err(_panicked) => {
             // _panicked is of a useless type
-            error!("memory tracker: call to get_oldest panicked!");
+            error!("bug in memory tracker: call to get_oldest panicked!");
             return PStatus::TearDown;
         }
     }

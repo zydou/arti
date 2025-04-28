@@ -42,7 +42,7 @@ where
                     return;
                 }
                 // Shouldn't happen, but probably no need to `panic`.
-                tracing::error!("Unexpected send error: {e:?}");
+                tracing::error!("Bug: Unexpected send error: {e:?}");
             });
     }
 }

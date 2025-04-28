@@ -607,7 +607,10 @@ impl<D: MockableConnectorData> Services<D> {
                 }
                 ServiceState::Open { .. } | ServiceState::Working { .. } => true,
                 ServiceState::Dummy => {
-                    error!("found dummy data during HS housekeeping, for {}", sv(hsid));
+                    error!(
+                        "bug: found dummy data during HS housekeeping, for {}",
+                        sv(hsid)
+                    );
                     false
                 }
             });
@@ -634,7 +637,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
             let expiry = last_used
                 .checked_add(RETAIN_CIRCUIT_AFTER_LAST_USE)
                 .or_else(|| {
-                    error!("time overflow calculating HS circuit expiry, killing circuit!");
+                    error!("bug: time overflow calculating HS circuit expiry, killing circuit!");
                     None
                 })?;
             let wait = expiry.checked_duration_since(now).unwrap_or_default();
