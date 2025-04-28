@@ -19,12 +19,11 @@ echo "  \"head\": \"$(git rev-parse HEAD)\","
 echo "  \"default_target\": \"$RUST_TARGET\","
 echo "  \"options\": \"$*\","
 
-cargo build --locked --release "$@"
+cargo build --locked --profile=release-small "$@"
 
 cp ./target/release/arti "$TMPDIR"
 cd "$TMPDIR"
 
-strip --strip-debug arti
 gzip -9 -k arti
 xz -9 -k arti
 

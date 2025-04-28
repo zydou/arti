@@ -90,6 +90,16 @@ members = [
 resolver = "2"
 
 [profile.release]
+# For release builds, we want the most tuned Arti we can get;
+# that seems to be with these options.
+lto = true
+codegen-units = 1
+
+[profile.release-small]
+# We define a separate "small" release profile, for the case where
+# we care more strongly about download or binary size than we do
+# about performance.
+inherits = "release"
 # By default we'd like to get good performance and a small download size.
 # (Assuming xz compression on the binary.)
 #
@@ -97,13 +107,18 @@ resolver = "2"
 # generating it, to throw out debugging symbols that we inherited from
 # other libraries.  Don't do `strip --strip-unused`, though, or you'll
 # break backtraces.  That saves about 21% download size.
-
+strip = "debuginfo"
+#
 # Using LTO saves a further 14% of download size, and improves performance,
 # at the cost of compile time.
-lto = true
+#
+# We already have `lto = true` in "release".
+#
 # Setting codegen-units=1 saves a further 7% download size.  It also
 # improves performance at the cost of compile time.
-codegen-units = 1
+#
+# We already have codegen-units = 1 in "release".
+#
 # Optimize for size.  [Actually this is even smaller than 'z' on rust
 # 1.56.  It saves about 11% download size over the default value of '3'.]
 opt-level = 's'
