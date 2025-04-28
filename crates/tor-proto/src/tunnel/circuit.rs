@@ -12,8 +12,10 @@
 //! To build a circuit, first create a [crate::channel::Channel], then
 //! call its [crate::channel::Channel::new_circ] method.  This yields
 //! a [PendingClientCirc] object that won't become live until you call
-//! one of the methods that extends it to its first hop.  After you've
-//! done that, you can call [ClientCirc::extend_ntor] on the circuit to
+//! one of the methods
+//! (typically [`PendingClientCirc::create_firsthop`])
+//! that extends it to its first hop.  After you've
+//! done that, you can call [`ClientCirc::extend`] on the circuit to
 //! build it into a multi-hop circuit.  Finally, you can use
 //! [ClientCirc::begin_stream] to get a Stream object that can be used
 //! for anonymized data.
@@ -123,11 +125,11 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 ///
 /// `ClientCirc`s are created in an initially unusable state using [`Channel::new_circ`],
 /// which returns a [`PendingClientCirc`].  To get a real (one-hop) circuit from
-/// one of these, you invoke one of its `create_firsthop` methods (currently
+/// one of these, you invoke one of its `create_firsthop` methods (typically
 /// [`create_firsthop_fast()`](PendingClientCirc::create_firsthop_fast) or
-/// [`create_firsthop_ntor()`](PendingClientCirc::create_firsthop_ntor)).
+/// [`create_firsthop()`](PendingClientCirc::create_firsthop)).
 /// Then, to add more hops to the circuit, you can call
-/// [`extend_ntor()`](ClientCirc::extend_ntor) on it.
+/// [`extend()`](ClientCirc::extend) on it.
 ///
 /// For higher-level APIs, see the `tor-circmgr` crate: the ones here in
 /// `tor-proto` are probably not what you need.
@@ -205,7 +207,7 @@ pub(super) struct MutableState {
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
 ///
-/// To use one of these, call create_firsthop_fast() or create_firsthop_ntor()
+/// To use one of these, call `create_firsthop_fast()` or `create_firsthop()`
 /// to negotiate the cryptographic handshake with the first hop.
 pub struct PendingClientCirc {
     /// A oneshot receiver on which we'll receive a CREATED* cell,
