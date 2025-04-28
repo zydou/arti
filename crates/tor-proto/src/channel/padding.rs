@@ -331,7 +331,7 @@ impl<R: SleepProvider> Timer<R> {
             Some(t) => t,
             None => self_.trigger_at.insert(match now.checked_add(timeout) {
                 None => {
-                    error!("timeout overflowed computing next channel padding");
+                    error!("bug: timeout overflowed computing next channel padding. Disabling.");
                     self.disable();
                     return SleepInstructions::Forever;
                 }

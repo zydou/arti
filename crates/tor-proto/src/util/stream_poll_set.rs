@@ -311,7 +311,7 @@ where
                 // list. This should be impossible by the stability guarantees
                 // of `PeekableStream` and our own internal logic, but we can
                 // recover.
-                tracing::error!("Stream unexpectedly unready");
+                tracing::error!("Bug: Stream unexpectedly unready");
                 self.pending_streams
                     .try_insert(key.clone(), PeekableReady::new(stream))
                     // By invariant on `priorities` that keys are in exactly one of the ready or pending lists.

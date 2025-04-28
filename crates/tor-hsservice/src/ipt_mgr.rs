@@ -434,7 +434,7 @@ impl Ipt {
                     return Err(FatalError::IptKeysFoundUnexpectedly(arti_path()?).into())
                 },
                 (Some(_), None) => {
-                    error!("HS service {} missing previous key {:?}, regenerating",
+                    error!("bug: HS service {} missing previous key {:?}. Regenerating.",
                            &imm.nick, arti_path()?);
                 }
              }
@@ -1576,7 +1576,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .await
             {
                 Err(crash) => {
-                    error!("HS service {} crashed! {}", &self.imm.nick, crash);
+                    error!("bug: HS service {} crashed! {}", &self.imm.nick, crash);
 
                     self.imm.status_tx.send_broken(crash);
                     break;
