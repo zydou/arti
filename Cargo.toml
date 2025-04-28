@@ -112,7 +112,7 @@ strip = "debuginfo"
 # Using LTO saves a further 14% of download size, and improves performance,
 # at the cost of compile time.
 #
-# We already have lto = 1 in "release".
+# We already have `lto = true` in "release".
 #
 # Setting codegen-units=1 saves a further 7% download size.  It also
 # improves performance at the cost of compile time.
