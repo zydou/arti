@@ -1093,6 +1093,29 @@ impl PendingClientCirc {
         Ok(self.circ)
     }
 
+    /// Use the most appropriate handshake to connect to the first hop of this circuit.
+    ///
+    /// Note that the provided 'target' must match the channel's target,
+    /// or the handshake will fail.
+    pub async fn create_firsthop<Tg>(
+        self,
+        target: &Tg,
+        params: CircParameters,
+    ) -> Result<Arc<ClientCirc>>
+    where
+        Tg: tor_linkspec::CircTarget,
+    {
+        // (See note in ClientCirc::extend.)
+        if target
+            .protovers()
+            .supports_named_subver(named::RELAY_NTORV3)
+        {
+            self.create_firsthop_ntor_v3(target, params).await
+        } else {
+            self.create_firsthop_ntor(target, params).await
+        }
+    }
+
     /// Use the ntor handshake to connect to the first hop of this circuit.
     ///
     /// Note that the provided 'target' must match the channel's target,
