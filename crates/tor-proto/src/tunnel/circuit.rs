@@ -69,6 +69,7 @@ use tor_cell::{
 
 use tor_error::{internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
+use tor_protover::named;
 
 pub use crate::crypto::binding::CircuitBinding;
 pub use crate::memquota::StreamAccount;
@@ -602,6 +603,33 @@ impl ClientCirc {
 
             IncomingStream::new(req, target, reader, memquota)
         }))
+    }
+
+    /// Extend the circuit, via the most appropriate circuit extension handshake,
+    /// to the chosen `target` hop.
+    pub async fn extend<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
+    where
+        Tg: CircTarget,
+    {
+        // For now we use the simplest decision-making mechanism:
+        // we use ntor_v3 whenever it is present; and otherwise we use ntor.
+        //
+        // This behavior is slightly different from C tor, which uses ntor v3
+        // only whenever it want to send any extension in the circuit message.
+        // But thanks to congestion control (named::FLOWCTRL_CC), we'll _always_
+        // want to use an extension if we can, and so it doesn't make too much
+        // sense to detect the case where we have no extensions.
+        //
+        // (As of April 2025, RELAY_NTORV3 is not yet listed as Required for relays
+        // on the tor network, and so we cannot simply assume that everybody has it.)
+        if target
+            .protovers()
+            .supports_named_subver(named::RELAY_NTORV3)
+        {
+            self.extend_ntor_v3(target, params).await
+        } else {
+            self.extend_ntor(target, params).await
+        }
     }
 
     /// Extend the circuit via the ntor handshake to a new target last
