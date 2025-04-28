@@ -72,7 +72,9 @@ $ cargo build --locked --target aarch64-apple-ios-sim
 $ cargo build --locked --target x86_64-apple-ios
 ```
 
-You can add `--release` to each of this commands to build release libs that are smaller and faster, but take longer to compile.
+You can add `--release` to each of this commands to build release libs that
+are faster, but take longer to compile.
+You can use `--profile=release-small` to prioritize size over speed.
 
 ## The Swift part
 
