@@ -83,7 +83,7 @@ hmac = "0.12.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 polyval = { version = "0.6", optional = true }
-rand = "0.9"
+rand = "0.9.0"
 rand_core = "0.9.3"
 safelog = { path = "../safelog", version = "0.4.5" }
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
