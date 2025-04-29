@@ -18,9 +18,6 @@ use tor_error::internal;
 
 use crate::{Error, Result};
 
-/// XXXX Replace this properly.
-pub(crate) use tor_cell::relaycell::msg::SendmeTag as CircTag;
-
 /// A circuit's send window.
 pub(crate) type CircSendWindow = SendWindow<CircParams>;
 /// A stream's send window.

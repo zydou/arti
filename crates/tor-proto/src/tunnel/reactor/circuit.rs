@@ -4,7 +4,7 @@ pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
-use crate::congestion::sendme::{self, CircTag};
+use crate::congestion::sendme;
 use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
@@ -39,7 +39,7 @@ use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::chancell::{AnyChanCell, ChanCmd, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
 use tor_cell::relaycell::extend::NtorV3Extension;
-use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, Truncated};
+use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, SendmeTag, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
     StreamId, UnparsedRelayMsg,
@@ -509,7 +509,7 @@ impl Circuit {
     fn decode_relay_cell(
         &mut self,
         cell: Relay,
-    ) -> Result<(HopNum, CircTag, RelayCellDecoderResult)> {
+    ) -> Result<(HopNum, SendmeTag, RelayCellDecoderResult)> {
         // This is always RELAY, not RELAY_EARLY, so long as this code is client-only.
         let cmd = cell.cmd();
         let mut body = cell.into_relay_body().into();
@@ -520,8 +520,8 @@ impl Circuit {
         // Make a copy of the authentication tag. TODO: I'd rather not
         // copy it, but I don't see a way around it right now.
         // XXXX Generate a SendmeTag earlier.
-        let tag =
-            CircTag::try_from(tag).expect("Invalid length on an authentication tag we generated.");
+        let tag = SendmeTag::try_from(tag)
+            .expect("Invalid length on an authentication tag we generated.");
 
         // Decode the cell.
         let decode_res = self
@@ -1788,7 +1788,7 @@ impl CircHop {
 
     /// Delegate to CongestionControl, for testing purposes
     #[cfg(test)]
-    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<CircTag>) {
+    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
         self.ccontrol.send_window_and_expected_tags()
     }
 

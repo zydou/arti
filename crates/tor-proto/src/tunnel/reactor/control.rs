@@ -31,7 +31,7 @@ use {
 };
 
 #[cfg(test)]
-use crate::congestion::sendme::CircTag;
+use tor_cell::relaycell::msg::SendmeTag;
 
 #[cfg(feature = "conflux")]
 use super::{Circuit, ConfluxLinkResultChannel};
@@ -261,7 +261,7 @@ pub(crate) enum CtrlCmd {
     #[cfg(test)]
     QuerySendWindow {
         hop: HopNum,
-        done: ReactorResultChannel<(u32, Vec<CircTag>)>,
+        done: ReactorResultChannel<(u32, Vec<SendmeTag>)>,
     },
     /// Shut down the reactor, and return the underlying [`Circuit`],
     /// if the tunnel is not multi-path.

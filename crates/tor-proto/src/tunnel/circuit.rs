@@ -1229,7 +1229,6 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
-    use crate::congestion::sendme;
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
@@ -1248,6 +1247,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody, ChanCmd};
     use tor_cell::relaycell::extend::NtorV3Extension;
+    use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
     };
@@ -2063,17 +2063,17 @@ pub(crate) mod test {
                 // 100
                 assert_eq!(
                     tags[0],
-                    sendme::CircTag::from(hex!("6400000000000000000000000000000000000000"))
+                    SendmeTag::from(hex!("6400000000000000000000000000000000000000"))
                 );
                 // 200
                 assert_eq!(
                     tags[1],
-                    sendme::CircTag::from(hex!("c800000000000000000000000000000000000000"))
+                    SendmeTag::from(hex!("c800000000000000000000000000000000000000"))
                 );
                 // 300
                 assert_eq!(
                     tags[2],
-                    sendme::CircTag::from(hex!("2c01000000000000000000000000000000000000"))
+                    SendmeTag::from(hex!("2c01000000000000000000000000000000000000"))
                 );
             }
 

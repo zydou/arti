@@ -34,8 +34,9 @@ use crate::{Error, Result};
 use self::{
     params::{Algorithm, CongestionControlParams, CongestionWindowParams},
     rtt::RoundtripTimeEstimator,
-    sendme::{CircTag, SendmeValidator},
+    sendme::SendmeValidator,
 };
+use tor_cell::relaycell::msg::SendmeTag;
 
 /// This trait defines what a congestion control algorithm must implement in order to interface
 /// with the circuit reactor.
@@ -261,7 +262,7 @@ pub(crate) struct CongestionControl {
     /// This is the SENDME validator as in it keeps track of the circuit tag found within an
     /// authenticated SENDME cell. It can store the tags and validate a tag against our queue of
     /// expected values.
-    sendme_validator: SendmeValidator<CircTag>,
+    sendme_validator: SendmeValidator<SendmeTag>,
     /// The RTT estimator for the circuit we are attached on.
     rtt: RoundtripTimeEstimator,
     /// The congestion control algorithm.
@@ -304,7 +305,7 @@ impl CongestionControl {
     /// An error is returned if there is a protocol violation with regards to congestion control.
     pub(crate) fn note_sendme_received(
         &mut self,
-        tag: CircTag,
+        tag: SendmeTag,
         signals: CongestionSignals,
     ) -> Result<()> {
         // This MUST be the first thing that we do that is validate the SENDME. Any error leads to
@@ -344,7 +345,7 @@ impl CongestionControl {
     /// control.
     pub(crate) fn note_data_sent<U>(&mut self, tag: &U) -> Result<()>
     where
-        U: Clone + Into<CircTag>,
+        U: Clone + Into<SendmeTag>,
     {
         // Inform the algorithm that the data was just sent. This is important to be the very first
         // thing so the congestion window can be updated accordingly making the following calls
@@ -407,13 +408,13 @@ mod test {
 
     use crate::congestion::test_utils::new_cwnd;
 
-    use super::sendme::CircTag;
     use super::CongestionControl;
+    use tor_cell::relaycell::msg::SendmeTag;
 
     impl CongestionControl {
         /// For testing: get a copy of the current send window, and the
         /// expected incoming tags.
-        pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<CircTag>) {
+        pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
             (
                 self.algorithm.send_window(),
                 self.sendme_validator.expected_tags(),
