@@ -2943,7 +2943,11 @@ mod test {
         // in the presence of items whose weight is 0.
         //
         // We think that the behavior is:
-        //   - nothing with weight 0 is ever returned.
+        //   - An item with weight 0 is never returned.
+        //   - If all items have weight 0, choose_weighted returns an error.
+        //   - If all items have weight 0, choose_multiple_weighted returns an empty list.
+        //   - If we request n items from choose_multiple_weighted,
+        //     but only m<n items have nonzero weight, we return all m of those items.
         //   - if the request for n items can't be completely satisfied with n items of weight >= 0,
         //     we get InsufficientNonZero.
         let items = vec![1, 2, 3];
@@ -2953,11 +2957,13 @@ mod test {
         assert!(matches!(a, Err(WeightError::InsufficientNonZero)));
 
         let x = items.choose_multiple_weighted(&mut rng, 2, |_| 0);
-        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+        let xs: Vec<_> = x.unwrap().collect();
+        assert!(xs.is_empty());
 
         let only_one = |n: &i32| if *n == 1 { 1 } else { 0 };
         let x = items.choose_multiple_weighted(&mut rng, 2, only_one);
-        assert!(matches!(x, Err(WeightError::InsufficientNonZero)));
+        let xs: Vec<_> = x.unwrap().collect();
+        assert_eq!(&xs[..], &[&1]);
 
         for _ in 0..100 {
             let a = items.choose_weighted(&mut rng, only_one);
