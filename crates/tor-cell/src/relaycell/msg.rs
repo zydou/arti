@@ -754,10 +754,8 @@ impl Sendme {
         }
     }
     /// Consume this cell and return its authentication tag, if any
-    ///
-    /// TODO: This function does too much copying and allocating.
-    pub fn into_tag(self) -> Option<Vec<u8>> {
-        self.tag.as_ref().map(|t| t.as_ref().into())
+    pub fn into_sendme_tag(self) -> Option<SendmeTag> {
+        self.tag
     }
 }
 impl From<SendmeTag> for Sendme {

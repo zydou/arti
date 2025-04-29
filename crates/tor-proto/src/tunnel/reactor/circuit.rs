@@ -519,13 +519,9 @@ impl Circuit {
         let (hopnum, tag) = self.crypto_in.decrypt(cmd, &mut body)?;
         // Make a copy of the authentication tag. TODO: I'd rather not
         // copy it, but I don't see a way around it right now.
-        let tag = {
-            let mut tag_copy = [0_u8; SENDME_TAG_LEN];
-            // TODO(nickm): This could crash if the tag length changes.  We'll
-            // have to refactor it then.
-            tag_copy.copy_from_slice(tag);
-            tag_copy
-        };
+        // XXXX Generate a SendmeTag earlier.
+        let tag =
+            CircTag::try_from(tag).expect("Invalid length on an authentication tag we generated.");
 
         // Decode the cell.
         let decode_res = self
@@ -540,7 +536,7 @@ impl Circuit {
             .decode(body.into())
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
 
-        Ok((hopnum, tag.into(), decode_res))
+        Ok((hopnum, tag, decode_res))
     }
 
     /// React to a Relay or RelayEarly cell.
@@ -571,7 +567,7 @@ impl Circuit {
             // that SendmeEmitMinVersion is no more than 1.  If the authorities
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
-            let sendme = Sendme::new_tag(tag.into());
+            let sendme = Sendme::from(tag);
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
             circ_cmds.push(CircuitCmd::Send(SendRelayCell {
                 hop: hopnum,
@@ -1396,15 +1392,10 @@ impl Circuit {
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto(format!("Couldn't find hop {}", hopnum.display())))?;
 
-        let tag = match msg.into_tag() {
-            Some(v) => CircTag::try_from(v.as_slice())
-                .map_err(|_| Error::CircProto("malformed tag on circuit sendme".into()))?,
-            None => {
+        let tag = msg.into_sendme_tag().ok_or_else(||
                 // Versions of Tor <=0.3.5 would omit a SENDME tag in this case;
                 // but we don't support those any longer.
-                return Err(Error::CircProto("missing tag on circuit sendme".into()));
-            }
-        };
+                 Error::CircProto("missing tag on circuit sendme".into()))?;
         // Update the CC object that we received a SENDME along with possible congestion signals.
         hop.ccontrol.note_sendme_received(tag, signals)?;
         Ok(None)
