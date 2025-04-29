@@ -54,7 +54,7 @@ ed25519-dalek = { version = "2.1", features = ["batch", "hazmat"] }
 educe = "0.4.22"
 hex = "0.4"
 openssl = { version = "0.10.48", optional = true }
-rand = "0.9"
+rand = "0.9.0"
 rand_core = "0.9.3"
 rand_core_06 = { package = "rand_core", version = "0.6" }
 rsa = "0.9.0"
@@ -83,7 +83,7 @@ rand_chacha = "0.9"
 [dev-dependencies]
 cipher = "0.4.1"
 hex-literal = "0.4"
-rand = "0.9"
+rand = "0.9.0"
 serde_test = "1.0.124"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.29.0" }
 
