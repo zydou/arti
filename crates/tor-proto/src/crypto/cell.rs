@@ -631,7 +631,17 @@ mod test {
     integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
 
     #[cfg(feature = "counter-galois-onion")]
-    integration_tests! { cgo_aes128(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes128>, cgo::CryptStatePair<aes::Aes128>) }
+    integration_tests! {
+        cgo_aes128(RelayCellFormat::V1,
+            cgo::CryptStatePair<aes::Aes128Dec, aes::Aes128Enc>,// client
+            cgo::CryptStatePair<aes::Aes128Enc, aes::Aes128Enc> // relay
+        )
+    }
     #[cfg(feature = "counter-galois-onion")]
-    integration_tests! { cgo_aes256(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes256>, cgo::CryptStatePair<aes::Aes256>) }
+    integration_tests! {
+        cgo_aes256(RelayCellFormat::V1,
+            cgo::CryptStatePair<aes::Aes256Dec, aes::Aes256Enc>,// client
+            cgo::CryptStatePair<aes::Aes256Enc, aes::Aes256Enc> // relay
+        )
+    }
 }
