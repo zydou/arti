@@ -3745,6 +3745,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
+name = "opaque-debug"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
+
+[[package]]
 name = "openssl"
 version = "0.10.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4091,6 +4097,18 @@ dependencies = [
  "rustix 0.38.44",
  "tracing",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "polyval"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d1fe60d06143b2430aa532c94cfe9e29783047f06c0d7fd359a9a51b729fa25"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "opaque-debug",
+ "universal-hash",
 ]
 
 [[package]]
@@ -6625,6 +6643,7 @@ dependencies = [
 name = "tor-proto"
 version = "0.29.0"
 dependencies = [
+ "aes",
  "amplify",
  "asynchronous-codec",
  "bitvec",
@@ -6635,6 +6654,7 @@ dependencies = [
  "coarsetime",
  "cpu-time",
  "criterion",
+ "ctr",
  "derive-deftly 1.0.1",
  "derive_builder_fork_arti",
  "derive_more",
@@ -6650,6 +6670,7 @@ dependencies = [
  "itertools 0.14.0",
  "oneshot-fused-workaround",
  "pin-project",
+ "polyval",
  "rand 0.9.0",
  "rand_core 0.9.3",
  "regex",
@@ -7128,6 +7149,16 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
+
+[[package]]
+name = "universal-hash"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
+dependencies = [
+ "crypto-common",
+ "subtle",
+]
 
 [[package]]
 name = "untrusted"

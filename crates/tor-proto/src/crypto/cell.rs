@@ -30,13 +30,14 @@
 //! should work for all current future versions of the relay cell crypto design.
 //! The current Tor protocols are instantiated in a `tor1` submodule.
 
+#[cfg(feature = "counter-galois-onion")]
+pub(crate) mod cgo;
+pub(crate) mod tor1;
+
 use crate::{Error, Result};
 use derive_deftly::Deftly;
-use tor_cell::chancell::BoxedCellBody;
-use tor_error::internal;
+use tor_cell::{chancell::BoxedCellBody, chancell::ChanCmd};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
-
-use digest::generic_array::GenericArray;
 
 use super::binding::CircuitBinding;
 
@@ -80,20 +81,42 @@ where
 {
     /// Consume this ClientLayer and return a paired forward and reverse
     /// crypto layer, and a [`CircuitBinding`] object
-    fn split(self) -> (F, B, CircuitBinding);
+    fn split_client_layer(self) -> (F, B, CircuitBinding);
 }
 
-/// Represents a relay's view of the crypto state on a given circuit.
-#[allow(dead_code)] // TODO #1383 ????
-pub(crate) trait RelayCrypt {
-    /// Prepare a RelayCellBody to be sent towards the client.
-    fn originate(&mut self, cell: &mut RelayCellBody);
+/// A paired object containing the inbound and outbound cryptographic layers
+/// used by a relay to implement a client's circuits.
+///
+#[allow(dead_code)] // To be used by relays.
+pub(crate) trait RelayLayer<F, B>
+where
+    F: OutboundRelayLayer,
+    B: InboundRelayLayer,
+{
+    /// Consume this ClientLayer and return a paired forward and reverse
+    /// crypto layers, and a [`CircuitBinding`] object
+    fn split_relay_layer(self) -> (F, B, CircuitBinding);
+}
+
+/// Represents a relay's view of the inbound crypto state on a given circuit.
+#[allow(dead_code)] // Relays are not yet implemented.
+pub(crate) trait InboundRelayLayer {
+    /// Prepare a RelayCellBody to be sent towards the client,
+    /// and encrypt it.
+    ///
+    /// Return the authentication tag.
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
     /// Encrypt a RelayCellBody that is moving towards the client.
-    fn encrypt_inbound(&mut self, cell: &mut RelayCellBody);
+    fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
+}
+
+/// Represent a relay's view of the outbound crypto state on a given circuit.
+#[allow(dead_code)]
+pub(crate) trait OutboundRelayLayer {
     /// Decrypt a RelayCellBody that is moving towards the client.
     ///
-    /// Return true if it is addressed to us.
-    fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool;
+    /// Return an authentication tag if it is addressed to us.
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
 }
 
 /// A client's view of the cryptographic state shared with a single relay on a
@@ -103,9 +126,9 @@ pub(crate) trait OutboundClientLayer {
     /// encrypt it.
     ///
     /// Return the authentication tag.
-    fn originate_for(&mut self, cell: &mut RelayCellBody) -> &[u8];
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
     /// Encrypt a RelayCellBody to be decrypted by this layer.
-    fn encrypt_outbound(&mut self, cell: &mut RelayCellBody);
+    fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
 
 /// A client's view of the crypto state shared with a single relay on a circuit,
@@ -114,7 +137,7 @@ pub(crate) trait InboundClientLayer {
     /// Decrypt a CellBody that passed through this layer.
     ///
     /// Return an authentication tag if this layer is the originator.
-    fn decrypt_inbound(&mut self, cell: &mut RelayCellBody) -> Option<&[u8]>;
+    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
 }
 
 /// Type to store hop indices on a circuit.
@@ -205,6 +228,7 @@ impl OutboundClientCrypt {
     /// for an authenticated SENDME sent in response to this cell.
     pub(crate) fn encrypt(
         &mut self,
+        cmd: ChanCmd,
         cell: &mut RelayCellBody,
         hop: HopNum,
     ) -> Result<&[u8; SENDME_TAG_LEN]> {
@@ -215,9 +239,9 @@ impl OutboundClientCrypt {
 
         let mut layers = self.layers.iter_mut().take(hop + 1).rev();
         let first_layer = layers.next().ok_or(Error::NoSuchHop)?;
-        let tag = first_layer.originate_for(cell);
+        let tag = first_layer.originate_for(cmd, cell);
         for layer in layers {
-            layer.encrypt_outbound(cell);
+            layer.encrypt_outbound(cmd, cell);
         }
         Ok(tag.try_into().expect("wrong SENDME digest size"))
     }
@@ -243,9 +267,13 @@ impl InboundClientCrypt {
     ///
     /// On success, return which hop was the originator of the cell.
     // TODO(nickm): Use a real type for the tag, not just `&[u8]`.
-    pub(crate) fn decrypt(&mut self, cell: &mut RelayCellBody) -> Result<(HopNum, &[u8])> {
+    pub(crate) fn decrypt(
+        &mut self,
+        cmd: ChanCmd,
+        cell: &mut RelayCellBody,
+    ) -> Result<(HopNum, &[u8])> {
         for (hopnum, layer) in self.layers.iter_mut().enumerate() {
-            if let Some(tag) = layer.decrypt_inbound(cell) {
+            if let Some(tag) = layer.decrypt_inbound(cmd, cell) {
                 let hopnum = HopNum(u8::try_from(hopnum).expect("Somehow > 255 hops"));
                 return Ok((hopnum, tag));
             }
@@ -278,318 +306,6 @@ pub(crate) type Tor1RelayCrypto<RCF> =
 pub(crate) type Tor1Hsv3RelayCrypto<RCF> =
     tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes256Ctr, tor_llcrypto::d::Sha3_256, RCF>;
 
-/// An implementation of Tor's current relay cell cryptography.
-///
-/// These are not very good algorithms; they were the best we could come up with
-/// in ~2002.  They are somewhat inefficient, and vulnerable to tagging attacks.
-/// They should get replaced within the next several years.  For information on
-/// some older proposed alternatives so far, see proposals 261, 295, and 298.
-///
-/// I am calling this design `tor1`; it does not have a generally recognized
-/// name.
-pub(crate) mod tor1 {
-    use std::marker::PhantomData;
-
-    use crate::crypto::binding::CIRC_BINDING_LEN;
-
-    use super::*;
-    use cipher::{KeyIvInit, StreamCipher};
-    use digest::Digest;
-    use tor_cell::relaycell::{RelayCellFields, RelayCellFormatTrait};
-    use typenum::Unsigned;
-
-    /// A CryptState represents one layer of shared cryptographic state between
-    /// a relay and a client for a single hop, in a single direction.
-    ///
-    /// For example, if a client makes a 3-hop circuit, then it will have 6
-    /// `CryptState`s, one for each relay, for each direction of communication.
-    ///
-    /// Note that although `CryptState` implements [`OutboundClientLayer`],
-    /// [`InboundClientLayer`], and [`RelayCrypt`], any single `CryptState`
-    /// instance will only be used for one of these roles.
-    ///
-    /// It is parameterized on a stream cipher and a digest type: most circuits
-    /// will use AES-128-CTR and SHA1, but v3 onion services use AES-256-CTR and
-    /// SHA-3.
-    pub(crate) struct CryptState<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> {
-        /// Stream cipher for en/decrypting cell bodies.
-        ///
-        /// This cipher is the one keyed with Kf or Kb in the spec.
-        cipher: SC,
-        /// Digest for authenticating cells to/from this hop.
-        ///
-        /// This digest is the one keyed with Df or Db in the spec.
-        digest: D,
-        /// Most recent digest value generated by this crypto.
-        last_digest_val: GenericArray<u8, D::OutputSize>,
-        /// The format used for relay cells at this layer.
-        relay_cell_format: PhantomData<RCF>,
-    }
-
-    /// A pair of CryptStates shared between a client and a relay, one for the
-    /// outbound (away from the client) direction, and one for the inbound
-    /// (towards the client) direction.
-    pub(crate) struct CryptStatePair<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> {
-        /// State for en/decrypting cells sent away from the client.
-        fwd: CryptState<SC, D, RCF>,
-        /// State for en/decrypting cells sent towards the client.
-        back: CryptState<SC, D, RCF>,
-        /// A circuit binding key.
-        binding: CircuitBinding,
-    }
-
-    impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone, RCF: RelayCellFormatTrait> CryptInit
-        for CryptStatePair<SC, D, RCF>
-    {
-        fn seed_len() -> usize {
-            SC::KeySize::to_usize() * 2 + D::OutputSize::to_usize() * 2 + CIRC_BINDING_LEN
-        }
-        fn initialize(mut seed: &[u8]) -> Result<Self> {
-            // This corresponds to the use of the KDF algorithm as described in
-            // tor-spec 5.2.2
-            if seed.len() != Self::seed_len() {
-                return Err(Error::from(internal!(
-                    "seed length {} was invalid",
-                    seed.len()
-                )));
-            }
-
-            // Advances `seed` by `n` bytes, returning the advanced bytes
-            let mut take_seed = |n: usize| -> &[u8] {
-                let res = &seed[..n];
-                seed = &seed[n..];
-                res
-            };
-
-            let dlen = D::OutputSize::to_usize();
-            let keylen = SC::KeySize::to_usize();
-
-            let df = take_seed(dlen);
-            let db = take_seed(dlen);
-            let kf = take_seed(keylen);
-            let kb = take_seed(keylen);
-            let binding_key = take_seed(CIRC_BINDING_LEN);
-
-            let fwd = CryptState {
-                cipher: SC::new(kf.into(), &Default::default()),
-                digest: D::new().chain_update(df),
-                last_digest_val: GenericArray::default(),
-                relay_cell_format: PhantomData,
-            };
-            let back = CryptState {
-                cipher: SC::new(kb.into(), &Default::default()),
-                digest: D::new().chain_update(db),
-                last_digest_val: GenericArray::default(),
-                relay_cell_format: PhantomData,
-            };
-            let binding = CircuitBinding::try_from(binding_key)?;
-
-            Ok(CryptStatePair { fwd, back, binding })
-        }
-    }
-
-    impl<SC, D, RCF> ClientLayer<CryptState<SC, D, RCF>, CryptState<SC, D, RCF>>
-        for CryptStatePair<SC, D, RCF>
-    where
-        SC: StreamCipher,
-        D: Digest + Clone,
-        RCF: RelayCellFormatTrait,
-    {
-        fn split(
-            self,
-        ) -> (
-            CryptState<SC, D, RCF>,
-            CryptState<SC, D, RCF>,
-            CircuitBinding,
-        ) {
-            (self.fwd, self.back, self.binding)
-        }
-    }
-
-    impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> RelayCrypt
-        for CryptStatePair<SC, D, RCF>
-    {
-        fn originate(&mut self, cell: &mut RelayCellBody) {
-            let mut d_ignored = GenericArray::default();
-            cell.set_digest::<_, RCF>(&mut self.back.digest, &mut d_ignored);
-        }
-        fn encrypt_inbound(&mut self, cell: &mut RelayCellBody) {
-            // This is describe in tor-spec 5.5.3.1, "Relaying Backward at Onion Routers"
-            self.back.cipher.apply_keystream(cell.as_mut());
-        }
-        fn decrypt_outbound(&mut self, cell: &mut RelayCellBody) -> bool {
-            // This is describe in tor-spec 5.5.2.2, "Relaying Forward at Onion Routers"
-            self.fwd.cipher.apply_keystream(cell.as_mut());
-            let mut d_ignored = GenericArray::default();
-            cell.is_recognized::<_, RCF>(&mut self.fwd.digest, &mut d_ignored)
-        }
-    }
-
-    impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> OutboundClientLayer
-        for CryptState<SC, D, RCF>
-    {
-        fn originate_for(&mut self, cell: &mut RelayCellBody) -> &[u8] {
-            cell.set_digest::<_, RCF>(&mut self.digest, &mut self.last_digest_val);
-            self.encrypt_outbound(cell);
-            // Note that we truncate the authentication tag here if we are using
-            // a digest with a more-than-20-byte length.
-            &self.last_digest_val[..SENDME_TAG_LEN]
-        }
-        fn encrypt_outbound(&mut self, cell: &mut RelayCellBody) {
-            // This is a single iteration of the loop described in tor-spec
-            // 5.5.2.1, "routing away from the origin."
-            self.cipher.apply_keystream(&mut cell.0[..]);
-        }
-    }
-
-    impl<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait> InboundClientLayer
-        for CryptState<SC, D, RCF>
-    {
-        fn decrypt_inbound(&mut self, cell: &mut RelayCellBody) -> Option<&[u8]> {
-            // This is a single iteration of the loop described in tor-spec
-            // 5.5.3, "routing to the origin."
-            self.cipher.apply_keystream(&mut cell.0[..]);
-            if cell.is_recognized::<_, RCF>(&mut self.digest, &mut self.last_digest_val) {
-                Some(&self.last_digest_val[..SENDME_TAG_LEN])
-            } else {
-                None
-            }
-        }
-    }
-
-    /// Functions on RelayCellBody that implement the digest/recognized
-    /// algorithm.
-    ///
-    /// The current relay crypto protocol uses two wholly inadequate fields to
-    /// see whether a cell is intended for its current recipient: a two-byte
-    /// "recognized" field that needs to be all-zero; and a four-byte "digest"
-    /// field containing a running digest of all cells (for this recipient) to
-    /// this one, seeded with an initial value (either Df or Db in the spec).
-    ///
-    /// These operations is described in tor-spec section 6.1 "Relay cells"
-    //
-    // TODO: It may be that we should un-parameterize the functions
-    // that use RCF: given our timeline for deployment of CGO encryption,
-    // it is likely that we will never actually want to  support `tor1` encryption
-    // with any other format than RelayCellFormat::V0.
-    impl RelayCellBody {
-        /// Returns the byte slice of the `recognized` field.
-        fn recognized<RCF: RelayCellFormatTrait>(&self) -> &[u8] {
-            &self.0[RCF::FIELDS::RECOGNIZED_RANGE]
-        }
-        /// Returns the mut byte slice of the `recognized` field.
-        fn recognized_mut<RCF: RelayCellFormatTrait>(&mut self) -> &mut [u8] {
-            &mut self.0[RCF::FIELDS::RECOGNIZED_RANGE]
-        }
-        /// Returns the byte slice of the `digest` field.
-        fn digest<RCF: RelayCellFormatTrait>(&self) -> &[u8] {
-            &self.0[RCF::FIELDS::DIGEST_RANGE]
-        }
-        /// Returns the mut byte slice of the `digest` field.
-        fn digest_mut<RCF: RelayCellFormatTrait>(&mut self) -> &mut [u8] {
-            &mut self.0[RCF::FIELDS::DIGEST_RANGE]
-        }
-        /// Prepare a cell body by setting its digest and recognized field.
-        fn set_digest<D: Digest + Clone, RCF: RelayCellFormatTrait>(
-            &mut self,
-            d: &mut D,
-            used_digest: &mut GenericArray<u8, D::OutputSize>,
-        ) {
-            self.recognized_mut::<RCF>().fill(0); // Set 'Recognized' to zero
-            self.digest_mut::<RCF>().fill(0); // Set Digest to zero
-
-            d.update(&self.0[..]);
-            // TODO(nickm) can we avoid this clone?  Probably not.
-            *used_digest = d.clone().finalize();
-            let used_digest_prefix = &used_digest[0..RCF::FIELDS::DIGEST_RANGE.len()];
-            self.digest_mut::<RCF>().copy_from_slice(used_digest_prefix);
-        }
-        /// Check whether this just-decrypted cell is now an authenticated plaintext.
-        ///
-        /// This method returns true if the `recognized` field is all zeros, and if the
-        /// `digest` field is a digest of the correct material.
-        ///
-        /// If this method returns false, then either further decryption is required,
-        /// or the cell is corrupt.
-        // TODO #1336: Further optimize and/or benchmark this.
-        fn is_recognized<D: Digest + Clone, RCF: RelayCellFormatTrait>(
-            &self,
-            d: &mut D,
-            rcvd: &mut GenericArray<u8, D::OutputSize>,
-        ) -> bool {
-            use crate::util::ct;
-
-            // Validate 'Recognized' field
-            if !ct::is_zero(self.recognized::<RCF>()) {
-                return false;
-            }
-
-            // Now also validate the 'Digest' field:
-
-            let mut dtmp = d.clone();
-            // Add bytes up to the 'Digest' field
-            dtmp.update(&self.0[..RCF::FIELDS::DIGEST_RANGE.start]);
-            // Add zeroes where the 'Digest' field is
-            dtmp.update(RCF::FIELDS::EMPTY_DIGEST);
-            // Add the rest of the bytes
-            dtmp.update(&self.0[RCF::FIELDS::DIGEST_RANGE.end..]);
-            // Clone the digest before finalize destroys it because we will use
-            // it in the future
-            let dtmp_clone = dtmp.clone();
-            let result = dtmp.finalize();
-
-            if ct::bytes_eq(
-                self.digest::<RCF>(),
-                &result[0..RCF::FIELDS::DIGEST_RANGE.len()],
-            ) {
-                // Copy useful things out of this cell (we keep running digest)
-                *d = dtmp_clone;
-                *rcvd = result;
-                return true;
-            }
-
-            false
-        }
-    }
-
-    /// Benchmark utilities for the `tor1` module.
-    #[cfg(feature = "bench")]
-    pub(crate) mod bench_utils {
-        use super::*;
-
-        /// Public wrapper around the `RelayCellBody` struct.
-        #[repr(transparent)]
-        pub struct RelayBody(pub(in crate::crypto) RelayCellBody);
-
-        impl From<[u8; 509]> for RelayBody {
-            fn from(body: [u8; 509]) -> Self {
-                let body = Box::new(body);
-                Self(body.into())
-            }
-        }
-
-        impl RelayBody {
-            /// Public wrapper around the `set_digest` method of the `RelayCellBody` struct.
-            pub fn set_digest<D: Digest + Clone, RCF: RelayCellFormatTrait>(
-                &mut self,
-                d: &mut D,
-                used_digest: &mut GenericArray<u8, D::OutputSize>,
-            ) {
-                self.0.set_digest::<D, RCF>(d, used_digest);
-            }
-
-            /// Public wrapper around the `is_recognized` method of the `RelayCellBody` struct.
-            pub fn is_recognized<D: Digest + Clone, RCF: RelayCellFormatTrait>(
-                &self,
-                d: &mut D,
-                rcvd: &mut GenericArray<u8, D::OutputSize>,
-            ) -> bool {
-                self.0.is_recognized::<D, RCF>(d, rcvd)
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -605,19 +321,22 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use super::*;
-    use rand::RngCore;
-    use tor_basic_utils::test_rng::testing_rng;
-    use tor_bytes::SecretBuf;
-    use tor_cell::relaycell::RelayCellFormatV0;
 
-    fn add_layers(
+    use super::*;
+    use rand::{seq::IndexedRandom as _, RngCore};
+    use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
+    use tor_bytes::SecretBuf;
+    use tor_cell::relaycell::{
+        RelayCellFields, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
+    };
+
+    pub(crate) fn add_layers(
         cc_out: &mut OutboundClientCrypt,
         cc_in: &mut InboundClientCrypt,
         // TODO #1067: test other formats
         pair: Tor1RelayCrypto<RelayCellFormatV0>,
     ) {
-        let (outbound, inbound, _) = pair.split();
+        let (outbound, inbound, _) = pair.split_relay_layer();
         cc_out.add_layer(Box::new(outbound));
         cc_in.add_layer(Box::new(inbound));
     }
@@ -649,6 +368,7 @@ mod test {
         let mut r1 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed1)).unwrap();
         let mut r2 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed2)).unwrap();
         let mut r3 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed3)).unwrap();
+        let cmd = ChanCmd::RELAY;
 
         let mut rng = testing_rng();
         for _ in 1..300 {
@@ -658,11 +378,11 @@ mod test {
             rng.fill_bytes(&mut cell_orig);
             cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
-            let _tag = cc_out.encrypt(&mut cell, 2.into()).unwrap();
+            let _tag = cc_out.encrypt(cmd, &mut cell, 2.into()).unwrap();
             assert_ne!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
-            assert!(!r1.decrypt_outbound(&mut cell));
-            assert!(!r2.decrypt_outbound(&mut cell));
-            assert!(r3.decrypt_outbound(&mut cell));
+            assert!(r1.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r2.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r3.decrypt_outbound(cmd, &mut cell).is_some());
 
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
@@ -673,11 +393,10 @@ mod test {
             cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
 
-            r3.originate(&mut cell);
-            r3.encrypt_inbound(&mut cell);
-            r2.encrypt_inbound(&mut cell);
-            r1.encrypt_inbound(&mut cell);
-            let (layer, _tag) = cc_in.decrypt(&mut cell).unwrap();
+            r3.originate(cmd, &mut cell);
+            r2.encrypt_inbound(cmd, &mut cell);
+            r1.encrypt_inbound(cmd, &mut cell);
+            let (layer, _tag) = cc_in.decrypt(cmd, &mut cell).unwrap();
             assert_eq!(layer, 2.into());
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
@@ -687,68 +406,15 @@ mod test {
         // Try a failure: sending a cell to a nonexistent hop.
         {
             let mut cell = Box::new([0_u8; 509]).into();
-            let err = cc_out.encrypt(&mut cell, 10.into());
+            let err = cc_out.encrypt(cmd, &mut cell, 10.into());
             assert!(matches!(err, Err(Error::NoSuchHop)));
         }
 
         // Try a failure: A junk cell with no correct auth from any layer.
         {
             let mut cell = Box::new([0_u8; 509]).into();
-            let err = cc_in.decrypt(&mut cell);
+            let err = cc_in.decrypt(cmd, &mut cell);
             assert!(matches!(err, Err(Error::BadCellAuth)));
-        }
-    }
-
-    // From tor's test_relaycrypt.c
-
-    #[test]
-    fn testvec() {
-        use digest::XofReader;
-        use digest::{ExtendableOutput, Update};
-
-        // (The ....s at the end here are the KH ca)
-        const K1: &[u8; 92] =
-            b"    'My public key is in this signed x509 object', said Tom assertively.      (N-PREG-VIRYL)";
-        const K2: &[u8; 92] =
-            b"'Let's chart the pedal phlanges in the tomb', said Tom cryptographically.  (PELCG-GBR-TENCU)";
-        const K3: &[u8; 92] =
-            b"     'Segmentation fault bugs don't _just happen_', said Tom seethingly.        (P-GUVAT-YL)";
-
-        const SEED: &[u8;108] = b"'You mean to tell me that there's a version of Sha-3 with no limit on the output length?', said Tom shakily.";
-
-        // These test vectors were generated from Tor.
-        let data: &[(usize, &str)] = &include!("../../testdata/cell_crypt.rs");
-
-        let mut cc_out = OutboundClientCrypt::new();
-        let mut cc_in = InboundClientCrypt::new();
-        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K1[..]).unwrap();
-        add_layers(&mut cc_out, &mut cc_in, pair);
-        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K2[..]).unwrap();
-        add_layers(&mut cc_out, &mut cc_in, pair);
-        let pair = Tor1RelayCrypto::<RelayCellFormatV0>::initialize(&K3[..]).unwrap();
-        add_layers(&mut cc_out, &mut cc_in, pair);
-
-        let mut xof = tor_llcrypto::d::Shake256::default();
-        xof.update(&SEED[..]);
-        let mut stream = xof.finalize_xof();
-
-        let mut j = 0;
-        for cellno in 0..51 {
-            let mut body = Box::new([0_u8; 509]);
-            body[0] = 2; // command: data.
-            body[4] = 1; // streamid: 1.
-            body[9] = 1; // length: 498
-            body[10] = 242;
-            stream.read(&mut body[11..]);
-
-            let mut cell = body.into();
-            let _ = cc_out.encrypt(&mut cell, 2.into());
-
-            if cellno == data[j].0 {
-                let expected = hex::decode(data[j].1).unwrap();
-                assert_eq!(cell.as_ref(), &expected[..]);
-                j += 1;
-            }
         }
     }
 
@@ -761,4 +427,211 @@ mod test {
             assert_eq!(expect, hop_num.display().to_string());
         }
     }
+
+    /// Helper: Clear every field in `cell` that is reserved for cryptography by relay cell
+    /// format `version.
+    ///
+    /// We do this so that we can be sure that the _other_ fields have all been transmitted correctly.
+    fn clean_cell_fields(cell: &mut RelayCellBody, format: RelayCellFormat) {
+        match format {
+            RelayCellFormat::V0 => {
+                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::RECOGNIZED_RANGE]
+                    .fill(0);
+                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::DIGEST_RANGE].fill(0);
+            }
+            RelayCellFormat::V1 => {
+                cell.0[0..16].fill(0);
+            }
+            _ => {
+                panic!("Unrecognized format!");
+            }
+        }
+    }
+
+    /// Helper: Test a single-hop message, forward from the client.
+    fn test_fwd_one_hop<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer,
+        CB: InboundClientLayer,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut seed = vec![0; CS::seed_len()];
+        rng.fill_bytes(&mut seed[..]);
+        let (mut client, _, _) = CS::initialize(&seed).unwrap().split_client_layer();
+        let (mut relay, _, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+
+        for _ in 0..5 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+
+            let ctag = client.originate_for(ChanCmd::RELAY, &mut cell);
+            assert_ne!(cell.0[16..], msg_orig.0[16..]);
+            let rtag = relay.decrypt_outbound(ChanCmd::RELAY, &mut cell);
+            clean_cell_fields(&mut cell, format);
+            assert_eq!(cell.0[..], msg_orig.0[..]);
+            assert_eq!(rtag, Some(ctag));
+        }
+    }
+
+    /// Helper: Test a single-hop message, backwards towards the client.
+    fn test_rev_one_hop<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer,
+        CB: InboundClientLayer,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut seed = vec![0; CS::seed_len()];
+        rng.fill_bytes(&mut seed[..]);
+        let (_, mut client, _) = CS::initialize(&seed).unwrap().split_client_layer();
+        let (_, mut relay, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+
+        for _ in 0..5 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+
+            let rtag = relay.originate(ChanCmd::RELAY, &mut cell);
+            assert_ne!(cell.0[16..], msg_orig.0[16..]);
+            let ctag = client.decrypt_inbound(ChanCmd::RELAY, &mut cell);
+            clean_cell_fields(&mut cell, format);
+            assert_eq!(cell.0[..], msg_orig.0[..]);
+            assert_eq!(ctag, Some(rtag));
+        }
+    }
+
+    fn test_fwd_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer + Send + 'static,
+        CB: InboundClientLayer,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut client = OutboundClientCrypt::new();
+        let mut relays = Vec::new();
+        for _ in 0..3 {
+            let mut seed = vec![0; CS::seed_len()];
+            rng.fill_bytes(&mut seed[..]);
+            let (client_layer, _, _) = CS::initialize(&seed).unwrap().split_client_layer();
+            let (relay_layer, _, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+            client.add_layer(Box::new(client_layer));
+            relays.push(relay_layer);
+        }
+
+        'cell_loop: for _ in 0..32 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+            let cmd = *[ChanCmd::RELAY, ChanCmd::RELAY_EARLY]
+                .choose(&mut rng)
+                .unwrap();
+            let hop: u8 = rng.gen_range_checked(0_u8..=2).unwrap();
+
+            let ctag = client.encrypt(cmd, &mut cell, hop.into()).unwrap();
+
+            for r_idx in 0..=hop {
+                let rtag = relays[r_idx as usize].decrypt_outbound(cmd, &mut cell);
+                if let Some(rtag) = rtag {
+                    clean_cell_fields(&mut cell, format);
+                    assert_eq!(cell.0[..], msg_orig.0[..]);
+                    assert_eq!(rtag, ctag);
+                    continue 'cell_loop;
+                }
+            }
+            panic!("None of the relays thought that this cell was recognized!");
+        }
+    }
+
+    fn test_rev_three_hops_leaky<CS, RS, CF, CB, RF, RB>(format: RelayCellFormat)
+    where
+        CS: CryptInit + ClientLayer<CF, CB>,
+        RS: CryptInit + RelayLayer<RF, RB>,
+        CF: OutboundClientLayer,
+        CB: InboundClientLayer + Send + 'static,
+        RF: OutboundRelayLayer,
+        RB: InboundRelayLayer,
+    {
+        let mut rng = testing_rng();
+        assert_eq!(CS::seed_len(), RS::seed_len());
+        let mut client = InboundClientCrypt::new();
+        let mut relays = Vec::new();
+        for _ in 0..3 {
+            let mut seed = vec![0; CS::seed_len()];
+            rng.fill_bytes(&mut seed[..]);
+            let (_, client_layer, _) = CS::initialize(&seed).unwrap().split_client_layer();
+            let (_, relay_layer, _) = RS::initialize(&seed).unwrap().split_relay_layer();
+            client.add_layer(Box::new(client_layer));
+            relays.push(relay_layer);
+        }
+
+        for _ in 0..32 {
+            let mut cell = RelayCellBody(Box::new([0_u8; 509]));
+            rng.fill_bytes(&mut cell.0[..]);
+            clean_cell_fields(&mut cell, format);
+            let msg_orig = cell.clone();
+            let cmd = *[ChanCmd::RELAY, ChanCmd::RELAY_EARLY]
+                .choose(&mut rng)
+                .unwrap();
+            let hop: u8 = rng.gen_range_checked(0_u8..=2).unwrap();
+
+            let rtag = relays[hop as usize].originate(cmd, &mut cell).to_vec();
+            for r_idx in (0..hop.into()).rev() {
+                relays[r_idx as usize].encrypt_inbound(cmd, &mut cell);
+            }
+
+            let (observed_hop, ctag) = client.decrypt(cmd, &mut cell).unwrap();
+            assert_eq!(observed_hop, hop.into());
+            clean_cell_fields(&mut cell, format);
+            assert_eq!(cell.0[..], msg_orig.0[..]);
+            assert_eq!(ctag, rtag);
+        }
+    }
+
+    macro_rules! integration_tests { { $modname:ident($fmt:expr, $ctype:ty, $rtype:ty) } => {
+        mod $modname {
+            use super::*;
+            #[test]
+            fn test_fwd_one_hop() {
+                super::test_fwd_one_hop::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+            #[test]
+            fn test_rev_one_hop() {
+                super::test_rev_one_hop::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+            #[test]
+            fn test_fwd_three_hops_leaky() {
+                super::test_fwd_three_hops_leaky::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+            #[test]
+            fn test_rev_three_hops_leaky() {
+                super::test_rev_three_hops_leaky::<$ctype, $rtype, _, _, _, _>($fmt);
+            }
+        }
+    }}
+
+    integration_tests! { tor1(RelayCellFormat::V0, Tor1RelayCrypto<RelayCellFormatV0>, Tor1RelayCrypto<RelayCellFormatV0>) }
+    #[cfg(feature = "hs-common")]
+    integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
+
+    #[cfg(feature = "counter-galois-onion")]
+    integration_tests! { cgo_aes128(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes128>, cgo::CryptStatePair<aes::Aes128>) }
+    #[cfg(feature = "counter-galois-onion")]
+    integration_tests! { cgo_aes256(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes256>, cgo::CryptStatePair<aes::Aes256>) }
 }

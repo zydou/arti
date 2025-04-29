@@ -1192,7 +1192,7 @@ pub(crate) mod test {
     use std::fmt::Debug;
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
+    use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody, ChanCmd};
     use tor_cell::relaycell::extend::NtorV3Extension;
     use tor_cell::relaycell::{
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
@@ -1472,13 +1472,13 @@ pub(crate) mod test {
     }
 
     impl crate::crypto::cell::OutboundClientLayer for DummyCrypto {
-        fn originate_for(&mut self, _cell: &mut RelayCellBody) -> &[u8] {
+        fn originate_for(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> &[u8] {
             self.next_tag()
         }
-        fn encrypt_outbound(&mut self, _cell: &mut RelayCellBody) {}
+        fn encrypt_outbound(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) {}
     }
     impl crate::crypto::cell::InboundClientLayer for DummyCrypto {
-        fn decrypt_inbound(&mut self, _cell: &mut RelayCellBody) -> Option<&[u8]> {
+        fn decrypt_inbound(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> Option<&[u8]> {
             if self.lasthop {
                 Some(self.next_tag())
             } else {
