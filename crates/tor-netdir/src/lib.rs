@@ -1623,6 +1623,7 @@ impl NetDir {
     /// This function returns an empty vector if (and only if) there
     /// are no relays with nonzero weight where `usable` returned
     /// true.
+    #[allow(clippy::cognitive_complexity)] // all due to tracing crate.
     pub fn pick_n_relays<'a, R, P>(
         &'a self,
         rng: &mut R,
@@ -1641,6 +1642,8 @@ impl NetDir {
         }) {
             Err(WeightError::InsufficientNonZero) => {
                 // Too few relays had nonzero weights: return all of those that are okay.
+                // (This is behavior used to come up with rand 0.9; it no longer does.
+                // We still detect it.)
                 let remaining: Vec<_> = relays
                     .iter()
                     .filter(|r| self.weights.weight_rs_for_role(r.rs, role) > 0)
@@ -1666,7 +1669,15 @@ impl NetDir {
                 warn_report!(e, "Unexpected error while sampling a set of relays");
                 Vec::new()
             }
-            Ok(iter) => iter.map(Relay::clone).collect(),
+            Ok(iter) => {
+                let selection: Vec<_> = iter.map(Relay::clone).collect();
+                if selection.len() < n {
+                    warn!(?self.weights, ?role,
+                          "After filtering, choose_multiple_weighted only returned {}/{} relays with nonzero weight. See bug #1907.",
+                          selection.len(), relays.len());
+                }
+                selection
+            }
         };
         relays.shuffle(rng);
         relays
