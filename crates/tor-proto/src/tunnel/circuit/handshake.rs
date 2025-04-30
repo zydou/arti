@@ -11,7 +11,7 @@
 // that can wait IMO until we have a second circuit creation mechanism for use
 // with onion services.
 
-use tor_cell::relaycell::{RelayCellFormat, RelayCellFormatV0};
+use tor_cell::relaycell::RelayCellFormat;
 use tor_error::internal;
 
 use crate::crypto::binding::CircuitBinding;
@@ -104,10 +104,10 @@ impl RelayCryptLayerProtocol {
         use RelayCryptLayerProtocol::*;
 
         match self {
-            Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, role),
+            Tor1(V0) => construct::<Tor1RelayCrypto, _>(keygen, role),
             Tor1(_) => Err(internal!("protocol not implemented").into()),
             #[cfg(feature = "hs-common")]
-            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, role),
+            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto, _>(keygen, role),
             #[cfg(feature = "hs-common")]
             HsV3(_) => Err(internal!("protocol not implemented").into()),
         }

@@ -295,15 +295,15 @@ impl InboundClientCrypt {
 }
 
 /// Standard Tor relay crypto, as instantiated for RELAY cells.
-pub(crate) type Tor1RelayCrypto<RCF> =
-    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes128Ctr, tor_llcrypto::d::Sha1, RCF>;
+pub(crate) type Tor1RelayCrypto =
+    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes128Ctr, tor_llcrypto::d::Sha1>;
 
 /// Standard Tor relay crypto, as instantiated for the HSv3 protocol.
 ///
 /// (The use of SHA3 is ridiculously overkill.)
 #[cfg(feature = "hs-common")]
-pub(crate) type Tor1Hsv3RelayCrypto<RCF> =
-    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes256Ctr, tor_llcrypto::d::Sha3_256, RCF>;
+pub(crate) type Tor1Hsv3RelayCrypto =
+    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes256Ctr, tor_llcrypto::d::Sha3_256>;
 
 #[cfg(test)]
 mod test {
@@ -325,15 +325,12 @@ mod test {
     use rand::{seq::IndexedRandom as _, RngCore};
     use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
     use tor_bytes::SecretBuf;
-    use tor_cell::relaycell::{
-        RelayCellFields, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
-    };
+    use tor_cell::relaycell::RelayCellFormat;
 
     pub(crate) fn add_layers(
         cc_out: &mut OutboundClientCrypt,
         cc_in: &mut InboundClientCrypt,
-        // TODO #1067: test other formats
-        pair: Tor1RelayCrypto<RelayCellFormatV0>,
+        pair: Tor1RelayCrypto,
     ) {
         let (outbound, inbound, _) = pair.split_relay_layer();
         cc_out.add_layer(Box::new(outbound));
@@ -364,9 +361,9 @@ mod test {
         assert_eq!(cc_in.n_layers(), 3);
         assert_eq!(cc_out.n_layers(), 3);
 
-        let mut r1 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed1)).unwrap();
-        let mut r2 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed2)).unwrap();
-        let mut r3 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed3)).unwrap();
+        let mut r1 = Tor1RelayCrypto::construct(KGen::new(seed1)).unwrap();
+        let mut r2 = Tor1RelayCrypto::construct(KGen::new(seed2)).unwrap();
+        let mut r3 = Tor1RelayCrypto::construct(KGen::new(seed3)).unwrap();
         let cmd = ChanCmd::RELAY;
 
         let mut rng = testing_rng();
@@ -427,16 +424,16 @@ mod test {
         }
     }
 
-    /// Helper: Clear every field in `cell` that is reserved for cryptography by relay cell
+    /// Helper: Clear every field in the tor1 `cell` that is reserved for cryptography by relay cell
     /// format `version.
     ///
     /// We do this so that we can be sure that the _other_ fields have all been transmitted correctly.
     fn clean_cell_fields(cell: &mut RelayCellBody, format: RelayCellFormat) {
+        use super::tor1;
         match format {
             RelayCellFormat::V0 => {
-                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::RECOGNIZED_RANGE]
-                    .fill(0);
-                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::DIGEST_RANGE].fill(0);
+                cell.0[tor1::RECOGNIZED_RANGE].fill(0);
+                cell.0[tor1::DIGEST_RANGE].fill(0);
             }
             RelayCellFormat::V1 => {
                 cell.0[0..16].fill(0);
@@ -625,9 +622,9 @@ mod test {
         }
     }}
 
-    integration_tests! { tor1(RelayCellFormat::V0, Tor1RelayCrypto<RelayCellFormatV0>, Tor1RelayCrypto<RelayCellFormatV0>) }
+    integration_tests! { tor1(RelayCellFormat::V0, Tor1RelayCrypto, Tor1RelayCrypto) }
     #[cfg(feature = "hs-common")]
-    integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
+    integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto, Tor1Hsv3RelayCrypto) }
 
     #[cfg(feature = "counter-galois-onion")]
     integration_tests! {

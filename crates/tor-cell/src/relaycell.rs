@@ -251,57 +251,6 @@ pub enum RelayCellFormat {
     V1,
 }
 
-/// Specifies a relay cell format and associated types.
-///
-// TODO: This trait was created while we were working on packed/fragmented cells
-// (proposal 340), in order to parameterize the old `tor1` encryption algorithm
-// to support the improved format.
-// But due to roadmap shifts, it seems that we are implementing CGO encryption
-// before packed/fragmented cells, so this trait is not likely to be needed.
-// We can, possibly, remove this trait:
-// Nothing but `tor1` encryption uses it, and there is only one implementation.
-pub trait RelayCellFormatTrait {
-    /// Which format this object is for.
-    const FORMAT: RelayCellFormat;
-    /// A `RelayCellFields` type for this format.
-    type FIELDS: RelayCellFields;
-    // TODO: Consider making a trait for the decoder as well and adding the
-    // corresponding associated type here.
-}
-
-/// Format type corresponding to `RelayCellFormat::V0`.
-#[non_exhaustive]
-pub struct RelayCellFormatV0;
-
-impl RelayCellFormatTrait for RelayCellFormatV0 {
-    const FORMAT: RelayCellFormat = RelayCellFormat::V0;
-    type FIELDS = RelayCellFieldsV0;
-}
-
-/// Specifies field layout for a particular relay cell format.
-//
-// TODO: See notes on RelayCellFormatTrait.
-pub trait RelayCellFields {
-    /// The range containing the `recognized` field, within a relay cell's body.
-    const RECOGNIZED_RANGE: std::ops::Range<usize>;
-    /// The range containing the `digest` field, within a relay cell's body.
-    const DIGEST_RANGE: std::ops::Range<usize>;
-    /// A static array of zeroes of the same size as this format uses for the
-    /// digest field. e.g. this enables updating a comparison-digest in one
-    /// hash-update method call, instead of having to loop over `DIGEST_RANGE`.
-    const EMPTY_DIGEST: &'static [u8];
-}
-
-/// Specifies fields for `RelayCellFormat::V0`.
-#[non_exhaustive]
-pub struct RelayCellFieldsV0;
-
-impl RelayCellFields for RelayCellFieldsV0 {
-    const RECOGNIZED_RANGE: std::ops::Range<usize> = 1..3;
-    const DIGEST_RANGE: std::ops::Range<usize> = 5..9;
-    const EMPTY_DIGEST: &'static [u8] = &[0, 0, 0, 0];
-}
-
 /// Internal decoder state.
 #[derive(Clone, Debug)]
 enum RelayCellDecoderInternal {

@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use digest::Digest;
 use rand::prelude::*;
 
-use tor_cell::relaycell::{msg::SendmeTag, RelayCellFormatV0};
+use tor_cell::relaycell::msg::SendmeTag;
 use tor_llcrypto::d::{Sha1, Sha3_256};
 use tor_proto::bench_utils::RelayBody;
 
@@ -30,7 +30,7 @@ pub fn cell_set_digest_benchmark(c: &mut Criterion<CpuTime>) {
                 (cell, Sha1::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, used_digest)| {
-                cell.set_digest::<_, RelayCellFormatV0>(d, used_digest);
+                cell.set_digest::<_>(d, used_digest);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -45,7 +45,7 @@ pub fn cell_set_digest_benchmark(c: &mut Criterion<CpuTime>) {
                 (cell, Sha3_256::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, used_digest)| {
-                cell.set_digest::<_, RelayCellFormatV0>(d, used_digest);
+                cell.set_digest::<_>(d, used_digest);
             },
             criterion::BatchSize::SmallInput,
         );
