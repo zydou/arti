@@ -15,7 +15,8 @@ caret_int! {
         /// HS only: provide a completed proof-of-work solution for denial of service
         /// mitigation
         PROOF_OF_WORK = 2,
-
+        /// Request that certain subprotocol features be enabled.
+        SUBPROTOCOL_REQUEST = 3,
     }
 }
 
@@ -87,6 +88,71 @@ impl Ext for CcResponse {
     }
 }
 
+/// A request that a certain set of protocols should be enabled. (client to server)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SubprotocolRequest {
+    /// The protocols to enable.
+    protocols: Vec<tor_protover::NumberedSubver>,
+}
+
+impl<A> FromIterator<A> for SubprotocolRequest
+where
+    A: Into<tor_protover::NumberedSubver>,
+{
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let mut protocols: Vec<_> = iter.into_iter().map(Into::into).collect();
+        protocols.sort();
+        protocols.dedup();
+        Self { protocols }
+    }
+}
+
+impl Ext for SubprotocolRequest {
+    type Id = CircRequestExtType;
+
+    fn type_id(&self) -> Self::Id {
+        CircRequestExtType::SUBPROTOCOL_REQUEST
+    }
+
+    fn take_body_from(b: &mut Reader<'_>) -> tor_bytes::Result<Self> {
+        let mut protocols = Vec::new();
+        while b.remaining() != 0 {
+            protocols.push(b.extract()?);
+        }
+        let protocols_orig = protocols.clone();
+        // TODO MSRV 1.82: Use is_sorted, and avoid creating protocols_orig.
+        protocols.sort();
+        protocols.dedup();
+        if protocols_orig != protocols {
+            return Err(tor_bytes::Error::InvalidMessage(
+                "SubprotocolRequest not sorted and deduplicated.".into(),
+            ));
+        }
+        Ok(Self { protocols })
+    }
+
+    fn write_body_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+        for p in self.protocols.iter() {
+            b.write(p)?;
+        }
+        Ok(())
+    }
+}
+impl SubprotocolRequest {
+    /// Return true if this [`SubprotocolRequest`] contains the listed capability.
+    pub fn contains(&self, cap: tor_protover::NamedSubver) -> bool {
+        self.protocols.binary_search(&cap.into()).is_ok()
+    }
+
+    /// Return true if this [`SubprotocolRequest`] contains no other
+    /// capabilities except those listed in `list`.
+    pub fn contains_only(&self, list: &tor_protover::Protocols) -> bool {
+        self.protocols
+            .iter()
+            .all(|p| list.supports_numbered_subver(*p))
+    }
+}
+
 decl_extension_group! {
     /// An extension to be sent along with a circuit extension request
     /// (CREATE2, EXTEND2, or INTRODUCE.)
@@ -98,6 +164,8 @@ decl_extension_group! {
         /// HS-only: Provide a proof-of-work solution.
         #[cfg(feature = "hs")]
         ProofOfWork,
+        /// Request to enable one or more subprotocol capabilities.
+        SubprotocolRequest,
     }
 }
 
@@ -138,3 +206,72 @@ macro_rules! impl_encode_decode {
 
 impl_encode_decode!(CircRequestExt, "CREATE2 extension list");
 impl_encode_decode!(CircResponseExt, "CREATED2 extension list");
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    #[test]
+    fn subproto_ext_valid() {
+        use tor_protover::named::*;
+        let sp: SubprotocolRequest = [RELAY_NTORV3, RELAY_NTORV3, LINK_V4].into_iter().collect();
+        let mut v = Vec::new();
+        sp.write_body_onto(&mut v).unwrap();
+        assert_eq!(&v[..], [0, 4, 2, 4]);
+
+        let mut r = Reader::from_slice(&v[..]);
+        let sp2: SubprotocolRequest = SubprotocolRequest::take_body_from(&mut r).unwrap();
+        assert_eq!(sp, sp2);
+    }
+
+    #[test]
+    fn subproto_invalid() {
+        // Odd length.
+        let mut r = Reader::from_slice(&[0, 4, 2]);
+        let e = SubprotocolRequest::take_body_from(&mut r).unwrap_err();
+        dbg!(e.to_string());
+        assert!(e.to_string().contains("too short"));
+
+        // Duplicate protocols.
+        let mut r = Reader::from_slice(&[0, 4, 0, 4]);
+        let e = SubprotocolRequest::take_body_from(&mut r).unwrap_err();
+        dbg!(e.to_string());
+        assert!(e.to_string().contains("deduplicated"));
+
+        // not-sorted protocols.
+        let mut r = Reader::from_slice(&[2, 4, 0, 4]);
+        let e = SubprotocolRequest::take_body_from(&mut r).unwrap_err();
+        dbg!(e.to_string());
+        assert!(e.to_string().contains("sorted"));
+    }
+
+    #[test]
+    fn subproto_supported() {
+        use tor_protover::named::*;
+        let sp: SubprotocolRequest = [RELAY_NTORV3, RELAY_NTORV3, LINK_V4].into_iter().collect();
+        // "contains" tells us if a subprotocol capability is a member of the request.
+        assert!(sp.contains(LINK_V4));
+        assert!(!sp.contains(LINK_V2));
+
+        // contains_only tells us if there are any subprotocol capabilities in the request
+        // other than those listed.
+        assert!(sp.contains_only(&[RELAY_NTORV3, LINK_V4, CONFLUX_BASE].into_iter().collect()));
+        assert!(sp.contains_only(&[RELAY_NTORV3, LINK_V4].into_iter().collect()));
+        assert!(!sp.contains_only(&[LINK_V4].into_iter().collect()));
+        assert!(!sp.contains_only(&[LINK_V4, CONFLUX_BASE].into_iter().collect()));
+        assert!(!sp.contains_only(&[CONFLUX_BASE].into_iter().collect()));
+    }
+}
