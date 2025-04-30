@@ -5,11 +5,18 @@ use caret::caret_int;
 use tor_bytes::{EncodeResult, Reader, Writeable as _, Writer};
 
 caret_int! {
-    /// A type of ntor v3 extension data (`EXT_FIELD_TYPE`).
+    /// A type of circuit request extension data (`EXT_FIELD_TYPE`).
     #[derive(PartialOrd,Ord)]
     pub struct CircRequestExtType(u8) {
         /// Request congestion control be enabled for a circuit.
         CC_REQUEST = 1,
+    }
+}
+
+caret_int! {
+    /// A type of circuit response extension data (`EXT_FIELD_TYPE`).
+    #[derive(PartialOrd,Ord)]
+    pub struct CircResponseExtType(u8) {
         /// Acknowledge a congestion control request.
         CC_RESPONSE = 2
     }
@@ -58,9 +65,9 @@ impl CcResponse {
 }
 
 impl Ext for CcResponse {
-    type Id = CircRequestExtType;
+    type Id = CircResponseExtType;
     fn type_id(&self) -> Self::Id {
-        CircRequestExtType::CC_RESPONSE
+        CircResponseExtType::CC_RESPONSE
     }
 
     fn take_body_from(b: &mut Reader<'_>) -> tor_bytes::Result<Self> {
@@ -82,27 +89,43 @@ decl_extension_group! {
     pub enum CircRequestExt [ CircRequestExtType ] {
         /// Request to enable congestion control.
         CcRequest,
+    }
+}
+
+decl_extension_group! {
+    /// An extension to be sent along with a circuit extension response
+    /// (CREATED2 or EXTENDED2.)
+    ///
+    /// RENDEZVOUS is not currently supported, but once we replace hs-ntor
+    /// with something better, extensions will be possible there too.
+    #[derive(Debug,Clone,Eq,PartialEq)]
+    #[non_exhaustive]
+    pub enum CircResponseExt [ CircResponseExtType ] {
         /// Response indicating that congestion control is enabled.
         CcResponse,
     }
 }
 
-impl CircRequestExt {
-    /// Encode a set of extensions into a "message" for a circuit request.
-    pub fn write_many_onto<W: Writer>(exts: &[CircRequestExt], out: &mut W) -> EncodeResult<()> {
-        ExtListRef::from(exts).write_onto(out)?;
-        Ok(())
-    }
-    /// Decode a slice of bytes representing the "message" of a circuit request into a set of
-    /// extensions.
-    pub fn decode(message: &[u8]) -> crate::Result<Vec<Self>> {
-        let err_cvt = |err| crate::Error::BytesErr {
-            err,
-            parsed: "CREATE extension list",
-        };
-        let mut r = tor_bytes::Reader::from_slice(message);
-        let list: ExtList<CircRequestExt> = r.extract().map_err(err_cvt)?;
-        r.should_be_exhausted().map_err(err_cvt)?;
-        Ok(list.into_vec())
-    }
+macro_rules! impl_encode_decode {
+    ($extgroup:ty, $name:expr) => {
+        impl $extgroup {
+            /// Encode a set of extensions into a "message" for a circuit handshake.
+            pub fn write_many_onto<W: Writer>(exts: &[Self], out: &mut W) -> EncodeResult<()> {
+                ExtListRef::from(exts).write_onto(out)?;
+                Ok(())
+            }
+            /// Decode a slice of bytes representing the "message" of a circuit handshake into a set of
+            /// extensions.
+            pub fn decode(message: &[u8]) -> crate::Result<Vec<Self>> {
+                let err_cvt = |err| crate::Error::BytesErr { err, parsed: $name };
+                let mut r = tor_bytes::Reader::from_slice(message);
+                let list: ExtList<_> = r.extract().map_err(err_cvt)?;
+                r.should_be_exhausted().map_err(err_cvt)?;
+                Ok(list.into_vec())
+            }
+        }
+    };
 }
+
+impl_encode_decode!(CircRequestExt, "CREATE2 extension list");
+impl_encode_decode!(CircResponseExt, "CREATED2 extension list");

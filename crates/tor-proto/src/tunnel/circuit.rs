@@ -1247,8 +1247,7 @@ pub(crate) mod test {
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody, ChanCmd};
-    use tor_cell::relaycell::extend::NtorV3Extension;
-    use tor_cell::relaycell::extend::{self as extend_ext, CircRequestExt};
+    use tor_cell::relaycell::extend::{self as extend_ext, CircRequestExt, CircResponseExt};
     use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
@@ -1424,7 +1423,7 @@ pub(crate) mod test {
                                 .expect("Client failed to request CC");
                             // This needs to be aligned to test_utils params
                             // value due to validation that needs it in range.
-                            Some(vec![CircRequestExt::CcResponse(
+                            Some(vec![CircResponseExt::CcResponse(
                                 extend_ext::CcResponse::new(31),
                             )])
                         }
