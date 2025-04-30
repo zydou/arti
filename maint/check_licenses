@@ -54,13 +54,6 @@ NO_LICENSE=(
     # See https://gitlab.torproject.org/tpo/core/arti/-/issues/493 for
     # our related ticket.
     ring
-    # License appears to be ISC.
-    webpki
-    # The unicode folks have their own license now that is no longer
-    # "Unicode-DFS-2016" and which might not even have a SPDX
-    # entry. But it still seems to be a permissive DFSG-compliant
-    # license.
-    tinystr
 )
 
 # List of packages which we allow to use the MPL-2.0 license.
@@ -86,8 +79,6 @@ MPL_20_OK=(
     option-ext
     dynasm
     dynasmrt
-    webpki-roots
-    webpki-root-certs
 )
 
 # List of packages allowed to use the LGPL-3.0-only license.
