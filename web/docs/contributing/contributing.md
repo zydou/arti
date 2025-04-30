@@ -13,6 +13,51 @@ The new-account process on our gitlab instance is moderated, to reduce spam and 
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
+## Getting started
+
+You might want to begin by looking around the [codebase](https://gitlab.torproject.org/tpo/core/arti/), or getting to know our [architecture](/contributing/for-developers/architecture).
+
+### Finding something to work on
+
+- More tests would always be great. You can look at the [coverage reports](https://tpo.pages.torproject.net/core/arti/coverage/) to find out what parts need the more love.
+- Parsing more Tor document types would be neat.
+- More documentation examples would be great.
+- Improvements or bugfixes to the existing code would be great.
+- Improving the look and feel of the documentation would also rock.
+
+We make notes throughout the document in comments with strings like "FIXME" or "TODO".
+Sometimes these can sound deceptively simple; keep in mind that usually there's a reason
+that someone wrote the comment instead of just doing the task.
+See "Before you start coding", below.
+
+When we have TODOs that we want to fix prior to the release of a particular feature or milestone, we define a special TODO format. Right now, we have "TODO HS" (or "TODO hs") for things we intend to fix before we release support for Tor Hidden Services (.onion services).
+
+If you want to make a temporary change that should not to be merged, mark it with <code>XX&#88;X</code>. This will be spotted by the CI, preventing a mistaken merge.
+
+We have provided a list of features that we wish other crates had in a file called [`WANT_FROM_OTHER_CRATES`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/WANT_FROM_OTHER_CRATES), so that you can find a place to contribute even if you don't want to write new code.
+
+Finally, check out [the bugtracker](https://gitlab.torproject.org/tpo/core/arti/-/issues). There are some tickets there labeled as ["First Contribution"](https://gitlab.torproject.org/tpo/core/arti/-/issues?scope=all&utf8=%E2%9C%93&state=opened&label_name%5B%5D=First%20Contribution). That label means that we think they might be a good place to start out.
+
+### Before you start coding
+
+For all but the most trivial of changes, it's best to get in touch with the
+development team before beginning work, to ensure that there's agreement about
+what you plan to do and how, and to avoid having multiple people try to work on
+the same thing at once.
+
+If there's already an issue filed for the work, you can comment on the issue to
+verify whether this is a good issue to work on, and to get a go-ahead for your design
+and development plan. Often a sentence or two is sufficient, at least to start
+the conversation:
+"I'll rename X to Y"; "I'll prevent this function from retrying a download
+indefinitely by adding a limit of X retries, overridable by a config file option
+Y".
+
+If there's not already an issue filed, you can file an issue yourself, though
+before doing that you may want to touch base with the developers on the
+[#tor-dev IRC channel](https://www.torproject.org/contact/) to double-check that
+one doesn't already exist.
+
 ## Setting up your Development Environment
 
 The following section is **not** an exhaustive guide, and only covers common setup and development tasks.
@@ -112,26 +157,6 @@ $ git push _name_ main
 > 
 
 Please do not to rebase and squash MRs during the review cycle. If you want to make changes to your MR, please add new commits rather than squashing. You can use the [`fixup!`](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash) or `squash!` ([autosquash](https://thoughtbot.com/blog/autosquashing-git-commits)) syntax. This is a good idea if the un-fixed state breaks the tests or is otherwise broken, but is not needed otherwise.
-
-## Getting started
-
-You might want to begin by looking around the [codebase](https://gitlab.torproject.org/tpo/core/arti/), or getting to know our [architecture](/contributing/for-developers/architecture).
-
-- More tests would always be great. You can look at the [coverage reports](https://tpo.pages.torproject.net/core/arti/coverage/) to find out what parts need the more love.
-- Parsing more Tor document types would be neat.
-- More documentation examples would be great.
-- Improvements or bugfixes to the existing code would be great.
-- Improving the look and feel of the documentation would also rock.
-
-We make notes throughout the document in comments with strings like "FIXME" or "TODO".
-
-When we have TODOs that we want to fix prior to the release of a particular feature or milestone, we define a special TODO format. Right now, we have "TODO HS" (or "TODO hs") for things we intend to fix before we release support for Tor Hidden Services (.onion services).
-
-If you want to make a temporary change that should not to be merged, mark it with <code>XX&#88;X</code>. This will be spotted by the CI, preventing a mistaken merge.
-
-We have provided a list of features that we wish other crates had in a file called [`WANT_FROM_OTHER_CRATES`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/WANT_FROM_OTHER_CRATES), so that you can find a place to contribute even if you don't want to write new code.
-
-Finally, check out [the bugtracker](https://gitlab.torproject.org/tpo/core/arti/-/issues). There are some tickets there labeled as ["First Contribution"](https://gitlab.torproject.org/tpo/core/arti/-/issues?scope=all&utf8=%E2%9C%93&state=opened&label_name%5B%5D=First%20Contribution). That label means that we think they might be a good place to start out.
 
 ## What to watch out for
 
