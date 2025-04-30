@@ -5767,6 +5767,7 @@ dependencies = [
  "tor-linkspec",
  "tor-llcrypto",
  "tor-memquota",
+ "tor-protover",
  "tor-units",
  "void",
 ]
@@ -6690,6 +6691,7 @@ dependencies = [
  "paste",
  "serde_with",
  "thiserror 2.0.12",
+ "tor-bytes",
 ]
 
 [[package]]
