@@ -13,31 +13,12 @@ set -euo pipefail
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
-    # This is a real but theoretical unaligned read.  It might happen only on
-    # Windows and only with a custom global allocator, which we don't do in our
-    # arti binary.  The bad crate is depended on by env-logger.
-    # This is being discussed by those crates' contributors here:
-    #     https://github.com/rust-cli/env_logger/pull/246
-    --ignore RUSTSEC-2021-0145
     # As of 28 Nov 2023, all versions of the rsa crate have a variable
     # timing attack that can leak private keys.
     #
     # We do not use (yet) do any private-key rsa operations in arti:
     # we only use it to verify signatures.
     --ignore RUSTSEC-2023-0071
-    # instant is unmaintained.
-    #
-    # The current dependency path is:
-    # arti -> signal-hook-async-std -> futures-lite -> fastrand -> instant
-    #
-    # The 'signal-hook-async-std' lib hasn't been updated in three years and depends on `futures-lite = "~1"`.
-    # The latest 'futures-lite' 2.6.0 uses a version of 'fastrand' that does not depend on instant.
-    #
-    # We should consider trying to upstream patches for 'signal-hook-async-std',
-    # or remove arti's dependence on it.
-    #
-    # https://gitlab.torproject.org/tpo/core/arti/-/issues/1867
-    --ignore RUSTSEC-2024-0384
     # paste is unmaintained.
     #
     # We depend on it directly in crates like tor-error, tor-persist, tor-config,
@@ -54,6 +35,29 @@ ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
 
 
 OBSOLETE_IGNORE=(
+    # instant is unmaintained.
+    #
+    # The current dependency path is:
+    # arti -> signal-hook-async-std -> futures-lite -> fastrand -> instant
+    #
+    # The 'signal-hook-async-std' lib hasn't been updated in three years and depends on `futures-lite = "~1"`.
+    # The latest 'futures-lite' 2.6.0 uses a version of 'fastrand' that does not depend on instant.
+    #
+    # Resolved by replacing signal-hook-async-std with async-signal.
+    #
+    # Issue: https://gitlab.torproject.org/tpo/core/arti/-/issues/1867
+    # MR: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2960
+    --ignore RUSTSEC-2024-0384
+    # This is a real but theoretical unaligned read.  It might happen only on
+    # Windows and only with a custom global allocator, which we don't do in our
+    # arti binary.  The bad crate is depended on by env-logger.
+    # 
+    # This is being discussed by those crates' contributors here:
+    #     https://github.com/rust-cli/env_logger/pull/246
+    #
+    # Fixed upstream in env_logger by replacing atty with is_terminal:
+    #     https://github.com/rust-cli/env_logger/pull/248
+    --ignore RUSTSEC-2021-0145
     # This is not a vulnerability but an unmaintained warning for `ansi_term`.
     # The upstream issue does not offer good alternatives, and anyway we get
     # this crate via clap and tracing-*.
