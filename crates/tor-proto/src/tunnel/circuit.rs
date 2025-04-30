@@ -1248,6 +1248,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody, ChanCmd};
     use tor_cell::relaycell::extend::NtorV3Extension;
+    use tor_cell::relaycell::extend::CircRequestExt;
     use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
@@ -1416,12 +1417,12 @@ pub(crate) mod test {
                         other => panic!("{:?}", other),
                     };
                     let mut reply_fn = if with_cc {
-                        |client_exts: &[NtorV3Extension]| {
+                        |client_exts: &[CircRequestExt]| {
                             let _ = client_exts
                                 .iter()
-                                .find(|e| matches!(e, NtorV3Extension::RequestCongestionControl))
+                                .find(|e| matches!(e, CircRequestExt::RequestCongestionControl))
                                 .expect("Client failed to request CC");
-                            Some(vec![NtorV3Extension::AckCongestionControl {
+                            Some(vec![CircRequestExt::AckCongestionControl {
                                 // This needs to be aligned to test_utils params
                                 // value due to validation that needs it in range.
                                 sendme_inc: 31,
@@ -1663,7 +1664,7 @@ pub(crate) mod test {
                 HandshakeType::NtorV3 => {
                     let (_keygen, reply) = NtorV3Server::server(
                         &mut rng,
-                        &mut |_: &[NtorV3Extension]| Some(vec![]),
+                        &mut |_: &[CircRequestExt]| Some(vec![]),
                         &[example_ntor_v3_key()],
                         e2.handshake(),
                     )

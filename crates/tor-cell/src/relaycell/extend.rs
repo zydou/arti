@@ -6,7 +6,7 @@ use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
 
 caret_int! {
     /// A type of ntor v3 extension data (`EXT_FIELD_TYPE`).
-    pub struct NtorV3ExtensionType(u8) {
+    pub struct CircRequestExtType(u8) {
         /// Request congestion control be enabled for a circuit.
         CC_REQUEST = 1,
         /// Acknowledge a congestion control request.
@@ -14,10 +14,11 @@ caret_int! {
     }
 }
 
-/// A piece of extension data, to be encoded as the message in an ntor v3 handshake.
+/// A piece of extension data, to be encoded as the message in an circuit
+/// extension (CREATE2) handshake.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum NtorV3Extension {
+pub enum CircRequestExt {
     /// Request congestion control be enabled for this circuit (client → exit node).
     ///
     /// (`EXT_FIELD_TYPE` = 01)
@@ -32,15 +33,15 @@ pub enum NtorV3Extension {
     /// An unknown piece of extension data.
     Unrecognized {
         /// The extension type (`EXT_FIELD_TYPE`).
-        field_type: NtorV3ExtensionType,
+        field_type: CircRequestExtType,
         /// The raw bytes of unrecognized extension data.
         data: Vec<u8>,
     },
 }
 
-impl NtorV3Extension {
+impl CircRequestExt {
     /// Encode a set of extensions into a "message" for an ntor v3 handshake.
-    pub fn write_many_onto<W: Writer>(exts: &[NtorV3Extension], out: &mut W) -> EncodeResult<()> {
+    pub fn write_many_onto<W: Writer>(exts: &[CircRequestExt], out: &mut W) -> EncodeResult<()> {
         let n_extensions =
             u8::try_from(exts.len()).map_err(|_| tor_bytes::EncodeError::BadLengthValue)?;
         out.write_u8(n_extensions);
@@ -58,7 +59,7 @@ impl NtorV3Extension {
         })?;
         for _ in 0..n_extensions {
             ret.push(
-                NtorV3Extension::take_from(&mut reader).map_err(|err| Error::BytesErr {
+                CircRequestExt::take_from(&mut reader).map_err(|err| Error::BytesErr {
                     err,
                     parsed: "an ntor extension",
                 })?,
@@ -74,16 +75,16 @@ impl NtorV3Extension {
     }
 }
 
-impl Writeable for NtorV3Extension {
+impl Writeable for CircRequestExt {
     fn write_onto<W: Writer + ?Sized>(&self, out: &mut W) -> EncodeResult<()> {
         match self {
-            NtorV3Extension::RequestCongestionControl => {
+            CircRequestExt::RequestCongestionControl => {
                 out.write_all(&[1, 0]);
             }
-            NtorV3Extension::AckCongestionControl { sendme_inc } => {
+            CircRequestExt::AckCongestionControl { sendme_inc } => {
                 out.write_all(&[2, 1, *sendme_inc]);
             }
-            NtorV3Extension::Unrecognized { field_type, data } => {
+            CircRequestExt::Unrecognized { field_type, data } => {
                 // FIXME(eta): This will break if you try and fill `data` with more than 255 bytes.
                 //             This is only a problem if you construct your own `Unrecognized`, though.
                 out.write_all(&[field_type.get(), data.len() as u8]);
@@ -94,32 +95,32 @@ impl Writeable for NtorV3Extension {
     }
 }
 
-impl Readable for NtorV3Extension {
+impl Readable for CircRequestExt {
     fn take_from(reader: &mut Reader<'_>) -> tor_bytes::Result<Self> {
-        let tag: NtorV3ExtensionType = reader.take_u8()?.into();
+        let tag: CircRequestExtType = reader.take_u8()?.into();
         let len = reader.take_u8()?;
         Ok(match tag {
-            NtorV3ExtensionType::CC_REQUEST => {
+            CircRequestExtType::CC_REQUEST => {
                 if len != 0 {
                     return Err(tor_bytes::Error::InvalidMessage(
                         "invalid length for RequestCongestionControl".into(),
                     ));
                 }
-                NtorV3Extension::RequestCongestionControl
+                CircRequestExt::RequestCongestionControl
             }
-            NtorV3ExtensionType::CC_RESPONSE => {
+            CircRequestExtType::CC_RESPONSE => {
                 if len != 1 {
                     return Err(tor_bytes::Error::InvalidMessage(
                         "invalid length for AckCongestionControl".into(),
                     ));
                 }
                 let sendme_inc = reader.take_u8()?;
-                NtorV3Extension::AckCongestionControl { sendme_inc }
+                CircRequestExt::AckCongestionControl { sendme_inc }
             }
             x => {
                 let mut data = vec![0; len as usize];
                 reader.take_into(&mut data)?;
-                NtorV3Extension::Unrecognized {
+                CircRequestExt::Unrecognized {
                     field_type: x,
                     data,
                 }

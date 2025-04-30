@@ -23,7 +23,7 @@ use crate::crypto::handshake::ntor::NtorClient;
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::tunnel::circuit::path;
 use crate::tunnel::reactor::{MetaCellHandler, SendRelayCell};
-use tor_cell::relaycell::extend::NtorV3Extension;
+use tor_cell::relaycell::extend::CircRequestExt;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 use tracing::trace;
 
@@ -246,7 +246,7 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(
         params: &mut CircParameters,
-        data: &Vec<NtorV3Extension>,
+        data: &Vec<CircRequestExt>,
     ) -> Result<()> {
         // Process all extensions.
         // If "flowctl-cc" is not enabled, this loop will always return an error, so tell clippy
@@ -254,7 +254,7 @@ impl HandshakeAuxDataHandler for NtorV3Client {
         #[cfg_attr(not(feature = "flowctl-cc"), allow(clippy::never_loop))]
         for ext in data {
             match ext {
-                NtorV3Extension::AckCongestionControl { sendme_inc } => {
+                CircRequestExt::AckCongestionControl { sendme_inc } => {
                     cfg_if::cfg_if! {
                         if #[cfg(feature = "flowctl-cc")] {
                             // Unexpected ACK extension as in if CC is disabled on our side, we would never have
