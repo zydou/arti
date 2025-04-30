@@ -61,7 +61,7 @@ caret_int! {
     ///
     /// For the full semantics of each subprotocol, see tor-spec.txt.
     #[derive(Hash,Ord,PartialOrd)]
-    pub struct ProtoKind(u16) {
+    pub struct ProtoKind(u8) {
         /// Initiating and receiving channels, and getting cells on them.
         Link = 0,
         /// Different kinds of authenticate cells
@@ -599,7 +599,7 @@ impl std::fmt::Display for Protocols {
         let mut entries = Vec::new();
         for (idx, mask) in self.recognized.iter().enumerate() {
             if *mask != 0 {
-                let pk: ProtoKind = (idx as u16).into();
+                let pk: ProtoKind = (idx as u8).into();
                 entries.push(format!("{}={}", pk, dumpmask(*mask)));
             }
         }
