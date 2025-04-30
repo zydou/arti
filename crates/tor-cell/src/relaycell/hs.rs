@@ -1,11 +1,11 @@
 //! Encoding and decoding for relay messages related to onion services.
 
 use super::msg::{self, Body};
-use crate::relaycell::extlist::{decl_extension_group, ExtGroup, ExtList};
+use crate::relaycell::extlist::{decl_extension_group, ExtList};
 use caret::caret_int;
 use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Result};
-use tor_bytes::{Readable, Reader, Writeable, Writer};
+use tor_bytes::{Reader, Writer};
 use tor_hscrypto::RendCookie;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -106,6 +106,7 @@ impl Introduce2 {
     /// INTRODUCE1 message.
     #[cfg(test)] // Don't expose this generally without dealing somehow with the `expect` below
     pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
+        use tor_bytes::Writeable as _;
         let msg = Introduce::new(auth_key_type, auth_key, encrypted);
         let mut encoded_header = Vec::new();
         msg.header

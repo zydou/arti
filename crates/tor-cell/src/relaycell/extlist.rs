@@ -147,10 +147,12 @@ macro_rules! decl_extension_group {
             )*
             /// An extension of a type we do not recognize, or which we have not
             /// encoded.
-            Unrecognized(UnrecognizedExt<$type_id>)
+            Unrecognized(crate::relaycell::extlist::UnrecognizedExt<$type_id>)
         }
-        impl Readable for $id {
-            fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+        impl tor_bytes::Readable for $id {
+            fn take_from(b: &mut Reader<'_>) -> tor_bytes::Result<Self> {
+                #[allow(unused)]
+                use crate::relaycell::extlist::Ext as _;
                 let type_id = b.take_u8()?.into();
                 Ok(match type_id {
                     $(
@@ -159,7 +161,7 @@ macro_rules! decl_extension_group {
                         }
                     )*
                     _ => {
-                        Self::Unrecognized(UnrecognizedExt {
+                        Self::Unrecognized(crate::relaycell::extlist::UnrecognizedExt {
                             type_id,
                             body: b.read_nested_u8len(|r| Ok(r.take_rest().into()))?,
                         })
@@ -167,10 +169,12 @@ macro_rules! decl_extension_group {
                 })
             }
         }
-        impl Writeable for $id {
-            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<
+        impl tor_bytes::Writeable for $id {
+            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> tor_bytes::EncodeResult<
 ()> {
-                #[allow(unused)]
+                #![allow(unused_imports)]
+                use crate::relaycell::extlist::Ext as _;
+                use tor_bytes::Writeable as _;
                 use std::ops::DerefMut;
                 match self {
                     $(
@@ -191,9 +195,11 @@ macro_rules! decl_extension_group {
                 Ok(())
             }
         }
-        impl ExtGroup for $id {
+        impl crate::relaycell::extlist::ExtGroup for $id {
             type Id = $type_id;
             fn type_id(&self) -> Self::Id {
+                #![allow(unused_imports)]
+                use crate::relaycell::extlist::Ext as _;
                 match self {
                     $(
                         Self::$case(val) => val.type_id(),
@@ -209,8 +215,8 @@ macro_rules! decl_extension_group {
             }
         }
         )*
-        impl From<UnrecognizedExt<$type_id>> for $id {
-            fn from(val: UnrecognizedExt<$type_id>) -> $id {
+        impl From<crate::relaycell::extlist::UnrecognizedExt<$type_id>> for $id {
+            fn from(val: crate::relaycell::extlist::UnrecognizedExt<$type_id>) -> $id {
                 $id :: Unrecognized(val)
             }
         }

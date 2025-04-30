@@ -5,7 +5,7 @@
 //! point, and how to handshake with the client there.)
 
 use super::pow::ProofOfWork;
-use crate::relaycell::extlist::{decl_extension_group, Ext, ExtGroup, ExtList, UnrecognizedExt};
+use crate::relaycell::extlist::{decl_extension_group, ExtList};
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
 use tor_hscrypto::RendCookie;
