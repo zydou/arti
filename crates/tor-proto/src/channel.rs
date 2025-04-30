@@ -28,7 +28,7 @@
 //!  * Launch an asynchronous task to call the reactor's run() method.
 //!
 //! One you have a running channel, you can create circuits on it with
-//! its [Channel::new_circ] method.  See
+//! its [Channel::new_tunnel] method.  See
 //! [crate::tunnel::circuit::PendingClientCirc] for information on how to
 //! proceed from there.
 //!
@@ -667,14 +667,14 @@ impl Channel {
         }
     }
 
-    /// Return a newly allocated PendingClientCirc object with
-    /// a corresponding circuit reactor. A circuit ID is allocated, but no
+    /// Return a newly allocated PendingClientTunnel object with
+    /// a corresponding tunnel reactor. A circuit ID is allocated, but no
     /// messages are sent, and no cryptography is done.
     ///
     /// To use the results of this method, call Reactor::run() in a
     /// new task, then use the methods of
     /// [crate::tunnel::circuit::PendingClientCirc] to build the circuit.
-    pub async fn new_circ(
+    pub async fn new_tunnel(
         self: &Arc<Self>,
     ) -> Result<(PendingClientTunnel, tunnel::reactor::Reactor)> {
         if self.is_closing() {

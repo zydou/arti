@@ -19,6 +19,7 @@ use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTa
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientTunnel};
+use tor_proto::ClientTunnel;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 
@@ -50,7 +51,7 @@ pub(crate) trait Buildable: Sized {
         ct: &OwnedChanTarget,
         params: CircParameters,
         usage: ChannelUsage,
-    ) -> Result<Arc<Self>>;
+    ) -> Result<Self>;
 
     /// Launch a new circuit through a given relay, given a circuit target
     /// `ct` specifying that relay.
@@ -61,7 +62,7 @@ pub(crate) trait Buildable: Sized {
         ct: &OwnedCircTarget,
         params: CircParameters,
         usage: ChannelUsage,
-    ) -> Result<Arc<Self>>;
+    ) -> Result<Self>;
 
     /// Extend this circuit-like object by one hop, to the location described
     /// in `ct`.
@@ -77,7 +78,7 @@ pub(crate) trait Buildable: Sized {
 /// reactor.
 ///
 /// This is common code, shared by all the first-hop functions in the
-/// implementation of `Buildable` for `Arc<ClientCirc>`.
+/// implementation of `Buildable` for `ClientTunnel`.
 async fn create_common<RT: Runtime, CT: ChanTarget>(
     chanmgr: &ChanMgr<RT>,
     rt: &RT,
@@ -106,7 +107,7 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
         }
     };
     // Construct the (zero-hop) circuit.
-    let (pending_circ, reactor) = chan.new_circ().await.map_err(|error| Error::Protocol {
+    let (pending_tunnel, reactor) = chan.new_tunnel().await.map_err(|error| Error::Protocol {
         error,
         peer: None, // we don't blame the peer, because new_circ() does no networking.
         action: "initializing circuit",
@@ -118,11 +119,11 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     })
     .map_err(|e| Error::from_spawn("circuit reactor task", e))?;
 
-    Ok(pending_circ)
+    Ok(pending_tunnel)
 }
 
 #[async_trait]
-impl Buildable for ClientCirc {
+impl Buildable for ClientTunnel {
     async fn create_chantarget<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
@@ -130,10 +131,11 @@ impl Buildable for ClientCirc {
         ct: &OwnedChanTarget,
         params: CircParameters,
         usage: ChannelUsage,
-    ) -> Result<Arc<Self>> {
-        let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
-        let unique_id = Some(circ.peek_unique_id());
-        circ.create_firsthop_fast(params)
+    ) -> Result<Self> {
+        let pending_tunnel = create_common(chanmgr, rt, ct, guard_status, usage).await?;
+        let unique_id = Some(pending_tunnel.peek_unique_id());
+        pending_tunnel
+            .create_firsthop_fast(params)
             .await
             .map_err(|error| Error::Protocol {
                 peer: Some(ct.to_logged()),
@@ -149,12 +151,11 @@ impl Buildable for ClientCirc {
         ct: &OwnedCircTarget,
         params: CircParameters,
         usage: ChannelUsage,
-    ) -> Result<Arc<Self>> {
-        let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
-        let unique_id = Some(circ.peek_unique_id());
+    ) -> Result<Self> {
+        let pending_tunnel = create_common(chanmgr, rt, ct, guard_status, usage).await?;
+        let unique_id = Some(pending_tunnel.peek_unique_id());
 
-        let handshake_res = circ.create_firsthop(ct, params).await;
-
+        let handshake_res = pending_tunnel.create_firsthop(ct, params).await;
         handshake_res.map_err(|error| Error::Protocol {
             peer: Some(ct.to_logged()),
             error,
@@ -168,9 +169,14 @@ impl Buildable for ClientCirc {
         ct: &OwnedCircTarget,
         params: CircParameters,
     ) -> Result<()> {
-        // use "ClientCirc::" name to avoid calling _this_ method.
-        let res = ClientCirc::extend(self, ct, params).await;
+        let circ = self.as_single_circ().map_err(|error| Error::Protocol {
+            peer: Some(ct.to_logged()),
+            error,
+            action: "extend tunnel",
+            unique_id: Some(self.unique_id()),
+        })?;
 
+        let res = circ.extend(ct, params).await;
         res.map_err(|error| Error::Protocol {
             error,
             // We can't know who caused the error, since it may have been
@@ -183,9 +189,9 @@ impl Buildable for ClientCirc {
     }
 }
 
-/// An implementation type for [`CircuitBuilder`].
+/// An implementation type for [`TunnelBuilder`].
 ///
-/// A `CircuitBuilder` holds references to all the objects that are needed
+/// A `TunnelBuilder` holds references to all the objects that are needed
 /// to build circuits correctly.
 ///
 /// In general, you should not need to construct or use this object yourself,
@@ -229,7 +235,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
         n_hops_built: Arc<AtomicU32>,
         guard_status: Arc<GuardStatusHandle>,
         usage: ChannelUsage,
-    ) -> Result<Arc<C>> {
+    ) -> Result<C> {
         match path {
             OwnedPath::ChannelOnly(target) => {
                 // If we fail now, it's the guard's fault.
@@ -293,7 +299,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
         params: &CircParameters,
         guard_status: Arc<GuardStatusHandle>,
         usage: ChannelUsage,
-    ) -> Result<Arc<C>> {
+    ) -> Result<C> {
         let action = Action::BuildCircuit { length: path.len() };
         let (timeout, abandon_timeout) = self.timeouts.timeouts(&action);
         let start_time = self.runtime.now();
@@ -340,14 +346,14 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
 
 /// A factory object to build circuits.
 ///
-/// A `CircuitBuilder` holds references to all the objects that are needed
+/// A `TunnelBuilder` holds references to all the objects that are needed
 /// to build circuits correctly.
 ///
 /// In general, you should not need to construct or use this object yourself,
 /// unless you are choosing your own paths.
-pub struct CircuitBuilder<R: Runtime> {
+pub struct TunnelBuilder<R: Runtime> {
     /// The underlying [`Builder`] object
-    builder: Arc<Builder<R, ClientCirc>>,
+    builder: Arc<Builder<R, ClientTunnel>>,
     /// Configuration for how to choose paths for circuits.
     path_config: tor_config::MutCfg<crate::PathConfig>,
     /// State-manager object to use in storing current state.
@@ -360,8 +366,8 @@ pub struct CircuitBuilder<R: Runtime> {
     vanguardmgr: Arc<VanguardMgr<R>>,
 }
 
-impl<R: Runtime> CircuitBuilder<R> {
-    /// Construct a new [`CircuitBuilder`].
+impl<R: Runtime> TunnelBuilder<R> {
+    /// Construct a new [`TunnelBuilder`].
     // TODO: eventually I'd like to make this a public function, but
     // TimeoutStateHandle is private.
     pub(crate) fn new(
@@ -374,7 +380,7 @@ impl<R: Runtime> CircuitBuilder<R> {
     ) -> Self {
         let timeouts = timeouts::Estimator::from_storage(&storage);
 
-        CircuitBuilder {
+        TunnelBuilder {
             builder: Arc::new(Builder::new(runtime, chanmgr, timeouts)),
             path_config: path_config.into(),
             storage,
@@ -443,7 +449,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         params: &CircParameters,
         guard_status: Arc<GuardStatusHandle>,
         usage: ChannelUsage,
-    ) -> Result<Arc<ClientCirc>> {
+    ) -> Result<ClientTunnel> {
         self.builder
             .build_owned(path, params, guard_status, usage)
             .await
@@ -460,7 +466,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         path: &TorPath<'_>,
         params: &CircParameters,
         usage: ChannelUsage,
-    ) -> Result<Arc<ClientCirc>> {
+    ) -> Result<ClientTunnel> {
         let owned = path.try_into()?;
         self.build_owned(owned, params, Arc::new(None.into()), usage)
             .await
@@ -889,7 +895,7 @@ mod test {
             ct: &OwnedChanTarget,
             _: CircParameters,
             _usage: ChannelUsage,
-        ) -> Result<Arc<Self>> {
+        ) -> Result<Self> {
             let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
             if !d2.is_zero() {
@@ -900,7 +906,7 @@ mod test {
                 hops: vec![RelayIds::from_relay_ids(ct)],
                 onehop: true,
             };
-            Ok(Arc::new(Mutex::new(c)))
+            Ok(Mutex::new(c))
         }
         async fn create<RT: Runtime>(
             _: &ChanMgr<RT>,
@@ -909,7 +915,7 @@ mod test {
             ct: &OwnedCircTarget,
             _: CircParameters,
             _usage: ChannelUsage,
-        ) -> Result<Arc<Self>> {
+        ) -> Result<Self> {
             let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
             if !d2.is_zero() {
@@ -920,7 +926,7 @@ mod test {
                 hops: vec![RelayIds::from_relay_ids(ct)],
                 onehop: false,
             };
-            Ok(Arc::new(Mutex::new(c)))
+            Ok(Mutex::new(c))
         }
         async fn extend<RT: Runtime>(
             &self,

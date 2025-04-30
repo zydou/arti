@@ -195,10 +195,7 @@ pub(crate) trait AbstractTunnelBuilder<R: Runtime>: Send + Sync {
     /// that was originally passed to `plan_tunnel`.  It _must_ also
     /// contain the spec that was originally returned by
     /// `plan_tunnel`.
-    async fn build_tunnel(
-        &self,
-        plan: Self::Plan,
-    ) -> Result<(SupportedTunnelUsage, Arc<Self::Tunnel>)>;
+    async fn build_tunnel(&self, plan: Self::Plan) -> Result<(SupportedTunnelUsage, Self::Tunnel)>;
 
     /// Return a "parallelism factor" with which tunnels should be
     /// constructed for a given purpose.
@@ -327,7 +324,7 @@ pub(crate) struct OpenEntry<T> {
 
 impl<T: AbstractTunnel> OpenEntry<T> {
     /// Make a new OpenEntry for a given tunnel and spec.
-    fn new(spec: SupportedTunnelUsage, tunnel: Arc<T>, expiration: ExpirationInfo) -> Self {
+    fn new(spec: SupportedTunnelUsage, tunnel: T, expiration: ExpirationInfo) -> Self {
         OpenEntry {
             spec,
             tunnel,
@@ -1324,13 +1321,13 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
         match outcome {
             Err(e) => (None, Err(e)),
-            Ok((new_spec, circ)) => {
-                let id = circ.id();
+            Ok((new_spec, tunnel)) => {
+                let id = tunnel.id();
 
                 let use_duration = self.pick_use_duration();
                 let exp_inst = self.runtime.now() + use_duration;
                 let runtime_copy = self.runtime.clone();
-                spawn_expiration_task(&runtime_copy, Arc::downgrade(&self), circ.id(), exp_inst);
+                spawn_expiration_task(&runtime_copy, Arc::downgrade(&self), tunnel.id(), exp_inst);
                 // I used to call restrict_mut here, but now I'm not so
                 // sure. Doing restrict_mut makes sure that this
                 // tunnel will be suitable for the request that asked
@@ -1340,7 +1337,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                 //
                 // new_spec.restrict_mut(&usage_copy).unwrap();
                 let use_before = ExpirationInfo::new(exp_inst);
-                let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
+                let open_ent = OpenEntry::new(new_spec.clone(), tunnel, use_before);
                 {
                     let mut list = self.tunnels.lock().expect("poisoned lock");
                     // Finally, before we return this tunnel, we need to make
@@ -1380,7 +1377,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         &self,
         usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(SupportedTunnelUsage, Arc<B::Tunnel>)> {
+    ) -> Result<(SupportedTunnelUsage, B::Tunnel)> {
         let (_, plan) = self.plan_by_usage(dir, usage)?;
         self.builder.build_tunnel(plan.plan).await
     }

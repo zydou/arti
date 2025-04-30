@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    build::{onion_circparams_from_netparams, CircuitBuilder},
+    build::{onion_circparams_from_netparams, TunnelBuilder},
     mgr::AbstractTunnelBuilder,
     path::hspath::hs_stem_terminal_hop_usage,
     timeouts, AbstractTunnel, CircMgr, CircMgrInner, Error, Result,
@@ -97,7 +97,7 @@ impl HsCircKind {
 /// See [HsCircStemKind].
 pub(crate) struct HsCircStem<C: AbstractTunnel> {
     /// The circuit.
-    pub(crate) circ: Arc<C>,
+    pub(crate) circ: C,
     /// Whether the circuit is NAIVE  or GUARDED.
     pub(crate) kind: HsCircStemKind,
 }
@@ -117,7 +117,7 @@ impl<C: AbstractTunnel> HsCircStem<C> {
 }
 
 impl<C: AbstractTunnel> Deref for HsCircStem<C> {
-    type Target = Arc<C>;
+    type Target = C;
 
     fn deref(&self) -> &Self::Target {
         &self.circ
@@ -207,7 +207,7 @@ impl HsCircStemKind {
 }
 
 /// An object to provide circuits for implementing onion services.
-pub struct HsCircPool<R: Runtime>(Arc<HsCircPoolInner<CircuitBuilder<R>, R>>);
+pub struct HsCircPool<R: Runtime>(Arc<HsCircPoolInner<TunnelBuilder<R>, R>>);
 
 impl<R: Runtime> HsCircPool<R> {
     /// Create a new `HsCircPool`.
@@ -313,7 +313,7 @@ struct Inner<C: AbstractTunnel> {
     pool: pool::Pool<C>,
 }
 
-impl<R: Runtime> HsCircPoolInner<CircuitBuilder<R>, R> {
+impl<R: Runtime> HsCircPoolInner<TunnelBuilder<R>, R> {
     /// Internal implementation for [`HsCircPool::new`].
     pub(crate) fn new(circmgr: &CircMgr<R>) -> Self {
         Self::new_internal(&circmgr.0)
@@ -365,7 +365,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     pub(crate) async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> Result<(Arc<B::Tunnel>, Relay<'a>)> {
+    ) -> Result<(B::Tunnel, Relay<'a>)> {
         // For rendezvous points, clients use 3-hop circuits.
         // Note that we aren't using any special rules for the last hop here; we
         // are relying on the fact that:
@@ -421,7 +421,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         kind: HsCircKind,
         target: T,
-    ) -> Result<Arc<B::Tunnel>>
+    ) -> Result<B::Tunnel>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -477,7 +477,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         circ: HsCircStem<B::Tunnel>,
         params: CircParameters,
         target: T,
-    ) -> Result<Arc<B::Tunnel>>
+    ) -> Result<B::Tunnel>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -752,7 +752,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// Ensure `circ` is compatible with `target`, and has the correct length for its `kind`.
     fn ensure_suitable_circuit<T>(
         &self,
-        circ: &Arc<B::Tunnel>,
+        circ: &B::Tunnel,
         target: Option<&T>,
         kind: HsCircStemKind,
     ) -> Result<()>
@@ -766,11 +766,11 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     }
 
     /// Ensure the specified circuit of type `kind` has the right length.
-    fn ensure_circuit_length_valid(&self, circ: &Arc<B::Tunnel>, kind: HsCircStemKind) -> Result<()> {
-        let circ_path_len = circ.n_hops().map_err(|error| Error::Protocol {
+    fn ensure_circuit_length_valid(&self, tunnel: &B::Tunnel, kind: HsCircStemKind) -> Result<()> {
+        let circ_path_len = tunnel.n_hops().map_err(|error| Error::Protocol {
             action: "validating circuit length",
             peer: None, // Either party could be to blame.
-            unique_id: Some(circ.unique_id()),
+            unique_id: Some(tunnel.unique_id()),
             error,
         })?;
 
@@ -798,18 +798,18 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// because:
     ///   * a relay won't let you extend the circuit to itself
     ///   * relays won't let you extend the circuit to their previous hop
-    fn ensure_circuit_can_extend_to_target<T>(circ: &Arc<B::Tunnel>, target: Option<&T>) -> Result<()>
+    fn ensure_circuit_can_extend_to_target<T>(tunnel: &B::Tunnel, target: Option<&T>) -> Result<()>
     where
         T: CircTarget + std::marker::Sync,
     {
         if let Some(target) = target {
             let take_n = 2;
-            if let Some(hop) = circ
+            if let Some(hop) = tunnel
                 .path_ref()
                 .map_err(|error| Error::Protocol {
                     action: "validating circuit compatibility with target",
                     peer: None, // Either party could be to blame.
-                    unique_id: Some(circ.unique_id()),
+                    unique_id: Some(tunnel.unique_id()),
                     error,
                 })?
                 .hops()
@@ -1177,7 +1177,7 @@ mod test {
     fn circmgr_with_vanguards<R: Runtime>(
         runtime: R,
         mode: VanguardMode,
-    ) -> Arc<CircMgrInner<crate::build::CircuitBuilder<R>, R>> {
+    ) -> Arc<CircMgrInner<crate::build::TunnelBuilder<R>, R>> {
         let chanmgr = tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &Default::default(),

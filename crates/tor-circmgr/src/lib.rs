@@ -47,7 +47,7 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
-use build::CircuitBuilder;
+use build::TunnelBuilder;
 use mgr::{AbstractTunnel, AbstractTunnelBuilder};
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
@@ -197,7 +197,7 @@ impl<'a> DirInfo<'a> {
 /// a set of ports; directory circuits were made to talk to directory caches.
 ///
 /// This is a "handle"; clones of it share state.
-pub struct CircMgr<R: Runtime>(Arc<CircMgrInner<build::CircuitBuilder<R>, R>>);
+pub struct CircMgr<R: Runtime>(Arc<CircMgrInner<build::TunnelBuilder<R>, R>>);
 
 impl<R: Runtime> CircMgr<R> {
     /// Construct a new circuit manager.
@@ -374,7 +374,7 @@ impl<R: Runtime> CircMgr<R> {
     /// Return a reference to the associated CircuitBuilder that this CircMgr
     /// will use to create its circuits.
     #[cfg(feature = "experimental-api")]
-    pub fn builder(&self) -> &CircuitBuilder<R> {
+    pub fn builder(&self) -> &TunnelBuilder<R> {
         CircMgrInner::builder(&self.0)
     }
 }
@@ -388,7 +388,7 @@ pub(crate) struct CircMgrInner<B: AbstractTunnelBuilder<R> + 'static, R: Runtime
     predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
 }
 
-impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
+impl<R: Runtime> CircMgrInner<TunnelBuilder<R>, R> {
     /// Construct a new circuit manager.
     ///
     /// # Usage note
@@ -422,7 +422,7 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
-        let builder = build::CircuitBuilder::new(
+        let builder = build::TunnelBuilder::new(
             runtime.clone(),
             chanmgr,
             config.path_rules().clone(),
@@ -987,7 +987,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         dir: &NetDir,
         stem_kind: HsCircStemKind,
         circ_kind: Option<HsCircKind>,
-    ) -> Result<Arc<B::Tunnel>>
+    ) -> Result<B::Tunnel>
     where
         T: IntoOwnedChanTarget,
     {
