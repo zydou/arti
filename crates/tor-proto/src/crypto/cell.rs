@@ -332,7 +332,7 @@ mod test {
         cc_in: &mut InboundClientCrypt,
         pair: Tor1RelayCrypto,
     ) {
-        let (outbound, inbound, _) = pair.split_relay_layer();
+        let (outbound, inbound, _) = pair.split_client_layer();
         cc_out.add_layer(Box::new(outbound));
         cc_in.add_layer(Box::new(inbound));
     }
@@ -361,9 +361,15 @@ mod test {
         assert_eq!(cc_in.n_layers(), 3);
         assert_eq!(cc_out.n_layers(), 3);
 
-        let mut r1 = Tor1RelayCrypto::construct(KGen::new(seed1)).unwrap();
-        let mut r2 = Tor1RelayCrypto::construct(KGen::new(seed2)).unwrap();
-        let mut r3 = Tor1RelayCrypto::construct(KGen::new(seed3)).unwrap();
+        let (mut r1f, mut r1b, _) = Tor1RelayCrypto::construct(KGen::new(seed1))
+            .unwrap()
+            .split_relay_layer();
+        let (mut r2f, mut r2b, _) = Tor1RelayCrypto::construct(KGen::new(seed2))
+            .unwrap()
+            .split_relay_layer();
+        let (mut r3f, mut r3b, _) = Tor1RelayCrypto::construct(KGen::new(seed3))
+            .unwrap()
+            .split_relay_layer();
         let cmd = ChanCmd::RELAY;
 
         let mut rng = testing_rng();
@@ -376,9 +382,9 @@ mod test {
             let mut cell = cell.into();
             let _tag = cc_out.encrypt(cmd, &mut cell, 2.into()).unwrap();
             assert_ne!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
-            assert!(r1.decrypt_outbound(cmd, &mut cell).is_none());
-            assert!(r2.decrypt_outbound(cmd, &mut cell).is_none());
-            assert!(r3.decrypt_outbound(cmd, &mut cell).is_some());
+            assert!(r1f.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r2f.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r3f.decrypt_outbound(cmd, &mut cell).is_some());
 
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
@@ -389,9 +395,9 @@ mod test {
             cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
 
-            r3.originate(cmd, &mut cell);
-            r2.encrypt_inbound(cmd, &mut cell);
-            r1.encrypt_inbound(cmd, &mut cell);
+            r3b.originate(cmd, &mut cell);
+            r2b.encrypt_inbound(cmd, &mut cell);
+            r1b.encrypt_inbound(cmd, &mut cell);
             let (layer, _tag) = cc_in.decrypt(cmd, &mut cell).unwrap();
             assert_eq!(layer, 2.into());
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);

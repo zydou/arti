@@ -9,13 +9,15 @@ use tor_cell::chancell::ChanCmd;
 
 pub use super::cell::tor1::bench_utils::*;
 use super::cell::{
-    tor1::CryptStatePair, ClientLayer, CryptInit, InboundClientCrypt, InboundRelayLayer as _,
-    OutboundClientCrypt,
+    tor1, tor1::CryptStatePair, ClientLayer, CryptInit, InboundClientCrypt, InboundRelayLayer as _,
+    OutboundClientCrypt, RelayLayer,
 };
 
-/// Public wrapper around the `CryptStatePair` struct.
-#[repr(transparent)]
-pub struct HopCryptState<SC: StreamCipher, D: Digest + Clone>(CryptStatePair<SC, D>);
+/// Public wrapper around a relay's cryptographic state.
+pub struct HopCryptState<SC: StreamCipher, D: Digest + Clone>(
+    tor1::RelayOutbound<SC, D>,
+    tor1::RelayInbound<SC, D>,
+);
 
 /// Public wrapper around the `InboundClientCrypt` struct.
 #[repr(transparent)]
@@ -28,7 +30,8 @@ pub struct OutboundCryptWrapper(OutboundClientCrypt);
 impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> HopCryptState<SC, D> {
     /// Return a new `HopCryptState` based on a seed.
     pub fn construct(seed: SecretBuf) -> Result<Self> {
-        Ok(Self(CryptStatePair::construct(KGen::new(seed))?))
+        let (fwd, back, _) = CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();
+        Ok(Self(fwd, back))
     }
 }
 
@@ -96,11 +99,10 @@ pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone>(
     let cell = &mut cell.0;
 
     for (i, pair) in router_states.iter_mut().rev().enumerate() {
-        let pair = &mut pair.0;
         if i == 0 {
-            pair.originate(ChanCmd::RELAY, cell);
+            pair.1.originate(ChanCmd::RELAY, cell);
         } else {
-            pair.encrypt_inbound(ChanCmd::RELAY, cell);
+            pair.1.encrypt_inbound(ChanCmd::RELAY, cell);
         }
     }
 }

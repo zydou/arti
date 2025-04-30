@@ -30,14 +30,14 @@ const SENDME_TAG_LEN: usize = 20;
 /// For example, if a client makes a 3-hop circuit, then it will have 6
 /// `CryptState`s, one for each relay, for each direction of communication.
 ///
-/// Note that although `CryptState` implements [`OutboundClientLayer`],
+/// Note that although `CryptState` is used to implement [`OutboundClientLayer`],
 /// [`InboundClientLayer`], [`OutboundRelayLayer`], and [`InboundRelayLayer`],
-/// instance will only be used for one of these roles.
+/// each instance will only be used for one of these roles.
 ///
 /// It is parameterized on a stream cipher and a digest type: most circuits
 /// will use AES-128-CTR and SHA1, but v3 onion services use AES-256-CTR and
 /// SHA-3.
-pub(crate) struct CryptState<SC: StreamCipher, D: Digest + Clone> {
+struct CryptState<SC: StreamCipher, D: Digest + Clone> {
     /// Stream cipher for en/decrypting cell bodies.
     ///
     /// This cipher is the one keyed with Kf or Kb in the spec.
@@ -108,85 +108,81 @@ impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> CryptInit for CryptStatePa
     }
 }
 
-impl<SC, D> ClientLayer<CryptState<SC, D>, CryptState<SC, D>> for CryptStatePair<SC, D>
+impl<SC, D> ClientLayer<ClientOutbound<SC, D>, ClientInbound<SC, D>> for CryptStatePair<SC, D>
 where
     SC: StreamCipher,
     D: Digest + Clone,
 {
-    fn split_client_layer(self) -> (CryptState<SC, D>, CryptState<SC, D>, CircuitBinding) {
-        (self.fwd, self.back, self.binding)
+    fn split_client_layer(self) -> (ClientOutbound<SC, D>, ClientInbound<SC, D>, CircuitBinding) {
+        (self.fwd.into(), self.back.into(), self.binding)
     }
 }
 
-impl<SC: StreamCipher, D: Digest + Clone> InboundRelayLayer for CryptState<SC, D> {
+/// An inbound relay layer, encrypting relay cells for a client.
+#[derive(derive_more::From)]
+pub(crate) struct RelayInbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
+impl<SC: StreamCipher, D: Digest + Clone> InboundRelayLayer for RelayInbound<SC, D> {
     fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag {
-        cell.set_digest::<_>(&mut self.digest, &mut self.last_sendme_tag);
+        cell.set_digest::<_>(&mut self.0.digest, &mut self.0.last_sendme_tag);
         self.encrypt_inbound(cmd, cell);
-        self.last_sendme_tag
+        self.0.last_sendme_tag
     }
     fn encrypt_inbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) {
         // This is describe in tor-spec 5.5.3.1, "Relaying Backward at Onion Routers"
-        self.cipher.apply_keystream(cell.as_mut());
+        self.0.cipher.apply_keystream(cell.as_mut());
     }
 }
-impl<SC: StreamCipher, D: Digest + Clone> OutboundRelayLayer for CryptState<SC, D> {
+
+/// An outbound relay layer, decrypting relay cells from a client.
+#[derive(derive_more::From)]
+pub(crate) struct RelayOutbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
+impl<SC: StreamCipher, D: Digest + Clone> OutboundRelayLayer for RelayOutbound<SC, D> {
     fn decrypt_outbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag> {
         // This is describe in tor-spec 5.5.2.2, "Relaying Forward at Onion Routers"
-        self.cipher.apply_keystream(cell.as_mut());
-        if cell.is_recognized::<_>(&mut self.digest, &mut self.last_sendme_tag) {
-            Some(self.last_sendme_tag)
+        self.0.cipher.apply_keystream(cell.as_mut());
+        if cell.is_recognized::<_>(&mut self.0.digest, &mut self.0.last_sendme_tag) {
+            Some(self.0.last_sendme_tag)
         } else {
             None
         }
     }
 }
-impl<SC: StreamCipher, D: Digest + Clone> RelayLayer<CryptState<SC, D>, CryptState<SC, D>>
+impl<SC: StreamCipher, D: Digest + Clone> RelayLayer<RelayOutbound<SC, D>, RelayInbound<SC, D>>
     for CryptStatePair<SC, D>
 {
-    fn split_relay_layer(self) -> (CryptState<SC, D>, CryptState<SC, D>, CircuitBinding) {
+    fn split_relay_layer(self) -> (RelayOutbound<SC, D>, RelayInbound<SC, D>, CircuitBinding) {
         let CryptStatePair { fwd, back, binding } = self;
-        (fwd, back, binding)
-    }
-}
-// This impl is used for testing and benchmarks, but nothing else.
-#[cfg(any(test, feature = "bench"))]
-impl<SC: StreamCipher, D: Digest + Clone> InboundRelayLayer for CryptStatePair<SC, D> {
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag {
-        self.back.originate(cmd, cell)
-    }
-
-    fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
-        self.back.encrypt_inbound(cmd, cell);
-    }
-}
-// This impl is used for testing and benchmarks, but nothing else.
-#[cfg(any(test, feature = "bench"))]
-impl<SC: StreamCipher, D: Digest + Clone> OutboundRelayLayer for CryptStatePair<SC, D> {
-    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag> {
-        self.fwd.decrypt_outbound(cmd, cell)
+        (fwd.into(), back.into(), binding)
     }
 }
 
-impl<SC: StreamCipher, D: Digest + Clone> OutboundClientLayer for CryptState<SC, D> {
+/// An outbound client layer, encrypting relay cells for a relay.
+#[derive(derive_more::From)]
+pub(crate) struct ClientOutbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
+
+impl<SC: StreamCipher, D: Digest + Clone> OutboundClientLayer for ClientOutbound<SC, D> {
     fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag {
-        cell.set_digest::<_>(&mut self.digest, &mut self.last_sendme_tag);
+        cell.set_digest::<_>(&mut self.0.digest, &mut self.0.last_sendme_tag);
         self.encrypt_outbound(cmd, cell);
-        self.last_sendme_tag
+        self.0.last_sendme_tag
     }
     fn encrypt_outbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) {
         // This is a single iteration of the loop described in tor-spec
         // 5.5.2.1, "routing away from the origin."
-        self.cipher.apply_keystream(&mut cell.0[..]);
+        self.0.cipher.apply_keystream(&mut cell.0[..]);
     }
 }
 
-impl<SC: StreamCipher, D: Digest + Clone> InboundClientLayer for CryptState<SC, D> {
+/// An outbound client layer, decryption relay cells from a relay.
+#[derive(derive_more::From)]
+pub(crate) struct ClientInbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
+impl<SC: StreamCipher, D: Digest + Clone> InboundClientLayer for ClientInbound<SC, D> {
     fn decrypt_inbound(&mut self, _cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag> {
         // This is a single iteration of the loop described in tor-spec
         // 5.5.3, "routing to the origin."
-        self.cipher.apply_keystream(&mut cell.0[..]);
-        if cell.is_recognized::<_>(&mut self.digest, &mut self.last_sendme_tag) {
-            Some(self.last_sendme_tag)
+        self.0.cipher.apply_keystream(&mut cell.0[..]);
+        if cell.is_recognized::<_>(&mut self.0.digest, &mut self.0.last_sendme_tag) {
+            Some(self.0.last_sendme_tag)
         } else {
             None
         }

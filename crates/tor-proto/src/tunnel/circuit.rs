@@ -746,7 +746,8 @@ impl ClientCirc {
         let protocol = handshake::RelayCryptLayerProtocol::from(protocol);
         let relay_cell_format = protocol.relay_cell_format();
 
-        let BoxedClientLayer { fwd, back, binding } = protocol.construct_layers(role, seed)?;
+        let BoxedClientLayer { fwd, back, binding } =
+            protocol.construct_client_layers(role, seed)?;
 
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {

@@ -1091,7 +1091,7 @@ impl Circuit {
 
         let relay_cell_format = cell_protocol.relay_cell_format();
         let BoxedClientLayer { fwd, back, binding } =
-            cell_protocol.construct_layers(HandshakeRole::Initiator, keygen)?;
+            cell_protocol.construct_client_layers(HandshakeRole::Initiator, keygen)?;
 
         trace!("{}: Handshake complete; circuit created.", self.unique_id);
 
