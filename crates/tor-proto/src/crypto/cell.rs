@@ -36,7 +36,10 @@ pub(crate) mod tor1;
 
 use crate::{Error, Result};
 use derive_deftly::Deftly;
-use tor_cell::{chancell::BoxedCellBody, chancell::ChanCmd};
+use tor_cell::{
+    chancell::{BoxedCellBody, ChanCmd},
+    relaycell::msg::SendmeTag,
+};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use super::binding::CircuitBinding;
@@ -105,7 +108,7 @@ pub(crate) trait InboundRelayLayer {
     /// and encrypt it.
     ///
     /// Return the authentication tag.
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag;
     /// Encrypt a RelayCellBody that is moving towards the client.
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
@@ -116,7 +119,7 @@ pub(crate) trait OutboundRelayLayer {
     /// Decrypt a RelayCellBody that is moving towards the client.
     ///
     /// Return an authentication tag if it is addressed to us.
-    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag>;
 }
 
 /// A client's view of the cryptographic state shared with a single relay on a
@@ -126,7 +129,7 @@ pub(crate) trait OutboundClientLayer {
     /// encrypt it.
     ///
     /// Return the authentication tag.
-    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag;
     /// Encrypt a RelayCellBody to be decrypted by this layer.
     fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
@@ -137,7 +140,7 @@ pub(crate) trait InboundClientLayer {
     /// Decrypt a CellBody that passed through this layer.
     ///
     /// Return an authentication tag if this layer is the originator.
-    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
+    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag>;
 }
 
 /// Type to store hop indices on a circuit.
@@ -210,10 +213,6 @@ pub(crate) struct InboundClientCrypt {
     layers: Vec<Box<dyn InboundClientLayer + Send>>,
 }
 
-/// The length of the tag that we include (with this algorithm) in an
-/// authenticated SENDME message.
-pub(crate) const SENDME_TAG_LEN: usize = 20;
-
 impl OutboundClientCrypt {
     /// Return a new (empty) OutboundClientCrypt.
     pub(crate) fn new() -> Self {
@@ -231,7 +230,7 @@ impl OutboundClientCrypt {
         cmd: ChanCmd,
         cell: &mut RelayCellBody,
         hop: HopNum,
-    ) -> Result<&[u8; SENDME_TAG_LEN]> {
+    ) -> Result<SendmeTag> {
         let hop: usize = hop.into();
         if hop >= self.layers.len() {
             return Err(Error::NoSuchHop);
@@ -243,7 +242,7 @@ impl OutboundClientCrypt {
         for layer in layers {
             layer.encrypt_outbound(cmd, cell);
         }
-        Ok(tag.try_into().expect("wrong SENDME digest size"))
+        Ok(tag)
     }
 
     /// Add a new layer to this OutboundClientCrypt
@@ -271,7 +270,7 @@ impl InboundClientCrypt {
         &mut self,
         cmd: ChanCmd,
         cell: &mut RelayCellBody,
-    ) -> Result<(HopNum, &[u8])> {
+    ) -> Result<(HopNum, SendmeTag)> {
         for (hopnum, layer) in self.layers.iter_mut().enumerate() {
             if let Some(tag) = layer.decrypt_inbound(cmd, cell) {
                 let hopnum = HopNum(u8::try_from(hopnum).expect("Somehow > 255 hops"));
@@ -591,7 +590,7 @@ mod test {
                 .unwrap();
             let hop: u8 = rng.gen_range_checked(0_u8..=2).unwrap();
 
-            let rtag = relays[hop as usize].originate(cmd, &mut cell).to_vec();
+            let rtag = relays[hop as usize].originate(cmd, &mut cell);
             for r_idx in (0..hop.into()).rev() {
                 relays[r_idx as usize].encrypt_inbound(cmd, &mut cell);
             }

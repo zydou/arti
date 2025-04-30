@@ -23,11 +23,14 @@ use cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, BlockSizeUser, StreamCiphe
 use digest::KeyInit;
 use polyval::{universal_hash::UniversalHash, Polyval};
 use static_assertions::const_assert;
-use tor_cell::{chancell::ChanCmd, chancell::CELL_DATA_LEN};
+use tor_cell::{
+    chancell::{ChanCmd, CELL_DATA_LEN},
+    relaycell::msg::SendmeTag,
+};
 use tor_error::internal;
 use zeroize::Zeroizing;
 
-use super::{CryptInit, RelayCellBody, SENDME_TAG_LEN};
+use super::{CryptInit, RelayCellBody};
 use crate::{circuit::CircuitBinding, util::ct};
 
 /// Size of CGO tag, in bytes.
@@ -410,20 +413,19 @@ struct CryptState<EtBC: BlkCipher, PrfBC: BlkCipherEnc> {
     uiv: uiv::Uiv<EtBC, PrfBC>,
     /// The current nonce value "N" for this direction.
     nonce: Zeroizing<[u8; BLK_LEN]>,
-    /// The current tag value "T'" for this direction, padded with 4 bytes of zeros.
-    ///
-    /// TODO #1956: This is only padded because SENDME_TAG_LEN is currently fixed at
-    /// 20.  We should remove SENDME_TAG_LEN, or make it a maximum.
-    tag: Zeroizing<[u8; SENDME_TAG_LEN]>,
+    /// The current tag value "T'" for this direction.
+    tag: Zeroizing<[u8; BLK_LEN]>,
 }
 
 impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> CryptState<EtBC, PrfBC> {
     /// Return the current tag value.
     ///
     /// TODO: (This might go away once #1956 is done)
+    //
+    // XXXX remove and inline.
     #[inline]
     fn tag(&self) -> &[u8; BLK_LEN] {
-        first_block(&self.tag[..])
+        &self.tag
     }
 
     /// Replace the tag with new_tag.
@@ -431,7 +433,7 @@ impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> CryptState<EtBC, PrfBC> {
     /// TODO: (This might go away once #1956 is done)
     #[inline]
     fn set_tag(&mut self, new_tag: &[u8; BLK_LEN]) {
-        self.tag[..BLK_LEN].copy_from_slice(new_tag);
+        *self.tag = *new_tag;
     }
 }
 
@@ -448,14 +450,14 @@ impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> CryptInit for CryptState<EtBC, PrfBC>
         Ok(Self {
             uiv: uiv::Uiv::initialize(j_s)?,
             nonce: Zeroizing::new(n.try_into().expect("invalid splice length")),
-            tag: Zeroizing::new([0; SENDME_TAG_LEN]),
+            tag: Zeroizing::new([0; BLK_LEN]),
         })
     }
 }
 
 /// An instance of CGO used for outbound client encryption.
 #[derive(Clone, derive_more::From)]
-pub(crate) struct ClientOutbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>, [u8; 20])
+pub(crate) struct ClientOutbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>)
 where
     EtBC: BlkCipherDec,
     PrfBC: BlkCipherEnc;
@@ -464,12 +466,11 @@ where
     EtBC: BlkCipherDec,
     PrfBC: BlkCipherEnc,
 {
-    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag {
         cell.0[0..BLK_LEN].copy_from_slice(&self.0.nonce[..]);
         self.encrypt_outbound(cmd, cell);
         self.0.uiv.update(&mut self.0.nonce);
-        self.1[0..BLK_LEN].copy_from_slice(&cell.0[0..BLK_LEN]);
-        &self.1[..]
+        SendmeTag::try_from(&cell.0[0..BLK_LEN]).expect("Block length not a valid sendme tag.")
     }
     fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
         // TODO PERF: consider swap here.
@@ -479,15 +480,6 @@ where
         // and relay operations always use _encrypt_.
         self.0.uiv.decrypt((self.0.tag(), cmd.into()), &mut cell.0);
         self.0.set_tag(&t_new);
-    }
-}
-impl<EtBC, PrfBC> From<CryptState<EtBC, PrfBC>> for ClientOutbound<EtBC, PrfBC>
-where
-    EtBC: BlkCipherDec,
-    PrfBC: BlkCipherEnc,
-{
-    fn from(val: CryptState<EtBC, PrfBC>) -> Self {
-        Self(val, [0_u8; 20])
     }
 }
 
@@ -502,7 +494,7 @@ where
     EtBC: BlkCipherDec,
     PrfBC: BlkCipherEnc,
 {
-    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
+    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag> {
         let mut t_orig: [u8; BLK_LEN] = *first_block(&*cell.0);
         // let t_orig_orig = t_orig;
 
@@ -514,7 +506,7 @@ where
             self.0.uiv.update(&mut t_orig);
             *self.0.nonce = t_orig;
             // assert_eq!(self.0.tag[..BLK_LEN], t_orig_orig[..]);
-            Some(&self.0.tag[..])
+            Some((*self.0.tag).into())
         } else {
             None
         }
@@ -522,8 +514,8 @@ where
 }
 
 /// An instance of CGO used for outbound (away from the client) relay encryption.
-#[derive(Clone)]
-pub(crate) struct RelayOutbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>, [u8; 20])
+#[derive(Clone, derive_more::From)]
+pub(crate) struct RelayOutbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>)
 where
     EtBC: BlkCipherEnc,
     PrfBC: BlkCipherEnc;
@@ -532,27 +524,18 @@ where
     EtBC: BlkCipherEnc,
     PrfBC: BlkCipherEnc,
 {
-    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
-        self.1[0..BLK_LEN].copy_from_slice(&cell.0[0..BLK_LEN]);
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag> {
+        let tag = SendmeTag::try_from(&cell.0[0..BLK_LEN]).expect("Invalid sendme length");
         // Note use of encrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
         self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
         self.0.set_tag(first_block(&*cell.0));
         if ct::bytes_eq(self.0.tag(), &self.0.nonce[..]) {
             self.0.uiv.update(&mut self.0.nonce);
-            Some(&self.1[..])
+            Some(tag)
         } else {
             None
         }
-    }
-}
-impl<EtBC, PrfBC> From<CryptState<EtBC, PrfBC>> for RelayOutbound<EtBC, PrfBC>
-where
-    EtBC: BlkCipherEnc,
-    PrfBC: BlkCipherEnc,
-{
-    fn from(val: CryptState<EtBC, PrfBC>) -> Self {
-        Self(val, [0_u8; 20])
     }
 }
 
@@ -567,13 +550,13 @@ where
     EtBC: BlkCipherEnc,
     PrfBC: BlkCipherEnc,
 {
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag {
         cell.0[0..BLK_LEN].copy_from_slice(&self.0.nonce[..]);
         self.encrypt_inbound(cmd, cell);
         self.0.nonce.copy_from_slice(&cell.0[0..BLK_LEN]);
         self.0.uiv.update(&mut self.0.nonce);
         // assert_eq!(self.0.tag[..BLK_LEN], cell.0[0..BLK_LEN]);
-        &self.0.tag[..]
+        (*self.0.tag).into()
     }
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
         // Note use of encrypt here: Client operations always use _decrypt_,

@@ -1,8 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use digest::{generic_array::GenericArray, Digest};
+use digest::Digest;
 use rand::prelude::*;
 
-use tor_cell::relaycell::{RelayCellFormatTrait, RelayCellFormatV0};
+use tor_cell::relaycell::{msg::SendmeTag, RelayCellFormatTrait, RelayCellFormatV0};
 use tor_llcrypto::d::{Sha1, Sha3_256};
 use tor_proto::bench_utils::RelayBody;
 
@@ -17,7 +17,7 @@ fn create_digested_cell<D: Digest + Clone, RCF: RelayCellFormatTrait>(
     let mut cell = [0u8; 509];
     rng.fill(&mut cell[..]);
     let mut cell: RelayBody = cell.into();
-    let mut used_digest = GenericArray::default();
+    let mut used_digest = SendmeTag::from([0_u8; 20]);
 
     cell.set_digest::<_, RCF>(d, &mut used_digest);
 
@@ -36,7 +36,7 @@ pub fn cell_is_recognized_benchmark(c: &mut Criterion<CpuTime>) {
                 let mut d = Sha1::new();
 
                 let cell = create_digested_cell::<_, RelayCellFormatV0>(&mut rng, &mut d);
-                (cell, Sha1::new(), GenericArray::default())
+                (cell, Sha1::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, rcvd)| {
                 cell.is_recognized::<_, RelayCellFormatV0>(d, rcvd);
@@ -52,7 +52,7 @@ pub fn cell_is_recognized_benchmark(c: &mut Criterion<CpuTime>) {
                 let mut d = Sha3_256::new();
 
                 let cell = create_digested_cell::<_, RelayCellFormatV0>(&mut rng, &mut d);
-                (cell, Sha3_256::new(), GenericArray::default())
+                (cell, Sha3_256::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, rcvd)| {
                 cell.is_recognized::<_, RelayCellFormatV0>(d, rcvd);

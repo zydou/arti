@@ -1515,25 +1515,29 @@ pub(crate) mod test {
         lasthop: bool,
     }
     impl DummyCrypto {
-        fn next_tag(&mut self) -> &[u8; 20] {
+        fn next_tag(&mut self) -> SendmeTag {
             #![allow(clippy::identity_op)]
             self.counter_tag[0] = ((self.counter >> 0) & 255) as u8;
             self.counter_tag[1] = ((self.counter >> 8) & 255) as u8;
             self.counter_tag[2] = ((self.counter >> 16) & 255) as u8;
             self.counter_tag[3] = ((self.counter >> 24) & 255) as u8;
             self.counter += 1;
-            &self.counter_tag
+            self.counter_tag.into()
         }
     }
 
     impl crate::crypto::cell::OutboundClientLayer for DummyCrypto {
-        fn originate_for(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> &[u8] {
+        fn originate_for(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> SendmeTag {
             self.next_tag()
         }
         fn encrypt_outbound(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) {}
     }
     impl crate::crypto::cell::InboundClientLayer for DummyCrypto {
-        fn decrypt_inbound(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> Option<&[u8]> {
+        fn decrypt_inbound(
+            &mut self,
+            _cmd: ChanCmd,
+            _cell: &mut RelayCellBody,
+        ) -> Option<SendmeTag> {
             if self.lasthop {
                 Some(self.next_tag())
             } else {

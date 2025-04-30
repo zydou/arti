@@ -9,7 +9,7 @@ use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt, OutboundClientLayer,
-    RelayCellBody, SENDME_TAG_LEN,
+    RelayCellBody,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
@@ -379,7 +379,7 @@ impl Circuit {
         hop: HopNum,
         early: bool,
         msg: AnyRelayMsgOuter,
-    ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
+    ) -> Result<(AnyChanMsg, SendmeTag)> {
         let mut body: RelayCellBody = msg
             .encode(relay_format, &mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
@@ -455,7 +455,7 @@ impl Circuit {
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
-            circhop.ccontrol.note_data_sent(tag)?;
+            circhop.ccontrol.note_data_sent(&tag)?;
         }
 
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
@@ -517,11 +517,6 @@ impl Circuit {
         // Decrypt the cell. If it's recognized, then find the
         // corresponding hop.
         let (hopnum, tag) = self.crypto_in.decrypt(cmd, &mut body)?;
-        // Make a copy of the authentication tag. TODO: I'd rather not
-        // copy it, but I don't see a way around it right now.
-        // XXXX Generate a SendmeTag earlier.
-        let tag = SendmeTag::try_from(tag)
-            .expect("Invalid length on an authentication tag we generated.");
 
         // Decode the cell.
         let decode_res = self
