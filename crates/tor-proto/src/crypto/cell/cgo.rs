@@ -417,26 +417,6 @@ struct CryptState<EtBC: BlkCipher, PrfBC: BlkCipherEnc> {
     tag: Zeroizing<[u8; BLK_LEN]>,
 }
 
-impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> CryptState<EtBC, PrfBC> {
-    /// Return the current tag value.
-    ///
-    /// TODO: (This might go away once #1956 is done)
-    //
-    // XXXX remove and inline.
-    #[inline]
-    fn tag(&self) -> &[u8; BLK_LEN] {
-        &self.tag
-    }
-
-    /// Replace the tag with new_tag.
-    ///
-    /// TODO: (This might go away once #1956 is done)
-    #[inline]
-    fn set_tag(&mut self, new_tag: &[u8; BLK_LEN]) {
-        *self.tag = *new_tag;
-    }
-}
-
 impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> CryptInit for CryptState<EtBC, PrfBC> {
     fn seed_len() -> usize {
         uiv::Uiv::<EtBC, PrfBC>::seed_len() + BLK_LEN
@@ -478,8 +458,8 @@ where
 
         // Note use of decrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.decrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(&t_new);
+        self.0.uiv.decrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = t_new;
     }
 }
 
@@ -500,8 +480,8 @@ where
 
         // Note use of decrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.decrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(&t_orig);
+        self.0.uiv.decrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = t_orig;
         if ct::bytes_eq(&cell.0[..CGO_TAG_LEN], &self.0.nonce[..]) {
             self.0.uiv.update(&mut t_orig);
             *self.0.nonce = t_orig;
@@ -528,9 +508,9 @@ where
         let tag = SendmeTag::try_from(&cell.0[0..BLK_LEN]).expect("Invalid sendme length");
         // Note use of encrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(first_block(&*cell.0));
-        if ct::bytes_eq(self.0.tag(), &self.0.nonce[..]) {
+        self.0.uiv.encrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = *first_block(&*cell.0);
+        if ct::bytes_eq(self.0.tag.as_ref(), &self.0.nonce[..]) {
             self.0.uiv.update(&mut self.0.nonce);
             Some(tag)
         } else {
@@ -561,8 +541,8 @@ where
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
         // Note use of encrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(first_block(&*cell.0));
+        self.0.uiv.encrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = *first_block(&*cell.0);
     }
 }
 
@@ -808,7 +788,7 @@ mod test {
             let mut msg = RelayCellBody(Box::new(msg));
 
             let mut state = CryptState::<Aes128, Aes128>::initialize(&k_n).unwrap();
-            state.set_tag(&tprime);
+            *state.tag = tprime;
             let state = if *inbound {
                 let mut s = RelayInbound::from(state);
                 s.encrypt_inbound(ad[0].into(), &mut msg);
@@ -828,7 +808,7 @@ mod test {
             assert_eq!(&ex_msg[..], &msg.0[..]);
             assert_eq!(&state.uiv.keys[..], &ex_k[..]);
             assert_eq!(&state.nonce[..], &ex_n[..]);
-            assert_eq!(state.tag(), &ex_tprime[..]);
+            assert_eq!(&state.tag[..], &ex_tprime[..]);
         }
     }
 
@@ -844,7 +824,7 @@ mod test {
             let mut msg = RelayCellBody(Box::new(msg));
 
             let mut state = CryptState::<Aes128, Aes128>::initialize(&k_n).unwrap();
-            state.set_tag(&tprime);
+            *state.tag = tprime;
             let mut state = RelayInbound::from(state);
             state.originate(ad[0].into(), &mut msg);
             let state = state.0;
@@ -857,7 +837,7 @@ mod test {
             assert_eq!(&ex_msg[..], &msg.0[..]);
             assert_eq!(&state.uiv.keys[..], &ex_k[..]);
             assert_eq!(&state.nonce[..], &ex_n[..]);
-            assert_eq!(state.tag(), &ex_tprime[..]);
+            assert_eq!(&state.tag[..], &ex_tprime[..]);
         }
     }
 
@@ -871,7 +851,7 @@ mod test {
                 let k_n: [u8; 80] = unhex(&format!("{k}{n}"));
                 let tprime: [u8; 16] = unhex(tprime);
                 let mut state = CryptState::<Aes128, Aes128>::initialize(&k_n).unwrap();
-                state.set_tag(&tprime);
+                *state.tag = tprime;
                 client.add_layer(Box::new(ClientOutbound::from(state.clone())));
                 individual_layers.push(ClientOutbound::from(state));
             }
@@ -911,7 +891,7 @@ mod test {
 
                 assert_eq!(&state.uiv.keys[..], &ex_k[..]);
                 assert_eq!(&state.nonce[..], &ex_n[..]);
-                assert_eq!(state.tag(), &ex_tprime);
+                assert_eq!(&state.tag[..], &ex_tprime);
             }
         }
     }
