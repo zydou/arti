@@ -16,6 +16,7 @@ use rand::{CryptoRng, Rng};
 #[cfg(feature = "conflux")]
 pub mod conflux;
 pub mod extend;
+mod extlist;
 #[cfg(feature = "hs")]
 pub mod hs;
 pub mod msg;

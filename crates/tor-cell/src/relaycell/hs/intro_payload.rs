@@ -4,8 +4,8 @@
 //! rend-spec-v3.txt.  It tells the onion service how to find the rendezvous
 //! point, and how to handshake with the client there.)
 
-use super::ext::{decl_extension_group, Ext, ExtGroup, ExtList, UnrecognizedExt};
 use super::pow::ProofOfWork;
+use crate::relaycell::extlist::{decl_extension_group, Ext, ExtGroup, ExtList, UnrecognizedExt};
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
 use tor_hscrypto::RendCookie;

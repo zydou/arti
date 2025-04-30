@@ -4,8 +4,8 @@
 pub mod v1;
 
 use self::v1::ProofOfWorkV1;
-use super::ext::Ext;
 use super::intro_payload::IntroPayloadExtType;
+use crate::relaycell::extlist::Ext;
 use caret::caret_int;
 use tor_bytes::{EncodeResult, Reader, Result, Writer};
 

@@ -1,8 +1,7 @@
 //! Encoding and decoding for relay messages related to onion services.
 
-use self::ext::{decl_extension_group, ExtGroup, ExtList};
-
 use super::msg::{self, Body};
+use crate::relaycell::extlist::{decl_extension_group, ExtGroup, ExtList};
 use caret::caret_int;
 use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Result};
@@ -12,11 +11,10 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 pub mod est_intro;
-mod ext;
 pub mod intro_payload;
 pub mod pow;
 
-pub use ext::UnrecognizedExt;
+pub use crate::relaycell::extlist::UnrecognizedExt;
 
 caret_int! {
     /// The type of the introduction point auth key
