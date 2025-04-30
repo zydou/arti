@@ -465,7 +465,8 @@ enum UnparsedRelayMsgInternal {
 }
 
 /// An enveloped relay message that has not yet been fully parsed, but where we
-/// have access to the command and stream ID, for dispatching purposes.
+/// have access to the command, stream ID, and payload data length for dispatching
+/// and congestion control purposes.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(HasMemoryCost)]
 pub struct UnparsedRelayMsg {
@@ -478,6 +479,12 @@ const STREAM_ID_OFFSET: usize = 3;
 
 /// Position of the stream ID within the V1 cell body, if it is present.
 const STREAM_ID_OFFSET_V1: usize = 16 + 1 + 2; // tag, command, length.
+
+/// Position of the payload data length within the V0 cell body.
+const LENGTH_OFFSET_V0: usize = 1 + 2 + 2 + 4; // command, recognized, stream_id, digest.
+
+/// Position of the payload data length within the V1 cell body.
+const LENGTH_OFFSET_V1: usize = 16 + 1; // tag, command.
 
 impl UnparsedRelayMsg {
     /// Wrap a BoxedCellBody as an UnparsedRelayMsg.
@@ -543,6 +550,19 @@ impl UnparsedRelayMsg {
                 }
             }
         }
+    }
+    /// Return the "length" field of the cell.
+    ///
+    /// This is the size of the cell data (the "data" field), not the size of the cell.
+    /// No bounds checking or validation is performed.
+    pub fn data_len(&self) -> u16 {
+        let bytes: [u8; 2] = match &self.internal {
+            UnparsedRelayMsgInternal::V0(body) => &body[LENGTH_OFFSET_V0..][..2],
+            UnparsedRelayMsgInternal::V1(body) => &body[LENGTH_OFFSET_V1..][..2],
+        }
+        .try_into()
+        .expect("two-byte slice was not two bytes long!?");
+        u16::from_be_bytes(bytes)
     }
     /// Decode this unparsed cell into a given cell type.
     pub fn decode<M: RelayMsg>(self) -> Result<RelayMsgOuter<M>> {
