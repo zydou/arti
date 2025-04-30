@@ -1,11 +1,12 @@
 //! Types and encodings used during circuit extension.
 
-use crate::{Error, Result};
+use super::extlist::{decl_extension_group, Ext, ExtList, ExtListRef};
 use caret::caret_int;
-use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
+use tor_bytes::{EncodeResult, Reader, Writeable as _, Writer};
 
 caret_int! {
     /// A type of ntor v3 extension data (`EXT_FIELD_TYPE`).
+    #[derive(PartialOrd,Ord)]
     pub struct CircRequestExtType(u8) {
         /// Request congestion control be enabled for a circuit.
         CC_REQUEST = 1,
@@ -14,117 +15,94 @@ caret_int! {
     }
 }
 
-/// A piece of extension data, to be encoded as the message in an circuit
-/// extension (CREATE2) handshake.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Request congestion control be enabled for this circuit (client → exit node).
+///
+/// (`EXT_FIELD_TYPE` = 01)
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
-pub enum CircRequestExt {
-    /// Request congestion control be enabled for this circuit (client → exit node).
-    ///
-    /// (`EXT_FIELD_TYPE` = 01)
-    RequestCongestionControl,
-    /// Acknowledge a congestion control request (exit node → client).
-    ///
-    /// (`EXT_FIELD_TYPE` = 02)
-    AckCongestionControl {
-        /// The exit's current view of the `cc_sendme_inc` consensus parameter.
-        sendme_inc: u8,
-    },
-    /// An unknown piece of extension data.
-    Unrecognized {
-        /// The extension type (`EXT_FIELD_TYPE`).
-        field_type: CircRequestExtType,
-        /// The raw bytes of unrecognized extension data.
-        data: Vec<u8>,
-    },
-}
+pub struct CcRequest {}
 
-impl CircRequestExt {
-    /// Encode a set of extensions into a "message" for an ntor v3 handshake.
-    pub fn write_many_onto<W: Writer>(exts: &[CircRequestExt], out: &mut W) -> EncodeResult<()> {
-        let n_extensions =
-            u8::try_from(exts.len()).map_err(|_| tor_bytes::EncodeError::BadLengthValue)?;
-        out.write_u8(n_extensions);
-        exts.iter().try_for_each(|x| x.write_onto(out))
+impl Ext for CcRequest {
+    type Id = CircRequestExtType;
+    fn type_id(&self) -> Self::Id {
+        CircRequestExtType::CC_REQUEST
     }
-
-    /// Decode a slice of bytes representing the "message" of an ntor v3 handshake into a set of
-    /// extensions.
-    pub fn decode(message: &[u8]) -> Result<Vec<Self>> {
-        let mut reader = Reader::from_slice(message);
-        let mut ret = vec![];
-        let n_extensions = reader.take_u8().map_err(|e| Error::BytesErr {
-            err: e,
-            parsed: "n_extensions",
-        })?;
-        for _ in 0..n_extensions {
-            ret.push(
-                CircRequestExt::take_from(&mut reader).map_err(|err| Error::BytesErr {
-                    err,
-                    parsed: "an ntor extension",
-                })?,
-            );
-        }
-        if reader.remaining() > 0 {
-            return Err(Error::BytesErr {
-                err: tor_bytes::Error::ExtraneousBytes,
-                parsed: "ntor extensions set",
-            });
-        }
-        Ok(ret)
+    fn take_body_from(_b: &mut Reader<'_>) -> tor_bytes::Result<Self> {
+        Ok(Self {})
     }
-}
-
-impl Writeable for CircRequestExt {
-    fn write_onto<W: Writer + ?Sized>(&self, out: &mut W) -> EncodeResult<()> {
-        match self {
-            CircRequestExt::RequestCongestionControl => {
-                out.write_all(&[1, 0]);
-            }
-            CircRequestExt::AckCongestionControl { sendme_inc } => {
-                out.write_all(&[2, 1, *sendme_inc]);
-            }
-            CircRequestExt::Unrecognized { field_type, data } => {
-                // FIXME(eta): This will break if you try and fill `data` with more than 255 bytes.
-                //             This is only a problem if you construct your own `Unrecognized`, though.
-                out.write_all(&[field_type.get(), data.len() as u8]);
-                out.write_all(data);
-            }
-        }
+    fn write_body_onto<B: Writer + ?Sized>(&self, _b: &mut B) -> EncodeResult<()> {
         Ok(())
     }
 }
 
-impl Readable for CircRequestExt {
-    fn take_from(reader: &mut Reader<'_>) -> tor_bytes::Result<Self> {
-        let tag: CircRequestExtType = reader.take_u8()?.into();
-        let len = reader.take_u8()?;
-        Ok(match tag {
-            CircRequestExtType::CC_REQUEST => {
-                if len != 0 {
-                    return Err(tor_bytes::Error::InvalidMessage(
-                        "invalid length for RequestCongestionControl".into(),
-                    ));
-                }
-                CircRequestExt::RequestCongestionControl
-            }
-            CircRequestExtType::CC_RESPONSE => {
-                if len != 1 {
-                    return Err(tor_bytes::Error::InvalidMessage(
-                        "invalid length for AckCongestionControl".into(),
-                    ));
-                }
-                let sendme_inc = reader.take_u8()?;
-                CircRequestExt::AckCongestionControl { sendme_inc }
-            }
-            x => {
-                let mut data = vec![0; len as usize];
-                reader.take_into(&mut data)?;
-                CircRequestExt::Unrecognized {
-                    field_type: x,
-                    data,
-                }
-            }
-        })
+/// Acknowledge a congestion control request (exit node → client).
+///
+/// (`EXT_FIELD_TYPE` = 02)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CcResponse {
+    /// The exit's current view of the `cc_sendme_inc` consensus parameter.
+    sendme_inc: u8,
+}
+
+impl CcResponse {
+    /// Create a new AckCongestionControl with a given value for the
+    /// `sendme_inc` parameter.
+    pub fn new(sendme_inc: u8) -> Self {
+        CcResponse { sendme_inc }
+    }
+
+    /// Return the value of the `sendme_inc` parameter for this extension.
+    pub fn sendme_inc(&self) -> u8 {
+        self.sendme_inc
+    }
+}
+
+impl Ext for CcResponse {
+    type Id = CircRequestExtType;
+    fn type_id(&self) -> Self::Id {
+        CircRequestExtType::CC_RESPONSE
+    }
+
+    fn take_body_from(b: &mut Reader<'_>) -> tor_bytes::Result<Self> {
+        let sendme_inc = b.take_u8()?;
+        Ok(Self { sendme_inc })
+    }
+
+    fn write_body_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+        b.write_u8(self.sendme_inc);
+        Ok(())
+    }
+}
+
+decl_extension_group! {
+    /// An extension to be sent along with a circuit extension request
+    /// (CREATE2, EXTEND2, or INTRODUCE.)
+    #[derive(Debug,Clone,Eq,PartialEq)]
+    #[non_exhaustive]
+    pub enum CircRequestExt [ CircRequestExtType ] {
+        /// Request to enable congestion control.
+        CcRequest,
+        /// Response indicating that congestion control is enabled.
+        CcResponse,
+    }
+}
+
+impl CircRequestExt {
+    /// Encode a set of extensions into a "message" for a circuit request.
+    pub fn write_many_onto<W: Writer>(exts: &[CircRequestExt], out: &mut W) -> EncodeResult<()> {
+        ExtListRef::from(exts).write_onto(out)?;
+        Ok(())
+    }
+    /// Decode a slice of bytes representing the "message" of a circuit request into a set of
+    /// extensions.
+    pub fn decode(message: &[u8]) -> crate::Result<Vec<Self>> {
+        let err_cvt = |err| crate::Error::BytesErr {
+            err,
+            parsed: "CREATE extension list",
+        };
+        let mut r = tor_bytes::Reader::from_slice(message);
+        let list: ExtList<CircRequestExt> = r.extract().map_err(err_cvt)?;
+        r.should_be_exhausted().map_err(err_cvt)?;
+        Ok(list.into_vec())
     }
 }

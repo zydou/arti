@@ -1248,7 +1248,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody, ChanCmd};
     use tor_cell::relaycell::extend::NtorV3Extension;
-    use tor_cell::relaycell::extend::CircRequestExt;
+    use tor_cell::relaycell::extend::{self as extend_ext, CircRequestExt};
     use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
@@ -1420,13 +1420,13 @@ pub(crate) mod test {
                         |client_exts: &[CircRequestExt]| {
                             let _ = client_exts
                                 .iter()
-                                .find(|e| matches!(e, CircRequestExt::RequestCongestionControl))
+                                .find(|e| matches!(e, CircRequestExt::CcRequest(_)))
                                 .expect("Client failed to request CC");
-                            Some(vec![CircRequestExt::AckCongestionControl {
-                                // This needs to be aligned to test_utils params
-                                // value due to validation that needs it in range.
-                                sendme_inc: 31,
-                            }])
+                            // This needs to be aligned to test_utils params
+                            // value due to validation that needs it in range.
+                            Some(vec![CircRequestExt::CcResponse(
+                                extend_ext::CcResponse::new(31),
+                            )])
                         }
                     } else {
                         |_: &_| Some(vec![])

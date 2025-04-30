@@ -38,7 +38,15 @@ impl<T> Default for ExtList<T> {
         }
     }
 }
-/// An kind of extension that can be used with some kind of relay message.
+
+/// As ExtList, but held by reference.
+#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::From)]
+pub(super) struct ExtListRef<'a, T> {
+    /// A reference to a slice of extensions.
+    extensions: &'a [T],
+}
+
+/// A kind of extension that can be used with some kind of relay message.
 ///
 /// Each extendible message will likely define its own enum,
 /// implementing this trait,
@@ -72,7 +80,7 @@ impl<T: ExtGroup> Readable for ExtList<T> {
         })
     }
 }
-impl<T: ExtGroup> Writeable for ExtList<T> {
+impl<'a, T: ExtGroup> Writeable for ExtListRef<'a, T> {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
         let n_extensions = self
             .extensions
@@ -86,6 +94,11 @@ impl<T: ExtGroup> Writeable for ExtList<T> {
         Ok(())
     }
 }
+impl<T: ExtGroup> Writeable for ExtList<T> {
+    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+        ExtListRef::from(&self.extensions[..]).write_onto(b)
+    }
+}
 impl<T: ExtGroup> ExtList<T> {
     /// Insert `ext` into this list of extensions, replacing any previous
     /// extension with the same field type ID.
@@ -93,10 +106,14 @@ impl<T: ExtGroup> ExtList<T> {
         self.retain(|e| e.type_id() != ext.type_id());
         self.push(ext);
     }
+    /// Consume this ExtList and return its members as a vector.
+    pub(super) fn into_vec(self) -> Vec<T> {
+        self.extensions
+    }
 }
 
 /// An unrecognized or unencoded extension for some relay message.
-#[derive(Clone, Debug, Deftly)]
+#[derive(Clone, Debug, Deftly, Eq, PartialEq)]
 #[derive_deftly(HasMemoryCost)]
 // Use `Copy + 'static` and `#[deftly(has_memory_cost(copy))]` so that we don't
 // need to derive HasMemoryCost for the id types, which are indeed all Copy.

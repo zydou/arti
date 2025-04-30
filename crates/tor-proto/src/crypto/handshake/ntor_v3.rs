@@ -716,6 +716,7 @@ mod test {
     use super::*;
     use hex_literal::hex;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_cell::relaycell::extend::{CcRequest, CcResponse};
 
     #[test]
     fn test_ntor3_roundtrip() {
@@ -789,13 +790,13 @@ mod test {
         let mut rng = rand::rng();
         let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
-        let client_exts = vec![CircRequestExt::RequestCongestionControl];
-        let reply_exts = vec![CircRequestExt::AckCongestionControl { sendme_inc: 42 }];
+        let client_exts = vec![CircRequestExt::CcRequest(CcRequest::default())];
+        let reply_exts = vec![CircRequestExt::CcResponse(CcResponse::new(42))];
 
         let (c_state, c_handshake) = NtorV3Client::client1(
             &mut rng,
             &relay_private.pk,
-            &[CircRequestExt::RequestCongestionControl],
+            &[CircRequestExt::CcRequest(CcRequest::default())],
         )
         .unwrap();
 

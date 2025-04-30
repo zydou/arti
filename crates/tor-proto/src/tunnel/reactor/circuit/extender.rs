@@ -254,7 +254,7 @@ impl HandshakeAuxDataHandler for NtorV3Client {
         #[cfg_attr(not(feature = "flowctl-cc"), allow(clippy::never_loop))]
         for ext in data {
             match ext {
-                CircRequestExt::AckCongestionControl { sendme_inc } => {
+                CircRequestExt::CcResponse(ack_ext) => {
                     cfg_if::cfg_if! {
                         if #[cfg(feature = "flowctl-cc")] {
                             // Unexpected ACK extension as in if CC is disabled on our side, we would never have
@@ -264,8 +264,9 @@ impl HandshakeAuxDataHandler for NtorV3Client {
                                     "Received unexpected ntorv3 CC ack extension".into(),
                                 ));
                             }
+                            let sendme_inc = ack_ext.sendme_inc();
                             // Invalid increment, reject and circuit must be closed.
-                            if !congestion::params::is_sendme_inc_valid(*sendme_inc, params) {
+                            if !congestion::params::is_sendme_inc_valid(sendme_inc, params) {
                                 return Err(Error::HandshakeProto(
                                     "Received invalid sendme increment in CC ntorv3 extension".into(),
                                 ));
@@ -274,8 +275,9 @@ impl HandshakeAuxDataHandler for NtorV3Client {
                             params
                                 .ccontrol
                                 .cwnd_params_mut()
-                                .set_sendme_inc(*sendme_inc);
+                                .set_sendme_inc(sendme_inc);
                         } else {
+                            let _ = ack_ext;
                             return Err(Error::HandshakeProto(
                                 "Received unexpected `AckCongestionControl` ntorv3 extension".into(),
                             ));
