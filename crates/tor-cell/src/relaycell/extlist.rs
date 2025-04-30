@@ -1,14 +1,13 @@
-//! Helpers to manage lists of HS cell extensions.
-//
-// TODO: We might generalize this even more in the future to handle other
-// similar lists in our cell protocol.
+//! Helpers to manage lists of extensions within relay messages.
+//!
+//! These are used widely throughout the HS code,
+//! but also in the ntor-v3 handshake.
 
 use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_memquota::{derive_deftly_template_HasMemoryCost, HasMemoryCostStructural};
 
-/// A list of extensions, represented in a common format used by many HS-related
-/// message.
+/// A list of extensions, represented in a common format used by many messages.
 ///
 /// The common format is:
 /// ```text
@@ -39,7 +38,7 @@ impl<T> Default for ExtList<T> {
         }
     }
 }
-/// An kind of extension that can be used with some kind of HS-related message.
+/// An kind of extension that can be used with some kind of relay message.
 ///
 /// Each extendible message will likely define its own enum,
 /// implementing this trait,
@@ -50,7 +49,7 @@ pub(super) trait ExtGroup: Readable + Writeable {
     /// The field-type id for this particular extension.
     fn type_id(&self) -> Self::Id;
 }
-/// A single typed extension that can be used with some kind of HS-related message.
+/// A single typed extension that can be used with some kind of relay message.
 pub(super) trait Ext: Sized {
     /// An identifier kind used with this sort of extension.
     ///
@@ -96,7 +95,7 @@ impl<T: ExtGroup> ExtList<T> {
     }
 }
 
-/// An unrecognized or unencoded extension for some HS-related message.
+/// An unrecognized or unencoded extension for some relay message.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(HasMemoryCost)]
 // Use `Copy + 'static` and `#[deftly(has_memory_cost(copy))]` so that we don't
@@ -129,8 +128,8 @@ impl<ID> UnrecognizedExt<ID> {
 /// Declare an Extension group that takes a given identifier.
 //
 // TODO: This is rather similar to restrict_msg(), isn't it?  Also, We use this
-// pattern of (number, (cmd, length, body)*) a few of times in Tor outside the
-// hs module.  Perhaps we can extend and unify our code here...
+// pattern of (number, (cmd, length, body)*) a few of times in Tor outside the relaycell
+// module.  Perhaps we can extend and unify our code here...
 macro_rules! decl_extension_group {
     {
         $( #[$meta:meta] )*
