@@ -37,7 +37,7 @@ full = [
     "oneshot-fused-workaround/full",
     "tor-memquota/full",
     "slotmap-careful/full",
-    "caret/full",
+    "caret/full", "tor-protover/full",
 ]
 
 experimental = ["experimental-api", "conflux", "flowctl-cc", "stream-ctrl", "testing", "bench", "counter-galois-onion"]

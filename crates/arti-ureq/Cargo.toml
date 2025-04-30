@@ -27,7 +27,14 @@ test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
 
 [features]
 default = ["rustls", "tokio"]
-rustls = ["ureq/rustls", "tor-rtcompat/rustls"]
+
+rustls = ["ureq/rustls", "tor-rtcompat/rustls", "__is_nonadditive"]
+
 native-tls = ["ureq/native-tls", "tor-rtcompat/native-tls"]
+
 tokio = ["tor-rtcompat/tokio", "dep:tokio"]
+
 async-std = ["tor-rtcompat/async-std", "dep:async-std"]
+full = ["arti-client/full", "tor-error/full", "tor-proto/full", "tor-rtcompat/full", "native-tls", "tokio", "async-std"]
+
+__is_nonadditive = []

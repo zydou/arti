@@ -42,7 +42,7 @@ full = [
     "tor-persist/full",
     "oneshot-fused-workaround/full",
     "slotmap-careful/full",
-    "tor-memquota/full",
+    "tor-memquota/full", "tor-protover/full",
 ]
 __is_experimental = []
 experimental = ["keymgr", "hs-pow-full"]
