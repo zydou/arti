@@ -137,14 +137,14 @@ impl Introduce2 {
 }
 
 caret_int! {
-    /// The recognized extension types for an `Introduce1` or `Introduce2 message.
+    /// The recognized unencrypted extension types for an `Introduce1` or `Introduce2` message.
     #[derive(Ord,PartialOrd)]
     pub struct IntroduceExtType(u8) {
     }
 }
 
 decl_extension_group! {
-    /// An extension to an IntroEstablished message.
+    /// An unencrypted extension to an `Introduce` or `Introduce2` message.
     ///
     /// (Currently, no extensions of this type are recognized)
     #[derive(Debug,Clone,Deftly)]

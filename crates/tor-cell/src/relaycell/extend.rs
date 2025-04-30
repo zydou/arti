@@ -1,6 +1,8 @@
 //! Types and encodings used during circuit extension.
 
 use super::extlist::{decl_extension_group, Ext, ExtList, ExtListRef};
+#[cfg(feature = "hs")]
+use super::hs::pow::ProofOfWork;
 use caret::caret_int;
 use tor_bytes::{EncodeResult, Reader, Writeable as _, Writer};
 
@@ -10,6 +12,10 @@ caret_int! {
     pub struct CircRequestExtType(u8) {
         /// Request congestion control be enabled for a circuit.
         CC_REQUEST = 1,
+        /// HS only: provide a completed proof-of-work solution for denial of service
+        /// mitigation
+        PROOF_OF_WORK = 2,
+
     }
 }
 
@@ -84,11 +90,14 @@ impl Ext for CcResponse {
 decl_extension_group! {
     /// An extension to be sent along with a circuit extension request
     /// (CREATE2, EXTEND2, or INTRODUCE.)
-    #[derive(Debug,Clone,Eq,PartialEq)]
+    #[derive(Debug,Clone,PartialEq)]
     #[non_exhaustive]
     pub enum CircRequestExt [ CircRequestExtType ] {
         /// Request to enable congestion control.
         CcRequest,
+        /// HS-only: Provide a proof-of-work solution.
+        #[cfg(feature = "hs")]
+        ProofOfWork,
     }
 }
 
@@ -98,7 +107,7 @@ decl_extension_group! {
     ///
     /// RENDEZVOUS is not currently supported, but once we replace hs-ntor
     /// with something better, extensions will be possible there too.
-    #[derive(Debug,Clone,Eq,PartialEq)]
+    #[derive(Debug,Clone,PartialEq)]
     #[non_exhaustive]
     pub enum CircResponseExt [ CircResponseExtType ] {
         /// Response indicating that congestion control is enabled.

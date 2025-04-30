@@ -8,7 +8,7 @@ use void::Void;
 /// When disabled, the type can be named but it will never be constructed.
 /// The reader will generate an [`super::UnrecognizedProofOfWork`] instead.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProofOfWorkV1(Void);
 
 impl ProofOfWorkV1 {

@@ -7,7 +7,7 @@ use tor_hscrypto::pow::v1::{Effort, Nonce, SeedHead, SolutionByteArray};
 /// Proof of work using the `v1` scheme
 ///
 /// Specified as part of <https://spec.torproject.org/rend-spec/introduction-protocol.html#INTRO1_POW_EXT>
-#[derive(derive_more::Constructor, amplify::Getters, Debug, Clone)]
+#[derive(derive_more::Constructor, amplify::Getters, Debug, Clone, PartialEq)]
 pub struct ProofOfWorkV1 {
     /// Nonce value chosen by the client
     #[getter(as_ref)]
