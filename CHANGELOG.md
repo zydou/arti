@@ -3,6 +3,159 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.4.3 — 1 May 2025
+
+Arti 1.4.3 adds adds the framework for measuring metrics
+(which will be used to allow service and relay operators to use Prometheus
+or similar tools to monitor the health of their services),
+initial groundwork for the [Counter Galois Onion proposal][cgo],
+and some of the groundwork for congestion control, in the form of handshake negotiation code.
+
+We are also publishing the new `arti-ureq` crate,
+which allows Arti to be used with the Rust `ureq` library for making HTTP request via Tor.
+
+As usual, there are also many under-the-hood improvements and fixes,
+which are documented in detail below.
+
+### Breaking changes
+
+* The `arti hsc` flags `--quiet` and `--force` have been consolidated into a single `--batch` flag. ([!2903])
+
+### Major bugfixes
+
+* Arti now exits by default when it does not support a recommended or required protocol. ([!2929])
+
+### Major features
+
+* Arti now has a initial framework for collecting metrics, which will be used
+  to allow service and relay operators to monitor their services with
+  Prometheus or compatible tools. ([!2918])
+* Added initial groundwork for [Counter Galois Onion encryption][cgo]. ([!2940], [!2942])
+* Arti now has support for congestion control handshake negotiation. Congestion
+  control is not yet fully supported, but this lays the groundwork. ([!2932])
+* Created the `arti-ureq` library to allow using Arti with the Rust HTTP
+  library [ureq](https://crates.io/crates/ureq). Examples are [available in the
+  `examples/ureq-examples`
+  directory](https://gitlab.torproject.org/tpo/core/arti/-/tree/main/examples/ureq-examples?ref_type=heads). ([!2724])
+
+### Breaking changes in lower-level crates
+
+* `tor-cell`: Removed deprecated method `Data::split_from()`.
+* `tor-cell`: `Data::try_split_from()` now expects a cell format argument.
+* `tor-cell`: `RelayMsgOuter::encode()` now expects a cell format argument.
+* `tor-circmgr`, `tor-proto`: Removed `ntor_v3` feature flag. This feature is now always enabled. ([!2907])
+* `tor-config`: Added `Listen::single_address_legacy`.
+* `tor-keymgr`: `Keystore::insert` now uses param `key: &dyn EncodableItem` to obtain a `KeystoreItemType`,
+  instead of `item_type` param. ([!2902])
+* `tor-netdir`: Added `protocol_statuses()` method on `NetDirProvider` trait.
+* `tor-protover`: Renamed `MicroDesc` protocol to `Microdesc` for spec conformance.
+* `tor-rtcompat`: `BlockOn::reenter_block_on` accepts a non-`Send`, non-`'static` future.
+* `tor-rtmock`: `MockExecutor::subthread_block_on` accepts a non-`Send`, non-`'static` future.
+
+### Testing
+
+* Added test case for `arti::onion_proxy::build_list`. ([!2896])
+
+### Documentation
+
+* Removed references to `rpc_demo.py`, which has been deleted. ([!2913])
+* Cleaned up contributing info in README. ([!2889])
+* Replaced outdated references to `KeystoreSweeper`. ([!2936])
+* Added a policy forbidding forking after `exec`. ([!2925])
+* Fixed intra-doc backlinks in `hashx` and `tor-persist` crates. ([!2944])
+* Removed incorrect note about `StateDirectory` usage. ([!2952])
+* Documented conventions around logging. ([!2966])
+* Fixed some typos ([!2961])
+
+### Infrastructure
+
+* Improved reproducibility of shadow E2E tests. ([!2905], [!2950], [!2958])
+* Shadow now captures smaller pcaps. ([!2916])
+* Removed `cargo build` step from chutney setup. ([!2947])
+
+### Cleanups, minor features, and bugfixes
+
+* Added Python files to `.gitignore`. ([!2914])
+* `tor-keymgr` now validates ephemeral types. ([!2917])
+* Removed several outdated TODOs. ([!2900])
+* Improved Debian packaging. ([!2927])
+* Fixed warnings on Rust 1.86. ([!2920], [!2933])
+* Updated dependencies. ([!2924], [!2931], [!2969], [!2970], [!2973], [!2974])
+* Refactored `get_hs_client_secret_keys_desc_enc_only` to avoid code duplication. ([!2900])
+* Tweaked Conflux APIs. ([!2928])
+* `tor-rtmock` now allows non `Send + 'static` futures in for `BlockOn::reenter_block_on`. ([!2934])
+* Fixed Android builds. ([!2824])
+* Added `ErrorDetail::OnionServiceSetup` to handle previously-unhandled error during onion service setup. ([!2923])
+* Stop panicking on non-existent hop number in `send_relay_cell`. ([!2938])
+* Started migrating from `once_cell` crate to `std::sync::OnceLock`. ([!2948])
+* Cleaned up TODOs related to MSRV. ([!2945])
+* Prevent congestion control extension during ntor-v3 extend. ([!2957])
+* Optimize for performance in release builds, instead of size. ([!2959])
+* Added script to check for wildcard dependencies. ([!2954])
+* Added `UnparsedRelayMsg::data_len` to `tor-cell` ([!2976])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+CocytusDEDI, hashcatHitman, hjrgrn, nield, playbahn, syphyr, Vijaya Bhaskar, and Yaksh Bariya.
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!2724]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2724
+[!2824]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2824
+[!2889]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2889
+[!2896]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2896
+[!2900]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2900
+[!2902]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2902
+[!2903]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2903
+[!2905]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2905
+[!2907]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2907
+[!2913]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2913
+[!2914]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2914
+[!2916]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2916
+[!2917]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2917
+[!2918]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2918
+[!2920]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2920
+[!2923]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2923
+[!2924]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2924
+[!2925]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2925
+[!2927]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2927
+[!2928]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2928
+[!2929]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2929
+[!2931]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2931
+[!2932]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2932
+[!2933]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2933
+[!2934]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2934
+[!2936]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2936
+[!2938]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2938
+[!2940]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2940
+[!2942]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2942
+[!2944]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2944
+[!2945]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2945
+[!2947]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2947
+[!2948]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2948
+[!2950]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2950
+[!2952]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2952
+[!2954]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2954
+[!2957]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2957
+[!2958]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2958
+[!2959]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2959
+[!2966]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2966
+[!2969]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2969
+[!2970]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2970
+[!2973]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2973
+[!2974]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2974
+[!2961]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2961
+[!2976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2976
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[cgo]: https://eprint.iacr.org/2025/583
+
+
+
 # Arti 1.4.2 — 31 March 2025
 
 Arti 1.4.2 marks a significant milestone: Arti's RPC subsystem is now stable
