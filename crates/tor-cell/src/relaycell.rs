@@ -475,7 +475,7 @@ pub struct UnparsedRelayMsg {
 }
 
 /// Position of the stream ID within the V0 cell body.
-const STREAM_ID_OFFSET: usize = 3;
+const STREAM_ID_OFFSET_V0: usize = 3;
 
 /// Position of the stream ID within the V1 cell body, if it is present.
 const STREAM_ID_OFFSET_V1: usize = 16 + 1 + 2; // tag, command, length.
@@ -534,7 +534,7 @@ impl UnparsedRelayMsg {
     pub fn stream_id(&self) -> Option<StreamId> {
         match &self.internal {
             UnparsedRelayMsgInternal::V0(body) => StreamId::new(u16::from_be_bytes(
-                body[STREAM_ID_OFFSET..STREAM_ID_OFFSET + 2]
+                body[STREAM_ID_OFFSET_V0..STREAM_ID_OFFSET_V0 + 2]
                     .try_into()
                     .expect("two-byte slice was not two bytes long!?"),
             )),
@@ -691,7 +691,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         let mut w = crate::slicewriter::SliceWriter::new(body);
         w.write_u8(self.msg.cmd().into());
         w.write_u16(0); // "Recognized"
-        w.assert_offset_is(STREAM_ID_OFFSET);
+        w.assert_offset_is(STREAM_ID_OFFSET_V0);
         w.write_u16(StreamId::get_or_zero(self.streamid));
         w.write_u32(0); // Digest
                         // (It would be simpler to use NestedWriter at this point, but it uses an internal Vec that we are trying to avoid.)
