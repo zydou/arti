@@ -75,7 +75,6 @@ Thanks to everybody who's contributed to this release, including
 Also welcome to Alyssa P Hacker as she joins the team!
 
 Also, our deep thanks to
-[Zcash Community Grants],
 the [Bureau of Democracy, Human Rights and Labor],
 and our [other sponsors]
 for funding the development of Arti!
