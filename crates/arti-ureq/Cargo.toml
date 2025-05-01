@@ -1,6 +1,6 @@
 [package]
 name = "arti-ureq"
-version = "0.1.0"
+version = "0.30.0"
 edition = "2021"
 authors = ["The Tor Project, Inc.", "Niel Duysters"]
 license = "MIT OR Apache-2.0"
