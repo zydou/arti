@@ -557,8 +557,8 @@ impl UnparsedRelayMsg {
     /// No bounds checking or validation is performed.
     pub fn data_len(&self) -> u16 {
         let bytes: [u8; 2] = match &self.internal {
-            UnparsedRelayMsgInternal::V0(body) => &body[LENGTH_OFFSET_V0..][..2],
-            UnparsedRelayMsgInternal::V1(body) => &body[LENGTH_OFFSET_V1..][..2],
+            UnparsedRelayMsgInternal::V0(body) => &body[LENGTH_OFFSET_V0..LENGTH_OFFSET_V0 + 2],
+            UnparsedRelayMsgInternal::V1(body) => &body[LENGTH_OFFSET_V1..LENGTH_OFFSET_V1 + 2],
         }
         .try_into()
         .expect("two-byte slice was not two bytes long!?");
