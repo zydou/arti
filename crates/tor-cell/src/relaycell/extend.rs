@@ -162,7 +162,7 @@ decl_extension_group! {
         /// Request to enable congestion control.
         CcRequest,
         /// HS-only: Provide a proof-of-work solution.
-        #[cfg(feature = "hs")]
+        [ feature: #[cfg(feature = "hs")] ]
         ProofOfWork,
         /// Request to enable one or more subprotocol capabilities.
         SubprotocolRequest,

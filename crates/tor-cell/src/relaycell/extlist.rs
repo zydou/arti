@@ -153,6 +153,7 @@ macro_rules! decl_extension_group {
         $v:vis enum $id:ident [ $type_id:ty ] {
             $(
                 $(#[$cmeta:meta])*
+                $([feature: #[$fmeta:meta]])?
                 $case:ident),*
             $(,)?
         }
@@ -160,6 +161,7 @@ macro_rules! decl_extension_group {
         $( #[$meta] )*
         $v enum $id {
             $( $(#[$cmeta])*
+               $( #[$fmeta] )?
                $case($case),
             )*
             /// An extension of a type we do not recognize, or which we have not
@@ -173,6 +175,7 @@ macro_rules! decl_extension_group {
                 let type_id = b.take_u8()?.into();
                 Ok(match type_id {
                     $(
+                        $( #[$fmeta] )?
                         $type_id::[< $case:snake:upper >] => {
                             Self::$case( b.read_nested_u8len(|r| $case::take_body_from(r))? )
                         }
@@ -195,6 +198,7 @@ macro_rules! decl_extension_group {
                 use std::ops::DerefMut;
                 match self {
                     $(
+                        $( #[$fmeta] )?
                         Self::$case(val) => {
                             b.write_u8(val.type_id().into());
                             let mut nested = b.write_nested_u8len();
@@ -219,6 +223,7 @@ macro_rules! decl_extension_group {
                 use crate::relaycell::extlist::Ext as _;
                 match self {
                     $(
+                        $( #[$fmeta] )?
                         Self::$case(val) => val.type_id(),
                     )*
                     Self::Unrecognized(unrecognized) => unrecognized.type_id,
@@ -226,6 +231,7 @@ macro_rules! decl_extension_group {
             }
         }
         $(
+        $( #[$fmeta] )?
         impl From<$case> for $id {
             fn from(val: $case) -> $id {
                 $id :: $case ( val )
