@@ -65,7 +65,7 @@ which are documented in detail below.
 * Fixed intra-doc backlinks in `hashx` and `tor-persist` crates. ([!2944])
 * Removed incorrect note about `StateDirectory` usage. ([!2952])
 * Documented conventions around logging. ([!2966])
-* Fixed some typos ([!2961])
+* Fixed some typos. ([!2961])
 
 ### Infrastructure
 
@@ -92,7 +92,7 @@ which are documented in detail below.
 * Prevent congestion control extension during ntor-v3 extend. ([!2957])
 * Optimize for performance in release builds, instead of size. ([!2959])
 * Added script to check for wildcard dependencies. ([!2954])
-* Added `UnparsedRelayMsg::data_len` to `tor-cell` ([!2976])
+* Added `UnparsedRelayMsg::data_len` to `tor-cell`. ([!2976])
 
 ### Acknowledgments
 
@@ -143,16 +143,16 @@ for funding the development of Arti!
 [!2957]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2957
 [!2958]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2958
 [!2959]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2959
+[!2961]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2961
 [!2966]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2966
 [!2969]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2969
 [!2970]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2970
 [!2973]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2973
 [!2974]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2974
-[!2961]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2961
 [!2976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2976
 [Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
-[other sponsors]: https://www.torproject.org/about/sponsors/
 [cgo]: https://eprint.iacr.org/2025/583
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
