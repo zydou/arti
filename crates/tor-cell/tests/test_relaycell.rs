@@ -49,14 +49,22 @@ fn cell(version: RelayCellFormat, body: &str, id: Option<StreamId>, msg: AnyRela
     let body = decode(body);
     let mut bad_rng = BadRng;
 
+    // encode the cell msg so that we can get its length
+    let mut encoded_msg = Vec::new();
+    msg.clone().encode_onto(&mut encoded_msg).unwrap();
+
     let expected = AnyRelayMsgOuter::new(id, msg);
 
     let decoded = AnyRelayMsgOuter::decode_singleton(version, body.clone()).unwrap();
 
-    let decoded_from_partial = UnparsedRelayMsg::from_singleton_body(version, body)
-        .unwrap()
-        .decode::<AnyRelayMsg>()
-        .unwrap();
+    let unparsed = UnparsedRelayMsg::from_singleton_body(version, body).unwrap();
+
+    // check the accessors for `UnparsedRelayMsg`
+    assert_eq!(unparsed.cmd(), decoded.cmd());
+    assert_eq!(unparsed.stream_id(), decoded.stream_id());
+    assert_eq!(usize::from(unparsed.data_len()), encoded_msg.len());
+
+    let decoded_from_partial = unparsed.decode::<AnyRelayMsg>().unwrap();
     assert_eq!(decoded_from_partial.stream_id(), decoded.stream_id());
     assert_eq!(decoded_from_partial.cmd(), decoded.cmd());
 
@@ -115,6 +123,13 @@ fn test_cells_v0() {
     assert_eq!(c.msg().cmd(), RelayCmd::from(2));
     let (s, _) = c.into_streamid_and_msg();
     assert_eq!(s, StreamId::new(0x9999));
+
+    // check accessors on `UnparsedRelayMsg`.
+    let m = decode("02 0000 9999 12345678 01f2 6e6565642d746f2d6b6e6f77 00000000");
+    let c = UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, m).unwrap();
+    assert_eq!(c.cmd(), RelayCmd::from(2));
+    assert_eq!(c.stream_id(), StreamId::new(0x9999));
+    assert_eq!(c.data_len(), 0x01f2);
 }
 
 #[test]
@@ -145,6 +160,14 @@ fn test_valid_cells_v1() {
         None,
         msg::Sendme::new_tag(*b"2nd len is redundant").into(),
     );
+
+    // Check accessors on `UnparsedRelayMsg`.
+    let m =
+        decode("00000000000000000000000000000000 02 000c 3230 6e6565642d746f2d6b6e6f77 00000000");
+    let c = UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V1, m).unwrap();
+    assert_eq!(c.cmd(), RelayCmd::from(2));
+    assert_eq!(c.stream_id(), StreamId::new(0x3230));
+    assert_eq!(c.data_len(), 0x000c);
 }
 
 #[test]
