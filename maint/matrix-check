@@ -117,7 +117,7 @@ def chunks(lst, n):
     """
     Yield n number of chunks from lst.
 
-    This is a striped chunk, meaning that rather than making contigious chunks, each chunk is made
+    This is a striped chunk, meaning that rather than making contiguous chunks, each chunk is made
     up of elements that are n spaces apart in the input list. This has the advantage of making
     sure that the lists are as close to evenly sized as possible, even if the input list length is
     not divisible by n.
