@@ -491,8 +491,8 @@ build-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # 2025-04-24: Last bumped primarily to get tcp FIN fix: https://github.com/shadow/shadow/issues/3100
-    JOB_SHADOW_COMMIT: "77d0651dee7ead0e8127bc793856a4af3f866a7d"
+    # 2025-04-28: Last bumped for EPOLLRDHUP fix: https://github.com/shadow/shadow/pull/3574
+    JOB_SHADOW_COMMIT: "5db659c18fa63fe19f02ce75c7427b38fc5c1c08"
   artifacts:
     paths:
       - opt/shadow
