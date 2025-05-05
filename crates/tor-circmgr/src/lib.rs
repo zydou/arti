@@ -79,10 +79,18 @@ pub mod isolation;
 mod mgr;
 #[cfg(test)]
 mod mocks;
-pub(crate) mod path;
 mod preemptive;
 pub mod timeouts;
 mod usage;
+
+// Can't apply `visibility` to modules.
+cfg_if::cfg_if! {
+    if #[cfg(feature = "experimental-api")] {
+        pub mod path;
+    } else {
+        pub(crate) mod path;
+    }
+}
 
 pub use err::Error;
 pub use isolation::IsolationToken;
