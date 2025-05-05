@@ -57,6 +57,11 @@ to make sure we aren't going to break our users.
    not noted in our semver.md files?
    If so, add them.
 
+   (Note that not every issue reported by cargo-semver-checks
+   is necessarily significant.  See issue [#1983].)
+
+[#1983]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1983
+
 Note that you can do these steps _in parallel_ with "preparing for the
 release" below.
 
