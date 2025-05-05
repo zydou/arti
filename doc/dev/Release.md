@@ -316,6 +316,11 @@ before you continue!
 1. Remove all of the semver.md files:
    `git rm crates/*/semver.md`.
 
+   (Note that we do this _after_ the release,
+   so that the relevant `semver.md` entries
+   are present in the tagged commit,
+   and easy to find for reference.)
+
 2. Write a blog post.
 
 3. Did you create any new crates?
