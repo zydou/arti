@@ -559,6 +559,10 @@ integration-chutney-shadow:
     - tpa
   script:
     - ./maint/preserve -u
+
+    # Add tor deb repository to get recent c-tor
+    - maint/add-deb-torproject-org bookworm
+
     - maint/common/apt-install
         tor
         git
@@ -610,6 +614,10 @@ integration-shadow:
       - opt/tgen
   script:
     - ./maint/preserve -u
+
+    # Add tor deb repository to get recent c-tor
+    - section_start "Add tor dpkg repo"
+    - maint/add-deb-torproject-org bookworm
 
     - section_start "Install utility packages"
     - maint/common/apt-install git tor obfs4proxy stow tshark

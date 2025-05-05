@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#    maint/add-deb.torproject.org DISTRIBUTION
+
+set -euo pipefail
+
+my_dir=$(realpath "$0")
+common_dir=$(dirname "$my_dir")/common
+
+distribution="$1"
+
+# Adapted from https://support.torproject.org/apt/tor-deb-repo/
+"$common_dir"/apt-install gpg apt-transport-https wget
+wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --dearmor | tee /usr/share/keyrings/deb.torproject.org-keyring.gpg >/dev/null
+cat << EOF > /etc/apt/sources.list.d/tor.list
+deb     [signed-by=/usr/share/keyrings/deb.torproject.org-keyring.gpg] https://deb.torproject.org/torproject.org "$distribution" main
+deb-src [signed-by=/usr/share/keyrings/deb.torproject.org-keyring.gpg] https://deb.torproject.org/torproject.org "$distribution" main
+EOF
+# Force an update.
+apt-get update
