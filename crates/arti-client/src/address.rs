@@ -8,6 +8,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV
 use std::str::FromStr;
 use thiserror::Error;
 use tor_basic_utils::StrExt;
+use tor_error::{ErrorKind, HasKind};
 
 #[cfg(feature = "onion-service-client")]
 use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
@@ -349,7 +350,6 @@ impl std::fmt::Display for TorAddr {
 // to it, or expose lower-level errors in it, without careful consideration!
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[non_exhaustive]
-// TODO Should implement ErrorKind
 pub enum TorAddrError {
     /// Tried to parse a string that can never be interpreted as a valid host.
     #[error("String can never be a valid hostname")]
@@ -360,6 +360,19 @@ pub enum TorAddrError {
     /// Tried to parse a port that wasn't a valid nonzero `u16`.
     #[error("Could not parse port")]
     BadPort,
+}
+
+impl HasKind for TorAddrError {
+    fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
+        use TorAddrError as TAE;
+
+        match self {
+            TAE::InvalidHostname => EK::InvalidStreamTarget,
+            TAE::NoPort => EK::InvalidStreamTarget,
+            TAE::BadPort => EK::InvalidStreamTarget,
+        }
+    }
 }
 
 /// A host that Tor can connect to: either a hostname or an IP address.
@@ -567,6 +580,18 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+
+    #[test]
+    fn test_error_kind() {
+        use tor_error::ErrorKind as EK;
+
+        assert_eq!(
+            TorAddrError::InvalidHostname.kind(),
+            EK::InvalidStreamTarget
+        );
+        assert_eq!(TorAddrError::NoPort.kind(), EK::InvalidStreamTarget);
+        assert_eq!(TorAddrError::BadPort.kind(), EK::InvalidStreamTarget);
+    }
 
     /// Make a `StreamPrefs` with `.onion` enabled, if cfg-enabled
     fn mk_stream_prefs() -> StreamPrefs {

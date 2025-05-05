@@ -439,8 +439,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::BadOnionAddress(_) => EK::InvalidStreamTarget,
             #[cfg(feature = "onion-service-service")]
             E::LaunchOnionService(e) => e.kind(),
-            // TODO Should delegate to TorAddrError EK
-            E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
+            E::Address(e) => e.kind(),
+            E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
