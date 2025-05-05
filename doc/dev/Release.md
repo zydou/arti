@@ -57,6 +57,11 @@ to make sure we aren't going to break our users.
    not noted in our semver.md files?
    If so, add them.
 
+   (Note that not every issue reported by cargo-semver-checks
+   is necessarily significant.  See issue [#1983].)
+
+[#1983]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1983
+
 Note that you can do these steps _in parallel_ with "preparing for the
 release" below.
 
@@ -71,6 +76,12 @@ release?" above.
    This will tell us if any of our dependencies
    have new versions that will not upgrade automatically.
 
+   Then, check the tickets with the label "[Upgrade Blocker]":
+   they will tell you about things that we tried to upgrade in the past,
+   but weren't able to upgrade.  (This might save you some headaches.)
+
+   [Upgrade Blocker]: https://gitlab.torproject.org/tpo/core/arti/-/issues/&state=opened&label_name[]=Upgrade%20Blocker
+
    Then, upgrade these dependencies.
    Note that in some cases, this will be nontrivial:
    APIs may have changed, or the upgraded versions may not be compatible
@@ -78,6 +89,11 @@ release?" above.
    You'll may need to either fix the call sites to the old APIs,
    skip the upgrade,
    or open a ticket to upgrade the crate later on.
+
+   If there is a dependency you can't upgrade,
+   open an Arti ticket for it, with the label "Upgrade Blocker".
+   If the reason you can't upgrade is a bug in the dependency,
+   or _accidental_ MSRV breakage, file a bug upstream.
 
 2. Check for non-breaking changes to our dependencies.
    A day or two before release, I try to run:
@@ -300,15 +316,14 @@ before you continue!
 1. Remove all of the semver.md files:
    `git rm crates/*/semver.md`.
 
+   (Note that we do this _after_ the release,
+   so that the relevant `semver.md` entries
+   are present in the tagged commit,
+   and easy to find for reference.)
+
 2. Write a blog post.
 
-3. There's a "pages" branch in the arti repository
-   that controls the contents of <https:/arti.torproject.org/>.
-   Once the blog post is published,
-   update that "pages" branch to refer to the new version.
-   (For an example MR, see [!2271].)
-
-4. Did you create any new crates?
+3. Did you create any new crates?
    If so, you need to make sure that they are owned (on crates.io)
    by the right set of developers.
    If you aren't sure, run `maint/cargo-crate-owners`.
