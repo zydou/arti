@@ -1,13 +1,13 @@
 //! Descriptions objects for different kinds of directory requests
 //! that we can make.
 
+use tor_circmgr::ClientDirTunnel;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
-use tor_proto::circuit::ClientCirc;
 
 #[cfg(feature = "hs-client")]
 use tor_hscrypto::pk::HsBlindId;
@@ -29,7 +29,9 @@ use crate::AnonymizedRequest;
 
 /// Declare an inaccessible public type.
 pub(crate) mod sealed {
-    use super::{AnonymizedRequest, ClientCirc, Result};
+    use tor_circmgr::ClientDirTunnel;
+
+    use super::{AnonymizedRequest, Result};
 
     use std::future::Future;
     use std::pin::Pin;
@@ -65,9 +67,9 @@ pub(crate) mod sealed {
         /// would keep it from being used for this request.
         fn check_circuit<'a>(
             &self,
-            circ: &'a ClientCirc,
+            tunnel: &'a ClientDirTunnel,
         ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
-            let _ = circ;
+            let _ = tunnel;
             Box::pin(async { Ok(()) })
         }
 
@@ -282,13 +284,13 @@ impl sealed::RequestableInner for ConsensusRequest {
 
     fn check_circuit<'a>(
         &self,
-        circ: &'a ClientCirc,
+        tunnel: &'a ClientDirTunnel,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
         let skew_limit = self.skew_limit.clone();
         Box::pin(async move {
             use tor_proto::ClockSkew::*;
             // This is the clock skew _according to the directory_.
-            let skew = circ.first_hop_clock_skew().await?;
+            let skew = tunnel.first_hop_clock_skew().await?;
             match (&skew_limit, &skew) {
                 (Some(SkewLimit { max_slow, .. }), Slow(slow)) if slow > max_slow => {
                     Err(RequestError::TooMuchClockSkew)

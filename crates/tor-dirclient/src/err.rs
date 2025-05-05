@@ -85,6 +85,10 @@ pub enum RequestError {
     #[error("Protocol error while launching a stream")]
     Proto(#[from] tor_proto::Error),
 
+    /// A protocol error while launching a stream
+    #[error("Tunnel error")]
+    Tunnel(#[from] tor_circmgr::Error),
+
     /// Error when parsing http
     #[error("Couldn't parse HTTP headers")]
     HttparseError(#[from] httparse::Error),
@@ -198,6 +202,7 @@ impl HasKind for RequestError {
             E::TooMuchClockSkew => EK::TorDirectoryError,
             E::EmptyRequest => EK::Internal,
             E::HttpStatus(_, _) => EK::TorDirectoryError,
+            E::Tunnel(e) => e.kind(),
         }
     }
 }
@@ -255,6 +260,7 @@ impl RequestError {
             RequestError::TooMuchClockSkew => false,
             RequestError::EmptyRequest => false,
             RequestError::HttpStatus(_, _) => false,
+            RequestError::Tunnel(_) => false,
         }
     }
 }
