@@ -71,6 +71,12 @@ release?" above.
    This will tell us if any of our dependencies
    have new versions that will not upgrade automatically.
 
+   Then, check the tickets with the label "[Upgrade Blocker]":
+   they will tell you about things that we tried to upgrade in the past,
+   but weren't able to upgrade.  (This might save you some headaches.)
+
+   [Upgrade Blocker]: https://gitlab.torproject.org/tpo/core/arti/-/issues/&state=opened&label_name[]=Upgrade%20Blocker
+
    Then, upgrade these dependencies.
    Note that in some cases, this will be nontrivial:
    APIs may have changed, or the upgraded versions may not be compatible
@@ -78,6 +84,11 @@ release?" above.
    You'll may need to either fix the call sites to the old APIs,
    skip the upgrade,
    or open a ticket to upgrade the crate later on.
+
+   If there is a dependency you can't upgrade,
+   open an Arti ticket for it, with the label "Upgrade Blocker".
+   If the reason you can't upgrade is a bug in the dependency,
+   or _accidental_ MSRV breakage, file a bug upstream.
 
 2. Check for non-breaking changes to our dependencies.
    A day or two before release, I try to run:
