@@ -57,11 +57,18 @@ $CARGO update -p litemap --precise 0.7.4
 $CARGO update -p tinystr:0.8.1 --precise 0.8.0
 $CARGO update -p base64ct --precise 1.6.0
 
+## FIXME: This is a workaround for:
+## https://github.com/eira-fransham/crunchy/pull/17
+##
+## Version 0.2.3 of "crunchy" has a bug that breaks cross-compilation
+## with Windows.
+$CARGO update -p crunchy --precise 0.2.2
+
 cargo_build () {
 	$CARGO build --locked "$@"
 }
 cargo_build_arti () {
-	cargo_build -p arti --release --features static "$@"
+	cargo_build -p arti --release --features full,static "$@"
 }
 
 ## add missing dependencies
