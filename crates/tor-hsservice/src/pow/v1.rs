@@ -34,8 +34,8 @@ use tor_persist::{
 use tor_rtcompat::Runtime;
 
 use crate::{
-    rend_handshake, replay::PowNonceReplayLog, BlindIdPublicKeySpecifier, RendRequest, ReplayError,
-    StartupError,
+    rend_handshake, replay::PowNonceReplayLog, BlindIdPublicKeySpecifier, CreateIptError,
+    RendRequest, ReplayError, StartupError,
 };
 
 use super::NewPowManager;
@@ -157,6 +157,18 @@ const _: () = assert!(
 ///
 /// 32 is likely way larger than we need but the messages are tiny so we might as well.
 const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
+
+#[derive(Debug)]
+#[allow(dead_code)] // We want to show fields in Debug even if we don't use them.
+/// Internal error within the PoW subsystem.
+pub(crate) enum InternalPowError {
+    /// We don't have a key that is needed.
+    MissingKey,
+    /// Error in the underlying storage layer.
+    StorageError,
+    /// Error from the ReplayLog.
+    CreateIptError(CreateIptError),
+}
 
 impl<R: Runtime> PowManager<R> {
     /// Create a new [`PowManager`].
@@ -374,10 +386,9 @@ impl<R: Runtime> PowManager<R> {
             }
 
             let record = state.to_record();
-            state
-                .storage_handle
-                .store(&record)
-                .expect("Couldn't save state");
+            if let Err(err) = state.storage_handle.store(&record) {
+                tracing::warn!(?err, "Error saving PoW state");
+            }
 
             state.publisher_update_tx.clone()
         };
@@ -395,11 +406,10 @@ impl<R: Runtime> PowManager<R> {
     ///
     /// If we don't have any [`Seed`]s for the requested period, generate them. This is the only
     /// way that [`PowManager`] learns about new [`TimePeriod`]s.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the [HsBlindIdKey``] for the requested [`TimePeriod`] is not in the [`KeyMgr`].
-    pub(crate) fn get_pow_params(self: &Arc<Self>, time_period: TimePeriod) -> PowParams {
+    pub(crate) fn get_pow_params(
+        self: &Arc<Self>,
+        time_period: TimePeriod,
+    ) -> Result<PowParams, InternalPowError> {
         let (seed_and_expiration, suggested_effort) = {
             let state = self.0.read().expect("Lock poisoned");
             let seed = state
@@ -439,10 +449,11 @@ impl<R: Runtime> PowManager<R> {
                     time_period,
                     seed.clone(),
                 )
-                .expect("HsBlindIdKey not found for TimePeriod");
+                .ok_or(InternalPowError::MissingKey)?;
+
                 let replay_log = Mutex::new(
                     PowNonceReplayLog::new_logged(&state.instance_dir, &seed)
-                        .expect("Couldn't make ReplayLog."),
+                        .map_err(InternalPowError::CreateIptError)?,
                 );
                 state.verifiers.insert(seed.head(), (verifier, replay_log));
 
@@ -450,16 +461,16 @@ impl<R: Runtime> PowManager<R> {
                 state
                     .storage_handle
                     .store(&record)
-                    .expect("Couldn't save state");
+                    .map_err(|_| InternalPowError::StorageError)?;
 
                 (seed, next_expiration_time)
             }
         };
 
-        PowParams::V1(PowParamsV1::new(
+        Ok(PowParams::V1(PowParamsV1::new(
             TimerangeBound::new(seed, ..expiration),
             suggested_effort,
-        ))
+        )))
     }
 
     /// Verify a PoW solve.

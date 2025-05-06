@@ -136,7 +136,14 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
     cfg_if::cfg_if! {
         if #[cfg(feature = "hs-pow-full")] {
             let pow_params = pow_manager.get_pow_params(period);
-            desc = desc.pow_params(Some(&pow_params));
+            match pow_params {
+                Ok(ref pow_params) => {
+                    desc = desc.pow_params(Some(pow_params));
+                },
+                Err(err) => {
+                    warn!(?err, "Couldn't get PoW params");
+                }
+            }
         }
     }
 
