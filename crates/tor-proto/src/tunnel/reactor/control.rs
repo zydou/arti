@@ -18,10 +18,7 @@ use crate::Result;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
-use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0, StreamId,
-    UnparsedRelayMsg,
-};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
 use tracing::trace;
 #[cfg(feature = "hs-service")]
@@ -31,7 +28,7 @@ use {
 };
 
 #[cfg(test)]
-use crate::congestion::sendme::CircTag;
+use tor_cell::relaycell::msg::SendmeTag;
 
 #[cfg(feature = "conflux")]
 use super::{Circuit, ConfluxLinkResultChannel};
@@ -261,7 +258,7 @@ pub(crate) enum CtrlCmd {
     #[cfg(test)]
     QuerySendWindow {
         hop: HopNum,
-        done: ReactorResultChannel<(u32, Vec<CircTag>)>,
+        done: ReactorResultChannel<(u32, Vec<SendmeTag>)>,
     },
     /// Shut down the reactor, and return the underlying [`Circuit`],
     /// if the tunnel is not multi-path.
@@ -333,22 +330,17 @@ impl<'a> ControlHandler<'a> {
                     return Ok(None);
                 };
 
-                // ntor handshake only supports V0.
-                /// Local type alias to ensure consistency below.
-                type Rcf = RelayCellFormatV0;
-
-                let (extender, cell) =
-                    CircuitExtender::<NtorClient, Tor1RelayCrypto<Rcf>, _, _>::begin(
-                        Rcf::FORMAT,
-                        peer_id,
-                        HandshakeType::NTOR,
-                        &public_key,
-                        linkspecs,
-                        params,
-                        &(),
-                        circ,
-                        done,
-                    )?;
+                let (extender, cell) = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
+                    RelayCellFormat::V0,
+                    peer_id,
+                    HandshakeType::NTOR,
+                    &public_key,
+                    linkspecs,
+                    params,
+                    &(),
+                    circ,
+                    done,
+                )?;
                 self.reactor
                     .cell_handlers
                     .set_meta_handler(Box::new(extender))?;
@@ -377,8 +369,7 @@ impl<'a> ControlHandler<'a> {
                 };
 
                 // TODO #1067, TODO #1947: support negotiating other formats.
-                /// Local type alias to ensure consistency below.
-                type Rcf = RelayCellFormatV0;
+                let relay_cell_format = RelayCellFormat::V0;
 
                 // Set the client extensions.
                 // allow 'unused_mut' because of the combinations of `cfg` conditions below
@@ -412,8 +403,8 @@ impl<'a> ControlHandler<'a> {
                 }
 
                 let (extender, cell) =
-                    CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
-                        Rcf::FORMAT,
+                    CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
+                        relay_cell_format,
                         peer_id,
                         HandshakeType::NTOR_V3,
                         &public_key,

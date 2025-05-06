@@ -36,7 +36,10 @@ pub(crate) mod tor1;
 
 use crate::{Error, Result};
 use derive_deftly::Deftly;
-use tor_cell::{chancell::BoxedCellBody, chancell::ChanCmd};
+use tor_cell::{
+    chancell::{BoxedCellBody, ChanCmd},
+    relaycell::msg::SendmeTag,
+};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use super::binding::CircuitBinding;
@@ -105,7 +108,7 @@ pub(crate) trait InboundRelayLayer {
     /// and encrypt it.
     ///
     /// Return the authentication tag.
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag;
     /// Encrypt a RelayCellBody that is moving towards the client.
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
@@ -116,7 +119,7 @@ pub(crate) trait OutboundRelayLayer {
     /// Decrypt a RelayCellBody that is moving towards the client.
     ///
     /// Return an authentication tag if it is addressed to us.
-    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag>;
 }
 
 /// A client's view of the cryptographic state shared with a single relay on a
@@ -126,7 +129,7 @@ pub(crate) trait OutboundClientLayer {
     /// encrypt it.
     ///
     /// Return the authentication tag.
-    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8];
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag;
     /// Encrypt a RelayCellBody to be decrypted by this layer.
     fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody);
 }
@@ -137,7 +140,7 @@ pub(crate) trait InboundClientLayer {
     /// Decrypt a CellBody that passed through this layer.
     ///
     /// Return an authentication tag if this layer is the originator.
-    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]>;
+    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag>;
 }
 
 /// Type to store hop indices on a circuit.
@@ -210,10 +213,6 @@ pub(crate) struct InboundClientCrypt {
     layers: Vec<Box<dyn InboundClientLayer + Send>>,
 }
 
-/// The length of the tag that we include (with this algorithm) in an
-/// authenticated SENDME message.
-pub(crate) const SENDME_TAG_LEN: usize = 20;
-
 impl OutboundClientCrypt {
     /// Return a new (empty) OutboundClientCrypt.
     pub(crate) fn new() -> Self {
@@ -231,7 +230,7 @@ impl OutboundClientCrypt {
         cmd: ChanCmd,
         cell: &mut RelayCellBody,
         hop: HopNum,
-    ) -> Result<&[u8; SENDME_TAG_LEN]> {
+    ) -> Result<SendmeTag> {
         let hop: usize = hop.into();
         if hop >= self.layers.len() {
             return Err(Error::NoSuchHop);
@@ -243,7 +242,7 @@ impl OutboundClientCrypt {
         for layer in layers {
             layer.encrypt_outbound(cmd, cell);
         }
-        Ok(tag.try_into().expect("wrong SENDME digest size"))
+        Ok(tag)
     }
 
     /// Add a new layer to this OutboundClientCrypt
@@ -271,7 +270,7 @@ impl InboundClientCrypt {
         &mut self,
         cmd: ChanCmd,
         cell: &mut RelayCellBody,
-    ) -> Result<(HopNum, &[u8])> {
+    ) -> Result<(HopNum, SendmeTag)> {
         for (hopnum, layer) in self.layers.iter_mut().enumerate() {
             if let Some(tag) = layer.decrypt_inbound(cmd, cell) {
                 let hopnum = HopNum(u8::try_from(hopnum).expect("Somehow > 255 hops"));
@@ -296,15 +295,15 @@ impl InboundClientCrypt {
 }
 
 /// Standard Tor relay crypto, as instantiated for RELAY cells.
-pub(crate) type Tor1RelayCrypto<RCF> =
-    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes128Ctr, tor_llcrypto::d::Sha1, RCF>;
+pub(crate) type Tor1RelayCrypto =
+    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes128Ctr, tor_llcrypto::d::Sha1>;
 
 /// Standard Tor relay crypto, as instantiated for the HSv3 protocol.
 ///
 /// (The use of SHA3 is ridiculously overkill.)
 #[cfg(feature = "hs-common")]
-pub(crate) type Tor1Hsv3RelayCrypto<RCF> =
-    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes256Ctr, tor_llcrypto::d::Sha3_256, RCF>;
+pub(crate) type Tor1Hsv3RelayCrypto =
+    tor1::CryptStatePair<tor_llcrypto::cipher::aes::Aes256Ctr, tor_llcrypto::d::Sha3_256>;
 
 #[cfg(test)]
 mod test {
@@ -326,17 +325,14 @@ mod test {
     use rand::{seq::IndexedRandom as _, RngCore};
     use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
     use tor_bytes::SecretBuf;
-    use tor_cell::relaycell::{
-        RelayCellFields, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
-    };
+    use tor_cell::relaycell::RelayCellFormat;
 
     pub(crate) fn add_layers(
         cc_out: &mut OutboundClientCrypt,
         cc_in: &mut InboundClientCrypt,
-        // TODO #1067: test other formats
-        pair: Tor1RelayCrypto<RelayCellFormatV0>,
+        pair: Tor1RelayCrypto,
     ) {
-        let (outbound, inbound, _) = pair.split_relay_layer();
+        let (outbound, inbound, _) = pair.split_client_layer();
         cc_out.add_layer(Box::new(outbound));
         cc_in.add_layer(Box::new(inbound));
     }
@@ -365,9 +361,15 @@ mod test {
         assert_eq!(cc_in.n_layers(), 3);
         assert_eq!(cc_out.n_layers(), 3);
 
-        let mut r1 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed1)).unwrap();
-        let mut r2 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed2)).unwrap();
-        let mut r3 = Tor1RelayCrypto::<RelayCellFormatV0>::construct(KGen::new(seed3)).unwrap();
+        let (mut r1f, mut r1b, _) = Tor1RelayCrypto::construct(KGen::new(seed1))
+            .unwrap()
+            .split_relay_layer();
+        let (mut r2f, mut r2b, _) = Tor1RelayCrypto::construct(KGen::new(seed2))
+            .unwrap()
+            .split_relay_layer();
+        let (mut r3f, mut r3b, _) = Tor1RelayCrypto::construct(KGen::new(seed3))
+            .unwrap()
+            .split_relay_layer();
         let cmd = ChanCmd::RELAY;
 
         let mut rng = testing_rng();
@@ -380,9 +382,9 @@ mod test {
             let mut cell = cell.into();
             let _tag = cc_out.encrypt(cmd, &mut cell, 2.into()).unwrap();
             assert_ne!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
-            assert!(r1.decrypt_outbound(cmd, &mut cell).is_none());
-            assert!(r2.decrypt_outbound(cmd, &mut cell).is_none());
-            assert!(r3.decrypt_outbound(cmd, &mut cell).is_some());
+            assert!(r1f.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r2f.decrypt_outbound(cmd, &mut cell).is_none());
+            assert!(r3f.decrypt_outbound(cmd, &mut cell).is_some());
 
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 
@@ -393,9 +395,9 @@ mod test {
             cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
 
-            r3.originate(cmd, &mut cell);
-            r2.encrypt_inbound(cmd, &mut cell);
-            r1.encrypt_inbound(cmd, &mut cell);
+            r3b.originate(cmd, &mut cell);
+            r2b.encrypt_inbound(cmd, &mut cell);
+            r1b.encrypt_inbound(cmd, &mut cell);
             let (layer, _tag) = cc_in.decrypt(cmd, &mut cell).unwrap();
             assert_eq!(layer, 2.into());
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
@@ -428,16 +430,16 @@ mod test {
         }
     }
 
-    /// Helper: Clear every field in `cell` that is reserved for cryptography by relay cell
+    /// Helper: Clear every field in the tor1 `cell` that is reserved for cryptography by relay cell
     /// format `version.
     ///
     /// We do this so that we can be sure that the _other_ fields have all been transmitted correctly.
     fn clean_cell_fields(cell: &mut RelayCellBody, format: RelayCellFormat) {
+        use super::tor1;
         match format {
             RelayCellFormat::V0 => {
-                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::RECOGNIZED_RANGE]
-                    .fill(0);
-                cell.0[<RelayCellFormatV0 as RelayCellFormatTrait>::FIELDS::DIGEST_RANGE].fill(0);
+                cell.0[tor1::RECOGNIZED_RANGE].fill(0);
+                cell.0[tor1::DIGEST_RANGE].fill(0);
             }
             RelayCellFormat::V1 => {
                 cell.0[0..16].fill(0);
@@ -591,7 +593,7 @@ mod test {
                 .unwrap();
             let hop: u8 = rng.gen_range_checked(0_u8..=2).unwrap();
 
-            let rtag = relays[hop as usize].originate(cmd, &mut cell).to_vec();
+            let rtag = relays[hop as usize].originate(cmd, &mut cell);
             for r_idx in (0..hop.into()).rev() {
                 relays[r_idx as usize].encrypt_inbound(cmd, &mut cell);
             }
@@ -626,12 +628,22 @@ mod test {
         }
     }}
 
-    integration_tests! { tor1(RelayCellFormat::V0, Tor1RelayCrypto<RelayCellFormatV0>, Tor1RelayCrypto<RelayCellFormatV0>) }
+    integration_tests! { tor1(RelayCellFormat::V0, Tor1RelayCrypto, Tor1RelayCrypto) }
     #[cfg(feature = "hs-common")]
-    integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto<RelayCellFormatV0>, Tor1Hsv3RelayCrypto<RelayCellFormatV0>) }
+    integration_tests! { tor1_hs(RelayCellFormat::V0, Tor1Hsv3RelayCrypto, Tor1Hsv3RelayCrypto) }
 
     #[cfg(feature = "counter-galois-onion")]
-    integration_tests! { cgo_aes128(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes128>, cgo::CryptStatePair<aes::Aes128>) }
+    integration_tests! {
+        cgo_aes128(RelayCellFormat::V1,
+            cgo::CryptStatePair<aes::Aes128Dec, aes::Aes128Enc>,// client
+            cgo::CryptStatePair<aes::Aes128Enc, aes::Aes128Enc> // relay
+        )
+    }
     #[cfg(feature = "counter-galois-onion")]
-    integration_tests! { cgo_aes256(RelayCellFormat::V1, cgo::CryptStatePair<aes::Aes256>, cgo::CryptStatePair<aes::Aes256>) }
+    integration_tests! {
+        cgo_aes256(RelayCellFormat::V1,
+            cgo::CryptStatePair<aes::Aes256Dec, aes::Aes256Enc>,// client
+            cgo::CryptStatePair<aes::Aes256Enc, aes::Aes256Enc> // relay
+        )
+    }
 }

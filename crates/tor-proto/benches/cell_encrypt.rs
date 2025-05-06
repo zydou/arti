@@ -2,7 +2,6 @@ use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use rand::prelude::*;
 
 use tor_bytes::SecretBuf;
-use tor_cell::relaycell::RelayCellFormatV0;
 use tor_llcrypto::{
     cipher::aes::{Aes128Ctr, Aes256Ctr},
     d::{Sha1, Sha256},
@@ -16,15 +15,15 @@ const HOP_NUM: u8 = 2;
 
 /// Helper macro to setup a full circuit encryption benchmark.
 macro_rules! full_circuit_outbound_setup {
-    ($sc:ty, $d:ty, $f:ty) => {{
+    ($sc:ty, $d:ty) => {{
         let seed1: SecretBuf = b"hidden we are free".to_vec().into();
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
         let seed3: SecretBuf = b"free to hide no more".to_vec().into();
 
         let mut cc_out = OutboundCryptWrapper::new();
-        cc_out.add_layer_from_seed::<$sc, $d, $f>(seed1).unwrap();
-        cc_out.add_layer_from_seed::<$sc, $d, $f>(seed2).unwrap();
-        cc_out.add_layer_from_seed::<$sc, $d, $f>(seed3).unwrap();
+        cc_out.add_layer_from_seed::<$sc, $d>(seed1).unwrap();
+        cc_out.add_layer_from_seed::<$sc, $d>(seed2).unwrap();
+        cc_out.add_layer_from_seed::<$sc, $d>(seed3).unwrap();
 
         let mut rng = rand::rng();
         let cell = create_outbound_cell(&mut rng);
@@ -46,7 +45,7 @@ pub fn cell_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
 
     group.bench_function("cell_encrypt_Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
-            || full_circuit_outbound_setup!(Aes128Ctr, Sha1, RelayCellFormatV0),
+            || full_circuit_outbound_setup!(Aes128Ctr, Sha1),
             |(cell, cc_out)| {
                 client_encrypt(cell, cc_out, HOP_NUM).unwrap();
             },
@@ -56,7 +55,7 @@ pub fn cell_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
 
     group.bench_function("cell_encrypt_Tor1Hsv3RelayCrypto", |b| {
         b.iter_batched_ref(
-            || full_circuit_outbound_setup!(Aes256Ctr, Sha256, RelayCellFormatV0),
+            || full_circuit_outbound_setup!(Aes256Ctr, Sha256),
             |(cell, cc_out)| {
                 client_encrypt(cell, cc_out, HOP_NUM).unwrap();
             },

@@ -4,12 +4,12 @@ pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
-use crate::congestion::sendme::{self, CircTag};
+use crate::congestion::sendme;
 use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt, OutboundClientLayer,
-    RelayCellBody, SENDME_TAG_LEN,
+    RelayCellBody,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
@@ -39,7 +39,7 @@ use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::chancell::{AnyChanCell, ChanCmd, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
 use tor_cell::relaycell::extend::NtorV3Extension;
-use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, Truncated};
+use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, SendmeTag, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
     StreamId, UnparsedRelayMsg,
@@ -379,7 +379,7 @@ impl Circuit {
         hop: HopNum,
         early: bool,
         msg: AnyRelayMsgOuter,
-    ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
+    ) -> Result<(AnyChanMsg, SendmeTag)> {
         let mut body: RelayCellBody = msg
             .encode(relay_format, &mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
@@ -455,7 +455,7 @@ impl Circuit {
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
-            circhop.ccontrol.note_data_sent(tag)?;
+            circhop.ccontrol.note_data_sent(&tag)?;
         }
 
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
@@ -509,7 +509,7 @@ impl Circuit {
     fn decode_relay_cell(
         &mut self,
         cell: Relay,
-    ) -> Result<(HopNum, CircTag, RelayCellDecoderResult)> {
+    ) -> Result<(HopNum, SendmeTag, RelayCellDecoderResult)> {
         // This is always RELAY, not RELAY_EARLY, so long as this code is client-only.
         let cmd = cell.cmd();
         let mut body = cell.into_relay_body().into();
@@ -517,15 +517,6 @@ impl Circuit {
         // Decrypt the cell. If it's recognized, then find the
         // corresponding hop.
         let (hopnum, tag) = self.crypto_in.decrypt(cmd, &mut body)?;
-        // Make a copy of the authentication tag. TODO: I'd rather not
-        // copy it, but I don't see a way around it right now.
-        let tag = {
-            let mut tag_copy = [0_u8; SENDME_TAG_LEN];
-            // TODO(nickm): This could crash if the tag length changes.  We'll
-            // have to refactor it then.
-            tag_copy.copy_from_slice(tag);
-            tag_copy
-        };
 
         // Decode the cell.
         let decode_res = self
@@ -540,7 +531,7 @@ impl Circuit {
             .decode(body.into())
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
 
-        Ok((hopnum, tag.into(), decode_res))
+        Ok((hopnum, tag, decode_res))
     }
 
     /// React to a Relay or RelayEarly cell.
@@ -571,7 +562,7 @@ impl Circuit {
             // that SendmeEmitMinVersion is no more than 1.  If the authorities
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
-            let sendme = Sendme::new_tag(tag.into());
+            let sendme = Sendme::from(tag);
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
             circ_cmds.push(CircuitCmd::Send(SendRelayCell {
                 hop: hopnum,
@@ -1100,7 +1091,7 @@ impl Circuit {
 
         let relay_cell_format = cell_protocol.relay_cell_format();
         let BoxedClientLayer { fwd, back, binding } =
-            cell_protocol.construct_layers(HandshakeRole::Initiator, keygen)?;
+            cell_protocol.construct_client_layers(HandshakeRole::Initiator, keygen)?;
 
         trace!("{}: Handshake complete; circuit created.", self.unique_id);
 
@@ -1396,15 +1387,10 @@ impl Circuit {
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto(format!("Couldn't find hop {}", hopnum.display())))?;
 
-        let tag = match msg.into_tag() {
-            Some(v) => CircTag::try_from(v.as_slice())
-                .map_err(|_| Error::CircProto("malformed tag on circuit sendme".into()))?,
-            None => {
+        let tag = msg.into_sendme_tag().ok_or_else(||
                 // Versions of Tor <=0.3.5 would omit a SENDME tag in this case;
                 // but we don't support those any longer.
-                return Err(Error::CircProto("missing tag on circuit sendme".into()));
-            }
-        };
+                 Error::CircProto("missing tag on circuit sendme".into()))?;
         // Update the CC object that we received a SENDME along with possible congestion signals.
         hop.ccontrol.note_sendme_received(tag, signals)?;
         Ok(None)
@@ -1797,7 +1783,7 @@ impl CircHop {
 
     /// Delegate to CongestionControl, for testing purposes
     #[cfg(test)]
-    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<CircTag>) {
+    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
         self.ccontrol.send_window_and_expected_tags()
     }
 

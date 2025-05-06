@@ -18,16 +18,19 @@
 
 #![allow(dead_code)] // TODO CGO: Remove this once we actually use CGO encryption.
 
-use aes::{Aes128, Aes256};
+use aes::{Aes128, Aes128Dec, Aes128Enc, Aes256, Aes256Dec, Aes256Enc};
 use cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, BlockSizeUser, StreamCipher as _};
 use digest::KeyInit;
 use polyval::{universal_hash::UniversalHash, Polyval};
 use static_assertions::const_assert;
-use tor_cell::{chancell::ChanCmd, chancell::CELL_DATA_LEN};
+use tor_cell::{
+    chancell::{ChanCmd, CELL_DATA_LEN},
+    relaycell::msg::SendmeTag,
+};
 use tor_error::internal;
 use zeroize::Zeroizing;
 
-use super::{CryptInit, RelayCellBody, SENDME_TAG_LEN};
+use super::{CryptInit, RelayCellBody};
 use crate::{circuit::CircuitBinding, util::ct};
 
 /// Size of CGO tag, in bytes.
@@ -57,20 +60,51 @@ type Block = [u8; BLK_LEN];
 ///
 /// Not sealed because it is never used outside of this crate.
 pub(crate) trait BlkCipher:
-    BlockCipher + KeyInit + BlockSizeUser<BlockSize = BlockLen> + BlockEncrypt + BlockDecrypt + Clone
+    BlockCipher + KeyInit + BlockSizeUser<BlockSize = BlockLen> + Clone
 {
     /// Length of the key used by this block cipher.
     const KEY_LEN: usize;
 }
 
-// TODO PERF: We should be using Aes{128,256}DecEnc rather than Aes{128,256}:
-// that can save us some time and space, with some AES implementations.
+/// Helper trait to define the features we need from a block cipher,
+/// and make our "where" declarations smaller.
+///
+/// Not sealed because it is never used outside of this crate.
+pub(crate) trait BlkCipherEnc: BlkCipher + BlockEncrypt {}
+
+/// Helper trait to define the features we need from a block cipher,
+/// and make our "where" declarations smaller.
+///
+/// Not sealed because it is never used outside of this crate.
+pub(crate) trait BlkCipherDec: BlkCipher + BlockDecrypt {}
+
 impl BlkCipher for Aes128 {
     const KEY_LEN: usize = 16;
 }
+impl BlkCipherEnc for Aes128 {}
+impl BlkCipherDec for Aes128 {}
+impl BlkCipher for Aes128Enc {
+    const KEY_LEN: usize = 16;
+}
+impl BlkCipherEnc for Aes128Enc {}
+impl BlkCipher for Aes128Dec {
+    const KEY_LEN: usize = 16;
+}
+impl BlkCipherDec for Aes128Dec {}
+
 impl BlkCipher for Aes256 {
     const KEY_LEN: usize = 32;
 }
+impl BlkCipherEnc for Aes256 {}
+impl BlkCipherDec for Aes256 {}
+impl BlkCipher for Aes256Enc {
+    const KEY_LEN: usize = 32;
+}
+impl BlkCipherEnc for Aes256Enc {}
+impl BlkCipher for Aes256Dec {
+    const KEY_LEN: usize = 32;
+}
+impl BlkCipherDec for Aes256Dec {}
 
 /// Define a tweakable block cipher.
 mod et {
@@ -111,7 +145,8 @@ mod et {
             ku.update_padded(&tweak.2[15..]);
             Zeroizing::new(ku.finalize().into())
         }
-
+    }
+    impl<BC: BlkCipherEnc> EtCipher<BC> {
         /// Encrypt `block` in-place, using `tweak`.
         pub(super) fn encrypt(&self, tweak: EtTweak<'_>, block: &mut Block) {
             // ENC_ET((KB,KU), T, M) = UH(KU,T) ^ ENC_BC(KB, M ^ UH(KU,T))
@@ -120,7 +155,8 @@ mod et {
             self.kb.encrypt_block(block.into());
             xor_into(block, &tag);
         }
-
+    }
+    impl<BC: BlkCipherDec> EtCipher<BC> {
         /// Decrypt `block` in-place, using `tweak`.
         pub(super) fn decrypt(&self, tweak: EtTweak<'_>, block: &mut Block) {
             // DEC_ET((KB,KU), T, M) = UH(KU,T) ^ DEC_BC(KB, M ^ UH(KU,T))
@@ -168,13 +204,13 @@ mod prf {
     // Definition: PRF((K, B), T, t) = CTR_{nt}(K, UH(B, T) + (t * C)).
     //   where t is 0 or 1 and C is 31.
     #[derive(Clone)]
-    pub(super) struct Prf<BC: BlkCipher> {
+    pub(super) struct Prf<BC: BlkCipherEnc> {
         /// The underlying block cipher, initializd with the key "K"
         k: BC,
         /// Thu underlying universal hash, initialized with the key "B"
         b: Polyval,
     }
-    impl<BC: BlkCipher> Prf<BC> {
+    impl<BC: BlkCipherEnc> Prf<BC> {
         /// Helper: Return a stream cipher, initialized with an IV corresponding
         /// to `tweak` and an offset corresponding to `t`.
         fn cipher(&self, tweak: &PrfTweak, t: bool) -> ctr::Ctr128BE<BC> {
@@ -212,7 +248,7 @@ mod prf {
         }
     }
 
-    impl<BC: BlkCipher> CryptInit for Prf<BC> {
+    impl<BC: BlkCipherEnc> CryptInit for Prf<BC> {
         fn seed_len() -> usize {
             BC::key_size() + polyval::KEY_SIZE
         }
@@ -240,11 +276,11 @@ mod uiv {
 
     /// Keys for a UIV cipher.
     #[derive(Clone)]
-    pub(super) struct Uiv<BC: BlkCipher> {
+    pub(super) struct Uiv<EtBC: BlkCipher, PrfBC: BlkCipherEnc> {
         /// Tweakable block cipher key; corresponds to J in the specification.
-        j: et::EtCipher<BC>,
+        j: et::EtCipher<EtBC>,
         /// PRF keys; corresponds to S in the specification.
-        s: prf::Prf<BC>,
+        s: prf::Prf<PrfBC>,
 
         /// Testing only: a copy of our current key material.
         ///
@@ -267,7 +303,7 @@ mod uiv {
         )
     }
 
-    impl<BC: BlkCipher> Uiv<BC> {
+    impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> Uiv<EtBC, PrfBC> {
         /// Encrypt `cell_body`, using the provided `tweak`.
         ///
         /// Corresponds to `ENC_UIV.`
@@ -280,7 +316,8 @@ mod uiv {
             self.j.encrypt((tweak.0, tweak.1, right), left);
             self.s.xor_n0_stream(left, right);
         }
-
+    }
+    impl<EtBC: BlkCipherDec, PrfBC: BlkCipherEnc> Uiv<EtBC, PrfBC> {
         /// Decrypt `cell_body`, using the provided `tweak`.
         ///
         /// Corresponds to `DEC_UIV`.
@@ -293,7 +330,8 @@ mod uiv {
             self.s.xor_n0_stream(left, right);
             self.j.decrypt((tweak.0, tweak.1, right), left);
         }
-
+    }
+    impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> Uiv<EtBC, PrfBC> {
         /// Modify this Uiv, and the provided nonce, so that its current state
         /// cannot be recovered.
         ///
@@ -320,8 +358,8 @@ mod uiv {
 
         /// Helper: divide seed into J, S, and N.
         fn split_seed(seed: &[u8]) -> (&[u8], &[u8], &[u8]) {
-            let len_j = et::EtCipher::<BC>::seed_len();
-            let len_s = prf::Prf::<BC>::seed_len();
+            let len_j = et::EtCipher::<EtBC>::seed_len();
+            let len_s = prf::Prf::<PrfBC>::seed_len();
             (
                 &seed[0..len_j],
                 &seed[len_j..len_j + len_s],
@@ -330,9 +368,9 @@ mod uiv {
         }
     }
 
-    impl<BC: BlkCipher> CryptInit for Uiv<BC> {
+    impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> CryptInit for Uiv<EtBC, PrfBC> {
         fn seed_len() -> usize {
-            super::et::EtCipher::<BC>::seed_len() + super::prf::Prf::<BC>::seed_len()
+            super::et::EtCipher::<EtBC>::seed_len() + super::prf::Prf::<PrfBC>::seed_len()
         }
         fn initialize(seed: &[u8]) -> crate::Result<Self> {
             if seed.len() != Self::seed_len() {
@@ -370,64 +408,49 @@ fn first_block(bytes: &[u8]) -> &[u8; BLK_LEN] {
 
 /// State of a single direction of a CGO layer, at the client or at a relay.
 #[derive(Clone)]
-struct CryptState<BC: BlkCipher> {
-    /// The currebnt key "K" for this direction.
-    uiv: uiv::Uiv<BC>,
+struct CryptState<EtBC: BlkCipher, PrfBC: BlkCipherEnc> {
+    /// The current key "K" for this direction.
+    uiv: uiv::Uiv<EtBC, PrfBC>,
     /// The current nonce value "N" for this direction.
     nonce: Zeroizing<[u8; BLK_LEN]>,
-    /// The current tag value "T'" for this direction, padded with 4 bytes of zeros.
-    ///
-    /// TODO #1956: This is only padded because SENDME_TAG_LEN is currently fixed at
-    /// 20.  We should remove SENDME_TAG_LEN, or make it a maximum.
-    tag: Zeroizing<[u8; SENDME_TAG_LEN]>,
+    /// The current tag value "T'" for this direction.
+    tag: Zeroizing<[u8; BLK_LEN]>,
 }
 
-impl<BC: BlkCipher> CryptState<BC> {
-    /// Return the current tag value.
-    ///
-    /// TODO: (This might go away once #1956 is done)
-    #[inline]
-    fn tag(&self) -> &[u8; BLK_LEN] {
-        first_block(&self.tag[..])
-    }
-
-    /// Replace the tag with new_tag.
-    ///
-    /// TODO: (This might go away once #1956 is done)
-    #[inline]
-    fn set_tag(&mut self, new_tag: &[u8; BLK_LEN]) {
-        self.tag[..BLK_LEN].copy_from_slice(new_tag);
-    }
-}
-
-impl<BC: BlkCipher> CryptInit for CryptState<BC> {
+impl<EtBC: BlkCipher, PrfBC: BlkCipherEnc> CryptInit for CryptState<EtBC, PrfBC> {
     fn seed_len() -> usize {
-        uiv::Uiv::<BC>::seed_len() + BLK_LEN
+        uiv::Uiv::<EtBC, PrfBC>::seed_len() + BLK_LEN
     }
     /// Construct this state from a seed of the appropriate length.
     fn initialize(seed: &[u8]) -> crate::Result<Self> {
         if seed.len() != Self::seed_len() {
             return Err(internal!("Invalid seed length").into());
         }
-        let (j_s, n) = seed.split_at(uiv::Uiv::<BC>::seed_len());
+        let (j_s, n) = seed.split_at(uiv::Uiv::<EtBC, PrfBC>::seed_len());
         Ok(Self {
             uiv: uiv::Uiv::initialize(j_s)?,
             nonce: Zeroizing::new(n.try_into().expect("invalid splice length")),
-            tag: Zeroizing::new([0; SENDME_TAG_LEN]),
+            tag: Zeroizing::new([0; BLK_LEN]),
         })
     }
 }
 
 /// An instance of CGO used for outbound client encryption.
 #[derive(Clone, derive_more::From)]
-pub(crate) struct ClientOutbound<BC: BlkCipher>(CryptState<BC>, [u8; 20]);
-impl<BC: BlkCipher> super::OutboundClientLayer for ClientOutbound<BC> {
-    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+pub(crate) struct ClientOutbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>)
+where
+    EtBC: BlkCipherDec,
+    PrfBC: BlkCipherEnc;
+impl<EtBC, PrfBC> super::OutboundClientLayer for ClientOutbound<EtBC, PrfBC>
+where
+    EtBC: BlkCipherDec,
+    PrfBC: BlkCipherEnc,
+{
+    fn originate_for(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag {
         cell.0[0..BLK_LEN].copy_from_slice(&self.0.nonce[..]);
         self.encrypt_outbound(cmd, cell);
         self.0.uiv.update(&mut self.0.nonce);
-        self.1[0..BLK_LEN].copy_from_slice(&cell.0[0..BLK_LEN]);
-        &self.1[..]
+        SendmeTag::try_from(&cell.0[0..BLK_LEN]).expect("Block length not a valid sendme tag.")
     }
     fn encrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
         // TODO PERF: consider swap here.
@@ -435,33 +458,35 @@ impl<BC: BlkCipher> super::OutboundClientLayer for ClientOutbound<BC> {
 
         // Note use of decrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.decrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(&t_new);
-    }
-}
-impl<BC: BlkCipher> From<CryptState<BC>> for ClientOutbound<BC> {
-    fn from(val: CryptState<BC>) -> Self {
-        Self(val, [0_u8; 20])
+        self.0.uiv.decrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = t_new;
     }
 }
 
 /// An instance of CGO used for inbound client encryption.
 #[derive(Clone, derive_more::From)]
-pub(crate) struct ClientInbound<BC: BlkCipher>(CryptState<BC>);
-impl<BC: BlkCipher> super::InboundClientLayer for ClientInbound<BC> {
-    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
+pub(crate) struct ClientInbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>)
+where
+    EtBC: BlkCipherDec,
+    PrfBC: BlkCipherEnc;
+impl<EtBC, PrfBC> super::InboundClientLayer for ClientInbound<EtBC, PrfBC>
+where
+    EtBC: BlkCipherDec,
+    PrfBC: BlkCipherEnc,
+{
+    fn decrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag> {
         let mut t_orig: [u8; BLK_LEN] = *first_block(&*cell.0);
         // let t_orig_orig = t_orig;
 
         // Note use of decrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.decrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(&t_orig);
+        self.0.uiv.decrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = t_orig;
         if ct::bytes_eq(&cell.0[..CGO_TAG_LEN], &self.0.nonce[..]) {
             self.0.uiv.update(&mut t_orig);
             *self.0.nonce = t_orig;
             // assert_eq!(self.0.tag[..BLK_LEN], t_orig_orig[..]);
-            Some(&self.0.tag[..])
+            Some((*self.0.tag).into())
         } else {
             None
         }
@@ -469,70 +494,93 @@ impl<BC: BlkCipher> super::InboundClientLayer for ClientInbound<BC> {
 }
 
 /// An instance of CGO used for outbound (away from the client) relay encryption.
-#[derive(Clone)]
-pub(crate) struct RelayOutbound<BC: BlkCipher>(CryptState<BC>, [u8; 20]);
-impl<BC: BlkCipher> super::OutboundRelayLayer for RelayOutbound<BC> {
-    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<&[u8]> {
-        self.1[0..BLK_LEN].copy_from_slice(&cell.0[0..BLK_LEN]);
+#[derive(Clone, derive_more::From)]
+pub(crate) struct RelayOutbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>)
+where
+    EtBC: BlkCipherEnc,
+    PrfBC: BlkCipherEnc;
+impl<EtBC, PrfBC> super::OutboundRelayLayer for RelayOutbound<EtBC, PrfBC>
+where
+    EtBC: BlkCipherEnc,
+    PrfBC: BlkCipherEnc,
+{
+    fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag> {
+        let tag = SendmeTag::try_from(&cell.0[0..BLK_LEN]).expect("Invalid sendme length");
         // Note use of encrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(first_block(&*cell.0));
-        if ct::bytes_eq(self.0.tag(), &self.0.nonce[..]) {
+        self.0.uiv.encrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = *first_block(&*cell.0);
+        if ct::bytes_eq(self.0.tag.as_ref(), &self.0.nonce[..]) {
             self.0.uiv.update(&mut self.0.nonce);
-            Some(&self.1[..])
+            Some(tag)
         } else {
             None
         }
     }
 }
-impl<BC: BlkCipher> From<CryptState<BC>> for RelayOutbound<BC> {
-    fn from(val: CryptState<BC>) -> Self {
-        Self(val, [0_u8; 20])
-    }
-}
 
 /// An instance of CGO used for inbound (towards the client) relay encryption.
 #[derive(Clone, derive_more::From)]
-pub(crate) struct RelayInbound<BC: BlkCipher>(CryptState<BC>);
-impl<BC: BlkCipher> super::InboundRelayLayer for RelayInbound<BC> {
-    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> &[u8] {
+pub(crate) struct RelayInbound<EtBC, PrfBC>(CryptState<EtBC, PrfBC>)
+where
+    EtBC: BlkCipherEnc,
+    PrfBC: BlkCipherEnc;
+impl<EtBC, PrfBC> super::InboundRelayLayer for RelayInbound<EtBC, PrfBC>
+where
+    EtBC: BlkCipherEnc,
+    PrfBC: BlkCipherEnc,
+{
+    fn originate(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> SendmeTag {
         cell.0[0..BLK_LEN].copy_from_slice(&self.0.nonce[..]);
         self.encrypt_inbound(cmd, cell);
         self.0.nonce.copy_from_slice(&cell.0[0..BLK_LEN]);
         self.0.uiv.update(&mut self.0.nonce);
         // assert_eq!(self.0.tag[..BLK_LEN], cell.0[0..BLK_LEN]);
-        &self.0.tag[..]
+        (*self.0.tag).into()
     }
     fn encrypt_inbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) {
         // Note use of encrypt here: Client operations always use _decrypt_,
         // and relay operations always use _encrypt_.
-        self.0.uiv.encrypt((self.0.tag(), cmd.into()), &mut cell.0);
-        self.0.set_tag(first_block(&*cell.0));
+        self.0.uiv.encrypt((&self.0.tag, cmd.into()), &mut cell.0);
+        *self.0.tag = *first_block(&*cell.0);
     }
 }
 
 /// A set of cryptographic information as shared by the client and a single relay,
 /// and
 #[derive(Clone)]
-pub(crate) struct CryptStatePair<BC: BlkCipher> {
+pub(crate) struct CryptStatePair<EtBC, PrfBC>
+where
+    EtBC: BlkCipher,
+    PrfBC: BlkCipherEnc,
+{
     /// State for the outbound direction (away from client)
-    outbound: CryptState<BC>,
+    outbound: CryptState<EtBC, PrfBC>,
     /// State for the inbound direction (towards client)
-    inbound: CryptState<BC>,
+    inbound: CryptState<EtBC, PrfBC>,
     /// Circuit binding information.
     binding: CircuitBinding,
 }
 
-impl<BC: BlkCipher> CryptInit for CryptStatePair<BC> {
+impl<EtBC, PrfBC> CryptInit for CryptStatePair<EtBC, PrfBC>
+where
+    EtBC: BlkCipher,
+    PrfBC: BlkCipherEnc,
+{
     fn seed_len() -> usize {
-        CryptState::<BC>::seed_len() * 2 + crate::crypto::binding::CIRC_BINDING_LEN
+        CryptState::<EtBC, PrfBC>::seed_len() * 2 + crate::crypto::binding::CIRC_BINDING_LEN
     }
     fn initialize(seed: &[u8]) -> crate::Result<Self> {
+        assert_eq!(EtBC::KEY_LEN, PrfBC::KEY_LEN);
+        // TODO MSRV 1.79: Replace the above assertion with this.
+        // const {
+        //    // can't use assert_eq!() in const
+        //    assert!(EtBC::KEY_LEN == PrfBC::KEY_LEN);
+        // }
         if seed.len() != Self::seed_len() {
             return Err(internal!("Invalid seed length").into());
         }
-        let slen = CryptState::<BC>::seed_len();
+        let slen = CryptState::<EtBC, PrfBC>::seed_len();
         let (outb, inb, binding) = (&seed[0..slen], &seed[slen..slen * 2], &seed[slen * 2..]);
         Ok(Self {
             outbound: CryptState::initialize(outb)?,
@@ -542,16 +590,36 @@ impl<BC: BlkCipher> CryptInit for CryptStatePair<BC> {
     }
 }
 
-impl<BC: BlkCipher> super::ClientLayer<ClientOutbound<BC>, ClientInbound<BC>>
-    for CryptStatePair<BC>
+impl<EtBC, PrfBC> super::ClientLayer<ClientOutbound<EtBC, PrfBC>, ClientInbound<EtBC, PrfBC>>
+    for CryptStatePair<EtBC, PrfBC>
+where
+    EtBC: BlkCipherDec,
+    PrfBC: BlkCipherEnc,
 {
-    fn split_client_layer(self) -> (ClientOutbound<BC>, ClientInbound<BC>, CircuitBinding) {
+    fn split_client_layer(
+        self,
+    ) -> (
+        ClientOutbound<EtBC, PrfBC>,
+        ClientInbound<EtBC, PrfBC>,
+        CircuitBinding,
+    ) {
         (self.outbound.into(), self.inbound.into(), self.binding)
     }
 }
 
-impl<BC: BlkCipher> super::RelayLayer<RelayOutbound<BC>, RelayInbound<BC>> for CryptStatePair<BC> {
-    fn split_relay_layer(self) -> (RelayOutbound<BC>, RelayInbound<BC>, CircuitBinding) {
+impl<EtBC, PrfBC> super::RelayLayer<RelayOutbound<EtBC, PrfBC>, RelayInbound<EtBC, PrfBC>>
+    for CryptStatePair<EtBC, PrfBC>
+where
+    EtBC: BlkCipherEnc,
+    PrfBC: BlkCipherEnc,
+{
+    fn split_relay_layer(
+        self,
+    ) -> (
+        RelayOutbound<EtBC, PrfBC>,
+        RelayInbound<EtBC, PrfBC>,
+        CircuitBinding,
+    ) {
         (self.outbound.into(), self.inbound.into(), self.binding)
     }
 }
@@ -671,7 +739,7 @@ mod test {
             let mut cell: [u8; 509] = unhex(&format!("{left}{right}"));
             let expected: [u8; 509] = unhex(&format!("{expect_left}{expect_right}"));
 
-            let uiv: uiv::Uiv<Aes128> = uiv::Uiv::initialize(&keys).unwrap();
+            let uiv: uiv::Uiv<Aes128, Aes128> = uiv::Uiv::initialize(&keys).unwrap();
             let htweak = (tweak[0..16].try_into().unwrap(), tweak[16]);
             if *encrypt {
                 uiv.encrypt(htweak, &mut cell);
@@ -689,7 +757,7 @@ mod test {
         for (keys, nonce, (expect_keys, expect_nonce)) in UIV_UPDATE_TEST_VECTORS {
             let keys: [u8; 64] = unhex(keys);
             let mut nonce: [u8; 16] = unhex(nonce);
-            let mut uiv: uiv::Uiv<Aes128> = uiv::Uiv::initialize(&keys).unwrap();
+            let mut uiv: uiv::Uiv<Aes128, Aes128> = uiv::Uiv::initialize(&keys).unwrap();
             let expect_keys: [u8; 64] = unhex(expect_keys);
             let expect_nonce: [u8; 16] = unhex(expect_nonce);
             uiv.update(&mut nonce);
@@ -698,7 +766,7 @@ mod test {
 
             // Make sure that we can get the same results when we initialize a new UIV with the keys
             // allegedly used to reinitialize this one.
-            let uiv2: uiv::Uiv<Aes128> = uiv::Uiv::initialize(&uiv.keys[..]).unwrap();
+            let uiv2: uiv::Uiv<Aes128, Aes128> = uiv::Uiv::initialize(&uiv.keys[..]).unwrap();
 
             let tweak: [u8; 16] = rng.random();
             let cmd = rng.random();
@@ -719,8 +787,8 @@ mod test {
             let msg: [u8; CELL_DATA_LEN] = unhex(&format!("{t}{c}"));
             let mut msg = RelayCellBody(Box::new(msg));
 
-            let mut state = CryptState::<Aes128>::initialize(&k_n).unwrap();
-            state.set_tag(&tprime);
+            let mut state = CryptState::<Aes128, Aes128>::initialize(&k_n).unwrap();
+            *state.tag = tprime;
             let state = if *inbound {
                 let mut s = RelayInbound::from(state);
                 s.encrypt_inbound(ad[0].into(), &mut msg);
@@ -740,7 +808,7 @@ mod test {
             assert_eq!(&ex_msg[..], &msg.0[..]);
             assert_eq!(&state.uiv.keys[..], &ex_k[..]);
             assert_eq!(&state.nonce[..], &ex_n[..]);
-            assert_eq!(state.tag(), &ex_tprime[..]);
+            assert_eq!(&state.tag[..], &ex_tprime[..]);
         }
     }
 
@@ -755,8 +823,8 @@ mod test {
             msg[16..].copy_from_slice(&msg_body[..]);
             let mut msg = RelayCellBody(Box::new(msg));
 
-            let mut state = CryptState::<Aes128>::initialize(&k_n).unwrap();
-            state.set_tag(&tprime);
+            let mut state = CryptState::<Aes128, Aes128>::initialize(&k_n).unwrap();
+            *state.tag = tprime;
             let mut state = RelayInbound::from(state);
             state.originate(ad[0].into(), &mut msg);
             let state = state.0;
@@ -769,7 +837,7 @@ mod test {
             assert_eq!(&ex_msg[..], &msg.0[..]);
             assert_eq!(&state.uiv.keys[..], &ex_k[..]);
             assert_eq!(&state.nonce[..], &ex_n[..]);
-            assert_eq!(state.tag(), &ex_tprime[..]);
+            assert_eq!(&state.tag[..], &ex_tprime[..]);
         }
     }
 
@@ -782,8 +850,8 @@ mod test {
             for (k, n, tprime) in ss {
                 let k_n: [u8; 80] = unhex(&format!("{k}{n}"));
                 let tprime: [u8; 16] = unhex(tprime);
-                let mut state = CryptState::<Aes128>::initialize(&k_n).unwrap();
-                state.set_tag(&tprime);
+                let mut state = CryptState::<Aes128, Aes128>::initialize(&k_n).unwrap();
+                *state.tag = tprime;
                 client.add_layer(Box::new(ClientOutbound::from(state.clone())));
                 individual_layers.push(ClientOutbound::from(state));
             }
@@ -823,7 +891,7 @@ mod test {
 
                 assert_eq!(&state.uiv.keys[..], &ex_k[..]);
                 assert_eq!(&state.nonce[..], &ex_n[..]);
-                assert_eq!(state.tag(), &ex_tprime);
+                assert_eq!(&state.tag[..], &ex_tprime);
             }
         }
     }

@@ -10,52 +10,13 @@
 //! other side of the circuit really has read all of the data that it's
 //! acknowledging.
 
-use std::array::TryFromSliceError;
 use std::collections::VecDeque;
-use std::result::Result as StdResult;
 
 use tor_cell::relaycell::RelayCmd;
 use tor_cell::relaycell::UnparsedRelayMsg;
 use tor_error::internal;
 
-use crate::crypto::cell::SENDME_TAG_LEN;
 use crate::{Error, Result};
-
-/// Tag type used in regular v1 sendme cells.
-///
-// TODO(nickm):
-// Three problems with this tag:
-//  - First, we need to support unauthenticated flow control, but we
-//    still record the tags that we _would_ expect.
-//  - Second, this tag type could be different for each layer, if we
-//    eventually have an authenticator that isn't SENDME_TAG_LEN bytes long.
-#[derive(Clone, Debug, derive_more::Into)]
-pub(crate) struct CircTag([u8; SENDME_TAG_LEN]);
-
-impl From<[u8; SENDME_TAG_LEN]> for CircTag {
-    fn from(v: [u8; SENDME_TAG_LEN]) -> CircTag {
-        Self(v)
-    }
-}
-impl PartialEq for CircTag {
-    fn eq(&self, other: &Self) -> bool {
-        crate::util::ct::bytes_eq(&self.0, &other.0)
-    }
-}
-impl Eq for CircTag {}
-impl PartialEq<[u8; SENDME_TAG_LEN]> for CircTag {
-    fn eq(&self, other: &[u8; SENDME_TAG_LEN]) -> bool {
-        crate::util::ct::bytes_eq(&self.0, &other[..])
-    }
-}
-
-impl TryFrom<&[u8]> for CircTag {
-    type Error = TryFromSliceError;
-
-    fn try_from(v: &[u8]) -> StdResult<Self, Self::Error> {
-        Ok(Self(v.try_into()?))
-    }
-}
 
 /// A circuit's send window.
 pub(crate) type CircSendWindow = SendWindow<CircParams>;

@@ -5,19 +5,22 @@ use crate::Result;
 use cipher::{KeyIvInit, StreamCipher};
 use digest::Digest;
 use tor_bytes::SecretBuf;
-use tor_cell::{chancell::ChanCmd, relaycell::RelayCellFormatTrait};
+use tor_cell::chancell::ChanCmd;
 
 pub use super::cell::tor1::bench_utils::*;
 use super::cell::{
-    tor1::CryptStatePair, ClientLayer, CryptInit, InboundClientCrypt, InboundRelayLayer as _,
-    OutboundClientCrypt,
+    tor1, tor1::CryptStatePair, ClientLayer, CryptInit, InboundClientCrypt, InboundRelayLayer as _,
+    OutboundClientCrypt, RelayLayer,
 };
 
-/// Public wrapper around the `CryptStatePair` struct.
-#[repr(transparent)]
-pub struct HopCryptState<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait>(
-    CryptStatePair<SC, D, RCF>,
-);
+/// Public wrapper around a relay's cryptographic state.
+pub struct HopCryptState<SC: StreamCipher, D: Digest + Clone> {
+    /// Layer for traffic moving away from the client.
+    #[allow(unused)] // TODO: For some reason, we don't seem to use this in our benchmarks?
+    fwd: tor1::RelayOutbound<SC, D>,
+    /// Layer for traffic moving toward the client.
+    back: tor1::RelayInbound<SC, D>,
+}
 
 /// Public wrapper around the `InboundClientCrypt` struct.
 #[repr(transparent)]
@@ -27,12 +30,11 @@ pub struct InboundCryptWrapper(InboundClientCrypt);
 #[repr(transparent)]
 pub struct OutboundCryptWrapper(OutboundClientCrypt);
 
-impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone, RCF: RelayCellFormatTrait>
-    HopCryptState<SC, D, RCF>
-{
+impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> HopCryptState<SC, D> {
     /// Return a new `HopCryptState` based on a seed.
     pub fn construct(seed: SecretBuf) -> Result<Self> {
-        Ok(Self(CryptStatePair::construct(KGen::new(seed))?))
+        let (fwd, back, _) = CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();
+        Ok(Self { fwd, back })
     }
 }
 
@@ -46,12 +48,11 @@ impl InboundCryptWrapper {
     pub fn add_layer_from_seed<
         SC: StreamCipher + KeyIvInit + Send + 'static,
         D: Digest + Clone + Send + 'static,
-        RCF: RelayCellFormatTrait + Send + 'static,
     >(
         &mut self,
         seed: SecretBuf,
     ) -> Result<()> {
-        let layer: CryptStatePair<SC, D, RCF> = CryptStatePair::construct(KGen::new(seed))?;
+        let layer: CryptStatePair<SC, D> = CryptStatePair::construct(KGen::new(seed))?;
         let (_outbound, inbound, _binding) = layer.split_client_layer();
         self.0.add_layer(Box::new(inbound));
 
@@ -75,12 +76,11 @@ impl OutboundCryptWrapper {
     pub fn add_layer_from_seed<
         SC: StreamCipher + KeyIvInit + Send + 'static,
         D: Digest + Clone + Send + 'static,
-        RCF: RelayCellFormatTrait + Send + 'static,
     >(
         &mut self,
         seed: SecretBuf,
     ) -> Result<()> {
-        let layer: CryptStatePair<SC, D, RCF> = CryptStatePair::construct(KGen::new(seed))?;
+        let layer: CryptStatePair<SC, D> = CryptStatePair::construct(KGen::new(seed))?;
         let (outbound, _inbound, _binding) = layer.split_client_layer();
         self.0.add_layer(Box::new(outbound));
 
@@ -95,18 +95,17 @@ impl Default for OutboundCryptWrapper {
 }
 
 /// Encrypts the given `RelayCell` in the inbound direction.
-pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait>(
+pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone>(
     cell: &mut RelayBody,
-    router_states: &mut [HopCryptState<SC, D, RCF>],
+    router_states: &mut [HopCryptState<SC, D>],
 ) {
     let cell = &mut cell.0;
 
     for (i, pair) in router_states.iter_mut().rev().enumerate() {
-        let pair = &mut pair.0;
         if i == 0 {
-            pair.originate(ChanCmd::RELAY, cell);
+            pair.back.originate(ChanCmd::RELAY, cell);
         } else {
-            pair.encrypt_inbound(ChanCmd::RELAY, cell);
+            pair.back.encrypt_inbound(ChanCmd::RELAY, cell);
         }
     }
 }

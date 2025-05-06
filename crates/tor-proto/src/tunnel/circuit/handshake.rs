@@ -11,14 +11,15 @@
 // that can wait IMO until we have a second circuit creation mechanism for use
 // with onion services.
 
-use tor_cell::relaycell::{RelayCellFormat, RelayCellFormatV0};
+use tor_cell::relaycell::RelayCellFormat;
 use tor_error::internal;
 
 use crate::crypto::binding::CircuitBinding;
 #[cfg(feature = "hs-common")]
 use crate::crypto::cell::Tor1Hsv3RelayCrypto;
 use crate::crypto::cell::{
-    ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto,
+    ClientLayer, CryptInit, InboundClientLayer, InboundRelayLayer, OutboundClientLayer,
+    OutboundRelayLayer, RelayLayer, Tor1RelayCrypto,
 };
 
 use crate::Result;
@@ -93,9 +94,12 @@ pub(crate) struct BoxedClientLayer {
 }
 
 impl RelayCryptLayerProtocol {
-    /// Construct the cell-crypto layers that are needed for a given set of
+    /// Construct the client cell-crypto layers that are needed for a given set of
     /// circuit hop parameters.
-    pub(crate) fn construct_layers(
+    ///
+    /// This returns layers for use in a client circuit,
+    /// whether as the initiator or responder of an onion service request.
+    pub(crate) fn construct_client_layers(
         self,
         role: HandshakeRole,
         keygen: impl KeyGenerator,
@@ -104,10 +108,10 @@ impl RelayCryptLayerProtocol {
         use RelayCryptLayerProtocol::*;
 
         match self {
-            Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, role),
+            Tor1(V0) => construct::<Tor1RelayCrypto, _, _, _, _>(keygen, role),
             Tor1(_) => Err(internal!("protocol not implemented").into()),
             #[cfg(feature = "hs-common")]
-            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, role),
+            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto, _, _, _, _>(keygen, role),
             #[cfg(feature = "hs-common")]
             HsV3(_) => Err(internal!("protocol not implemented").into()),
         }
@@ -123,21 +127,76 @@ impl RelayCryptLayerProtocol {
     }
 }
 
+/// Wrapper to make a relay layer behave as a client layer.
+///
+/// We use this wrapper to implement onion services,
+/// which use relay layers to communicate with clients.
+struct ResponderOutboundLayer<L: InboundRelayLayer>(L);
+impl<L: InboundRelayLayer> OutboundClientLayer for ResponderOutboundLayer<L> {
+    fn originate_for(
+        &mut self,
+        cmd: tor_cell::chancell::ChanCmd,
+        cell: &mut crate::crypto::cell::RelayCellBody,
+    ) -> tor_cell::relaycell::msg::SendmeTag {
+        self.0.originate(cmd, cell)
+    }
+
+    fn encrypt_outbound(
+        &mut self,
+        cmd: tor_cell::chancell::ChanCmd,
+        cell: &mut crate::crypto::cell::RelayCellBody,
+    ) {
+        self.0.encrypt_inbound(cmd, cell);
+    }
+}
+/// Wrapper to make a relay layer behave as a client layer.
+///
+/// We use this wrapper to implement onion services,
+/// which use relay layers to communicate with clients.
+struct ResponderInboundLayer<L: OutboundRelayLayer>(L);
+impl<L: OutboundRelayLayer> InboundClientLayer for ResponderInboundLayer<L> {
+    fn decrypt_inbound(
+        &mut self,
+        cmd: tor_cell::chancell::ChanCmd,
+        cell: &mut crate::crypto::cell::RelayCellBody,
+    ) -> Option<tor_cell::relaycell::msg::SendmeTag> {
+        self.0.decrypt_outbound(cmd, cell)
+    }
+}
+
 /// Helper: Construct a BoxedClientLayer for a layer type L whose inbound and outbound
 /// cryptographic states are the same type.
-fn construct<L, F>(keygen: impl KeyGenerator, role: HandshakeRole) -> Result<BoxedClientLayer>
+fn construct<L, FC, BC, FR, BR>(
+    keygen: impl KeyGenerator,
+    role: HandshakeRole,
+) -> Result<BoxedClientLayer>
 where
-    L: CryptInit + ClientLayer<F, F>,
-    F: OutboundClientLayer + InboundClientLayer + Send + 'static,
+    L: CryptInit + ClientLayer<FC, BC> + RelayLayer<FR, BR>,
+    FC: OutboundClientLayer + Send + 'static,
+    BC: InboundClientLayer + Send + 'static,
+    FR: OutboundRelayLayer + Send + 'static,
+    BR: InboundRelayLayer + Send + 'static,
 {
     let layer = L::construct(keygen)?;
-    let (mut fwd, mut back, binding) = layer.split_client_layer();
-    if role == HandshakeRole::Responder {
-        std::mem::swap(&mut fwd, &mut back);
+    match role {
+        HandshakeRole::Initiator => {
+            let (fwd, back, binding) = layer.split_client_layer();
+            Ok(BoxedClientLayer {
+                fwd: Box::new(fwd),
+                back: Box::new(back),
+                binding: Some(binding),
+            })
+        }
+        HandshakeRole::Responder => {
+            let (fwd, back, binding) = layer.split_relay_layer();
+            Ok(BoxedClientLayer {
+                // We reverse the inbound and outbound layers before wrapping them,
+                // since from the responder's perspective, _they_ are the origin
+                // point of the circuit.
+                fwd: Box::new(ResponderOutboundLayer(back)),
+                back: Box::new(ResponderInboundLayer(fwd)),
+                binding: Some(binding),
+            })
+        }
     }
-    Ok(BoxedClientLayer {
-        fwd: Box::new(fwd),
-        back: Box::new(back),
-        binding: Some(binding),
-    })
 }

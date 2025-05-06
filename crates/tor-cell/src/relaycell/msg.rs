@@ -12,10 +12,12 @@ use caret::caret_int;
 use derive_deftly::Deftly;
 use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
+use std::num::NonZeroU8;
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_linkspec::EncodedLinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_llcrypto::util::ct::CtByteArray;
 use tor_memquota::{derive_deftly_template_HasMemoryCost, memory_cost_structural_copy};
 
 use bitflags::bitflags;
@@ -635,6 +637,86 @@ impl Body for Connected {
     }
 }
 
+/// An authentication tag to use for circuit-level SENDME messages.
+///
+/// It is either a 20-byte tag (used with Tor1 encryption),
+/// or a 16-byte tag (used with CGO encryption).
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+pub struct SendmeTag {
+    /// The number of bytes present in the tag.
+    /// Always equal to 16 or 20.
+    ///
+    /// We use a NonZeroU8 here so Rust can use its niche optimization.
+    len: NonZeroU8,
+    /// The actual contents of the tag.
+    ///
+    /// Tags above 20 bytes long are always an error.
+    ///
+    /// Unused bytes are always set to zero, so we can derive PartialEq.
+    tag: CtByteArray<20>,
+}
+impl From<[u8; 20]> for SendmeTag {
+    // In experimentation, these "inlines" were necessary for good generated asm.
+    #[inline]
+    fn from(value: [u8; 20]) -> Self {
+        Self {
+            len: NonZeroU8::new(20).expect("20 was not nonzero?"),
+            tag: CtByteArray::from(value),
+        }
+    }
+}
+impl From<[u8; 16]> for SendmeTag {
+    // In experimentation, these "inlines" were necessary for good generated asm.
+    #[inline]
+    fn from(value: [u8; 16]) -> Self {
+        let mut tag = CtByteArray::from([0; 20]);
+        tag.as_mut()[0..16].copy_from_slice(&value[..]);
+        Self {
+            len: NonZeroU8::new(16).expect("16 was not nonzero?"),
+            tag,
+        }
+    }
+}
+impl AsRef<[u8]> for SendmeTag {
+    fn as_ref(&self) -> &[u8] {
+        &self.tag.as_ref()[0..usize::from(u8::from(self.len))]
+    }
+}
+/// An error from attempting to decode a SENDME tag.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+#[error("Invalid size {} on SENDME tag", len)]
+pub struct InvalidSendmeTag {
+    /// The length of the invalid tag.
+    len: usize,
+}
+impl From<InvalidSendmeTag> for tor_bytes::Error {
+    fn from(_: InvalidSendmeTag) -> Self {
+        tor_bytes::Error::BadLengthValue
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for SendmeTag {
+    type Error = InvalidSendmeTag;
+
+    // In experimentation, this "inline" was especially necessary for good generated asm.
+    #[inline]
+    fn try_from(value: &'a [u8]) -> std::result::Result<Self, Self::Error> {
+        match value.len() {
+            16 => {
+                let a: [u8; 16] = value.try_into().expect("16 was not 16?");
+                Ok(Self::from(a))
+            }
+            20 => {
+                let a: [u8; 20] = value.try_into().expect("20 was not 20?");
+                Ok(Self::from(a))
+            }
+            _ => Err(InvalidSendmeTag { len: value.len() }),
+        }
+    }
+}
+
 /// A Sendme message is used to increase flow-control windows.
 ///
 /// To avoid congestion, each Tor circuit and stream keeps track of a
@@ -655,7 +737,7 @@ impl Body for Connected {
 #[derive_deftly(HasMemoryCost)]
 pub struct Sendme {
     /// A tag value authenticating the previously received data.
-    digest: Option<Vec<u8>>,
+    tag: Option<SendmeTag>,
 }
 impl Sendme {
     /// Return a new empty sendme cell
@@ -663,22 +745,27 @@ impl Sendme {
     /// This format is used on streams, and on circuits without sendme
     /// authentication.
     pub fn new_empty() -> Self {
-        Sendme { digest: None }
+        Sendme { tag: None }
     }
     /// This format is used on circuits with sendme authentication.
     pub fn new_tag(x: [u8; 20]) -> Self {
         Sendme {
-            digest: Some(x.into()),
+            tag: Some(x.into()),
         }
     }
     /// Consume this cell and return its authentication tag, if any
-    pub fn into_tag(self) -> Option<Vec<u8>> {
-        self.digest
+    pub fn into_sendme_tag(self) -> Option<SendmeTag> {
+        self.tag
+    }
+}
+impl From<SendmeTag> for Sendme {
+    fn from(value: SendmeTag) -> Self {
+        Self { tag: Some(value) }
     }
 }
 impl Body for Sendme {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        let digest = if r.remaining() == 0 {
+        let tag = if r.remaining() == 0 {
             None
         } else {
             let ver = r.take_u8()?;
@@ -686,26 +773,27 @@ impl Body for Sendme {
                 0 => None,
                 1 => {
                     let dlen = r.take_u16()?;
-                    Some(r.take(dlen as usize)?.into())
+                    Some(r.take(dlen as usize)?.try_into()?)
                 }
                 _ => {
                     return Err(Error::InvalidMessage("Unrecognized SENDME version.".into()));
                 }
             }
         };
-        Ok(Sendme { digest })
+        Ok(Sendme { tag })
     }
     fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        match self.digest {
+        match self.tag {
             None => (),
             Some(x) => {
                 w.write_u8(1);
+                let x = x.as_ref();
                 let bodylen: u16 = x
                     .len()
                     .try_into()
                     .map_err(|_| EncodeError::BadLengthValue)?;
                 w.write_u16(bodylen);
-                w.write_all(&x);
+                w.write_all(x);
             }
         }
         Ok(())
@@ -1334,3 +1422,53 @@ msg_impl_relaymsg!(
 
 #[cfg(feature = "conflux")]
 msg_impl_relaymsg!(ConfluxSwitch, ConfluxLink, ConfluxLinked, ConfluxLinkedAck);
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn sendme_tags() {
+        // strings of 20 or 16 bytes.
+        let ts: Vec<SendmeTag> = vec![
+            (*b"Yea, on the word of ").into(),
+            (*b"a Bloom, ye shal").into(),
+            (*b"l ere long enter int").into(),
+            (*b"o the golden cit").into(),
+        ];
+
+        for (i1, i2) in (0..4).zip(0..4) {
+            if i1 == i2 {
+                assert_eq!(ts[i1], ts[i2]);
+            } else {
+                assert_ne!(ts[i1], ts[i2]);
+            }
+        }
+
+        assert_eq!(ts[0].as_ref(), &b"Yea, on the word of "[..]);
+        assert_eq!(ts[3].as_ref(), &b"o the golden cit"[..]);
+
+        assert_eq!(ts[1], b"a Bloom, ye shal"[..].try_into().unwrap());
+        assert_eq!(ts[2], b"l ere long enter int"[..].try_into().unwrap());
+
+        // 15 bytes long.
+        assert!(matches!(
+            SendmeTag::try_from(&b"o the golden ci"[..]),
+            Err(InvalidSendmeTag { .. }),
+        ));
+    }
+}

@@ -746,7 +746,8 @@ impl ClientCirc {
         let protocol = handshake::RelayCryptLayerProtocol::from(protocol);
         let relay_cell_format = protocol.relay_cell_format();
 
-        let BoxedClientLayer { fwd, back, binding } = protocol.construct_layers(role, seed)?;
+        let BoxedClientLayer { fwd, back, binding } =
+            protocol.construct_client_layers(role, seed)?;
 
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
@@ -1229,7 +1230,6 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
-    use crate::congestion::sendme;
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
@@ -1248,6 +1248,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody, ChanCmd};
     use tor_cell::relaycell::extend::NtorV3Extension;
+    use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
     };
@@ -1515,25 +1516,29 @@ pub(crate) mod test {
         lasthop: bool,
     }
     impl DummyCrypto {
-        fn next_tag(&mut self) -> &[u8; 20] {
+        fn next_tag(&mut self) -> SendmeTag {
             #![allow(clippy::identity_op)]
             self.counter_tag[0] = ((self.counter >> 0) & 255) as u8;
             self.counter_tag[1] = ((self.counter >> 8) & 255) as u8;
             self.counter_tag[2] = ((self.counter >> 16) & 255) as u8;
             self.counter_tag[3] = ((self.counter >> 24) & 255) as u8;
             self.counter += 1;
-            &self.counter_tag
+            self.counter_tag.into()
         }
     }
 
     impl crate::crypto::cell::OutboundClientLayer for DummyCrypto {
-        fn originate_for(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> &[u8] {
+        fn originate_for(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> SendmeTag {
             self.next_tag()
         }
         fn encrypt_outbound(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) {}
     }
     impl crate::crypto::cell::InboundClientLayer for DummyCrypto {
-        fn decrypt_inbound(&mut self, _cmd: ChanCmd, _cell: &mut RelayCellBody) -> Option<&[u8]> {
+        fn decrypt_inbound(
+            &mut self,
+            _cmd: ChanCmd,
+            _cell: &mut RelayCellBody,
+        ) -> Option<SendmeTag> {
             if self.lasthop {
                 Some(self.next_tag())
             } else {
@@ -2063,17 +2068,17 @@ pub(crate) mod test {
                 // 100
                 assert_eq!(
                     tags[0],
-                    sendme::CircTag::from(hex!("6400000000000000000000000000000000000000"))
+                    SendmeTag::from(hex!("6400000000000000000000000000000000000000"))
                 );
                 // 200
                 assert_eq!(
                     tags[1],
-                    sendme::CircTag::from(hex!("c800000000000000000000000000000000000000"))
+                    SendmeTag::from(hex!("c800000000000000000000000000000000000000"))
                 );
                 // 300
                 assert_eq!(
                     tags[2],
-                    sendme::CircTag::from(hex!("2c01000000000000000000000000000000000000"))
+                    SendmeTag::from(hex!("2c01000000000000000000000000000000000000"))
                 );
             }
 
