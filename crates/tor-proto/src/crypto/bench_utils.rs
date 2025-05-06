@@ -14,10 +14,13 @@ use super::cell::{
 };
 
 /// Public wrapper around a relay's cryptographic state.
-pub struct HopCryptState<SC: StreamCipher, D: Digest + Clone>(
-    tor1::RelayOutbound<SC, D>,
-    tor1::RelayInbound<SC, D>,
-);
+pub struct HopCryptState<SC: StreamCipher, D: Digest + Clone> {
+    /// Layer for traffic moving away from the client.
+    #[allow(unused)] // TODO: For some reason, we don't seem to use this in our benchmarks?
+    fwd: tor1::RelayOutbound<SC, D>,
+    /// Layer for traffic moving toward the client.
+    back: tor1::RelayInbound<SC, D>,
+}
 
 /// Public wrapper around the `InboundClientCrypt` struct.
 #[repr(transparent)]
@@ -31,7 +34,7 @@ impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> HopCryptState<SC, D> {
     /// Return a new `HopCryptState` based on a seed.
     pub fn construct(seed: SecretBuf) -> Result<Self> {
         let (fwd, back, _) = CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();
-        Ok(Self(fwd, back))
+        Ok(Self { fwd, back })
     }
 }
 
@@ -100,9 +103,9 @@ pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone>(
 
     for (i, pair) in router_states.iter_mut().rev().enumerate() {
         if i == 0 {
-            pair.1.originate(ChanCmd::RELAY, cell);
+            pair.back.originate(ChanCmd::RELAY, cell);
         } else {
-            pair.1.encrypt_inbound(ChanCmd::RELAY, cell);
+            pair.back.encrypt_inbound(ChanCmd::RELAY, cell);
         }
     }
 }
