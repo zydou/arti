@@ -671,9 +671,9 @@ mod tests {
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
     use tor_llcrypto::rng::FakeEntropicRng;
 
-    /// Metadata structure for tracking item operations in tests.
+    /// Metadata structure for tracking key operations in tests.
     #[derive(Clone, Debug, PartialEq)]
-    struct ItemMetadata {
+    struct KeyMetadata {
         /// The identifier for the item (e.g., "coot", "moorhen").
         item_id: String,
         /// The keystore from which the item was retrieved.
@@ -682,6 +682,84 @@ mod tests {
         retrieved_from: Option<KeystoreId>,
         /// Whether the item was generated via `Keygen::generate`.
         is_generated: bool,
+    }
+
+    /// Metadata structure for tracking certificate operations in tests.
+    #[derive(Clone, Debug, PartialEq)]
+    struct CertMetadata {
+        /// The identifier for the subject key (e.g., "coot").
+        subject_key_id: String,
+        /// The identifier for the signing key (e.g., "moorhen").
+        signing_key_id: String,
+        /// The keystore from which the certificate was retrieved.
+        ///
+        /// Set by `Keystore::get`.
+        retrieved_from: Option<KeystoreId>,
+        /// Whether the certificate was freshly generated (i.e. returned from the "or generate"
+        /// branch of `get_or_generate()`) or retrieved from a keystore.
+        is_generated: bool,
+    }
+
+    /// Metadata structure for tracking item operations in tests.
+    #[derive(Clone, Debug, PartialEq, derive_more::From)]
+    enum ItemMetadata {
+        /// Metadata about a key.
+        Key(KeyMetadata),
+        /// Metadata about a certificate.
+        Cert(CertMetadata),
+    }
+
+    impl ItemMetadata {
+        /// Get the item ID.
+        ///
+        /// For keys, this returns the key's ID.
+        /// For certificates, this returns a formatted string identifying the subject key.
+        fn item_id(&self) -> &str {
+            match self {
+                ItemMetadata::Key(k) => &k.item_id,
+                ItemMetadata::Cert(c) => &c.subject_key_id,
+            }
+        }
+
+        /// Get retrieved_from.
+        fn retrieved_from(&self) -> Option<&KeystoreId> {
+            match self {
+                ItemMetadata::Key(k) => k.retrieved_from.as_ref(),
+                ItemMetadata::Cert(c) => c.retrieved_from.as_ref(),
+            }
+        }
+
+        /// Get is_generated.
+        fn is_generated(&self) -> bool {
+            match self {
+                ItemMetadata::Key(k) => k.is_generated,
+                ItemMetadata::Cert(c) => c.is_generated,
+            }
+        }
+
+        /// Set the retrieved_from field to the specified keystore ID.
+        fn set_retrieved_from(&mut self, id: KeystoreId) {
+            match self {
+                ItemMetadata::Key(meta) => meta.retrieved_from = Some(id),
+                ItemMetadata::Cert(meta) => meta.retrieved_from = Some(id),
+            }
+        }
+
+        /// Returns a reference to key metadata if this is a Key variant.
+        fn as_key(&self) -> Option<&KeyMetadata> {
+            match self {
+                ItemMetadata::Key(meta) => Some(meta),
+                _ => None,
+            }
+        }
+
+        /// Returns a reference to certificate metadata if this is a Cert variant.
+        fn as_cert(&self) -> Option<&CertMetadata> {
+            match self {
+                ItemMetadata::Cert(meta) => Some(meta),
+                _ => None,
+            }
+        }
     }
 
     /// The type of "key" stored in the test key stores.
@@ -718,11 +796,11 @@ mod tests {
                 item: ed25519::Keypair::generate(&mut rng)
                     .as_keystore_item()
                     .unwrap(),
-                meta: ItemMetadata {
+                meta: ItemMetadata::Key(KeyMetadata {
                     item_id: item_id.to_string(),
                     retrieved_from: None,
                     is_generated: false,
-                },
+                }),
             }
         }
     }
@@ -734,11 +812,11 @@ mod tests {
         {
             Ok(TestItem {
                 item: ed25519::Keypair::generate(&mut rng).as_keystore_item()?,
-                meta: ItemMetadata {
+                meta: ItemMetadata::Key(KeyMetadata {
                     item_id: "generated_test_key".to_string(),
                     retrieved_from: None,
                     is_generated: true,
-                },
+                }),
             })
         }
     }
@@ -872,7 +950,7 @@ mod tests {
                         .get(&(key_spec.arti_path().unwrap(), item_type.clone()))
                         .map(|k| {
                             let mut k = k.clone();
-                            k.meta.retrieved_from = Some(self.id().clone());
+                            k.meta.set_retrieved_from(self.id().clone());
                             Box::new(k) as Box<dyn ItemType>
                         }))
                 }
@@ -989,12 +1067,12 @@ mod tests {
 
         assert!(old_key.is_none());
         let key = mgr.get::<TestItem>(&TestKeySpecifier1).unwrap().unwrap();
-        assert_eq!(key.meta.item_id, "coot");
+        assert_eq!(key.meta.item_id(), "coot");
         assert_eq!(
-            key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore2").unwrap())
+            key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore2").unwrap())
         );
-        assert_eq!(key.meta.is_generated, false);
+        assert_eq!(key.meta.is_generated(), false);
 
         // Insert a different key using the _same_ key specifier.
         let old_key = mgr
@@ -1006,20 +1084,20 @@ mod tests {
             )
             .unwrap()
             .unwrap();
-        assert_eq!(old_key.meta.item_id, "coot");
+        assert_eq!(old_key.meta.item_id(), "coot");
         assert_eq!(
-            old_key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore2").unwrap())
+            old_key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore2").unwrap())
         );
-        assert_eq!(old_key.meta.is_generated, false);
+        assert_eq!(old_key.meta.is_generated(), false);
         // Check that the original value was overwritten:
         let key = mgr.get::<TestItem>(&TestKeySpecifier1).unwrap().unwrap();
-        assert_eq!(key.meta.item_id, "gull");
+        assert_eq!(key.meta.item_id(), "gull");
         assert_eq!(
-            key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore2").unwrap())
+            key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore2").unwrap())
         );
-        assert_eq!(key.meta.is_generated, false);
+        assert_eq!(key.meta.is_generated(), false);
 
         // Insert a different key using the _same_ key specifier (overwrite = false)
         let err = mgr
@@ -1054,12 +1132,12 @@ mod tests {
             .unwrap();
         assert!(old_key.is_none());
         let key = mgr.get::<TestItem>(&TestKeySpecifier3).unwrap().unwrap();
-        assert_eq!(key.meta.item_id, "moorhen");
+        assert_eq!(key.meta.item_id(), "moorhen");
         assert_eq!(
-            key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore1").unwrap())
+            key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore1").unwrap())
         );
-        assert_eq!(key.meta.is_generated, false);
+        assert_eq!(key.meta.is_generated(), false);
 
         // The key doesn't exist in any of the stores yet.
         assert!(mgr.get::<TestItem>(&TestKeySpecifier4).unwrap().is_none());
@@ -1080,23 +1158,23 @@ mod tests {
 
             // Ensure the key now exists in `store`.
             let key = mgr.get::<TestItem>(&TestKeySpecifier4).unwrap().unwrap();
-            assert_eq!(key.meta.item_id, "cormorant");
+            assert_eq!(key.meta.item_id(), "cormorant");
             assert_eq!(
-                key.meta.retrieved_from,
-                Some(KeystoreId::from_str(store).unwrap())
+                key.meta.retrieved_from(),
+                Some(&KeystoreId::from_str(store).unwrap())
             );
-            assert_eq!(key.meta.is_generated, false);
+            assert_eq!(key.meta.is_generated(), false);
         }
 
         // The key exists in all key stores, but if no keystore_id is specified, we return the
         // value from the first key store it is found in (in this case, Keystore1)
         let key = mgr.get::<TestItem>(&TestKeySpecifier4).unwrap().unwrap();
-        assert_eq!(key.meta.item_id, "cormorant");
+        assert_eq!(key.meta.item_id(), "cormorant");
         assert_eq!(
-            key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore1").unwrap())
+            key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore1").unwrap())
         );
-        assert_eq!(key.meta.is_generated, false);
+        assert_eq!(key.meta.is_generated(), false);
     }
 
     #[test]
@@ -1122,12 +1200,12 @@ mod tests {
         )
         .unwrap();
         let key = mgr.get::<TestItem>(&TestKeySpecifier1).unwrap().unwrap();
-        assert_eq!(key.meta.item_id, "coot");
+        assert_eq!(key.meta.item_id(), "coot");
         assert_eq!(
-            key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore2").unwrap())
+            key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore2").unwrap())
         );
-        assert_eq!(key.meta.is_generated, false);
+        assert_eq!(key.meta.is_generated(), false);
 
         // Try to remove the key from a non-existent key store
         assert!(mgr
@@ -1160,12 +1238,12 @@ mod tests {
             )
             .unwrap()
             .unwrap();
-        assert_eq!(removed_key.meta.item_id, "coot");
+        assert_eq!(removed_key.meta.item_id(), "coot");
         assert_eq!(
-            removed_key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore2").unwrap())
+            removed_key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore2").unwrap())
         );
-        assert_eq!(removed_key.meta.is_generated, false);
+        assert_eq!(removed_key.meta.is_generated(), false);
 
         // The key doesn't exist in Keystore2 anymore
         assert!(!mgr.secondary_stores[0]
@@ -1209,12 +1287,12 @@ mod tests {
 
         // The previous entry was not overwritten because overwrite = false
         let key = mgr.get::<TestItem>(&TestKeySpecifier1).unwrap().unwrap();
-        assert_eq!(key.meta.item_id, "coot");
+        assert_eq!(key.meta.item_id(), "coot");
         assert_eq!(
-            key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore1").unwrap())
+            key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore1").unwrap())
         );
-        assert_eq!(key.meta.is_generated, false);
+        assert_eq!(key.meta.is_generated(), false);
 
         // We don't store public keys in the keystore
         assert!(mgr
@@ -1232,20 +1310,20 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(generated_key.meta.item_id, "generated_test_key");
+        assert_eq!(generated_key.meta.item_id(), "generated_test_key");
         // Not set in a freshly generated key, because KeyMgr::generate()
         // returns it straight away, without going through Keystore::get()
-        assert_eq!(generated_key.meta.retrieved_from, None);
-        assert_eq!(generated_key.meta.is_generated, true);
+        assert_eq!(generated_key.meta.retrieved_from(), None);
+        assert_eq!(generated_key.meta.is_generated(), true);
 
         // Retrieve the inserted key
         let retrieved_key = mgr.get::<TestItem>(&TestKeySpecifier1).unwrap().unwrap();
-        assert_eq!(retrieved_key.meta.item_id, "generated_test_key");
+        assert_eq!(retrieved_key.meta.item_id(), "generated_test_key");
         assert_eq!(
-            retrieved_key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore1").unwrap())
+            retrieved_key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore1").unwrap())
         );
-        assert_eq!(retrieved_key.meta.is_generated, true);
+        assert_eq!(retrieved_key.meta.is_generated(), true);
 
         // We don't store public keys in the keystore
         assert!(mgr
@@ -1281,22 +1359,22 @@ mod tests {
         let key = mgr
             .get_or_generate::<TestItem>(&TestKeySpecifier1, KeystoreSelector::Primary, &mut rng)
             .unwrap();
-        assert_eq!(key.meta.item_id, "coot");
+        assert_eq!(key.meta.item_id(), "coot");
         assert_eq!(
-            key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore2").unwrap())
+            key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore2").unwrap())
         );
-        assert_eq!(key.meta.is_generated, false);
+        assert_eq!(key.meta.is_generated(), false);
 
         assert_eq!(
             mgr.get_entry::<TestItem>(&entry_desc1)
                 .unwrap()
                 .map(|k| k.meta),
-            Some(ItemMetadata {
+            Some(ItemMetadata::Key(KeyMetadata {
                 item_id: "coot".to_string(),
                 retrieved_from: Some(keystore2.clone()),
                 is_generated: false,
-            })
+            }))
         );
 
         // This key doesn't exist in any of the keystores, so it will be auto-generated and
@@ -1309,31 +1387,31 @@ mod tests {
                 &mut rng,
             )
             .unwrap();
-        assert_eq!(generated_key.meta.item_id, "generated_test_key");
+        assert_eq!(generated_key.meta.item_id(), "generated_test_key");
         // Not set in a freshly generated key, because KeyMgr::get_or_generate()
         // returns it straight away, without going through Keystore::get()
-        assert_eq!(generated_key.meta.retrieved_from, None);
-        assert_eq!(generated_key.meta.is_generated, true);
+        assert_eq!(generated_key.meta.retrieved_from(), None);
+        assert_eq!(generated_key.meta.is_generated(), true);
 
         // Retrieve the inserted key
         let retrieved_key = mgr.get::<TestItem>(&TestKeySpecifier2).unwrap().unwrap();
-        assert_eq!(retrieved_key.meta.item_id, "generated_test_key");
+        assert_eq!(retrieved_key.meta.item_id(), "generated_test_key");
         assert_eq!(
-            retrieved_key.meta.retrieved_from,
-            Some(KeystoreId::from_str("keystore3").unwrap())
+            retrieved_key.meta.retrieved_from(),
+            Some(&KeystoreId::from_str("keystore3").unwrap())
         );
-        assert_eq!(retrieved_key.meta.is_generated, true);
+        assert_eq!(retrieved_key.meta.is_generated(), true);
 
         let entry_desc2 = entry_descriptor(TestKeySpecifier2, &keystore3);
         assert_eq!(
             mgr.get_entry::<TestItem>(&entry_desc2)
                 .unwrap()
                 .map(|k| k.meta),
-            Some(ItemMetadata {
+            Some(ItemMetadata::Key(KeyMetadata {
                 item_id: "generated_test_key".to_string(),
                 retrieved_from: Some(keystore3.clone()),
                 is_generated: true,
-            })
+            }))
         );
 
         let arti_pat = KeyPathPattern::Arti("*".to_string());
@@ -1403,14 +1481,15 @@ mod tests {
             }
 
             let make_certificate = move |subject_key: &TestItem, signed_with: &TestItem| {
-                let meta = ItemMetadata {
-                    item_id: format!(
-                        "a test cert for {} signed with {}",
-                        subject_key.meta.item_id, signed_with.meta.item_id
-                    ),
+                let subject_id = subject_key.meta.as_key().unwrap().item_id.clone();
+                let signing_id = signed_with.meta.as_key().unwrap().item_id.clone();
+
+                let meta = ItemMetadata::Cert(CertMetadata {
+                    subject_key_id: subject_id,
+                    signing_key_id: signing_id,
                     retrieved_from: None,
-                    is_generated: false,
-                };
+                    is_generated: true,
+                });
 
                 // Note: this is not really a cert for `subject_key` signed with the `signed_with`
                 // key!. The two are `TestItem`s and not keys, so we can't really generate a real
@@ -1465,11 +1544,16 @@ mod tests {
                     "generated_test_key"
                 };
 
-                assert_eq!(key.meta.item_id, expected_subj_key_id);
+                assert_eq!(key.meta.item_id(), expected_subj_key_id);
                 assert_eq!(
-                    cert.0.meta.item_id,
-                    format!("a test cert for {} signed with generated_test_key", expected_subj_key_id)
+                    cert.0.meta.as_cert().unwrap().subject_key_id,
+                    expected_subj_key_id
                 );
+                assert_eq!(
+                    cert.0.meta.as_cert().unwrap().signing_key_id,
+                    "generated_test_key"
+                );
+                assert_eq!(cert.0.meta.is_generated(), true);
             }
         }}
     }
