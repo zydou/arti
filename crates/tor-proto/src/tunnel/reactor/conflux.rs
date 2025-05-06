@@ -871,7 +871,7 @@ impl ConfluxSet {
     /// Check if the specified sequence number is the sequence number of the
     /// next message we're expecting to handle.
     pub(super) fn is_seqno_in_order(&self, seq_recv: u64) -> bool {
-        let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::SeqCst);
+        let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::Acquire);
         seq_recv == last_seq_delivered + 1
     }
 }

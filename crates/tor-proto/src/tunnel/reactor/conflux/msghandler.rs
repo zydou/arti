@@ -112,7 +112,7 @@ impl ConfluxMsgHandler {
     ///
     /// Returns an internal error if the relative seqno is lower than the absolute seqno.
     fn is_msg_in_order(&self) -> Result<bool, Bug> {
-        let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::SeqCst);
+        let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::Acquire);
         match self.handler.last_seq_recv().cmp(&(last_seq_delivered + 1)) {
             Ordering::Less => {
                 // Our internal accounting is busted!
@@ -178,7 +178,7 @@ impl ConfluxMsgHandler {
     pub(crate) fn inc_last_seq_delivered(&self, msg: &UnparsedRelayMsg) {
         if super::cmd_counts_towards_seqno(msg.cmd()) {
             self.last_seq_delivered
-                .fetch_add(1, atomic::Ordering::SeqCst);
+                .fetch_add(1, atomic::Ordering::AcqRel);
         }
     }
 
