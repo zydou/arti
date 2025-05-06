@@ -12,8 +12,10 @@
 //! To build a circuit, first create a [crate::channel::Channel], then
 //! call its [crate::channel::Channel::new_circ] method.  This yields
 //! a [PendingClientCirc] object that won't become live until you call
-//! one of the methods that extends it to its first hop.  After you've
-//! done that, you can call [ClientCirc::extend_ntor] on the circuit to
+//! one of the methods
+//! (typically [`PendingClientCirc::create_firsthop`])
+//! that extends it to its first hop.  After you've
+//! done that, you can call [`ClientCirc::extend`] on the circuit to
 //! build it into a multi-hop circuit.  Finally, you can use
 //! [ClientCirc::begin_stream] to get a Stream object that can be used
 //! for anonymized data.
@@ -69,6 +71,7 @@ use tor_cell::{
 
 use tor_error::{internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
+use tor_protover::named;
 
 pub use crate::crypto::binding::CircuitBinding;
 pub use crate::memquota::StreamAccount;
@@ -122,11 +125,11 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 ///
 /// `ClientCirc`s are created in an initially unusable state using [`Channel::new_circ`],
 /// which returns a [`PendingClientCirc`].  To get a real (one-hop) circuit from
-/// one of these, you invoke one of its `create_firsthop` methods (currently
+/// one of these, you invoke one of its `create_firsthop` methods (typically
 /// [`create_firsthop_fast()`](PendingClientCirc::create_firsthop_fast) or
-/// [`create_firsthop_ntor()`](PendingClientCirc::create_firsthop_ntor)).
+/// [`create_firsthop()`](PendingClientCirc::create_firsthop)).
 /// Then, to add more hops to the circuit, you can call
-/// [`extend_ntor()`](ClientCirc::extend_ntor) on it.
+/// [`extend()`](ClientCirc::extend) on it.
 ///
 /// For higher-level APIs, see the `tor-circmgr` crate: the ones here in
 /// `tor-proto` are probably not what you need.
@@ -204,7 +207,7 @@ pub(super) struct MutableState {
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
 ///
-/// To use one of these, call create_firsthop_fast() or create_firsthop_ntor()
+/// To use one of these, call `create_firsthop_fast()` or `create_firsthop()`
 /// to negotiate the cryptographic handshake with the first hop.
 pub struct PendingClientCirc {
     /// A oneshot receiver on which we'll receive a CREATED* cell,
@@ -602,6 +605,33 @@ impl ClientCirc {
 
             IncomingStream::new(req, target, reader, memquota)
         }))
+    }
+
+    /// Extend the circuit, via the most appropriate circuit extension handshake,
+    /// to the chosen `target` hop.
+    pub async fn extend<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
+    where
+        Tg: CircTarget,
+    {
+        // For now we use the simplest decision-making mechanism:
+        // we use ntor_v3 whenever it is present; and otherwise we use ntor.
+        //
+        // This behavior is slightly different from C tor, which uses ntor v3
+        // only whenever it want to send any extension in the circuit message.
+        // But thanks to congestion control (named::FLOWCTRL_CC), we'll _always_
+        // want to use an extension if we can, and so it doesn't make too much
+        // sense to detect the case where we have no extensions.
+        //
+        // (As of April 2025, RELAY_NTORV3 is not yet listed as Required for relays
+        // on the tor network, and so we cannot simply assume that everybody has it.)
+        if target
+            .protovers()
+            .supports_named_subver(named::RELAY_NTORV3)
+        {
+            self.extend_ntor_v3(target, params).await
+        } else {
+            self.extend_ntor(target, params).await
+        }
     }
 
     /// Extend the circuit via the ntor handshake to a new target last
@@ -1064,6 +1094,29 @@ impl PendingClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
         Ok(self.circ)
+    }
+
+    /// Use the most appropriate handshake to connect to the first hop of this circuit.
+    ///
+    /// Note that the provided 'target' must match the channel's target,
+    /// or the handshake will fail.
+    pub async fn create_firsthop<Tg>(
+        self,
+        target: &Tg,
+        params: CircParameters,
+    ) -> Result<Arc<ClientCirc>>
+    where
+        Tg: tor_linkspec::CircTarget,
+    {
+        // (See note in ClientCirc::extend.)
+        if target
+            .protovers()
+            .supports_named_subver(named::RELAY_NTORV3)
+        {
+            self.create_firsthop_ntor_v3(target, params).await
+        } else {
+            self.create_firsthop_ntor(target, params).await
+        }
     }
 
     /// Use the ntor handshake to connect to the first hop of this circuit.

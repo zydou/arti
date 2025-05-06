@@ -466,7 +466,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
         // Make a future to extend the circuit.
         let extend_future = circ
-            .extend_ntor(&target, params)
+            .extend(&target, params)
             .map_err(|error| Error::Protocol {
                 action: "extending to chosen HS hop",
                 peer: None, // Either party could be to blame.

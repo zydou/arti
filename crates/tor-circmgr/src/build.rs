@@ -19,7 +19,7 @@ use tor_linkspec::{ChanTarget, CircTarget, IntoOwnedChanTarget, OwnedChanTarget,
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
-use tor_protover::named::{FLOWCTRL_CC, RELAY_NTORV3};
+use tor_protover::named::FLOWCTRL_CC;
 use tor_protover::Protocols;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
@@ -155,12 +155,7 @@ impl Buildable for ClientCirc {
         let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
         let unique_id = Some(circ.peek_unique_id());
 
-        // The target supports ntor_v3 iff it advertises the relevant protover.
-        let handshake_res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
-            circ.create_firsthop_ntor_v3(ct, params).await
-        } else {
-            circ.create_firsthop_ntor(ct, params).await
-        };
+        let handshake_res = circ.create_firsthop(ct, params).await;
 
         handshake_res.map_err(|error| Error::Protocol {
             peer: Some(ct.to_logged()),
@@ -175,12 +170,8 @@ impl Buildable for ClientCirc {
         ct: &OwnedCircTarget,
         params: CircParameters,
     ) -> Result<()> {
-        // The target supports ntor_v3 iff it advertises the relevant protover.
-        let res = if ct.protovers().supports_named_subver(RELAY_NTORV3) {
-            self.extend_ntor_v3(ct, params).await
-        } else {
-            self.extend_ntor(ct, params).await
-        };
+        // use "ClientCirc::" name to avoid calling _this_ method.
+        let res = ClientCirc::extend(self, ct, params).await;
 
         res.map_err(|error| Error::Protocol {
             error,

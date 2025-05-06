@@ -45,12 +45,13 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
         self.unique_id()
     }
 
-    async fn extend_ntor<T: CircTarget + std::marker::Sync>(
+    async fn extend<T: CircTarget + std::marker::Sync>(
         &self,
         target: &T,
         params: CircParameters,
     ) -> tor_proto::Result<()> {
-        self.extend_ntor(target, params).await
+        // Use 'ClientCirc::' name to avoid invoking _this_ method.
+        ClientCirc::extend(self, target, params).await
     }
 }
 
