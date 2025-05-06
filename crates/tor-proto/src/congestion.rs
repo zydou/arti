@@ -74,6 +74,12 @@ pub(crate) trait CongestionControlAlgorithm: Send + std::fmt::Debug {
     /// Inform the algorithm that we just sent a SENDME.
     fn sendme_sent(&mut self) -> Result<()>;
 
+    /// Return the number of in-flight cells (sent but awaiting SENDME ack).
+    ///
+    /// Optional, because not all algorithms track this.
+    #[cfg(feature = "conflux")]
+    fn inflight(&self) -> Option<u32>;
+
     /// Test Only: Return the congestion window.
     #[cfg(test)]
     fn send_window(&self) -> u32;
@@ -239,7 +245,8 @@ impl CongestionWindow {
         self.params.sendme_inc()
     }
 
-    #[cfg(test)]
+    /// Return the congestion window params.
+    #[cfg(any(test, feature = "conflux"))]
     pub(crate) fn params(&self) -> &CongestionWindowParams {
         &self.params
     }
@@ -355,6 +362,30 @@ impl CongestionControl {
         }
 
         Ok(())
+    }
+
+    /// Return the number of in-flight cells (sent but awaiting SENDME ack).
+    ///
+    /// Optional, because not all algorithms track this.
+    #[cfg(feature = "conflux")]
+    pub(crate) fn inflight(&self) -> Option<u32> {
+        self.algorithm.inflight()
+    }
+
+    /// Return the congestion window object.
+    ///
+    /// Optional, because not all algorithms track this.
+    #[cfg(feature = "conflux")]
+    pub(crate) fn cwnd(&self) -> Option<&CongestionWindow> {
+        self.algorithm.cwnd()
+    }
+
+    /// Return a reference to the RTT estimator.
+    ///
+    /// Used for conflux, for choosing the best circuit to send on.
+    #[cfg(feature = "conflux")]
+    pub(crate) fn rtt(&self) -> &RoundtripTimeEstimator {
+        &self.rtt
     }
 }
 

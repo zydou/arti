@@ -684,7 +684,8 @@ impl Channel {
         let memquota = CircuitAccount::new(&self.details.memquota)?;
 
         // TODO: blocking is risky, but so is unbounded.
-        let (sender, receiver) = MpscSpec::new(128).new_mq(time_prov, memquota.as_raw_account())?;
+        let (sender, receiver) =
+            MpscSpec::new(128).new_mq(time_prov.clone(), memquota.as_raw_account())?;
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
 
         let (tx, rx) = oneshot::channel();
@@ -703,6 +704,7 @@ impl Channel {
             createdreceiver,
             receiver,
             circ_unique_id,
+            time_prov,
             memquota,
         ))
     }

@@ -55,6 +55,8 @@ use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
 use tracing::{debug, trace, warn};
 
+#[cfg(feature = "conflux")]
+use super::conflux::ConfluxMsgHandler;
 use super::{
     CellHandlers, CircuitHandshake, CloseStreamBehavior, ReactorResultChannel, SendRelayCell,
 };
@@ -64,6 +66,7 @@ use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
+use std::time::{Duration, SystemTime};
 
 use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
@@ -72,6 +75,12 @@ use extender::HandshakeAuxDataHandler;
 use {
     crate::stream::{DataCmdChecker, IncomingStreamRequest},
     tor_cell::relaycell::msg::Begin,
+};
+
+#[cfg(feature = "conflux")]
+use {
+    super::conflux::{ConfluxAction, OooRelayMsg},
+    crate::tunnel::reactor::RemoveLegReason,
 };
 
 /// Initial value for outbound flow-control window on streams.
@@ -156,6 +165,12 @@ pub(crate) struct Circuit {
     channel_id: CircId,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
+    /// A handler for conflux cells.
+    ///
+    /// Set once the conflux handshake is initiated by the reactor
+    /// using [`Reactor::handle_link_circuits`](super::Reactor::handle_link_circuits).
+    #[cfg(feature = "conflux")]
+    conflux_handler: Option<ConfluxMsgHandler>,
     /// Memory quota account
     #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
     memquota: CircuitAccount,
@@ -190,9 +205,54 @@ pub(super) enum CircuitCmd {
         /// The reason for closing the stream.
         reason: streammap::TerminateReason,
     },
+    /// Remove this circuit from the conflux set.
+    ///
+    /// Returned by `ConfluxMsgHandler::handle_conflux_msg` for invalid messages
+    /// (originating from wrong hop), and for messages that are rejected
+    /// by its inner `AbstractMsgHandler`.
+    #[cfg(feature = "conflux")]
+    ConfluxRemove(RemoveLegReason),
+    /// This circuit has completed the conflux handshake,
+    /// and wants to send the specified cell.
+    ///
+    /// Returned by an `AbstractMsgHandler` to signal to the reactor that
+    /// the conflux handshake is complete.
+    #[cfg(feature = "conflux")]
+    ConfluxHandshakeComplete(SendRelayCell),
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
+    /// Enqueue an out-of-order cell in the reactor.
+    #[cfg(feature = "conflux")]
+    Enqueue(OooRelayMsg),
 }
+
+/// Return a `CircProto` error for the specified unsupported cell.
+///
+/// This error will shut down the reactor.
+///
+/// Note: this is a macro to simplify usage (this way the caller doesn't
+/// need to .map() the result to the appropriate type)
+macro_rules! unsupported_client_cell {
+    ($msg:expr) => {{
+        unsupported_client_cell!(@ $msg, "")
+    }};
+
+    ($msg:expr, $hopnum:expr) => {{
+        let hop: HopNum = $hopnum;
+        let hop_display = format!(" from hop {}", hop.display());
+        unsupported_client_cell!(@ $msg, hop_display)
+    }};
+
+    (@ $msg:expr, $hopnum_display:expr) => {
+        Err(crate::Error::CircProto(format!(
+            "Unexpected {} cell{} on client circuit",
+            $msg.cmd(),
+            $hopnum_display,
+        )))
+    };
+}
+
+pub(super) use unsupported_client_cell;
 
 impl Circuit {
     /// Create a new non-multipath circuit.
@@ -217,7 +277,63 @@ impl Circuit {
             channel_id,
             crypto_out,
             mutable,
+            #[cfg(feature = "conflux")]
+            conflux_handler: None,
             memquota,
+        }
+    }
+    /// Install a [`ConfluxMsgHandler`] on this circuit,
+    ///
+    /// Once this is called, the circuit will be able to handle conflux cells.
+    #[cfg(feature = "conflux")]
+    pub(super) fn install_conflux_handler(&mut self, conflux_handler: ConfluxMsgHandler) {
+        self.conflux_handler = Some(conflux_handler);
+    }
+
+    /// Send a LINK cell to the specified hop.
+    ///
+    /// This must be called *after* a [`ConfluxMsgHandler`] is installed
+    /// on the circuit with [`install_conflux_handler`](Self::install_conflux_handler).
+    #[cfg(feature = "conflux")]
+    pub(super) async fn begin_conflux_link(
+        &mut self,
+        hop: HopNum,
+        cell: AnyRelayMsgOuter,
+        runtime: &tor_rtcompat::DynTimeProvider,
+    ) -> Result<()> {
+        use tor_rtcompat::SleepProvider as _;
+
+        if self.conflux_handler.is_none() {
+            return Err(internal!(
+                "tried to send LINK cell before installing a ConfluxMsgHandler?!"
+            )
+            .into());
+        }
+
+        let cell = SendRelayCell {
+            hop,
+            early: false,
+            cell,
+        };
+        self.send_relay_cell(cell).await?;
+
+        let Some(conflux_handler) = self.conflux_handler.as_mut() else {
+            return Err(internal!("ConfluxMsgHandler disappeared?!").into());
+        };
+
+        Ok(conflux_handler.note_link_sent(runtime.wallclock())?)
+    }
+
+    /// Get the wallclock time when the handshake on this circuit is supposed to time out.
+    ///
+    /// Returns `None` if this handler hasn't started the handshake yet.
+    pub(super) fn conflux_hs_timeout(&self) -> Option<SystemTime> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "conflux")] {
+                self.conflux_handler.as_ref().map(|handler| handler.handshake_timeout())?
+            } else {
+                None
+            }
         }
     }
 
@@ -291,6 +407,11 @@ impl Circuit {
     ///
     /// Does not check whether the cell is well-formed or reasonable.
     pub(super) async fn send_relay_cell(&mut self, msg: SendRelayCell) -> Result<()> {
+        if self.is_conflux_pending() {
+            // TODO(conflux): is this right? Should we ensure all the legs are linked?
+            return Err(internal!("tried to send cell on unlinked circuit").into());
+        }
+
         let SendRelayCell {
             hop,
             early,
@@ -321,6 +442,12 @@ impl Circuit {
                 ent.take_capacity_to_send(msg.msg())?;
             }
         }
+
+        // Save the RelayCmd of the message before it gets consumed below.
+        // We need this to tell our ConfluxMsgHandler about the cell we've just sent,
+        // so that it can update its counters.
+        let relay_cmd = msg.cmd();
+
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
         let (msg, tag) =
@@ -333,6 +460,11 @@ impl Circuit {
 
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
         Pin::new(&mut self.chan_sender).send_unbounded(cell).await?;
+
+        #[cfg(feature = "conflux")]
+        if let Some(conflux) = self.conflux_handler.as_mut() {
+            conflux.note_cell_sent(relay_cmd);
+        }
 
         Ok(())
     }
@@ -509,6 +641,46 @@ impl Circuit {
             return self.handle_meta_cell(handlers, hopnum, msg);
         };
 
+        #[cfg(feature = "conflux")]
+        let msg = if let Some(conflux) = self.conflux_handler.as_mut() {
+            match conflux.action_for_msg(hopnum, cell_counts_toward_windows, streamid, msg)? {
+                ConfluxAction::Deliver(msg) => {
+                    // The message either doesn't count towards the sequence numbers
+                    // or is already well-ordered, so we're ready to handle it.
+
+                    // It's possible that some of our buffered messages are now ready to be
+                    // handled. We don't check that here, however, because that's handled
+                    // by the reactor main loop.
+                    msg
+                }
+                ConfluxAction::Enqueue(msg) => {
+                    // Tell the reactor to enqueue this msg
+                    return Ok(Some(CircuitCmd::Enqueue(msg)));
+                }
+            }
+        } else {
+            // If we don't have a conflux_handler, it means this circuit is not part of
+            // a conflux tunnel, so we can just process the message.
+            msg
+        };
+
+        self.handle_in_order_relay_msg(handlers, hopnum, cell_counts_toward_windows, streamid, msg)
+    }
+
+    /// Handle a single incoming relay message that is known to be in order.
+    pub(super) fn handle_in_order_relay_msg(
+        &mut self,
+        handlers: &mut CellHandlers,
+        hopnum: HopNum,
+        cell_counts_toward_windows: bool,
+        streamid: StreamId,
+        msg: UnparsedRelayMsg,
+    ) -> Result<Option<CircuitCmd>> {
+        #[cfg(feature = "conflux")]
+        if let Some(conflux) = self.conflux_handler.as_mut() {
+            conflux.inc_last_seq_delivered(&msg);
+        }
+
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
@@ -535,7 +707,6 @@ impl Circuit {
                 // response
                 hop_map.ending_msg_received(streamid)?;
                 drop(hop_map);
-                // TODO(conflux): we will need a new CircuitCmd::SendOnPrimaryLeg for this
                 return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum);
             }
             Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
@@ -565,6 +736,60 @@ impl Circuit {
             }
         }
         Ok(None)
+    }
+
+    /// Handle a conflux message coming from the specified hop.
+    ///
+    /// Returns an error if
+    ///
+    ///   * this is not a conflux circuit (i.e. it doesn't have a [`ConfluxMsgHandler`])
+    ///   * this is a client circuit and the conflux message originated an unexpected hop
+    ///   * the cell was sent in violation of the handshake protocol
+    #[cfg(feature = "conflux")]
+    fn handle_conflux_msg(
+        &mut self,
+        hop: HopNum,
+        msg: UnparsedRelayMsg,
+    ) -> Result<Option<CircuitCmd>> {
+        let Some(conflux_handler) = self.conflux_handler.as_mut() else {
+            // If conflux is not enabled, tear down the circuit
+            // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329)
+            //
+            // TODO(conflux): make sure this is properly implemented
+            return Err(Error::CircProto(format!(
+                "Received {} cell from hop {} on non-conflux client circuit?!",
+                msg.cmd(),
+                hop.display(),
+            )));
+        };
+
+        Ok(conflux_handler.handle_conflux_msg(msg, hop))
+    }
+
+    /// For conflux: return the sequence number of the last cell sent on this leg.
+    ///
+    /// Returns an error if this circuit is not part of a conflux set.
+    #[cfg(feature = "conflux")]
+    pub(super) fn last_seq_sent(&self) -> Result<u64> {
+        let handler = self
+            .conflux_handler
+            .as_ref()
+            .ok_or_else(|| internal!("tried to get last_seq_sent of non-conflux circ"))?;
+
+        Ok(handler.last_seq_sent())
+    }
+
+    /// For conflux: return the sequence number of the last cell received on this leg.
+    ///
+    /// Returns an error if this circuit is not part of a conflux set.
+    #[cfg(feature = "conflux")]
+    pub(super) fn last_seq_recv(&self) -> Result<u64> {
+        let handler = self
+            .conflux_handler
+            .as_ref()
+            .ok_or_else(|| internal!("tried to get last_seq_recv of non-conflux circ"))?;
+
+        Ok(handler.last_seq_recv())
     }
 
     /// Deliver `msg` to the specified open stream entry `ent`.
@@ -1050,6 +1275,7 @@ impl Circuit {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
+    #[allow(clippy::cognitive_complexity)]
     fn handle_meta_cell(
         &mut self,
         handlers: &mut CellHandlers,
@@ -1095,8 +1321,34 @@ impl Circuit {
 
         trace!("{}: Received meta-cell {:?}", self.unique_id, msg);
 
+        #[cfg(feature = "conflux")]
+        if matches!(
+            msg.cmd(),
+            RelayCmd::CONFLUX_LINK
+                | RelayCmd::CONFLUX_LINKED
+                | RelayCmd::CONFLUX_LINKED_ACK
+                | RelayCmd::CONFLUX_SWITCH
+        ) {
+            return self.handle_conflux_msg(hopnum, msg);
+        }
+
+        if self.is_conflux_pending() {
+            warn!(
+                "{}: received unexpected cell {msg:?} on unlinked conflux circuit",
+                self.unique_id,
+            );
+            return Err(Error::CircProto(
+                "Received unexpected cell on unlinked circuit".into(),
+            ));
+        }
+
         // For all other command types, we'll only get them in response
         // to another command, which should have registered a responder.
+        //
+        // TODO:(conflux): should the conflux state machine be a meta cell handler?
+        // We'd need to add support for multiple meta handlers, and change the
+        // MetaCellHandler API to support returning Option<RunOnceCmdInner>
+        // (because some cells will require sending a response)
         if let Some(mut handler) = handlers.meta_handler.take() {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message
@@ -1121,19 +1373,13 @@ impl Circuit {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
                 handlers.meta_handler = Some(handler);
-                Err(Error::CircProto(format!(
-                    "Unexpected {} cell from hop {} on client circuit",
-                    msg.cmd(),
-                    hopnum.display(),
-                )))
+
+                unsupported_client_cell!(msg, hopnum)
             }
         } else {
             // No need to call shutdown here, since this error will
             // propagate to the reactor shut it down.
-            Err(Error::CircProto(format!(
-                "Unexpected {} cell on client circuit",
-                msg.cmd()
-            )))
+            unsupported_client_cell!(msg)
         }
     }
 
@@ -1322,6 +1568,17 @@ impl Circuit {
         Ok(())
     }
 
+    /// Returns true if there are any streams on this circuit
+    ///
+    /// Important: this function locks the stream map of its each of the [`CircHop`]s
+    /// in this circuit, so it must **not** be called from any function where the
+    /// stream map lock is held (such as [`ready_streams_iterator`](Self::ready_streams_iterator).
+    pub(super) fn has_streams(&self) -> bool {
+        self.hops
+            .iter()
+            .any(|hop| hop.map.lock().expect("lock poisoned").n_open_streams() > 0)
+    }
+
     /// The number of hops in this circuit.
     pub(super) fn num_hops(&self) -> u8 {
         // `Circuit::add_hop` checks to make sure that we never have more than `u8::MAX` hops,
@@ -1337,6 +1594,18 @@ impl Circuit {
     /// Check whether this circuit has any hops.
     pub(super) fn has_hops(&self) -> bool {
         !self.hops.is_empty()
+    }
+
+    /// Get the `HopNum` of the last hop, if this circuit is non-empty.
+    ///
+    /// Returns `None` if the circuit has no hops.
+    pub(super) fn last_hop_num(&self) -> Option<HopNum> {
+        let num_hops = self.num_hops();
+        if num_hops == 0 {
+            // asked for the last hop, but there are no hops
+            return None;
+        }
+        Some(HopNum::from(num_hops - 1))
     }
 
     /// Get the path of the circuit.
@@ -1360,6 +1629,49 @@ impl Circuit {
         let hop = self.hop(hop)?;
         Some(hop.ccontrol.uses_stream_sendme())
     }
+
+    /// Returns whether this is a conflux circuit that is not linked yet.
+    pub(super) fn is_conflux_pending(&self) -> bool {
+        let Some(status) = self.conflux_status() else {
+            return false;
+        };
+
+        status != ConfluxStatus::Linked
+    }
+
+    /// Returns the conflux status of this circuit.
+    ///
+    /// Returns `None` if this is not a conflux circuit.
+    pub(super) fn conflux_status(&self) -> Option<ConfluxStatus> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "conflux")] {
+                self.conflux_handler
+                    .as_ref()
+                    .map(|handler| handler.status())
+            } else {
+                None
+            }
+        }
+    }
+
+    /// Returns initial RTT on this leg, measured in the conflux handshake.
+    #[cfg(feature = "conflux")]
+    pub(super) fn init_rtt(&self) -> Option<Duration> {
+        self.conflux_handler
+            .as_ref()
+            .map(|handler| handler.init_rtt())?
+    }
+}
+
+/// The conflux status of a conflux [`Circuit`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(super) enum ConfluxStatus {
+    /// Circuit has not begun the conflux handshake yet.
+    Unlinked,
+    /// Conflux handshake is in progress.
+    Pending,
+    /// A linked conflux circuit.
+    Linked,
 }
 
 /// Return the stream ID of `msg`, if it has one.
@@ -1495,5 +1807,10 @@ impl CircHop {
     /// it should never be called from a context where that mutex is already locked.
     pub(super) fn n_open_streams(&self) -> usize {
         self.map.lock().expect("lock poisoned").n_open_streams()
+    }
+
+    /// Return a reference to our CongestionControl object.
+    pub(crate) fn ccontrol(&self) -> &CongestionControl {
+        &self.ccontrol
     }
 }

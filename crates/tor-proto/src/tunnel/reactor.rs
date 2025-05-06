@@ -38,10 +38,13 @@ use crate::{Error, Result};
 use circuit::{Circuit, CircuitCmd};
 use conflux::ConfluxSet;
 use control::ControlHandler;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::mem::size_of;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
+use tor_rtcompat::DynTimeProvider;
 
 use futures::channel::mpsc;
 use futures::StreamExt;
@@ -62,11 +65,26 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::trace;
 
+#[cfg(feature = "conflux")]
+use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
+
 pub(super) use control::CtrlCmd;
 pub(super) use control::CtrlMsg;
 
-/// The type of a oneshot channel used to inform reactor users of the result of an operation.
+/// The type of a oneshot channel used to inform reactor of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
+
+/// Contains a list of conflux handshake results.
+#[cfg(feature = "conflux")]
+pub(super) type ConfluxHandshakeResult = Vec<StdResult<(), ConfluxHandshakeError>>;
+
+/// The type of oneshot channel used to inform reactor users of the outcome
+/// of a client-side conflux handshake.
+///
+/// Contains a list of handshake results, one for each circuit that we were asked
+/// to link in the tunnel.
+#[cfg(feature = "conflux")]
+pub(super) type ConfluxLinkResultChannel = ReactorResultChannel<ConfluxHandshakeResult>;
 
 pub(crate) use circuit::{RECV_WINDOW_INIT, STREAM_READER_BUFFER};
 
@@ -146,6 +164,8 @@ enum RunOnceCmd {
 enum RunOnceCmdInner {
     /// Send a RELAY cell.
     Send {
+        /// The leg the cell should be sent on.
+        leg: LegId,
         /// The cell to send.
         cell: SendRelayCell,
         /// A channel for sending completion notifications.
@@ -168,6 +188,8 @@ enum RunOnceCmdInner {
     },
     /// Handle a SENDME message.
     HandleSendMe {
+        /// The leg the SENDME was received on.
+        leg: LegId,
         /// The hop number.
         hop: HopNum,
         /// The SENDME message to handle.
@@ -183,6 +205,8 @@ enum RunOnceCmdInner {
         /// to worry about legs anyways), but need it so that we can pass it back in `done` to the
         /// caller.
         hop: HopLocation,
+        /// The circuit leg to begin the stream on.
+        leg: LegId,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
     },
@@ -204,6 +228,55 @@ enum RunOnceCmdInner {
         /// Oneshot channel to return the clock skew.
         answer: oneshot::Sender<StdResult<ClockSkew, Bug>>,
     },
+    /// Remove a circuit leg from the conflux set.
+    RemoveLeg {
+        /// The circuit leg to remove.
+        leg: LegId,
+        /// The reason for removal.
+        ///
+        /// This is only used for conflux circuits that get removed
+        /// before the conflux handshake is complete.
+        ///
+        /// The [`RemoveLegReason`] is mapped by the reactor to a
+        /// [`ConfluxHandshakeError`] that is sent to the initiator of the
+        /// handshake to indicate the reason the handshake failed.
+        reason: RemoveLegReason,
+    },
+    /// A circuit has completed the conflux handshake,
+    /// and wants to send the specified cell.
+    ///
+    /// This is similar to [`RunOnceCmdInner::Send`],
+    /// but needs to remain a separate variant,
+    /// because in addition to instructing the reactor to send a cell,
+    /// it also notifies it that the conflux handshake is complete on the specified `leg`.
+    /// This enables the reactor to save the handshake result (`Ok(())`),
+    /// and, if there are no other legs still in the handshake phase,
+    /// send the result to the handshake initiator.
+    #[cfg(feature = "conflux")]
+    ConfluxHandshakeComplete {
+        /// The circuit leg that has completed the handshake,
+        /// This is the leg the cell should be sent on.
+        leg: LegId,
+        /// The cell to send.
+        cell: SendRelayCell,
+    },
+    /// Send a LINK cell on each of the unlinked circuit legs in the conflux set of this reactor.
+    #[cfg(feature = "conflux")]
+    Link {
+        /// The circuits to link into the tunnel
+        #[educe(Debug(ignore))]
+        circuits: Vec<Circuit>,
+        /// Oneshot channel for notifying of conflux handshake completion.
+        answer: ConfluxLinkResultChannel,
+    },
+    /// Enqueue an out-of-order cell in ooo_msg.
+    #[cfg(feature = "conflux")]
+    Enqueue {
+        /// The leg the entry originated from.
+        leg: LegId,
+        /// The out-of-order message.
+        msg: OooRelayMsg,
+    },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
 }
@@ -212,14 +285,16 @@ impl RunOnceCmdInner {
     /// Create a [`RunOnceCmdInner`] out of a [`CircuitCmd`] and [`LegIdKey`].
     fn from_circuit_cmd(leg: LegIdKey, cmd: CircuitCmd) -> Self {
         match cmd {
-            CircuitCmd::Send(cell) => {
-                // TODO(conflux): add leg ID to Send
-                Self::Send { cell, done: None }
-            }
-            CircuitCmd::HandleSendMe { hop, sendme } => {
-                // TODO(conflux): add leg to HandleSendMe
-                Self::HandleSendMe { hop, sendme }
-            }
+            CircuitCmd::Send(cell) => Self::Send {
+                leg: LegId(leg),
+                cell,
+                done: None,
+            },
+            CircuitCmd::HandleSendMe { hop, sendme } => Self::HandleSendMe {
+                leg: LegId(leg),
+                hop,
+                sendme,
+            },
             CircuitCmd::CloseStream {
                 hop,
                 sid,
@@ -231,6 +306,21 @@ impl RunOnceCmdInner {
                 behav,
                 reason,
                 done: None,
+            },
+            #[cfg(feature = "conflux")]
+            CircuitCmd::ConfluxRemove(reason) => Self::RemoveLeg {
+                leg: LegId(leg),
+                reason,
+            },
+            #[cfg(feature = "conflux")]
+            CircuitCmd::ConfluxHandshakeComplete(cell) => Self::ConfluxHandshakeComplete {
+                leg: LegId(leg),
+                cell,
+            },
+            #[cfg(feature = "conflux")]
+            CircuitCmd::Enqueue(msg) => Self::Enqueue {
+                leg: LegId(leg),
+                msg,
             },
             CircuitCmd::CleanShutdown => Self::CleanShutdown,
         }
@@ -270,8 +360,43 @@ enum CircuitAction {
         /// The message to handle.
         cell: ClientCircChanMsg,
     },
-    /// Remove the specified circuit leg.
-    RemoveLeg(LegIdKey),
+    /// Remove the specified circuit leg from the conflux set.
+    ///
+    /// Returned whenever a single circuit leg needs to be be removed
+    /// from the reactor's conflux set, without necessarily tearing down
+    /// the whole set or shutting down the reactor.
+    ///
+    /// Note: this action *can* cause the reactor to shut down
+    /// (and the conflux set to be closed).
+    ///
+    /// See the [`ConfluxSet::remove`] docs for more on the exact behavior of this command.
+    RemoveLeg {
+        /// The leg to remove.
+        leg: LegIdKey,
+        /// The reason for removal.
+        ///
+        /// This is only used for conflux circuits that get removed
+        /// before the conflux handshake is complete.
+        ///
+        /// The [`RemoveLegReason`] is mapped by the reactor to a
+        /// [`ConfluxHandshakeError`] that is sent to the initiator of the
+        /// handshake to indicate the reason the handshake failed.
+        reason: RemoveLegReason,
+    },
+}
+
+/// The reason for removing a circuit leg from the conflux set.
+#[derive(Debug)]
+enum RemoveLegReason {
+    /// The conflux handshake timed out.
+    ///
+    /// On the client-side, this means we didn't receive
+    /// the CONFLUX_LINKED response in time.
+    ConfluxHandshakeTimeout,
+    /// An error occurred during conflux handshake.
+    ConfluxHandshakeErr(Error),
+    /// The channel was closed.
+    ChannelClosed,
 }
 
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
@@ -383,9 +508,6 @@ pub struct Reactor {
     /// Contains 1 or more circuits.
     ///
     /// Circuits may be added to this set throughout the lifetime of the reactor.
-    //
-    // TODO(conflux): add a control command for adding a circuit leg,
-    // and update these docs to explain how legs are added
     ///
     /// Sometimes, the reactor will remove circuits from this set,
     /// for example if the `LINKED` message takes too long to arrive,
@@ -400,7 +522,68 @@ pub struct Reactor {
     unique_id: UniqId,
     /// Handlers, shared with `Circuit`.
     cell_handlers: CellHandlers,
+    /// The time provider, used for conflux handshake timeouts.
+    runtime: DynTimeProvider,
+    /// The conflux handshake context, if there is an on-going handshake.
+    ///
+    /// Set to `None` if this is a single-path tunnel,
+    /// or if none of the circuit legs from our conflux set
+    /// are currently in the conflux handshake phase.
+    #[cfg(feature = "conflux")]
+    conflux_hs_ctx: Option<ConfluxHandshakeCtx>,
+    /// A min-heap buffering all the out-of-order messages received so far.
+    ///
+    /// TODO(conflux): this becomes a DoS vector unless we impose a limit
+    /// on its size. We should make this participate in the memquota memory
+    /// tracking system, somehow.
+    #[cfg(feature = "conflux")]
+    ooo_msgs: BinaryHeap<ConfluxHeapEntry>,
 }
+
+/// The context for an on-going conflux handshake.
+#[cfg(feature = "conflux")]
+struct ConfluxHandshakeCtx {
+    /// A channel for notifying the caller of the outcome of a CONFLUX_LINK request.
+    answer: ConfluxLinkResultChannel,
+    /// The number of legs that are currently doing the handshake.
+    num_legs: usize,
+    /// The handshake results we have collected so far.
+    results: ConfluxHandshakeResult,
+}
+
+/// An out-of-order message buffered in [`Reactor::ooo_msgs`].
+#[derive(Debug)]
+#[cfg(feature = "conflux")]
+struct ConfluxHeapEntry {
+    /// The leg id this message came from.
+    leg_id: LegId,
+    /// The out of order message
+    msg: OooRelayMsg,
+}
+
+#[cfg(feature = "conflux")]
+impl Ord for ConfluxHeapEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.msg.cmp(&other.msg).reverse()
+    }
+}
+
+#[cfg(feature = "conflux")]
+impl PartialOrd for ConfluxHeapEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[cfg(feature = "conflux")]
+impl PartialEq for ConfluxHeapEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.msg == other.msg
+    }
+}
+
+#[cfg(feature = "conflux")]
+impl Eq for ConfluxHeapEntry {}
 
 /// Cell handlers, shared between the Reactor and its underlying `Circuit`s.
 struct CellHandlers {
@@ -473,6 +656,7 @@ impl Reactor {
         channel_id: CircId,
         unique_id: UniqId,
         input: CircuitRxReceiver,
+        runtime: DynTimeProvider,
         memquota: CircuitAccount,
     ) -> (
         Self,
@@ -509,6 +693,11 @@ impl Reactor {
             reactor_closed_tx,
             unique_id,
             cell_handlers,
+            runtime,
+            #[cfg(feature = "conflux")]
+            conflux_hs_ctx: None,
+            #[cfg(feature = "conflux")]
+            ooo_msgs: Default::default(),
         };
 
         (reactor, control_tx, command_tx, reactor_closed_rx, mutable)
@@ -559,8 +748,12 @@ impl Reactor {
             return Ok(());
         }
 
-        // TODO(conflux): support adding and linking circuits
-        // TODO(conflux): support switching the primary leg
+        // Prioritize the buffered messages.
+        //
+        // Note: if any of the messages are ready to be handled,
+        // this will block the reactor until we are done processing them
+        #[cfg(feature = "conflux")]
+        self.try_dequeue_ooo_msgs().await?;
 
         let action = select_biased! {
             res = self.command.next() => {
@@ -579,7 +772,7 @@ impl Reactor {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
                 CircuitAction::HandleControl(msg)
             },
-            res = self.circuits.next_circ_action().fuse() => res?,
+            res = self.circuits.next_circ_action(&self.runtime).fuse() => res?,
         };
 
         let cmd = match action {
@@ -612,14 +805,68 @@ impl Reactor {
                     Some(cmd)
                 }
             }
-            CircuitAction::RemoveLeg(leg_id) => {
-                self.circuits.remove(leg_id)?;
-                None
-            }
+            CircuitAction::RemoveLeg { leg, reason } => Some(
+                RunOnceCmdInner::RemoveLeg {
+                    leg: LegId(leg),
+                    reason,
+                }
+                .into(),
+            ),
         };
 
         if let Some(cmd) = cmd {
             self.handle_run_once_cmd(cmd).await?;
+        }
+
+        // Check if it's time to switch our primary leg.
+        //
+        // TODO(conflux): this only be done just before sending a cell.
+        //
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2946#note_3192013
+        #[cfg(feature = "conflux")]
+        if let Some(switch_cell) = self.circuits.maybe_update_primary_leg()? {
+            self.circuits
+                .primary_leg_mut()?
+                .send_relay_cell(switch_cell)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Try to process the previously-out-of-order messages we might have buffered.
+    #[cfg(feature = "conflux")]
+    async fn try_dequeue_ooo_msgs(&mut self) -> StdResult<(), ReactorError> {
+        // Check if we're ready to dequeue any of the previously out-of-order cells.
+        while let Some(entry) = self.ooo_msgs.peek() {
+            let should_pop = self.circuits.is_seqno_in_order(entry.msg.seqno);
+
+            if !should_pop {
+                break;
+            }
+
+            let entry = self.ooo_msgs.pop().expect("item just disappeared?!");
+
+            let circ = self
+                .circuits
+                .leg_mut(entry.leg_id)
+                .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
+            let handlers = &mut self.cell_handlers;
+            let cmd = circ
+                .handle_in_order_relay_msg(
+                    handlers,
+                    entry.msg.hopnum,
+                    entry.msg.cell_counts_towards_windows,
+                    entry.msg.streamid,
+                    entry.msg.msg,
+                )?
+                .map(|cmd| {
+                    RunOnceCmd::Single(RunOnceCmdInner::from_circuit_cmd(entry.leg_id.0, cmd))
+                });
+
+            if let Some(cmd) = cmd {
+                self.handle_run_once_cmd(cmd).await?;
+            }
         }
 
         Ok(())
@@ -650,11 +897,13 @@ impl Reactor {
         cmd: RunOnceCmdInner,
     ) -> StdResult<(), ReactorError> {
         match cmd {
-            RunOnceCmdInner::Send { cell, done } => {
+            RunOnceCmdInner::Send { leg, cell, done } => {
                 // TODO: check the cc window
-
-                // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
-                let res = self.circuits.primary_leg_mut()?.send_relay_cell(cell).await;
+                let leg = self
+                    .circuits
+                    .leg_mut(leg)
+                    .ok_or_else(|| internal!("leg disappeared?!"))?;
+                let res = leg.send_relay_cell(cell).await;
                 if let Some(done) = done {
                     // Don't care if the receiver goes away
                     let _ = done.send(res.clone());
@@ -685,14 +934,18 @@ impl Reactor {
                     }
                 }
             }
-            // TODO(conflux)/TODO(#1857): should this take a leg_id argument?
-            // Currently, we always begin streams on the primary leg
-            RunOnceCmdInner::BeginStream { cell, hop, done } => {
+            RunOnceCmdInner::BeginStream {
+                leg,
+                cell,
+                hop,
+                done,
+            } => {
                 match cell {
                     Ok((cell, stream_id)) => {
-                        // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
-                        // (currently it is an error to use BeginStream on a multipath tunnel)
-                        let (_id, leg) = self.circuits.single_leg_mut()?;
+                        let leg = self
+                            .circuits
+                            .leg_mut(leg)
+                            .ok_or_else(|| internal!("leg disappeared?!"))?;
                         let cell_hop = cell.hop;
                         let relay_format = leg
                             .hop_mut(cell_hop)
@@ -750,10 +1003,11 @@ impl Reactor {
                     let _ = done.send(res);
                 }
             }
-            RunOnceCmdInner::HandleSendMe { hop, sendme } => {
-                // TODO(conflux): this should specify which leg of the circuit the SENDME
-                // came on
-                let (_id, leg) = self.circuits.single_leg_mut()?;
+            RunOnceCmdInner::HandleSendMe { leg, hop, sendme } => {
+                let leg = self
+                    .circuits
+                    .leg_mut(leg)
+                    .ok_or_else(|| internal!("leg disappeared?!"))?;
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
                 let signals = leg.congestion_signals().await;
@@ -771,6 +1025,62 @@ impl Reactor {
             RunOnceCmdInner::CleanShutdown => {
                 trace!("{}: reactor shutdown due to handled cell", self.unique_id);
                 return Err(ReactorError::Shutdown);
+            }
+            RunOnceCmdInner::RemoveLeg { leg, reason } => {
+                let circ = self.circuits.remove(leg.0)?;
+                let is_conflux_pending = circ.is_conflux_pending();
+
+                // Drop the removed leg. This will cause it to close if it's not already closed.
+                drop(circ);
+
+                // If we reach this point, it means we have more than one leg
+                // (otherwise the .remove() would've returned a Shutdown error),
+                // so we expect there to be a ConfluxHandshakeContext installed.
+
+                #[cfg(feature = "conflux")]
+                if is_conflux_pending {
+                    let error = match reason {
+                        RemoveLegReason::ConfluxHandshakeTimeout => ConfluxHandshakeError::Timeout,
+                        RemoveLegReason::ConfluxHandshakeErr(e) => ConfluxHandshakeError::Link(e),
+                        RemoveLegReason::ChannelClosed => ConfluxHandshakeError::ChannelClosed,
+                    };
+
+                    self.note_conflux_handshake_result(Err(error))?;
+                }
+            }
+            #[cfg(feature = "conflux")]
+            RunOnceCmdInner::ConfluxHandshakeComplete { leg, cell } => {
+                // Note: on the client-side, the handshake is considered complete once the
+                // RELAY_CONFLUX_LINKED_ACK is sent (roughly upon receipt of the LINKED cell).
+                //
+                // We're optimistic here, and declare the handshake a success *before*
+                // sending the LINKED_ACK response. I think this is OK though,
+                // because if the send_relay_cell() below fails, the reactor will shut
+                // down anyway. OTOH, marking the handshake as complete slightly early
+                // means that on the happy path, the circuit is marked as usable sooner,
+                // instead of blocking on the sending of the LINKED_ACK.
+                self.note_conflux_handshake_result(Ok(()))?;
+
+                let leg = self
+                    .circuits
+                    .leg_mut(leg)
+                    .ok_or_else(|| internal!("leg disappeared?!"))?;
+                let res = leg.send_relay_cell(cell).await;
+
+                res?;
+            }
+            #[cfg(feature = "conflux")]
+            RunOnceCmdInner::Link { circuits, answer } => {
+                // Add the specified circuits to our conflux set,
+                // and send a LINK cell down each unlinked leg.
+                //
+                // NOTE: this will block the reactor until all the cells are sent.
+                self.handle_link_circuits(circuits, answer).await?;
+            }
+            #[cfg(feature = "conflux")]
+            RunOnceCmdInner::Enqueue { leg, msg } => {
+                let entry = ConfluxHeapEntry { leg_id: leg, msg };
+                self.ooo_msgs.push(entry);
             }
         }
 
@@ -826,6 +1136,43 @@ impl Reactor {
                 Err(Error::CircProto(format!("Unexpected {msg:?} cell on client circuit")).into())
             }
         }
+    }
+
+    /// Add the specified handshake result to our `ConfluxHandshakeContext`.
+    ///
+    /// If all the circuits we were waiting on have finished the conflux handshake,
+    /// the `ConfluxHandshakeContext` is consumed, and the results we have collected
+    /// are sent to the handshake initiator.
+    #[cfg(feature = "conflux")]
+    fn note_conflux_handshake_result(
+        &mut self,
+        res: StdResult<(), ConfluxHandshakeError>,
+    ) -> StdResult<(), ReactorError> {
+        let tunnel_complete = match self.conflux_hs_ctx.as_mut() {
+            Some(conflux_ctx) => {
+                conflux_ctx.results.push(res);
+                // Whether all the legs have finished linking:
+                conflux_ctx.results.len() == conflux_ctx.num_legs
+            }
+            None => {
+                return Err(internal!("no conflux handshake context").into());
+            }
+        };
+
+        if tunnel_complete {
+            // Time to remove the conflux handshake context
+            // and extract the results we have collected
+            let conflux_ctx = self.conflux_hs_ctx.take().expect("context disappeared?!");
+
+            send_conflux_outcome(conflux_ctx.answer, Ok(conflux_ctx.results))?;
+
+            // We don't expect to receive any more handshake results,
+            // at least not until we get another LinkCircuits control message,
+            // which will install a new ConfluxHandshakeCtx with a channel
+            // for us to send updates on
+        }
+
+        Ok(())
     }
 
     /// Prepare a `SendRelayCell` request, and install the given meta-cell handler.
@@ -901,12 +1248,7 @@ impl Reactor {
             TargetHop::LastHop => {
                 if let Ok((leg_id, leg)) = self.circuits.single_leg() {
                     // single-path tunnel
-                    let num_hops = leg.num_hops();
-                    if num_hops == 0 {
-                        // asked for the last hop, but there are no hops
-                        return Err(NoHopsBuiltError);
-                    }
-                    let hop = HopNum::from(num_hops - 1);
+                    let hop = leg.last_hop_num().ok_or(NoHopsBuiltError)?;
                     Ok(HopLocation::Hop((leg_id, hop)))
                 } else if !self.circuits.is_empty() {
                     // multi-path tunnel
@@ -954,6 +1296,72 @@ impl Reactor {
     fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
         self.circuits.uses_stream_sendme(leg, hop)
     }
+
+    /// Handle a request to link some extra circuits in the reactor's conflux set.
+    ///
+    /// The circuits are validated, and if they do not have the same length,
+    /// or if they do not all have the same last hop, an error is returned on
+    /// the `answer` channel, and the conflux handshake is *not* initiated.
+    ///
+    /// If validation succeeds, the circuits are added to this reactor's conflux set,
+    /// and the conflux handshake is initiated (by sending a LINK cell on each leg).
+    ///
+    /// NOTE: this blocks the reactor main loop until all the cells are sent.
+    #[cfg(feature = "conflux")]
+    async fn handle_link_circuits(
+        &mut self,
+        circuits: Vec<Circuit>,
+        answer: ConfluxLinkResultChannel,
+    ) -> StdResult<(), ReactorError> {
+        if self.conflux_hs_ctx.is_some() {
+            let err = internal!("conflux linking already in progress");
+            send_conflux_outcome(answer, Err(err.into()))?;
+
+            return Ok(());
+        }
+
+        let num_legs = circuits.len();
+
+        // Note: add_legs validates `circuits`
+        let res = async {
+            self.circuits.add_legs(circuits, &self.runtime)?;
+
+            // TODO(conflux): check if we negotiated prop324 cc on *all* circuits,
+            // returning an error if not?
+
+            self.circuits.link_circuits(&self.runtime).await
+        }
+        .await;
+
+        if let Err(e) = res {
+            send_conflux_outcome(answer, Err(e))?;
+        } else {
+            // Save the channel, to notify the user of completion.
+            self.conflux_hs_ctx = Some(ConfluxHandshakeCtx {
+                answer,
+                num_legs,
+                results: Default::default(),
+            });
+        }
+
+        Ok(())
+    }
+}
+
+/// Notify the conflux handshake initiator of the handshake outcome.
+///
+/// Returns an error if the initiator has done away.
+#[cfg(feature = "conflux")]
+fn send_conflux_outcome(
+    tx: ConfluxLinkResultChannel,
+    res: Result<ConfluxHandshakeResult>,
+) -> StdResult<(), ReactorError> {
+    if tx.send(res).is_err() {
+        tracing::warn!("conflux initiator went away before handshake completed?");
+        return Err(ReactorError::Shutdown);
+    }
+
+    Ok(())
 }
 
 /// The tunnel does not have any hops.

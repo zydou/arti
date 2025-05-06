@@ -304,6 +304,11 @@ impl CongestionControlAlgorithm for Vegas {
         Ok(())
     }
 
+    #[cfg(feature = "conflux")]
+    fn inflight(&self) -> Option<u32> {
+        Some(self.num_inflight)
+    }
+
     #[cfg(test)]
     fn send_window(&self) -> u32 {
         self.cwnd.get()

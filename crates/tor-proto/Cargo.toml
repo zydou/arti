@@ -41,7 +41,7 @@ full = [
 ]
 
 experimental = ["experimental-api", "conflux", "flowctl-cc", "stream-ctrl", "testing", "bench", "counter-galois-onion"]
-conflux = ["__is_experimental"]
+conflux = ["tor-cell/conflux", "__is_experimental"]
 flowctl-cc = ["__is_experimental"]
 
 hs-client = ["hs-common"]
@@ -80,6 +80,7 @@ futures = "0.3.14"
 futures-util = "0.3.31"
 hkdf = "0.12.0"
 hmac = "0.12.0"
+itertools = "0.14.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 polyval = { version = "0.6", optional = true }

@@ -116,7 +116,7 @@ impl Path {
     }
 
     /// Return a copy of all the hops in this path.
-    pub(super) fn all_hops(&self) -> Vec<HopDetail> {
+    pub(crate) fn all_hops(&self) -> Vec<HopDetail> {
         self.hops.iter().map(|ent| ent.inner.clone()).collect()
     }
 

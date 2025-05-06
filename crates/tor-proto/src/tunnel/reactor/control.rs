@@ -34,7 +34,7 @@ use {
 use crate::congestion::sendme::CircTag;
 
 #[cfg(feature = "conflux")]
-use super::Circuit;
+use super::{Circuit, ConfluxLinkResultChannel};
 
 use oneshot_fused_workaround as oneshot;
 
@@ -176,6 +176,23 @@ pub(crate) enum CtrlMsg {
         /// Oneshot channel to return the clock skew.
         answer: oneshot::Sender<StdResult<ClockSkew, Bug>>,
     },
+    /// Link the specified circuits into the current tunnel,
+    /// to form a multi-path tunnel.
+    #[cfg(feature = "conflux")]
+    #[allow(unused)] // TODO(conflux)
+    LinkCircuits {
+        /// The circuits to link into the tunnel,
+        #[educe(Debug(ignore))]
+        circuits: Vec<Circuit>,
+        /// Oneshot channel to notify sender when all the specified circuits have finished linking,
+        /// or have failed to link.
+        ///
+        /// A client circuit is said to be fully linked once the `RELAY_CONFLUX_LINKED_ACK` is sent
+        /// (see [set construction]).
+        ///
+        /// [set construction]: https://spec.torproject.org/proposals/329-traffic-splitting.html#set-construction
+        answer: ConfluxLinkResultChannel,
+    },
 }
 
 /// A message telling the reactor to do something.
@@ -306,7 +323,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let Ok((_id, circ)) = self.reactor.circuits.single_leg_mut() else {
+                let Ok((leg_id, circ)) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -336,7 +353,11 @@ impl<'a> ControlHandler<'a> {
                     .cell_handlers
                     .set_meta_handler(Box::new(extender))?;
 
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
+                Ok(Some(RunOnceCmdInner::Send {
+                    leg: leg_id,
+                    cell,
+                    done: None,
+                }))
             }
             CtrlMsg::ExtendNtorV3 {
                 peer_id,
@@ -345,7 +366,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let Ok((_id, circ)) = self.reactor.circuits.single_leg_mut() else {
+                let Ok((leg_id, circ)) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -406,7 +427,11 @@ impl<'a> ControlHandler<'a> {
                     .cell_handlers
                     .set_meta_handler(Box::new(extender))?;
 
-                Ok(Some(RunOnceCmdInner::Send { cell, done: None }))
+                Ok(Some(RunOnceCmdInner::Send {
+                    leg: leg_id,
+                    cell,
+                    done: None,
+                }))
             }
             CtrlMsg::BeginStream {
                 hop,
@@ -448,6 +473,7 @@ impl<'a> ControlHandler<'a> {
 
                 let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
                 Ok(Some(RunOnceCmdInner::BeginStream {
+                    leg: leg_id,
                     cell,
                     hop: hop_location,
                     done,
@@ -511,17 +537,18 @@ impl<'a> ControlHandler<'a> {
                     early: false,
                     cell,
                 };
-                // TODO(conflux): We need to pass the leg id in `RunOnceCmdInner::Send`, but we
-                // can't add this to `RunOnceCmdInner` until the stream map knows about legs.
-                // `Reactor::ready_streams_iterator` now knows the leg id, so we should be able to
-                // use that.
+
                 Ok(Some(RunOnceCmdInner::Send {
+                    leg: leg_id,
                     cell,
                     done: Some(sender),
                 }))
             }
             // TODO(conflux): this should specify which leg to send the msg on
-            // (currently we send it down the primary leg)
+            // (currently we send it down the primary leg).
+            //
+            // This will involve updating ClientCIrc::send_raw_msg() to take a
+            // leg id argument (which is a breaking change.
             #[cfg(feature = "send-control-msg")]
             CtrlMsg::SendMsg {
                 hop_num,
@@ -534,7 +561,11 @@ impl<'a> ControlHandler<'a> {
                     early: false,
                     cell,
                 };
+
+                let leg = self.reactor.circuits.primary_leg_id();
+
                 Ok(Some(RunOnceCmdInner::Send {
+                    leg,
                     cell,
                     done: Some(sender),
                 }))
@@ -553,6 +584,10 @@ impl<'a> ControlHandler<'a> {
             })),
             CtrlMsg::FirstHopClockSkew { answer } => {
                 Ok(Some(RunOnceCmdInner::FirstHopClockSkew { answer }))
+            }
+            #[cfg(feature = "conflux")]
+            CtrlMsg::LinkCircuits { circuits, answer } => {
+                Ok(Some(RunOnceCmdInner::Link { circuits, answer }))
             }
         }
     }

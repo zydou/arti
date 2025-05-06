@@ -335,3 +335,16 @@ impl ReactorError {
         }
     }
 }
+
+/// An error type for client-side conflux handshakes.
+#[derive(Debug)]
+#[cfg(feature = "conflux")]
+#[allow(unused)] // TODO(conflux): remove
+pub(crate) enum ConfluxHandshakeError {
+    /// Timeout while waiting for CONFLUX_LINKED response.
+    Timeout,
+    /// An error that occurred while sending the CONFLUX_LINK message.
+    Link(Error),
+    /// The channel was closed.
+    ChannelClosed,
+}

@@ -1012,11 +1012,12 @@ impl PendingClientCirc {
         createdreceiver: oneshot::Receiver<CreateResponse>,
         input: CircuitRxReceiver,
         unique_id: UniqId,
+        runtime: DynTimeProvider,
         memquota: CircuitAccount,
     ) -> (PendingClientCirc, crate::tunnel::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
-            Reactor::new(channel, id, unique_id, input, memquota.clone());
+            Reactor::new(channel, id, unique_id, input, runtime, memquota.clone());
 
         let circuit = ClientCirc {
             mutable,
@@ -1312,6 +1313,7 @@ pub(crate) mod test {
             created_recv,
             circmsg_recv,
             unique_id,
+            DynTimeProvider::new(rt.clone()),
             CircuitAccount::new_noop(),
         );
 
@@ -1514,6 +1516,7 @@ pub(crate) mod test {
             created_recv,
             circmsg_recv,
             unique_id,
+            DynTimeProvider::new(rt.clone()),
             CircuitAccount::new_noop(),
         );
 
