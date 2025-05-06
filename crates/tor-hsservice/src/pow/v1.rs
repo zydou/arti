@@ -383,10 +383,9 @@ impl<R: Runtime> PowManager<R> {
         };
 
         for time_period in updated_tps {
-            publisher_update_tx
-                .send(time_period)
-                .await
-                .expect("Couldn't send update message to publisher");
+            if let Err(err) = publisher_update_tx.send(time_period).await {
+                tracing::warn!(?err, "Couldn't send update message to publisher");
+            }
         }
 
         update_times.iter().min().cloned()
