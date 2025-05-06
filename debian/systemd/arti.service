@@ -11,7 +11,7 @@ ExecReload=/bin/kill -HUP ${MAINPID}
 KillSignal=SIGINT
 User=_arti
 Group=_arti
-LimitNOFILE=1000
+LimitNOFILE=16384
 
 # Hardening
 NoNewPrivileges=yes
