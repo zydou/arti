@@ -101,6 +101,9 @@ EOF
 		wget -nc "${OSX_SDK_URL}" -O tarballs/${OSX_SDK}
 		echo "${OSX_SDK_SHA256}  tarballs/${OSX_SDK}" > ./sdk-checksum
 		sha256sum -c ./sdk-checksum
+		# Lingering mystery: If I change this 10.7
+		# (and the occurrence of 10.7 below) to 10.12, the build fails with
+		# "cannot find libc++ headers" again.
 		UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
 		# copy it to gitlab build-dir so it may get cached
 		cp -r /arti/osxcross "$here"
