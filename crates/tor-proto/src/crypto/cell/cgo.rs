@@ -221,7 +221,7 @@ mod prf {
             let mut b = self.b.clone(); // TODO PERF: Clone cost here, and below.
             b.update(&[(*tweak).into()]);
             let mut iv = b.finalize();
-            iv[15] &= 0xC0; // Clear the low six bits.
+            *iv.last_mut().expect("no last element?") &= 0xC0; // Clear the low six bits.
             let mut cipher: ctr::Ctr128BE<BC> = cipher::StreamCipherCoreWrapper::from_core(
                 CtrCore::inner_iv_init(self.k.clone(), &iv),
             );
