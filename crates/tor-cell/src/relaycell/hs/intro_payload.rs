@@ -4,30 +4,12 @@
 //! rend-spec-v3.txt.  It tells the onion service how to find the rendezvous
 //! point, and how to handshake with the client there.)
 
-use super::ext::{decl_extension_group, Ext, ExtGroup, ExtList, UnrecognizedExt};
 use super::pow::ProofOfWork;
+use crate::relaycell::{extend::CircRequestExt, extlist::ExtList};
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
 use tor_hscrypto::RendCookie;
 use tor_linkspec::EncodedLinkSpec;
-
-caret_int! {
-    /// Type code for an extension in an [`IntroduceHandshakePayload`].
-    #[derive(Ord,PartialOrd)]
-    pub struct IntroPayloadExtType(u8) {
-        /// The extension to provide a completed proof-of-work solution for denial of service
-        /// mitigation
-        PROOF_OF_WORK = 2,
-    }
-}
-
-decl_extension_group! {
-    /// An extension to an [`IntroduceHandshakePayload`].
-    #[derive(Debug,Clone)]
-    enum IntroPayloadExt [ IntroPayloadExtType ] {
-        ProofOfWork,
-    }
-}
 
 caret_int! {
     /// An enumeration value to identify a type of onion key.
@@ -111,7 +93,7 @@ pub struct IntroduceHandshakePayload {
     ///
     /// (`N_EXTENSIONS`, `EXT_FIELD_TYPE`, `EXT_FIELD_LEN`, and `EXT_FIELD` in
     /// the spec.)
-    extensions: ExtList<IntroPayloadExt>,
+    extensions: ExtList<CircRequestExt>,
     /// The onion key to use when extending a circuit to the rendezvous point.
     ///
     /// (`ONION_KEY_TYPE`, `ONION_KEY_LEN`, and `ONION_KEY` in the spec. This

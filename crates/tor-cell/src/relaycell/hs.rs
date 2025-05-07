@@ -1,22 +1,20 @@
 //! Encoding and decoding for relay messages related to onion services.
 
-use self::ext::{decl_extension_group, ExtGroup, ExtList};
-
 use super::msg::{self, Body};
+use crate::relaycell::extlist::{decl_extension_group, ExtList};
 use caret::caret_int;
 use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Result};
-use tor_bytes::{Readable, Reader, Writeable, Writer};
+use tor_bytes::{Reader, Writer};
 use tor_hscrypto::RendCookie;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 pub mod est_intro;
-mod ext;
 pub mod intro_payload;
 pub mod pow;
 
-pub use ext::UnrecognizedExt;
+pub use crate::relaycell::extlist::UnrecognizedExt;
 
 caret_int! {
     /// The type of the introduction point auth key
@@ -108,6 +106,7 @@ impl Introduce2 {
     /// INTRODUCE1 message.
     #[cfg(test)] // Don't expose this generally without dealing somehow with the `expect` below
     pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
+        use tor_bytes::Writeable as _;
         let msg = Introduce::new(auth_key_type, auth_key, encrypted);
         let mut encoded_header = Vec::new();
         msg.header
@@ -138,14 +137,14 @@ impl Introduce2 {
 }
 
 caret_int! {
-    /// The recognized extension types for an `Introduce1` or `Introduce2 message.
+    /// The recognized unencrypted extension types for an `Introduce1` or `Introduce2` message.
     #[derive(Ord,PartialOrd)]
     pub struct IntroduceExtType(u8) {
     }
 }
 
 decl_extension_group! {
-    /// An extension to an IntroEstablished message.
+    /// An unencrypted extension to an `Introduce` or `Introduce2` message.
     ///
     /// (Currently, no extensions of this type are recognized)
     #[derive(Debug,Clone,Deftly)]

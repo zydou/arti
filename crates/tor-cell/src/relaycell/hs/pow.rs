@@ -4,8 +4,7 @@
 pub mod v1;
 
 use self::v1::ProofOfWorkV1;
-use super::ext::Ext;
-use super::intro_payload::IntroPayloadExtType;
+use crate::relaycell::{extend::CircRequestExtType, extlist::Ext};
 use caret::caret_int;
 use tor_bytes::{EncodeResult, Reader, Result, Writer};
 
@@ -15,7 +14,7 @@ use tor_bytes::{EncodeResult, Reader, Result, Writer};
 ///
 /// The extension has a variable format depending on the specific scheme that was chosen.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ProofOfWork {
     /// A potential solution with unrecognized scheme
@@ -25,10 +24,10 @@ pub enum ProofOfWork {
 }
 
 impl Ext for ProofOfWork {
-    type Id = IntroPayloadExtType;
+    type Id = CircRequestExtType;
 
-    fn type_id(&self) -> IntroPayloadExtType {
-        IntroPayloadExtType::PROOF_OF_WORK
+    fn type_id(&self) -> CircRequestExtType {
+        CircRequestExtType::PROOF_OF_WORK
     }
 
     fn take_body_from(b: &mut Reader<'_>) -> Result<Self> {

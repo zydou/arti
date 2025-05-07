@@ -38,7 +38,7 @@ use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::chancell::{AnyChanCell, ChanCmd, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
-use tor_cell::relaycell::extend::NtorV3Extension;
+use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, SendmeTag, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
@@ -1201,7 +1201,7 @@ impl Circuit {
                     panic!("Congestion control is enabled on this circuit, but we don't yet support congestion control");
 
                     #[allow(unreachable_code)]
-                    client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                    client_extensions.push(CircRequestExt::CcRequest(CcRequest::default()));
                 } else {
                     return Err(
                         internal!(

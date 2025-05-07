@@ -16,7 +16,7 @@ use crate::tunnel::{streammap, HopLocation, LegId, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
 use tor_cell::chancell::msg::HandshakeType;
-use tor_cell::relaycell::extend::NtorV3Extension;
+use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
@@ -390,7 +390,7 @@ impl<'a> ControlHandler<'a> {
                             panic!("Congestion control is enabled on this circuit, but we don't yet support congestion control");
 
                             #[allow(unreachable_code)]
-                            client_extensions.push(NtorV3Extension::RequestCongestionControl);
+                            client_extensions.push(CircRequestExt::CcRequest(CcRequest::default()));
                         } else {
                             return Err(
                                 tor_error::internal!(

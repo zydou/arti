@@ -16,11 +16,13 @@ caret = { path = "../caret", version = "0.5.0" }
 paste = "1"
 serde_with = { version = "3.0.0", optional = true }
 thiserror = "2"
+tor-bytes = { path = "../tor-bytes", version = "0.30.0", optional = true }
 
 [features]
 default = []
-full = ["caret/full", "serde"]
+full = ["caret/full", "serde", "tor-bytes"]
 serde = ["serde_with"]
+tor-bytes = ["dep:tor-bytes"]
 
 [package.metadata.docs.rs]
 all-features = true

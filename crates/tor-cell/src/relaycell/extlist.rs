@@ -1,14 +1,13 @@
-//! Helpers to manage lists of HS cell extensions.
-//
-// TODO: We might generalize this even more in the future to handle other
-// similar lists in our cell protocol.
+//! Helpers to manage lists of extensions within relay messages.
+//!
+//! These are used widely throughout the HS code,
+//! but also in the ntor-v3 handshake.
 
 use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_memquota::{derive_deftly_template_HasMemoryCost, HasMemoryCostStructural};
 
-/// A list of extensions, represented in a common format used by many HS-related
-/// message.
+/// A list of extensions, represented in a common format used by many messages.
 ///
 /// The common format is:
 /// ```text
@@ -39,7 +38,15 @@ impl<T> Default for ExtList<T> {
         }
     }
 }
-/// An kind of extension that can be used with some kind of HS-related message.
+
+/// As ExtList, but held by reference.
+#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut, derive_more::From)]
+pub(super) struct ExtListRef<'a, T> {
+    /// A reference to a slice of extensions.
+    extensions: &'a [T],
+}
+
+/// A kind of extension that can be used with some kind of relay message.
 ///
 /// Each extendible message will likely define its own enum,
 /// implementing this trait,
@@ -50,7 +57,7 @@ pub(super) trait ExtGroup: Readable + Writeable {
     /// The field-type id for this particular extension.
     fn type_id(&self) -> Self::Id;
 }
-/// A single typed extension that can be used with some kind of HS-related message.
+/// A single typed extension that can be used with some kind of relay message.
 pub(super) trait Ext: Sized {
     /// An identifier kind used with this sort of extension.
     ///
@@ -73,7 +80,7 @@ impl<T: ExtGroup> Readable for ExtList<T> {
         })
     }
 }
-impl<T: ExtGroup> Writeable for ExtList<T> {
+impl<'a, T: ExtGroup> Writeable for ExtListRef<'a, T> {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
         let n_extensions = self
             .extensions
@@ -87,6 +94,11 @@ impl<T: ExtGroup> Writeable for ExtList<T> {
         Ok(())
     }
 }
+impl<T: ExtGroup> Writeable for ExtList<T> {
+    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+        ExtListRef::from(&self.extensions[..]).write_onto(b)
+    }
+}
 impl<T: ExtGroup> ExtList<T> {
     /// Insert `ext` into this list of extensions, replacing any previous
     /// extension with the same field type ID.
@@ -94,10 +106,14 @@ impl<T: ExtGroup> ExtList<T> {
         self.retain(|e| e.type_id() != ext.type_id());
         self.push(ext);
     }
+    /// Consume this ExtList and return its members as a vector.
+    pub(super) fn into_vec(self) -> Vec<T> {
+        self.extensions
+    }
 }
 
-/// An unrecognized or unencoded extension for some HS-related message.
-#[derive(Clone, Debug, Deftly)]
+/// An unrecognized or unencoded extension for some relay message.
+#[derive(Clone, Debug, Deftly, Eq, PartialEq)]
 #[derive_deftly(HasMemoryCost)]
 // Use `Copy + 'static` and `#[deftly(has_memory_cost(copy))]` so that we don't
 // need to derive HasMemoryCost for the id types, which are indeed all Copy.
@@ -129,14 +145,15 @@ impl<ID> UnrecognizedExt<ID> {
 /// Declare an Extension group that takes a given identifier.
 //
 // TODO: This is rather similar to restrict_msg(), isn't it?  Also, We use this
-// pattern of (number, (cmd, length, body)*) a few of times in Tor outside the
-// hs module.  Perhaps we can extend and unify our code here...
+// pattern of (number, (cmd, length, body)*) a few of times in Tor outside the relaycell
+// module.  Perhaps we can extend and unify our code here...
 macro_rules! decl_extension_group {
     {
         $( #[$meta:meta] )*
         $v:vis enum $id:ident [ $type_id:ty ] {
             $(
                 $(#[$cmeta:meta])*
+                $([feature: #[$fmeta:meta]])?
                 $case:ident),*
             $(,)?
         }
@@ -144,23 +161,27 @@ macro_rules! decl_extension_group {
         $( #[$meta] )*
         $v enum $id {
             $( $(#[$cmeta])*
+               $( #[$fmeta] )?
                $case($case),
             )*
             /// An extension of a type we do not recognize, or which we have not
             /// encoded.
-            Unrecognized(UnrecognizedExt<$type_id>)
+            Unrecognized(crate::relaycell::extlist::UnrecognizedExt<$type_id>)
         }
-        impl Readable for $id {
-            fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+        impl tor_bytes::Readable for $id {
+            fn take_from(b: &mut Reader<'_>) -> tor_bytes::Result<Self> {
+                #[allow(unused)]
+                use crate::relaycell::extlist::Ext as _;
                 let type_id = b.take_u8()?.into();
                 Ok(match type_id {
                     $(
+                        $( #[$fmeta] )?
                         $type_id::[< $case:snake:upper >] => {
                             Self::$case( b.read_nested_u8len(|r| $case::take_body_from(r))? )
                         }
                     )*
                     _ => {
-                        Self::Unrecognized(UnrecognizedExt {
+                        Self::Unrecognized(crate::relaycell::extlist::UnrecognizedExt {
                             type_id,
                             body: b.read_nested_u8len(|r| Ok(r.take_rest().into()))?,
                         })
@@ -168,13 +189,16 @@ macro_rules! decl_extension_group {
                 })
             }
         }
-        impl Writeable for $id {
-            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<
+        impl tor_bytes::Writeable for $id {
+            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> tor_bytes::EncodeResult<
 ()> {
-                #[allow(unused)]
+                #![allow(unused_imports)]
+                use crate::relaycell::extlist::Ext as _;
+                use tor_bytes::Writeable as _;
                 use std::ops::DerefMut;
                 match self {
                     $(
+                        $( #[$fmeta] )?
                         Self::$case(val) => {
                             b.write_u8(val.type_id().into());
                             let mut nested = b.write_nested_u8len();
@@ -192,11 +216,14 @@ macro_rules! decl_extension_group {
                 Ok(())
             }
         }
-        impl ExtGroup for $id {
+        impl crate::relaycell::extlist::ExtGroup for $id {
             type Id = $type_id;
             fn type_id(&self) -> Self::Id {
+                #![allow(unused_imports)]
+                use crate::relaycell::extlist::Ext as _;
                 match self {
                     $(
+                        $( #[$fmeta] )?
                         Self::$case(val) => val.type_id(),
                     )*
                     Self::Unrecognized(unrecognized) => unrecognized.type_id,
@@ -204,14 +231,15 @@ macro_rules! decl_extension_group {
             }
         }
         $(
+        $( #[$fmeta] )?
         impl From<$case> for $id {
             fn from(val: $case) -> $id {
                 $id :: $case ( val )
             }
         }
         )*
-        impl From<UnrecognizedExt<$type_id>> for $id {
-            fn from(val: UnrecognizedExt<$type_id>) -> $id {
+        impl From<crate::relaycell::extlist::UnrecognizedExt<$type_id>> for $id {
+            fn from(val: crate::relaycell::extlist::UnrecognizedExt<$type_id>) -> $id {
                 $id :: Unrecognized(val)
             }
         }

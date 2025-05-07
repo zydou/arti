@@ -2,7 +2,7 @@
 
 use caret::caret_int;
 use derive_deftly::Deftly;
-use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
+use tor_bytes::{EncodeError, EncodeResult, Reader, Result, Writeable, Writer};
 use tor_error::bad_api_usage;
 use tor_hscrypto::ops::{HsMacKey, HS_MAC_LEN};
 use tor_llcrypto::{
@@ -13,7 +13,7 @@ use tor_llcrypto::{
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_units::BoundedInt32;
 
-use crate::relaycell::{hs::ext::*, hs::AuthKeyType, msg};
+use crate::relaycell::{extlist::*, hs::AuthKeyType, msg};
 
 caret_int! {
     /// The introduction protocol extension type.

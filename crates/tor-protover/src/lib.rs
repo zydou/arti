@@ -61,7 +61,7 @@ caret_int! {
     ///
     /// For the full semantics of each subprotocol, see tor-spec.txt.
     #[derive(Hash,Ord,PartialOrd)]
-    pub struct ProtoKind(u16) {
+    pub struct ProtoKind(u8) {
         /// Initiating and receiving channels, and getting cells on them.
         Link = 0,
         /// Different kinds of authenticate cells
@@ -121,6 +121,66 @@ impl NamedSubver {
         assert!((kind.0 as usize) < N_RECOGNIZED);
         assert!((version as usize) <= MAX_VER);
         Self { kind, version }
+    }
+}
+
+/// A subprotocol capability as represented by a (kind, version) tuple.
+///
+/// Does not necessarily represent a real subprotocol capability;
+/// this type is meant for use in other pieces of the protocol.
+///
+/// # Ordering
+///
+/// Instances of `NumberedSubver` are sorted in lexicographic order by
+/// their (kind, version) tuples.
+//
+// TODO: As with most other types in the crate, we should decide how to rename them as as part
+// of #1934.
+#[derive(Clone, Copy, Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub struct NumberedSubver {
+    /// The protocol in question
+    kind: ProtoKind,
+    /// The version of the protocol
+    version: u8,
+}
+
+impl NumberedSubver {
+    /// Construct a new [`NumberedSubver`]
+    pub fn new(kind: impl Into<ProtoKind>, version: u8) -> Self {
+        Self {
+            kind: kind.into(),
+            version,
+        }
+    }
+    /// Return the ProtoKind and version for this [`NumberedSubver`].
+    pub fn into_parts(self) -> (ProtoKind, u8) {
+        (self.kind, self.version)
+    }
+}
+impl From<NamedSubver> for NumberedSubver {
+    fn from(value: NamedSubver) -> Self {
+        Self {
+            kind: value.kind,
+            version: value.version,
+        }
+    }
+}
+
+#[cfg(feature = "tor-bytes")]
+impl tor_bytes::Readable for NumberedSubver {
+    fn take_from(b: &mut tor_bytes::Reader<'_>) -> tor_bytes::Result<Self> {
+        let kind = b.take_u8()?;
+        let version = b.take_u8()?;
+        Ok(Self::new(kind, version))
+    }
+}
+
+#[cfg(feature = "tor-bytes")]
+impl tor_bytes::Writeable for NumberedSubver {
+    fn write_onto<B: tor_bytes::Writer + ?Sized>(&self, b: &mut B) -> tor_bytes::EncodeResult<()> {
+        b.write_u8(self.kind.into());
+        b.write_u8(self.version);
+        Ok(())
     }
 }
 
@@ -269,10 +329,22 @@ impl Protocols {
     /// ```
     /// use tor_protover::*;
     /// let protos: Protocols = "Link=1-5 Desc=2-4".parse().unwrap();
-    /// assert!(protos.supports_named_subver(named::DESC_FAMILY_IDS)); // Desc=5
+    /// assert!(protos.supports_named_subver(named::DESC_FAMILY_IDS)); // Desc=4
     /// assert!(! protos.supports_named_subver(named::CONFLUX_BASE)); // Conflux=1
     /// ```
     pub fn supports_named_subver(&self, protover: NamedSubver) -> bool {
+        self.supports_known_subver(protover.kind, protover.version)
+    }
+
+    /// Check whether a numbered subprotocol capability is supported.
+    ///
+    /// ```
+    /// use tor_protover::*;
+    /// let protos: Protocols = "Link=1-5 Desc=2-4".parse().unwrap();
+    /// assert!(protos.supports_numbered_subver(NumberedSubver::new(ProtoKind::Desc, 4)));
+    /// assert!(! protos.supports_numbered_subver(NumberedSubver::new(ProtoKind::Conflux, 1)));
+    /// ```
+    pub fn supports_numbered_subver(&self, protover: NumberedSubver) -> bool {
         self.supports_known_subver(protover.kind, protover.version)
     }
 
@@ -599,7 +671,7 @@ impl std::fmt::Display for Protocols {
         let mut entries = Vec::new();
         for (idx, mask) in self.recognized.iter().enumerate() {
             if *mask != 0 {
-                let pk: ProtoKind = (idx as u16).into();
+                let pk: ProtoKind = (idx as u8).into();
                 entries.push(format!("{}={}", pk, dumpmask(*mask)));
             }
         }
@@ -889,5 +961,13 @@ mod test {
         .into_iter()
         .collect::<Protocols>();
         assert_eq!(prs, "Link=3-5 HSDir=2 Conflux=1".parse().unwrap());
+    }
+
+    #[test]
+    fn order_numbered_subvers() {
+        // We rely on this sort order elsewhere in our protocol.
+        assert!(NumberedSubver::new(5, 7) < NumberedSubver::new(7, 5));
+        assert!(NumberedSubver::new(7, 5) < NumberedSubver::new(7, 6));
+        assert!(NumberedSubver::new(7, 6) < NumberedSubver::new(8, 6));
     }
 }

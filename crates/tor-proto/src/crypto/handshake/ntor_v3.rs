@@ -28,7 +28,7 @@ use cipher::{KeyIvInit, StreamCipher};
 use crate::crypto::handshake::KeyGenerator;
 use rand_core::{CryptoRng, RngCore};
 use subtle::{Choice, ConstantTimeEq};
-use tor_cell::relaycell::extend::NtorV3Extension;
+use tor_cell::relaycell::extend::{CircRequestExt, CircResponseExt};
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;
 
@@ -231,21 +231,21 @@ impl super::ClientHandshake for NtorV3Client {
     type KeyType = NtorV3PublicKey;
     type StateType = NtorV3HandshakeState;
     type KeyGen = NtorV3KeyGenerator;
-    type ClientAuxData = [NtorV3Extension];
-    type ServerAuxData = Vec<NtorV3Extension>;
+    type ClientAuxData = [CircRequestExt];
+    type ServerAuxData = Vec<CircResponseExt>;
 
     /// Generate a new client onionskin for a relay with a given onion key.
     /// If any `extensions` are provided, encode them into to the onionskin.
     ///
     /// On success, return a state object that will be used to complete the handshake, along
     /// with the message to send.
-    fn client1<R: RngCore + CryptoRng, M: Borrow<[NtorV3Extension]>>(
+    fn client1<R: RngCore + CryptoRng, M: Borrow<[CircRequestExt]>>(
         rng: &mut R,
         key: &NtorV3PublicKey,
         extensions: &M,
     ) -> Result<(Self::StateType, Vec<u8>)> {
         let mut message = Vec::new();
-        NtorV3Extension::write_many_onto(extensions.borrow(), &mut message)
+        CircRequestExt::write_many_onto(extensions.borrow(), &mut message)
             .map_err(|e| Error::from_bytes_enc(e, "ntor3 handshake extensions"))?;
         Ok(
             client_handshake_ntor_v3(rng, key, &message, NTOR3_CIRC_VERIFICATION)
@@ -260,10 +260,10 @@ impl super::ClientHandshake for NtorV3Client {
     fn client2<T: AsRef<[u8]>>(
         state: Self::StateType,
         msg: T,
-    ) -> Result<(Vec<NtorV3Extension>, Self::KeyGen)> {
+    ) -> Result<(Vec<CircResponseExt>, Self::KeyGen)> {
         let (message, xofreader) =
             client_handshake_ntor_v3_part2(&state, msg.as_ref(), NTOR3_CIRC_VERIFICATION)?;
-        let extensions = NtorV3Extension::decode(&message).map_err(|err| Error::CellDecodeErr {
+        let extensions = CircResponseExt::decode(&message).map_err(|err| Error::CellDecodeErr {
             object: "ntor v3 extensions",
             err,
         })?;
@@ -279,8 +279,8 @@ pub(crate) struct NtorV3Server;
 impl super::ServerHandshake for NtorV3Server {
     type KeyType = NtorV3SecretKey;
     type KeyGen = NtorV3KeyGenerator;
-    type ClientAuxData = [NtorV3Extension];
-    type ServerAuxData = Vec<NtorV3Extension>;
+    type ClientAuxData = [CircRequestExt];
+    type ServerAuxData = Vec<CircResponseExt>;
 
     fn server<R: RngCore + CryptoRng, REPLY: super::AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
@@ -289,10 +289,10 @@ impl super::ServerHandshake for NtorV3Server {
         msg: T,
     ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         let mut bytes_reply_fn = |bytes: &[u8]| -> Option<Vec<u8>> {
-            let client_exts = NtorV3Extension::decode(bytes).ok()?;
+            let client_exts = CircRequestExt::decode(bytes).ok()?;
             let reply_exts = reply_fn.reply(&client_exts)?;
             let mut out = vec![];
-            NtorV3Extension::write_many_onto(&reply_exts, &mut out).ok()?;
+            CircResponseExt::write_many_onto(&reply_exts, &mut out).ok()?;
             Some(out)
         };
 
@@ -716,6 +716,7 @@ mod test {
     use super::*;
     use hex_literal::hex;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_cell::relaycell::extend::{CcRequest, CcResponse, CircResponseExt};
 
     #[test]
     fn test_ntor3_roundtrip() {
@@ -770,7 +771,7 @@ mod test {
         let (c_state, c_handshake) =
             NtorV3Client::client1(&mut rng, &relay_private.pk, &[]).unwrap();
 
-        let mut rep = |_: &[NtorV3Extension]| Some(vec![]);
+        let mut rep = |_: &[CircRequestExt]| Some(vec![]);
 
         let (s_keygen, s_handshake) =
             NtorV3Server::server(&mut rng, &mut rep, &[relay_private], &c_handshake).unwrap();
@@ -789,17 +790,17 @@ mod test {
         let mut rng = rand::rng();
         let relay_private = NtorV3SecretKey::generate_for_test(&mut testing_rng());
 
-        let client_exts = vec![NtorV3Extension::RequestCongestionControl];
-        let reply_exts = vec![NtorV3Extension::AckCongestionControl { sendme_inc: 42 }];
+        let client_exts = vec![CircRequestExt::CcRequest(CcRequest::default())];
+        let reply_exts = vec![CircResponseExt::CcResponse(CcResponse::new(42))];
 
         let (c_state, c_handshake) = NtorV3Client::client1(
             &mut rng,
             &relay_private.pk,
-            &[NtorV3Extension::RequestCongestionControl],
+            &[CircRequestExt::CcRequest(CcRequest::default())],
         )
         .unwrap();
 
-        let mut rep = |msg: &[NtorV3Extension]| -> Option<Vec<NtorV3Extension>> {
+        let mut rep = |msg: &[CircRequestExt]| -> Option<Vec<CircResponseExt>> {
             assert_eq!(msg, client_exts);
             Some(reply_exts.clone())
         };
