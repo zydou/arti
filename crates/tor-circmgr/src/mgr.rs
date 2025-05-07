@@ -327,7 +327,7 @@ impl<T: AbstractTunnel> OpenEntry<T> {
     fn new(spec: SupportedTunnelUsage, tunnel: T, expiration: ExpirationInfo) -> Self {
         OpenEntry {
             spec,
-            tunnel,
+            tunnel: tunnel.into(),
             expiration,
         }
     }

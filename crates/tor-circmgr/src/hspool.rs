@@ -14,7 +14,9 @@ use crate::{
     build::{onion_circparams_from_netparams, TunnelBuilder},
     mgr::AbstractTunnelBuilder,
     path::hspath::hs_stem_terminal_hop_usage,
-    timeouts, AbstractTunnel, CircMgr, CircMgrInner, Error, Result,
+    timeouts, AbstractTunnel, CircMgr, CircMgrInner, ClientOnionServiceDataTunnel,
+    ClientOnionServiceDirTunnel, ClientOnionServiceIntroTunnel, Error, Result,
+    ServiceOnionServiceDataTunnel, ServiceOnionServiceDirTunnel, ServiceOnionServiceIntroTunnel,
 };
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
@@ -25,7 +27,7 @@ use tor_linkspec::{
     CircTarget, HasRelayIds as _, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget,
 };
 use tor_netdir::{NetDir, NetDirProvider, Relay};
-use tor_proto::circuit::{self, CircParameters, ClientCirc};
+use tor_proto::circuit::{self, CircParameters};
 use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
 use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
@@ -217,19 +219,94 @@ impl<R: Runtime> HsCircPool<R> {
         Self(Arc::new(HsCircPoolInner::new(circmgr)))
     }
 
-    /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
+    /// Create a client directory circuit ending at the chosen hop `target`.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
-    pub async fn get_or_launch_specific<T>(
+    pub async fn get_or_launch_client_dir<T>(
         &self,
         netdir: &NetDir,
-        kind: HsCircKind,
         target: T,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<ClientOnionServiceDirTunnel>
     where
         T: CircTarget + std::marker::Sync,
     {
-        self.0.get_or_launch_specific(netdir, kind, target).await
+        let tunnel = self
+            .0
+            .get_or_launch_specific(netdir, HsCircKind::ClientHsDir, target)
+            .await?;
+        Ok(tunnel.into())
+    }
+
+    /// Create a client introduction circuit ending at the chosen hop `target`.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    pub async fn get_or_launch_client_intro<T>(
+        &self,
+        netdir: &NetDir,
+        target: T,
+    ) -> Result<ClientOnionServiceIntroTunnel>
+    where
+        T: CircTarget + std::marker::Sync,
+    {
+        let tunnel = self
+            .0
+            .get_or_launch_specific(netdir, HsCircKind::ClientIntro, target)
+            .await?;
+        Ok(tunnel.into())
+    }
+
+    /// Create a service directory circuit ending at the chosen hop `target`.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    pub async fn get_or_launch_svc_dir<T>(
+        &self,
+        netdir: &NetDir,
+        target: T,
+    ) -> Result<ServiceOnionServiceDirTunnel>
+    where
+        T: CircTarget + std::marker::Sync,
+    {
+        let tunnel = self
+            .0
+            .get_or_launch_specific(netdir, HsCircKind::SvcHsDir, target)
+            .await?;
+        Ok(tunnel.into())
+    }
+
+    /// Create a service introduction circuit ending at the chosen hop `target`.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    pub async fn get_or_launch_svc_intro<T>(
+        &self,
+        netdir: &NetDir,
+        target: T,
+    ) -> Result<ServiceOnionServiceIntroTunnel>
+    where
+        T: CircTarget + std::marker::Sync,
+    {
+        let tunnel = self
+            .0
+            .get_or_launch_specific(netdir, HsCircKind::SvcIntro, target)
+            .await?;
+        Ok(tunnel.into())
+    }
+
+    /// Create a service rendezvous (data) circuit ending at the chosen hop `target`.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    pub async fn get_or_launch_svc_rend<T>(
+        &self,
+        netdir: &NetDir,
+        target: T,
+    ) -> Result<ServiceOnionServiceDataTunnel>
+    where
+        T: CircTarget + std::marker::Sync,
+    {
+        let tunnel = self
+            .0
+            .get_or_launch_specific(netdir, HsCircKind::SvcRend, target)
+            .await?;
+        Ok(tunnel.into())
     }
 
     /// Create a circuit suitable for use as a rendezvous circuit by a client.
@@ -240,8 +317,9 @@ impl<R: Runtime> HsCircPool<R> {
     pub async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> Result<(Arc<ClientCirc>, Relay<'a>)> {
-        self.0.get_or_launch_client_rend(netdir).await
+    ) -> Result<(ClientOnionServiceDataTunnel, Relay<'a>)> {
+        let (tunnel, relay) = self.0.get_or_launch_client_rend(netdir).await?;
+        Ok((tunnel.into(), relay))
     }
 
     /// Return an estimate-based delay for how long a given

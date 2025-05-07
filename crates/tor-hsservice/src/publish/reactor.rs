@@ -73,6 +73,7 @@
 //! We can also transition from `Broken`, `DegradedReachable`, or `DegradedUnreachable`
 //! back to `Bootstrapping` (those transitions were omitted for brevity).
 
+use tor_circmgr::ServiceOnionServiceDirTunnel;
 use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
@@ -289,18 +290,17 @@ pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
     type Rng: rand::Rng + rand::CryptoRng;
 
     /// The type of client circuit.
-    type ClientCirc: MockableClientCirc;
+    type Tunnel: MockableDirTunnel;
 
     /// Return a random number generator.
     fn thread_rng(&self) -> Self::Rng;
 
     /// Create a circuit of the specified `kind` to `target`.
-    async fn get_or_launch_specific<T>(
+    async fn get_or_launch_hs_dir<T>(
         &self,
         netdir: &NetDir,
-        kind: HsCircKind,
         target: T,
-    ) -> Result<Arc<Self::ClientCirc>, tor_circmgr::Error>
+    ) -> Result<Self::Tunnel, tor_circmgr::Error>
     where
         T: CircTarget + Send + Sync;
 
@@ -314,28 +314,28 @@ pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
 
 /// Mockable client circuit
 #[async_trait]
-pub(crate) trait MockableClientCirc: Send + Sync {
+pub(crate) trait MockableDirTunnel: Send + Sync {
     /// The data stream type.
     type DataStream: AsyncRead + AsyncWrite + Send + Unpin;
 
     /// Start a new stream to the last relay in the circuit, using
     /// a BEGIN_DIR cell.
-    async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error>;
+    async fn begin_dir_stream(&self) -> Result<Self::DataStream, tor_circmgr::Error>;
 
     /// Try to get a SourceInfo for this circuit, for using it in a directory request.
     fn source_info(&self) -> tor_proto::Result<Option<SourceInfo>>;
 }
 
 #[async_trait]
-impl MockableClientCirc for ClientCirc {
+impl MockableDirTunnel for ServiceOnionServiceDirTunnel {
     type DataStream = tor_proto::stream::DataStream;
 
-    async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error> {
-        ClientCirc::begin_dir_stream(self).await
+    async fn begin_dir_stream(&self) -> Result<Self::DataStream, tor_circmgr::Error> {
+        Self::begin_dir_stream(self).await
     }
 
     fn source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
-        SourceInfo::from_circuit(self)
+        SourceInfo::from_tunnel(self)
     }
 }
 
@@ -346,22 +346,21 @@ pub(crate) struct Real<R: Runtime>(Arc<HsCircPool<R>>);
 #[async_trait]
 impl<R: Runtime> Mockable for Real<R> {
     type Rng = rand::rngs::ThreadRng;
-    type ClientCirc = ClientCirc;
+    type Tunnel = ServiceOnionServiceDirTunnel;
 
     fn thread_rng(&self) -> Self::Rng {
         rand::rng()
     }
 
-    async fn get_or_launch_specific<T>(
+    async fn get_or_launch_hs_dir<T>(
         &self,
         netdir: &NetDir,
-        kind: HsCircKind,
         target: T,
-    ) -> Result<Arc<ClientCirc>, tor_circmgr::Error>
+    ) -> Result<Self::Tunnel, tor_circmgr::Error>
     where
         T: CircTarget + Send + Sync,
     {
-        self.0.get_or_launch_specific(netdir, kind, target).await
+        self.0.get_or_launch_svc_dir(netdir, target).await
     }
 
     fn estimate_upload_timeout(&self) -> Duration {
@@ -542,7 +541,7 @@ pub enum UploadError {
 
     /// Failed to establish stream to hidden service directory
     #[error("failed to establish directory stream to HsDir")]
-    Stream(#[source] tor_proto::Error),
+    Stream(#[source] tor_circmgr::Error),
 
     /// An internal error.
     #[error("Internal error")]
@@ -1731,18 +1730,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             "starting descriptor upload",
         );
 
-        let circuit = imm
+        let tunnel = imm
             .mockable
-            .get_or_launch_specific(
-                netdir,
-                HsCircKind::SvcHsDir,
-                OwnedCircTarget::from_circ_target(hsdir),
-            )
+            .get_or_launch_hs_dir(netdir, OwnedCircTarget::from_circ_target(hsdir))
             .await?;
-        let source: Option<SourceInfo> = circuit
+        let source: Option<SourceInfo> = tunnel
             .source_info()
             .map_err(into_internal!("Couldn't get SourceInfo for circuit"))?;
-        let mut stream = circuit
+
+        let mut stream = tunnel
             .begin_dir_stream()
             .await
             .map_err(UploadError::Stream)?;

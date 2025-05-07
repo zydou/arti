@@ -18,7 +18,7 @@ use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
-use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientTunnel};
+use tor_proto::circuit::{CircParameters, PendingClientTunnel};
 use tor_proto::ClientTunnel;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;

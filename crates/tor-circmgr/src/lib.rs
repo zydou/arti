@@ -55,7 +55,7 @@ use tor_error::{error_report, warn_report};
 use tor_guardmgr::RetireCircuits;
 use tor_linkspec::ChanTarget;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
-use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
+use tor_proto::circuit::{CircParameters, UniqId};
 use tor_rtcompat::Runtime;
 
 #[cfg(any(feature = "specific-relay", feature = "hs-common"))]
