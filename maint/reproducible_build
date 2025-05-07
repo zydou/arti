@@ -99,7 +99,7 @@ if [ -n "$macos" ]; then
 	# (note: "ar" seems to be unused here. We could probably remove it?)
 	cat > .cargo/config << EOF
 [target.x86_64-apple-darwin]
-linker = "x86_64-apple-darwin16-clang"
+linker = "x86_64-apple-darwin16-clang++-stdc++"
 ar = "x86_64-apple-darwin16-ar"
 EOF
 	OSX_SDK_URL=https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.12.sdk.tar.xz
