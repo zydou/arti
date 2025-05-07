@@ -218,11 +218,12 @@ mod prf {
                 cipher::{InnerIvInit as _, StreamCipherSeek as _},
                 ctr::CtrCore,
             };
-            let mut b = self.b.clone();
+            let mut b = self.b.clone(); // TODO PERF: Clone cost here, and below.
             b.update(&[(*tweak).into()]);
-            // TODO PERF: Clone cost.
+            let mut iv = b.finalize();
+            *iv.last_mut().expect("no last element?") &= 0xC0; // Clear the low six bits.
             let mut cipher: ctr::Ctr128BE<BC> = cipher::StreamCipherCoreWrapper::from_core(
-                CtrCore::inner_iv_init(self.k.clone(), &b.finalize()),
+                CtrCore::inner_iv_init(self.k.clone(), &iv),
             );
             if t {
                 debug_assert_eq!(cipher.current_pos::<u32>(), 0_u32);
