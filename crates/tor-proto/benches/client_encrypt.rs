@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use rand::prelude::*;
 
 #[cfg(feature = "counter-galois-onion")]
-use aes::{Aes128, Aes256};
+use aes::{Aes128Dec, Aes128Enc, Aes256Dec, Aes256Enc};
 use tor_bytes::SecretBuf;
 use tor_llcrypto::{
     cipher::aes::{Aes128Ctr, Aes256Ctr},
@@ -68,7 +68,7 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes128", |b| {
         b.iter_batched_ref(
-            || client_encrypt_setup!(cgo::CgoClientCryptState::<Aes128, Aes128>::construct),
+            || client_encrypt_setup!(cgo::CgoClientCryptState::<Aes128Dec, Aes128Enc>::construct),
             |(cell, cc_out)| {
                 cc_out.encrypt(cell, HOP_NUM).unwrap();
             },
@@ -79,7 +79,7 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes256", |b| {
         b.iter_batched_ref(
-            || client_encrypt_setup!(cgo::CgoClientCryptState::<Aes256, Aes256>::construct),
+            || client_encrypt_setup!(cgo::CgoClientCryptState::<Aes256Dec, Aes256Enc>::construct),
             |(cell, cc_out)| {
                 cc_out.encrypt(cell, HOP_NUM).unwrap();
             },
