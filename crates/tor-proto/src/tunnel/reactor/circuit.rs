@@ -1259,8 +1259,7 @@ impl Circuit {
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
         let mut mutable = self.mutable.lock().expect("poisoned lock");
-        Arc::make_mut(&mut mutable.path).push_hop(peer_id);
-        mutable.binding.push(binding);
+        mutable.add_hop(peer_id, binding);
 
         Ok(())
     }
@@ -1599,7 +1598,7 @@ impl Circuit {
     /// **Warning:** Do not call while already holding the [`Self::mutable`] lock.
     pub(super) fn path(&self) -> Arc<path::Path> {
         let mutable = self.mutable.lock().expect("poisoned lock");
-        Arc::clone(&mutable.path)
+        mutable.path()
     }
 
     /// Return a ClockSkew declaring how much clock skew the other side of this channel

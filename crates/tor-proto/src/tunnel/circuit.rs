@@ -64,6 +64,7 @@ use crate::tunnel::{HopLocation, LegId, StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
+use path::HopDetail;
 use tor_cell::{
     chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -192,7 +193,7 @@ pub(super) struct MutableState {
     /// This is stored in an Arc so that we can cheaply give a copy of it to
     /// client code; when we need to add a hop (which is less frequent) we use
     /// [`Arc::make_mut()`].
-    pub(super) path: Arc<path::Path>,
+    path: Arc<path::Path>,
 
     /// Circuit binding keys [q.v.][`CircuitBinding`] information for each hop
     /// in the circuit's path.
@@ -202,7 +203,20 @@ pub(super) struct MutableState {
     /// code to assume that a `CircuitBinding` _must_ exist, so I'm making this
     /// an `Option`.
     #[educe(Debug(ignore))]
-    pub(super) binding: Vec<Option<CircuitBinding>>,
+    binding: Vec<Option<CircuitBinding>>,
+}
+
+impl MutableState {
+    /// Add a hop to the path of this circuit.
+    pub(super) fn add_hop(&mut self, peer_id: HopDetail, binding: Option<CircuitBinding>) {
+        Arc::make_mut(&mut self.path).push_hop(peer_id);
+        self.binding.push(binding);
+    }
+
+    /// Get a copy of the circuit's [`path::Path`].
+    pub(super) fn path(&self) -> Arc<path::Path> {
+        Arc::clone(&self.path)
+    }
 }
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
