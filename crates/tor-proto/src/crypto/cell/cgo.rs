@@ -640,7 +640,7 @@ pub mod bench_utils {
     use crate::Result;
     use tor_bytes::SecretBuf;
 
-    /// Public wrapper around a tor1 client's cryptographic state.
+    /// Public wrapper around a CGO client's cryptographic state.
     pub struct CgoClientCryptState<EtBC: BlkCipherDec, PrfBC: BlkCipherEnc> {
         /// Layer for traffic moving away from the client.
         fwd: ClientOutbound<EtBC, PrfBC>,
@@ -649,7 +649,7 @@ pub mod bench_utils {
     }
 
     impl<EtBC: BlkCipherDec, PrfBC: BlkCipherEnc> CgoClientCryptState<EtBC, PrfBC> {
-        /// Return a new `ClientCryptState` based on a seed.
+        /// Return a new `CgoClientCryptState` based on a seed.
         pub fn construct(seed: SecretBuf) -> Result<Self> {
             let (outbound, inbound, _) =
                 CryptStatePair::construct(KGen::new(seed))?.split_client_layer();
@@ -680,7 +680,7 @@ pub mod bench_utils {
         }
     }
 
-    /// Public wrapper around a tor1 relay's cryptographic state.
+    /// Public wrapper around a CGO relay's cryptographic state.
     pub struct CgoRelayCryptState<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> {
         /// Layer for traffic moving away from the client.
         fwd: RelayOutbound<EtBC, PrfBC>,
@@ -689,7 +689,7 @@ pub mod bench_utils {
     }
 
     impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> CgoRelayCryptState<EtBC, PrfBC> {
-        /// Return a new `CryptStatePairWrapper` based on a seed.
+        /// Return a new `CgoRelayCryptState` based on a seed.
         pub fn construct(seed: SecretBuf) -> Result<Self> {
             let (outbound, inbound, _) =
                 CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();

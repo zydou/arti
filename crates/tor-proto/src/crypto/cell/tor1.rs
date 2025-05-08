@@ -309,7 +309,7 @@ pub mod bench_utils {
     }
 
     impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> Tor1ClientCryptState<SC, D> {
-        /// Return a new `CryptStatePairWrapper` based on a seed.
+        /// Return a new `Tor1ClientCryptState` based on a seed.
         pub fn construct(seed: SecretBuf) -> Result<Self> {
             let (outbound, inbound, _) =
                 CryptStatePair::construct(KGen::new(seed))?.split_client_layer();
@@ -349,7 +349,7 @@ pub mod bench_utils {
     }
 
     impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> Tor1RelayCryptState<SC, D> {
-        /// Return a new `CryptStatePairWrapper` based on a seed.
+        /// Return a new `Tor1RelayCryptState` based on a seed.
         pub fn construct(seed: SecretBuf) -> Result<Self> {
             let (outbound, inbound, _) =
                 CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();

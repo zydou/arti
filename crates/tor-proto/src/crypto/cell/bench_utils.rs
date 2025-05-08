@@ -14,12 +14,12 @@ pub struct InboundClientLayerWrapper(pub(in crate::crypto) Box<dyn InboundClient
 pub struct InboundClientCryptWrapper(pub(in crate::crypto) InboundClientCrypt);
 
 impl InboundClientCryptWrapper {
-    /// Create a new `InboundClientCryptState`.
+    /// Create a new `InboundClientCryptWrapper`.
     pub fn new() -> Self {
         Default::default()
     }
 
-    /// Add a new layer to the `InboundClientCrypt` based on a seed.
+    /// Add a new layer to the `InboundClientCryptWrapper` based on a seed.
     pub fn add_layer(&mut self, crypt_state: impl Into<InboundClientLayerWrapper>) {
         let layer: InboundClientLayerWrapper = crypt_state.into();
         self.0.add_layer(layer.0);
@@ -50,12 +50,12 @@ pub struct OutboundClientLayerWrapper(pub(in crate::crypto) Box<dyn OutboundClie
 pub struct OutboundClientCryptWrapper(pub(in crate::crypto) OutboundClientCrypt);
 
 impl OutboundClientCryptWrapper {
-    /// Create a new `OutboundClientCryptState`.
+    /// Create a new `OutboundClientCryptWrapper`.
     pub fn new() -> Self {
         Default::default()
     }
 
-    /// Add a new layer to the `OutboundClientCrypt` based on a seed.
+    /// Add a new layer to the `OutboundClientCryptWrapper` based on a seed.
     pub fn add_layer(&mut self, crypt_state: impl Into<OutboundClientLayerWrapper>) {
         let layer: OutboundClientLayerWrapper = crypt_state.into();
         self.0.add_layer(layer.0);
