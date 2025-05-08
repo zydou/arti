@@ -83,7 +83,7 @@ pub fn relay_decrypt_benchmark(c: &mut Criterion<CpuTime>) {
             || {
                 relay_decrypt_setup!(
                     cgo::CgoClientCryptState::<Aes128, Aes128>::construct,
-                    cgo::CgoRelayCryptSate::<Aes128, Aes128>::construct
+                    cgo::CgoRelayCryptState::<Aes128, Aes128>::construct
                 )
             },
             |(cell, relay_state)| {
@@ -99,7 +99,7 @@ pub fn relay_decrypt_benchmark(c: &mut Criterion<CpuTime>) {
             || {
                 relay_decrypt_setup!(
                     cgo::CgoClientCryptState::<Aes256, Aes256>::construct,
-                    cgo::CgoRelayCryptSate::<Aes256, Aes256>::construct
+                    cgo::CgoRelayCryptState::<Aes256, Aes256>::construct
                 )
             },
             |(cell, relay_state)| {

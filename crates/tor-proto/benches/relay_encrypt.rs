@@ -59,7 +59,7 @@ pub fn relay_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes128", |b| {
         b.iter_batched_ref(
-            || relay_encrypt_setup!(cgo::CgoRelayCryptSate::<Aes128, Aes128>::construct),
+            || relay_encrypt_setup!(cgo::CgoRelayCryptState::<Aes128, Aes128>::construct),
             |(cell, relay_state)| {
                 relay_state.encrypt(cell);
             },
@@ -70,7 +70,7 @@ pub fn relay_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes256", |b| {
         b.iter_batched_ref(
-            || relay_encrypt_setup!(cgo::CgoRelayCryptSate::<Aes256, Aes256>::construct),
+            || relay_encrypt_setup!(cgo::CgoRelayCryptState::<Aes256, Aes256>::construct),
             |(cell, relay_state)| {
                 relay_state.encrypt(cell);
             },

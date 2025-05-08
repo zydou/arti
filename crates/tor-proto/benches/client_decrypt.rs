@@ -22,7 +22,7 @@ macro_rules! client_decrypt_setup {
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
         let seed3: SecretBuf = b"free to hide no more".to_vec().into();
 
-        let mut circuit_sates = [
+        let mut circuit_states = [
             $relay_state_construct(seed1.clone()).unwrap(),
             $relay_state_construct(seed2.clone()).unwrap(),
             $relay_state_construct(seed3.clone()).unwrap(),
@@ -40,7 +40,7 @@ macro_rules! client_decrypt_setup {
         let mut cell = [0u8; 509];
         rng.fill(&mut cell[..]);
         let mut cell: RelayBody = cell.into();
-        circuit_encrypt_inbound(&mut cell, &mut circuit_sates);
+        circuit_encrypt_inbound(&mut cell, &mut circuit_states);
         (cell, cc_in)
     }};
 }
@@ -86,7 +86,7 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<CpuTime>) {
             || {
                 client_decrypt_setup!(
                     cgo::CgoClientCryptState::<Aes128, Aes128>::construct,
-                    cgo::CgoRelayCryptSate::<Aes128, Aes128>::construct
+                    cgo::CgoRelayCryptState::<Aes128, Aes128>::construct
                 )
             },
             |(cell, cc_in)| {
@@ -102,7 +102,7 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<CpuTime>) {
             || {
                 client_decrypt_setup!(
                     cgo::CgoClientCryptState::<Aes256, Aes256>::construct,
-                    cgo::CgoRelayCryptSate::<Aes256, Aes256>::construct
+                    cgo::CgoRelayCryptState::<Aes256, Aes256>::construct
                 )
             },
             |(cell, cc_in)| {

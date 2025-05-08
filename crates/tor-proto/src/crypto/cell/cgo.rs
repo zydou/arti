@@ -681,14 +681,14 @@ pub mod bench_utils {
     }
 
     /// Public wrapper around a tor1 relay's cryptographic state.
-    pub struct CgoRelayCryptSate<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> {
+    pub struct CgoRelayCryptState<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> {
         /// Layer for traffic moving away from the client.
         fwd: RelayOutbound<EtBC, PrfBC>,
         /// Layer for traffic moving toward the client.
         back: RelayInbound<EtBC, PrfBC>,
     }
 
-    impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> CgoRelayCryptSate<EtBC, PrfBC> {
+    impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> CgoRelayCryptState<EtBC, PrfBC> {
         /// Return a new `CryptStatePairWrapper` based on a seed.
         pub fn construct(seed: SecretBuf) -> Result<Self> {
             let (outbound, inbound, _) =
@@ -700,7 +700,7 @@ pub mod bench_utils {
         }
     }
 
-    impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> RelayCryptState for CgoRelayCryptSate<EtBC, PrfBC> {
+    impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> RelayCryptState for CgoRelayCryptState<EtBC, PrfBC> {
         fn originate(&mut self, cell: &mut RelayBody) {
             let cell = &mut cell.0;
             self.back.originate(ChanCmd::RELAY, cell);
