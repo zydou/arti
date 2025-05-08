@@ -45,19 +45,6 @@ cp -a "$here" /arti
 cd /arti
 
 ## FIXME: This is a workaround for:
-## https://gitlab.torproject.org/tpo/core/arti/-/issues/1335
-##
-## Since 'native-tls' >= 0.2.14 only builds on rust >= 1.80,
-## and we can't use newer rust versions due to arti#1335,
-## we need to downgrade 'native-tls'.
-## (And similar for other libs.)
-$CARGO update -p native-tls --precise 0.2.13
-$CARGO update -p zerofrom --precise 0.1.5
-$CARGO update -p litemap --precise 0.7.4
-$CARGO update -p tinystr:0.8.1 --precise 0.8.0
-$CARGO update -p base64ct --precise 1.6.0
-
-## FIXME: This is a workaround for:
 ## https://github.com/eira-fransham/crunchy/pull/17
 ##
 ## Version 0.2.3 of "crunchy" has a bug that breaks cross-compilation
@@ -99,7 +86,7 @@ if [ -n "$macos" ]; then
 	# (note: "ar" seems to be unused here. We could probably remove it?)
 	cat > .cargo/config << EOF
 [target.x86_64-apple-darwin]
-linker = "x86_64-apple-darwin16-clang"
+linker = "x86_64-apple-darwin16-clang++-stdc++"
 ar = "x86_64-apple-darwin16-ar"
 EOF
 	OSX_SDK_URL=https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.12.sdk.tar.xz
@@ -114,6 +101,9 @@ EOF
 		wget -nc "${OSX_SDK_URL}" -O tarballs/${OSX_SDK}
 		echo "${OSX_SDK_SHA256}  tarballs/${OSX_SDK}" > ./sdk-checksum
 		sha256sum -c ./sdk-checksum
+		# Lingering mystery: If I change this 10.7
+		# (and the occurrence of 10.7 below) to 10.12, the build fails with
+		# "cannot find libc++ headers" again.
 		UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
 		# copy it to gitlab build-dir so it may get cached
 		cp -r /arti/osxcross "$here"
