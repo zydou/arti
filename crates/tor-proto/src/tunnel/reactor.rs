@@ -460,6 +460,12 @@ slotmap_careful::new_key_type! {
     pub(crate) struct LegIdKey;
 }
 
+impl From<LegIdKey> for LegId {
+    fn from(leg_id: LegIdKey) -> Self {
+        LegId(leg_id)
+    }
+}
+
 /// Unwrap the specified [`Option`], returning a [`ReactorError::Shutdown`] if it is `None`.
 ///
 /// This is a macro instead of a function to work around borrowck errors
