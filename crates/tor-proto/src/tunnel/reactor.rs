@@ -30,7 +30,7 @@ use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
-use crate::tunnel::circuit::CircuitState;
+use crate::tunnel::circuit::MutableState;
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
@@ -52,7 +52,7 @@ use futures::{select_biased, FutureExt as _};
 use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::channel::Channel;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
@@ -663,11 +663,11 @@ impl Reactor {
         mpsc::UnboundedSender<CtrlMsg>,
         mpsc::UnboundedSender<CtrlCmd>,
         oneshot::Receiver<void::Void>,
-        Arc<Mutex<CircuitState>>,
+        Arc<MutableState>,
     ) {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
-        let mutable = Arc::new(Mutex::new(CircuitState::default()));
+        let mutable = Arc::new(MutableState::default());
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 

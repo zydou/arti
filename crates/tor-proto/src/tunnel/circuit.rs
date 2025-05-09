@@ -164,7 +164,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 //
 pub struct ClientCirc {
     /// Mutable state shared with the `Reactor`.
-    mutable: Arc<Mutex<CircuitState>>,
+    mutable: Arc<MutableState>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -187,6 +187,59 @@ pub struct ClientCirc {
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
 #[derive(Educe, Default)]
 #[educe(Debug)]
+pub(super) struct MutableState(Mutex<CircuitState>);
+
+impl MutableState {
+    /// Add a hop to the path of this circuit.
+    pub(super) fn add_hop(&self, peer_id: HopDetail, binding: Option<CircuitBinding>) {
+        let mut mutable = self.0.lock().expect("poisoned lock");
+        Arc::make_mut(&mut mutable.path).push_hop(peer_id);
+        mutable.binding.push(binding);
+    }
+
+    /// Get a copy of the circuit's [`path::Path`].
+    pub(super) fn path(&self) -> Arc<path::Path> {
+        let mutable = self.0.lock().expect("poisoned lock");
+        Arc::clone(&mutable.path)
+    }
+
+    /// Return the cryptographic material used to prove knowledge of a shared
+    /// secret with with `hop`.
+    pub(super) fn binding_key(&self, hop: HopNum) -> Option<CircuitBinding> {
+        let mutable = self.0.lock().expect("poisoned lock");
+
+        mutable.binding.get::<usize>(hop.into()).cloned().flatten()
+        // NOTE: I'm not thrilled to have to copy this information, but we use
+        // it very rarely, so it's not _that_ bad IMO.
+    }
+
+    /// Return a description of the first hop of this circuit.
+    fn first_hop(&self) -> Option<HopDetail> {
+        let mutable = self.0.lock().expect("poisoned lock");
+        mutable.path.first_hop()
+    }
+
+    /// Return the [`HopNum`] of the last hop of this circuit.
+    fn last_hop_num(&self) -> Option<HopNum> {
+        let mutable = self.0.lock().expect("poisoned lock");
+        mutable.path.last_hop_num()
+    }
+
+    /// Return the number of hops in this circuit.
+    ///
+    /// NOTE: This function will currently return only the number of hops
+    /// _currently_ in the circuit. If there is an extend operation in progress,
+    /// the currently pending hop may or may not be counted, depending on whether
+    /// the extend operation finishes before this call is done.
+    fn n_hops(&self) -> usize {
+        let mutable = self.0.lock().expect("poisoned lock");
+        mutable.path.n_hops()
+    }
+}
+
+/// The shared state of a circuit.
+#[derive(Educe, Default)]
+#[educe(Debug)]
 pub(super) struct CircuitState {
     /// Information about this circuit's path.
     ///
@@ -204,19 +257,6 @@ pub(super) struct CircuitState {
     /// an `Option`.
     #[educe(Debug(ignore))]
     binding: Vec<Option<CircuitBinding>>,
-}
-
-impl CircuitState {
-    /// Add a hop to the path of this circuit.
-    pub(super) fn add_hop(&mut self, peer_id: HopDetail, binding: Option<CircuitBinding>) {
-        Arc::make_mut(&mut self.path).push_hop(peer_id);
-        self.binding.push(binding);
-    }
-
-    /// Get a copy of the circuit's [`path::Path`].
-    pub(super) fn path(&self) -> Arc<path::Path> {
-        Arc::clone(&self.path)
-    }
 }
 
 /// A ClientCirc that needs to send a create cell and receive a created* cell.
@@ -273,9 +313,6 @@ impl ClientCirc {
     pub fn first_hop(&self) -> OwnedChanTarget {
         let first_hop = self
             .mutable
-            .lock()
-            .expect("poisoned lock")
-            .path
             .first_hop()
             .expect("called first_hop on an un-constructed circuit");
         match first_hop {
@@ -294,9 +331,6 @@ impl ClientCirc {
     pub fn last_hop_num(&self) -> Result<HopNum> {
         Ok(self
             .mutable
-            .lock()
-            .expect("poisoned lock")
-            .path
             .last_hop_num()
             .ok_or_else(|| internal!("no last hop index"))?)
     }
@@ -306,7 +340,7 @@ impl ClientCirc {
     /// Note that this `Path` is not automatically updated if the circuit is
     /// extended.
     pub fn path_ref(&self) -> Arc<Path> {
-        self.mutable.lock().expect("poisoned_lock").path.clone()
+        self.mutable.path()
     }
 
     /// Get the [`LegId`] and [`Path`] of each leg of the tunnel.
@@ -348,15 +382,7 @@ impl ClientCirc {
     /// Return None if we have no circuit binding information for the hop, or if
     /// the hop does not exist.
     pub fn binding_key(&self, hop: HopNum) -> Option<CircuitBinding> {
-        self.mutable
-            .lock()
-            .expect("poisoned lock")
-            .binding
-            .get::<usize>(hop.into())
-            .cloned()
-            .flatten()
-        // NOTE: I'm not thrilled to have to copy this information, but we use
-        // it very rarely, so it's not _that_ bad IMO.
+        self.mutable.binding_key(hop)
     }
 
     /// Start an ad-hoc protocol exchange to the specified hop on this circuit
@@ -937,7 +963,7 @@ impl ClientCirc {
     /// the currently pending hop may or may not be counted, depending on whether
     /// the extend operation finishes before this call is done.
     pub fn n_hops(&self) -> usize {
-        self.mutable.lock().expect("poisoned lock").path.n_hops()
+        self.mutable.n_hops()
     }
 
     /// Return a future that will resolve once this circuit has closed.

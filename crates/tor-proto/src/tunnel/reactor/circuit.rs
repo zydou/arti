@@ -22,7 +22,7 @@ use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::{
-    CircParameters, CircuitRxReceiver, CircuitState, StreamMpscReceiver, StreamMpscSender,
+    CircParameters, CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
@@ -160,7 +160,7 @@ pub(crate) struct Circuit {
     /// [`ClientCirc`](crate::circuit::ClientCirc).
     ///
     // TODO(conflux)/TODO(#1840): this belongs in the Reactor
-    mutable: Arc<Mutex<CircuitState>>,
+    mutable: Arc<MutableState>,
     /// This circuit's identifier on the upstream channel.
     channel_id: CircId,
     /// An identifier for logging about this reactor's circuit.
@@ -262,7 +262,7 @@ impl Circuit {
         unique_id: UniqId,
         input: CircuitRxReceiver,
         memquota: CircuitAccount,
-        mutable: Arc<Mutex<CircuitState>>,
+        mutable: Arc<MutableState>,
     ) -> Self {
         let chan_sender = SometimesUnboundedSink::new(channel.sender());
 
@@ -1258,8 +1258,7 @@ impl Circuit {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        let mut mutable = self.mutable.lock().expect("poisoned lock");
-        mutable.add_hop(peer_id, binding);
+        self.mutable.add_hop(peer_id, binding);
 
         Ok(())
     }
@@ -1597,8 +1596,7 @@ impl Circuit {
     ///
     /// **Warning:** Do not call while already holding the [`Self::mutable`] lock.
     pub(super) fn path(&self) -> Arc<path::Path> {
-        let mutable = self.mutable.lock().expect("poisoned lock");
-        mutable.path()
+        self.mutable.path()
     }
 
     /// Return a ClockSkew declaring how much clock skew the other side of this channel
