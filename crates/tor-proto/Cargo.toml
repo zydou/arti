@@ -132,21 +132,41 @@ tracing-test = "0.2.4"
 all-features = true
 
 [[bench]]
-name = "cell_decrypt"
+name = "client_decrypt"
 harness = false
 required-features = ["bench"]
 
 [[bench]]
-name = "cell_encrypt"
+name = "client_encrypt"
 harness = false
 required-features = ["bench"]
 
 [[bench]]
-name = "cell_is_recognized"
+name = "exit_decrypt"
 harness = false
 required-features = ["bench"]
 
 [[bench]]
-name = "cell_set_digest"
+name = "exit_encrypt"
+harness = false
+required-features = ["bench"]
+
+[[bench]]
+name = "relay_decrypt"
+harness = false
+required-features = ["bench"]
+
+[[bench]]
+name = "relay_encrypt"
+harness = false
+required-features = ["bench"]
+
+[[bench]]
+name = "tor1_is_recognized"
+harness = false
+required-features = ["bench"]
+
+[[bench]]
+name = "tor1_set_digest"
 harness = false
 required-features = ["bench"]

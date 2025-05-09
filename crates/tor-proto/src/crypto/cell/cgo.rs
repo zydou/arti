@@ -625,6 +625,99 @@ where
     }
 }
 
+/// Benchmark utilities for the `cgo` module.
+#[cfg(feature = "bench")]
+pub mod bench_utils {
+    // Allow to bound with BlkCipherDec and BlkCipherEnc wich are private.
+    #![allow(private_bounds)]
+    use super::*;
+
+    use crate::bench_utils::{
+        InboundClientLayerWrapper, OutboundClientLayerWrapper, RelayBody, RelayCryptState,
+    };
+    use crate::crypto::cell::{ClientLayer, InboundRelayLayer, OutboundRelayLayer, RelayLayer};
+    use crate::crypto::handshake::ShakeKeyGenerator as KGen;
+    use crate::Result;
+    use tor_bytes::SecretBuf;
+
+    /// Public wrapper around a CGO client's cryptographic state.
+    pub struct CgoClientCryptState<EtBC: BlkCipherDec, PrfBC: BlkCipherEnc> {
+        /// Layer for traffic moving away from the client.
+        fwd: ClientOutbound<EtBC, PrfBC>,
+        /// Layer for traffic moving toward the client.
+        back: ClientInbound<EtBC, PrfBC>,
+    }
+
+    impl<EtBC: BlkCipherDec, PrfBC: BlkCipherEnc> CgoClientCryptState<EtBC, PrfBC> {
+        /// Return a new `CgoClientCryptState` based on a seed.
+        pub fn construct(seed: SecretBuf) -> Result<Self> {
+            let (outbound, inbound, _) =
+                CryptStatePair::construct(KGen::new(seed))?.split_client_layer();
+            Ok(Self {
+                back: inbound,
+                fwd: outbound,
+            })
+        }
+    }
+
+    impl<EtBC, PrfBC> From<CgoClientCryptState<EtBC, PrfBC>> for OutboundClientLayerWrapper
+    where
+        EtBC: BlkCipherDec + Send + 'static,
+        PrfBC: BlkCipherEnc + Send + 'static,
+    {
+        fn from(state: CgoClientCryptState<EtBC, PrfBC>) -> Self {
+            Self(Box::new(state.fwd))
+        }
+    }
+
+    impl<EtBC, PrfBC> From<CgoClientCryptState<EtBC, PrfBC>> for InboundClientLayerWrapper
+    where
+        EtBC: BlkCipherDec + Send + 'static,
+        PrfBC: BlkCipherEnc + Send + 'static,
+    {
+        fn from(state: CgoClientCryptState<EtBC, PrfBC>) -> Self {
+            Self(Box::new(state.back))
+        }
+    }
+
+    /// Public wrapper around a CGO relay's cryptographic state.
+    pub struct CgoRelayCryptState<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> {
+        /// Layer for traffic moving away from the client.
+        fwd: RelayOutbound<EtBC, PrfBC>,
+        /// Layer for traffic moving toward the client.
+        back: RelayInbound<EtBC, PrfBC>,
+    }
+
+    impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> CgoRelayCryptState<EtBC, PrfBC> {
+        /// Return a new `CgoRelayCryptState` based on a seed.
+        pub fn construct(seed: SecretBuf) -> Result<Self> {
+            let (outbound, inbound, _) =
+                CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();
+            Ok(Self {
+                back: inbound,
+                fwd: outbound,
+            })
+        }
+    }
+
+    impl<EtBC: BlkCipherEnc, PrfBC: BlkCipherEnc> RelayCryptState for CgoRelayCryptState<EtBC, PrfBC> {
+        fn originate(&mut self, cell: &mut RelayBody) {
+            let cell = &mut cell.0;
+            self.back.originate(ChanCmd::RELAY, cell);
+        }
+
+        fn encrypt(&mut self, cell: &mut RelayBody) {
+            let cell = &mut cell.0;
+            self.back.encrypt_inbound(ChanCmd::RELAY, cell);
+        }
+
+        fn decrypt(&mut self, cell: &mut RelayBody) {
+            let cell = &mut cell.0;
+            self.fwd.decrypt_outbound(ChanCmd::RELAY, cell);
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

@@ -289,30 +289,112 @@ impl RelayCellBody {
 
 /// Benchmark utilities for the `tor1` module.
 #[cfg(feature = "bench")]
-pub(crate) mod bench_utils {
+pub mod bench_utils {
     use super::*;
 
-    /// Public wrapper around the `RelayCellBody` struct.
-    #[repr(transparent)]
-    pub struct RelayBody(pub(in crate::crypto) RelayCellBody);
+    use crate::crypto::handshake::ShakeKeyGenerator as KGen;
+    use crate::{
+        bench_utils::{InboundClientLayerWrapper, OutboundClientLayerWrapper, RelayCryptState},
+        crypto::cell::bench_utils::RelayBody,
+        Result,
+    };
+    use tor_bytes::SecretBuf;
 
-    impl From<[u8; 509]> for RelayBody {
-        fn from(body: [u8; 509]) -> Self {
-            let body = Box::new(body);
-            Self(body.into())
+    /// Public wrapper around a tor1 client's cryptographic state.
+    pub struct Tor1ClientCryptState<SC: StreamCipher, D: Digest + Clone> {
+        /// Layer for traffic moving away from the client.
+        fwd: ClientOutbound<SC, D>,
+        /// Layer for traffic moving toward the client.
+        back: ClientInbound<SC, D>,
+    }
+
+    impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> Tor1ClientCryptState<SC, D> {
+        /// Return a new `Tor1ClientCryptState` based on a seed.
+        pub fn construct(seed: SecretBuf) -> Result<Self> {
+            let (outbound, inbound, _) =
+                CryptStatePair::construct(KGen::new(seed))?.split_client_layer();
+            Ok(Self {
+                back: inbound,
+                fwd: outbound,
+            })
         }
     }
 
-    impl RelayBody {
-        /// Public wrapper around the `set_digest` method of the `RelayCellBody` struct.
-        pub fn set_digest<D: Digest + Clone>(&mut self, d: &mut D, used_digest: &mut SendmeTag) {
-            self.0.set_digest::<D>(d, used_digest);
+    impl<SC, D> From<Tor1ClientCryptState<SC, D>> for OutboundClientLayerWrapper
+    where
+        SC: StreamCipher + Send + 'static,
+        D: Digest + Clone + Send + 'static,
+    {
+        fn from(state: Tor1ClientCryptState<SC, D>) -> Self {
+            Self(Box::new(state.fwd))
+        }
+    }
+
+    impl<SC, D> From<Tor1ClientCryptState<SC, D>> for InboundClientLayerWrapper
+    where
+        SC: StreamCipher + Send + 'static,
+        D: Digest + Clone + Send + 'static,
+    {
+        fn from(value: Tor1ClientCryptState<SC, D>) -> Self {
+            Self(Box::new(value.back))
+        }
+    }
+
+    /// Public wrapper around a tor1 relay's cryptographic state.
+    pub struct Tor1RelayCryptState<SC: StreamCipher, D: Digest + Clone> {
+        /// Layer for traffic moving away from the client.
+        fwd: RelayOutbound<SC, D>,
+        /// Layer for traffic moving toward the client.
+        back: RelayInbound<SC, D>,
+    }
+
+    impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> Tor1RelayCryptState<SC, D> {
+        /// Return a new `Tor1RelayCryptState` based on a seed.
+        pub fn construct(seed: SecretBuf) -> Result<Self> {
+            let (outbound, inbound, _) =
+                CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();
+            Ok(Self {
+                back: inbound,
+                fwd: outbound,
+            })
+        }
+    }
+
+    impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> RelayCryptState
+        for Tor1RelayCryptState<SC, D>
+    {
+        fn originate(&mut self, cell: &mut RelayBody) {
+            let cell = &mut cell.0;
+            self.back.originate(ChanCmd::RELAY, cell);
         }
 
-        /// Public wrapper around the `is_recognized` method of the `RelayCellBody` struct.
-        pub fn is_recognized<D: Digest + Clone>(&self, d: &mut D, rcvd: &mut SendmeTag) -> bool {
-            self.0.is_recognized::<D>(d, rcvd)
+        fn encrypt(&mut self, cell: &mut RelayBody) {
+            let cell = &mut cell.0;
+            self.back.encrypt_inbound(ChanCmd::RELAY, cell);
         }
+
+        fn decrypt(&mut self, cell: &mut RelayBody) {
+            let cell = &mut cell.0;
+            self.fwd.decrypt_outbound(ChanCmd::RELAY, cell);
+        }
+    }
+
+    /// Public wrapper around the `set_digest` method of the `RelayCellBody` struct.
+    pub fn set_digest<D: Digest + Clone>(
+        relay_body: &mut RelayBody,
+        d: &mut D,
+        used_digest: &mut SendmeTag,
+    ) {
+        relay_body.0.set_digest::<D>(d, used_digest);
+    }
+
+    /// Public wrapper around the `is_recognized` method of the `RelayCellBody` struct.
+    pub fn is_recognized<D: Digest + Clone>(
+        relay_body: &RelayBody,
+        d: &mut D,
+        rcvd: &mut SendmeTag,
+    ) -> bool {
+        relay_body.0.is_recognized::<D>(d, rcvd)
     }
 }
 

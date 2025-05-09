@@ -30,6 +30,8 @@
 //! should work for all current future versions of the relay cell crypto design.
 //! The current Tor protocols are instantiated in a `tor1` submodule.
 
+#[cfg(feature = "bench")]
+pub(crate) mod bench_utils;
 #[cfg(feature = "counter-galois-onion")]
 pub(crate) mod cgo;
 pub(crate) mod tor1;
