@@ -164,7 +164,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 //
 pub struct ClientCirc {
     /// Mutable state shared with the `Reactor`.
-    mutable: Arc<Mutex<MutableState>>,
+    mutable: Arc<Mutex<CircuitState>>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -187,7 +187,7 @@ pub struct ClientCirc {
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
 #[derive(Educe, Default)]
 #[educe(Debug)]
-pub(super) struct MutableState {
+pub(super) struct CircuitState {
     /// Information about this circuit's path.
     ///
     /// This is stored in an Arc so that we can cheaply give a copy of it to
@@ -206,7 +206,7 @@ pub(super) struct MutableState {
     binding: Vec<Option<CircuitBinding>>,
 }
 
-impl MutableState {
+impl CircuitState {
     /// Add a hop to the path of this circuit.
     pub(super) fn add_hop(&mut self, peer_id: HopDetail, binding: Option<CircuitBinding>) {
         Arc::make_mut(&mut self.path).push_hop(peer_id);

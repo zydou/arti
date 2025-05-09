@@ -22,7 +22,7 @@ use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::{
-    CircParameters, CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
+    CircParameters, CircuitRxReceiver, CircuitState, StreamMpscReceiver, StreamMpscSender,
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
@@ -160,7 +160,7 @@ pub(crate) struct Circuit {
     /// [`ClientCirc`](crate::circuit::ClientCirc).
     ///
     // TODO(conflux)/TODO(#1840): this belongs in the Reactor
-    mutable: Arc<Mutex<MutableState>>,
+    mutable: Arc<Mutex<CircuitState>>,
     /// This circuit's identifier on the upstream channel.
     channel_id: CircId,
     /// An identifier for logging about this reactor's circuit.
@@ -262,7 +262,7 @@ impl Circuit {
         unique_id: UniqId,
         input: CircuitRxReceiver,
         memquota: CircuitAccount,
-        mutable: Arc<Mutex<MutableState>>,
+        mutable: Arc<Mutex<CircuitState>>,
     ) -> Self {
         let chan_sender = SometimesUnboundedSink::new(channel.sender());
 
