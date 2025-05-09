@@ -220,6 +220,14 @@ impl TunnelMutableState {
         debug_assert!(state.is_none());
     }
 
+    /// Remove the [`MutableState`] of a circuit.
+    pub(super) fn remove(&self, unique_id: UniqId) {
+        #[allow(unused)] // unused in non-debug builds
+        let state = self.0.lock().expect("lock poisoned").remove(&unique_id);
+
+        debug_assert!(state.is_some());
+    }
+
     /// Return a [`Path`] object describing all the hops in the specified circuit.
     ///
     /// Note that this `Path` is not automatically updated if the circuit is
@@ -424,11 +432,12 @@ impl ClientCirc {
     /// Panics if there is no first hop.  (This should be impossible outside of
     /// the tor-proto crate, but within the crate it's possible to have a
     /// circuit with no hops.)
-    pub fn first_hop(&self) -> OwnedChanTarget {
-        self.mutable
+    pub fn first_hop(&self) -> Result<OwnedChanTarget> {
+        Ok(self
+            .mutable
             .first_hop(self.unique_id)
-            .expect("circuit disappeared?!")
-            .expect("called first_hop on an un-constructed circuit")
+            .map_err(|_| Error::CircuitClosed)?
+            .expect("called first_hop on an un-constructed circuit"))
     }
 
     /// Return the [`HopNum`] of the last hop of this circuit.
@@ -436,7 +445,9 @@ impl ClientCirc {
     /// Returns an error if there is no last hop.  (This should be impossible outside of the
     /// tor-proto crate, but within the crate it's possible to have a circuit with no hops.)
     pub fn last_hop_num(&self) -> Result<HopNum> {
-        Ok(self.mutable.last_hop_num(self.unique_id)?
+        Ok(self
+            .mutable
+            .last_hop_num(self.unique_id)?
             .ok_or_else(|| internal!("no last hop index"))?)
     }
 
@@ -444,10 +455,10 @@ impl ClientCirc {
     ///
     /// Note that this `Path` is not automatically updated if the circuit is
     /// extended.
-    pub fn path_ref(&self) -> Arc<Path> {
+    pub fn path_ref(&self) -> Result<Arc<Path>> {
         self.mutable
             .path_ref(self.unique_id)
-            .expect("circuit disappeared?!")
+            .map_err(|_| Error::CircuitClosed)
     }
 
     /// Get the [`LegId`] and [`Path`] of each leg of the tunnel.
@@ -488,10 +499,10 @@ impl ClientCirc {
     ///
     /// Return None if we have no circuit binding information for the hop, or if
     /// the hop does not exist.
-    pub fn binding_key(&self, hop: HopNum) -> Option<CircuitBinding> {
+    pub fn binding_key(&self, hop: HopNum) -> Result<Option<CircuitBinding>> {
         self.mutable
             .binding_key(self.unique_id, hop)
-            .expect("Circuit disappeared?!")
+            .map_err(|_| Error::CircuitClosed)
     }
 
     /// Start an ad-hoc protocol exchange to the specified hop on this circuit
@@ -1071,10 +1082,10 @@ impl ClientCirc {
     /// _currently_ in the circuit. If there is an extend operation in progress,
     /// the currently pending hop may or may not be counted, depending on whether
     /// the extend operation finishes before this call is done.
-    pub fn n_hops(&self) -> usize {
+    pub fn n_hops(&self) -> Result<usize> {
         self.mutable
             .n_hops(self.unique_id)
-            .expect("circuit disappeared?!")
+            .map_err(|_| Error::CircuitClosed)
     }
 
     /// Return a future that will resolve once this circuit has closed.
@@ -1580,7 +1591,7 @@ pub(crate) mod test {
         let _circ = circ.unwrap();
 
         // pfew!  We've build a circuit!  Let's make sure it has one hop.
-        assert_eq!(_circ.n_hops(), 1);
+        assert_eq!(_circ.n_hops().unwrap(), 1);
     }
 
     #[traced_test]
@@ -1785,12 +1796,13 @@ pub(crate) mod test {
         let (circ, _) = futures::join!(extend_fut, reply_fut);
 
         // Did we really add another hop?
-        assert_eq!(circ.n_hops(), 4);
+        assert_eq!(circ.n_hops().unwrap(), 4);
 
         // Do the path accessors report a reasonable outcome?
         {
             let path = circ
                 .path_ref()
+                .unwrap()
                 .all_hops()
                 .into_iter()
                 .filter_map(|hop| match hop {
@@ -1806,7 +1818,7 @@ pub(crate) mod test {
             assert_ne!(path[0].ed_identity(), example_target().ed_identity());
         }
         {
-            let path = circ.path_ref();
+            let path = circ.path_ref().unwrap();
             assert_eq!(path.n_hops(), 4);
             use tor_linkspec::HasRelayIds;
             assert_eq!(
@@ -1858,7 +1870,7 @@ pub(crate) mod test {
         let outcome = circ.extend_ntor(&target, params).await;
         let _sink = sink_handle.await;
 
-        assert_eq!(circ.n_hops(), 3);
+        assert_eq!(circ.n_hops().unwrap(), 3);
         assert!(outcome.is_err());
         outcome.unwrap_err()
     }

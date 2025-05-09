@@ -17,7 +17,7 @@ use crate::{
 };
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
-use tor_error::{bad_api_usage, internal};
+use tor_error::{bad_api_usage, internal, into_internal};
 use tor_error::{debug_report, Bug};
 use tor_guardmgr::VanguardMode;
 use tor_linkspec::{
@@ -376,7 +376,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             return Err(internal!("wanted a GUARDED circuit, but got NAIVE?!").into());
         }
 
-        let path = circ.path_ref();
+        let path = circ
+            .path_ref()
+            .map_err(into_internal!("failed to get circuit path"))?;
+
         match path.hops().last() {
             Some(ent) => {
                 let Some(ct) = ent.as_chan_target() else {
@@ -456,7 +459,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     {
         // Estimate how long it will take to extend it one more hop, and
         // construct a timeout as appropriate.
-        let n_hops = circ.n_hops();
+        let n_hops = circ
+            .n_hops()
+            .map_err(into_internal!("failed to get circuit length"))?;
         let (extend_timeout, _) = self.circmgr.mgr.peek_builder().estimator().timeouts(
             &crate::timeouts::Action::ExtendCircuit {
                 initial_length: n_hops,
@@ -648,7 +653,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = crate::build::onion_circparams_from_netparams(netdir.params())?;
-                let circ_path = circuit.circ.path_ref();
+                let circ_path = circuit
+                    .circ
+                    .path_ref()
+                    .map_err(into_internal!("failed to get circuit path"))?;
 
                 // A NAIVE circuit is a 3-hop circuit.
                 debug_assert_eq!(circ_path.hops().len(), 3);
@@ -711,7 +719,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         circ: &Arc<B::Circ>,
         kind: HsCircStemKind,
     ) -> StdResult<(), Bug> {
-        let circ_path_len = circ.path_ref().n_hops();
+        let circ_path_len = circ
+            .n_hops()
+            .map_err(into_internal!("failed to get circuit length"))?;
+
         let mode = self.vanguard_mode();
 
         // TODO(#1457): somehow unify the path length checks
@@ -746,6 +757,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             let take_n = 2;
             if let Some(hop) = circ
                 .path_ref()
+                .map_err(into_internal!("failed to get circuit path"))?
                 .hops()
                 .iter()
                 .rev()
@@ -842,7 +854,10 @@ where
     T: CircTarget + std::marker::Sync,
 {
     if let Some(target) = avoid_target {
-        let circ_path = circ.circ.path_ref();
+        let Ok(circ_path) = circ.circ.path_ref() else {
+            // Circuit is closed, so we can't use it.
+            return false;
+        };
         // The last 2 hops of the circuit must be different from the circuit target, because:
         //   * a relay won't let you extend the circuit to itself
         //   * relays won't let you extend the circuit to their previous hop
@@ -877,7 +892,10 @@ where
         return false;
     }
 
-    let path = circ.path_ref();
+    let Ok(path) = circ.path_ref() else {
+        // Circuit is closed, so it's not usable.
+        return false;
+    };
     // (We have to use a binding here to appease borrowck.)
     let all_compatible = path.iter().all(|ent: &circuit::PathEntry| {
         let Some(c) = ent.as_chan_target() else {

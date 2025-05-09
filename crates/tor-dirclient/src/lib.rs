@@ -128,7 +128,15 @@ where
 
     // TODO(nickm) This should be an option, and is too long.
     let begin_timeout = Duration::from_secs(5);
-    let source = SourceInfo::from_circuit(&circuit);
+    let source = match SourceInfo::from_circuit(&circuit) {
+        Ok(source) => source,
+        Err(e) => {
+            return Err(Error::RequestFailed(RequestFailedError {
+                source: None,
+                error: e.into(),
+            }));
+        }
+    };
 
     let wrap_err = |error| {
         Error::RequestFailed(RequestFailedError {

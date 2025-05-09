@@ -101,7 +101,7 @@ async fn build_circuit(tor_client: &TorClient<PreferredRuntime>, remote: &str) -
                 .ok_or_else(|| Error::msg("failed to get client stream ctrl?!"))?
                 .circuit()
                 .ok_or_else(|| Error::msg("failed to get client circuit?!"))?;
-            let circ = circuit.path_ref();
+            let circ = circuit.path_ref()?;
             for node in circ.iter() {
                 println!("Node: {}", node);
             }

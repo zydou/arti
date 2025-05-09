@@ -96,17 +96,21 @@ pub(crate) trait AbstractCirc: Debug {
 
     /// Return a [`Path`] object describing all the hops in this circuit.
     ///
+    /// Returns an error if the circuit is closed.
+    ///
     /// Note that this `Path` is not automatically updated if the circuit is
     /// extended.
-    fn path_ref(&self) -> Arc<Path>;
+    fn path_ref(&self) -> tor_proto::Result<Arc<Path>>;
 
     /// Return the number of hops in this circuit.
+    ///
+    /// Returns an error if the circuit is closed.
     ///
     /// NOTE: This function will currently return only the number of hops
     /// _currently_ in the circuit. If there is an extend operation in progress,
     /// the currently pending hop may or may not be counted, depending on whether
     /// the extend operation finishes before this call is done.
-    fn n_hops(&self) -> usize;
+    fn n_hops(&self) -> tor_proto::Result<usize>;
 
     /// Return true if this circuit is closed and therefore unusable.
     fn is_closing(&self) -> bool;

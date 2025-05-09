@@ -265,8 +265,7 @@ impl ConfluxSet {
             .remove(leg)
             .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
 
-        // TODO(conflux): remove the circuit state from `TunnelSharedState`
-        // This will involve making the ClientCirc accessors fallible.
+        self.mutable.remove(circ.unique_id());
 
         if self.legs.is_empty() {
             // The last circuit in the set has just died, so the reactor should exit.
