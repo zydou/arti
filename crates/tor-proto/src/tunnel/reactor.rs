@@ -30,7 +30,6 @@ use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
-use crate::tunnel::circuit::MutableState;
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
@@ -64,6 +63,8 @@ use tor_llcrypto::pk;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::trace;
+
+use super::circuit::{MutableState, TunnelMutableState};
 
 #[cfg(feature = "conflux")]
 use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
@@ -669,7 +670,7 @@ impl Reactor {
         mpsc::UnboundedSender<CtrlMsg>,
         mpsc::UnboundedSender<CtrlCmd>,
         oneshot::Receiver<void::Void>,
-        Arc<MutableState>,
+        Arc<TunnelMutableState>,
     ) {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
@@ -692,8 +693,10 @@ impl Reactor {
             Arc::clone(&mutable),
         );
 
+        let (circuits, mutable) = ConfluxSet::new(circuit_leg);
+
         let reactor = Reactor {
-            circuits: ConfluxSet::new(circuit_leg),
+            circuits,
             control: control_rx,
             command: command_rx,
             reactor_closed_tx,

@@ -156,10 +156,8 @@ pub(crate) struct Circuit {
     crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
     hops: Vec<CircHop>,
-    /// Mutable information about this circuit, shared with
-    /// [`ClientCirc`](crate::circuit::ClientCirc).
-    ///
-    // TODO(conflux)/TODO(#1840): this belongs in the Reactor
+    /// Mutable information about this circuit,
+    /// shared with the reactor's `ConfluxSet`.
     mutable: Arc<MutableState>,
     /// This circuit's identifier on the upstream channel.
     channel_id: CircId,
@@ -282,6 +280,17 @@ impl Circuit {
             memquota,
         }
     }
+
+    /// Return the process-unique identifier of this circuit.
+    pub(super) fn unique_id(&self) -> UniqId {
+        self.unique_id
+    }
+
+    /// Return the shared mutable state of this circuit.
+    pub(super) fn mutable(&self) -> &Arc<MutableState> {
+        &self.mutable
+    }
+
     /// Install a [`ConfluxMsgHandler`] on this circuit,
     ///
     /// Once this is called, the circuit will be able to handle conflux cells.

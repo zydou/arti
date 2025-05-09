@@ -70,7 +70,7 @@ use tor_cell::{
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::{internal, into_internal};
+use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
 
@@ -90,6 +90,7 @@ use oneshot_fused_workaround as oneshot;
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::DynTimeProvider;
 use futures::FutureExt as _;
+use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
@@ -164,7 +165,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 //
 pub struct ClientCirc {
     /// Mutable state shared with the `Reactor`.
-    mutable: Arc<MutableState>,
+    mutable: Arc<TunnelMutableState>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -184,7 +185,120 @@ pub struct ClientCirc {
     time_provider: DynTimeProvider,
 }
 
-/// Mutable state shared by [`ClientCirc`] and [`Reactor`].
+/// The mutable state of a tunnel, shared between [`ClientCirc`] and [`Reactor`].
+///
+/// NOTE(gabi): this mutex-inside-a-mutex might look suspicious,
+/// but it is currently the best option we have for sharing
+/// the circuit state with `ClientCirc` (and soon, with `ClientTunnel`).
+/// In practice, these mutexes won't be accessed very often
+/// (they're accessed for writing when a circuit is extended,
+/// and for reading by the various `ClientCirc` APIs),
+/// so they shouldn't really impact performance.
+///
+/// Alternatively, the circuit state information could be shared
+/// outside the reactor through a channel (passed to the reactor via a `CtrlCmd`),
+/// but in #1840 @opara notes that involves making the `ClientCirc` accessors
+/// (`ClientCirc::path`, `ClientCirc::binding_key`, etc.)
+/// asynchronous, which will significantly complicate their callsites,
+/// which would in turn need to be made async too.
+///
+/// We should revisit this decision at some point, and decide whether an async API
+/// would be preferable.
+#[derive(Debug, Default)]
+pub(super) struct TunnelMutableState(Mutex<HashMap<UniqId, (LegId, CircuitSharedState)>>);
+
+impl TunnelMutableState {
+    /// Add the [`MutableState`] of a circuit.
+    pub(super) fn insert(&self, unique_id: UniqId, leg: LegId, mutable: CircuitSharedState) {
+        #[allow(unused)] // unused in non-debug builds
+        let state = self
+            .0
+            .lock()
+            .expect("lock poisoned")
+            .insert(unique_id, (leg, mutable));
+
+        debug_assert!(state.is_none());
+    }
+
+    /// Return a [`Path`] object describing all the hops in the specified circuit.
+    ///
+    /// Note that this `Path` is not automatically updated if the circuit is
+    /// extended.
+    fn path_ref(&self, unique_id: UniqId) -> Result<Arc<Path>> {
+        let lock = self.0.lock().expect("lock poisoned");
+        let (_leg, mutable) = lock
+            .get(&unique_id)
+            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
+
+        Ok(mutable.path())
+    }
+
+    /// Return a description of the first hop of this circuit.
+    ///
+    /// Returns an error if a circuit with the specified [`UniqId`] doesn't exist.
+    /// Returns `Ok(None)` if the specified circuit doesn't have any hops.
+    fn first_hop(&self, unique_id: UniqId) -> Result<Option<OwnedChanTarget>> {
+        let lock = self.0.lock().expect("lock poisoned");
+        let (_leg, mutable) = lock
+            .get(&unique_id)
+            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
+
+        let first_hop = mutable.first_hop().map(|first_hop| match first_hop {
+            path::HopDetail::Relay(r) => r,
+            #[cfg(feature = "hs-common")]
+            path::HopDetail::Virtual => {
+                panic!("somehow made a circuit with a virtual first hop.")
+            }
+        });
+
+        Ok(first_hop)
+    }
+
+    /// Return the [`HopNum`] of the last hop of the specified circuit.
+    ///
+    /// Returns an error if a circuit with the specified [`UniqId`] doesn't exist.
+    /// Returns `Ok(None)` if there is no last hop.
+    fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
+        let lock = self.0.lock().expect("lock poisoned");
+        let (_leg, mutable) = lock
+            .get(&unique_id)
+            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
+
+        Ok(mutable.last_hop_num())
+    }
+
+    /// Return the number of hops in the specified circuit.
+    ///
+    /// NOTE: This function will currently return only the number of hops
+    /// _currently_ in the circuit. If there is an extend operation in progress,
+    /// the currently pending hop may or may not be counted, depending on whether
+    /// the extend operation finishes before this call is done.
+    fn n_hops(&self, unique_id: UniqId) -> Result<usize> {
+        let lock = self.0.lock().expect("lock poisoned");
+        let (_leg, mutable) = lock
+            .get(&unique_id)
+            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
+
+        Ok(mutable.n_hops())
+    }
+
+    /// Return the cryptographic material used to prove knowledge of a shared
+    /// secret with with `hop` on the circuit with the specified `unique_id`.
+    fn binding_key(&self, unique_id: UniqId, hop: HopNum) -> Result<Option<CircuitBinding>> {
+        let lock = self.0.lock().expect("lock poisoned");
+        let (_leg, mutable) = lock
+            .get(&unique_id)
+            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
+
+        Ok(mutable.binding_key(hop))
+    }
+}
+
+/// The mutable state of a circuit, shared between the reactor (`ConfluxSet`)
+/// and [`Circuit`](super::reactor::circuit::Circuit).
+pub(super) type CircuitSharedState = Arc<MutableState>;
+
+/// The mutable state of a circuit.
 #[derive(Educe, Default)]
 #[educe(Debug)]
 pub(super) struct MutableState(Mutex<CircuitState>);
@@ -311,17 +425,10 @@ impl ClientCirc {
     /// the tor-proto crate, but within the crate it's possible to have a
     /// circuit with no hops.)
     pub fn first_hop(&self) -> OwnedChanTarget {
-        let first_hop = self
-            .mutable
-            .first_hop()
-            .expect("called first_hop on an un-constructed circuit");
-        match first_hop {
-            path::HopDetail::Relay(r) => r,
-            #[cfg(feature = "hs-common")]
-            path::HopDetail::Virtual => {
-                panic!("somehow made a circuit with a virtual first hop.")
-            }
-        }
+        self.mutable
+            .first_hop(self.unique_id)
+            .expect("circuit disappeared?!")
+            .expect("called first_hop on an un-constructed circuit")
     }
 
     /// Return the [`HopNum`] of the last hop of this circuit.
@@ -329,9 +436,7 @@ impl ClientCirc {
     /// Returns an error if there is no last hop.  (This should be impossible outside of the
     /// tor-proto crate, but within the crate it's possible to have a circuit with no hops.)
     pub fn last_hop_num(&self) -> Result<HopNum> {
-        Ok(self
-            .mutable
-            .last_hop_num()
+        Ok(self.mutable.last_hop_num(self.unique_id)?
             .ok_or_else(|| internal!("no last hop index"))?)
     }
 
@@ -340,7 +445,9 @@ impl ClientCirc {
     /// Note that this `Path` is not automatically updated if the circuit is
     /// extended.
     pub fn path_ref(&self) -> Arc<Path> {
-        self.mutable.path()
+        self.mutable
+            .path_ref(self.unique_id)
+            .expect("circuit disappeared?!")
     }
 
     /// Get the [`LegId`] and [`Path`] of each leg of the tunnel.
@@ -382,7 +489,9 @@ impl ClientCirc {
     /// Return None if we have no circuit binding information for the hop, or if
     /// the hop does not exist.
     pub fn binding_key(&self, hop: HopNum) -> Option<CircuitBinding> {
-        self.mutable.binding_key(hop)
+        self.mutable
+            .binding_key(self.unique_id, hop)
+            .expect("Circuit disappeared?!")
     }
 
     /// Start an ad-hoc protocol exchange to the specified hop on this circuit
@@ -963,7 +1072,9 @@ impl ClientCirc {
     /// the currently pending hop may or may not be counted, depending on whether
     /// the extend operation finishes before this call is done.
     pub fn n_hops(&self) -> usize {
-        self.mutable.n_hops()
+        self.mutable
+            .n_hops(self.unique_id)
+            .expect("circuit disappeared?!")
     }
 
     /// Return a future that will resolve once this circuit has closed.

@@ -22,6 +22,7 @@ use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 use tor_linkspec::HasRelayIds as _;
 
 use crate::circuit::path::HopDetail;
+use crate::circuit::TunnelMutableState;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
 use crate::tunnel::reactor::CircuitCmd;
@@ -71,6 +72,10 @@ pub(crate) use msghandler::{ConfluxAction, ConfluxMsgHandler, OooRelayMsg};
 pub(super) struct ConfluxSet {
     /// The circuits in this conflux set.
     legs: SlotMap<LegIdKey, Circuit>,
+    /// Tunnel state, shared with `ClientCirc`.
+    ///
+    /// Contains the [`MutableState`](super::MutableState) of each circuit in the set.
+    mutable: Arc<TunnelMutableState>,
     /// The unique identifier of the primary leg
     primary_id: LegIdKey,
     /// The join point of the set, if this is a multi-path set.
@@ -120,8 +125,12 @@ struct JoinPoint {
 
 impl ConfluxSet {
     /// Create a new conflux set, consisting of a single leg.
-    pub(super) fn new(circuit_leg: Circuit) -> Self {
+    ///
+    /// Returns the newly created set and a reference to its [`TunnelMutableState`].
+    pub(super) fn new(circuit_leg: Circuit) -> (Self, Arc<TunnelMutableState>) {
         let mut legs: SlotMap<LegIdKey, Circuit> = SlotMap::with_key();
+        let circ_mutable = Arc::clone(circuit_leg.mutable());
+        let unique_id = circuit_leg.unique_id();
         let primary_id = legs.insert(circuit_leg);
         // Note: the join point is only set for multi-path tunnels
         let join_point = None;
@@ -130,17 +139,23 @@ impl ConfluxSet {
         #[cfg(feature = "conflux")]
         let desired_ux = V1DesiredUx::NO_OPINION;
 
-        Self {
+        let mutable = Arc::new(TunnelMutableState::default());
+        mutable.insert(unique_id, primary_id.into(), circ_mutable);
+
+        let set = Self {
             legs,
             primary_id,
             join_point,
+            mutable: mutable.clone(),
             #[cfg(feature = "conflux")]
             nonce: V1Nonce::new(&mut rand::rng()),
             #[cfg(feature = "conflux")]
             desired_ux,
             last_seq_delivered: Arc::new(AtomicU64::new(0)),
             selected_init_primary: false,
-        }
+        };
+
+        (set, mutable)
     }
 
     /// Remove and return the only leg of this conflux set.
@@ -249,6 +264,9 @@ impl ConfluxSet {
             .legs
             .remove(leg)
             .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
+
+        // TODO(conflux): remove the circuit state from `TunnelSharedState`
+        // This will involve making the ClientCirc accessors fallible.
 
         if self.legs.is_empty() {
             // The last circuit in the set has just died, so the reactor should exit.
@@ -514,7 +532,11 @@ impl ConfluxSet {
             );
 
             circ.install_conflux_handler(conflux_handler);
-            self.legs.insert(circ);
+            let mutable = Arc::clone(circ.mutable());
+            let unique_id = circ.unique_id();
+            let leg_id = self.legs.insert(circ);
+            // Merge the mutable state of the circuit into our tunnel state.
+            self.mutable.insert(unique_id, leg_id.into(), mutable);
         }
 
         Ok(())
