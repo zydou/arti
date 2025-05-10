@@ -9,8 +9,8 @@ of the [Tor](https://www.torproject.org/) anonymity protocols in the
 ## Links:
 
 This is the README for the Arti project as a whole.
-If you want find more practical information
-you might want to check out these links:
+If you want to find more practical information
+you might want to check out some of these links:
 
    * [The Arti website](https://arti.torproject.org)
 
