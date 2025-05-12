@@ -374,13 +374,7 @@ pub(crate) struct HsCircPoolInner<B: AbstractTunnelBuilder<R> + 'static, R: Runt
     // eventually.  But for now, this is fine, since it's just an implementation
     // detail.
     //
-    // TODO MSRV TBD: If still relevant, see about replacing this usage of
-    // [`once_cell::sync::OnceCell`] with [`std::sync::OnceLock`]. Waiting on
-    // [`std::sync::OnceLock::get_or_try_init`] to stabilize and fall within our
-    // MSRV. See [1] and [2] for more information.
-    //
-    // [1]: https://github.com/rust-lang/rust/issues/109737
-    // [2]: https://doc.rust-lang.org/std/sync/struct.OnceLock.html#method.get_or_try_init
+    // TODO MSRV TBD: Replace with OnceLock (#1996)
     launcher_handle: OnceCell<TaskHandle>,
     /// The mutable state of this pool.
     inner: Mutex<Inner<B::Tunnel>>,
