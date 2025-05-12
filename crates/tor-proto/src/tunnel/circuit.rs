@@ -205,11 +205,11 @@ pub struct ClientCirc {
 /// We should revisit this decision at some point, and decide whether an async API
 /// would be preferable.
 #[derive(Debug, Default)]
-pub(super) struct TunnelMutableState(Mutex<HashMap<UniqId, (LegId, CircuitSharedState)>>);
+pub(super) struct TunnelMutableState(Mutex<HashMap<UniqId, (LegId, Arc<MutableState>)>>);
 
 impl TunnelMutableState {
     /// Add the [`MutableState`] of a circuit.
-    pub(super) fn insert(&self, unique_id: UniqId, leg: LegId, mutable: CircuitSharedState) {
+    pub(super) fn insert(&self, unique_id: UniqId, leg: LegId, mutable: Arc<MutableState>) {
         #[allow(unused)] // unused in non-debug builds
         let state = self
             .0
@@ -301,10 +301,6 @@ impl TunnelMutableState {
         Ok(mutable.binding_key(hop))
     }
 }
-
-/// The mutable state of a circuit, shared between the reactor (`ConfluxSet`)
-/// and [`Circuit`](super::reactor::circuit::Circuit).
-pub(super) type CircuitSharedState = Arc<MutableState>;
 
 /// The mutable state of a circuit.
 #[derive(Educe, Default)]
