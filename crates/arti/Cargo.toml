@@ -177,6 +177,7 @@ metrics-exporter-prometheus = { version = "0.17.0", optional = true, default-fea
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.30.0", default-features = false, features = [
     "testing",
 ] }
+assert_cmd = "2.0.17"
 derive_more = { version = "2.0.1", features = ["full"] }
 itertools = "0.14.0"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }

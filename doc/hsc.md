@@ -70,7 +70,6 @@ To remove a service discovery key:
 $ arti -c hsc.toml hsc key remove
 Enter an onion address: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
 remove client restricted discovery key for mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion? (type YES or no): YES
-descriptor:x25519:4E4B6CILWAAM2JFSVTOTCANCCUIMSOOSXZWONSR52ETXSTCKIYIA
 ```
 
 As with `hsc key rotate`, you can disable the confirmation prompt and force
