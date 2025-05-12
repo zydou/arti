@@ -319,7 +319,7 @@ impl MutableState {
         mutable.binding.push(binding);
     }
 
-    /// Get a copy of the circuit's [`path::Path`].
+    /// Get a copy of the circuit's current [`path::Path`].
     pub(super) fn path(&self) -> Arc<path::Path> {
         let mutable = self.0.lock().expect("poisoned lock");
         Arc::clone(&mutable.path)
