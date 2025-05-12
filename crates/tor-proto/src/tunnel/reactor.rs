@@ -454,6 +454,9 @@ pub(crate) enum MetaCellDisposition {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LegId(pub(crate) LegIdKey);
 
+// TODO(conflux): can we use `UniqId` as the key instead of this newtype?
+//
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2996#note_3199069
 slotmap_careful::new_key_type! {
     /// A key type for the circuit leg slotmap
     ///
