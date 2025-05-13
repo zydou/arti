@@ -268,7 +268,7 @@ fn pad_with_zero_to_align(v: &[u8], alignment: usize) -> Cow<[u8]> {
         let padded = v
             .iter()
             .copied()
-            .chain(std::iter::repeat(0).take(padding))
+            .chain(std::iter::repeat_n(0, padding))
             .collect::<Vec<_>>();
 
         Cow::Owned(padded)

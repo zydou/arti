@@ -136,7 +136,6 @@ impl History {
         I: Iterator<Item = (MsecDuration, u16)>,
     {
         use rand::seq::{IteratorRandom, SliceRandom};
-        use std::iter;
         let mut rng = rand::rng();
 
         // We want to build a vector with the elements of the old histogram in
@@ -144,7 +143,7 @@ impl History {
         // that would take too much RAM.
         let mut observations = iter
             .take(TIME_HISTORY_LEN) // limit number of bins
-            .flat_map(|(dur, n)| iter::repeat(dur).take(n as usize))
+            .flat_map(|(dur, n)| std::iter::repeat_n(dur, n as usize))
             .choose_multiple(&mut rng, TIME_HISTORY_LEN);
         // IteratorRand::choose_multiple doesn't guarantee anything about the order of its output.
         observations.shuffle(&mut rng);

@@ -392,9 +392,8 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
     #[test]
     fn inner_hsdesc_too_many_link_specifiers() {
         let link_spec = LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999);
-        let link_specifiers = std::iter::repeat(link_spec)
-            .take(u8::MAX as usize + 1)
-            .collect::<Vec<_>>();
+        let link_specifiers =
+            std::iter::repeat_n(link_spec, u8::MAX as usize + 1).collect::<Vec<_>>();
 
         let intros = &[create_intro_point_descriptor(
             &mut Config::Deterministic.into_rng(),

@@ -24,7 +24,7 @@ impl SkewObservation {
     /// Return true if this observation has been made more recently than
     /// `cutoff`. If cutoff is None, consider it's very far in the past.
     pub(crate) fn more_recent_than(&self, cutoff: Option<Instant>) -> bool {
-        cutoff.map_or(true, |cutoff| self.when > cutoff)
+        cutoff.is_none_or(|cutoff| self.when > cutoff)
     }
 }
 

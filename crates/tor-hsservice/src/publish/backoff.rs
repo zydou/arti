@@ -434,8 +434,7 @@ mod tests {
         run_test(
             None,
             BackoffWithMaxRetries,
-            iter::repeat(Transient)
-                .take(RETRIES_UNTIL_FATAL)
+            std::iter::repeat_n(Transient, RETRIES_UNTIL_FATAL)
                 .chain([Fatal])
                 .chain(iter::repeat(Transient)),
             EXPECTED_TOTAL_RUNS,
