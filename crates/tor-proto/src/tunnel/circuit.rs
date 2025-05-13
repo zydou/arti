@@ -230,8 +230,7 @@ impl TunnelMutableState {
 
     /// Return a [`Path`] object describing all the hops in the specified circuit.
     ///
-    /// Note that this `Path` is not automatically updated if the circuit is
-    /// extended.
+    /// See [`MutableState::path`].
     fn path_ref(&self, unique_id: UniqId) -> Result<Arc<Path>> {
         let lock = self.0.lock().expect("lock poisoned");
         let (_leg, mutable) = lock
@@ -265,12 +264,8 @@ impl TunnelMutableState {
     /// Return the [`HopNum`] of the last hop of the specified circuit.
     ///
     /// Returns an error if a circuit with the specified [`UniqId`] doesn't exist.
-    /// Returns `Ok(None)` if there is no last hop.
     ///
-    /// NOTE: This function will return the [`HopNum`] of the hop
-    /// that is _currently_ the last. If there is an extend operation in progress,
-    /// the currently pending hop may or may not be counted, depending on whether
-    /// the extend operation finishes before this call is done.
+    /// See [`MutableState::last_hop_num`].
     fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
         let lock = self.0.lock().expect("lock poisoned");
         let (_leg, mutable) = lock
@@ -282,10 +277,7 @@ impl TunnelMutableState {
 
     /// Return the number of hops in the specified circuit.
     ///
-    /// NOTE: This function will currently return only the number of hops
-    /// _currently_ in the circuit. If there is an extend operation in progress,
-    /// the currently pending hop may or may not be counted, depending on whether
-    /// the extend operation finishes before this call is done.
+    /// See [`MutableState::n_hops`].
     fn n_hops(&self, unique_id: UniqId) -> Result<usize> {
         let lock = self.0.lock().expect("lock poisoned");
         let (_leg, mutable) = lock
