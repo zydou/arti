@@ -863,7 +863,7 @@ where
 {
     if let Some(target) = avoid_target {
         let Ok(circ_path) = circ.circ.path_ref() else {
-            // Circuit is closed, so we can't use it.
+            // Circuit is unusable, so we can't use it.
             return false;
         };
         // The last 2 hops of the circuit must be different from the circuit target, because:
@@ -901,7 +901,7 @@ where
     }
 
     let Ok(path) = circ.path_ref() else {
-        // Circuit is closed, so it's not usable.
+        // Circuit is unusable, so we can't use it.
         return false;
     };
     // (We have to use a binding here to appease borrowck.)
