@@ -1,4 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion, Throughput};
+use criterion_cycles_per_byte::CyclesPerByte;
 use rand::prelude::*;
 
 #[cfg(feature = "counter-galois-onion")]
@@ -11,9 +12,6 @@ use tor_llcrypto::{
 #[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
 use tor_proto::bench_utils::{tor1, OutboundClientCryptWrapper, RelayBody};
-
-mod cpu_time;
-use cpu_time::*;
 
 const HOP_NUM: u8 = 2;
 
@@ -41,9 +39,10 @@ macro_rules! client_encrypt_setup {
 }
 
 /// Benchmark a client encrypting a relay cell to send to a circuit.
-pub fn client_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
+pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
+    // Group for the Tor1 relay crypto with 498 bytes of data per relay cell.
     let mut group = c.benchmark_group("client_encrypt");
-    group.throughput(Throughput::Bytes(509));
+    group.throughput(Throughput::Bytes(498));
 
     group.bench_function("Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
@@ -64,6 +63,12 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
             criterion::BatchSize::SmallInput,
         );
     });
+
+    group.finish();
+
+    // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per realy cell.
+    let mut group = c.benchmark_group("client_encrypt");
+    group.throughput(Throughput::Bytes(488));
 
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes128", |b| {
@@ -93,7 +98,7 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
 criterion_group!(
    name = client_encrypt;
    config = Criterion::default()
-      .with_measurement(CpuTime)
+      .with_measurement(CyclesPerByte)
       .sample_size(5000);
    targets = client_encrypt_benchmark);
 criterion_main!(client_encrypt);

@@ -1,4 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion};
+use criterion_cycles_per_byte::CyclesPerByte;
 use digest::Digest;
 use rand::prelude::*;
 
@@ -8,9 +9,6 @@ use tor_proto::bench_utils::{
     tor1::{is_recognized, set_digest},
     RelayBody,
 };
-
-mod cpu_time;
-use cpu_time::*;
 
 /// Create a random inbound cell with the digest computed.
 fn create_digested_cell<D: Digest + Clone>(rng: &mut ThreadRng, d: &mut D) -> RelayBody {
@@ -25,9 +23,9 @@ fn create_digested_cell<D: Digest + Clone>(rng: &mut ThreadRng, d: &mut D) -> Re
 }
 
 /// Benchmark the `client_decrypt` function.
-pub fn tor1_is_recognized_benchmark(c: &mut Criterion<CpuTime>) {
+pub fn tor1_is_recognized_benchmark(c: &mut Criterion<impl Measurement>) {
     let mut group = c.benchmark_group("tor1_is_recognized");
-    group.throughput(criterion::Throughput::Bytes(509));
+    group.throughput(criterion::Throughput::Bytes(498));
 
     group.bench_function("Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
@@ -67,7 +65,7 @@ pub fn tor1_is_recognized_benchmark(c: &mut Criterion<CpuTime>) {
 criterion_group!(
    name = tor1_is_recognized;
    config = Criterion::default()
-      .with_measurement(CpuTime)
+      .with_measurement(CyclesPerByte)
       .sample_size(5000);
    targets = tor1_is_recognized_benchmark);
 criterion_main!(tor1_is_recognized);
