@@ -266,6 +266,11 @@ impl TunnelMutableState {
     ///
     /// Returns an error if a circuit with the specified [`UniqId`] doesn't exist.
     /// Returns `Ok(None)` if there is no last hop.
+    ///
+    /// NOTE: This function will return the [`HopNum`] of the hop
+    /// that is _currently_ the last. If there is an extend operation in progress,
+    /// the currently pending hop may or may not be counted, depending on whether
+    /// the extend operation finishes before this call is done.
     fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
         let lock = self.0.lock().expect("lock poisoned");
         let (_leg, mutable) = lock
@@ -338,6 +343,11 @@ impl MutableState {
     }
 
     /// Return the [`HopNum`] of the last hop of this circuit.
+    ///
+    /// NOTE: This function will return the [`HopNum`] of the hop
+    /// that is _currently_ the last. If there is an extend operation in progress,
+    /// the currently pending hop may or may not be counted, depending on whether
+    /// the extend operation finishes before this call is done.
     fn last_hop_num(&self) -> Option<HopNum> {
         let mutable = self.0.lock().expect("poisoned lock");
         mutable.path.last_hop_num()
@@ -440,6 +450,11 @@ impl ClientCirc {
     ///
     /// Returns an error if there is no last hop.  (This should be impossible outside of the
     /// tor-proto crate, but within the crate it's possible to have a circuit with no hops.)
+    ///
+    /// NOTE: This function will return the [`HopNum`] of the hop
+    /// that is _currently_ the last. If there is an extend operation in progress,
+    /// the currently pending hop may or may not be counted, depending on whether
+    /// the extend operation finishes before this call is done.
     pub fn last_hop_num(&self) -> Result<HopNum> {
         Ok(self
             .mutable
