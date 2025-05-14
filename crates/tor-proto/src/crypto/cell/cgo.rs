@@ -205,7 +205,7 @@ mod prf {
     //   where t is 0 or 1 and C is 31.
     #[derive(Clone)]
     pub(super) struct Prf<BC: BlkCipherEnc> {
-        /// The underlying block cipher, initializd with the key "K"
+        /// The underlying block cipher, initialized with the key "K"
         k: BC,
         /// Thu underlying universal hash, initialized with the key "B"
         b: Polyval,
@@ -628,7 +628,7 @@ where
 /// Benchmark utilities for the `cgo` module.
 #[cfg(feature = "bench")]
 pub mod bench_utils {
-    // Allow to bound with BlkCipherDec and BlkCipherEnc wich are private.
+    // Allow to bound with BlkCipherDec and BlkCipherEnc which are private.
     #![allow(private_bounds)]
     use super::*;
 

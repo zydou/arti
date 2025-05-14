@@ -58,7 +58,7 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.finish();
 
-    // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per realy cell.
+    // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
     let mut group = c.benchmark_group("exit_encrypt");
     group.throughput(Throughput::Bytes(488));
 

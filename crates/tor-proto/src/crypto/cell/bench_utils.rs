@@ -90,7 +90,7 @@ impl From<[u8; 509]> for RelayBody {
 
 /// Public trait to define the interface of a wrapper around a relay cryptographic state.
 pub trait RelayCryptState {
-    /// Public wrapper arroud the `InboundRelayLayer::originate` method.
+    /// Public wrapper around the `InboundRelayLayer::originate` method.
     fn originate(&mut self, cell: &mut RelayBody);
     /// Public wrapper around the `InboundRelayLayer::encrypt_inbound` method.
     fn encrypt(&mut self, cell: &mut RelayBody);

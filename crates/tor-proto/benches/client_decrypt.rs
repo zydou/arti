@@ -43,7 +43,7 @@ macro_rules! client_decrypt_setup {
     }};
 }
 
-/// Benchmark a client decrypting a relay cell comming from a circuit.
+/// Benchmark a client decrypting a relay cell coming from a circuit.
 pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
     // Group for the Tor1 relay crypto with 498 bytes of data per relay cell.
     let mut group = c.benchmark_group("client_decrypt");
@@ -81,7 +81,7 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.finish();
 
-    // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per realy cell.
+    // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
     let mut group = c.benchmark_group("client_decrypt");
     group.throughput(Throughput::Bytes(488));
 
