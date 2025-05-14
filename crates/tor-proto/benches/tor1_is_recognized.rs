@@ -22,7 +22,7 @@ fn create_digested_cell<D: Digest + Clone>(rng: &mut ThreadRng, d: &mut D) -> Re
     cell
 }
 
-/// Benchmark the `client_decrypt` function.
+/// Benchmark the `is_recognized` method.
 pub fn tor1_is_recognized_benchmark(c: &mut Criterion<impl Measurement>) {
     let mut group = c.benchmark_group("tor1_is_recognized");
     group.throughput(criterion::Throughput::Bytes(498));

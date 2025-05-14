@@ -14,7 +14,7 @@ fn create_random_cell(rng: &mut ThreadRng) -> RelayBody {
     cell.into()
 }
 
-/// Benchmark the `client_decrypt` function.
+/// Benchmark the `set_digest` method.
 pub fn tor1_set_digest_benchmark(c: &mut Criterion<impl Measurement>) {
     let mut group = c.benchmark_group("tor1_set_digest");
     group.throughput(criterion::Throughput::Bytes(498));
