@@ -47,7 +47,7 @@ macro_rules! client_decrypt_setup {
 pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
     // Group for the Tor1 relay crypto with 498 bytes of data per relay cell.
     let mut group = c.benchmark_group("client_decrypt");
-    group.throughput(Throughput::Bytes(498));
+    group.throughput(Throughput::Bytes(tor1::TOR1_THROUGHPUT));
 
     group.bench_function("Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
@@ -83,7 +83,7 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
     let mut group = c.benchmark_group("client_decrypt");
-    group.throughput(Throughput::Bytes(488));
+    group.throughput(Throughput::Bytes(cgo::CGO_THROUGHPUT));
 
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes128", |b| {

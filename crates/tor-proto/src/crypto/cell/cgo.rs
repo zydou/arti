@@ -640,6 +640,9 @@ pub mod bench_utils {
     use crate::Result;
     use tor_bytes::SecretBuf;
 
+    /// The throughput for a relay cell in bytes with the CGO scheme.
+    pub const CGO_THROUGHPUT: u64 = 488;
+
     /// Public wrapper around a CGO client's cryptographic state.
     pub struct CgoClientCryptState<EtBC: BlkCipherDec, PrfBC: BlkCipherEnc> {
         /// Layer for traffic moving away from the client.

@@ -6,7 +6,7 @@ use rand::prelude::*;
 use tor_cell::relaycell::msg::SendmeTag;
 use tor_llcrypto::d::{Sha1, Sha3_256};
 use tor_proto::bench_utils::{
-    tor1::{is_recognized, set_digest},
+    tor1::{self, is_recognized, set_digest},
     RelayBody,
 };
 
@@ -25,7 +25,7 @@ fn create_digested_cell<D: Digest + Clone>(rng: &mut ThreadRng, d: &mut D) -> Re
 /// Benchmark the `is_recognized` method.
 pub fn tor1_is_recognized_benchmark(c: &mut Criterion<impl Measurement>) {
     let mut group = c.benchmark_group("tor1_is_recognized");
-    group.throughput(criterion::Throughput::Bytes(498));
+    group.throughput(criterion::Throughput::Bytes(tor1::TOR1_THROUGHPUT));
 
     group.bench_function("Tor1RelayCrypto", |b| {
         b.iter_batched_ref(

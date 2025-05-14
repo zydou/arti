@@ -300,6 +300,9 @@ pub mod bench_utils {
     };
     use tor_bytes::SecretBuf;
 
+    /// The throughput for a relay cell in bytes with the Tor1 scheme.
+    pub const TOR1_THROUGHPUT: u64 = 498;
+
     /// Public wrapper around a tor1 client's cryptographic state.
     pub struct Tor1ClientCryptState<SC: StreamCipher, D: Digest + Clone> {
         /// Layer for traffic moving away from the client.
