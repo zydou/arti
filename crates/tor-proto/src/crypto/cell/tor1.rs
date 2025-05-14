@@ -205,7 +205,7 @@ pub(super) const EMPTY_DIGEST: &[u8] = &[0, 0, 0, 0];
 /// field containing a running digest of all cells (for this recipient) to
 /// this one, seeded with an initial value (either Df or Db in the spec).
 ///
-/// These operations is described in tor-spec section 6.1 "Relay cells"
+/// These operations are described in tor-spec section 6.1 "Relay cells"
 //
 // TODO: It may be that we should un-parameterize the functions
 // that use RCF: given our timeline for deployment of CGO encryption,
@@ -299,6 +299,9 @@ pub mod bench_utils {
         Result,
     };
     use tor_bytes::SecretBuf;
+
+    /// The throughput for a relay cell in bytes with the Tor1 scheme.
+    pub const TOR1_THROUGHPUT: u64 = 498;
 
     /// Public wrapper around a tor1 client's cryptographic state.
     pub struct Tor1ClientCryptState<SC: StreamCipher, D: Digest + Clone> {

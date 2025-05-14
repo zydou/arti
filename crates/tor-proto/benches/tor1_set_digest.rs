@@ -1,13 +1,14 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion};
+use criterion_cycles_per_byte::CyclesPerByte;
 use digest::Digest;
 use rand::prelude::*;
 
 use tor_cell::relaycell::msg::SendmeTag;
 use tor_llcrypto::d::{Sha1, Sha3_256};
-use tor_proto::bench_utils::{tor1::set_digest, RelayBody};
-
-mod cpu_time;
-use cpu_time::*;
+use tor_proto::bench_utils::{
+    tor1::{self, set_digest},
+    RelayBody,
+};
 
 /// Create a random inbound cell with the digest computed.
 fn create_random_cell(rng: &mut ThreadRng) -> RelayBody {
@@ -16,10 +17,10 @@ fn create_random_cell(rng: &mut ThreadRng) -> RelayBody {
     cell.into()
 }
 
-/// Benchmark the `client_decrypt` function.
-pub fn tor1_set_digest_benchmark(c: &mut Criterion<CpuTime>) {
+/// Benchmark the `set_digest` method.
+pub fn tor1_set_digest_benchmark(c: &mut Criterion<impl Measurement>) {
     let mut group = c.benchmark_group("tor1_set_digest");
-    group.throughput(criterion::Throughput::Bytes(509));
+    group.throughput(criterion::Throughput::Bytes(tor1::TOR1_THROUGHPUT));
 
     group.bench_function("Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
@@ -57,7 +58,7 @@ pub fn tor1_set_digest_benchmark(c: &mut Criterion<CpuTime>) {
 criterion_group!(
    name = tor1_set_digest;
    config = Criterion::default()
-      .with_measurement(CpuTime)
+      .with_measurement(CyclesPerByte)
       .sample_size(5000);
    targets = tor1_set_digest_benchmark);
 criterion_main!(tor1_set_digest);
