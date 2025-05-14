@@ -641,6 +641,15 @@ impl ClientCirc {
     //
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
+    //
+    // TODO(conflux): when conflux is ready, we need to update these docs to say
+    // that on a multipath circuit, this function **must** be called on the "main"
+    // (initial) circuit into which all of the other circuit legs are linked,
+    // or on the resulting ClientTunnel itself.
+    //
+    // Any incoming request handlers installed on the other circuits
+    // (which are are shutdown using CtrlCmd::ShutdownAndReturnCircuit)
+    // will be discarded (along with the reactor of that circuit)
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
@@ -652,19 +661,6 @@ impl ClientCirc {
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
-
-        // TODO(conflux): Support tunnels with more than one leg. This requires a different approach
-        // to `CellHandlers`, as they can't be shared between the tunnel reactor and the circuits.
-        let legs = self.legs().await?;
-        if legs.len() != 1 {
-            return Err(internal!(
-                "Cannot allow stream requests on tunnel with {} legs",
-                legs.len()
-            )
-            .into());
-        }
-        let (leg_id, _path) = &legs[0];
-        let leg_id = *leg_id;
 
         let time_prov = self.time_provider.clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
@@ -685,6 +681,9 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
+        // TODO(conflux): maybe this function should take a TargetHop instead of a HopNum,
+        // but we currently cannot resolve `TargetHop`s outside of the reactor
+        // (and we need the resolved HopNum to assert the stream request indeed came from the right hop below).
         let allowed_hop_num = hop_num;
 
         let circ = Arc::clone(self);
@@ -693,6 +692,7 @@ impl ClientCirc {
                 req,
                 stream_id,
                 hop_num,
+                leg,
                 receiver,
                 msg_tx,
                 memquota,
@@ -708,7 +708,7 @@ impl ClientCirc {
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
                 tx: msg_tx,
-                hop: HopLocation::Hop((leg_id, hop_num)),
+                hop: HopLocation::Hop((leg, hop_num)),
                 stream_id,
                 relay_cell_format,
             };
