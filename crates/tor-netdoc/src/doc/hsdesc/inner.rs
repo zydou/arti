@@ -496,7 +496,8 @@ mod test {
                 .1,
         );
         for n in NUM_INTRO_POINT_MAX..NUM_INTRO_POINT_MAX + 2 {
-            let many = chain!(iter::once(&*none), iter::repeat(&*ipt).take(n),).collect::<String>();
+            let many =
+                chain!(iter::once(&*none), std::iter::repeat_n(&*ipt, n),).collect::<String>();
             let desc = HsDescInner::parse(&many).unwrap();
             let desc = desc
                 .1
