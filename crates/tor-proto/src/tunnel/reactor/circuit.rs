@@ -667,7 +667,14 @@ impl Circuit {
             msg
         };
 
-        self.handle_in_order_relay_msg(handlers, hopnum, leg, cell_counts_toward_windows, streamid, msg)
+        self.handle_in_order_relay_msg(
+            handlers,
+            hopnum,
+            leg,
+            cell_counts_toward_windows,
+            streamid,
+            msg,
+        )
     }
 
     /// Handle a single incoming relay message that is known to be in order.
