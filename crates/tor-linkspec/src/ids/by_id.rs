@@ -194,11 +194,9 @@ impl<H: HasRelayIds> ListByRelayIds<H> {
     ///
     /// Returns an empty iterator if `key` has no relay IDs.
     pub fn by_all_ids<'a>(&'a self, key: &'a impl HasRelayIds) -> impl Iterator<Item = &'a H> + 'a {
-        // TODO: see comments on `empty_iterator`
-        #[allow(deprecated)]
         key.identities()
             .next()
-            .map_or_else(|| self.empty_iterator(), |id| self.by_id(id))
+            .map_or_else(Default::default, |id| self.by_id(id))
             .filter(|val| val.has_all_relay_ids_from(key))
     }
 

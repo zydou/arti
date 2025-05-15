@@ -388,23 +388,6 @@ $crate::n_key_list::deps::paste!{
             }
         }
 
-        /// An empty iterator.
-        ///
-        /// **NOTE:** This function is weird and will be removed in the future. We can fix this once
-        /// we support a minimum rust version of 1.79.
-        // TODO MSRV 1.79: The problem is that we need to assign `values` some value. In rust 1.79 we
-        // can just use a constant expression, but without constant expressions, there's no way to get
-        // a reference to a `Slab` with the generic types of `$V`. Once we support a minimum rust
-        // version of 1.79, remove this function and uncomment the `Default` impl for the iterator
-        // below.
-        #[deprecated]
-        $vis fn empty_iterator(&self) -> [<$mapname Iter>] <'_, $V> {
-            [<$mapname Iter>] {
-                iter: [].iter(),
-                values: &self.values,
-            }
-        }
-
         /// Re-index all the values in this map, so that the map can use a more compact
         /// representation.
         ///
@@ -538,8 +521,6 @@ $crate::n_key_list::deps::paste!{
         }
     }
 
-    // TODO: see comments on 'empty_iterator' above
-    /*
     impl<'a, T> std::default::Default for [<$mapname Iter>] <'a, T> {
         fn default() -> Self {
             [<$mapname Iter>] {
@@ -548,7 +529,6 @@ $crate::n_key_list::deps::paste!{
             }
         }
     }
-    */
 }
 };
 
