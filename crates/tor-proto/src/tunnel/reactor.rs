@@ -30,7 +30,6 @@ use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
-use crate::tunnel::circuit::MutableState;
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
@@ -52,7 +51,7 @@ use futures::{select_biased, FutureExt as _};
 use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::channel::Channel;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
@@ -64,6 +63,8 @@ use tor_llcrypto::pk;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::trace;
+
+use super::circuit::{MutableState, TunnelMutableState};
 
 #[cfg(feature = "conflux")]
 use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
@@ -453,11 +454,20 @@ pub(crate) enum MetaCellDisposition {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LegId(pub(crate) LegIdKey);
 
+// TODO(conflux): can we use `UniqId` as the key instead of this newtype?
+//
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2996#note_3199069
 slotmap_careful::new_key_type! {
     /// A key type for the circuit leg slotmap
     ///
     /// See [`LegId`].
     pub(crate) struct LegIdKey;
+}
+
+impl From<LegIdKey> for LegId {
+    fn from(leg_id: LegIdKey) -> Self {
+        LegId(leg_id)
+    }
 }
 
 /// Unwrap the specified [`Option`], returning a [`ReactorError::Shutdown`] if it is `None`.
@@ -663,11 +673,11 @@ impl Reactor {
         mpsc::UnboundedSender<CtrlMsg>,
         mpsc::UnboundedSender<CtrlCmd>,
         oneshot::Receiver<void::Void>,
-        Arc<Mutex<MutableState>>,
+        Arc<TunnelMutableState>,
     ) {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
-        let mutable = Arc::new(Mutex::new(MutableState::default()));
+        let mutable = Arc::new(MutableState::default());
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
@@ -686,8 +696,10 @@ impl Reactor {
             Arc::clone(&mutable),
         );
 
+        let (circuits, mutable) = ConfluxSet::new(circuit_leg);
+
         let reactor = Reactor {
-            circuits: ConfluxSet::new(circuit_leg),
+            circuits,
             control: control_rx,
             command: command_rx,
             reactor_closed_tx,

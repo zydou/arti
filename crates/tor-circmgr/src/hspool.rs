@@ -376,7 +376,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             return Err(internal!("wanted a GUARDED circuit, but got NAIVE?!").into());
         }
 
-        let path = circ.path_ref();
+        let path = circ.path_ref().map_err(|error| Error::Protocol {
+            action: "launching a client rend circuit",
+            peer: None, // Either party could be to blame.
+            unique_id: Some(circ.unique_id()),
+            error,
+        })?;
+
         match path.hops().last() {
             Some(ent) => {
                 let Some(ct) = ent.as_chan_target() else {
@@ -454,9 +460,16 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     where
         T: CircTarget + std::marker::Sync,
     {
+        let protocol_err = |error| Error::Protocol {
+            action: "extending to chosen HS hop",
+            peer: None, // Either party could be to blame.
+            unique_id: Some(circ.unique_id()),
+            error,
+        };
+
         // Estimate how long it will take to extend it one more hop, and
         // construct a timeout as appropriate.
-        let n_hops = circ.n_hops();
+        let n_hops = circ.n_hops().map_err(protocol_err)?;
         let (extend_timeout, _) = self.circmgr.mgr.peek_builder().estimator().timeouts(
             &crate::timeouts::Action::ExtendCircuit {
                 initial_length: n_hops,
@@ -465,14 +478,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         );
 
         // Make a future to extend the circuit.
-        let extend_future = circ
-            .extend(&target, params)
-            .map_err(|error| Error::Protocol {
-                action: "extending to chosen HS hop",
-                peer: None, // Either party could be to blame.
-                unique_id: Some(circ.unique_id()),
-                error,
-            });
+        let extend_future = circ.extend(&target, params).map_err(protocol_err);
 
         // Wait up to the timeout for the future to complete.
         self.circmgr
@@ -648,7 +654,12 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = crate::build::onion_circparams_from_netparams(netdir.params())?;
-                let circ_path = circuit.circ.path_ref();
+                let circ_path = circuit.circ.path_ref().map_err(|error| Error::Protocol {
+                    action: "extending full vanguards circuit",
+                    peer: None, // Either party could be to blame.
+                    unique_id: Some(circuit.unique_id()),
+                    error,
+                })?;
 
                 // A NAIVE circuit is a 3-hop circuit.
                 debug_assert_eq!(circ_path.hops().len(), 3);
@@ -695,7 +706,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         circ: &Arc<B::Circ>,
         target: Option<&T>,
         kind: HsCircStemKind,
-    ) -> StdResult<(), Bug>
+    ) -> Result<()>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -706,12 +717,14 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     }
 
     /// Ensure the specified circuit of type `kind` has the right length.
-    fn ensure_circuit_length_valid(
-        &self,
-        circ: &Arc<B::Circ>,
-        kind: HsCircStemKind,
-    ) -> StdResult<(), Bug> {
-        let circ_path_len = circ.path_ref().n_hops();
+    fn ensure_circuit_length_valid(&self, circ: &Arc<B::Circ>, kind: HsCircStemKind) -> Result<()> {
+        let circ_path_len = circ.n_hops().map_err(|error| Error::Protocol {
+            action: "validating circuit length",
+            peer: None, // Either party could be to blame.
+            unique_id: Some(circ.unique_id()),
+            error,
+        })?;
+
         let mode = self.vanguard_mode();
 
         // TODO(#1457): somehow unify the path length checks
@@ -723,7 +736,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 kind,
                 expected_len,
                 circ_path_len
-            ));
+            )
+            .into());
         }
 
         Ok(())
@@ -738,7 +752,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     fn ensure_circuit_compatible_with_target<T>(
         circ: &Arc<B::Circ>,
         target: Option<&T>,
-    ) -> StdResult<(), Bug>
+    ) -> Result<()>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -746,6 +760,12 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             let take_n = 2;
             if let Some(hop) = circ
                 .path_ref()
+                .map_err(|error| Error::Protocol {
+                    action: "validating circuit compatibility with target",
+                    peer: None, // Either party could be to blame.
+                    unique_id: Some(circ.unique_id()),
+                    error,
+                })?
                 .hops()
                 .iter()
                 .rev()
@@ -757,7 +777,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                     "invalid path: circuit target {} appears as one of the last 2 hops (matches hop {})",
                     target.display_relay_ids(),
                     hop.display_relay_ids()
-                ));
+                ).into());
             }
         }
 
@@ -842,7 +862,10 @@ where
     T: CircTarget + std::marker::Sync,
 {
     if let Some(target) = avoid_target {
-        let circ_path = circ.circ.path_ref();
+        let Ok(circ_path) = circ.circ.path_ref() else {
+            // Circuit is unusable, so we can't use it.
+            return false;
+        };
         // The last 2 hops of the circuit must be different from the circuit target, because:
         //   * a relay won't let you extend the circuit to itself
         //   * relays won't let you extend the circuit to their previous hop
@@ -877,7 +900,10 @@ where
         return false;
     }
 
-    let path = circ.path_ref();
+    let Ok(path) = circ.path_ref() else {
+        // Circuit is unusable, so we can't use it.
+        return false;
+    };
     // (We have to use a binding here to appease borrowck.)
     let all_compatible = path.iter().all(|ent: &circuit::PathEntry| {
         let Some(c) = ent.as_chan_target() else {

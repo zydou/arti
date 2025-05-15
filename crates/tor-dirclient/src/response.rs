@@ -157,11 +157,11 @@ impl DirResponse {
 
 impl SourceInfo {
     /// Construct a new SourceInfo
-    pub(crate) fn from_circuit(circuit: &ClientCirc) -> Self {
-        SourceInfo {
+    pub(crate) fn from_circuit(circuit: &ClientCirc) -> tor_proto::Result<Self> {
+        Ok(SourceInfo {
             circuit: circuit.unique_id(),
-            cache_id: circuit.first_hop().into(),
-        }
+            cache_id: circuit.first_hop()?.into(),
+        })
     }
 
     /// Return the unique circuit identifier for the circuit on which

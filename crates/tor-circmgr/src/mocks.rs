@@ -49,11 +49,11 @@ impl AbstractCirc for FakeCirc {
         true
     }
 
-    fn path_ref(&self) -> Arc<Path> {
+    fn path_ref(&self) -> tor_proto::Result<Arc<Path>> {
         todo!()
     }
 
-    fn n_hops(&self) -> usize {
+    fn n_hops(&self) -> tor_proto::Result<usize> {
         todo!()
     }
 

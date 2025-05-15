@@ -70,6 +70,10 @@ pub(crate) enum IptEstablisherError {
     #[error("Unable to build circuit to introduction point")]
     BuildCircuit(#[source] tor_circmgr::Error),
 
+    /// We encountered an error while querying the circuit state.
+    #[error("Unable to query circuit state")]
+    CircuitState(#[source] tor_proto::Error),
+
     /// We encountered an error while building and signing our establish_intro
     /// message.
     #[error("Unable to construct signed ESTABLISH_INTRO message")]
@@ -135,6 +139,7 @@ impl tor_error::HasKind for IptEstablisherError {
             E::Ipt(e) => e.kind(),
             E::NetdirProviderShutdown(e) => e.kind(),
             E::BuildCircuit(e) => e.kind(),
+            E::CircuitState(e) => e.kind(),
             E::EstablishTimeout => EK::TorNetworkTimeout,
             E::SendEstablishIntro(e) => e.kind(),
             E::ClosedWithoutAck => EK::CircuitCollapse,
@@ -176,6 +181,7 @@ impl IptEstablisherError {
             // This _might_ be the introduction point's fault, but it might not.
             // We can't be certain.
             IE::BuildCircuit(_) => None,
+            IE::CircuitState(_) => None,
             IE::EstablishTimeout => None,
             IE::ClosedWithoutAck => None,
             // These are, most likely, not the introduction point's fault,
@@ -742,6 +748,7 @@ impl<R: Runtime> Reactor<R> {
             }
             let circuit_binding_key = circuit
                 .binding_key(intro_pt_hop)
+                .map_err(IptEstablisherError::CircuitState)?
                 .ok_or(internal!("No binding key for introduction point!?"))?;
             let body: Vec<u8> = details
                 .sign_and_encode((*self.k_sid).as_ref(), circuit_binding_key.hs_mac())
@@ -791,11 +798,12 @@ impl<R: Runtime> Reactor<R> {
         // that the message was sent.  We have to wait for any actual `established`
         // message, though.
 
+        let length = circuit
+            .n_hops()
+            .map_err(into_internal!("failed to get circuit length"))?;
         let ack_timeout = self
             .pool
-            .estimate_timeout(&tor_circmgr::timeouts::Action::RoundTrip {
-                length: circuit.n_hops(),
-            });
+            .estimate_timeout(&tor_circmgr::timeouts::Action::RoundTrip { length });
         let _established: IntroEstablished = self
             .runtime
             .timeout(ack_timeout, established_rx)

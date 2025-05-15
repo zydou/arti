@@ -29,11 +29,11 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
         !self.is_closing()
     }
 
-    fn path_ref(&self) -> Arc<Path> {
+    fn path_ref(&self) -> tor_proto::Result<Arc<Path>> {
         self.path_ref()
     }
 
-    fn n_hops(&self) -> usize {
+    fn n_hops(&self) -> tor_proto::Result<usize> {
         self.n_hops()
     }
 

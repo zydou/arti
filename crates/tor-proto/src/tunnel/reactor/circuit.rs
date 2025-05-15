@@ -156,11 +156,9 @@ pub(crate) struct Circuit {
     crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
     hops: Vec<CircHop>,
-    /// Mutable information about this circuit, shared with
-    /// [`ClientCirc`](crate::circuit::ClientCirc).
-    ///
-    // TODO(conflux)/TODO(#1840): this belongs in the Reactor
-    mutable: Arc<Mutex<MutableState>>,
+    /// Mutable information about this circuit,
+    /// shared with the reactor's `ConfluxSet`.
+    mutable: Arc<MutableState>,
     /// This circuit's identifier on the upstream channel.
     channel_id: CircId,
     /// An identifier for logging about this reactor's circuit.
@@ -262,7 +260,7 @@ impl Circuit {
         unique_id: UniqId,
         input: CircuitRxReceiver,
         memquota: CircuitAccount,
-        mutable: Arc<Mutex<MutableState>>,
+        mutable: Arc<MutableState>,
     ) -> Self {
         let chan_sender = SometimesUnboundedSink::new(channel.sender());
 
@@ -282,6 +280,17 @@ impl Circuit {
             memquota,
         }
     }
+
+    /// Return the process-unique identifier of this circuit.
+    pub(super) fn unique_id(&self) -> UniqId {
+        self.unique_id
+    }
+
+    /// Return the shared mutable state of this circuit.
+    pub(super) fn mutable(&self) -> &Arc<MutableState> {
+        &self.mutable
+    }
+
     /// Install a [`ConfluxMsgHandler`] on this circuit,
     ///
     /// Once this is called, the circuit will be able to handle conflux cells.
@@ -1258,9 +1267,7 @@ impl Circuit {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        let mut mutable = self.mutable.lock().expect("poisoned lock");
-        Arc::make_mut(&mut mutable.path).push_hop(peer_id);
-        mutable.binding.push(binding);
+        self.mutable.add_hop(peer_id, binding);
 
         Ok(())
     }
@@ -1598,8 +1605,7 @@ impl Circuit {
     ///
     /// **Warning:** Do not call while already holding the [`Self::mutable`] lock.
     pub(super) fn path(&self) -> Arc<path::Path> {
-        let mutable = self.mutable.lock().expect("poisoned lock");
-        Arc::clone(&mutable.path)
+        self.mutable.path()
     }
 
     /// Return a ClockSkew declaring how much clock skew the other side of this channel
