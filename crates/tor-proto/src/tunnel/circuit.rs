@@ -287,31 +287,6 @@ impl ClientCirc {
             .ok_or_else(|| internal!("no last hop index"))?)
     }
 
-    /// Return a description of all the hops in this circuit.
-    ///
-    /// This method is **deprecated** for several reasons:
-    ///   * It performs a deep copy.
-    ///   * It ignores virtual hops.
-    ///   * It's not so extensible.
-    ///
-    /// Use [`ClientCirc::path_ref()`] instead.
-    #[deprecated(since = "0.11.1", note = "Use path_ref() instead.")]
-    pub fn path(&self) -> Vec<OwnedChanTarget> {
-        #[allow(clippy::unnecessary_filter_map)] // clippy is blind to the cfg
-        self.mutable
-            .lock()
-            .expect("poisoned lock")
-            .path
-            .all_hops()
-            .into_iter()
-            .filter_map(|hop| match hop {
-                path::HopDetail::Relay(r) => Some(r),
-                #[cfg(feature = "hs-common")]
-                path::HopDetail::Virtual => None,
-            })
-            .collect()
-    }
-
     /// Return a [`Path`] object describing all the hops in this circuit.
     ///
     /// Note that this `Path` is not automatically updated if the circuit is
@@ -458,27 +433,6 @@ impl ClientCirc {
         let conversation = Conversation(self);
         conversation.send_internal(msg, Some(handler)).await?;
         Ok(conversation)
-    }
-
-    /// Start an ad-hoc protocol exchange to the final hop on this circuit
-    ///
-    /// See the [`ClientCirc::start_conversation`] docs for more information.
-    #[cfg(feature = "send-control-msg")]
-    #[deprecated(since = "0.13.0", note = "Use start_conversation instead.")]
-    pub async fn start_conversation_last_hop(
-        &self,
-        msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
-        reply_handler: impl MsgHandler + Send + 'static,
-    ) -> Result<Conversation<'_>> {
-        let last_hop = self
-            .mutable
-            .lock()
-            .expect("poisoned lock")
-            .path
-            .last_hop_num()
-            .ok_or_else(|| internal!("no last hop index"))?;
-
-        self.start_conversation(msg, reply_handler, last_hop).await
     }
 
     /// Send an ad-hoc message to a given hop on the circuit, without expecting
@@ -1683,9 +1637,18 @@ pub(crate) mod test {
         assert_eq!(circ.n_hops(), 4);
 
         // Do the path accessors report a reasonable outcome?
-        #[allow(deprecated)]
         {
-            let path = circ.path();
+            let path = circ
+                .path_ref()
+                .all_hops()
+                .into_iter()
+                .filter_map(|hop| match hop {
+                    path::HopDetail::Relay(r) => Some(r),
+                    #[cfg(feature = "hs-common")]
+                    path::HopDetail::Virtual => None,
+                })
+                .collect::<Vec<_>>();
+
             assert_eq!(path.len(), 4);
             use tor_linkspec::HasRelayIds;
             assert_eq!(path[3].ed_identity(), example_target().ed_identity());
