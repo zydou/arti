@@ -322,7 +322,7 @@ mod test {
                         Err(()) => {
                             // Return an error. This should cause the reactor to reattempt the
                             // upload.
-                            Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "test error")))
+                            Poll::Ready(Err(io::Error::other("test error")))
                         }
                     }
                 }

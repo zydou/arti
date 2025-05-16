@@ -508,10 +508,7 @@ impl TlsConnector<LocalStream> for MockTlsConnector {
         let peer_cert = stream.tls_cert.take();
 
         if peer_cert.is_none() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "attempted to wrap non-TLS stream!",
-            ));
+            return Err(std::io::Error::other("attempted to wrap non-TLS stream!"));
         }
 
         Ok(MockTlsStream { peer_cert, stream })

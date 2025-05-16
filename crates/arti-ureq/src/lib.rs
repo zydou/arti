@@ -311,7 +311,7 @@ impl std::convert::From<Error> for ureq::Error {
             Error::UnsupportedUriScheme { uri } => {
                 ureq::Error::BadUri(format!("Unsupported URI scheme in {uri:?}"))
             }
-            Error::Arti(e) => ureq::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)), // TODO #1858
+            Error::Arti(e) => ureq::Error::Io(std::io::Error::other(e)), // TODO #1858
             Error::Io(e) => ureq::Error::Io(e),
             Error::TlsConfigMismatch => {
                 ureq::Error::Tls("TLS provider in config does not match the one in Connector.")

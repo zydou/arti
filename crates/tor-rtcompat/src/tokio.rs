@@ -2,7 +2,7 @@
 use crate::impls::tokio::TokioRuntimeHandle as Handle;
 
 use crate::{CompoundRuntime, RealCoarseTimeProvider, ToplevelBlockOn};
-use std::io::{Error as IoError, ErrorKind, Result as IoResult};
+use std::io::{Error as IoError, Result as IoResult};
 
 #[cfg(feature = "native-tls")]
 use crate::impls::native_tls::NativeTlsProvider;
@@ -231,7 +231,7 @@ impl TokioRustlsRuntime {
 /// As `Handle::try_current()`, but return an IoError on failure.
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
 fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
-    tokio_crate::runtime::Handle::try_current().map_err(|e| IoError::new(ErrorKind::Other, e))
+    tokio_crate::runtime::Handle::try_current().map_err(IoError::other)
 }
 
 #[cfg(all(

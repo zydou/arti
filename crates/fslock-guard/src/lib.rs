@@ -120,10 +120,7 @@ impl LockFileGuard {
         if os::lockfile_has_path(&self.locked, path)? {
             std::fs::remove_file(path)
         } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                MismatchedPathError {},
-            ))
+            Err(std::io::Error::other(MismatchedPathError {}))
         }
     }
 }

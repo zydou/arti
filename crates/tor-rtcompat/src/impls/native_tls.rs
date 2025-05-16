@@ -26,13 +26,11 @@ where
         let cert = self.peer_certificate();
         match cert {
             Ok(Some(c)) => {
-                let der = c
-                    .to_der()
-                    .map_err(|e| IoError::new(std::io::ErrorKind::Other, e))?;
+                let der = c.to_der().map_err(IoError::other)?;
                 Ok(Some(der))
             }
             Ok(None) => Ok(None),
-            Err(e) => Err(IoError::new(std::io::ErrorKind::Other, e)),
+            Err(e) => Err(IoError::other(e)),
         }
     }
 
@@ -79,7 +77,7 @@ where
             .connector
             .connect(sni_hostname, stream)
             .await
-            .map_err(|e| IoError::new(std::io::ErrorKind::Other, e))?;
+            .map_err(IoError::other)?;
         Ok(conn)
     }
 }
