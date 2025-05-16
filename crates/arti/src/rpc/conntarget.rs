@@ -22,7 +22,7 @@ pub(crate) enum ConnTarget<R: Runtime> {
         context: Arc<dyn rpc::Context>,
     },
     /// A Tor client, without RPC information
-    Client(TorClient<R>),
+    Client(Box<TorClient<R>>),
 }
 
 impl<R: Runtime> ConnTarget<R> {
