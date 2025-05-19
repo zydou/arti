@@ -24,10 +24,8 @@ variables:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   RECENT_RUST_IMAGE: "${DOCKER_REGISTRY_URL}/amd64/rust:1.86.0-bookworm"
   # Pinned chutney version.
-  # TODO: Consider unpinning once chutney's CI is running arti's CI.
-  # Alternatively if we decide to keep this, consider to actually start managing
-  # versions in chutney and using a version tag here.
-  CHUTNEY_COMMIT: b05403758dc81593256a93a10d896e68e0398fe7
+  # Last updated 2025-05-29
+  CHUTNEY_COMMIT: "81644208aa7367857693a60addee3e792a6c9625"
 
 default:
   image:
