@@ -9,7 +9,6 @@ use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::io::{self, Write as _};
 use std::iter;
-use std::mem;
 use std::panic::{catch_unwind, panic_any, AssertUnwindSafe};
 use std::pin::{pin, Pin};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
@@ -622,13 +621,12 @@ impl MockExecutor {
                 let mut data = self.shared.lock();
 
                 let pus = &mut data.progressing_until_stalled;
-                if let Some(double) = mem::replace(
-                    &mut pus
-                        .as_mut()
-                        .expect("progressing_until_stalled updated under our feet!")
-                        .waker,
-                    Some(waker),
-                ) {
+                if let Some(double) = pus
+                    .as_mut()
+                    .expect("progressing_until_stalled updated under our feet!")
+                    .waker
+                    .replace(waker)
+                {
                     panic!("double progressing_until_stalled.waker! {double:?}");
                 }
 

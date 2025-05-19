@@ -221,10 +221,7 @@ impl CheckedDir {
             // TODO: this is inconsistent with CheckedDir::open()'s behavior, which returns a
             // FilesystemLoop io error in this case (we can't construct such an error here, because
             // ErrorKind::FilesystemLoop is only available on nightly)
-            let err = io::Error::new(
-                io::ErrorKind::Other,
-                format!("Path {:?} is a symlink", path),
-            );
+            let err = io::Error::other(format!("Path {:?} is a symlink", path));
             return Err(Error::io(err, &path, "metadata"));
         }
 

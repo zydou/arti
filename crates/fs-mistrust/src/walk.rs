@@ -184,10 +184,8 @@ impl ResolvePath {
             let cwd = std::env::current_dir().map_err(|e| Error::CurrentDirectory(Arc::new(e)))?;
             if !cwd.is_absolute() {
                 // This should be impossible, but let's make sure.
-                let ioe = io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Current directory {:?} was not absolute.", cwd),
-                );
+                let ioe =
+                    io::Error::other(format!("Current directory {:?} was not absolute.", cwd));
                 return Err(Error::CurrentDirectory(Arc::new(ioe)));
             }
             push_prefix(&mut resolve.stack, cwd.as_ref());

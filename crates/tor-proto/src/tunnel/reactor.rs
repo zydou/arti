@@ -344,6 +344,7 @@ pub(crate) struct SendRelayCell {
 
 /// A command to execute at the end of [`Reactor::run_once`].
 #[derive(From, Debug)]
+#[allow(clippy::large_enum_variant)] // TODO #2003: should we resolve this?
 enum CircuitAction {
     /// Run a single `CircuitCmd` command.
     RunCmd {

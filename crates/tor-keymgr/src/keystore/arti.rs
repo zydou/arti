@@ -6,7 +6,7 @@ pub(crate) mod certs;
 pub(crate) mod err;
 pub(crate) mod ssh;
 
-use std::io::{self, ErrorKind};
+use std::io::{self};
 use std::path::Path;
 use std::result::Result as StdResult;
 use std::str::FromStr;
@@ -277,9 +277,7 @@ impl Keystore for ArtiNativeKeystore {
                             path: self.keystore_dir.as_path().into(),
                             err: e
                                 .into_io_error()
-                                .unwrap_or_else(|| {
-                                    io::Error::new(ErrorKind::Other, msg.to_string())
-                                })
+                                .unwrap_or_else(|| io::Error::other(msg.to_string()))
                                 .into(),
                         }
                     })

@@ -432,7 +432,7 @@ impl<R: Runtime> SocksConnContext<R> {
 
         let client = self.tor_client.clone();
         #[cfg(feature = "rpc")]
-        let client = ConnTarget::Client(client);
+        let client = ConnTarget::Client(Box::new(client));
 
         Ok((prefs, client))
     }

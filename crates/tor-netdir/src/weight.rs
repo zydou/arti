@@ -400,11 +400,7 @@ fn clamp_to_pos(inp: i32) -> u32 {
 /// inside 64 bits.
 fn calculate_shift(a: u64, b: u64) -> u32 {
     let bits_for_product = log2_upper(a) + log2_upper(b);
-    if bits_for_product < 64 {
-        0
-    } else {
-        bits_for_product - 64
-    }
+    bits_for_product.saturating_sub(64)
 }
 
 /// Return an upper bound for the log2 of n.

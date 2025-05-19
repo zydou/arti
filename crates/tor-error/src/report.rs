@@ -177,7 +177,7 @@ mod test {
         chk(TerseError { source: verbose_1().into() },
             "error: terse: verbose - shallow");
 
-        chk(io::Error::new(io::ErrorKind::Other, ShallowError),
+        chk(io::Error::other(ShallowError),
             "error: shallow");
     }
 }

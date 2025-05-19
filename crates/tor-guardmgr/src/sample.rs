@@ -987,7 +987,7 @@ pub(crate) struct GuardSample<'a> {
     /// Equivalent to `GuardSet.guards.values()`, except in sample order.
     guards: Vec<Cow<'a, Guard>>,
     /// The identities for the confirmed members of `guards`, in confirmed order.
-    confirmed: Cow<'a, Vec<GuardId>>,
+    confirmed: Cow<'a, [GuardId]>,
     /// Other data from the state file that this version of Arti doesn't recognize.
     #[serde(flatten)]
     remaining: HashMap<String, JsonValue>,

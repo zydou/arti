@@ -263,8 +263,7 @@ impl crate::traits::UdpProvider for TokioRuntimeHandle {
 
 /// Create and return a new Tokio multithreaded runtime.
 pub(crate) fn create_runtime() -> IoResult<TokioRuntimeHandle> {
-    let runtime = async_executors::exec::TokioTp::new()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let runtime = async_executors::exec::TokioTp::new().map_err(std::io::Error::other)?;
     Ok(runtime.into())
 }
 

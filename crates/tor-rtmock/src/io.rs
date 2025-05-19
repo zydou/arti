@@ -101,8 +101,7 @@ impl AsyncRead for LocalStream {
             return Poll::Ready(Ok(0));
         }
         if self.tls_cert.is_some() {
-            return Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Poll::Ready(Err(std::io::Error::other(
                 "attempted to treat a TLS stream as non-TLS!",
             )));
         }
@@ -129,8 +128,7 @@ impl AsyncWrite for LocalStream {
         buf: &[u8],
     ) -> Poll<IoResult<usize>> {
         if self.tls_cert.is_some() {
-            return Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Poll::Ready(Err(IoError::other(
                 "attempted to treat a TLS stream as non-TLS!",
             )));
         }
@@ -157,9 +155,7 @@ impl AsyncWrite for LocalStream {
             .map_err(|e| IoError::new(ErrorKind::BrokenPipe, e))
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        Pin::new(&mut self.w)
-            .poll_close(cx)
-            .map_err(|e| IoError::new(ErrorKind::Other, e))
+        Pin::new(&mut self.w).poll_close(cx).map_err(IoError::other)
     }
 }
 
