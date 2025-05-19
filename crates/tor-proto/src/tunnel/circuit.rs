@@ -670,8 +670,8 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        // TODO(conflux): maybe this function should take a TargetHop instead of a HopNum,
-        // but we currently cannot resolve `TargetHop`s outside of the reactor
+        // TODO(conflux): maybe this function should take a HopLocation instead of a HopNum,
+        // but we currently cannot resolve `HopLocation`s outside of the reactor
         // (and we need the resolved HopNum to assert the stream request indeed came from the right hop below).
         let allowed_hop_num = hop_num;
 
