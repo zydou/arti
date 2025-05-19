@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
 
     // You can also manually set the TLS provider.
     // let tls_provider = arti_ureq::ureq::tls::TlsProvider::Rustls; // To use Rustls.
-    // let tls_provider = arti_ureq::ureq::tls::TlsProvider::Native; // To use NativeTls.
+    // let tls_provider = arti_ureq::ureq::tls::TlsProvider::NativeTls; // To use NativeTls.
 
     // Build arti_ureq::Connector.
     let connector_builder =

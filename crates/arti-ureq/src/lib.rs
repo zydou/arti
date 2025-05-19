@@ -351,10 +351,6 @@ impl<R: Runtime + ToplevelBlockOn> Transport for HttpTransport<R> {
 
     // Read data from arti stream to ureq buffer.
     fn await_input(&mut self, _timeout: NextTimeout) -> Result<bool, ureq::Error> {
-        if self.buffers().can_use_input() {
-            return Ok(true);
-        }
-
         let mut reader = self.r.lock().expect("lock poisoned");
 
         let buffers = self.buffer.input_append_buf();
