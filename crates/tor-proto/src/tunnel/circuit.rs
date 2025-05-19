@@ -694,6 +694,12 @@ impl ClientCirc {
             // security-critical.
             assert_eq!(allowed_hop_num, hop_num);
 
+            // TODO(conflux): figure out what this is going to look like
+            // for onion services (perhaps we should forbid this function
+            // from being called on a multipath circuit?)
+            //
+            // See also:
+            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3002#note_3200937
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
                 tx: msg_tx,
