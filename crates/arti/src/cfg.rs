@@ -1532,18 +1532,17 @@ example config file {which:?}, uncommented={uncommented:?}
             E: AsRef<str>,
         {
             let (start, end) = (start.as_ref(), end.as_ref());
-
-            let mut section = String::new();
-            if start.starts_with('[') && start.ends_with(']') {
-                section.push_str(start);
-            }
-
-            let lines = ARTI_EXAMPLE_CONFIG
+            let mut lines = ARTI_EXAMPLE_CONFIG
                 .lines()
                 .skip_while(|line| !line.starts_with(start))
-                .skip(usize::from(!section.is_empty()))
+                .peekable();
+            let section = lines
+                .next_if(|l0| l0.starts_with('['))
+                .map(|section| section.to_owned())
+                .unwrap_or_default();
+            let lines = lines
                 .take_while(|line| !line.starts_with(end))
-                .map(|l| l.to_string())
+                .map(|l| l.to_owned())
                 .collect_vec();
 
             Self { section, lines }
