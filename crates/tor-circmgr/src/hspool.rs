@@ -710,7 +710,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     where
         T: CircTarget + std::marker::Sync,
     {
-        Self::ensure_circuit_compatible_with_target(circ, target)?;
+        Self::ensure_circuit_can_extend_to_target(circ, target)?;
         self.ensure_circuit_length_valid(circ, kind)?;
 
         Ok(())
@@ -743,16 +743,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         Ok(())
     }
 
-    /// Ensure `circ` is compatible with `target`.
+    /// Ensure that it is possible to extend `circ` to `target`.
     ///
     /// Returns an error if either of the last 2 hops of the circuit are the same as `target`,
     /// because:
     ///   * a relay won't let you extend the circuit to itself
     ///   * relays won't let you extend the circuit to their previous hop
-    fn ensure_circuit_compatible_with_target<T>(
-        circ: &Arc<B::Circ>,
-        target: Option<&T>,
-    ) -> Result<()>
+    fn ensure_circuit_can_extend_to_target<T>(circ: &Arc<B::Circ>, target: Option<&T>) -> Result<()>
     where
         T: CircTarget + std::marker::Sync,
     {
