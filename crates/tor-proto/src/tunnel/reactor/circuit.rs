@@ -58,7 +58,7 @@ use tracing::{debug, trace, warn};
 #[cfg(feature = "conflux")]
 use super::conflux::ConfluxMsgHandler;
 use super::{
-    CellHandlers, CircuitHandshake, CloseStreamBehavior, ReactorResultChannel, SendRelayCell,
+    CellHandlers, CircuitHandshake, CloseStreamBehavior, LegId, ReactorResultChannel, SendRelayCell,
 };
 
 use std::borrow::Borrow;
@@ -493,12 +493,13 @@ impl Circuit {
     pub(super) fn handle_cell(
         &mut self,
         handlers: &mut CellHandlers,
+        leg: LegId,
         cell: ClientCircChanMsg,
     ) -> Result<Vec<CircuitCmd>> {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
         match cell {
-            Relay(r) => self.handle_relay_cell(handlers, r),
+            Relay(r) => self.handle_relay_cell(handlers, leg, r),
             Destroy(d) => {
                 let reason = d.reason();
                 debug!(
@@ -547,6 +548,7 @@ impl Circuit {
     fn handle_relay_cell(
         &mut self,
         handlers: &mut CellHandlers,
+        leg: LegId,
         cell: Relay,
     ) -> Result<Vec<CircuitCmd>> {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
@@ -593,7 +595,7 @@ impl Circuit {
 
         let (mut msgs, incomplete) = decode_res.into_parts();
         while let Some(msg) = msgs.next() {
-            let msg_status = self.handle_relay_msg(handlers, hopnum, c_t_w, msg)?;
+            let msg_status = self.handle_relay_msg(handlers, hopnum, leg, c_t_w, msg)?;
 
             match msg_status {
                 None => continue,
@@ -628,6 +630,7 @@ impl Circuit {
         &mut self,
         handlers: &mut CellHandlers,
         hopnum: HopNum,
+        leg: LegId,
         cell_counts_toward_windows: bool,
         msg: UnparsedRelayMsg,
     ) -> Result<Option<CircuitCmd>> {
@@ -664,7 +667,14 @@ impl Circuit {
             msg
         };
 
-        self.handle_in_order_relay_msg(handlers, hopnum, cell_counts_toward_windows, streamid, msg)
+        self.handle_in_order_relay_msg(
+            handlers,
+            hopnum,
+            leg,
+            cell_counts_toward_windows,
+            streamid,
+            msg,
+        )
     }
 
     /// Handle a single incoming relay message that is known to be in order.
@@ -672,6 +682,7 @@ impl Circuit {
         &mut self,
         handlers: &mut CellHandlers,
         hopnum: HopNum,
+        leg: LegId,
         cell_counts_toward_windows: bool,
         streamid: StreamId,
         msg: UnparsedRelayMsg,
@@ -707,7 +718,7 @@ impl Circuit {
                 // response
                 hop_map.ending_msg_received(streamid)?;
                 drop(hop_map);
-                return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum);
+                return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum, leg);
             }
             Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
                 // We sent an end but maybe the other side hasn't heard.
@@ -726,7 +737,7 @@ impl Circuit {
             ) =>
             {
                 drop(hop_map);
-                return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum);
+                return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum, leg);
             }
             _ => {
                 // No stream wants this message, or ever did.
@@ -845,6 +856,7 @@ impl Circuit {
         msg: UnparsedRelayMsg,
         stream_id: StreamId,
         hop_num: HopNum,
+        leg: LegId,
     ) -> Result<Option<CircuitCmd>> {
         use super::syncview::ClientCircSyncView;
         use tor_cell::relaycell::msg::EndReason;
@@ -958,6 +970,7 @@ impl Circuit {
             req,
             stream_id,
             hop_num,
+            leg,
             msg_tx,
             receiver,
             memquota,

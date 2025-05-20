@@ -224,11 +224,6 @@ impl ConfluxSet {
         self.legs.get_mut(leg_id.0)
     }
 
-    /// Return an iterator of all legs in the conflux set.
-    pub(super) fn legs(&self) -> impl Iterator<Item = (LegId, &Circuit)> {
-        self.legs.iter().map(|(id, leg)| (LegId(id), leg))
-    }
-
     /// Return the LegId of the primary leg.
     pub(super) fn primary_leg_id(&self) -> LegId {
         LegId(self.primary_id)

@@ -60,8 +60,8 @@ use derive_deftly::Deftly;
 use derive_more::From;
 use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
-use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
+use tor_memquota::{derive_deftly_template_HasMemoryCost, memory_cost_structural_copy};
 use tracing::trace;
 
 use super::circuit::{MutableState, TunnelMutableState};
@@ -452,7 +452,8 @@ pub(crate) enum MetaCellDisposition {
 //
 // TODO(#1857): make this pub
 #[allow(unused)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub(crate) struct LegId(pub(crate) LegIdKey);
 
 // TODO(conflux): can we use `UniqId` as the key instead of this newtype?
@@ -470,6 +471,8 @@ impl From<LegIdKey> for LegId {
         LegId(leg_id)
     }
 }
+
+memory_cost_structural_copy!(LegIdKey);
 
 /// Unwrap the specified [`Option`], returning a [`ReactorError::Shutdown`] if it is `None`.
 ///
@@ -622,6 +625,8 @@ pub(crate) struct StreamReqInfo {
     // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
     // incoming stream request from two separate hops.  (There is only one that's valid.)
     pub(crate) hop_num: HopNum,
+    /// The [`LegId`] of the circuit the request came on.
+    pub(crate) leg: LegId,
     /// The format which must be used with this stream to encode messages.
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) relay_cell_format: RelayCellFormat,
@@ -801,7 +806,7 @@ impl Reactor {
                     .leg_mut(LegId(leg))
                     .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
 
-                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, cell)?;
+                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, leg.into(), cell)?;
                 if circ_cmds.is_empty() {
                     None
                 } else {
@@ -869,6 +874,7 @@ impl Reactor {
                 .handle_in_order_relay_msg(
                     handlers,
                     entry.msg.hopnum,
+                    entry.leg_id,
                     entry.msg.cell_counts_towards_windows,
                     entry.msg.streamid,
                     entry.msg.msg,

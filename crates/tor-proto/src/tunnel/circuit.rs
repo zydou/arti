@@ -60,7 +60,7 @@ use crate::tunnel::reactor::CtrlCmd;
 use crate::tunnel::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
-use crate::tunnel::{HopLocation, LegId, StreamTarget, TargetHop};
+use crate::tunnel::{LegId, StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
@@ -464,19 +464,6 @@ impl ClientCirc {
             .map_err(|_| Error::CircuitClosed)
     }
 
-    /// Get the [`LegId`] and [`Path`] of each leg of the tunnel.
-    // TODO(conflux): We probably want to replace uses of `path_ref` with
-    // this method and remove `path_ref`.
-    async fn legs(&self) -> Result<Vec<(LegId, Arc<Path>)>> {
-        let (tx, rx) = oneshot::channel();
-
-        self.command
-            .unbounded_send(CtrlCmd::QueryLegs { done: tx })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        rx.await.map_err(|_| Error::CircuitClosed)?
-    }
-
     /// Get the clock skew claimed by the first hop of the circuit.
     ///
     /// See [`Channel::clock_skew()`].
@@ -641,6 +628,15 @@ impl ClientCirc {
     //
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
+    //
+    // TODO(conflux): when conflux is ready, we need to update these docs to say
+    // that on a multipath circuit, this function **must** be called on the "main"
+    // (initial) circuit into which all of the other circuit legs are linked,
+    // or on the resulting ClientTunnel itself.
+    //
+    // Any incoming request handlers installed on the other circuits
+    // (which are are shutdown using CtrlCmd::ShutdownAndReturnCircuit)
+    // will be discarded (along with the reactor of that circuit)
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
@@ -650,21 +646,10 @@ impl ClientCirc {
     ) -> Result<impl futures::Stream<Item = IncomingStream>> {
         use futures::stream::StreamExt;
 
+        use crate::tunnel::HopLocation;
+
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
-
-        // TODO(conflux): Support tunnels with more than one leg. This requires a different approach
-        // to `CellHandlers`, as they can't be shared between the tunnel reactor and the circuits.
-        let legs = self.legs().await?;
-        if legs.len() != 1 {
-            return Err(internal!(
-                "Cannot allow stream requests on tunnel with {} legs",
-                legs.len()
-            )
-            .into());
-        }
-        let (leg_id, _path) = &legs[0];
-        let leg_id = *leg_id;
 
         let time_prov = self.time_provider.clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
@@ -685,6 +670,9 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
+        // TODO(conflux): maybe this function should take a HopLocation instead of a HopNum,
+        // but we currently cannot resolve `HopLocation`s outside of the reactor
+        // (and we need the resolved HopNum to assert the stream request indeed came from the right hop below).
         let allowed_hop_num = hop_num;
 
         let circ = Arc::clone(self);
@@ -693,6 +681,7 @@ impl ClientCirc {
                 req,
                 stream_id,
                 hop_num,
+                leg,
                 receiver,
                 msg_tx,
                 memquota,
@@ -705,10 +694,16 @@ impl ClientCirc {
             // security-critical.
             assert_eq!(allowed_hop_num, hop_num);
 
+            // TODO(conflux): figure out what this is going to look like
+            // for onion services (perhaps we should forbid this function
+            // from being called on a multipath circuit?)
+            //
+            // See also:
+            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3002#note_3200937
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
                 tx: msg_tx,
-                hop: HopLocation::Hop((leg_id, hop_num)),
+                hop: HopLocation::Hop((leg, hop_num)),
                 stream_id,
                 relay_cell_format,
             };
