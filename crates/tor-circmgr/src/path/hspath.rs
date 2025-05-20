@@ -192,10 +192,8 @@ impl AnonymousPathBuilder for HsPathBuilder {
         guard_exclusion: RelayExclusion<'a>,
         _rs_cfg: &RelaySelectionConfig<'_>,
     ) -> Result<(Relay<'a>, RelayUsage)> {
-        // TODO: This usage is a bit convoluted, and some onion-service-
-        // related circuits don't need this much stability.
-        let usage = RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()));
-        let selector = RelaySelector::new(usage, guard_exclusion);
+        // XXXX look at circ_kind
+        let selector = RelaySelector::new(hs_intermediate_hop_usage(), guard_exclusion);
 
         let (relay, info) = selector.select_relay(rng, netdir);
         let relay = relay.ok_or_else(|| Error::NoRelay {
@@ -301,16 +299,20 @@ impl VanguardHsPathBuilder {
         // NOTE: if the we are using full vanguards and building an GUARDED circuit stem,
         // we do *not* exclude the target from occurring as the second hop
         // (circuits of the form G - L2 - L3 - M - L2 are valid)
+
         let l2_target_exclusion = match self.stem_kind {
             HsCircStemKind::Guarded => RelayExclusion::no_relays_excluded(),
             HsCircStemKind::Naive => target_exclusion.clone(),
         };
+        // XXXX better selectors here.
+        let l2_selector = RelaySelector::new(hs_intermediate_hop_usage(), l2_target_exclusion);
+        let l3_selector = RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion.clone());
 
         let path = vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard);
 
         let path = path
-            .add_vanguard(&l2_target_exclusion, Layer::Layer2)?
-            .add_vanguard(target_exclusion, Layer::Layer3)?;
+            .add_vanguard(&l2_selector, Layer::Layer2)?
+            .add_vanguard(&l3_selector, Layer::Layer3)?;
         // XXXX: Use circ_kind.
         let _ = self.circ_kind;
 
@@ -319,7 +321,11 @@ impl VanguardHsPathBuilder {
                 // If full vanguards are enabled, we need an extra hop for the GUARDED stem:
                 //     NAIVE   = G -> L2 -> L3
                 //     GUARDED = G -> L2 -> L3 -> M
-                path.add_middle(target_exclusion)?.build()
+
+                // XXXX better selector here.
+                let mid_selector =
+                    RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion.clone());
+                path.add_middle(&mid_selector)?.build()
             }
             HsCircStemKind::Naive => path.build(),
         }
@@ -336,12 +342,31 @@ impl VanguardHsPathBuilder {
     ) -> Result<TorPath<'n>> {
         // XXXX: Use circ_kind.
         let _ = self.circ_kind;
+        // XXXX better selector here.
+        let selector = RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion.clone());
 
         vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard)
-            .add_vanguard(target_exclusion, Layer::Layer2)?
-            .add_middle(target_exclusion)?
+            .add_vanguard(&selector, Layer::Layer2)?
+            .add_middle(&selector)?
             .build()
     }
+}
+
+/// Return the usage that we should use when selecting an intermediary hop (vanguard or middle) of
+/// an HS circuit or stem circuit.
+///
+/// (This isn't called "middle hop", since we want to avoid confusion with the M hop in vanguard
+/// circuits.)
+pub(crate) fn hs_intermediate_hop_usage() -> RelayUsage {
+    // Restrict our intermediary relays to the set of middle relays we could use when building a new
+    // intro circuit.
+
+    // TODO: This usage is a bit convoluted, and some onion-service-
+    // related circuits don't really need this much stability.
+    //
+    // TODO: new_intro_point() isn't really accurate here, but it _is_
+    // the most restrictive target-usage we can use.
+    RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()))
 }
 
 #[cfg(test)]

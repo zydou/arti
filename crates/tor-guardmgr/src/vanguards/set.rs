@@ -271,7 +271,7 @@ impl VanguardSet {
         &self,
         rng: &mut R,
         netdir: &'a NetDir,
-        neighbor_exclusion: &RelayExclusion<'a>,
+        relay_selector: &RelaySelector<'a>,
     ) -> Option<Vanguard<'a>> {
         let good_relays = self
             .vanguards
@@ -279,7 +279,7 @@ impl VanguardSet {
             .filter_map(|vanguard| {
                 // Skip over any unusable relays
                 let relay = netdir.by_ids(&vanguard.id)?;
-                neighbor_exclusion
+                relay_selector
                     .low_level_predicate_permits_relay(&relay)
                     .then_some(relay)
             })

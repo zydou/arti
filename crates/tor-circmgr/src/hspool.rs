@@ -659,6 +659,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     where
         T: CircTarget + std::marker::Sync,
     {
+        use crate::path::hspath::hs_intermediate_hop_usage;
+        use tor_relay_selection::RelaySelector;
+
         match (circuit.kind, kind) {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
@@ -680,17 +683,16 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 } else {
                     RelayExclusion::no_relays_excluded()
                 };
+                // XXXX better usage here.
+                let selector = RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion);
                 let hops = circ_path
                     .iter()
                     .flat_map(|hop| hop.as_chan_target())
                     .map(IntoOwnedChanTarget::to_owned)
                     .collect::<Vec<OwnedChanTarget>>();
-                let extra_hop = select_middle_for_vanguard_circ(
-                    &hops,
-                    netdir,
-                    &target_exclusion,
-                    &mut rand::rng(),
-                )?;
+
+                let extra_hop =
+                    select_middle_for_vanguard_circ(&hops, netdir, &selector, &mut rand::rng())?;
 
                 // Since full vanguards are enabled and the circuit we got is NAIVE,
                 // we need to extend it by another hop to make it GUARDED before returning it

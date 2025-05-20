@@ -24,7 +24,7 @@ use tor_config::ReconfigureError;
 use tor_error::{error_report, internal, into_internal};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_persist::{DynStorageHandle, StateMgr};
-use tor_relay_selection::RelayExclusion;
+use tor_relay_selection::RelaySelector;
 use tor_rtcompat::Runtime;
 use tracing::{debug, info};
 
@@ -224,10 +224,10 @@ impl<R: Runtime> VanguardMgr<R> {
 
     /// Return a [`Vanguard`] relay for use in the specified layer.
     ///
-    /// The `neighbor_exclusion` must contain the relays that would neighbor this vanguard
+    /// The `relay_selector` must exclude the relays that would neighbor this vanguard
     /// in the path.
     ///
-    /// Specifically, it should contain
+    /// Specifically, it should exclude
     ///   * the last relay in the path (the one immediately preceding the vanguard): the same relay
     ///     cannot be used in consecutive positions in the path (a relay won't let you extend the
     ///     circuit to itself).
@@ -265,7 +265,7 @@ impl<R: Runtime> VanguardMgr<R> {
         rng: &mut Rng,
         netdir: &'a NetDir,
         layer: Layer,
-        neighbor_exclusion: &RelayExclusion<'a>,
+        relay_selector: &RelaySelector<'a>,
     ) -> Result<Vanguard<'a>, VanguardMgrError> {
         use VanguardMode::*;
 
@@ -285,12 +285,12 @@ impl<R: Runtime> VanguardMgr<R> {
                 (Layer::Layer2, Full) | (Layer::Layer2, Lite) => inner
                     .vanguard_sets
                     .l2()
-                    .pick_relay(rng, netdir, neighbor_exclusion),
+                    .pick_relay(rng, netdir, relay_selector),
                 (Layer::Layer3, Full) => {
                     inner
                         .vanguard_sets
                         .l3()
-                        .pick_relay(rng, netdir, neighbor_exclusion)
+                        .pick_relay(rng, netdir, relay_selector)
                 }
                 _ => {
                     return Err(VanguardMgrError::LayerNotSupported {
@@ -609,6 +609,7 @@ mod test {
 
     use set::TimeBoundVanguard;
     use tor_config::ExplicitOrAuto;
+    use tor_relay_selection::RelayExclusion;
 
     use super::*;
 
@@ -667,6 +668,14 @@ mod test {
         pub(super) fn l3_vanguards(&self) -> &Vec<TimeBoundVanguard> {
             self.vanguard_sets.l3_vanguards()
         }
+    }
+
+    /// Return a maximally permissive RelaySelector for a vanguard.
+    fn permissive_selector() -> RelaySelector<'static> {
+        RelaySelector::new(
+            tor_relay_selection::RelayUsage::vanguard(),
+            RelayExclusion::no_relays_excluded(),
+        )
     }
 
     /// Look up the vanguard in the specified VanguardSet.
@@ -781,14 +790,13 @@ mod test {
             let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
-            let exclusion = RelayExclusion::no_relays_excluded();
             // Wait until the vanguard manager has bootstrapped
             // (otherwise we'll get a BootstrapRequired error)
             let _netdir_provider = vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             // Cannot select an L3 vanguard when running in "Lite" mode.
             let err = vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer3, &permissive_selector())
                 .unwrap_err();
             assert!(
                 matches!(
@@ -809,7 +817,6 @@ mod test {
             let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
-            let exclusion = RelayExclusion::no_relays_excluded();
 
             // The sets are initially empty
             assert_sets_empty(&vanguardmgr);
@@ -817,7 +824,7 @@ mod test {
             // VanguardMgr::launch_background tasks was not called, so select_vanguard will return
             // an error (because the vanguard sets are empty)
             let err = vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer2, &permissive_selector())
                 .unwrap_err();
 
             assert!(
@@ -840,7 +847,6 @@ mod test {
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let mut rng = testing_rng();
-            let exclusion = RelayExclusion::no_relays_excluded();
 
             // The sets are initially empty
             assert_sets_empty(&vanguardmgr);
@@ -851,7 +857,7 @@ mod test {
             assert_sets_filled(&vanguardmgr, &params);
 
             let vanguard1 = vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer2, &permissive_selector())
                 .unwrap();
             assert_expiry_in_bounds(&vanguard1, &vanguardmgr, &rt, &params, Layer2);
 
@@ -862,9 +868,11 @@ mod test {
                     .map(|id| id.to_owned())
                     .collect(),
             );
+            let selector =
+                RelaySelector::new(tor_relay_selection::RelayUsage::vanguard(), exclusion);
 
             let vanguard2 = vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer3, &selector)
                 .unwrap();
 
             assert_expiry_in_bounds(&vanguard2, &vanguardmgr, &rt, &params, Layer3);
@@ -1111,9 +1119,8 @@ mod test {
             assert!(vanguardmgr.storage.load().unwrap().is_none());
 
             let mut rng = testing_rng();
-            let exclusion = RelayExclusion::no_relays_excluded();
             assert!(vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer3, &permissive_selector())
                 .is_err());
 
             // Enable full vanguards again.
@@ -1124,7 +1131,7 @@ mod test {
 
             let vanguard_sets_orig = vanguardmgr.storage.load().unwrap();
             assert!(vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer3, &permissive_selector())
                 .is_ok());
 
             // Switch to lite vanguards.
@@ -1144,9 +1151,8 @@ mod test {
             switch_hs_mode_config(&vanguardmgr, VanguardMode::Lite);
 
             let mut rng = testing_rng();
-            let exclusion = RelayExclusion::no_relays_excluded();
             let excluded_vanguard = vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer2, &permissive_selector())
                 .unwrap();
 
             let _ = install_netdir_excluding_vanguard(
