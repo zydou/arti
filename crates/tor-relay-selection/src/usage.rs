@@ -51,8 +51,9 @@ enum RelayUsageInner {
     Vanguard,
     /// Allow any relay that's suitable as a one-hop directory cache.
     DirectoryCache,
-    /// Allow any relay that's suitable as a rendezvous point.
-    RendPoint,
+    /// Allow any relay that's suitable as a new rendezvous point
+    /// (chosen by a client connecting to an onion service).
+    NewRendPoint,
 }
 
 impl RelayUsage {
@@ -178,10 +179,11 @@ impl RelayUsage {
         }
     }
 
-    /// Require a relay that is suitable as a newly selected rendezvous point.
-    pub fn rend_point() -> Self {
+    /// Require a relay that is suitable as a newly selected rendezvous point
+    /// (as chosen by a client to connect to an onion service).
+    pub fn new_rend_point() -> Self {
         RelayUsage {
-            inner: RelayUsageInner::RendPoint,
+            inner: RelayUsageInner::NewRendPoint,
             need_stable: true,
         }
     }
@@ -198,7 +200,7 @@ impl RelayUsage {
             #[cfg(feature = "vanguards")]
             Vanguard => WeightRole::Middle,
             DirectoryCache => WeightRole::BeginDir,
-            RendPoint => WeightRole::HsRend,
+            NewRendPoint => WeightRole::HsRend,
         }
     }
 
@@ -216,7 +218,7 @@ impl RelayUsage {
             #[cfg(feature = "vanguards")]
             Vanguard => "not usable as vanguard",
             DirectoryCache => "not directory cache",
-            RendPoint => "not usable as rendezvous point",
+            NewRendPoint => "not usable as rendezvous point",
         }
     }
 }
@@ -258,7 +260,7 @@ impl LowLevelRelayPredicate for RelayUsage {
                 true
             }
             DirectoryCache => relay.is_dir_cache(),
-            RendPoint => relay.is_hs_rend_point(),
+            NewRendPoint => relay.is_hs_rend_point(),
         }
     }
 }
