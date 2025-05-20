@@ -364,7 +364,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stem_circuit::<OwnedCircTarget>(netdir, None, HsCircStemKind::Guarded)
+            .take_or_launch_stem_circuit::<OwnedCircTarget>(netdir, None, HsCircKind::ClientRend)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -430,7 +430,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
         // Get an unfinished circuit that's compatible with our target.
         let circ = self
-            .take_or_launch_stem_circuit(netdir, Some(&target), wanted_kind)
+            .take_or_launch_stem_circuit(netdir, Some(&target), kind)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -505,8 +505,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
     ///
-    /// If vanguards are enabled, this will try to build a circuit stem of the specified
-    /// [`HsCircStemKind`].
+    /// If vanguards are enabled, this will try to build a circuit stem of appropriate for use
+    /// as the specified `kind`.
     ///
     /// If vanguards are disabled, `kind` is unused.
     ///
@@ -515,17 +515,18 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         &self,
         netdir: &NetDir,
         avoid_target: Option<&T>,
-        kind: HsCircStemKind,
+        kind: HsCircKind,
     ) -> Result<HsCircStem<B::Circ>>
     where
         // TODO #504: It would be better if this were a type that had to include
         // family info.
         T: CircTarget + std::marker::Sync,
     {
+        let stem_kind = kind.stem_kind();
         let vanguard_mode = self.vanguard_mode();
         trace!(
             vanguards=%vanguard_mode,
-            kind=%kind,
+            kind=%stem_kind,
             "selecting HS circuit stem"
         );
 
@@ -552,7 +553,12 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 match vanguard_mode {
                     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
                     VanguardMode::Lite | VanguardMode::Full => {
-                        vanguards_circuit_compatible_with_target(netdir, circ, kind, avoid_target)
+                        vanguards_circuit_compatible_with_target(
+                            netdir,
+                            circ,
+                            stem_kind,
+                            avoid_target,
+                        )
                     }
                     VanguardMode::Disabled => {
                         circuit_compatible_with_target(netdir, circ, &target_exclusion)
@@ -568,7 +574,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             if matches!(vanguard_mode, VanguardMode::Full | VanguardMode::Lite) {
-                prefs.preferred_stem_kind(kind);
+                prefs.preferred_stem_kind(stem_kind);
             }
 
             let found_usable_circ =
@@ -589,9 +595,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
             let circuit = self
-                .maybe_extend_stem_circuit(netdir, circuit, avoid_target, kind)
+                .maybe_extend_stem_circuit(netdir, circuit, avoid_target, stem_kind)
                 .await?;
-            self.ensure_suitable_circuit(&circuit, avoid_target, kind)?;
+            self.ensure_suitable_circuit(&circuit, avoid_target, stem_kind)?;
             return Ok(circuit);
         }
 
@@ -603,12 +609,15 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // TODO: We could in launch multiple circuits in parallel here?
         let circ = self
             .circmgr
-            .launch_hs_unmanaged(avoid_target, netdir, kind)
+            .launch_hs_unmanaged(avoid_target, netdir, stem_kind)
             .await?;
 
-        self.ensure_suitable_circuit(&circ, avoid_target, kind)?;
+        self.ensure_suitable_circuit(&circ, avoid_target, stem_kind)?;
 
-        Ok(HsCircStem { circ, kind })
+        Ok(HsCircStem {
+            circ,
+            kind: stem_kind,
+        })
     }
 
     /// Return a circuit of the specified `kind`, built from `circuit`.
