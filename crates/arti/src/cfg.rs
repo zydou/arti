@@ -28,7 +28,7 @@ use crate::{LoggingConfig, LoggingConfigBuilder};
 ///
 /// The options in this example file are all commented out;
 /// the actual defaults are done via builder attributes in all the Rust config structs.
-pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-config.toml"),);
+pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-config.toml"));
 
 /// Test case file for the oldest version of the config we still support.
 ///
@@ -1164,7 +1164,7 @@ example config file {which:?}, uncommented={uncommented:?}
         };
 
         // [1], [2], narrow to just the nontrivial, non-default, examples
-        let mut examples = ExampleSectionLines::new("bridges");
+        let mut examples = ExampleSectionLines::from_section("bridges");
         examples.narrow((r#"^# For example:"#, true), NARROW_NONE);
 
         let compare = {
@@ -1207,9 +1207,6 @@ example config file {which:?}, uncommented={uncommented:?}
         }
     }
 
-    // TODO there is quite some duplication between these next several functions
-    // Maybe it could be abstracted.
-
     #[test]
     fn transports() {
         // Extract and uncomment our transports lines.
@@ -1217,13 +1214,10 @@ example config file {which:?}, uncommented={uncommented:?}
         // (They're everything from  `# An example managed pluggable transport`
         // through the start of the next
         // section.  They start with "#    ".)
-        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow(
-            (r"^# An example managed pluggable transport", true),
-            (r"^\[", false),
-        );
+        let mut file =
+            ExampleSectionLines::from_markers("# An example managed pluggable transport", "[");
         file.lines.retain(|line| line.starts_with("#    "));
-        file.strip_prefix("#    ");
+        file.uncomment();
 
         let result = file.resolve::<(TorClientConfig, ArtiConfig)>();
         let cfg_got = result.unwrap();
@@ -1261,20 +1255,9 @@ example config file {which:?}, uncommented={uncommented:?}
     fn memquota() {
         // Test that uncommenting the example generates a config
         // with tracking enabled, iff support is compiled in.
-
-        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow((r"^\[system\]", true), (r"^\[", false));
-        file.lines.retain(|line| {
-            [
-                //
-                "[",
-                "#    memory.",
-            ]
-            .iter()
-            .any(|t| line.starts_with(t))
-        });
-
-        file.strip_prefix("#    ");
+        let mut file = ExampleSectionLines::from_section("system");
+        file.lines.retain(|line| line.starts_with("#    memory."));
+        file.uncomment();
 
         let result = file.resolve_return_results::<(TorClientConfig, ArtiConfig)>();
 
@@ -1313,25 +1296,15 @@ example config file {which:?}, uncommented={uncommented:?}
 
     #[test]
     fn metrics() {
-        // Test that uncommenting the example generates a config
-        // with prometheus enabled.
+        // Test that uncommenting the example generates a config with prometheus enabled.
+        let mut file = ExampleSectionLines::from_section("metrics");
+        file.lines
+            .retain(|line| line.starts_with("#    prometheus."));
+        file.uncomment();
 
-        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow((r"^\[metrics\]", true), (r"^\[", false));
-        file.lines.retain(|line| {
-            [
-                //
-                "[",
-                "#    prometheus.",
-            ]
-            .iter()
-            .any(|t| line.starts_with(t))
-        });
-        file.strip_prefix("#    ");
-
-        let result = file.resolve_return_results::<(TorClientConfig, ArtiConfig)>();
-
-        let result = result.unwrap();
+        let result = file
+            .resolve_return_results::<(TorClientConfig, ArtiConfig)>()
+            .unwrap();
 
         // Test that the example config doesn't have any unrecognised keys
         assert_eq!(result.unrecognized, []);
@@ -1356,17 +1329,12 @@ example config file {which:?}, uncommented={uncommented:?}
 
     #[test]
     fn onion_services() {
-        // Here we require that the onion services configuration is between a
-        // line labeled with `#     [onion_service."allium-cepa"]` and
-        // a line that contains the start of the [vanguards] section,
-        // and that each line of _real_ configuration in that section begins with "#    ".
-        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow(
-            (r#"^#    \[onion_services."allium\-cepa"\]"#, true),
-            (r#"^##### RPC"#, true),
-        );
+        // Here we require that the onion services configuration is between a line labeled
+        // with `##### ONION SERVICES` and a line labeled with `##### RPC`, and that each
+        // line of _real_ configuration in that section begins with `#    `.
+        let mut file = ExampleSectionLines::from_markers("##### ONION SERVICES", "##### RPC");
         file.lines.retain(|line| line.starts_with("#    "));
-        file.strip_prefix("#    ");
+        file.uncomment();
 
         let result = file.resolve::<(TorClientConfig, ArtiConfig)>();
         #[cfg(feature = "onion-service-service")]
@@ -1464,14 +1432,13 @@ example config file {which:?}, uncommented={uncommented:?}
     #[cfg(feature = "rpc")]
     #[test]
     fn rpc_defaults() {
-        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        let mut file = ExampleSectionLines::from_markers("##### RPC", "[");
         // This will get us all the RPC entries that correspond to our defaults.
         //
         // The examples that _aren't_ in our defaults have '#      ' at the start.
-        file.narrow((r"^##### RPC", false), (r"^\[vanguards\]", false));
         file.lines
             .retain(|line| line.starts_with("#    ") && !line.starts_with("#      "));
-        file.strip_prefix("#    ");
+        file.uncomment();
 
         let parsed = file
             .resolve_return_results::<(TorClientConfig, ArtiConfig)>()
@@ -1488,13 +1455,12 @@ example config file {which:?}, uncommented={uncommented:?}
     fn rpc_full() {
         use crate::rpc::listener::{ConnectPointOptionsBuilder, RpcListenerSetConfigBuilder};
 
-        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
         // This will get us all the RPC entries, including those that _don't_ correspond to our defaults.
-        file.narrow((r"^##### RPC", false), (r"^\[vanguards\]", false));
+        let mut file = ExampleSectionLines::from_markers("##### RPC", "[");
         // We skip the "file" item because it conflicts with "dir" and "file_options"
         file.lines
             .retain(|line| line.starts_with("#    ") && !line.contains("file ="));
-        file.strip_prefix("#    ");
+        file.uncomment();
 
         let parsed = file
             .resolve_return_results::<(TorClientConfig, ArtiConfig)>()
@@ -1543,31 +1509,43 @@ example config file {which:?}, uncommented={uncommented:?}
     const NARROW_NONE: NarrowInstruction<'static> = ("?<none>", false);
 
     impl ExampleSectionLines {
-        /// Construct a new ExampleSectionLines from `ARTI_EXAMPLE_CONFIG`, containing
+        /// Construct a new `ExampleSectionLines` from `ARTI_EXAMPLE_CONFIG`, containing
         /// everything that starts with `[section]`, up to but not including the
         /// next line that begins with a `[`.
-        fn new(section: &str) -> Self {
-            let section = format!("[{}]", section);
-
-            let mut first = Some(());
-            let lines = ARTI_EXAMPLE_CONFIG
-                .lines()
-                .skip_while(|l| l != &section)
-                .take_while(|l| first.take().is_some() || !l.starts_with("["))
-                .map(|l| l.to_string())
-                .collect_vec();
-
-            ExampleSectionLines { section, lines }
+        fn from_section(section: &str) -> Self {
+            Self::from_markers(format!("[{section}]"), "[")
         }
 
-        /// Construct a new ExampleSectionsLine from a provided configuration file,
-        /// without cutting out any sections.
+        /// Construct a new `ExampleSectionLines` from `ARTI_EXAMPLE_CONFIG`,
+        /// containing everything that starts with `start`, up to but not
+        /// including the next line that begins with `end`.
         ///
-        /// The caller must do any needed section selection, later.
-        fn from_string(contents: &str) -> Self {
-            let section = "".into();
-            let lines = contents.lines().map(|s| s.to_string()).collect_vec();
-            ExampleSectionLines { section, lines }
+        /// If `start` is a configuration section header it will be put in the
+        /// `section` field of the returned `ExampleSectionLines`, otherwise
+        /// at the beginning of the `lines` field.
+        ///
+        /// `start` will be perceived as a configuration section header if it
+        /// starts with `[` and ends with `]`.
+        fn from_markers<S, E>(start: S, end: E) -> Self
+        where
+            S: AsRef<str>,
+            E: AsRef<str>,
+        {
+            let (start, end) = (start.as_ref(), end.as_ref());
+            let mut lines = ARTI_EXAMPLE_CONFIG
+                .lines()
+                .skip_while(|line| !line.starts_with(start))
+                .peekable();
+            let section = lines
+                .next_if(|l0| l0.starts_with('['))
+                .map(|section| section.to_owned())
+                .unwrap_or_default();
+            let lines = lines
+                .take_while(|line| !line.starts_with(end))
+                .map(|l| l.to_owned())
+                .collect_vec();
+
+            Self { section, lines }
         }
 
         /// Remove all lines from this section, except those between the (unique) line matching
@@ -1653,6 +1631,7 @@ example config file {which:?}, uncommented={uncommented:?}
         fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
             tor_config::load::resolve(self.parse())
         }
+
         fn resolve_return_results<R: tor_config::load::Resolvable>(
             &self,
         ) -> Result<ResolutionResults<R>, ConfigResolveError> {
