@@ -182,7 +182,7 @@ impl RelayUsage {
     pub fn rend_point() -> Self {
         RelayUsage {
             inner: RelayUsageInner::RendPoint,
-            need_stable: false,
+            need_stable: true,
         }
     }
 
