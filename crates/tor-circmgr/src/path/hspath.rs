@@ -142,7 +142,6 @@ impl HsPathBuilder {
         config: &PathConfig,
         now: SystemTime,
     ) -> Result<(TorPath<'a>, GuardMonitor, GuardUsable)> {
-        // XXXX use self.circ_kind.
         pick_path(self, rng, netdir, guards, config, now)
     }
 
@@ -192,8 +191,8 @@ impl AnonymousPathBuilder for HsPathBuilder {
         guard_exclusion: RelayExclusion<'a>,
         _rs_cfg: &RelaySelectionConfig<'_>,
     ) -> Result<(Relay<'a>, RelayUsage)> {
-        // XXXX look at circ_kind
-        let selector = RelaySelector::new(hs_intermediate_hop_usage(), guard_exclusion);
+        let selector =
+            RelaySelector::new(hs_stem_terminal_hop_usage(self.circ_kind), guard_exclusion);
 
         let (relay, info) = selector.select_relay(rng, netdir);
         let relay = relay.ok_or_else(|| Error::NoRelay {
@@ -304,17 +303,19 @@ impl VanguardHsPathBuilder {
             HsCircStemKind::Guarded => RelayExclusion::no_relays_excluded(),
             HsCircStemKind::Naive => target_exclusion.clone(),
         };
-        // XXXX better selectors here.
+        // We have to pick the usage based on whether this hop is the last one of the stem.
+        let l3_usage = match self.stem_kind {
+            HsCircStemKind::Naive => hs_stem_terminal_hop_usage(self.circ_kind),
+            HsCircStemKind::Guarded => hs_intermediate_hop_usage(),
+        };
         let l2_selector = RelaySelector::new(hs_intermediate_hop_usage(), l2_target_exclusion);
-        let l3_selector = RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion.clone());
+        let l3_selector = RelaySelector::new(l3_usage, target_exclusion.clone());
 
         let path = vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard);
 
         let path = path
             .add_vanguard(&l2_selector, Layer::Layer2)?
             .add_vanguard(&l3_selector, Layer::Layer3)?;
-        // XXXX: Use circ_kind.
-        let _ = self.circ_kind;
 
         match self.stem_kind {
             HsCircStemKind::Guarded => {
@@ -322,9 +323,10 @@ impl VanguardHsPathBuilder {
                 //     NAIVE   = G -> L2 -> L3
                 //     GUARDED = G -> L2 -> L3 -> M
 
-                // XXXX better selector here.
-                let mid_selector =
-                    RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion.clone());
+                let mid_selector = RelaySelector::new(
+                    hs_stem_terminal_hop_usage(self.circ_kind),
+                    target_exclusion.clone(),
+                );
                 path.add_middle(&mid_selector)?.build()
             }
             HsCircStemKind::Naive => path.build(),
@@ -340,14 +342,15 @@ impl VanguardHsPathBuilder {
         l1_guard: MaybeOwnedRelay<'n>,
         target_exclusion: &RelayExclusion<'n>,
     ) -> Result<TorPath<'n>> {
-        // XXXX: Use circ_kind.
-        let _ = self.circ_kind;
-        // XXXX better selector here.
-        let selector = RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion.clone());
+        let l2_selector = RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion.clone());
+        let mid_selector = RelaySelector::new(
+            hs_stem_terminal_hop_usage(self.circ_kind),
+            target_exclusion.clone(),
+        );
 
         vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard)
-            .add_vanguard(&selector, Layer::Layer2)?
-            .add_middle(&selector)?
+            .add_vanguard(&l2_selector, Layer::Layer2)?
+            .add_middle(&mid_selector)?
             .build()
     }
 }
@@ -367,6 +370,30 @@ pub(crate) fn hs_intermediate_hop_usage() -> RelayUsage {
     // TODO: new_intro_point() isn't really accurate here, but it _is_
     // the most restrictive target-usage we can use.
     RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()))
+}
+
+/// Return the usage that we should use when selecting the last hop of a stem circuit.
+///
+/// If `kind` is provided, we need to make sure that the last hop will yield a stem circuit
+/// that's fit for that kind of circuit.
+pub(crate) fn hs_stem_terminal_hop_usage(kind: Option<HsCircKind>) -> RelayUsage {
+    match kind {
+        Some(HsCircKind::ClientRend) => {
+            // This stem circuit going to get used as-is for a ClientRend circuit,
+            // and so the last hop of the stem circuit needs to be suitable as a rendezvous point.
+            RelayUsage::new_rend_point()
+        }
+        Some(_) => {
+            // For all other HSCircKind cases, the last hop will be added to the stem,
+            // so we have no additional restrictions on the usage.
+            hs_intermediate_hop_usage()
+        }
+        None => {
+            // For unknown HsCircKinds, we'll pick an arbitrary last hop, and check later
+            // that it is really suitable for whatever purpose we had in mind.
+            hs_intermediate_hop_usage()
+        }
+    }
 }
 
 #[cfg(test)]

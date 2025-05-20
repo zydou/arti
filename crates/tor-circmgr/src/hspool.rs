@@ -551,6 +551,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
                 match vanguard_mode {
+                    // XXXX Need to use kind here.
                     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
                     VanguardMode::Lite | VanguardMode::Full => {
                         vanguards_circuit_compatible_with_target(
@@ -595,7 +596,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
             let circuit = self
-                .maybe_extend_stem_circuit(netdir, circuit, avoid_target, stem_kind)
+                .maybe_extend_stem_circuit(netdir, circuit, avoid_target, stem_kind, kind)
                 .await?;
             self.ensure_suitable_circuit(&circuit, avoid_target, stem_kind)?;
             return Ok(circuit);
@@ -626,7 +627,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         circuit: HsCircStem<B::Circ>,
         avoid_target: Option<&T>,
-        kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
+        circ_kind: HsCircKind,
     ) -> Result<HsCircStem<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
@@ -636,13 +638,22 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             VanguardMode::Full => {
                 // NAIVE circuit stems need to be extended by one hop to become GUARDED stems
                 // if we're using full vanguards.
-                self.extend_full_vanguards_circuit(netdir, circuit, avoid_target, kind)
-                    .await
+                self.extend_full_vanguards_circuit(
+                    netdir,
+                    circuit,
+                    avoid_target,
+                    stem_kind,
+                    circ_kind,
+                )
+                .await
             }
             _ => {
                 let HsCircStem { circ, kind: _ } = circuit;
 
-                Ok(HsCircStem { circ, kind })
+                Ok(HsCircStem {
+                    circ,
+                    kind: stem_kind,
+                })
             }
         }
     }
@@ -654,15 +665,16 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         circuit: HsCircStem<B::Circ>,
         avoid_target: Option<&T>,
-        kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
+        circ_kind: HsCircKind,
     ) -> Result<HsCircStem<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
     {
-        use crate::path::hspath::hs_intermediate_hop_usage;
+        use crate::path::hspath::hs_stem_terminal_hop_usage;
         use tor_relay_selection::RelaySelector;
 
-        match (circuit.kind, kind) {
+        match (circuit.kind, stem_kind) {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = crate::build::onion_circparams_from_netparams(netdir.params())?;
@@ -683,8 +695,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 } else {
                     RelayExclusion::no_relays_excluded()
                 };
-                // XXXX better usage here.
-                let selector = RelaySelector::new(hs_intermediate_hop_usage(), target_exclusion);
+                let selector = RelaySelector::new(
+                    hs_stem_terminal_hop_usage(Some(circ_kind)),
+                    target_exclusion,
+                );
                 let hops = circ_path
                     .iter()
                     .flat_map(|hop| hop.as_chan_target())
@@ -698,13 +712,16 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 // we need to extend it by another hop to make it GUARDED before returning it
                 let circ = self.extend_circ(circuit, params, extra_hop).await?;
 
-                Ok(HsCircStem { circ, kind })
+                Ok(HsCircStem {
+                    circ,
+                    kind: stem_kind,
+                })
             }
             (HsCircStemKind::Guarded, HsCircStemKind::Naive) => {
                 Err(internal!("wanted a NAIVE circuit, but got GUARDED?!").into())
             }
             _ => {
-                trace!("Wanted {kind} circuit, got {}", circuit.kind);
+                trace!("Wanted {stem_kind} circuit, got {}", circuit.kind);
                 // Nothing to do: the circuit stem we got is of the kind we wanted
                 Ok(circuit)
             }
