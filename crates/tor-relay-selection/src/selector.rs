@@ -510,7 +510,7 @@ mod test {
         let (_, si) = sel.select_relay(&mut rng, &nd);
         assert_eq!(
             si.to_string(),
-            "Success: rejected 12/40 as useless for middle relay; 1/28 as already selected"
+            "Success: rejected 12/40 as not usable as middle relay; 1/28 as already selected"
         );
 
         // Now try failing.
@@ -556,9 +556,9 @@ mod test {
         sel.mark_exclusion_flexible();
         let (r_some, si) = sel.select_relay(&mut rng, &nd);
         assert!(r_some.is_some());
-        assert_eq!(si.to_string(), "Failed at first, then succeeded. At first, rejected 12/40 as useless for middle relay; \
+        assert_eq!(si.to_string(), "Failed at first, then succeeded. At first, rejected 12/40 as not usable as middle relay; \
                                     28/28 as in same family as already selected. \
-                                    After relaxing requirements, rejected 12/40 as useless for middle relay; \
+                                    After relaxing requirements, rejected 12/40 as not usable as middle relay; \
                                     0/28 as in same family as already selected");
     }
 }

@@ -210,13 +210,13 @@ impl RelayUsage {
             AnyExit => "non-exit",
             ExitToAllPorts(_) => "not exiting to desired ports",
             ExitToAnyPort { .. } => "not exiting to any desired port",
-            Middle => "useless for middle relay",
+            Middle => "not usable as middle relay",
             NewIntroPoint | ContinuingIntroPoint => "not introduction point",
             NewGuard | ContinuingGuard => "not guard",
             #[cfg(feature = "vanguards")]
             Vanguard => "not usable as vanguard",
             DirectoryCache => "not directory cache",
-            RendPoint => "useless for rendezvous point",
+            RendPoint => "not usable as rendezvous point",
         }
     }
 }
