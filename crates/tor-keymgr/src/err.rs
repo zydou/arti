@@ -1,5 +1,6 @@
 //! An error type for the `tor-keymgr` crate.
 
+use tor_basic_utils::PathExt;
 use tor_error::HasKind;
 
 use dyn_clone::DynClone;
@@ -7,6 +8,7 @@ use tor_persist::slug::BadSlug;
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::KeyPathError;
@@ -117,6 +119,52 @@ pub enum KeystoreCorruptionError {
 pub struct UnknownKeyTypeError {
     /// The extension used for keys of this type in an Arti keystore.
     pub(crate) arti_extension: String,
+}
+
+/// An unrecognized keystore entry.
+#[derive(Clone, Debug, amplify::Getters, thiserror::Error)]
+#[error("Unrecognized keystore entry {}", entry)]
+pub struct UnrecognizedEntryError {
+    /// An identifier of the entry that caused the error.
+    entry: UnrecognizedEntryId,
+    /// The underlying error that occurred.
+    // TODO: This should be an `Error` specific for the situation.
+    //
+    // [`KeystoreError`] is a provvisory solution that presents
+    // some issues, for example:
+    //
+    // * not all variants of `KeystoreError` are relevant
+    // * redundancy with some other Error types like
+    // [`MalformedServiceKeyError::NotAKey`](crate::keystore::ctor::err::MalformedServiceKeyError)
+    // * [`Keystore::list`](crate::Keystore) returns
+    // `StdResult<Vec<StdResult<(KeyPath, KeystoreItemType), UnrecognizedEntryError>>, KeystoreError>`,
+    // `KeystoreError` presents itself twice at 2 different levels, there is abiguity
+    #[source]
+    error: Arc<dyn KeystoreError>,
+}
+
+impl UnrecognizedEntryError {
+    /// Create a new instance of `KeystoreListError` given an `UnrecognizedEntryId`
+    /// and an `Arc<dyn KeystoreError>`.
+    pub fn new(entry: UnrecognizedEntryId, error: Arc<dyn KeystoreError>) -> Self {
+        Self { entry, error }
+    }
+}
+
+/// The identifier of an unrecognized key inside a [`Keystore`](crate::Keystore).
+///
+/// The exact type of the identifier depends on the backing storage of the keystore
+/// (for example, an on-disk keystore will identify its entries by [`Path`](UnrecognizedEntryId::Path)).
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, derive_more::Display)]
+pub enum UnrecognizedEntryId {
+    /// An entry identified by path inside an on-disk keystore.
+    // NOTE: this will only be used by on-disk keystores like
+    // [`ArtiNativeKeystore`](crate::ArtiNativeKeystore)
+    #[display("{}", _0.display_lossy())]
+    Path(PathBuf),
+    // TODO: when/if we add support for non on-disk keystores,
+    // new variants will be added
 }
 
 #[cfg(test)]

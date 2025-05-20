@@ -67,6 +67,7 @@ mod dummy;
 pub use arti_path::{ArtiPath, DENOTATOR_SEP};
 pub use err::{
     ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError, UnknownKeyTypeError,
+    UnrecognizedEntryError, UnrecognizedEntryId,
 };
 pub use key_specifier::{
     ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorServicePath,
@@ -79,7 +80,7 @@ pub use key_specifier::{
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
 pub use {
     keystore::arti::ArtiNativeKeystore,
-    keystore::Keystore,
+    keystore::{Keystore, KeystoreEntryResult},
     mgr::{KeyMgr, KeyMgrBuilder, KeyMgrBuilderError, KeystoreEntry},
     ssh_key,
 };

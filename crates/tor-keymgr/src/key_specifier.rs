@@ -1,7 +1,7 @@
 //! The [`KeySpecifier`] trait and its implementations.
 
 use std::collections::BTreeMap;
-use std::fmt::{self, Display};
+use std::fmt::{self, Debug, Display};
 use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;

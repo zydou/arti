@@ -81,6 +81,12 @@ pub(crate) enum MalformedServiceKeyError {
         expected_tag: Vec<u8>,
     },
 
+    /// Found an entry that cannot be recognized as a key
+    /// (i.e.: a key that doesn't provide a valid
+    /// [`CTorPath`](crate::CTorPath))
+    #[error("unrecognized key")]
+    NotAKey,
+
     /// Found an invalid ed25519 public key
     #[error("invalid ed25519 public key")]
     Ed25519Public(#[from] Arc<signature::Error>),

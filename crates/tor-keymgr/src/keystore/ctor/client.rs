@@ -6,16 +6,20 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::str::FromStr as _;
+use std::sync::Arc;
 
 use crate::keystore::ctor::err::{CTorKeystoreError, MalformedClientKeyError};
 use crate::keystore::ctor::CTorKeystore;
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
-use crate::{CTorPath, KeyPath, KeystoreId, Result};
+use crate::{
+    CTorPath, KeyPath, KeystoreEntryResult, KeystoreId, Result, UnrecognizedEntryError,
+    UnrecognizedEntryId,
+};
 
 use fs_mistrust::Mistrust;
 use itertools::Itertools as _;
-use tor_basic_utils::PathExt as _;
+use tor_basic_utils::PathExt;
 use tor_error::debug_report;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
 use tor_key_forge::{KeyType, KeystoreItemType};
@@ -107,7 +111,7 @@ impl CTorClientKeystore {
     /// Read the contents of the specified key.
     ///
     /// Returns `Ok(None)` if the file doesn't exist.
-    fn read_key(&self, key_path: &Path) -> Result<Option<String>> {
+    fn read_key(&self, key_path: &Path) -> StdResult<Option<String>, CTorKeystoreError> {
         let key_path = self.0.rel_path(key_path.into());
 
         // TODO: read and parse the key, see if it matches the specified hsid
@@ -129,12 +133,25 @@ impl CTorClientKeystore {
     }
 
     /// List all entries in this store
-    fn list_keys(&self) -> Result<impl Iterator<Item = (HsId, HsClientDescEncKeypair)> + '_> {
+    ///
+    /// Returns a list of results, where `Ok` signifies a recognized entry,
+    /// and [`Err(CTorKeystoreError)`](crate::keystore::ctor::CTorKeystoreError)
+    /// an unrecognized one.
+    /// A key is said to be recognized if its file name ends with `.auth_private`,
+    /// and it presents this format:
+    /// `<hsid>:descriptor:x25519:<base32-encoded-x25519-public-key>`
+    fn list_keys(
+        &self,
+    ) -> Result<
+        impl Iterator<Item = StdResult<(HsId, HsClientDescEncKeypair), CTorKeystoreError>> + '_,
+    > {
+        use CTorKeystoreError::*;
+
         let dir = self.0.rel_path(PathBuf::from("."));
         Ok(self.list_entries(&dir)?.filter_map(|entry| {
             let entry = entry
                 .map_err(|e| {
-                    // Note: can't use debug_report here, because debug_report
+                    // NOTE: can't use debug_report here, because debug_report
                     // expects the ErrorKind (returned by e.kind()) to be
                     // tor_error::ErrorKind (which has a is_always_a_warning() function
                     // used by the macro).
@@ -147,39 +164,26 @@ impl CTorClientKeystore {
 
             let file_name = entry.file_name();
             let path: &Path = file_name.as_ref();
-            let extension = path.extension().and_then(|e| e.to_str());
-            if extension != Some(KEY_EXTENSION) {
-                debug!(
-                    "found entry {} with unrecognized extension {} in C Tor client keystore",
-                    path.display_lossy(),
-                    extension.unwrap_or_default()
-                );
-                return None;
-            }
+            let Some(KEY_EXTENSION) = path.extension().and_then(|e| e.to_str()) else {
+                return Some(Err(MalformedKey {
+                    path: entry.path(),
+                    err: MalformedClientKeyError::InvalidFormat.into(),
+                }));
+            };
 
-            let content = self
-                .read_key(path)
-                .map_err(|e| {
-                    debug_report!(e, "failed to read {}", path.display_lossy());
-                })
-                .ok()
-                .flatten()?;
-
-            let (hsid, key) = parse_client_keypair(content.trim())
-                .map_err(|e| CTorKeystoreError::MalformedKey {
+            let content = match self.read_key(path) {
+                Ok(c) => c,
+                Err(e) => {
+                    debug_report!(e.clone(), "failed to read {}", path.display_lossy());
+                    return Some(Err(e));
+                }
+            }?;
+            Some(
+                parse_client_keypair(content.trim()).map_err(|e| MalformedKey {
                     path: path.into(),
                     err: e.into(),
-                })
-                .map_err(|e| {
-                    debug_report!(
-                        e,
-                        "cannot parse C Tor client keystore entry {}",
-                        path.display_lossy()
-                    );
-                })
-                .ok()?;
-
-            Some((hsid, key))
+                }),
+            )
         }))
     }
 }
@@ -247,7 +251,13 @@ impl Keystore for CTorClientKeystore {
         let want_hsid = hsid_if_supported!(key_spec, Ok(None), item_type);
         Ok(self
             .list_keys()?
-            .find_map(|(hsid, key)| (hsid == want_hsid).then(|| key.into()))
+            .find_map(|entry| {
+                if let Ok((hsid, key)) = entry {
+                    (hsid == want_hsid).then(|| key.into())
+                } else {
+                    None
+                }
+            })
             .map(|k: curve25519::StaticKeypair| Box::new(k) as ErasedKey))
     }
 
@@ -263,14 +273,30 @@ impl Keystore for CTorClientKeystore {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
+        use CTorKeystoreError::*;
+
         let keys = self
             .list_keys()?
-            .map(|(hsid, _)| {
-                (
+            .filter_map(|entry| match entry {
+                Ok((hsid, _)) => Some(Ok((
                     CTorPath::ClientHsDescEncKey(hsid).into(),
                     KeyType::X25519StaticKeypair.into(),
-                )
+                ))),
+                Err(e) => match e {
+                    MalformedKey { ref path, err: _ } => Some(Err(UnrecognizedEntryError::new(
+                        UnrecognizedEntryId::Path(path.clone()),
+                        Arc::new(e),
+                    ))),
+                    // `InvalidKeystoreItemType` variant is filtered out because it can't
+                    // be returned by [`CTorClientKeystore::list_keys`].
+                    InvalidKeystoreItemType { .. } => None,
+                    // The following variants are irrelevant at this level because they
+                    // cannot represent an unrecognized key.
+                    Filesystem(_) => None,
+                    NotSupported { .. } => None,
+                    Bug(_) => None,
+                },
             })
             .collect();
 
@@ -376,12 +402,18 @@ mod tests {
             );
         }
 
-        let keys: Vec<_> = keystore.list().unwrap();
+        let keys: Vec<_> = keystore
+            .list()
+            .unwrap()
+            .into_iter()
+            .filter(|e| e.is_ok())
+            .collect();
 
         assert_eq!(keys.len(), 2);
-        assert!(keys
-            .iter()
-            .all(|(_, key_type)| *key_type == KeyType::X25519StaticKeypair.into()));
+        assert!(keys.iter().all(|entry| {
+            let (_, key_type) = entry.as_ref().unwrap();
+            *key_type == KeyType::X25519StaticKeypair.into()
+        }));
     }
 
     #[test]
@@ -422,5 +454,23 @@ mod tests {
             err.to_string(),
             "Invalid item type Ed25519PublicKey for client restricted discovery key"
         );
+    }
+
+    #[test]
+    fn list() {
+        let (keystore, _keystore_dir) = init_keystore("foo");
+        // The keystore contains two recognized entries and three
+        // unrecognized entries.
+        let mut recognized = 0;
+        let mut unrecognized = 0;
+        for e in keystore.list().unwrap() {
+            if e.is_ok() {
+                recognized += 1;
+            } else {
+                unrecognized += 1;
+            }
+        }
+        assert_eq!(recognized, 2);
+        assert_eq!(unrecognized, 3);
     }
 }
