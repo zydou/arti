@@ -69,7 +69,7 @@ use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 
-use crate::{hspool::HsCircStemKind, Error, Result};
+use crate::{hspool::HsCircKind, hspool::HsCircStemKind, Error, Result};
 
 use super::AnonymousPathBuilder;
 
@@ -101,11 +101,15 @@ pub(crate) struct HsPathBuilder {
     ///
     /// Ignored if vanguards are in use.
     compatible_with: Option<OwnedChanTarget>,
-    /// The type of circuit to build.
+    /// The type of circuit stem to build.
     ///
     /// This is only used if `vanguards` are enabled.
     #[cfg_attr(not(feature = "vanguards"), allow(dead_code))]
-    kind: HsCircStemKind,
+    stem_kind: HsCircStemKind,
+
+    /// If present, ensure that the circuit stem is suitable for use as (a stem for) the given kind
+    /// of circuit.
+    circ_kind: Option<HsCircKind>,
 }
 
 impl HsPathBuilder {
@@ -116,10 +120,15 @@ impl HsPathBuilder {
     /// (The provided relay is _not_ included in the built path: we only ensure
     /// that the path we build does not have any features that would stop us
     /// extending it to that relay as a fourth hop.)
-    pub(crate) fn new(compatible_with: Option<OwnedChanTarget>, kind: HsCircStemKind) -> Self {
+    pub(crate) fn new(
+        compatible_with: Option<OwnedChanTarget>,
+        stem_kind: HsCircStemKind,
+        circ_kind: Option<HsCircKind>,
+    ) -> Self {
         Self {
             compatible_with,
-            kind,
+            stem_kind,
+            circ_kind,
         }
     }
 
@@ -133,6 +142,7 @@ impl HsPathBuilder {
         config: &PathConfig,
         now: SystemTime,
     ) -> Result<(TorPath<'a>, GuardMonitor, GuardUsable)> {
+        // XXXX use self.circ_kind.
         pick_path(self, rng, netdir, guards, config, now)
     }
 
@@ -157,7 +167,8 @@ impl HsPathBuilder {
         }
 
         let vanguard_path_builder = VanguardHsPathBuilder {
-            kind: self.kind,
+            stem_kind: self.stem_kind,
+            circ_kind: self.circ_kind,
             compatible_with: self.compatible_with.clone(),
         };
 
@@ -204,7 +215,10 @@ impl AnonymousPathBuilder for HsPathBuilder {
 #[cfg(feature = "vanguards")]
 struct VanguardHsPathBuilder {
     /// The kind of circuit stem we are building
-    kind: HsCircStemKind,
+    stem_kind: HsCircStemKind,
+    /// If present, ensure that the circuit stem is suitable for use as (a stem for) the given kind
+    /// of circuit.
+    circ_kind: Option<HsCircKind>,
     /// The target we are about to extend the circuit to.
     compatible_with: Option<OwnedChanTarget>,
 }
@@ -261,11 +275,11 @@ impl VanguardHsPathBuilder {
         };
 
         let actual_len = path.len();
-        let expected_len = self.kind.num_hops(mode)?;
+        let expected_len = self.stem_kind.num_hops(mode)?;
         if actual_len != expected_len {
             return Err(internal!(
                 "invalid path length for {} {mode}-vanguard circuit (expected {} hops, got {})",
-                self.kind,
+                self.stem_kind,
                 expected_len,
                 actual_len
             )
@@ -287,7 +301,7 @@ impl VanguardHsPathBuilder {
         // NOTE: if the we are using full vanguards and building an GUARDED circuit stem,
         // we do *not* exclude the target from occurring as the second hop
         // (circuits of the form G - L2 - L3 - M - L2 are valid)
-        let l2_target_exclusion = match self.kind {
+        let l2_target_exclusion = match self.stem_kind {
             HsCircStemKind::Guarded => RelayExclusion::no_relays_excluded(),
             HsCircStemKind::Naive => target_exclusion.clone(),
         };
@@ -297,8 +311,10 @@ impl VanguardHsPathBuilder {
         let path = path
             .add_vanguard(&l2_target_exclusion, Layer::Layer2)?
             .add_vanguard(target_exclusion, Layer::Layer3)?;
+        // XXXX: Use circ_kind.
+        let _ = self.circ_kind;
 
-        match self.kind {
+        match self.stem_kind {
             HsCircStemKind::Guarded => {
                 // If full vanguards are enabled, we need an extra hop for the GUARDED stem:
                 //     NAIVE   = G -> L2 -> L3
@@ -318,6 +334,9 @@ impl VanguardHsPathBuilder {
         l1_guard: MaybeOwnedRelay<'n>,
         target_exclusion: &RelayExclusion<'n>,
     ) -> Result<TorPath<'n>> {
+        // XXXX: Use circ_kind.
+        let _ = self.circ_kind;
+
         vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard)
             .add_vanguard(target_exclusion, Layer::Layer2)?
             .add_middle(target_exclusion)?
@@ -502,6 +521,7 @@ mod test {
         runtime: &MockRuntime,
         netdir: &'a NetDir,
         stem_kind: HsCircStemKind,
+        circ_kind: Option<HsCircKind>,
         mode: VanguardMode,
         target: Option<&OwnedChanTarget>,
     ) -> Result<TorPath<'a>> {
@@ -522,7 +542,7 @@ mod test {
         let config = PathConfig::default();
         let now = SystemTime::now();
         let dirinfo = (netdir).into();
-        HsPathBuilder::new(target.cloned(), stem_kind)
+        HsPathBuilder::new(target.cloned(), stem_kind, circ_kind)
             .pick_path_with_vanguards(&mut rng, dirinfo, &guards, &vanguardmgr, &config, now)
             .map(|res| res.0)
     }
@@ -531,6 +551,7 @@ mod test {
     fn pick_hs_path_no_vanguards<'a>(
         netdir: &'a NetDir,
         target: Option<&OwnedChanTarget>,
+        circ_kind: Option<HsCircKind>,
     ) -> Result<TorPath<'a>> {
         let mut rng = testing_rng();
         let config = PathConfig::default();
@@ -546,7 +567,7 @@ mod test {
         netdir_provider.set_netdir(netdir.clone());
         let netdir_provider: Arc<dyn NetDirProvider> = netdir_provider;
         guards.install_netdir_provider(&netdir_provider).unwrap();
-        HsPathBuilder::new(target.cloned(), HsCircStemKind::Naive)
+        HsPathBuilder::new(target.cloned(), HsCircStemKind::Naive, circ_kind)
             .pick_path(&mut rng, dirinfo, &guards, &config, now)
             .map(|res| res.0)
     }
@@ -593,7 +614,7 @@ mod test {
         });
         // We'll fail to select a guard, because the network doesn't have any relays compatible
         // with the target
-        let err = pick_hs_path_no_vanguards(&netdir, Some(&target))
+        let err = pick_hs_path_no_vanguards(&netdir, Some(&target), None)
             .map(|_| ())
             .unwrap_err();
 
@@ -614,7 +635,7 @@ mod test {
         // All the relays in the network are in the same family,
         // so building HS circuits should be impossible.
         let netdir = same_family_test_network(MAX_NET_SIZE);
-        let err = match pick_hs_path_no_vanguards(&netdir, None) {
+        let err = match pick_hs_path_no_vanguards(&netdir, None, None) {
             Ok(path) => panic!(
                 "expected error, but got valid path: {:?})",
                 OwnedPath::try_from(&path).unwrap()
@@ -643,7 +664,7 @@ mod test {
         let target = test_target();
         for _ in 0..100 {
             for target in [None, Some(target.clone())] {
-                let path = pick_hs_path_no_vanguards(&netdir, target.as_ref()).unwrap();
+                let path = pick_hs_path_no_vanguards(&netdir, target.as_ref(), None).unwrap();
                 assert_hs_path_ok(&path, target.as_ref());
             }
         }
@@ -655,11 +676,17 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let netdir = same_family_test_network(2);
             for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
-                let err =
-                    pick_vanguard_path(&runtime, &netdir, stem_kind, VanguardMode::Lite, None)
-                        .await
-                        .map(|_| ())
-                        .unwrap_err();
+                let err = pick_vanguard_path(
+                    &runtime,
+                    &netdir,
+                    stem_kind,
+                    None,
+                    VanguardMode::Lite,
+                    None,
+                )
+                .await
+                .map(|_| ())
+                .unwrap_err();
 
                 // The test network is too small to build a 3-hop circuit.
                 assert!(
@@ -691,10 +718,16 @@ mod test {
 
             for target in [None, Some(target)] {
                 for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
-                    let path =
-                        pick_vanguard_path(&runtime, &netdir, stem_kind, mode, target.as_ref())
-                            .await
-                            .unwrap();
+                    let path = pick_vanguard_path(
+                        &runtime,
+                        &netdir,
+                        stem_kind,
+                        None,
+                        mode,
+                        target.as_ref(),
+                    )
+                    .await
+                    .unwrap();
                     assert_vanguard_path_ok(&path, stem_kind, mode, target.as_ref());
                 }
             }
@@ -716,10 +749,16 @@ mod test {
 
             for target in [None, Some(target)] {
                 for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
-                    let path =
-                        pick_vanguard_path(&runtime, &netdir, stem_kind, mode, target.as_ref())
-                            .await
-                            .unwrap();
+                    let path = pick_vanguard_path(
+                        &runtime,
+                        &netdir,
+                        stem_kind,
+                        None,
+                        mode,
+                        target.as_ref(),
+                    )
+                    .await
+                    .unwrap();
                     assert_vanguard_path_ok(&path, stem_kind, mode, target.as_ref());
                 }
             }
@@ -733,11 +772,17 @@ mod test {
             let netdir = same_family_test_network(2);
 
             for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
-                let err =
-                    pick_vanguard_path(&runtime, &netdir, stem_kind, VanguardMode::Full, None)
-                        .await
-                        .map(|_| ())
-                        .unwrap_err();
+                let err = pick_vanguard_path(
+                    &runtime,
+                    &netdir,
+                    stem_kind,
+                    None,
+                    VanguardMode::Full,
+                    None,
+                )
+                .await
+                .map(|_| ())
+                .unwrap_err();
                 assert!(
                     matches!(
                         err,
@@ -753,7 +798,7 @@ mod test {
             let mode = VanguardMode::Full;
 
             for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
-                let path = pick_vanguard_path(&runtime, &netdir, stem_kind, mode, None)
+                let path = pick_vanguard_path(&runtime, &netdir, stem_kind, None, mode, None)
                     .await
                     .unwrap();
                 assert_vanguard_path_ok(&path, stem_kind, mode, None);

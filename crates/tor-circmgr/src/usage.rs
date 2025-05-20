@@ -17,7 +17,7 @@ use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 #[cfg(feature = "hs-common")]
-use {crate::path::hspath::HsPathBuilder, crate::HsCircStemKind};
+use {crate::path::hspath::HsPathBuilder, crate::HsCircKind, crate::HsCircStemKind};
 
 #[cfg(feature = "specific-relay")]
 use tor_linkspec::{HasChanMethod, HasRelayIds};
@@ -188,7 +188,10 @@ pub(crate) enum TargetCircUsage {
         /// family restrictions).
         compatible_with_target: Option<OwnedChanTarget>,
         /// The kind of circuit stem to build.
-        kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
+        /// If present, add additional rules to the stem so it can _definitely_
+        /// be used as a circuit of this kind.
+        circ_kind: Option<HsCircKind>,
     },
 }
 
@@ -356,9 +359,11 @@ impl TargetCircUsage {
             #[cfg(feature = "hs-common")]
             TargetCircUsage::HsCircBase {
                 compatible_with_target,
-                kind,
+                stem_kind,
+                circ_kind,
             } => {
-                let path_builder = HsPathBuilder::new(compatible_with_target.clone(), *kind);
+                let path_builder =
+                    HsPathBuilder::new(compatible_with_target.clone(), *stem_kind, *circ_kind);
                 cfg_if::cfg_if! {
                     if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
                         let (path, mon, usable) = path_builder

@@ -609,7 +609,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // TODO: We could in launch multiple circuits in parallel here?
         let circ = self
             .circmgr
-            .launch_hs_unmanaged(avoid_target, netdir, stem_kind)
+            .launch_hs_unmanaged(avoid_target, netdir, stem_kind, Some(kind))
             .await?;
 
         self.ensure_suitable_circuit(&circ, avoid_target, stem_kind)?;
@@ -983,7 +983,7 @@ async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Ru
                 // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
                 match pool
                     .circmgr
-                    .launch_hs_unmanaged(no_target, &netdir, for_launch.kind())
+                    .launch_hs_unmanaged(no_target, &netdir, for_launch.kind(), None)
                     .await
                 {
                     Ok(circ) => {
