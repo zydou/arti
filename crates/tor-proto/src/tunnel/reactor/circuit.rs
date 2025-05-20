@@ -1,12 +1,13 @@
 //! Module exposing types for representing circuits in the tunnel reactor.
 
+pub(crate) mod circhop;
 pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
 use crate::circuit::HopSettings;
 use crate::congestion::sendme;
-use crate::congestion::{CongestionControl, CongestionSignals};
+use crate::congestion::CongestionSignals;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt, OutboundClientLayer,
@@ -17,7 +18,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
@@ -27,9 +28,7 @@ use crate::tunnel::circuit::{
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
-use crate::tunnel::streammap::{
-    self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
-};
+use crate::tunnel::streammap::{self, EndSentStreamEnt, OpenStreamEnt, StreamEntMut};
 use crate::util::err::ReactorError;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
@@ -42,8 +41,7 @@ use tor_cell::chancell::{BoxedCellBody, ChanMsg};
 use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, SendmeTag, Truncated};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
-    StreamId, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
 };
 use tor_error::{internal, Bug};
 use tor_linkspec::RelayIds;
@@ -65,7 +63,7 @@ use super::{
 use std::borrow::Borrow;
 use std::pin::Pin;
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::Poll;
 use std::time::{Duration, SystemTime};
 
@@ -84,6 +82,8 @@ use {
     crate::tunnel::reactor::RemoveLegReason,
 };
 
+pub(super) use circhop::CircHop;
+
 /// Initial value for outbound flow-control window on streams.
 pub(super) const SEND_WINDOW_INIT: u16 = 500;
 /// Initial value for inbound flow-control window on streams.
@@ -94,43 +94,6 @@ pub(crate) const RECV_WINDOW_INIT: u16 = 500;
 ///             get sent more than the receive window anyway!). We might do due to things that
 ///             don't count towards the window though.
 pub(crate) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
-
-/// Represents the reactor's view of a single hop.
-pub(super) struct CircHop {
-    /// Reactor unique ID. Used for logging.
-    unique_id: UniqId,
-    /// Hop number in the path.
-    hop_num: HopNum,
-    /// Map from stream IDs to streams.
-    ///
-    /// We store this with the reactor instead of the circuit, since the
-    /// reactor needs it for every incoming cell on a stream, whereas
-    /// the circuit only needs it when allocating new streams.
-    ///
-    /// NOTE: this is behind a mutex because the reactor polls the `StreamMap`s
-    /// of all hops concurrently, in a [`FuturesUnordered`]. Without the mutex,
-    /// this wouldn't be possible, because it would mean holding multiple
-    /// mutable references to `self` (the reactor). Note, however,
-    /// that there should never be any contention on this mutex:
-    /// we never create more than one [`Circuit::ready_streams_iterator`] stream
-    /// at a time, and we never clone/lock the hop's `StreamMap` outside of
-    /// [`Circuit::ready_streams_iterator`].
-    ///
-    // TODO: encapsulate the Vec<CircHop> into a separate CircHops structure,
-    // and hide its internals from the Reactor. The CircHops implementation
-    // should enforce the invariant described in the note above.
-    map: Arc<Mutex<streammap::StreamMap>>,
-    /// Congestion control object.
-    ///
-    /// This object is also in charge of handling circuit level SENDME logic for this hop.
-    ccontrol: CongestionControl,
-    /// Decodes relay cells received from this hop.
-    inbound: RelayCellDecoder,
-    /// Format to use for relay cells.
-    //
-    // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
-    relay_format: RelayCellFormat,
-}
 
 /// A circuit "leg" from a tunnel.
 ///
@@ -1674,124 +1637,6 @@ fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
 impl Drop for Circuit {
     fn drop(&mut self) {
         let _ = self.channel.close_circuit(self.channel_id);
-    }
-}
-
-impl CircHop {
-    /// Create a new hop.
-    pub(super) fn new(
-        unique_id: UniqId,
-        hop_num: HopNum,
-        relay_format: RelayCellFormat,
-        settings: &HopSettings,
-    ) -> Self {
-        CircHop {
-            unique_id,
-            hop_num,
-            map: Arc::new(Mutex::new(streammap::StreamMap::new())),
-            ccontrol: CongestionControl::new(&settings.ccontrol),
-            inbound: RelayCellDecoder::new(relay_format),
-            relay_format,
-        }
-    }
-
-    /// Start a stream. Creates an entry in the stream map with the given channels, and sends the
-    /// `message` to the provided hop.
-    pub(crate) fn begin_stream(
-        &mut self,
-        message: AnyRelayMsg,
-        sender: StreamMpscSender<UnparsedRelayMsg>,
-        rx: StreamMpscReceiver<AnyRelayMsg>,
-        cmd_checker: AnyCmdChecker,
-    ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_send_flow_ctrl();
-        let r =
-            self.map
-                .lock()
-                .expect("lock poisoned")
-                .add_ent(sender, rx, flow_ctrl, cmd_checker)?;
-        let cell = AnyRelayMsgOuter::new(Some(r), message);
-        Ok((
-            SendRelayCell {
-                hop: self.hop_num,
-                early: false,
-                cell,
-            },
-            r,
-        ))
-    }
-
-    /// Close the stream associated with `id` because the stream was
-    /// dropped.
-    ///
-    /// If we have not already received an END cell on this stream, send one.
-    /// If no END cell is specified, an END cell with the reason byte set to
-    /// REASON_MISC will be sent.
-    fn close_stream(
-        &mut self,
-        id: StreamId,
-        message: CloseStreamBehavior,
-        why: streammap::TerminateReason,
-    ) -> Result<Option<SendRelayCell>> {
-        let should_send_end = self.map.lock().expect("lock poisoned").terminate(id, why)?;
-        trace!(
-            "{}: Ending stream {}; should_send_end={:?}",
-            self.unique_id,
-            id,
-            should_send_end
-        );
-        // TODO: I am about 80% sure that we only send an END cell if
-        // we didn't already get an END cell.  But I should double-check!
-        if let (ShouldSendEnd::Send, CloseStreamBehavior::SendEnd(end_message)) =
-            (should_send_end, message)
-        {
-            let end_cell = AnyRelayMsgOuter::new(Some(id), end_message.into());
-            let cell = SendRelayCell {
-                hop: self.hop_num,
-                early: false,
-                cell: end_cell,
-            };
-
-            return Ok(Some(cell));
-        }
-        Ok(None)
-    }
-
-    /// Return the format that is used for relay cells sent to this hop.
-    ///
-    /// For the most part, this format isn't necessary to interact with a CircHop;
-    /// it becomes relevant when we are deciding _what_ we can encode for the hop.
-    pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
-        self.relay_format
-    }
-
-    /// Builds the (sending) flow control handler for a new stream.
-    fn build_send_flow_ctrl(&self) -> StreamSendFlowControl {
-        if self.ccontrol.uses_stream_sendme() {
-            let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            StreamSendFlowControl::new_window_based(window)
-        } else {
-            StreamSendFlowControl::new_xon_xoff_based()
-        }
-    }
-
-    /// Delegate to CongestionControl, for testing purposes
-    #[cfg(test)]
-    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
-        self.ccontrol.send_window_and_expected_tags()
-    }
-
-    /// Return the number of open streams on this hop.
-    ///
-    /// WARNING: because this locks the stream map mutex,
-    /// it should never be called from a context where that mutex is already locked.
-    pub(super) fn n_open_streams(&self) -> usize {
-        self.map.lock().expect("lock poisoned").n_open_streams()
-    }
-
-    /// Return a reference to our CongestionControl object.
-    pub(crate) fn ccontrol(&self) -> &CongestionControl {
-        &self.ccontrol
     }
 }
 
