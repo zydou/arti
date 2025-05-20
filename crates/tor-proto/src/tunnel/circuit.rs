@@ -1796,7 +1796,7 @@ pub(crate) mod test {
             (sink, rx) // gotta keep the sink and receiver alive, or the reactor will exit.
         };
 
-        let (circ, _) = futures::join!(extend_fut, reply_fut);
+        let (circ, (_sink, _rx)) = futures::join!(extend_fut, reply_fut);
 
         // Did we really add another hop?
         assert_eq!(circ.n_hops().unwrap(), 4);
