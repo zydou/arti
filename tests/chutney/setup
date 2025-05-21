@@ -52,6 +52,15 @@ target="$NETWORK"
 cd "$(git rev-parse --show-toplevel)"
 echo "target=$target" > tests/chutney/arti.run
 
+# Verify jq is available. Generally it should just be on the PATH.
+# If needed we could add support for passing in a path to jq.
+if ! type -p jq; then
+    echo "It doesn't look like jq is installed."
+    echo "On debian, install with:"
+    echo "apt install jq"
+    exit 1
+fi
+
 # Set and fully resolve chutney bin if not already set.
 : "${CHUTNEY_BIN:=$(type -P chutney)}"
 if [ -z "${CHUTNEY_BIN:-}" ]; then
