@@ -3,7 +3,7 @@
 Authority = Node(tag="a", authority=1, relay=1)
 ExitRelay = Node(tag="r", relay=1, exit=1)
 TorClient = Node(tag="torc", client=1, backend=NodeBackend.TOR)
-ArtiClient = Node(tag="artic", client=1, backend=NodeBackend.ARTI)
+ArtiClient = Node(tag="artic", client=1, enable_dnsport=True, backend=NodeBackend.ARTI)
 
 NODES = Authority.getN(4) + ExitRelay.getN(5) + TorClient.getN(1) + ArtiClient.getN(1)
 
