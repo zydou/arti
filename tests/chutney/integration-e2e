@@ -11,7 +11,6 @@ source tests/chutney/arti.run
 [ -n "${CHUTNEY_DATA_DIR:?}" ]
 
 ./tests/chutney/test
-./tests/chutney/stop-arti
 
 # Get the socks port of a tor client to use for benchmarking comparison.
 tor_client_port=$(\
