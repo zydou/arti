@@ -20,7 +20,9 @@ else
 
     DIRECT_LOOKUP="$(dig +short $TEST_DOMAIN A)"
     TOR_LOOKUP="$(dig @127.0.0.1 -p 35353 +short $TEST_DOMAIN A)"
-    [ "$DIRECT_LOOKUP" == "$TOR_LOOKUP" ]
+    # The direct lookup can and does return multiple entries.
+    # The tor lookup should correspond to one of them.
+    [[ "$DIRECT_LOOKUP" == *"$TOR_LOOKUP"* ]]
 fi
 
 ## This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
