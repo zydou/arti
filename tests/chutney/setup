@@ -3,6 +3,7 @@
 set -xeuo pipefail
 
 SCRIPT_NAME=$(basename "$0")
+SCRIPT_DIR=$(realpath "$(dirname "$0")")
 
 function usage()
 {
@@ -22,7 +23,7 @@ EOF
 }
 
 PROXY=no
-NETWORK="basic"
+NETWORK="${SCRIPT_DIR}/networks/arti-ci"
 while getopts "hn:" opt ; do
     case "$opt" in
 	h) usage
