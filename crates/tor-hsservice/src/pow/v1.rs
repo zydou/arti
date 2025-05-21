@@ -274,10 +274,14 @@ impl<R: Runtime> PowManager<R> {
         seed: Seed,
     ) -> Option<Verifier> {
         let blind_id_spec = BlindIdPublicKeySpecifier::new(nickname, time_period);
-        let blind_id_key = keymgr
-            .get::<HsBlindIdKey>(&blind_id_spec)
-            .expect("KeyMgr error!")?;
-        let instance = Instance::new(blind_id_key.id(), seed);
+        let blind_id_key = match keymgr.get::<HsBlindIdKey>(&blind_id_spec) {
+            Ok(blind_id_key) => blind_id_key,
+            Err(err) => {
+                tracing::warn!(?err, "KeyMgr error when getting blinded ID key for PoW");
+                None
+            }
+        };
+        let instance = Instance::new(blind_id_key?.id(), seed);
         Some(Verifier::new(instance))
     }
 
