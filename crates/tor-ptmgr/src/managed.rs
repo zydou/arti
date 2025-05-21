@@ -122,7 +122,7 @@ impl<R: Runtime> PtReactor<R> {
                 }
 
                 let requested: HashSet<_> = covers.iter().collect();
-                let found: HashSet<_> = pt.transport_methods().iter().map(|(t, _)| t).collect();
+                let found: HashSet<_> = pt.transport_methods().keys().collect();
                 if requested != found {
                     warn!("Bug: PT {} succeeded, but did not give the same transports we asked for. ({:?} vs {:?})",
                           pt.identifier(), found, requested);
