@@ -109,7 +109,7 @@ fn build_server_config(
 
 /// Read cert info and relay it to the user
 fn read_cert_info() -> Result<String> {
-    let file_path = format!("{}/obfs4_bridgeline.txt", SERVER_STATE_LOCATION);
+    let file_path = format!("{SERVER_STATE_LOCATION}/obfs4_bridgeline.txt");
     match std::fs::read_to_string(file_path) {
         Ok(contents) => {
             let line = contents
@@ -124,7 +124,7 @@ fn read_cert_info() -> Result<String> {
                 .split_whitespace()
                 .find(|part| part.starts_with("iat-mode="))
                 .ok_or(BridgeLineParseError)?;
-            let complete_config = format!("{};{}", cert, iat);
+            let complete_config = format!("{cert};{iat}");
             Ok(complete_config)
         }
         Err(e) => Err(e.into()),
@@ -215,11 +215,11 @@ async fn run_forwarding_server(endpoint: &str, forward_creds: ForwardingCreds) -
             Ok(mut relay_stream) => {
                 if let Err(e) = tokio::io::copy_bidirectional(&mut client, &mut relay_stream).await
                 {
-                    eprintln!("{:#?}", e);
+                    eprintln!("{e:#?}");
                 }
             }
             Err(e) => {
-                eprintln!("Couldn't connect to obfs4 client: \"{}\"", e);
+                eprintln!("Couldn't connect to obfs4 client: \"{e}\"");
                 // Report "No authentication method was acceptable" to user
                 // For more info refer to RFC 1928
                 client.write_all(&[5, 0xFF]).await.unwrap();
@@ -238,7 +238,7 @@ async fn run_socks5_server(endpoint: &str) -> Result<oneshot::Receiver<bool>> {
         while let Some(Ok(socks_socket)) = listener.incoming().next().await {
             tokio::spawn(async move {
                 if let Err(e) = socks_socket.upgrade_to_socks5().await {
-                    eprintln!("{:#?}", e);
+                    eprintln!("{e:#?}");
                 }
             });
         }
@@ -260,7 +260,7 @@ async fn main() -> Result<()> {
             remote_obfs4_port,
             obfs4_auth_info: obfs4_server_conf,
         } => {
-            let entry_addr = format!("127.0.0.1:{}", client_port);
+            let entry_addr = format!("127.0.0.1:{client_port}");
 
             let client_pt = launch_obfs4_client_process(obfs4_path).await?;
             let client_endpoint = client_pt
@@ -287,7 +287,7 @@ async fn main() -> Result<()> {
                             obfs4_server_port: remote_obfs4_port,
                         };
                         println!();
-                        println!("Listening on: {}", entry_addr);
+                        println!("Listening on: {entry_addr}");
                         run_forwarding_server(&entry_addr, creds).await?;
                     }
                     _ => eprintln!("Unable to get credentials for obfs4 client process!"),
@@ -299,14 +299,14 @@ async fn main() -> Result<()> {
             listen_address,
             final_socks5_port,
         } => {
-            let final_socks5_endpoint = format!("127.0.0.1:{}", final_socks5_port);
+            let final_socks5_endpoint = format!("127.0.0.1:{final_socks5_port}");
             let exit_rx = run_socks5_server(&final_socks5_endpoint).await?;
             println!();
-            println!("Listening on: {}", listen_address);
+            println!("Listening on: {listen_address}");
             launch_obfs4_server_process(obfs4_path, listen_address, final_socks5_endpoint).await?;
             let auth_info = read_cert_info().unwrap();
             println!();
-            println!("Authentication info is: {}", auth_info);
+            println!("Authentication info is: {auth_info}");
             exit_rx.await.unwrap();
         }
     }

@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
     let stream = tor_client.connect((host, port)).await?;
 
     // The rest is just standard usage of Hyper.
-    eprintln!("requesting {} via Tor...", url);
+    eprintln!("requesting {url} via Tor...");
 
     if https {
         let cx = TlsConnector::builder().build()?;

@@ -76,7 +76,7 @@ async fn connect_to_url(
     // Spawn task to drive HTTP state forward
     tokio::spawn(async move {
         if let Err(e) = connection.await {
-            tracing::debug!("Connection closed: {}", e);
+            tracing::debug!("Connection closed: {e}");
         }
     });
 
@@ -98,21 +98,21 @@ async fn get_content_length(
         .header(header::HOST, host)
         .uri(uri)
         .body(Empty::new())?;
-    tracing::debug!("Sending request to server: {:?}", request);
+    tracing::debug!("Sending request to server: {request:?}");
 
     let response = http.send_request(request).await?;
-    tracing::debug!("Received response from server: {:?}", response);
+    tracing::debug!("Received response from server: {response:?}");
 
     // Check that request succeeded
     if !response.status().is_success() {
-        return Err(anyhow::anyhow!("HEAD Request failed: {:?}", response));
+        return Err(anyhow::anyhow!("HEAD Request failed: {response:?}"));
     };
 
     // Get the Content-Length header
     match response.headers().get(header::CONTENT_LENGTH) {
         Some(header) => {
             let length: u64 = header.to_str()?.parse()?;
-            tracing::debug!("Content-Length of resource: {}", length);
+            tracing::debug!("Content-Length of resource: {length}");
             Ok(length)
         }
         None => Err(anyhow::anyhow!("Missing Content-Length header")),
@@ -176,7 +176,7 @@ async fn request_range(
         .method(Method::GET)
         .uri(uri)
         .header(header::HOST, host)
-        .header(header::RANGE, format!("bytes={}-{}", start, end))
+        .header(header::RANGE, format!("bytes={start}-{end}"))
         .body(Empty::new())?;
 
     let mut response = http.send_request(request).await?;
@@ -237,7 +237,7 @@ async fn main() -> anyhow::Result<()> {
     // Fetch Tor Browser Bundle size using isolated tor client
     let mut connection = connect_to_url(&client, &uri).await?;
     let length = get_content_length(&mut connection, &uri).await?;
-    tracing::info!("Tor Browser Bundle has size: {} bytes", length);
+    tracing::info!("Tor Browser Bundle has size: {length} bytes");
 
     tracing::info!("Fetching checksum");
     let checksums = get_checksums(&mut connection, checksum_uri).await?;
@@ -264,7 +264,7 @@ async fn main() -> anyhow::Result<()> {
         start = end + 1;
     }
 
-    tracing::info!("Creating {} connections", connections);
+    tracing::info!("Creating {connections} connections");
     let connections = ranges.iter().map(|(start, end)| async {
         // Create new connection for chunk
         let connection = connect_to_url(&client, &uri).await?;

@@ -415,7 +415,7 @@ impl Display for Response {
         writeln!(f, "Class: 0x{:x}", self.query.qclass)?;
         for record in self.rr.iter() {
             writeln!(f)?;
-            writeln!(f, "{}", record)?;
+            writeln!(f, "{record}")?;
         }
         Ok(())
     }

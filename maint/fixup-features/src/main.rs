@@ -216,7 +216,7 @@ impl Crate {
             };
 
             if !graph.contains_edge("full", wanted.as_str()) {
-                w(format!("full should contain {}. Fixing.", wanted));
+                w(format!("full should contain {wanted}. Fixing."));
                 changes.push(Change::AddExternalEdge("full".to_string(), wanted));
             }
         }
@@ -410,14 +410,14 @@ fn main() -> Result<()> {
         "fixup-features [--no-annotate] [--exclude <PREFIX1> --exclude <PREFIX2> ...] <toplevel Cargo.toml>";
 
     if pargs.contains(["-h", "--help"]) {
-        println!("{}", HELP);
+        println!("{HELP}");
         return Ok(());
     }
     let no_annotate = pargs.contains("--no-annotate");
     let exclusion_prefixes: Vec<String> = pargs.values_from_str("--exclude").unwrap();
     let toplevel_toml_file: PathBuf = pargs.free_from_str()?;
     if !pargs.finish().is_empty() {
-        println!("{}", HELP);
+        println!("{HELP}");
         return Ok(());
     }
 
