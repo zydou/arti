@@ -1073,9 +1073,10 @@ impl Resolve {
                 for o in v6.octets().iter().rev() {
                     let high_nybble = o >> 4;
                     let low_nybble = o & 15;
-                    write!(s, "{:x}.{:x}.", low_nybble, high_nybble).unwrap();
+                    write!(s, "{:x}.{:x}.", low_nybble, high_nybble)
+                        .expect("write to string failed");
                 }
-                write!(s, "ip6.arpa").unwrap();
+                write!(s, "ip6.arpa").expect("write to string failed");
                 s
             }
         };
