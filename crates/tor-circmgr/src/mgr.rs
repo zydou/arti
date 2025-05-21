@@ -788,6 +788,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// under the assumption that it will be used for that spec.
     ///
     /// This is the primary entry point for AbstractCircMgr.
+    #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor?
     pub(crate) async fn get_or_launch(
         self: &Arc<Self>,
         usage: &TargetCircUsage,
@@ -1007,6 +1008,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
 
     /// Execute an action returned by pick-action, and return the
     /// resulting circuit or error.
+    #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor
     async fn take_action(
         self: Arc<Self>,
         act: Action<B, R>,

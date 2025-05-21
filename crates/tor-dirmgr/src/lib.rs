@@ -441,6 +441,7 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// Panics if the `DirMgr` passed to this function was not created in online mode, such as
     /// via `load_once`.
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactor
     pub async fn bootstrap(self: &Arc<Self>) -> Result<()> {
         if self.offline {
             return Err(Error::OfflineMode);
@@ -573,6 +574,7 @@ impl<R: Runtime> DirMgr<R> {
     /// message using `on_complete`.
     ///
     /// If we eventually become the owner, return Ok().
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactor?
     async fn reload_until_owner(
         weak: &Weak<Self>,
         schedule: &mut TaskSchedule<R>,
@@ -642,6 +644,7 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// If we have begin to have a bootstrapped directory, send a
     /// message using `on_complete`.
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactor?
     async fn download_forever(
         weak: Weak<Self>,
         schedule: &mut TaskSchedule<R>,

@@ -1021,6 +1021,7 @@ fn relay_for_path_ent<'a>(
 }
 
 /// Background task to launch onion circuits as needed.
+#[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor, after !3007 is in.
 async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Runtime>(
     pool: Weak<HsCircPoolInner<B, R>>,
     netdir_provider: Weak<dyn NetDirProvider + 'static>,

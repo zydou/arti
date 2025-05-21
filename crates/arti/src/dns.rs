@@ -149,6 +149,7 @@ where
 
 /// Given a datagram containing a DNS query, resolve the query over
 /// the Tor network and send the response back.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor
 async fn handle_dns_req<R, U>(
     tor_client: TorClient<R>,
     socket_id: usize,
@@ -233,6 +234,7 @@ where
 
 /// Launch a DNS resolver to listen on a given local port, and run indefinitely.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor
 pub(crate) async fn run_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,

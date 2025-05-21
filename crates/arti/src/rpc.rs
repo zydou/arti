@@ -78,6 +78,7 @@ type IncomingConn = (
 /// Bind to all configured RPC listeners in `cfg`.
 ///
 /// On success, return a stream of `IncomingConn`.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor?
 async fn launch_all_listeners<R: Runtime>(
     runtime: &R,
     cfg: &RpcConfig,

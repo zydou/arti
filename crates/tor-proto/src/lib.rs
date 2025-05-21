@@ -43,6 +43,9 @@
 #![allow(clippy::needless_lifetimes)] // See arti#1765
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// TODO #2010: Remove this global allow, and either propagate it to the functions that need it,
+// or make those functions less complex.
+#![allow(clippy::cognitive_complexity)]
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(
     not(all(feature = "full", feature = "experimental")),
