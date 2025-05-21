@@ -288,7 +288,7 @@ impl<R: Runtime> PowManager<R> {
     /// Calculate a time when we want to rotate a seed, slightly before it expires, in order to
     /// ensure that clients don't ever download a seed that is already out of date.
     fn calculate_early_rotation_time(expiration_time: SystemTime) -> SystemTime {
-        // Underflow cannot happen cannot happen because:
+        // Underflow cannot happen because:
         //
         // * We set the expiration time to the current time plus at least the minimum
         //   expiration time
