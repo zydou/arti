@@ -18,11 +18,10 @@ Options:
   -n <network>: Name of the chutney network to launch (default: basic)
 
 Modules:
-  "proxy": Launch a arti-based SOCKS proxy.
+  <currently none>
 EOF
 }
 
-PROXY=no
 NETWORK="${SCRIPT_DIR}/networks/arti-ci"
 while getopts "hn:" opt ; do
     case "$opt" in
@@ -42,8 +41,6 @@ shift $((OPTIND-1))
 
 for module in "$@"; do
     case "$module" in
-	proxy) PROXY=yes
-	       ;;
 	*) echo "Unrecognized module. (Run $0 -h for usage)"
 	   ;;
     esac
@@ -105,7 +102,3 @@ echo "export CHUTNEY_ARTI=\"$CHUTNEY_ARTI\"" >> tests/chutney/arti.run
 "${CHUTNEY_BIN}" start "$target"
 CHUTNEY_START_TIME=180 "${CHUTNEY_BIN}" wait_for_bootstrap "$target"
 "${CHUTNEY_BIN}" verify "$target"
-
-if [ "$PROXY" = "no" ] ; then
-    exit 0
-fi
