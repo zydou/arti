@@ -69,14 +69,15 @@ impl HsCircKind {
     /// Return the [`HsCircStemKind`] needed to build this type of circuit.
     fn stem_kind(&self) -> HsCircStemKind {
         match self {
-            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStemKind::Naive,
+            HsCircKind::SvcIntro => HsCircStemKind::Naive,
             HsCircKind::SvcHsDir => {
                 // TODO: we might want this to be GUARDED
                 HsCircStemKind::Naive
             }
-            HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
-                HsCircStemKind::Guarded
-            }
+            HsCircKind::ClientRend
+            | HsCircKind::SvcRend
+            | HsCircKind::ClientHsDir
+            | HsCircKind::ClientIntro => HsCircStemKind::Guarded,
         }
     }
 }
