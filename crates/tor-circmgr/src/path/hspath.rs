@@ -377,20 +377,24 @@ pub(crate) fn hs_intermediate_hop_usage() -> RelayUsage {
 /// If `kind` is provided, we need to make sure that the last hop will yield a stem circuit
 /// that's fit for that kind of circuit.
 pub(crate) fn hs_stem_terminal_hop_usage(kind: Option<HsCircKind>) -> RelayUsage {
+    let Some(kind) = kind else {
+        // For unknown HsCircKinds, we'll pick an arbitrary last hop, and check later
+        // that it is really suitable for whatever purpose we had in mind.
+        return hs_intermediate_hop_usage();
+    };
     match kind {
-        Some(HsCircKind::ClientRend) => {
+        HsCircKind::ClientRend => {
             // This stem circuit going to get used as-is for a ClientRend circuit,
             // and so the last hop of the stem circuit needs to be suitable as a rendezvous point.
             RelayUsage::new_rend_point()
         }
-        Some(_) => {
+        HsCircKind::SvcHsDir
+        | HsCircKind::SvcIntro
+        | HsCircKind::SvcRend
+        | HsCircKind::ClientHsDir
+        | HsCircKind::ClientIntro => {
             // For all other HSCircKind cases, the last hop will be added to the stem,
             // so we have no additional restrictions on the usage.
-            hs_intermediate_hop_usage()
-        }
-        None => {
-            // For unknown HsCircKinds, we'll pick an arbitrary last hop, and check later
-            // that it is really suitable for whatever purpose we had in mind.
             hs_intermediate_hop_usage()
         }
     }
