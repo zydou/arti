@@ -116,7 +116,7 @@ use tor_persist::StateMgr;
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
 #[cfg(feature = "hs-common")]
-use crate::hspool::HsCircStemKind;
+use crate::hspool::{HsCircKind, HsCircStemKind};
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::VanguardMgr;
 
@@ -953,8 +953,12 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         }
     }
 
-    /// Create and return a new (typically anonymous) circuit for use as an
-    /// onion service circuit of type `kind`.
+    /// Create and return a new (typically anonymous) onion circuit stem
+    /// of type `stem_kind`.
+    ///
+    /// If `circ_kind` is provided, we apply additional rules to make sure
+    /// that this will be usable as a stem for the given kind of onion service circuit.
+    /// Otherwise, we pick a stem that will probably be useful in general.
     ///
     /// This circuit is guaranteed not to have been used for any traffic
     /// previously, and it will not be given out for any other requests in the
@@ -970,14 +974,16 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         &self,
         planned_target: Option<T>,
         dir: &NetDir,
-        kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
+        circ_kind: Option<HsCircKind>,
     ) -> Result<Arc<B::Circ>>
     where
         T: IntoOwnedChanTarget,
     {
         let usage = TargetCircUsage::HsCircBase {
             compatible_with_target: planned_target.map(IntoOwnedChanTarget::to_owned),
-            kind,
+            stem_kind,
+            circ_kind,
         };
         let (_, client_circ) = self.mgr.launch_unmanaged(&usage, dir.into()).await?;
         Ok(client_circ)
@@ -1197,6 +1203,7 @@ mod test {
                                 None,
                                 &netdir,
                                 HsCircStemKind::Naive,
+                                None,
                             )
                             .await,
                     )

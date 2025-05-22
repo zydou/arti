@@ -13,6 +13,7 @@ use std::{
 use crate::{
     build::{onion_circparams_from_netparams, CircuitBuilder},
     mgr::AbstractCircBuilder,
+    path::hspath::hs_stem_terminal_hop_usage,
     timeouts, AbstractCirc, CircMgr, CircMgrInner, Error, Result,
 };
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
@@ -68,10 +69,19 @@ impl HsCircKind {
     /// Return the [`HsCircStemKind`] needed to build this type of circuit.
     fn stem_kind(&self) -> HsCircStemKind {
         match self {
-            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStemKind::Naive,
+            HsCircKind::SvcIntro => HsCircStemKind::Naive,
             HsCircKind::SvcHsDir => {
                 // TODO: we might want this to be GUARDED
                 HsCircStemKind::Naive
+            }
+            HsCircKind::ClientRend => {
+                // NOTE: Technically, client rendezvous circuits don't need a "guarded"
+                // stem kind, because the rendezvous point is selected by the client,
+                // so it cannot easily be controlled by an attacker.
+                //
+                // However, to keep the implementation simple, we use "guarded" circuit stems,
+                // and designate the last hop of the stem as the rendezvous point.
+                HsCircStemKind::Guarded
             }
             HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
                 HsCircStemKind::Guarded
@@ -364,7 +374,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stem_circuit::<OwnedCircTarget>(netdir, None, HsCircStemKind::Guarded)
+            .take_or_launch_stem_circuit::<OwnedCircTarget>(netdir, None, HsCircKind::ClientRend)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -430,7 +440,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
         // Get an unfinished circuit that's compatible with our target.
         let circ = self
-            .take_or_launch_stem_circuit(netdir, Some(&target), wanted_kind)
+            .take_or_launch_stem_circuit(netdir, Some(&target), kind)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -505,8 +515,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
     ///
-    /// If vanguards are enabled, this will try to build a circuit stem of the specified
-    /// [`HsCircStemKind`].
+    /// If vanguards are enabled, this will try to build a circuit stem appropriate for use
+    /// as the specified `kind`.
     ///
     /// If vanguards are disabled, `kind` is unused.
     ///
@@ -515,17 +525,18 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         &self,
         netdir: &NetDir,
         avoid_target: Option<&T>,
-        kind: HsCircStemKind,
+        kind: HsCircKind,
     ) -> Result<HsCircStem<B::Circ>>
     where
         // TODO #504: It would be better if this were a type that had to include
         // family info.
         T: CircTarget + std::marker::Sync,
     {
+        let stem_kind = kind.stem_kind();
         let vanguard_mode = self.vanguard_mode();
         trace!(
             vanguards=%vanguard_mode,
-            kind=%kind,
+            kind=%stem_kind,
             "selecting HS circuit stem"
         );
 
@@ -552,10 +563,16 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 match vanguard_mode {
                     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
                     VanguardMode::Lite | VanguardMode::Full => {
-                        vanguards_circuit_compatible_with_target(netdir, circ, kind, avoid_target)
+                        vanguards_circuit_compatible_with_target(
+                            netdir,
+                            circ,
+                            stem_kind,
+                            kind,
+                            avoid_target,
+                        )
                     }
                     VanguardMode::Disabled => {
-                        circuit_compatible_with_target(netdir, circ, &target_exclusion)
+                        circuit_compatible_with_target(netdir, circ, kind, &target_exclusion)
                     }
                     _ => {
                         warn!("unknown vanguard mode {vanguard_mode}");
@@ -568,7 +585,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             if matches!(vanguard_mode, VanguardMode::Full | VanguardMode::Lite) {
-                prefs.preferred_stem_kind(kind);
+                prefs.preferred_stem_kind(stem_kind);
             }
 
             let found_usable_circ =
@@ -589,9 +606,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
             let circuit = self
-                .maybe_extend_stem_circuit(netdir, circuit, avoid_target, kind)
+                .maybe_extend_stem_circuit(netdir, circuit, avoid_target, stem_kind, kind)
                 .await?;
-            self.ensure_suitable_circuit(&circuit, avoid_target, kind)?;
+            self.ensure_suitable_circuit(&circuit, avoid_target, stem_kind)?;
             return Ok(circuit);
         }
 
@@ -603,12 +620,15 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // TODO: We could in launch multiple circuits in parallel here?
         let circ = self
             .circmgr
-            .launch_hs_unmanaged(avoid_target, netdir, kind)
+            .launch_hs_unmanaged(avoid_target, netdir, stem_kind, Some(kind))
             .await?;
 
-        self.ensure_suitable_circuit(&circ, avoid_target, kind)?;
+        self.ensure_suitable_circuit(&circ, avoid_target, stem_kind)?;
 
-        Ok(HsCircStem { circ, kind })
+        Ok(HsCircStem {
+            circ,
+            kind: stem_kind,
+        })
     }
 
     /// Return a circuit of the specified `kind`, built from `circuit`.
@@ -617,7 +637,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         circuit: HsCircStem<B::Circ>,
         avoid_target: Option<&T>,
-        kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
+        circ_kind: HsCircKind,
     ) -> Result<HsCircStem<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
@@ -627,13 +648,22 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             VanguardMode::Full => {
                 // NAIVE circuit stems need to be extended by one hop to become GUARDED stems
                 // if we're using full vanguards.
-                self.extend_full_vanguards_circuit(netdir, circuit, avoid_target, kind)
-                    .await
+                self.extend_full_vanguards_circuit(
+                    netdir,
+                    circuit,
+                    avoid_target,
+                    stem_kind,
+                    circ_kind,
+                )
+                .await
             }
             _ => {
                 let HsCircStem { circ, kind: _ } = circuit;
 
-                Ok(HsCircStem { circ, kind })
+                Ok(HsCircStem {
+                    circ,
+                    kind: stem_kind,
+                })
             }
         }
     }
@@ -645,12 +675,16 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         circuit: HsCircStem<B::Circ>,
         avoid_target: Option<&T>,
-        kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
+        circ_kind: HsCircKind,
     ) -> Result<HsCircStem<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
     {
-        match (circuit.kind, kind) {
+        use crate::path::hspath::hs_stem_terminal_hop_usage;
+        use tor_relay_selection::RelaySelector;
+
+        match (circuit.kind, stem_kind) {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = crate::build::onion_circparams_from_netparams(netdir.params())?;
@@ -671,29 +705,33 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 } else {
                     RelayExclusion::no_relays_excluded()
                 };
+                let selector = RelaySelector::new(
+                    hs_stem_terminal_hop_usage(Some(circ_kind)),
+                    target_exclusion,
+                );
                 let hops = circ_path
                     .iter()
                     .flat_map(|hop| hop.as_chan_target())
                     .map(IntoOwnedChanTarget::to_owned)
                     .collect::<Vec<OwnedChanTarget>>();
-                let extra_hop = select_middle_for_vanguard_circ(
-                    &hops,
-                    netdir,
-                    &target_exclusion,
-                    &mut rand::rng(),
-                )?;
+
+                let extra_hop =
+                    select_middle_for_vanguard_circ(&hops, netdir, &selector, &mut rand::rng())?;
 
                 // Since full vanguards are enabled and the circuit we got is NAIVE,
                 // we need to extend it by another hop to make it GUARDED before returning it
                 let circ = self.extend_circ(circuit, params, extra_hop).await?;
 
-                Ok(HsCircStem { circ, kind })
+                Ok(HsCircStem {
+                    circ,
+                    kind: stem_kind,
+                })
             }
             (HsCircStemKind::Guarded, HsCircStemKind::Naive) => {
                 Err(internal!("wanted a NAIVE circuit, but got GUARDED?!").into())
             }
             _ => {
-                trace!("Wanted {kind} circuit, got {}", circuit.kind);
+                trace!("Wanted {stem_kind} circuit, got {}", circuit.kind);
                 // Nothing to do: the circuit stem we got is of the kind we wanted
                 Ok(circuit)
             }
@@ -710,7 +748,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     where
         T: CircTarget + std::marker::Sync,
     {
-        Self::ensure_circuit_compatible_with_target(circ, target)?;
+        Self::ensure_circuit_can_extend_to_target(circ, target)?;
         self.ensure_circuit_length_valid(circ, kind)?;
 
         Ok(())
@@ -743,16 +781,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         Ok(())
     }
 
-    /// Ensure `circ` is compatible with `target`.
+    /// Ensure that it is possible to extend `circ` to `target`.
     ///
     /// Returns an error if either of the last 2 hops of the circuit are the same as `target`,
     /// because:
     ///   * a relay won't let you extend the circuit to itself
     ///   * relays won't let you extend the circuit to their previous hop
-    fn ensure_circuit_compatible_with_target<T>(
-        circ: &Arc<B::Circ>,
-        target: Option<&T>,
-    ) -> Result<()>
+    fn ensure_circuit_can_extend_to_target<T>(circ: &Arc<B::Circ>, target: Option<&T>) -> Result<()>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -796,7 +831,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         let mut inner = self.inner.lock().expect("lock poisoned");
         inner
             .pool
-            .retain(|circ| circuit_still_useable(netdir, circ, |_relay| true));
+            .retain(|circ| circuit_still_useable(netdir, circ, |_relay| true, |_last_hop| true));
     }
 
     /// Returns the current [`VanguardMode`].
@@ -832,8 +867,11 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 fn circuit_compatible_with_target<C: AbstractCirc>(
     netdir: &NetDir,
     circ: &HsCircStem<C>,
+    circ_kind: HsCircKind,
     exclude_target: &RelayExclusion,
 ) -> bool {
+    let last_hop_usage = hs_stem_terminal_hop_usage(Some(circ_kind));
+
     // NOTE, TODO #504:
     // This uses a RelayExclusion directly, when we would be better off
     // using a RelaySelector to make sure that we had checked every relevant
@@ -842,9 +880,12 @@ fn circuit_compatible_with_target<C: AbstractCirc>(
     // The behavior is okay, since we already checked all the properties of the
     // circuit's relays when we first constructed the circuit.  Still, it would
     // be better to use refactor and a RelaySelector instead.
-    circuit_still_useable(netdir, circ, |relay| {
-        exclude_target.low_level_predicate_permits_relay(relay)
-    })
+    circuit_still_useable(
+        netdir,
+        circ,
+        |relay| exclude_target.low_level_predicate_permits_relay(relay),
+        |last_hop| last_hop_usage.low_level_predicate_permits_relay(last_hop),
+    )
 }
 
 /// Return true if we can extend a pre-built vanguards circuit `circ` to `target`.
@@ -856,6 +897,7 @@ fn vanguards_circuit_compatible_with_target<C: AbstractCirc, T>(
     netdir: &NetDir,
     circ: &HsCircStem<C>,
     kind: HsCircStemKind,
+    circ_kind: HsCircKind,
     avoid_target: Option<&T>,
 ) -> bool
 where
@@ -882,7 +924,16 @@ where
         }
     }
 
-    circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
+    // TODO #504: usage of low_level_predicate_permits_relay is inherently dubious.
+    let last_hop_usage = hs_stem_terminal_hop_usage(Some(circ_kind));
+
+    circ.can_become(kind)
+        && circuit_still_useable(
+            netdir,
+            circ,
+            |_relay| true,
+            |last_hop| last_hop_usage.low_level_predicate_permits_relay(last_hop),
+        )
 }
 
 /// Return true if we can still use a given pre-build circuit.
@@ -890,10 +941,16 @@ where
 /// We require that the circuit is open, that every hop  in the circuit is
 /// listed in `netdir`, and that `relay_okay` returns true for every hop on the
 /// circuit.
-fn circuit_still_useable<C, F>(netdir: &NetDir, circ: &HsCircStem<C>, relay_okay: F) -> bool
+fn circuit_still_useable<C, F1, F2>(
+    netdir: &NetDir,
+    circ: &HsCircStem<C>,
+    relay_okay: F1,
+    last_hop_ok: F2,
+) -> bool
 where
     C: AbstractCirc,
-    F: Fn(&Relay<'_>) -> bool,
+    F1: Fn(&Relay<'_>) -> bool,
+    F2: Fn(&Relay<'_>) -> bool,
 {
     let circ = &circ.circ;
     if circ.is_closing() {
@@ -904,21 +961,63 @@ where
         // Circuit is unusable, so we can't use it.
         return false;
     };
+    let last_hop = path.hops().last().expect("No hops in circuit?!");
+    match relay_for_path_ent(netdir, last_hop) {
+        Err(NoRelayForPathEnt::HopWasVirtual) => {}
+        Err(NoRelayForPathEnt::NoSuchRelay) => {
+            return false;
+        }
+        Ok(r) => {
+            if !last_hop_ok(&r) {
+                return false;
+            }
+        }
+    };
+
     // (We have to use a binding here to appease borrowck.)
     let all_compatible = path.iter().all(|ent: &circuit::PathEntry| {
-        let Some(c) = ent.as_chan_target() else {
-            // This is a virtual hop; it's necessarily compatible with everything.
-            return true;
-        };
-        let Some(relay) = netdir.by_ids(c) else {
-            // We require that every relay in this circuit is still listed; an
-            // unlisted relay means "reject".
-            return false;
-        };
-        // Now it's all down to the predicate.
-        relay_okay(&relay)
+        match relay_for_path_ent(netdir, ent) {
+            Err(NoRelayForPathEnt::HopWasVirtual) => {
+                // This is a virtual hop; it's necessarily compatible with everything.
+                true
+            }
+            Err(NoRelayForPathEnt::NoSuchRelay) => {
+                // We require that every relay in this circuit is still listed; an
+                // unlisted relay means "reject".
+                false
+            }
+            Ok(r) => {
+                // Now it's all down to the predicate.
+                relay_okay(&r)
+            }
+        }
     });
     all_compatible
+}
+
+/// A possible error condition when trying to look up a PathEntry
+//
+// Only used for one module-internal function, so doesn't derive Error.
+#[derive(Clone, Debug)]
+enum NoRelayForPathEnt {
+    /// This was a virtual hop; it doesn't have a relay.
+    HopWasVirtual,
+    /// The relay wasn't found in the netdir.
+    NoSuchRelay,
+}
+
+/// Look up a relay in a netdir corresponding to `ent`
+fn relay_for_path_ent<'a>(
+    netdir: &'a NetDir,
+    ent: &circuit::PathEntry,
+) -> StdResult<Relay<'a>, NoRelayForPathEnt> {
+    let Some(c) = ent.as_chan_target() else {
+        return Err(NoRelayForPathEnt::HopWasVirtual);
+    };
+    let Some(relay) = netdir.by_ids(c) else {
+        return Err(NoRelayForPathEnt::NoSuchRelay);
+    };
+    Ok(relay)
 }
 
 /// Background task to launch onion circuits as needed.
@@ -977,7 +1076,7 @@ async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Ru
                 // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
                 match pool
                     .circmgr
-                    .launch_hs_unmanaged(no_target, &netdir, for_launch.kind())
+                    .launch_hs_unmanaged(no_target, &netdir, for_launch.kind(), None)
                     .await
                 {
                     Ok(circ) => {

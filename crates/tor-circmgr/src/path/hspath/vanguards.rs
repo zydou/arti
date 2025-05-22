@@ -8,7 +8,7 @@ use tor_error::{internal, Bug};
 use tor_guardmgr::vanguards::{Layer, VanguardMgr};
 use tor_linkspec::HasRelayIds;
 use tor_netdir::{NetDir, Relay};
-use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
+use tor_relay_selection::{RelayExclusion, RelaySelector};
 use tor_rtcompat::Runtime;
 
 use crate::path::{MaybeOwnedRelay, TorPath};
@@ -66,24 +66,23 @@ impl<'n, 'a, RT: Runtime, R: Rng> PathBuilder<'n, 'a, RT, R> {
     /// Extend the path with a vanguard.
     pub(super) fn add_vanguard(
         mut self,
-        target_exclusion: &RelayExclusion<'n>,
+        selector: &RelaySelector<'n>,
         layer: Layer,
     ) -> Result<Self> {
-        let mut neighbor_exclusion = exclude_neighbors(&self.hops);
-        neighbor_exclusion.extend(target_exclusion);
+        let selector = selector_excluding_neighbors(selector, &self.hops);
+
         let vanguard: MaybeOwnedRelay = self
             .vanguards
-            .select_vanguard(&mut self.rng, self.netdir, layer, &neighbor_exclusion)?
+            .select_vanguard(&mut self.rng, self.netdir, layer, &selector)?
             .into();
         let () = self.add_hop(vanguard, HopKind::Vanguard(layer))?;
         Ok(self)
     }
 
     /// Extend the path with a middle relay.
-    pub(super) fn add_middle(mut self, target_exclusion: &RelayExclusion<'n>) -> Result<Self> {
+    pub(super) fn add_middle(mut self, selector: &RelaySelector<'n>) -> Result<Self> {
         let middle =
-            select_middle_for_vanguard_circ(&self.hops, self.netdir, target_exclusion, self.rng)?
-                .into();
+            select_middle_for_vanguard_circ(&self.hops, self.netdir, selector, self.rng)?.into();
         let () = self.add_hop(middle, HopKind::Middle)?;
         Ok(self)
     }
@@ -182,21 +181,25 @@ fn exclude_neighbors<'n, T: HasRelayIds + 'n>(hops: &[T]) -> RelayExclusion<'n> 
 pub(crate) fn select_middle_for_vanguard_circ<'n, R: Rng, T: HasRelayIds + 'n>(
     hops: &[T],
     netdir: &'n NetDir,
-    target_exclusion: &RelayExclusion<'n>,
+    selector: &RelaySelector<'n>,
     rng: &mut R,
 ) -> Result<Relay<'n>> {
-    let mut neighbor_exclusion = exclude_neighbors(hops);
-    neighbor_exclusion.extend(target_exclusion);
-
-    // TODO: this usage has need_stable = true, but we probably
-    // don't necessarily need a stable relay here.
-    let usage = RelayUsage::middle_relay(None);
-    let selector = RelaySelector::new(usage, neighbor_exclusion);
-
+    let selector = selector_excluding_neighbors(selector, hops);
     let (extra_hop, info) = selector.select_relay(rng, netdir);
     extra_hop.ok_or_else(|| Error::NoRelay {
         path_kind: "onion-service vanguard circuit",
         role: "extra hop",
         problem: info.to_string(),
     })
+}
+
+/// Extend the selector T to also exclude neighbors, based on `hops`.
+fn selector_excluding_neighbors<'n, T: HasRelayIds + 'n>(
+    selector: &RelaySelector<'n>,
+    hops: &[T],
+) -> RelaySelector<'n> {
+    let mut selector = selector.clone();
+    let neighbor_exclusion = exclude_neighbors(hops);
+    selector.push_restriction(neighbor_exclusion.into());
+    selector
 }
