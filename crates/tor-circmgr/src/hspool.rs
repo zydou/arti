@@ -74,10 +74,18 @@ impl HsCircKind {
                 // TODO: we might want this to be GUARDED
                 HsCircStemKind::Naive
             }
-            HsCircKind::ClientRend
-            | HsCircKind::SvcRend
-            | HsCircKind::ClientHsDir
-            | HsCircKind::ClientIntro => HsCircStemKind::Guarded,
+            HsCircKind::ClientRend => {
+                // NOTE: Technically, client rendezvous circuits don't need a "guarded"
+                // stem kind, because the rendezvous point is selected by the client,
+                // so it cannot easily be controlled by an attacker.
+                //
+                // However, to keep the implementation simple, we use "guarded" circuit stems,
+                // and designate the last hop of the stem as the rendezvous point.
+                HsCircStemKind::Guarded
+            }
+            HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
+                HsCircStemKind::Guarded
+            }
         }
     }
 }
