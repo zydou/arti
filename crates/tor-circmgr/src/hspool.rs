@@ -506,7 +506,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
     ///
-    /// If vanguards are enabled, this will try to build a circuit stem of appropriate for use
+    /// If vanguards are enabled, this will try to build a circuit stem appropriate for use
     /// as the specified `kind`.
     ///
     /// If vanguards are disabled, `kind` is unused.
