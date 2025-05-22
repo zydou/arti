@@ -11,7 +11,9 @@ use tor_llcrypto::{
 };
 #[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
-use tor_proto::bench_utils::{tor1, OutboundClientCryptWrapper, RelayBody};
+use tor_proto::bench_utils::{
+    tor1, CryptInit, KGen, OutboundClientCrypt, RelayCellBody, BENCH_CHAN_CMD,
+};
 
 const HOP_NUM: u8 = 2;
 
@@ -22,18 +24,18 @@ macro_rules! client_encrypt_setup {
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
         let seed3: SecretBuf = b"free to hide no more".to_vec().into();
 
-        let mut cc_out = OutboundClientCryptWrapper::new();
-        let state1 = $client_state_construct(seed1).unwrap();
-        cc_out.add_layer(state1);
-        let state2 = $client_state_construct(seed2).unwrap();
-        cc_out.add_layer(state2);
-        let state3 = $client_state_construct(seed3).unwrap();
-        cc_out.add_layer(state3);
+        let mut cc_out = OutboundClientCrypt::new();
+        let state1 = $client_state_construct(KGen::new(seed1)).unwrap();
+        cc_out.add_layer_from_pair(state1);
+        let state2 = $client_state_construct(KGen::new(seed2)).unwrap();
+        cc_out.add_layer_from_pair(state2);
+        let state3 = $client_state_construct(KGen::new(seed3)).unwrap();
+        cc_out.add_layer_from_pair(state3);
 
         let mut rng = rand::rng();
         let mut cell = [0u8; 509];
         rng.fill(&mut cell[..]);
-        let cell: RelayBody = cell.into();
+        let cell: RelayCellBody = Box::new(cell).into();
         (cell, cc_out)
     }};
 }
@@ -46,9 +48,11 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.bench_function("Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
-            || client_encrypt_setup!(tor1::Tor1ClientCryptState::<Aes128Ctr, Sha1>::construct),
+            || client_encrypt_setup!(tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct),
             |(cell, cc_out)| {
-                cc_out.encrypt(cell, HOP_NUM).unwrap();
+                cc_out
+                    .encrypt(BENCH_CHAN_CMD, cell, HOP_NUM.into())
+                    .unwrap();
             },
             criterion::BatchSize::SmallInput,
         );
@@ -56,9 +60,11 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.bench_function("Tor1Hsv3RelayCrypto", |b| {
         b.iter_batched_ref(
-            || client_encrypt_setup!(tor1::Tor1ClientCryptState::<Aes256Ctr, Sha3_256>::construct),
+            || client_encrypt_setup!(tor1::CryptStatePair::<Aes256Ctr, Sha3_256>::construct),
             |(cell, cc_out)| {
-                cc_out.encrypt(cell, HOP_NUM).unwrap();
+                cc_out
+                    .encrypt(BENCH_CHAN_CMD, cell, HOP_NUM.into())
+                    .unwrap();
             },
             criterion::BatchSize::SmallInput,
         );
@@ -73,9 +79,11 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes128", |b| {
         b.iter_batched_ref(
-            || client_encrypt_setup!(cgo::CgoClientCryptState::<Aes128Dec, Aes128Enc>::construct),
+            || client_encrypt_setup!(cgo::CryptStatePair::<Aes128Dec, Aes128Enc>::construct),
             |(cell, cc_out)| {
-                cc_out.encrypt(cell, HOP_NUM).unwrap();
+                cc_out
+                    .encrypt(BENCH_CHAN_CMD, cell, HOP_NUM.into())
+                    .unwrap();
             },
             criterion::BatchSize::SmallInput,
         );
@@ -84,9 +92,11 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes256", |b| {
         b.iter_batched_ref(
-            || client_encrypt_setup!(cgo::CgoClientCryptState::<Aes256Dec, Aes256Enc>::construct),
+            || client_encrypt_setup!(cgo::CryptStatePair::<Aes256Dec, Aes256Enc>::construct),
             |(cell, cc_out)| {
-                cc_out.encrypt(cell, HOP_NUM).unwrap();
+                cc_out
+                    .encrypt(BENCH_CHAN_CMD, cell, HOP_NUM.into())
+                    .unwrap();
             },
             criterion::BatchSize::SmallInput,
         );

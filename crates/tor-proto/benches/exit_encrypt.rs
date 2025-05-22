@@ -11,7 +11,9 @@ use tor_llcrypto::{
 };
 #[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
-use tor_proto::bench_utils::{tor1, RelayBody, RelayCryptState};
+use tor_proto::bench_utils::{
+    tor1, CryptInit, InboundRelayLayer, KGen, RelayCellBody, RelayLayer, BENCH_CHAN_CMD,
+};
 
 /// Helper macro to set up an exit encryption benchmark.
 macro_rules! exit_encrypt_setup {
@@ -19,12 +21,13 @@ macro_rules! exit_encrypt_setup {
         let seed1: SecretBuf = b"hidden we are free".to_vec().into();
 
         // No need to simulate other relays since we are only benchmarking the exit relay.
-        let exit_state = $relay_state_construct(seed1.clone()).unwrap();
+        let exit_state = $relay_state_construct(KGen::new(seed1)).unwrap();
+        let (_, exit_state, _) = exit_state.split_relay_layer();
 
         let mut rng = rand::rng();
         let mut cell = [0u8; 509];
         rng.fill(&mut cell[..]);
-        let cell: RelayBody = cell.into();
+        let cell: RelayCellBody = Box::new(cell).into();
         (cell, exit_state)
     }};
 }
@@ -38,9 +41,9 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.bench_function("Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
-            || exit_encrypt_setup!(tor1::Tor1RelayCryptState::<Aes128Ctr, Sha1>::construct),
+            || exit_encrypt_setup!(tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct),
             |(cell, relay_state)| {
-                relay_state.originate(cell);
+                relay_state.originate(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -48,9 +51,9 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.bench_function("Tor1Hsv3RelayCrypto", |b| {
         b.iter_batched_ref(
-            || exit_encrypt_setup!(tor1::Tor1RelayCryptState::<Aes256Ctr, Sha3_256>::construct),
+            || exit_encrypt_setup!(tor1::CryptStatePair::<Aes256Ctr, Sha3_256>::construct),
             |(cell, relay_state)| {
-                relay_state.originate(cell);
+                relay_state.originate(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -65,9 +68,9 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes128", |b| {
         b.iter_batched_ref(
-            || exit_encrypt_setup!(cgo::CgoRelayCryptState::<Aes128Enc, Aes128Enc>::construct),
+            || exit_encrypt_setup!(cgo::CryptStatePair::<Aes128Enc, Aes128Enc>::construct),
             |(cell, relay_state)| {
-                relay_state.originate(cell);
+                relay_state.originate(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -76,9 +79,9 @@ pub fn client_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
     #[cfg(feature = "counter-galois-onion")]
     group.bench_function("CGO_Aes256", |b| {
         b.iter_batched_ref(
-            || exit_encrypt_setup!(cgo::CgoRelayCryptState::<Aes256Enc, Aes256Enc>::construct),
+            || exit_encrypt_setup!(cgo::CryptStatePair::<Aes256Enc, Aes256Enc>::construct),
             |(cell, relay_state)| {
-                relay_state.originate(cell);
+                relay_state.originate(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );

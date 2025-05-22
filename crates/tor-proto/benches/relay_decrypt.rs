@@ -11,7 +11,10 @@ use tor_llcrypto::{
 };
 #[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
-use tor_proto::bench_utils::{tor1, OutboundClientCryptWrapper, RelayBody, RelayCryptState};
+use tor_proto::bench_utils::{
+    tor1, CryptInit, KGen, OutboundClientCrypt, OutboundRelayLayer, RelayCellBody, RelayLayer,
+    BENCH_CHAN_CMD,
+};
 
 const HOP_NUM: u8 = 1;
 
@@ -21,21 +24,23 @@ macro_rules! relay_decrypt_setup {
         let seed1: SecretBuf = b"hidden we are free".to_vec().into();
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
 
-        // No need to simulate other relays since we are only one relay.
-        let relay_state = $relay_state_construct(seed1.clone()).unwrap();
+        let relay_state = $relay_state_construct(KGen::new(seed1.clone())).unwrap();
+        let (relay_state, _, _) = relay_state.split_relay_layer();
 
-        let mut cc_out = OutboundClientCryptWrapper::new();
-        let state1 = $client_state_construct(seed1).unwrap();
-        cc_out.add_layer(state1);
+        let mut cc_out = OutboundClientCrypt::new();
+        let state1 = $client_state_construct(KGen::new(seed1)).unwrap();
+        cc_out.add_layer_from_pair(state1);
         // Add a second layer to avoid the benched relay to recognize the relay cell.
-        let state2 = $client_state_construct(seed2).unwrap();
-        cc_out.add_layer(state2);
+        let state2 = $client_state_construct(KGen::new(seed2)).unwrap();
+        cc_out.add_layer_from_pair(state2);
 
         let mut rng = rand::rng();
         let mut cell = [0u8; 509];
         rng.fill(&mut cell[..]);
-        let mut cell: RelayBody = cell.into();
-        cc_out.encrypt(&mut cell, HOP_NUM).unwrap();
+        let mut cell: RelayCellBody = Box::new(cell).into();
+        cc_out
+            .encrypt(BENCH_CHAN_CMD, &mut cell, HOP_NUM.into())
+            .unwrap();
         (cell, relay_state)
     }};
 }
@@ -50,12 +55,12 @@ pub fn relay_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
         b.iter_batched_ref(
             || {
                 relay_decrypt_setup!(
-                    tor1::Tor1ClientCryptState::<Aes128Ctr, Sha1>::construct,
-                    tor1::Tor1RelayCryptState::<Aes128Ctr, Sha1>::construct
+                    tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct,
+                    tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct
                 )
             },
             |(cell, relay_state)| {
-                relay_state.decrypt(cell);
+                relay_state.decrypt_outbound(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -65,12 +70,12 @@ pub fn relay_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
         b.iter_batched_ref(
             || {
                 relay_decrypt_setup!(
-                    tor1::Tor1ClientCryptState::<Aes256Ctr, Sha3_256>::construct,
-                    tor1::Tor1RelayCryptState::<Aes256Ctr, Sha3_256>::construct
+                    tor1::CryptStatePair::<Aes256Ctr, Sha3_256>::construct,
+                    tor1::CryptStatePair::<Aes256Ctr, Sha3_256>::construct
                 )
             },
             |(cell, relay_state)| {
-                relay_state.decrypt(cell);
+                relay_state.decrypt_outbound(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -87,12 +92,12 @@ pub fn relay_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
         b.iter_batched_ref(
             || {
                 relay_decrypt_setup!(
-                    cgo::CgoClientCryptState::<Aes128Dec, Aes128Enc>::construct,
-                    cgo::CgoRelayCryptState::<Aes128Enc, Aes128Enc>::construct
+                    cgo::CryptStatePair::<Aes128Dec, Aes128Enc>::construct,
+                    cgo::CryptStatePair::<Aes128Enc, Aes128Enc>::construct
                 )
             },
             |(cell, relay_state)| {
-                relay_state.decrypt(cell);
+                relay_state.decrypt_outbound(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -103,12 +108,12 @@ pub fn relay_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
         b.iter_batched_ref(
             || {
                 relay_decrypt_setup!(
-                    cgo::CgoClientCryptState::<Aes256Dec, Aes256Enc>::construct,
-                    cgo::CgoRelayCryptState::<Aes256Enc, Aes256Enc>::construct
+                    cgo::CryptStatePair::<Aes256Dec, Aes256Enc>::construct,
+                    cgo::CryptStatePair::<Aes256Enc, Aes256Enc>::construct
                 )
             },
             |(cell, relay_state)| {
-                relay_state.decrypt(cell);
+                relay_state.decrypt_outbound(BENCH_CHAN_CMD, cell);
             },
             criterion::BatchSize::SmallInput,
         );
