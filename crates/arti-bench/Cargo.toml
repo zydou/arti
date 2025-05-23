@@ -34,6 +34,12 @@ tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 
 [features]
-full = ["arti/full", "arti-client/full", "fs-mistrust/full", "tor-config/full", "tor-rtcompat/full"]
+full = [
+    "arti/full",
+    "arti-client/full",
+    "fs-mistrust/full",
+    "tor-config/full",
+    "tor-rtcompat/full",
+]
 [package.metadata.docs.rs]
 all-features = true

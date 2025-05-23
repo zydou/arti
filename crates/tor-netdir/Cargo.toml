@@ -40,7 +40,8 @@ full = [
     "tor-llcrypto/full",
     "tor-netdoc/full",
     "tor-protover/full",
-    "tor-units/full", "tor-geoip?/full",
+    "tor-units/full",
+    "tor-geoip?/full",
 ]
 __is_experimental = []
 

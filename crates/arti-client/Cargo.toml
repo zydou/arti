@@ -55,7 +55,8 @@ full = [
     "tor-geoip?/full",
     "tor-hsservice?/full",
     "tor-memquota/full",
-    "tor-config-path/full", "tor-protover/full",
+    "tor-config-path/full",
+    "tor-protover/full",
 ] # "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
 #   * Features that are experimental or unstable
 #   * Features that are testing-only
@@ -68,10 +69,19 @@ bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
 memquota = ["tor-memquota/memquota"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
-pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
+pt-client = [
+    "bridge-client",
+    "tor-chanmgr/pt-client",
+    "tor-guardmgr/pt-client",
+    "tor-ptmgr",
+]
 
 # Onion service proof of work schemes (specific schemes, full set, default set)
-hs-pow-full = ["tor-hsclient?/hs-pow-full", "tor-hsservice?/hs-pow-full", "__is_experimental"]
+hs-pow-full = [
+    "tor-hsclient?/hs-pow-full",
+    "tor-hsservice?/hs-pow-full",
+    "__is_experimental",
+]
 
 # Expose interfaces useful for testing
 testing = ["__is_experimental", "visibility"]
@@ -131,7 +141,11 @@ ctor-keystore = ["tor-keymgr/ctor-keystore", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 
-restricted-discovery = ["onion-service-service", "tor-hsservice/restricted-discovery", "__is_experimental"]
+restricted-discovery = [
+    "onion-service-service",
+    "tor-hsservice/restricted-discovery",
+    "__is_experimental",
+]
 __is_experimental = []
 
 [dependencies]

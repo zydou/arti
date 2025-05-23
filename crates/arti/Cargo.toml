@@ -54,10 +54,17 @@ full = [
     "tor-hsrproxy?/full",
     "tor-hsservice?/full",
     "tor-async-utils/full",
-    "tor-config-path/full", "tor-basic-utils/full", "tor-rpc-connect?/full",
+    "tor-config-path/full",
+    "tor-basic-utils/full",
+    "tor-rpc-connect?/full",
 ]
 
-async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "async-signal"]
+async-std = [
+    "arti-client/async-std",
+    "tor-rtcompat/async-std",
+    "async-ctrlc",
+    "async-signal",
+]
 bridge-client = ["arti-client/bridge-client"]
 default-runtime = ["tokio", "native-tls"]
 dns-proxy = ["hickory-proto"]
@@ -79,7 +86,12 @@ rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "derive-deftly"]
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
 # which in turn introduces a GPL-incompatibility.
-rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "rustls-crate", "__is_nonadditive"]
+rustls = [
+    "arti-client/rustls",
+    "tor-rtcompat/rustls",
+    "rustls-crate",
+    "__is_nonadditive",
+]
 
 # depends directly on arti-client/static so native-tls doesn't get automatically included
 static = ["arti-client/static", "__is_nonadditive"]
@@ -107,7 +119,11 @@ experimental = [
     "tor-hsservice/experimental",
     "ctor-keystore",
 ]
-metrics = ["dep:metrics-exporter-prometheus", "tor-hsrproxy?/metrics", "__is_experimental"]
+metrics = [
+    "dep:metrics-exporter-prometheus",
+    "tor-hsrproxy?/metrics",
+    "__is_experimental",
+]
 
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
@@ -126,10 +142,11 @@ arti-client = { package = "arti-client", path = "../arti-client", version = "0.3
 ] }
 arti-rpcserver = { path = "../arti-rpcserver", version = "0.30.0", optional = true }
 async-ctrlc = { version = "1.2.0", optional = true }
+async-signal = { version = "0.2.10", optional = true }
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
-derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 derive-deftly = { version = "~1.0.0", features = ["full", "beta"], optional = true }
+derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 fs-mistrust = { path = "../fs-mistrust", version = "0.9.1" }
 futures = "0.3.14"
 hickory-proto = { version = "0.24.4", optional = true }
@@ -137,6 +154,7 @@ humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.14.0"
 libc = "0.2"
+metrics-exporter-prometheus = { version = "0.17.0", optional = true, default-features = false, features = ["http-listener"] }
 notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
 paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
@@ -149,7 +167,6 @@ rustls-crate = { package = "rustls", version = "0.23.5", optional = true, defaul
 safelog = { path = "../safelog", version = "0.4.5" }
 secmem-proc = { version = "0.3.4", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
-async-signal = { version = "0.2.10", optional = true }
 thiserror = "2"
 time = "0.3.18"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
@@ -162,8 +179,8 @@ tor-config-path = { path = "../tor-config-path", version = "0.30.0" }
 tor-error = { path = "../tor-error", version = "0.30.0", default-features = false, features = ["tracing"] }
 tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.30.0", optional = true }
 tor-hsservice = { path = "../tor-hsservice", version = "0.30.0", optional = true }
-tor-rpcbase = { path = "../tor-rpcbase", version = "0.30.0", optional = true }
 tor-rpc-connect = { path = "../tor-rpc-connect", version = "0.30.0", optional = true, features = ["rpc-server"] }
+tor-rpcbase = { path = "../tor-rpcbase", version = "0.30.0", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.30.0", default-features = false }
 tor-socksproto = { path = "../tor-socksproto", version = "0.30.0" }
 tracing = "0.1.36"
@@ -171,7 +188,6 @@ tracing-appender = "0.2.0"
 tracing-journald = { version = "0.3.0", optional = true }
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 visibility = { version = "0.1.0", optional = true }
-metrics-exporter-prometheus = { version = "0.17.0", optional = true, default-features = false, features = ["http-listener"] }
 
 [dev-dependencies]
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.30.0", default-features = false, features = [
@@ -190,8 +206,8 @@ tor-config = { path = "../tor-config", version = "0.30.0", features = ["testing"
 tor-memquota = { version = "0.30.0", path = "../tor-memquota", default-features = false, features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.30.0" }
 trycmd = "0.15.4"
+[package.metadata.docs.rs]
+all-features = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.8", features = ["winerror"] }
-[package.metadata.docs.rs]
-all-features = true

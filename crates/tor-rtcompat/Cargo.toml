@@ -14,7 +14,14 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 default = []
-full = ["arbitrary", "async-std", "tokio", "native-tls", "tor-error/full", "tor-general-addr/full"]
+full = [
+    "arbitrary",
+    "async-std",
+    "tokio",
+    "native-tls",
+    "tor-error/full",
+    "tor-general-addr/full",
+]
 
 async-std = ["async-std-crate", "async-io", "async_executors/async_std"]
 tokio = [
@@ -30,7 +37,13 @@ native-tls = ["native-tls-crate", "async-native-tls"]
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
 # which in turn introduces a GPL-incompatibility.
-rustls = ["futures-rustls", "dep:rustls", "rustls-pki-types", "rustls-webpki", "__is_nonadditive"]
+rustls = [
+    "futures-rustls",
+    "dep:rustls",
+    "rustls-pki-types",
+    "rustls-webpki",
+    "__is_nonadditive",
+]
 
 __is_nonadditive = []
 
@@ -75,12 +88,12 @@ tor-general-addr = { version = "0.30.0", path = "../tor-general-addr" }
 tracing = "0.1.36"
 void = "1"
 
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
-
 [dev-dependencies]
 assert_matches = "1.5.0"
 # Used for testing our TLS implementation.
 native-tls-crate = { package = "native-tls", version = "0.2" }
 [package.metadata.docs.rs]
 all-features = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

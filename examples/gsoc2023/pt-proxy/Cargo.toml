@@ -21,4 +21,10 @@ tor-socksproto = { path = "../../../crates/tor-socksproto" }
 tracing-subscriber = "0.3.17"
 
 [features]
-full = ["tor-chanmgr/full", "tor-linkspec/full", "tor-ptmgr/full", "tor-rtcompat/full", "tor-socksproto/full"]
+full = [
+    "tor-chanmgr/full",
+    "tor-linkspec/full",
+    "tor-ptmgr/full",
+    "tor-rtcompat/full",
+    "tor-socksproto/full",
+]

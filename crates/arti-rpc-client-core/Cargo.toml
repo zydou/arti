@@ -41,9 +41,6 @@ rand = "0.9.1"
 rand_chacha = "0.9"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.30.0" }
 
-[target.'cfg(not(windows))'.dev-dependencies]
-socketpair = "0.19"
-
 [features]
 full = [
     "ffi",
@@ -58,3 +55,6 @@ ffi = ["paste"]
 
 [package.metadata.docs.rs]
 all-features = true
+
+[target.'cfg(not(windows))'.dev-dependencies]
+socketpair = "0.19"
