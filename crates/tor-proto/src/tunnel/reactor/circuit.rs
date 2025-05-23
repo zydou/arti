@@ -722,6 +722,8 @@ impl Circuit {
     }
 
     /// A helper for handling incoming stream requests.
+    ///
+    // TODO: can we make this a method on CircHop to avoid the double HopNum lookup?
     #[cfg(feature = "hs-service")]
     fn handle_incoming_stream_request(
         &mut self,
