@@ -166,6 +166,31 @@ pub struct ClientDataStreamCtrl {
     _memquota: StreamAccount,
 }
 
+/// The inner writer for [`DataWriter`].
+///
+/// This type is responsible for taking bytes and packaging them into cells.
+/// Rate limiting is implemented in [`DataWriter`] to avoid making this type more complex.
+#[derive(Debug)]
+struct DataWriterInner {
+    /// Internal state for this writer
+    ///
+    /// This is stored in an Option so that we can mutate it in the
+    /// AsyncWrite functions.  It might be possible to do better here,
+    /// and we should refactor if so.
+    state: Option<DataWriterState>,
+
+    /// The memory quota account that should be used for this stream's data
+    ///
+    /// Exists to keep the account alive
+    // If we liked, we could make this conditional; see DataReader.memquota
+    _memquota: StreamAccount,
+
+    /// A control object that can be used to monitor and control this stream
+    /// without needing to own it.
+    #[cfg(feature = "stream-ctrl")]
+    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+}
+
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
 ///
 /// See the [`DataStream`] docs for more information. In particular, note
@@ -199,27 +224,6 @@ pub struct ClientDataStreamCtrl {
 // Note that this type is re-exported as a part of the public API of
 // the `arti-client` crate.  Any changes to its API here in
 // `tor-proto` need to be reflected above.
-#[derive(Debug)]
-struct DataWriterInner {
-    /// Internal state for this writer
-    ///
-    /// This is stored in an Option so that we can mutate it in the
-    /// AsyncWrite functions.  It might be possible to do better here,
-    /// and we should refactor if so.
-    state: Option<DataWriterState>,
-
-    /// The memory quota account that should be used for this stream's data
-    ///
-    /// Exists to keep the account alive
-    // If we liked, we could make this conditional; see DataReader.memquota
-    _memquota: StreamAccount,
-
-    /// A control object that can be used to monitor and control this stream
-    /// without needing to own it.
-    #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
-}
-
 #[derive(Debug)]
 pub struct DataWriter {
     writer: RateLimitedWriter<DataWriterInner, DynTimeProvider>,
