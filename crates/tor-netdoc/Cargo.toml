@@ -61,7 +61,10 @@ hs-client = ["hs-common"]
 hs-service = ["hs-common", "tor-cert/encode"]
 hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
-hsdesc-inner-docs = ["visibility", "__is_experimental"] # TODO maybe fold this feature into `testing`
+hsdesc-inner-docs = [
+    "visibility",
+    "__is_experimental",
+] # TODO maybe fold this feature into `testing`
 
 # Onion service proof of work schemes
 hs-pow-full = ["tor-hscrypto/hs-pow-full", "__is_experimental"]

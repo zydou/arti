@@ -17,7 +17,12 @@ default = []
 keymgr = ["tor-keymgr/keymgr", "__is_experimental"]
 
 # Onion service proof of work schemes
-hs-pow-full = ["tor-hscrypto/hs-pow-full", "tor-netdoc/hs-pow-full", "tor-cell/hs-pow-full", "__is_experimental"]
+hs-pow-full = [
+    "tor-hscrypto/hs-pow-full",
+    "tor-netdoc/hs-pow-full",
+    "tor-cell/hs-pow-full",
+    "__is_experimental",
+]
 
 full = [
     "retry-error/full",
@@ -42,7 +47,8 @@ full = [
     "tor-persist/full",
     "oneshot-fused-workaround/full",
     "slotmap-careful/full",
-    "tor-memquota/full", "tor-protover/full",
+    "tor-memquota/full",
+    "tor-protover/full",
 ]
 __is_experimental = []
 experimental = ["keymgr", "hs-pow-full"]

@@ -18,7 +18,13 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 # Onion service proof of work schemes
-hs-pow-full = ["tor-hscrypto/hs-pow-full", "tor-netdoc/hs-pow-full", "tor-cell/hs-pow-full", "__is_experimental", "__is_experimental"]
+hs-pow-full = [
+    "tor-hscrypto/hs-pow-full",
+    "tor-netdoc/hs-pow-full",
+    "tor-cell/hs-pow-full",
+    "__is_experimental",
+    "__is_experimental",
+]
 
 full = [
     "tor-circmgr/full",
@@ -53,11 +59,7 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = [
-    "experimental-api",
-    "hs-pow-full",
-    "restricted-discovery",
-]
+experimental = ["experimental-api", "hs-pow-full", "restricted-discovery"]
 experimental-api = ["restricted-discovery", "__is_experimental"]
 
 restricted-discovery = ["__is_experimental"]

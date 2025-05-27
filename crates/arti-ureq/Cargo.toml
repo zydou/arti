@@ -35,6 +35,14 @@ native-tls = ["ureq/native-tls", "tor-rtcompat/native-tls"]
 tokio = ["tor-rtcompat/tokio", "dep:tokio"]
 
 async-std = ["tor-rtcompat/async-std", "dep:async-std"]
-full = ["arti-client/full", "tor-error/full", "tor-proto/full", "tor-rtcompat/full", "native-tls", "tokio", "async-std"]
+full = [
+    "arti-client/full",
+    "tor-error/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+    "native-tls",
+    "tokio",
+    "async-std",
+]
 
 __is_nonadditive = []

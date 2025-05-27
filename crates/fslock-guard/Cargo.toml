@@ -22,8 +22,8 @@ thiserror = "2"
 [dev-dependencies]
 test-temp-dir = { version = "0.3.3", path = "../test-temp-dir" }
 
-[target.'cfg(windows)'.dependencies.winapi]
-version = "^0.3.8"
-
 [package.metadata.docs.rs]
 all-features = true
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = "^0.3.8"

@@ -30,6 +30,7 @@ set -euo pipefail
     my $cargo_sort_root = basename($current_dir);
 
     next if m{^\Qerror: Dependencies for $cargo_sort_root are not sorted\E$};
+    next if m{^\Qerror: Cargo.toml for $cargo_sort_root is not formatted\E$};
     next if m{^\Qerror: Dependencies for arti are not sorted\E$};
     $n_allowed += !!m{^\QChecking arti...} || !!m{^\QChecking $cargo_sort_root...}; # for arti crate or toplevel dir
     next if m{^Checking \S+\Q...\E$};
