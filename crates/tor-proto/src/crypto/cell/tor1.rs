@@ -53,6 +53,7 @@ struct CryptState<SC: StreamCipher, D: Digest + Clone> {
 /// A pair of CryptStates shared between a client and a relay, one for the
 /// outbound (away from the client) direction, and one for the inbound
 /// (towards the client) direction.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) struct CryptStatePair<SC: StreamCipher, D: Digest + Clone> {
     /// State for en/decrypting cells sent away from the client.
     fwd: CryptState<SC, D>,
@@ -119,6 +120,7 @@ where
 }
 
 /// An inbound relay layer, encrypting relay cells for a client.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 #[derive(derive_more::From)]
 pub(crate) struct RelayInbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
 impl<SC: StreamCipher, D: Digest + Clone> InboundRelayLayer for RelayInbound<SC, D> {
@@ -134,6 +136,7 @@ impl<SC: StreamCipher, D: Digest + Clone> InboundRelayLayer for RelayInbound<SC,
 }
 
 /// An outbound relay layer, decrypting relay cells from a client.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 #[derive(derive_more::From)]
 pub(crate) struct RelayOutbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
 impl<SC: StreamCipher, D: Digest + Clone> OutboundRelayLayer for RelayOutbound<SC, D> {
@@ -157,6 +160,7 @@ impl<SC: StreamCipher, D: Digest + Clone> RelayLayer<RelayOutbound<SC, D>, Relay
 }
 
 /// An outbound client layer, encrypting relay cells for a relay.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 #[derive(derive_more::From)]
 pub(crate) struct ClientOutbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
 
@@ -174,6 +178,7 @@ impl<SC: StreamCipher, D: Digest + Clone> OutboundClientLayer for ClientOutbound
 }
 
 /// An outbound client layer, decryption relay cells from a relay.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 #[derive(derive_more::From)]
 pub(crate) struct ClientInbound<SC: StreamCipher, D: Digest + Clone>(CryptState<SC, D>);
 impl<SC: StreamCipher, D: Digest + Clone> InboundClientLayer for ClientInbound<SC, D> {
@@ -229,6 +234,7 @@ impl RelayCellBody {
         &mut self.0[DIGEST_RANGE]
     }
     /// Prepare a cell body by setting its digest and recognized field.
+    #[cfg_attr(feature = "bench", visibility::make(pub))]
     fn set_digest<D: Digest + Clone>(&mut self, d: &mut D, sendme_tag: &mut SendmeTag) {
         self.recognized_mut().fill(0); // Set 'Recognized' to zero
         self.digest_mut().fill(0); // Set Digest to zero
@@ -253,6 +259,7 @@ impl RelayCellBody {
     /// or the cell is corrupt.
     ///
     // TODO #1336: Further optimize and/or benchmark this.
+    #[cfg_attr(feature = "bench", visibility::make(pub))]
     fn is_recognized<D: Digest + Clone>(&self, d: &mut D, rcvd: &mut SendmeTag) -> bool {
         use crate::util::ct;
 
@@ -290,115 +297,14 @@ impl RelayCellBody {
 /// Benchmark utilities for the `tor1` module.
 #[cfg(feature = "bench")]
 pub mod bench_utils {
-    use super::*;
-
-    use crate::crypto::handshake::ShakeKeyGenerator as KGen;
-    use crate::{
-        bench_utils::{InboundClientLayerWrapper, OutboundClientLayerWrapper, RelayCryptState},
-        crypto::cell::bench_utils::RelayBody,
-        Result,
-    };
-    use tor_bytes::SecretBuf;
+    pub use super::ClientInbound;
+    pub use super::ClientOutbound;
+    pub use super::CryptStatePair;
+    pub use super::RelayInbound;
+    pub use super::RelayOutbound;
 
     /// The throughput for a relay cell in bytes with the Tor1 scheme.
     pub const TOR1_THROUGHPUT: u64 = 498;
-
-    /// Public wrapper around a tor1 client's cryptographic state.
-    pub struct Tor1ClientCryptState<SC: StreamCipher, D: Digest + Clone> {
-        /// Layer for traffic moving away from the client.
-        fwd: ClientOutbound<SC, D>,
-        /// Layer for traffic moving toward the client.
-        back: ClientInbound<SC, D>,
-    }
-
-    impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> Tor1ClientCryptState<SC, D> {
-        /// Return a new `Tor1ClientCryptState` based on a seed.
-        pub fn construct(seed: SecretBuf) -> Result<Self> {
-            let (outbound, inbound, _) =
-                CryptStatePair::construct(KGen::new(seed))?.split_client_layer();
-            Ok(Self {
-                back: inbound,
-                fwd: outbound,
-            })
-        }
-    }
-
-    impl<SC, D> From<Tor1ClientCryptState<SC, D>> for OutboundClientLayerWrapper
-    where
-        SC: StreamCipher + Send + 'static,
-        D: Digest + Clone + Send + 'static,
-    {
-        fn from(state: Tor1ClientCryptState<SC, D>) -> Self {
-            Self(Box::new(state.fwd))
-        }
-    }
-
-    impl<SC, D> From<Tor1ClientCryptState<SC, D>> for InboundClientLayerWrapper
-    where
-        SC: StreamCipher + Send + 'static,
-        D: Digest + Clone + Send + 'static,
-    {
-        fn from(value: Tor1ClientCryptState<SC, D>) -> Self {
-            Self(Box::new(value.back))
-        }
-    }
-
-    /// Public wrapper around a tor1 relay's cryptographic state.
-    pub struct Tor1RelayCryptState<SC: StreamCipher, D: Digest + Clone> {
-        /// Layer for traffic moving away from the client.
-        fwd: RelayOutbound<SC, D>,
-        /// Layer for traffic moving toward the client.
-        back: RelayInbound<SC, D>,
-    }
-
-    impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> Tor1RelayCryptState<SC, D> {
-        /// Return a new `Tor1RelayCryptState` based on a seed.
-        pub fn construct(seed: SecretBuf) -> Result<Self> {
-            let (outbound, inbound, _) =
-                CryptStatePair::construct(KGen::new(seed))?.split_relay_layer();
-            Ok(Self {
-                back: inbound,
-                fwd: outbound,
-            })
-        }
-    }
-
-    impl<SC: StreamCipher + KeyIvInit, D: Digest + Clone> RelayCryptState
-        for Tor1RelayCryptState<SC, D>
-    {
-        fn originate(&mut self, cell: &mut RelayBody) {
-            let cell = &mut cell.0;
-            self.back.originate(ChanCmd::RELAY, cell);
-        }
-
-        fn encrypt(&mut self, cell: &mut RelayBody) {
-            let cell = &mut cell.0;
-            self.back.encrypt_inbound(ChanCmd::RELAY, cell);
-        }
-
-        fn decrypt(&mut self, cell: &mut RelayBody) {
-            let cell = &mut cell.0;
-            self.fwd.decrypt_outbound(ChanCmd::RELAY, cell);
-        }
-    }
-
-    /// Public wrapper around the `set_digest` method of the `RelayCellBody` struct.
-    pub fn set_digest<D: Digest + Clone>(
-        relay_body: &mut RelayBody,
-        d: &mut D,
-        used_digest: &mut SendmeTag,
-    ) {
-        relay_body.0.set_digest::<D>(d, used_digest);
-    }
-
-    /// Public wrapper around the `is_recognized` method of the `RelayCellBody` struct.
-    pub fn is_recognized<D: Digest + Clone>(
-        relay_body: &RelayBody,
-        d: &mut D,
-        rcvd: &mut SendmeTag,
-    ) -> bool {
-        relay_body.0.is_recognized::<D>(d, rcvd)
-    }
 }
 
 #[cfg(test)]

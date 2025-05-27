@@ -47,6 +47,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use super::binding::CircuitBinding;
 
 /// Type for the body of a relay cell.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 #[derive(Clone, derive_more::From, derive_more::Into)]
 pub(crate) struct RelayCellBody(BoxedCellBody);
 
@@ -63,6 +64,7 @@ impl AsMut<[u8]> for RelayCellBody {
 
 /// Represents the ability for one hop of a circuit's cryptographic state to be
 /// initialized from a given seed.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait CryptInit: Sized {
     /// Return the number of bytes that this state will require.
     fn seed_len() -> usize;
@@ -79,6 +81,7 @@ pub(crate) trait CryptInit: Sized {
 /// used by a client to communicate with a single hop on one of its circuits.
 ///
 /// TODO: Maybe we should fold this into CryptInit.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait ClientLayer<F, B>
 where
     F: OutboundClientLayer,
@@ -93,6 +96,7 @@ where
 /// used by a relay to implement a client's circuits.
 ///
 #[allow(dead_code)] // To be used by relays.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait RelayLayer<F, B>
 where
     F: OutboundRelayLayer,
@@ -105,6 +109,7 @@ where
 
 /// Represents a relay's view of the inbound crypto state on a given circuit.
 #[allow(dead_code)] // Relays are not yet implemented.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait InboundRelayLayer {
     /// Prepare a RelayCellBody to be sent towards the client,
     /// and encrypt it.
@@ -117,6 +122,7 @@ pub(crate) trait InboundRelayLayer {
 
 /// Represent a relay's view of the outbound crypto state on a given circuit.
 #[allow(dead_code)]
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait OutboundRelayLayer {
     /// Decrypt a RelayCellBody that is moving towards the client.
     ///
@@ -126,6 +132,7 @@ pub(crate) trait OutboundRelayLayer {
 
 /// A client's view of the cryptographic state shared with a single relay on a
 /// circuit, as used for outbound cells.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait OutboundClientLayer {
     /// Prepare a RelayCellBody to be sent to the relay at this layer, and
     /// encrypt it.
@@ -138,6 +145,7 @@ pub(crate) trait OutboundClientLayer {
 
 /// A client's view of the crypto state shared with a single relay on a circuit,
 /// as used for inbound cells.
+#[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait InboundClientLayer {
     /// Decrypt a CellBody that passed through this layer.
     ///
@@ -201,6 +209,7 @@ impl From<HopNum> for usize {
 
 /// A client's view of the cryptographic state for an entire
 /// constructed circuit, as used for sending cells.
+#[cfg_attr(feature = "bench", visibility::make(pub), derive(Default))]
 pub(crate) struct OutboundClientCrypt {
     /// Vector of layers, one for each hop on the circuit, ordered from the
     /// closest hop to the farthest.
@@ -209,6 +218,7 @@ pub(crate) struct OutboundClientCrypt {
 
 /// A client's view of the cryptographic state for an entire
 /// constructed circuit, as used for receiving cells.
+#[cfg_attr(feature = "bench", visibility::make(pub), derive(Default))]
 pub(crate) struct InboundClientCrypt {
     /// Vector of layers, one for each hop on the circuit, ordered from the
     /// closest hop to the farthest.
@@ -217,6 +227,7 @@ pub(crate) struct InboundClientCrypt {
 
 impl OutboundClientCrypt {
     /// Return a new (empty) OutboundClientCrypt.
+    #[cfg_attr(feature = "bench", visibility::make(pub))]
     pub(crate) fn new() -> Self {
         OutboundClientCrypt { layers: Vec::new() }
     }
@@ -227,6 +238,7 @@ impl OutboundClientCrypt {
     ///
     /// On success, returns a reference to tag that should be expected
     /// for an authenticated SENDME sent in response to this cell.
+    #[cfg_attr(feature = "bench", visibility::make(pub))]
     pub(crate) fn encrypt(
         &mut self,
         cmd: ChanCmd,
@@ -261,6 +273,7 @@ impl OutboundClientCrypt {
 
 impl InboundClientCrypt {
     /// Return a new (empty) InboundClientCrypt.
+    #[cfg_attr(feature = "bench", visibility::make(pub))]
     pub(crate) fn new() -> Self {
         InboundClientCrypt { layers: Vec::new() }
     }
@@ -268,6 +281,7 @@ impl InboundClientCrypt {
     ///
     /// On success, return which hop was the originator of the cell.
     // TODO(nickm): Use a real type for the tag, not just `&[u8]`.
+    #[cfg_attr(feature = "bench", visibility::make(pub))]
     pub(crate) fn decrypt(
         &mut self,
         cmd: ChanCmd,

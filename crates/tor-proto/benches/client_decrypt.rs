@@ -11,7 +11,10 @@ use tor_llcrypto::{
 };
 #[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
-use tor_proto::bench_utils::{circuit_encrypt_inbound, tor1, InboundClientCryptWrapper, RelayBody};
+use tor_proto::bench_utils::{
+    circuit_encrypt_inbound, tor1, CryptInit, InboundClientCrypt, KGen, RelayCellBody,
+    BENCH_CHAN_CMD,
+};
 
 // Helper macro to set up a client decryption benchmark.
 macro_rules! client_decrypt_setup {
@@ -20,25 +23,25 @@ macro_rules! client_decrypt_setup {
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
         let seed3: SecretBuf = b"free to hide no more".to_vec().into();
 
-        let mut circuit_states = [
-            $relay_state_construct(seed1.clone()).unwrap(),
-            $relay_state_construct(seed2.clone()).unwrap(),
-            $relay_state_construct(seed3.clone()).unwrap(),
+        let circuit_states = vec![
+            $relay_state_construct(KGen::new(seed1.clone())).unwrap(),
+            $relay_state_construct(KGen::new(seed2.clone())).unwrap(),
+            $relay_state_construct(KGen::new(seed3.clone())).unwrap(),
         ];
 
-        let mut cc_in = InboundClientCryptWrapper::new();
-        let state1 = $client_state_construct(seed1).unwrap();
-        cc_in.add_layer(state1);
-        let state2 = $client_state_construct(seed2).unwrap();
-        cc_in.add_layer(state2);
-        let state3 = $client_state_construct(seed3).unwrap();
-        cc_in.add_layer(state3);
+        let mut cc_in = InboundClientCrypt::new();
+        let state1 = $client_state_construct(KGen::new(seed1)).unwrap();
+        cc_in.add_layer_from_pair(state1);
+        let state2 = $client_state_construct(KGen::new(seed2)).unwrap();
+        cc_in.add_layer_from_pair(state2);
+        let state3 = $client_state_construct(KGen::new(seed3)).unwrap();
+        cc_in.add_layer_from_pair(state3);
 
         let mut rng = rand::rng();
         let mut cell = [0u8; 509];
         rng.fill(&mut cell[..]);
-        let mut cell: RelayBody = cell.into();
-        circuit_encrypt_inbound(&mut cell, &mut circuit_states);
+        let mut cell: RelayCellBody = Box::new(cell).into();
+        circuit_encrypt_inbound(BENCH_CHAN_CMD, &mut cell, circuit_states);
         (cell, cc_in)
     }};
 }
@@ -53,12 +56,12 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
         b.iter_batched_ref(
             || {
                 client_decrypt_setup!(
-                    tor1::Tor1ClientCryptState::<Aes128Ctr, Sha1>::construct,
-                    tor1::Tor1RelayCryptState::<Aes128Ctr, Sha1>::construct
+                    tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct,
+                    tor1::CryptStatePair::<Aes128Ctr, Sha1>::construct
                 )
             },
             |(cell, cc_in)| {
-                cc_in.decrypt(cell).unwrap();
+                cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
             },
             criterion::BatchSize::SmallInput,
         );
@@ -68,12 +71,12 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
         b.iter_batched_ref(
             || {
                 client_decrypt_setup!(
-                    tor1::Tor1ClientCryptState::<Aes256Ctr, Sha3_256>::construct,
-                    tor1::Tor1RelayCryptState::<Aes256Ctr, Sha3_256>::construct
+                    tor1::CryptStatePair::<Aes256Ctr, Sha3_256>::construct,
+                    tor1::CryptStatePair::<Aes256Ctr, Sha3_256>::construct
                 )
             },
             |(cell, cc_in)| {
-                cc_in.decrypt(cell).unwrap();
+                cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
             },
             criterion::BatchSize::SmallInput,
         );
@@ -81,43 +84,44 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.finish();
 
-    // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
-    let mut group = c.benchmark_group("client_decrypt");
-    group.throughput(Throughput::Bytes(cgo::CGO_THROUGHPUT));
-
     #[cfg(feature = "counter-galois-onion")]
-    group.bench_function("CGO_Aes128", |b| {
-        b.iter_batched_ref(
-            || {
-                client_decrypt_setup!(
-                    cgo::CgoClientCryptState::<Aes128Dec, Aes128Enc>::construct,
-                    cgo::CgoRelayCryptState::<Aes128Enc, Aes128Enc>::construct
-                )
-            },
-            |(cell, cc_in)| {
-                cc_in.decrypt(cell).unwrap();
-            },
-            criterion::BatchSize::SmallInput,
-        );
-    });
+    {
+        // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
+        let mut group = c.benchmark_group("client_decrypt");
+        group.throughput(Throughput::Bytes(cgo::CGO_THROUGHPUT));
 
-    #[cfg(feature = "counter-galois-onion")]
-    group.bench_function("CGO_Aes256", |b| {
-        b.iter_batched_ref(
-            || {
-                client_decrypt_setup!(
-                    cgo::CgoClientCryptState::<Aes256Dec, Aes256Enc>::construct,
-                    cgo::CgoRelayCryptState::<Aes256Enc, Aes256Enc>::construct
-                )
-            },
-            |(cell, cc_in)| {
-                cc_in.decrypt(cell).unwrap();
-            },
-            criterion::BatchSize::SmallInput,
-        );
-    });
+        group.bench_function("CGO_Aes128", |b| {
+            b.iter_batched_ref(
+                || {
+                    client_decrypt_setup!(
+                        cgo::CryptStatePair::<Aes128Dec, Aes128Enc>::construct,
+                        cgo::CryptStatePair::<Aes128Enc, Aes128Enc>::construct
+                    )
+                },
+                |(cell, cc_in)| {
+                    cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
+                },
+                criterion::BatchSize::SmallInput,
+            );
+        });
 
-    group.finish();
+        group.bench_function("CGO_Aes256", |b| {
+            b.iter_batched_ref(
+                || {
+                    client_decrypt_setup!(
+                        cgo::CryptStatePair::<Aes256Dec, Aes256Enc>::construct,
+                        cgo::CryptStatePair::<Aes256Enc, Aes256Enc>::construct
+                    )
+                },
+                |(cell, cc_in)| {
+                    cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
+                },
+                criterion::BatchSize::SmallInput,
+            );
+        });
+
+        group.finish();
+    }
 }
 
 criterion_group!(

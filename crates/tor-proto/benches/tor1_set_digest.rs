@@ -5,16 +5,13 @@ use rand::prelude::*;
 
 use tor_cell::relaycell::msg::SendmeTag;
 use tor_llcrypto::d::{Sha1, Sha3_256};
-use tor_proto::bench_utils::{
-    tor1::{self, set_digest},
-    RelayBody,
-};
+use tor_proto::bench_utils::{tor1, RelayCellBody};
 
 /// Create a random inbound cell with the digest computed.
-fn create_random_cell(rng: &mut ThreadRng) -> RelayBody {
+fn create_random_cell(rng: &mut ThreadRng) -> RelayCellBody {
     let mut cell = [0u8; 509];
     rng.fill(&mut cell[..]);
-    cell.into()
+    Box::new(cell).into()
 }
 
 /// Benchmark the `set_digest` method.
@@ -31,7 +28,7 @@ pub fn tor1_set_digest_benchmark(c: &mut Criterion<impl Measurement>) {
                 (cell, Sha1::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, used_digest)| {
-                set_digest::<_>(cell, d, used_digest);
+                cell.set_digest(d, used_digest);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -46,7 +43,7 @@ pub fn tor1_set_digest_benchmark(c: &mut Criterion<impl Measurement>) {
                 (cell, Sha3_256::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, used_digest)| {
-                set_digest::<_>(cell, d, used_digest);
+                cell.set_digest(d, used_digest);
             },
             criterion::BatchSize::SmallInput,
         );

@@ -5,19 +5,16 @@ use rand::prelude::*;
 
 use tor_cell::relaycell::msg::SendmeTag;
 use tor_llcrypto::d::{Sha1, Sha3_256};
-use tor_proto::bench_utils::{
-    tor1::{self, is_recognized, set_digest},
-    RelayBody,
-};
+use tor_proto::bench_utils::{tor1, RelayCellBody};
 
 /// Create a random inbound cell with the digest computed.
-fn create_digested_cell<D: Digest + Clone>(rng: &mut ThreadRng, d: &mut D) -> RelayBody {
+fn create_digested_cell<D: Digest + Clone>(rng: &mut ThreadRng, d: &mut D) -> RelayCellBody {
     let mut cell = [0u8; 509];
     rng.fill(&mut cell[..]);
-    let mut cell: RelayBody = cell.into();
+    let mut cell: RelayCellBody = Box::new(cell).into();
     let mut used_digest = SendmeTag::from([0_u8; 20]);
 
-    set_digest::<_>(&mut cell, d, &mut used_digest);
+    cell.set_digest(d, &mut used_digest);
 
     cell
 }
@@ -37,7 +34,7 @@ pub fn tor1_is_recognized_benchmark(c: &mut Criterion<impl Measurement>) {
                 (cell, Sha1::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, rcvd)| {
-                is_recognized::<_>(cell, d, rcvd);
+                cell.is_recognized(d, rcvd);
             },
             criterion::BatchSize::SmallInput,
         );
@@ -53,7 +50,7 @@ pub fn tor1_is_recognized_benchmark(c: &mut Criterion<impl Measurement>) {
                 (cell, Sha3_256::new(), SendmeTag::from([0_u8; 20]))
             },
             |(cell, d, rcvd)| {
-                is_recognized::<_>(cell, d, rcvd);
+                cell.is_recognized(d, rcvd);
             },
             criterion::BatchSize::SmallInput,
         );

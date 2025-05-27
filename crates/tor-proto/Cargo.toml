@@ -66,7 +66,7 @@ counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval"]
 # covered by semver.
 testing = ["__is_experimental"]
 tokio = ["tokio-crate", "tokio-util"]
-bench = ["__is_experimental"]
+bench = ["__is_experimental", "visibility"]
 __is_experimental = []
 
 [dependencies]
@@ -126,7 +126,6 @@ void = "1"
 zeroize = "1"
 
 [dev-dependencies]
-cpu-time = "1.0.0"
 criterion = "0.5.1"
 criterion-cycles-per-byte = "0.6.1"
 hex = "0.4"
