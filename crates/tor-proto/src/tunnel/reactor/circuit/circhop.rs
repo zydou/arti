@@ -24,9 +24,11 @@ use tor_cell::relaycell::{
     RelayMsg, StreamId, UnparsedRelayMsg,
 };
 
+use tor_error::{internal, Bug};
 use tracing::{trace, warn};
 
 use std::pin::Pin;
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
@@ -189,6 +191,9 @@ pub(crate) struct CircHop {
     /// we never create more than one
     /// [`ready_streams_iterator`](CircHopList::ready_streams_iterator) stream
     /// at a time, and we never clone/lock the hop's `StreamMap` outside of it.
+    ///
+    /// Additionally, the stream map of the last hop (join point) of a conflux tunnel
+    /// is shared with all the circuits in the tunnel.
     map: Arc<Mutex<streammap::StreamMap>>,
     /// Congestion control object.
     ///
@@ -508,5 +513,26 @@ impl CircHop {
         }
 
         Ok(message_closes_stream)
+    }
+
+    /// Get the stream map of this hop.
+    pub(crate) fn stream_map(&self) -> &Arc<Mutex<streammap::StreamMap>> {
+        &self.map
+    }
+
+    /// Set the stream map of this hop to `map`.
+    ///
+    /// Returns an error if the existing stream map of the hop has any open stream.
+    pub(crate) fn set_stream_map(
+        &mut self,
+        map: Arc<Mutex<streammap::StreamMap>>,
+    ) -> StdResult<(), Bug> {
+        if self.n_open_streams() != 0 {
+            return Err(internal!("Tried to discard existing open streams?!"));
+        }
+
+        self.map = map;
+
+        Ok(())
     }
 }

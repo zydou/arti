@@ -6,7 +6,7 @@ mod msghandler;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
@@ -26,6 +26,7 @@ use crate::circuit::TunnelMutableState;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
 use crate::tunnel::reactor::CircuitCmd;
+use crate::tunnel::streammap;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
@@ -115,12 +116,15 @@ pub(super) struct ConfluxSet {
 }
 
 /// The conflux join point.
-#[derive(Debug, Clone)]
+#[derive(Clone, derive_more::Debug)]
 struct JoinPoint {
     /// The hop number.
     hop: HopNum,
     /// The [`HopDetail`] of the hop.
     detail: HopDetail,
+    /// The stream map of the joint point, shared with each circuit leg.
+    #[debug(skip)]
+    streams: Arc<Mutex<streammap::StreamMap>>,
 }
 
 impl ConfluxSet {
@@ -421,17 +425,23 @@ impl ConfluxSet {
                 p
             }
             None => {
-                let (hop, detail) = (|| {
+                let (hop, detail, streams) = (|| {
                     let first_leg = legs.first()?;
                     let first_leg_path = first_leg.path();
                     let all_hops = first_leg_path.all_hops();
-                    let hop = first_leg.last_hop_num()?;
+                    let hop_num = first_leg.last_hop_num()?;
                     let detail = all_hops.last()?;
-                    Some((hop, detail.clone()))
+                    let hop = first_leg.hop(hop_num)?;
+                    let streams = Arc::clone(hop.stream_map());
+                    Some((hop_num, detail.clone(), streams))
                 })()
                 .ok_or_else(|| bad_api_usage!("asked to join circuit with no hops"))?;
 
-                JoinPoint { hop, detail }
+                JoinPoint {
+                    hop,
+                    detail,
+                    streams,
+                }
             }
         };
 
@@ -534,6 +544,13 @@ impl ConfluxSet {
             circ.install_conflux_handler(conflux_handler);
             let mutable = Arc::clone(circ.mutable());
             let unique_id = circ.unique_id();
+
+            // Ensure the stream map of the last hop is shared by all the legs
+            let last_hop = circ
+                .hop_mut(join_point.hop)
+                .ok_or_else(|| bad_api_usage!("asked to join circuit with no hops"))?;
+            last_hop.set_stream_map(Arc::clone(&join_point.streams))?;
+
             let leg_id = self.legs.insert(circ);
             // Merge the mutable state of the circuit into our tunnel state.
             self.mutable.insert(unique_id, leg_id.into(), mutable);
