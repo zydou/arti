@@ -200,7 +200,7 @@ pub struct ClientDataStreamCtrl {
 // the `arti-client` crate.  Any changes to its API here in
 // `tor-proto` need to be reflected above.
 #[derive(Debug)]
-pub struct DataWriter {
+struct DataWriterInner {
     /// Internal state for this writer
     ///
     /// This is stored in an Option so that we can mutate it in the
@@ -220,12 +220,12 @@ pub struct DataWriter {
     ctrl: std::sync::Arc<ClientDataStreamCtrl>,
 }
 
-XXX: rename me
-pub struct DataWriterNew {
-    writer: RateLimitedWriter<DataWriter, DynTimeProvider>,
+#[derive(Debug)]
+pub struct DataWriter {
+    writer: RateLimitedWriter<DataWriterInner, DynTimeProvider>,
 }
 
-impl AsyncWrite for DataWriterNew {
+impl AsyncWrite for DataWriter {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -244,7 +244,7 @@ impl AsyncWrite for DataWriterNew {
 }
 
 #[cfg(feature = "tokio")]
-impl TokioAsyncWrite for DataWriterNew {
+impl TokioAsyncWrite for DataWriter {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -259,6 +259,15 @@ impl TokioAsyncWrite for DataWriterNew {
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.writer), cx)
+    }
+}
+
+impl DataWriter {
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
+    #[cfg(feature = "stream-ctrl")]
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(self.writer.inner().client_stream_ctrl())
     }
 }
 
@@ -449,7 +458,7 @@ impl DataStream {
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };
-        let w = DataWriter {
+        let w = DataWriterInner {
             state: Some(DataWriterState::Ready(DataWriterImpl {
                 s: target,
                 buf: vec![0; out_buf_len].into_boxed_slice(),
@@ -462,6 +471,16 @@ impl DataStream {
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };
+
+        // XXX: remove todo
+        let time_provider = todo!();
+        // TODO(arti#534): need to be able to update this dynamically in response to flow control
+        // events
+        let rate_limit = u64::MAX; // bytes per second
+        let w = DataWriter {
+            writer: RateLimitedWriter::new(w, rate_limit, rate_limit, time_provider),
+        };
+
         DataStream {
             w,
             r,
@@ -616,12 +635,11 @@ struct DataWriterImpl {
     status: Arc<Mutex<DataStreamStatus>>,
 }
 
-impl DataWriter {
-    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
-    /// interact with this stream without holding the stream itself.
+impl DataWriterInner {
+    /// See [`DataWriter::client_stream_ctrl`].
     #[cfg(feature = "stream-ctrl")]
-    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
-        Some(&self.ctrl)
+    fn client_stream_ctrl(&self) -> &Arc<ClientDataStreamCtrl> {
+        &self.ctrl
     }
 
     /// Helper for poll_flush() and poll_close(): Performs a flush, then
@@ -694,7 +712,7 @@ impl DataWriter {
     }
 }
 
-impl AsyncWrite for DataWriter {
+impl AsyncWrite for DataWriterInner {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -756,7 +774,7 @@ impl AsyncWrite for DataWriter {
 }
 
 #[cfg(feature = "tokio")]
-impl TokioAsyncWrite for DataWriter {
+impl TokioAsyncWrite for DataWriterInner {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
         TokioAsyncWrite::poll_write(Pin::new(&mut self.compat_write()), cx, buf)
     }
