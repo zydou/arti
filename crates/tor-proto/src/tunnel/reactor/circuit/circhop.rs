@@ -188,10 +188,6 @@ pub(crate) struct CircHop {
     /// we never create more than one [`Circuit::ready_streams_iterator`] stream
     /// at a time, and we never clone/lock the hop's `StreamMap` outside of
     /// [`Circuit::ready_streams_iterator`].
-    ///
-    // TODO: encapsulate the Vec<CircHop> into a separate CircHops structure,
-    // and hide its internals from the Reactor. The CircHops implementation
-    // should enforce the invariant described in the note above.
     map: Arc<Mutex<streammap::StreamMap>>,
     /// Congestion control object.
     ///
