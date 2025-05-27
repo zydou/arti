@@ -22,7 +22,8 @@ hs-pow-full = [
     "tor-hscrypto/hs-pow-full",
     "tor-netdoc/hs-pow-full",
     "tor-cell/hs-pow-full",
-    "__is_experimental",
+    "arrayvec",
+    "tor-checkable",
     "__is_experimental",
 ]
 
@@ -68,6 +69,7 @@ __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
+arrayvec = { version = "0.7.4", features = ["serde"], optional = true }
 async-trait = "0.1.54"
 base64ct = "1.5.1"
 cfg-if = "1.0.0"
@@ -98,6 +100,7 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.30.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.30.0" }
 tor-bytes = { version = "0.30.0", path = "../tor-bytes" }
 tor-cell = { version = "0.30.0", path = "../tor-cell", features = ["hs"] }
+tor-checkable = { version = "0.30.0", path = "../tor-checkable", optional = true }
 tor-circmgr = { version = "0.30.0", path = "../tor-circmgr", features = ["hs-service"] }
 tor-config = { version = "0.30.0", path = "../tor-config" }
 tor-config-path = { version = "0.30.0", path = "../tor-config-path" }

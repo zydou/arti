@@ -189,7 +189,7 @@ impl RendRequest {
 
     /// Try to return a reference to the intro_request, creating it if it did
     /// not previously exist.
-    fn intro_request(
+    pub(crate) fn intro_request(
         &self,
     ) -> Result<&rend_handshake::IntroRequest, rend_handshake::IntroRequestError> {
         self.expanded.get_or_try_init(|| {

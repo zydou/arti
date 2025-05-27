@@ -56,12 +56,8 @@ struct State<R> {
 
     nickname: HsNickname,
 
-    // Used to tell Publisher that it should re-upload descriptors due to seed rotation.
-    // We could have this be a queue where we send just the TimePeriod that we want to update, but
-    // it's simpler to just update them all and accept some spurious updates.
-    //
-    // Publisher will hold the other end of this as a Box<dyn Stream>.
-    publisher_update_tx: watch::Sender<()>,
+    // Used to tell Publisher that it should re-upload a descriptor due to seed rotation.
+    publisher_update_tx: mpsc::Sender<TimePeriod>,
 
     seeds: HashMap<TimePeriod, SeedsForTimePeriod>,
 
@@ -100,7 +96,6 @@ impl PowManagerRecord {
         record: PowManagerRecord,
         keymgr: Arc<KeyMgr>,
         nickname: HsNickname,
-        publisher_update_tx: watch::Sender<()>,
         pow_replay_log_dir: InstanceRawSubdir
         storage_handle: StorageHandle<PowManagerRecord>,
     ) -> PowManager;
@@ -112,7 +107,8 @@ impl<R: Runtime> PowManager<R> {
     //
     // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
     //
-    // The Box<dyn Stream<()>> is to be passed to Publisher, the other end of publisher_update_tx.
+    // The mspc::Receiver<TimePeriod> is given to the publisher, and it is used so that PoW manager
+    // can tell the publisher that the seed for a particular time period has been rotated.
     //
     // Loads state from disk or creates a fresh PowManager if no state exists.
     // Upon loading from disk, we will delete stale replay logs from replay_log_dir.
@@ -120,10 +116,9 @@ impl<R: Runtime> PowManager<R> {
         runtime: R,
         keymgr: Arc<KeyMgr>,
         nickname: HsNickname,
-        publisher_update_tx: watch::Sender<()>,
         pow_replay_log_dir: InstanceRawSubdir,
         storage_handle: StorageHandle<PowManagerRecord>,
-    ) -> (Arc<Self>, mpsc::Sender, RendQueueReceiver, Box<dyn Stream<()>);
+    ) -> (Arc<Self>, mpsc::Sender, RendQueueReceiver, mpsc::Receiver<TimePeriod>);
 
     // Called from ForLaunch::launch. Is responsible for rotating seeds.
     pub(crate) fn launch(self: &Arc<Self>) -> Result<(), StartupError>;

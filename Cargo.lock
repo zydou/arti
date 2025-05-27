@@ -194,6 +194,9 @@ name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "arti"
@@ -6272,6 +6275,7 @@ dependencies = [
  "paste",
  "rand 0.9.1",
  "safelog",
+ "serde",
  "signature",
  "subtle",
  "thiserror 2.0.12",
@@ -6321,6 +6325,7 @@ name = "tor-hsservice"
 version = "0.30.0"
 dependencies = [
  "amplify",
+ "arrayvec",
  "async-trait",
  "base64ct",
  "cfg-if",
@@ -6357,6 +6362,7 @@ dependencies = [
  "tor-basic-utils",
  "tor-bytes",
  "tor-cell",
+ "tor-checkable",
  "tor-circmgr",
  "tor-config",
  "tor-config-path",
@@ -6958,6 +6964,7 @@ dependencies = [
  "derive-deftly 1.0.1",
  "derive_more",
  "float-cmp",
+ "serde",
  "thiserror 2.0.12",
  "tor-memquota",
 ]

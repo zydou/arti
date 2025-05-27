@@ -9,6 +9,7 @@ mod reupload_timer;
 
 use crate::config::restricted_discovery::RestrictedDiscoveryKeys;
 use crate::internal_prelude::*;
+use crate::pow::PowManager;
 
 use backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
@@ -51,6 +52,11 @@ pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     status_tx: PublisherStatusSender,
     /// Path resolver for configuration files.
     path_resolver: Arc<CfgPathResolver>,
+    /// Proof-of-work state
+    pow_manager: Arc<PowManager<R>>,
+    /// Queue on which we receive messages from the [`PowManager`] telling us that a seed has
+    /// rotated and thus we need to republish the descriptor for a particular time period.
+    update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
 }
 
 impl<R: Runtime, M: Mockable> Publisher<R, M> {
@@ -71,6 +77,8 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
         path_resolver: Arc<CfgPathResolver>,
+        pow_manager: Arc<PowManager<R>>,
+        update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
     ) -> Self {
         let config = config_rx.borrow().clone();
         Self {
@@ -84,6 +92,8 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             status_tx,
             keymgr,
             path_resolver,
+            pow_manager,
+            update_from_pow_manager_rx,
         }
     }
 
@@ -100,6 +110,8 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             status_tx,
             keymgr,
             path_resolver,
+            pow_manager,
+            update_from_pow_manager_rx: publisher_update_rx,
         } = self;
 
         let reactor = Reactor::new(
@@ -113,6 +125,8 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             status_tx,
             keymgr,
             path_resolver,
+            pow_manager,
+            publisher_update_rx,
         );
 
         runtime
@@ -131,7 +145,8 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     }
 }
 
-#[cfg(test)]
+// TODO POW: Enable this test for hs-pow-full once the MockExecutor supports this
+#[cfg(all(test, not(feature = "hs-pow-full")))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
@@ -177,6 +192,7 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
+    use crate::pow::NewPowManager;
     use crate::publish::reactor::MockableClientCirc;
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::test::create_storage_handles;
@@ -464,6 +480,27 @@ mod test {
                 responses_for_hsdir: Arc::new(Mutex::new(Default::default())),
             };
 
+            let temp_dir = test_temp_dir!();
+            let state_dir = temp_dir.subdir_untracked("state_dir");
+            let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
+            let state_dir = StateDirectory::new(state_dir, &mistrust).unwrap();
+            let state_handle = state_dir.acquire_instance(&nickname).unwrap();
+            let pow_nonce_dir = state_handle.raw_subdir("pow_nonces").unwrap();
+            let pow_manager_storage_handle = state_handle.storage_handle("pow_manager").unwrap();
+
+            let NewPowManager {
+                pow_manager,
+                rend_req_tx: _,
+                rend_req_rx: _,
+                publisher_update_rx: update_from_pow_manager_rx,
+            } = PowManager::new(
+                runtime.clone(),
+                nickname.clone(),
+                pow_nonce_dir,
+                keymgr.clone(),
+                pow_manager_storage_handle,
+            )
+            .unwrap();
             let mut status_rx = status_tx.subscribe();
             let publisher: Publisher<MockRuntime, MockReactorState<_>> = Publisher::new(
                 runtime.clone(),
@@ -475,6 +512,8 @@ mod test {
                 status_tx,
                 keymgr,
                 Arc::new(CfgPathResolver::default()),
+                pow_manager,
+                update_from_pow_manager_rx,
             );
 
             publisher.launch().unwrap();

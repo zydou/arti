@@ -8,6 +8,8 @@ use std::{
 use humantime::format_rfc3339_seconds;
 use tor_units::IntegerMinutes;
 
+use serde::{Deserialize, Serialize};
+
 /// A period of time, as used in the onion service system.
 ///
 /// A `TimePeriod` is defined as a duration (in seconds), and the number of such
@@ -18,7 +20,7 @@ use tor_units::IntegerMinutes;
 ///
 /// These time periods are used to derive a different `BlindedOnionIdKey` during
 /// each period from each `OnionIdKey`.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Serialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct TimePeriod {
     /// Index of the time periods that have passed since the unix epoch.
     pub(crate) interval_num: u64,

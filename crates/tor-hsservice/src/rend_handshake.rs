@@ -386,4 +386,9 @@ impl IntroRequest {
             circuit,
         })
     }
+
+    /// Get the [`IntroduceHandshakePayload`] associated with this [`IntroRequest`].
+    pub(crate) fn intro_payload(&self) -> &IntroduceHandshakePayload {
+        &self.intro_payload
+    }
 }
