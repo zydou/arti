@@ -779,9 +779,6 @@ impl ConfluxSet {
                                                         join_point.display(),
                                                     )));
                                                 }
-                                                // TODO(conflux): validate the hop? We should
-                                                // ensure the target hop is the join point, and
-                                                // error otherwise?
 
                                                 primary_id
                                             } else {
