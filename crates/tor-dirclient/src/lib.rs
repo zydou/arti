@@ -783,7 +783,7 @@ mod test {
 
         let request = request?;
         assert!(request[..].starts_with(
-            b"GET /tor/micro/d/CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk.z HTTP/1.0\r\n"
+            b"GET /tor/micro/d/CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk HTTP/1.0\r\n"
         ));
 
         let response = response.unwrap();
