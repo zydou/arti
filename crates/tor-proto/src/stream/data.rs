@@ -38,7 +38,7 @@ use crate::util::token_bucket::writer::RateLimitedWriter;
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
-use tor_rtcompat::DynTimeProvider;
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 use super::AnyCmdChecker;
 
@@ -405,8 +405,13 @@ impl DataStream {
     ///
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
-    pub(crate) fn new(reader: StreamReader, target: StreamTarget, memquota: StreamAccount) -> Self {
-        Self::new_inner(reader, target, false, memquota)
+    pub(crate) fn new<P: SleepProvider + CoarseTimeProvider>(
+        time_provider: P,
+        reader: StreamReader,
+        target: StreamTarget,
+        memquota: StreamAccount,
+    ) -> Self {
+        Self::new_inner(time_provider, reader, target, false, memquota)
     }
 
     /// Wrap raw stream reader and target parts as a connected DataStream.
@@ -416,16 +421,18 @@ impl DataStream {
     ///
     /// This is used by hidden services, exit relays, and directory servers to accept streams.
     #[cfg(feature = "hs-service")]
-    pub(crate) fn new_connected(
+    pub(crate) fn new_connected<P: SleepProvider + CoarseTimeProvider>(
+        time_provider: P,
         reader: StreamReader,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(reader, target, true, memquota)
+        Self::new_inner(time_provider, reader, target, true, memquota)
     }
 
     /// The shared implementation of the `new*()` functions.
-    fn new_inner(
+    fn new_inner<P: SleepProvider + CoarseTimeProvider>(
+        time_provider: P,
         reader: StreamReader,
         target: StreamTarget,
         connected: bool,
@@ -476,8 +483,7 @@ impl DataStream {
             ctrl: ctrl.clone(),
         };
 
-        // XXX: remove todo
-        let time_provider = todo!();
+        let time_provider = DynTimeProvider::new(time_provider);
         // TODO(arti#534): need to be able to update this dynamically in response to flow control
         // events
         let rate_limit = u64::MAX; // bytes per second
