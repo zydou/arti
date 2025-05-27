@@ -28,7 +28,7 @@ use crate::tunnel::circuit::{
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
-use crate::tunnel::streammap::{self, EndSentStreamEnt, OpenStreamEnt, StreamEntMut};
+use crate::tunnel::streammap;
 use crate::util::err::ReactorError;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
@@ -48,7 +48,6 @@ use tor_linkspec::RelayIds;
 use tor_llcrypto::pk;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 
-use futures::stream::FuturesUnordered;
 use futures::{SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
@@ -82,7 +81,7 @@ use {
     crate::tunnel::reactor::RemoveLegReason,
 };
 
-pub(super) use circhop::CircHop;
+pub(super) use circhop::{CircHop, CircHopList};
 
 /// Initial value for outbound flow-control window on streams.
 pub(super) const SEND_WINDOW_INIT: u16 = 500;
@@ -119,7 +118,7 @@ pub(crate) struct Circuit {
     /// The cryptographic state for this circuit for outbound cells.
     crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
-    hops: Vec<CircHop>,
+    hops: CircHopList,
     /// Mutable information about this circuit,
     /// shared with the reactor's `ConfluxSet`.
     mutable: Arc<MutableState>,
@@ -234,7 +233,7 @@ impl Circuit {
             chan_sender,
             input,
             crypto_in: InboundClientCrypt::new(),
-            hops: vec![],
+            hops: CircHopList::default(),
             unique_id,
             channel_id,
             crypto_out,
@@ -398,24 +397,12 @@ impl Circuit {
 
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
-        let hop_num = Into::<usize>::into(hop);
-        let circhop = &mut self.hops.get_mut(hop_num).ok_or(Error::NoSuchHop)?;
+        let circhop = self.hops.get_mut(hop).ok_or(Error::NoSuchHop)?;
 
         // We need to apply stream-level flow control *before* encoding the message.
         if c_t_w {
             if let Some(stream_id) = stream_id {
-                let mut hop_map = circhop.map.lock().expect("lock poisoned");
-                let Some(StreamEntMut::Open(ent)) = hop_map.get_mut(stream_id) else {
-                    warn!(
-                        "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
-                        self.unique_id, stream_id
-                    );
-                    return Err(Error::CircProto(format!(
-                        "tried to send a relay cell on non-open stream {}",
-                        sv(stream_id),
-                    )));
-                };
-                ent.take_capacity_to_send(msg.msg())?;
+                circhop.take_capacity_to_send(stream_id, msg.msg())?;
             }
         }
 
@@ -426,12 +413,17 @@ impl Circuit {
 
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let (msg, tag) =
-            Self::encode_relay_cell(&mut self.crypto_out, circhop.relay_format, hop, early, msg)?;
+        let (msg, tag) = Self::encode_relay_cell(
+            &mut self.crypto_out,
+            circhop.relay_format(),
+            hop,
+            early,
+            msg,
+        )?;
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
-            circhop.ccontrol.note_data_sent(&tag)?;
+            circhop.ccontrol_mut().note_data_sent(&tag)?;
         }
 
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
@@ -504,9 +496,7 @@ impl Circuit {
                     hopnum
                 ))
             })?
-            .inbound
-            .decode(body.into())
-            .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+            .decode(body.into())?;
 
         Ok((hopnum, tag, decode_res))
     }
@@ -527,7 +517,7 @@ impl Circuit {
         let send_circ_sendme = if c_t_w {
             self.hop_mut(hopnum)
                 .ok_or_else(|| Error::CircProto("Sendme from nonexistent hop".into()))?
-                .ccontrol
+                .ccontrol_mut()
                 .note_data_received()?
         } else {
             false
@@ -556,7 +546,7 @@ impl Circuit {
                         hopnum
                     ))
                 })?
-                .ccontrol
+                .ccontrol_mut()
                 .note_sendme_sent()?;
         }
 
@@ -662,57 +652,18 @@ impl Circuit {
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
-        let mut hop_map = hop.map.lock().expect("lock poisoned");
-        match hop_map.get_mut(streamid) {
-            Some(StreamEntMut::Open(ent)) => {
-                // Can't have a stream level SENDME when congestion control is enabled.
-                let message_closes_stream =
-                    Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
+        let res = hop.handle_msg(cell_counts_toward_windows, streamid, msg)?;
 
-                if message_closes_stream {
-                    hop_map.ending_msg_received(streamid)?;
+        if let Some(msg) = res {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "hs-service")] {
+                    return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum, leg);
+                } else {
+                    return Err(internal!("incoming stream not rejected, but hs-service feature is disabled?!").into());
                 }
-            }
-            #[cfg(feature = "hs-service")]
-            Some(StreamEntMut::EndSent(_))
-                if matches!(
-                    msg.cmd(),
-                    RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
-                ) =>
-            {
-                // If the other side is sending us a BEGIN but hasn't yet acknowledged our END
-                // message, just remove the old stream from the map and stop waiting for a
-                // response
-                hop_map.ending_msg_received(streamid)?;
-                drop(hop_map);
-                return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum, leg);
-            }
-            Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
-                // We sent an end but maybe the other side hasn't heard.
-
-                match half_stream.handle_msg(msg)? {
-                    StreamStatus::Open => {}
-                    StreamStatus::Closed => {
-                        hop_map.ending_msg_received(streamid)?;
-                    }
-                }
-            }
-            #[cfg(feature = "hs-service")]
-            None if matches!(
-                msg.cmd(),
-                RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
-            ) =>
-            {
-                drop(hop_map);
-                return self.handle_incoming_stream_request(handlers, msg, streamid, hopnum, leg);
-            }
-            _ => {
-                // No stream wants this message, or ever did.
-                return Err(Error::CircProto(
-                    "Cell received on nonexistent stream!?".into(),
-                ));
             }
         }
+
         Ok(None)
     }
 
@@ -770,51 +721,6 @@ impl Circuit {
         Ok(handler.last_seq_recv())
     }
 
-    /// Deliver `msg` to the specified open stream entry `ent`.
-    fn deliver_msg_to_stream(
-        streamid: StreamId,
-        ent: &mut OpenStreamEnt,
-        cell_counts_toward_windows: bool,
-        msg: UnparsedRelayMsg,
-    ) -> Result<bool> {
-        // The stream for this message exists, and is open.
-
-        if msg.cmd() == RelayCmd::SENDME {
-            let _sendme = msg
-                .decode::<Sendme>()
-                .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
-                .into_msg();
-
-            // We need to handle sendmes here, not in the stream's
-            // recv() method, or else we'd never notice them if the
-            // stream isn't reading.
-            ent.put_for_incoming_sendme()?;
-            return Ok(false);
-        }
-
-        let message_closes_stream = ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
-
-        if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
-            if e.is_full() {
-                // If we get here, we either have a logic bug (!), or an attacker
-                // is sending us more cells than we asked for via congestion control.
-                return Err(Error::CircProto(format!(
-                    "Stream sink would block; received too many cells on stream ID {}",
-                    sv(streamid),
-                )));
-            }
-            if e.is_disconnected() && cell_counts_toward_windows {
-                // the other side of the stream has gone away; remember
-                // that we received a cell that we couldn't queue for it.
-                //
-                // Later this value will be recorded in a half-stream.
-                ent.dropped += 1;
-            }
-        }
-
-        Ok(message_closes_stream)
-    }
-
     /// A helper for handling incoming stream requests.
     #[cfg(feature = "hs-service")]
     fn handle_incoming_stream_request(
@@ -858,16 +764,10 @@ impl Circuit {
         //
         // TODO: we _could_ use self.hops.get_mut(..) instead self.hop_mut(..) inside
         // handle_relay_cell to work around the problem described above
-        let hop = self
-            .hops
-            .get_mut(Into::<usize>::into(hop_num))
-            .ok_or(Error::CircuitClosed)?;
+        let hop = self.hops.get_mut(hop_num).ok_or(Error::CircuitClosed)?;
 
         if message_closes_stream {
-            hop.map
-                .lock()
-                .expect("lock poisoned")
-                .ending_msg_received(stream_id)?;
+            hop.ending_msg_received(stream_id)?;
 
             return Ok(None);
         }
@@ -907,11 +807,8 @@ impl Circuit {
 
         // TODO: Sadly, we need to look up `&mut hop` yet again,
         // since we needed to pass `&self.hops` by reference to our filter above. :(
-        let hop = self
-            .hops
-            .get_mut(Into::<usize>::into(hop_num))
-            .ok_or(Error::CircuitClosed)?;
-        let relay_cell_format = hop.relay_format;
+        let hop = self.hops.get_mut(hop_num).ok_or(Error::CircuitClosed)?;
+        let relay_cell_format = hop.relay_format();
 
         let memquota = StreamAccount::new(&self.memquota)?;
 
@@ -925,13 +822,7 @@ impl Circuit {
         )?;
 
         let cmd_checker = DataCmdChecker::new_connected();
-        hop.map.lock().expect("lock poisoned").add_ent_with_id(
-            sender,
-            msg_rx,
-            hop.build_send_flow_ctrl(),
-            stream_id,
-            cmd_checker,
-        )?;
+        hop.add_ent_with_id(sender, msg_rx, stream_id, cmd_checker)?;
 
         let outcome = Pin::new(&mut handler.incoming_sender).try_send(StreamReqInfo {
             req,
@@ -1350,7 +1241,7 @@ impl Circuit {
                 // but we don't support those any longer.
                  Error::CircProto("missing tag on circuit sendme".into()))?;
         // Update the CC object that we received a SENDME along with possible congestion signals.
-        hop.ccontrol.note_sendme_received(tag, signals)?;
+        hop.ccontrol_mut().note_sendme_received(tag, signals)?;
         Ok(None)
     }
 
@@ -1384,73 +1275,7 @@ impl Circuit {
     ///
     /// This is cancellation-safe.
     pub(super) fn ready_streams_iterator(&self) -> impl Stream<Item = Result<CircuitCmd>> {
-        self.hops
-            .iter()
-            .enumerate()
-            .filter_map(|(i, hop)| {
-                if !hop.ccontrol.can_send() {
-                    // We can't send anything on this hop that counts towards SENDME windows.
-                    //
-                    // In theory we could send messages that don't count towards
-                    // windows (like `RESOLVE`), and process end-of-stream
-                    // events (to send an `END`), but it's probably not worth
-                    // doing an O(N) iteration over flow-control-ready streams
-                    // to see if that's the case.
-                    //
-                    // This *doesn't* block outgoing flow-control messages (e.g.
-                    // SENDME), which are initiated via the control-message
-                    // channel, handled above.
-                    //
-                    // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
-                    // congestion control has "bottomed out" might not be so bad, and the
-                    // alternatives have complexity and/or performance costs.
-                    return None;
-                }
-
-                let hop_num = HopNum::from(i as u8);
-                let hop_map = Arc::clone(&self.hops[i].map);
-                Some(futures::future::poll_fn(move |cx| {
-                    // Process an outbound message from the first ready stream on
-                    // this hop. The stream map implements round robin scheduling to
-                    // ensure fairness across streams.
-                    // TODO: Consider looping here to process multiple ready
-                    // streams. Need to be careful though to balance that with
-                    // continuing to service incoming and control messages.
-                    let mut hop_map = hop_map.lock().expect("lock poisoned");
-                    let Some((sid, msg)) = hop_map.poll_ready_streams_iter(cx).next() else {
-                        // No ready streams for this hop.
-                        return Poll::Pending;
-                    };
-
-                    if msg.is_none() {
-                        return Poll::Ready(Ok(CircuitCmd::CloseStream {
-                            hop: hop_num,
-                            sid,
-                            behav: CloseStreamBehavior::default(),
-                            reason: streammap::TerminateReason::StreamTargetClosed,
-                        }));
-                    };
-                    let msg = hop_map.take_ready_msg(sid).expect("msg disappeared");
-
-                    #[allow(unused)] // unused in non-debug builds
-                    let Some(StreamEntMut::Open(s)) = hop_map.get_mut(sid) else {
-                        panic!("Stream {sid} disappeared");
-                    };
-
-                    debug_assert!(
-                        s.can_send(&msg),
-                        "Stream {sid} produced a message it can't send: {msg:?}"
-                    );
-
-                    let cell = SendRelayCell {
-                        hop: hop_num,
-                        early: false,
-                        cell: AnyRelayMsgOuter::new(Some(sid), msg),
-                    };
-                    Poll::Ready(Ok(CircuitCmd::Send(cell)))
-                }))
-            })
-            .collect::<FuturesUnordered<_>>()
+        self.hops.ready_streams_iterator()
     }
 
     /// Return the congestion signals for this reactor. This is used by congestion control module.
@@ -1468,12 +1293,12 @@ impl Circuit {
 
     /// Return a reference to the hop corresponding to `hopnum`, if there is one.
     pub(super) fn hop(&self, hopnum: HopNum) -> Option<&CircHop> {
-        self.hops.get(Into::<usize>::into(hopnum))
+        self.hops.hop(hopnum)
     }
 
     /// Return a mutable reference to the hop corresponding to `hopnum`, if there is one.
     pub(super) fn hop_mut(&mut self, hopnum: HopNum) -> Option<&mut CircHop> {
-        self.hops.get_mut(Into::<usize>::into(hopnum))
+        self.hops.get_mut(hopnum)
     }
 
     /// Begin a stream with the provided hop in this circuit.
@@ -1518,9 +1343,7 @@ impl Circuit {
     /// in this circuit, so it must **not** be called from any function where the
     /// stream map lock is held (such as [`ready_streams_iterator`](Self::ready_streams_iterator).
     pub(super) fn has_streams(&self) -> bool {
-        self.hops
-            .iter()
-            .any(|hop| hop.map.lock().expect("lock poisoned").n_open_streams() > 0)
+        self.hops.has_streams()
     }
 
     /// The number of hops in this circuit.
@@ -1570,7 +1393,7 @@ impl Circuit {
     /// Returns `None` if `hop` doesn't exist.
     pub(super) fn uses_stream_sendme(&self, hop: HopNum) -> Option<bool> {
         let hop = self.hop(hop)?;
-        Some(hop.ccontrol.uses_stream_sendme())
+        Some(hop.ccontrol().uses_stream_sendme())
     }
 
     /// Returns whether this is a conflux circuit that is not linked yet.
