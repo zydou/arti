@@ -99,6 +99,7 @@ safelog = { path = "../safelog", version = "0.4.5" }
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
 static_assertions = "1"
 subtle = "2"
+sync_wrapper = "1.0.2"
 thiserror = "2"
 tokio-crate = { package = "tokio", version = "1.7", optional = true }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
