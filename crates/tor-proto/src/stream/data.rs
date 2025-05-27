@@ -34,9 +34,11 @@ use crate::tunnel::circuit::ClientCirc;
 use crate::memquota::StreamAccount;
 use crate::stream::StreamReader;
 use crate::tunnel::StreamTarget;
+use crate::util::token_bucket::writer::RateLimitedWriter;
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
+use tor_rtcompat::DynTimeProvider;
 
 use super::AnyCmdChecker;
 
@@ -216,6 +218,48 @@ pub struct DataWriter {
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
     ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+}
+
+XXX: rename me
+pub struct DataWriterNew {
+    writer: RateLimitedWriter<DataWriter, DynTimeProvider>,
+}
+
+impl AsyncWrite for DataWriterNew {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<IoResult<usize>> {
+        AsyncWrite::poll_write(Pin::new(&mut self.writer), cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        AsyncWrite::poll_flush(Pin::new(&mut self.writer), cx)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        AsyncWrite::poll_close(Pin::new(&mut self.writer), cx)
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl TokioAsyncWrite for DataWriterNew {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<IoResult<usize>> {
+        TokioAsyncWrite::poll_write(Pin::new(&mut self.writer), cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_flush(Pin::new(&mut self.writer), cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.writer), cx)
+    }
 }
 
 /// The read half of a [`DataStream`], implementing [`futures::io::AsyncRead`].
