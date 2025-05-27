@@ -226,6 +226,7 @@ struct DataWriterInner {
 // `tor-proto` need to be reflected above.
 #[derive(Debug)]
 pub struct DataWriter {
+    /// A wrapper around [`DataWriterInner`] that adds rate limiting.
     writer: RateLimitedWriter<DataWriterInner, DynTimeProvider>,
 }
 
