@@ -57,7 +57,7 @@ counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval"]
 # covered by semver.
 testing = ["__is_experimental"]
 tokio = ["tokio-crate", "tokio-util"]
-bench = ["__is_experimental"]
+bench = ["__is_experimental", "visibility"]
 __is_experimental = []
 
 [dependencies]

@@ -84,43 +84,44 @@ pub fn client_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 
     group.finish();
 
-    // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
-    let mut group = c.benchmark_group("client_decrypt");
-    group.throughput(Throughput::Bytes(cgo::CGO_THROUGHPUT));
-
     #[cfg(feature = "counter-galois-onion")]
-    group.bench_function("CGO_Aes128", |b| {
-        b.iter_batched_ref(
-            || {
-                client_decrypt_setup!(
-                    cgo::CryptStatePair::<Aes128Dec, Aes128Enc>::construct,
-                    cgo::CryptStatePair::<Aes128Enc, Aes128Enc>::construct
-                )
-            },
-            |(cell, cc_in)| {
-                cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
-            },
-            criterion::BatchSize::SmallInput,
-        );
-    });
+    {
+        // Group for the Counter-Galois-Onion relay crypto with ~488 bytes of data per relay cell.
+        let mut group = c.benchmark_group("client_decrypt");
+        group.throughput(Throughput::Bytes(cgo::CGO_THROUGHPUT));
 
-    #[cfg(feature = "counter-galois-onion")]
-    group.bench_function("CGO_Aes256", |b| {
-        b.iter_batched_ref(
-            || {
-                client_decrypt_setup!(
-                    cgo::CryptStatePair::<Aes256Dec, Aes256Enc>::construct,
-                    cgo::CryptStatePair::<Aes256Enc, Aes256Enc>::construct
-                )
-            },
-            |(cell, cc_in)| {
-                cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
-            },
-            criterion::BatchSize::SmallInput,
-        );
-    });
+        group.bench_function("CGO_Aes128", |b| {
+            b.iter_batched_ref(
+                || {
+                    client_decrypt_setup!(
+                        cgo::CryptStatePair::<Aes128Dec, Aes128Enc>::construct,
+                        cgo::CryptStatePair::<Aes128Enc, Aes128Enc>::construct
+                    )
+                },
+                |(cell, cc_in)| {
+                    cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
+                },
+                criterion::BatchSize::SmallInput,
+            );
+        });
 
-    group.finish();
+        group.bench_function("CGO_Aes256", |b| {
+            b.iter_batched_ref(
+                || {
+                    client_decrypt_setup!(
+                        cgo::CryptStatePair::<Aes256Dec, Aes256Enc>::construct,
+                        cgo::CryptStatePair::<Aes256Enc, Aes256Enc>::construct
+                    )
+                },
+                |(cell, cc_in)| {
+                    cc_in.decrypt(BENCH_CHAN_CMD, cell).unwrap();
+                },
+                criterion::BatchSize::SmallInput,
+            );
+        });
+
+        group.finish();
+    }
 }
 
 criterion_group!(
