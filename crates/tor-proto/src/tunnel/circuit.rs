@@ -1760,6 +1760,7 @@ pub(crate) mod test {
     // next inbound message seems to come from hop next_msg_from
     async fn newcirc_ext<R: Runtime>(
         rt: &R,
+        unique_id: UniqId,
         chan: Arc<Channel>,
         hops: Vec<path::HopDetail>,
         next_msg_from: HopNum,
@@ -1767,7 +1768,6 @@ pub(crate) mod test {
         let circid = CircId::new(128).unwrap();
         let (_created_send, created_recv) = oneshot::channel();
         let (circmsg_send, circmsg_recv) = fake_mpsc(64);
-        let unique_id = UniqId::new(23, 17);
 
         let (pending, reactor) = PendingClientCirc::new(
             circid,
@@ -1829,7 +1829,8 @@ pub(crate) mod test {
         .take(3)
         .collect();
 
-        newcirc_ext(rt, chan, hops, 2.into()).await
+        let unique_id = UniqId::new(23, 17);
+        newcirc_ext(rt, unique_id, chan, hops, 2.into()).await
     }
 
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
@@ -1966,7 +1967,8 @@ pub(crate) mod test {
         .take(3)
         .collect();
 
-        let (circ, mut sink) = newcirc_ext(rt, chan, hops, reply_hop).await;
+        let unique_id = UniqId::new(23, 17);
+        let (circ, mut sink) = newcirc_ext(rt, unique_id, chan, hops, reply_hop).await;
         let params = CircParameters::default();
 
         let target = example_target();
