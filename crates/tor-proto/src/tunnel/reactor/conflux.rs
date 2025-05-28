@@ -435,24 +435,25 @@ impl ConfluxSet {
         };
 
         // Check two HopDetails for equality.
+        //
+        // Returns an error if one of the hops is virtual.
         let hops_eq = |h1: &HopDetail, h2: &HopDetail| {
             match (h1, h2) {
-                (HopDetail::Relay(t1), HopDetail::Relay(ref t2)) => t1.same_relay_ids(t2),
+                (HopDetail::Relay(t1), HopDetail::Relay(ref t2)) => Ok(t1.same_relay_ids(t2)),
                 (HopDetail::Virtual, HopDetail::Virtual) => {
-                    // TODO(conflux): HopDetail::Virtual are always considered equal,
-                    // but that's not exactly right. We should resolve the TODO
-                    // from HopDetail::Virtual, and store some additional context
-                    // for differentiating virtual hops
-                    true
+                    // TODO(#2016): support onion service conflux
+                    Err(internal!("onion service conflux not supported"))
                 }
-                _ => false,
+                _ => Ok(false),
             }
         };
 
         // Check if the last hop of leg is the same as the one from the first hop.
-        let hop_eq_joint_point = |hop: Option<&HopDetail>| {
-            hop.map(|hop| hops_eq(hop, &join_point.detail))
-                .unwrap_or_default()
+        let hop_eq_joint_point = |hop: Option<&HopDetail>| -> Result<bool, Bug> {
+            Ok(hop
+                .map(|hop| hops_eq(hop, &join_point.detail))
+                .transpose()?
+                .unwrap_or_default())
         };
 
         // A leg is considered valid if
@@ -463,15 +464,19 @@ impl ConfluxSet {
         //     (the last hop of the first circuit we added)
         //   * the circuit has no streams attached to any of its hops
         //   * the circuit is not already part of a conflux tunnel
-        let leg_is_valid = |leg: &Circuit| {
-            leg.last_hop_num() == Some(join_point.hop)
-                && hop_eq_joint_point(leg.path().all_hops().last())
+        //
+        // Returns an error if any hops are virtual.
+        let leg_is_valid = |leg: &Circuit| -> Result<bool, Bug> {
+            Ok(leg.last_hop_num() == Some(join_point.hop)
+                && hop_eq_joint_point(leg.path().all_hops().last())?
                 && !leg.has_streams()
-                && leg.conflux_status().is_none()
+                && leg.conflux_status().is_none())
         };
 
-        if !legs.iter().all(leg_is_valid) {
-            return Err(bad_api_usage!("one more more conflux circuits are invalid"));
+        for leg in &legs {
+            if !leg_is_valid(leg)? {
+                return Err(bad_api_usage!("one more more conflux circuits are invalid"));
+            }
         }
 
         let check_legs_disjoint = |(leg1, leg2): (&Circuit, &Circuit)| {
@@ -485,7 +490,7 @@ impl ConfluxSet {
             // so we know they all have the same length.
             path1_except_last
                 .zip(path2_except_last)
-                .all(|(h1, h2)| !hops_eq(h1, h2))
+                .all(|(h1, h2)| hops_eq(h1, h2).map(|res| !res).unwrap_or_default())
         };
 
         // TODO(conflux): reduce unnecessary iteration over `legs`
