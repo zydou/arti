@@ -29,7 +29,7 @@ pub(crate) struct ConfluxMsgHandler {
     /// Customizes the cell handling logic,
     /// because clients and exits behave differently.
     ///
-    /// TODO(conflux): can/should we avoid dynamic dispatch here?
+    /// TODO: can/should we avoid dynamic dispatch here?
     handler: Box<dyn AbstractConfluxMsgHandler + Send + Sync>,
     /// The absolute sequence number of the last message delivered to a stream.
     ///

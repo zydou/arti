@@ -494,7 +494,7 @@ impl ConfluxSet {
                 .all(|(h1, h2)| hops_eq(h1, h2).map(|res| !res).unwrap_or_default())
         };
 
-        // TODO(conflux): reduce unnecessary iteration over `legs`
+        // TODO: reduce unnecessary iteration over `legs`
         // without hurting readability
 
         // Ensure the legs don't share guard or middle relays
@@ -765,7 +765,7 @@ impl ConfluxSet {
                         },
                         ret = next_ready_stream.fuse() => {
                             let ret = ret.map(|cmd| {
-                                // TODO(conflux): refactor this spaghetti
+                                // TODO: refactor this spaghetti
                                 let leg = if let Some(join_point) = conflux_join_point {
                                     match &cmd {
                                         CircuitCmd::Send(send) => {
