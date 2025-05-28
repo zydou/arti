@@ -134,7 +134,7 @@ impl Default for CloseStreamBehavior {
     }
 }
 
-// TODO(conflux): the RunOnceCmd/RunOnceCmdInner/CircuitCmd/CircuitAction enum
+// TODO: the RunOnceCmd/RunOnceCmdInner/CircuitCmd/CircuitAction enum
 // proliferation is a bit bothersome, but unavoidable with the current design.
 //
 // We should consider getting rid of some of these enums (if possible),
@@ -810,9 +810,9 @@ impl Reactor {
                 if circ_cmds.is_empty() {
                     None
                 } else {
-                    // TODO(conflux): we return RunOnceCmd::Multiple even if there's a single command.
+                    // TODO: we return RunOnceCmd::Multiple even if there's a single command.
                     //
-                    // See the TODO(conflux) on `Circuit::handle_cell`.
+                    // See the TODO on `Circuit::handle_cell`.
                     let cmd = RunOnceCmd::Multiple(
                         circ_cmds
                             .into_iter()
