@@ -1761,6 +1761,7 @@ pub(crate) mod test {
     async fn newcirc_ext<R: Runtime>(
         rt: &R,
         chan: Arc<Channel>,
+        hops: Vec<path::HopDetail>,
         next_msg_from: HopNum,
     ) -> (Arc<ClientCirc>, CircuitRxSender) {
         let circid = CircId::new(128).unwrap();
@@ -1790,21 +1791,19 @@ pub(crate) mod test {
 
         // TODO #1067: Support other formats
         let relay_cell_format = RelayCellFormat::V0;
-        for idx in 0_u8..3 {
+
+        let last_hop_num = u8::try_from(hops.len() - 1).unwrap();
+        for (idx, peer_id) in hops.into_iter().enumerate() {
             let params = CircParameters::default();
             let (tx, rx) = oneshot::channel();
+            let idx = idx as u8;
 
-            let peer_id = tor_linkspec::OwnedChanTarget::builder()
-                .ed_identity([4; 32].into())
-                .rsa_identity([5; 20].into())
-                .build()
-                .expect("Could not construct fake hop");
             circ.command
                 .unbounded_send(CtrlCmd::AddFakeHop {
                     relay_cell_format,
-                    fwd_lasthop: idx == 2,
+                    fwd_lasthop: idx == last_hop_num,
                     rev_lasthop: idx == u8::from(next_msg_from),
-                    peer_id: path::HopDetail::Relay(peer_id),
+                    peer_id,
                     params,
                     done: tx,
                 })
@@ -1818,7 +1817,19 @@ pub(crate) mod test {
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
     async fn newcirc<R: Runtime>(rt: &R, chan: Arc<Channel>) -> (Arc<ClientCirc>, CircuitRxSender) {
-        newcirc_ext(rt, chan, 2.into()).await
+        let hops = std::iter::repeat_with(|| {
+            let peer_id = tor_linkspec::OwnedChanTarget::builder()
+                .ed_identity([4; 32].into())
+                .rsa_identity([5; 20].into())
+                .build()
+                .expect("Could not construct fake hop");
+
+            path::HopDetail::Relay(peer_id)
+        })
+        .take(3)
+        .collect();
+
+        newcirc_ext(rt, chan, hops, 2.into()).await
     }
 
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
@@ -1943,7 +1954,19 @@ pub(crate) mod test {
         bad_reply: ClientCircChanMsg,
     ) -> Error {
         let (chan, _rx, _sink) = working_fake_channel(rt);
-        let (circ, mut sink) = newcirc_ext(rt, chan, reply_hop).await;
+        let hops = std::iter::repeat_with(|| {
+            let peer_id = tor_linkspec::OwnedChanTarget::builder()
+                .ed_identity([4; 32].into())
+                .rsa_identity([5; 20].into())
+                .build()
+                .expect("Could not construct fake hop");
+
+            path::HopDetail::Relay(peer_id)
+        })
+        .take(3)
+        .collect();
+
+        let (circ, mut sink) = newcirc_ext(rt, chan, hops, reply_hop).await;
         let params = CircParameters::default();
 
         let target = example_target();
