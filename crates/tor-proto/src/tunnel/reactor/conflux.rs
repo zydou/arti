@@ -84,7 +84,7 @@ pub(super) struct ConfluxSet {
     /// When it is converted to a multipath set using [`add_legs`](Self::add_legs),
     /// the join point is initialized to the last hop in the tunnel.
     //
-    // TODO(conflux): for simplicity, we currently we force all legs to have the same length,
+    // TODO(#2017): for simplicity, we currently we force all legs to have the same length,
     // to ensure the HopNum of the join point is the same for all of them.
     //
     // In the future we might want to relax this restriction.
