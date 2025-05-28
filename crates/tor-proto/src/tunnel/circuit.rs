@@ -51,58 +51,34 @@ use crate::circuit::handshake::RelayCryptLayerProtocol;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
-use crate::memquota::{CircuitAccount, SpecificAccount as _};
-use crate::stream::queue::stream_queue;
-use crate::stream::xon_xoff::XonXoffReaderCtrl;
-use crate::stream::{
-    AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
-    StreamRateLimit, StreamReceiver,
-};
+use crate::memquota::CircuitAccount;
 use crate::tunnel::circuit::celltypes::*;
-use crate::tunnel::reactor::CtrlCmd;
-use crate::tunnel::reactor::{
-    CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
-};
-use crate::tunnel::{StreamTarget, TargetHop};
-use crate::util::notify::NotifySender;
+use crate::tunnel::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::util::skew::ClockSkew;
-use crate::{Error, ResolveError, Result};
 use cfg_if::cfg_if;
+use tor_cell::relaycell::{self, RelayCellFormat};
+use crate::{Error, Result};
 use educe::Educe;
 use path::HopDetail;
-use postage::watch;
-use tor_cell::relaycell::{self, RelayCellFormat};
-use tor_cell::{
-    chancell::CircId,
-    relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
-};
-
+use tor_cell::chancell::CircId;
 use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
+use tor_rtcompat::DynTimeProvider;
 
 pub use crate::crypto::binding::CircuitBinding;
 pub use crate::memquota::StreamAccount;
 pub use crate::tunnel::circuit::unique_id::UniqId;
 
-use super::ClientTunnel;
-
-#[cfg(feature = "hs-service")]
-use {
-    crate::stream::{IncomingCmdChecker, IncomingStream},
-    crate::tunnel::reactor::StreamReqInfo,
-};
+use super::{ClientTunnel, TargetHop};
 
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
-use crate::congestion::sendme::StreamRecvWindow;
-use crate::DynTimeProvider;
 use futures::FutureExt as _;
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
-use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
+use tor_memquota::mq_queue::{self, MpscSpec};
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 
@@ -174,7 +150,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 //
 pub struct ClientCirc {
     /// Mutable state shared with the `Reactor`.
-    mutable: Arc<TunnelMutableState>,
+    pub(super) mutable: Arc<TunnelMutableState>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -189,9 +165,9 @@ pub struct ClientCirc {
     #[cfg(test)]
     circid: CircId,
     /// Memory quota account
-    memquota: CircuitAccount,
+    pub(super) memquota: CircuitAccount,
     /// Time provider
-    time_provider: DynTimeProvider,
+    pub(super) time_provider: DynTimeProvider,
     /// Indicate if this reactor is a multi path or not. This is flagged at the very first
     /// LinkCircuit seen and never changed after.
     ///
@@ -285,7 +261,7 @@ impl TunnelMutableState {
     /// Returns an error if a circuit with the specified [`UniqId`] doesn't exist.
     ///
     /// See [`MutableState::last_hop_num`].
-    fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
+    pub(super) fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
         let lock = self.0.lock().expect("lock poisoned");
         let mutable = lock
             .get(&unique_id)
@@ -304,15 +280,6 @@ impl TunnelMutableState {
             .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
 
         Ok(mutable.n_hops())
-    }
-
-    /// Return the number of legs in this tunnel.
-    ///
-    /// TODO(conflux-fork): this can be removed once we modify `path_ref`
-    /// to return *all* the Paths in the tunnel.
-    fn n_legs(&self) -> usize {
-        let lock = self.0.lock().expect("lock poisoned");
-        lock.len()
     }
 }
 
@@ -837,147 +804,6 @@ impl ClientCirc {
         Ok(conversation)
     }
 
-    /// Send an ad-hoc message to a given hop on the circuit, without expecting
-    /// a reply.
-    ///
-    /// (If you want to handle one or more possible replies, see
-    /// [`ClientCirc::start_conversation`].)
-    #[cfg(feature = "send-control-msg")]
-    pub async fn send_raw_msg(
-        &self,
-        msg: relaycell::msg::AnyRelayMsg,
-        hop: TargetHop,
-    ) -> Result<()> {
-        let (sender, receiver) = oneshot::channel();
-        let ctrl_msg = CtrlMsg::SendMsg { hop, msg, sender };
-        self.control
-            .unbounded_send(ctrl_msg)
-            .map_err(|_| Error::CircuitClosed)?;
-
-        receiver.await.map_err(|_| Error::CircuitClosed)?
-    }
-
-    /// Tell this circuit to begin allowing the final hop of the circuit to try
-    /// to create new Tor streams, and to return those pending requests in an
-    /// asynchronous stream.
-    ///
-    /// Ordinarily, these requests are rejected.
-    ///
-    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit.
-    /// If a such a [`Stream`](futures::Stream) already exists, this method will return
-    /// an error.
-    ///
-    /// After this method has been called on a circuit, the circuit is expected
-    /// to receive requests of this type indefinitely, until it is finally closed.
-    /// If the `Stream` is dropped, the next request on this circuit will cause it to close.
-    ///
-    /// Only onion services (and eventually) exit relays should call this
-    /// method.
-    //
-    // TODO: Someday, we might want to allow a stream request handler to be
-    // un-registered.  However, nothing in the Tor protocol requires it.
-    #[cfg(feature = "hs-service")]
-    pub async fn allow_stream_requests(
-        self: &Arc<ClientCirc>,
-        allow_commands: &[relaycell::RelayCmd],
-        hop: TargetHop,
-        filter: impl crate::stream::IncomingStreamRequestFilter,
-    ) -> Result<impl futures::Stream<Item = IncomingStream>> {
-        use futures::stream::StreamExt;
-
-        /// The size of the channel receiving IncomingStreamRequestContexts.
-        const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
-
-        // TODO(#2002): support onion service conflux
-        let circ_count = self.mutable.n_legs();
-        if circ_count != 1 {
-            return Err(
-                internal!("Cannot allow stream requests on tunnel with {circ_count} legs",).into(),
-            );
-        }
-
-        let time_prov = self.time_provider.clone();
-        let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
-        let (incoming_sender, incoming_receiver) =
-            MpscSpec::new(INCOMING_BUFFER).new_mq(time_prov, self.memquota.as_raw_account())?;
-        let (tx, rx) = oneshot::channel();
-
-        self.command
-            .unbounded_send(CtrlCmd::AwaitStreamRequest {
-                cmd_checker,
-                incoming_sender,
-                hop,
-                done: tx,
-                filter: Box::new(filter),
-            })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        // Check whether the AwaitStreamRequest was processed successfully.
-        rx.await.map_err(|_| Error::CircuitClosed)??;
-
-        let allowed_hop_loc = match hop {
-            TargetHop::Hop(loc) => Some(loc),
-            _ => None,
-        }
-        .ok_or_else(|| bad_api_usage!("Expected TargetHop with HopLocation"))?;
-
-        let circ = Arc::clone(self);
-        Ok(incoming_receiver.map(move |req_ctx| {
-            let StreamReqInfo {
-                req,
-                stream_id,
-                hop,
-                receiver,
-                msg_tx,
-                rate_limit_stream,
-                drain_rate_request_stream,
-                memquota,
-                relay_cell_format,
-            } = req_ctx;
-
-            // We already enforce this in handle_incoming_stream_request; this
-            // assertion is just here to make sure that we don't ever
-            // accidentally remove or fail to enforce that check, since it is
-            // security-critical.
-            assert_eq!(allowed_hop_loc, hop);
-
-            // TODO(#2002): figure out what this is going to look like
-            // for onion services (perhaps we should forbid this function
-            // from being called on a multipath circuit?)
-            //
-            // See also:
-            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3002#note_3200937
-            let target = StreamTarget {
-                circ: Arc::clone(&circ),
-                tx: msg_tx,
-                hop: allowed_hop_loc,
-                stream_id,
-                relay_cell_format,
-                rate_limit_stream,
-            };
-
-            // can be used to build a reader that supports XON/XOFF flow control
-            let xon_xoff_reader_ctrl =
-                XonXoffReaderCtrl::new(drain_rate_request_stream, target.clone());
-
-            let reader = StreamReceiver {
-                target: target.clone(),
-                receiver,
-                recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
-                ended: false,
-            };
-
-            let components = StreamComponents {
-                stream_receiver: reader,
-                target,
-                memquota,
-                xon_xoff_reader_ctrl,
-            };
-
-            IncomingStream::new(circ.time_provider.clone(), req, components)
-        }))
-    }
-
     /// Extend the circuit, via the most appropriate circuit extension handshake,
     /// to the chosen `target` hop.
     pub async fn extend<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
@@ -1147,237 +973,6 @@ impl ClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
-    /// Helper, used to begin a stream.
-    ///
-    /// This function allocates a stream ID, and sends the message
-    /// (like a BEGIN or RESOLVE), but doesn't wait for a response.
-    ///
-    /// The caller will typically want to see the first cell in response,
-    /// to see whether it is e.g. an END or a CONNECTED.
-    async fn begin_stream_impl(
-        self: &Arc<ClientCirc>,
-        begin_msg: AnyRelayMsg,
-        cmd_checker: AnyCmdChecker,
-    ) -> Result<StreamComponents> {
-        // TODO: Possibly this should take a hop, rather than just
-        // assuming it's the last hop.
-        let hop = TargetHop::LastHop;
-
-        let time_prov = self.time_provider.clone();
-
-        let memquota = StreamAccount::new(self.mq_account())?;
-        let (sender, receiver) = stream_queue(STREAM_READER_BUFFER, &memquota, &time_prov)?;
-
-        let (tx, rx) = oneshot::channel();
-        let (msg_tx, msg_rx) =
-            MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(time_prov, memquota.as_raw_account())?;
-
-        let (rate_limit_tx, rate_limit_rx) = watch::channel_with(StreamRateLimit::MAX);
-
-        // A channel for the reactor to request a new drain rate from the reader.
-        // Typically this notification will be sent after an XOFF is sent so that the reader can
-        // send us a new drain rate when the stream data queue becomes empty.
-        let mut drain_rate_request_tx = NotifySender::new_typed();
-        let drain_rate_request_rx = drain_rate_request_tx.subscribe();
-
-        self.control
-            .unbounded_send(CtrlMsg::BeginStream {
-                hop,
-                message: begin_msg,
-                sender,
-                rx: msg_rx,
-                rate_limit_notifier: rate_limit_tx,
-                drain_rate_requester: drain_rate_request_tx,
-                done: tx,
-                cmd_checker,
-            })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        let (stream_id, hop, relay_cell_format) = rx.await.map_err(|_| Error::CircuitClosed)??;
-
-        let target = StreamTarget {
-            circ: self.clone(),
-            tx: msg_tx,
-            hop,
-            stream_id,
-            relay_cell_format,
-            rate_limit_stream: rate_limit_rx,
-        };
-
-        // can be used to build a reader that supports XON/XOFF flow control
-        let xon_xoff_reader_ctrl = XonXoffReaderCtrl::new(drain_rate_request_rx, target.clone());
-
-        let stream_receiver = StreamReceiver {
-            target: target.clone(),
-            receiver,
-            recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
-            ended: false,
-        };
-
-        let components = StreamComponents {
-            stream_receiver,
-            target,
-            memquota,
-            xon_xoff_reader_ctrl,
-        };
-
-        Ok(components)
-    }
-
-    /// Start a DataStream (anonymized connection) to the given
-    /// address and port, using a BEGIN cell.
-    async fn begin_data_stream(
-        self: &Arc<ClientCirc>,
-        msg: AnyRelayMsg,
-        optimistic: bool,
-    ) -> Result<DataStream> {
-        let components = self
-            .begin_stream_impl(msg, DataCmdChecker::new_any())
-            .await?;
-
-        let StreamComponents {
-            stream_receiver,
-            target,
-            memquota,
-            xon_xoff_reader_ctrl,
-        } = components;
-
-        let mut stream = DataStream::new(
-            self.time_provider.clone(),
-            stream_receiver,
-            xon_xoff_reader_ctrl,
-            target,
-            memquota,
-        );
-        if !optimistic {
-            stream.wait_for_connection().await?;
-        }
-        Ok(stream)
-    }
-
-    /// Start a stream to the given address and port, using a BEGIN
-    /// cell.
-    ///
-    /// The use of a string for the address is intentional: you should let
-    /// the remote Tor relay do the hostname lookup for you.
-    pub async fn begin_stream(
-        self: &Arc<ClientCirc>,
-        target: &str,
-        port: u16,
-        parameters: Option<StreamParameters>,
-    ) -> Result<DataStream> {
-        let parameters = parameters.unwrap_or_default();
-        let begin_flags = parameters.begin_flags();
-        let optimistic = parameters.is_optimistic();
-        let target = if parameters.suppressing_hostname() {
-            ""
-        } else {
-            target
-        };
-        let beginmsg = Begin::new(target, port, begin_flags)
-            .map_err(|e| Error::from_cell_enc(e, "begin message"))?;
-        self.begin_data_stream(beginmsg.into(), optimistic).await
-    }
-
-    /// Start a new stream to the last relay in the circuit, using
-    /// a BEGIN_DIR cell.
-    pub async fn begin_dir_stream(self: Arc<ClientCirc>) -> Result<DataStream> {
-        // Note that we always open begindir connections optimistically.
-        // Since they are local to a relay that we've already authenticated
-        // with and built a circuit to, there should be no additional checks
-        // we need to perform to see whether the BEGINDIR will succeed.
-        self.begin_data_stream(AnyRelayMsg::BeginDir(Default::default()), true)
-            .await
-    }
-
-    /// Perform a DNS lookup, using a RESOLVE cell with the last relay
-    /// in this circuit.
-    ///
-    /// Note that this function does not check for timeouts; that's
-    /// the caller's responsibility.
-    pub async fn resolve(self: &Arc<ClientCirc>, hostname: &str) -> Result<Vec<IpAddr>> {
-        let resolve_msg = Resolve::new(hostname);
-
-        let resolved_msg = self.try_resolve(resolve_msg).await?;
-
-        resolved_msg
-            .into_answers()
-            .into_iter()
-            .filter_map(|(val, _)| match resolvedval_to_result(val) {
-                Ok(ResolvedVal::Ip(ip)) => Some(Ok(ip)),
-                Ok(_) => None,
-                Err(e) => Some(Err(e)),
-            })
-            .collect()
-    }
-
-    /// Perform a reverse DNS lookup, by sending a RESOLVE cell with
-    /// the last relay on this circuit.
-    ///
-    /// Note that this function does not check for timeouts; that's
-    /// the caller's responsibility.
-    pub async fn resolve_ptr(self: &Arc<ClientCirc>, addr: IpAddr) -> Result<Vec<String>> {
-        let resolve_ptr_msg = Resolve::new_reverse(&addr);
-
-        let resolved_msg = self.try_resolve(resolve_ptr_msg).await?;
-
-        resolved_msg
-            .into_answers()
-            .into_iter()
-            .filter_map(|(val, _)| match resolvedval_to_result(val) {
-                Ok(ResolvedVal::Hostname(v)) => Some(
-                    String::from_utf8(v)
-                        .map_err(|_| Error::StreamProto("Resolved Hostname was not utf-8".into())),
-                ),
-                Ok(_) => None,
-                Err(e) => Some(Err(e)),
-            })
-            .collect()
-    }
-
-    /// Helper: Send the resolve message, and read resolved message from
-    /// resolve stream.
-    async fn try_resolve(self: &Arc<ClientCirc>, msg: Resolve) -> Result<Resolved> {
-        let components = self
-            .begin_stream_impl(msg.into(), ResolveCmdChecker::new_any())
-            .await?;
-
-        let StreamComponents {
-            stream_receiver,
-            target: _,
-            memquota,
-            xon_xoff_reader_ctrl: _,
-        } = components;
-
-        let mut resolve_stream = ResolveStream::new(stream_receiver, memquota);
-        resolve_stream.read_msg().await
-    }
-
-    /// Shut down this circuit, along with all streams that are using it.
-    /// Happens asynchronously (i.e. the circuit won't necessarily be done shutting down
-    /// immediately after this function returns!).
-    ///
-    /// Note that other references to this circuit may exist.  If they
-    /// do, they will stop working after you call this function.
-    ///
-    /// It's not necessary to call this method if you're just done
-    /// with a circuit: the circuit should close on its own once nothing
-    /// is using it any more.
-    pub fn terminate(&self) {
-        let _ = self.command.unbounded_send(CtrlCmd::Shutdown);
-    }
-
-    /// Called when a circuit-level protocol error has occurred and the
-    /// circuit needs to shut down.
-    ///
-    /// This is a separate function because we may eventually want to have
-    /// it do more than just shut down.
-    ///
-    /// As with `terminate`, this function is asynchronous.
-    pub(crate) fn protocol_error(&self) {
-        self.terminate();
-    }
-
     /// Return true if this circuit is closed and therefore unusable.
     pub fn is_closing(&self) -> bool {
         self.control.is_closed()
@@ -1406,7 +1001,6 @@ impl ClientCirc {
     ///
     /// TODO: Perhaps this should return some kind of status indication instead
     /// of just ()
-    #[cfg(feature = "experimental-api")]
     pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
         self.reactor_closed_rx.clone().map(|_| ())
     }
@@ -1642,36 +1236,6 @@ impl PendingClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
         Ok(self.circ)
-    }
-}
-
-/// A collection of components that can be combined to implement a Tor stream,
-/// or anything that requires a stream ID.
-///
-/// Not all components may be needed, depending on the purpose of the "stream".
-/// For example we build `RELAY_RESOLVE` requests like we do data streams,
-/// but they won't use the `StreamTarget` as they don't need to send additional
-/// messages.
-#[derive(Debug)]
-pub(crate) struct StreamComponents {
-    /// A [`Stream`](futures::Stream) of incoming relay messages for this Tor stream.
-    pub(crate) stream_receiver: StreamReceiver,
-    /// A handle that can communicate messages to the circuit reactor for this stream.
-    pub(crate) target: StreamTarget,
-    /// The memquota [account](tor_memquota::Account) to use for data on this stream.
-    pub(crate) memquota: StreamAccount,
-    /// The control information needed to add XON/XOFF flow control to the stream.
-    pub(crate) xon_xoff_reader_ctrl: XonXoffReaderCtrl,
-}
-
-/// Convert a [`ResolvedVal`] into a Result, based on whether or not
-/// it represents an error.
-fn resolvedval_to_result(val: ResolvedVal) -> Result<ResolvedVal> {
-    match val {
-        ResolvedVal::TransientError => Err(Error::ResolveError(ResolveError::Transient)),
-        ResolvedVal::NontransientError => Err(Error::ResolveError(ResolveError::Nontransient)),
-        ResolvedVal::Unrecognized(_, _) => Err(Error::ResolveError(ResolveError::Unrecognized)),
-        _ => Ok(val),
     }
 }
 
