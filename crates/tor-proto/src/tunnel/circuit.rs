@@ -1798,11 +1798,9 @@ pub(crate) mod test {
 
         // Do the path accessors report a reasonable outcome?
         {
-            let path = circ
-                .path_ref()
-                .unwrap()
+            let path = circ.path_ref().unwrap();
+            let path = path
                 .all_hops()
-                .into_iter()
                 .filter_map(|hop| match hop {
                     path::HopDetail::Relay(r) => Some(r),
                     #[cfg(feature = "hs-common")]

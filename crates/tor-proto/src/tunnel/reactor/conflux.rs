@@ -423,7 +423,8 @@ impl ConfluxSet {
             None => {
                 let (hop, detail) = (|| {
                     let first_leg = legs.first()?;
-                    let all_hops = first_leg.path().all_hops();
+                    let first_leg_path = first_leg.path();
+                    let all_hops = first_leg_path.all_hops();
                     let hop = first_leg.last_hop_num()?;
                     let detail = all_hops.last()?;
                     Some((hop, detail.clone()))
@@ -481,17 +482,16 @@ impl ConfluxSet {
         }
 
         let check_legs_disjoint = |(leg1, leg2): (&Circuit, &Circuit)| {
-            // TODO(conflux): add a new Path API for getting an iterator over HopDetail.
-            let path1 = leg1.path().all_hops();
-            let path1_except_last = path1.iter().dropping_back(1);
-            let path2 = leg2.path().all_hops();
-            let path2_except_last = path2.iter().dropping_back(1);
+            let path1 = leg1.path();
+            let path1_except_last = path1.all_hops().dropping_back(1);
+            let path2 = leg2.path();
+            let path2_except_last = path2.all_hops().dropping_back(1);
 
             // At this point we've already validated the lengths of the new legs,
             // so we know they all have the same length.
-            path1_except_last
-                .zip(path2_except_last)
-                .all(|(h1, h2)| hops_eq(h1, h2).map(|res| !res).unwrap_or_default())
+            let mut zip = path1_except_last.zip(path2_except_last);
+
+            zip.all(|(h1, h2)| hops_eq(h1, h2).map(|res| !res).unwrap_or_default())
         };
 
         // TODO: reduce unnecessary iteration over `legs`
