@@ -1041,3 +1041,8 @@ fn cmd_counts_towards_seqno(cmd: RelayCmd) -> bool {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // Tested in [`crate::tunnel::circuit::test`].
+}
