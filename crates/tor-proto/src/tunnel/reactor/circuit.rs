@@ -328,15 +328,8 @@ impl Circuit {
         let settings = HopSettings::from_params_and_caps(params, &tor_protover::Protocols::new())
             .expect("Can't construct HopSettings")
             .without_negotiation();
-        self.add_hop(
-            format,
-            dummy_peer_id,
-            fwd,
-            rev,
-            binding,
-            &settings,
-        )
-        .expect("could not add hop to circuit");
+        self.add_hop(format, dummy_peer_id, fwd, rev, binding, &settings)
+            .expect("could not add hop to circuit");
         let _ = done.send(Ok(()));
     }
 

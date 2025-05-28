@@ -630,7 +630,14 @@ impl<'a> ControlHandler<'a> {
                     return Ok(());
                 };
 
-                leg.handle_add_fake_hop(relay_cell_format, fwd_lasthop, rev_lasthop, peer_id, &params, done);
+                leg.handle_add_fake_hop(
+                    relay_cell_format,
+                    fwd_lasthop,
+                    rev_lasthop,
+                    peer_id,
+                    &params,
+                    done,
+                );
 
                 Ok(())
             }
