@@ -84,7 +84,7 @@ pub(super) struct ConfluxSet {
     /// When it is converted to a multipath set using [`add_legs`](Self::add_legs),
     /// the join point is initialized to the last hop in the tunnel.
     //
-    // TODO(conflux): for simplicity, we currently we force all legs to have the same length,
+    // TODO(#2017): for simplicity, we currently we force all legs to have the same length,
     // to ensure the HopNum of the join point is the same for all of them.
     //
     // In the future we might want to relax this restriction.
@@ -423,7 +423,8 @@ impl ConfluxSet {
             None => {
                 let (hop, detail) = (|| {
                     let first_leg = legs.first()?;
-                    let all_hops = first_leg.path().all_hops();
+                    let first_leg_path = first_leg.path();
+                    let all_hops = first_leg_path.all_hops();
                     let hop = first_leg.last_hop_num()?;
                     let detail = all_hops.last()?;
                     Some((hop, detail.clone()))
@@ -435,24 +436,26 @@ impl ConfluxSet {
         };
 
         // Check two HopDetails for equality.
+        //
+        // Returns an error if one of the hops is virtual.
         let hops_eq = |h1: &HopDetail, h2: &HopDetail| {
             match (h1, h2) {
-                (HopDetail::Relay(t1), HopDetail::Relay(ref t2)) => t1.same_relay_ids(t2),
+                (HopDetail::Relay(t1), HopDetail::Relay(ref t2)) => Ok(t1.same_relay_ids(t2)),
+                #[cfg(feature = "hs-common")]
                 (HopDetail::Virtual, HopDetail::Virtual) => {
-                    // TODO(conflux): HopDetail::Virtual are always considered equal,
-                    // but that's not exactly right. We should resolve the TODO
-                    // from HopDetail::Virtual, and store some additional context
-                    // for differentiating virtual hops
-                    true
+                    // TODO(#2016): support onion service conflux
+                    Err(internal!("onion service conflux not supported"))
                 }
-                _ => false,
+                _ => Ok(false),
             }
         };
 
         // Check if the last hop of leg is the same as the one from the first hop.
-        let hop_eq_joint_point = |hop: Option<&HopDetail>| {
-            hop.map(|hop| hops_eq(hop, &join_point.detail))
-                .unwrap_or_default()
+        let hop_eq_joint_point = |hop: Option<&HopDetail>| -> Result<bool, Bug> {
+            Ok(hop
+                .map(|hop| hops_eq(hop, &join_point.detail))
+                .transpose()?
+                .unwrap_or_default())
         };
 
         // A leg is considered valid if
@@ -463,32 +466,35 @@ impl ConfluxSet {
         //     (the last hop of the first circuit we added)
         //   * the circuit has no streams attached to any of its hops
         //   * the circuit is not already part of a conflux tunnel
-        let leg_is_valid = |leg: &Circuit| {
-            leg.last_hop_num() == Some(join_point.hop)
-                && hop_eq_joint_point(leg.path().all_hops().last())
+        //
+        // Returns an error if any hops are virtual.
+        let leg_is_valid = |leg: &Circuit| -> Result<bool, Bug> {
+            Ok(leg.last_hop_num() == Some(join_point.hop)
+                && hop_eq_joint_point(leg.path().all_hops().last())?
                 && !leg.has_streams()
-                && leg.conflux_status().is_none()
+                && leg.conflux_status().is_none())
         };
 
-        if !legs.iter().all(leg_is_valid) {
-            return Err(bad_api_usage!("one more more conflux circuits are invalid"));
+        for leg in &legs {
+            if !leg_is_valid(leg)? {
+                return Err(bad_api_usage!("one more more conflux circuits are invalid"));
+            }
         }
 
         let check_legs_disjoint = |(leg1, leg2): (&Circuit, &Circuit)| {
-            // TODO(conflux): add a new Path API for getting an iterator over HopDetail.
-            let path1 = leg1.path().all_hops();
-            let path1_except_last = path1.iter().dropping_back(1);
-            let path2 = leg2.path().all_hops();
-            let path2_except_last = path2.iter().dropping_back(1);
+            let path1 = leg1.path();
+            let path1_except_last = path1.all_hops().dropping_back(1);
+            let path2 = leg2.path();
+            let path2_except_last = path2.all_hops().dropping_back(1);
 
             // At this point we've already validated the lengths of the new legs,
             // so we know they all have the same length.
-            path1_except_last
-                .zip(path2_except_last)
-                .all(|(h1, h2)| !hops_eq(h1, h2))
+            let mut zip = path1_except_last.zip(path2_except_last);
+
+            zip.all(|(h1, h2)| hops_eq(h1, h2).map(|res| !res).unwrap_or_default())
         };
 
-        // TODO(conflux): reduce unnecessary iteration over `legs`
+        // TODO: reduce unnecessary iteration over `legs`
         // without hurting readability
 
         // Ensure the legs don't share guard or middle relays
@@ -759,7 +765,7 @@ impl ConfluxSet {
                         },
                         ret = next_ready_stream.fuse() => {
                             let ret = ret.map(|cmd| {
-                                // TODO(conflux): refactor this spaghetti
+                                // TODO: refactor this spaghetti
                                 let leg = if let Some(join_point) = conflux_join_point {
                                     match &cmd {
                                         CircuitCmd::Send(send) => {
@@ -773,9 +779,6 @@ impl ConfluxSet {
                                                         join_point.display(),
                                                     )));
                                                 }
-                                                // TODO(conflux): validate the hop? We should
-                                                // ensure the target hop is the join point, and
-                                                // error otherwise?
 
                                                 primary_id
                                             } else {
@@ -892,7 +895,7 @@ impl ConfluxSet {
     }
 }
 
-// TODO(conflux): replace this with Itertools::exactly_one()?
+// TODO: replace this with Itertools::exactly_one()?
 //
 /// Get the only item from an iterator.
 ///

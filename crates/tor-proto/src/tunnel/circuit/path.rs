@@ -116,8 +116,8 @@ impl Path {
     }
 
     /// Return a copy of all the hops in this path.
-    pub(crate) fn all_hops(&self) -> Vec<HopDetail> {
-        self.hops.iter().map(|ent| ent.inner.clone()).collect()
+    pub(crate) fn all_hops(&self) -> impl DoubleEndedIterator<Item = &HopDetail> + '_ {
+        self.hops.iter().map(|ent| &ent.inner)
     }
 
     /// Return the index of the last hop on this path, or `None` if the path is
