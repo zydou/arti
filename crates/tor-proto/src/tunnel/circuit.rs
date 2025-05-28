@@ -1793,11 +1793,18 @@ pub(crate) mod test {
         for idx in 0_u8..3 {
             let params = CircParameters::default();
             let (tx, rx) = oneshot::channel();
+
+            let peer_id = tor_linkspec::OwnedChanTarget::builder()
+                .ed_identity([4; 32].into())
+                .rsa_identity([5; 20].into())
+                .build()
+                .expect("Could not construct fake hop");
             circ.command
                 .unbounded_send(CtrlCmd::AddFakeHop {
                     relay_cell_format,
                     fwd_lasthop: idx == 2,
                     rev_lasthop: idx == u8::from(next_msg_from),
+                    peer_id: path::HopDetail::Relay(peer_id),
                     params,
                     done: tx,
                 })

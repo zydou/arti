@@ -1117,11 +1117,12 @@ impl Reactor {
                         relay_cell_format: format,
                         fwd_lasthop,
                         rev_lasthop,
+                        peer_id,
                         params,
                         done,
                     } => {
                         let (_id, leg) = self.circuits.single_leg_mut()?;
-                        leg.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
+                        leg.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, peer_id, &params, done);
                         return Ok(())
                     },
                     _ => {

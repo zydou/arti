@@ -316,16 +316,11 @@ impl Circuit {
         format: RelayCellFormat,
         fwd_lasthop: bool,
         rev_lasthop: bool,
+        dummy_peer_id: path::HopDetail,
         params: &crate::circuit::CircParameters,
         done: ReactorResultChannel<()>,
     ) {
         use crate::tunnel::circuit::test::DummyCrypto;
-
-        let dummy_peer_id = tor_linkspec::OwnedChanTarget::builder()
-            .ed_identity([4; 32].into())
-            .rsa_identity([5; 20].into())
-            .build()
-            .expect("Could not construct fake hop");
 
         let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
@@ -335,7 +330,7 @@ impl Circuit {
             .without_negotiation();
         self.add_hop(
             format,
-            path::HopDetail::Relay(dummy_peer_id),
+            dummy_peer_id,
             fwd,
             rev,
             binding,
