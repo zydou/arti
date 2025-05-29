@@ -39,6 +39,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
     /// If `fallible_fn` eventually returns `Ok(_)`, return that output. Otherwise,
     /// keep retrying until either `fallible_fn` has failed too many times, or until
     /// a fatal error occurs.
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactor
     pub(super) async fn run<T, E, F>(
         mut self,
         mut fallible_fn: impl FnMut() -> F,

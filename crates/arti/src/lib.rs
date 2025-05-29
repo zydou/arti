@@ -190,7 +190,7 @@ where
         // If we couldn't resolve the default config file, then too bad.  If something
         // actually tries to use it, it will produce an error, but don't fail here
         // just for that reason.
-        write!(config_file_help, " Defaults to {:?}", default).unwrap();
+        write!(config_file_help, " Defaults to {:?}", default).expect("Can't write to string");
     }
 
     // We create the runtime now so that we can use its `Debug` impl to describe it for

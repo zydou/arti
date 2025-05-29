@@ -95,6 +95,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 /// Start watching for configuration changes.
 ///
 /// Spawned from `watch_for_config_changes`.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor? Partly due to tracing.
 async fn run_watcher<R: Runtime>(
     runtime: R,
     sources: ConfigurationSources,
@@ -160,6 +161,7 @@ async fn run_watcher<R: Runtime>(
 }
 
 /// Reload the configuration.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor? Partly due to tracing.
 async fn reload_configuration<R: Runtime>(
     runtime: R,
     mut watcher: Option<FileWatcher>,

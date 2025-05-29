@@ -431,6 +431,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ///
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactor
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         // Maximum number of hsdir connection and retrieval attempts we'll make
         let max_total_attempts = self
@@ -1060,6 +1061,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// So if there's a failure, it's purely to do with the introduction point.
     ///
     /// Does not apply a timeout.
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactor
     async fn exchange_introduce(
         &'c self,
         ipt: &UsableIntroPt<'_>,

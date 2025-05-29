@@ -233,7 +233,7 @@ pub async fn detect_bridges_going_down(
                     is_bridge_still_online(channel.as_ref(), bridgeline.clone(), new_expiry_tx)
                         .await
                 {
-                    eprintln!("Error while waiting on close: {:#?}", e);
+                    eprintln!("Error while waiting on close: {e:#?}");
                 }
             });
         }

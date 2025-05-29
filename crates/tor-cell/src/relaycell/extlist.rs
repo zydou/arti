@@ -102,6 +102,7 @@ impl<T: ExtGroup> Writeable for ExtList<T> {
 impl<T: ExtGroup> ExtList<T> {
     /// Insert `ext` into this list of extensions, replacing any previous
     /// extension with the same field type ID.
+    #[cfg(feature = "hs")] // currently, only used when "hs' is enabled.
     pub(super) fn replace_by_type(&mut self, ext: T) {
         self.retain(|e| e.type_id() != ext.type_id());
         self.push(ext);

@@ -303,6 +303,7 @@ static CANNED_RESPONSE: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(vec![
 /// `missing`, and return each request along with the response it received.
 ///
 /// Don't launch more than `parallelism` requests at once.
+#[allow(clippy::cognitive_complexity)] // TODO: maybe refactor?
 async fn fetch_multiple<R: Runtime>(
     dirmgr: Arc<DirMgr<R>>,
     attempt_id: AttemptId,
@@ -399,6 +400,7 @@ async fn load_once<R: Runtime>(
 /// cache in `dirmgr`, advancing the state to the extent possible.
 ///
 /// No downloads are performed; the provided state will not be reset.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor? Somewhat due to tracing.
 pub(crate) async fn load<R: Runtime>(
     dirmgr: Arc<DirMgr<R>>,
     mut state: Box<dyn DirState>,
@@ -454,6 +456,7 @@ pub(crate) async fn load<R: Runtime>(
 ///
 /// This can launch one or more download requests, but will not launch more
 /// than `parallelism` requests at a time.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor?
 async fn download_attempt<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
@@ -537,6 +540,7 @@ async fn download_attempt<R: Runtime>(
 ///
 /// The first time that the state becomes ["usable"](Readiness::Usable), notify
 /// the sender in `on_usable`.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor!
 pub(crate) async fn download<R: Runtime>(
     dirmgr: Weak<DirMgr<R>>,
     state: &mut Box<dyn DirState>,

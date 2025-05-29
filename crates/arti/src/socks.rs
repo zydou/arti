@@ -444,6 +444,7 @@ impl<R: Runtime> SocksConnContext<R> {
 /// Uses `isolation_info` to decide which circuits this connection
 /// may use.  Requires that `isolation_info` is a pair listing the listener
 /// id and the source address for the socks request.
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor
 async fn handle_socks_conn<R, S>(
     runtime: R,
     context: SocksConnContext<R>,
@@ -787,6 +788,7 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 /// timeouts, and a `tor_client` to use in connecting over the Tor
 /// network.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[allow(clippy::cognitive_complexity)] // TODO: Refactor
 pub(crate) async fn run_socks_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,

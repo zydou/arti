@@ -778,6 +778,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// Exit when we notice that `circmgr` has been dropped.
     ///
     /// This is a daemon task: it runs indefinitely in the background.
+    #[allow(clippy::cognitive_complexity)] // because of tracing
     async fn update_persistent_state<S>(
         mut sched: TaskSchedule<R>,
         circmgr: Weak<Self>,
@@ -903,6 +904,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     ///
     /// This function is invoked periodically from
     /// `continually_preemptively_build_circuits()`.
+    #[allow(clippy::cognitive_complexity)]
     async fn launch_circuits_preemptively(
         &self,
         netdir: DirInfo<'_>,

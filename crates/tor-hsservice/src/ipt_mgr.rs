@@ -1440,6 +1440,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// (Note that the number of IPTs can be significantly larger than
     /// the maximum target of 20, if the service is very busy so the intro points
     /// are cycling rapidly due to the need to replace the replay database.)
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactor?
     async fn run_once(
         &mut self,
         // This is a separate argument for borrowck reasons

@@ -103,7 +103,7 @@ async fn build_circuit(tor_client: &TorClient<PreferredRuntime>, remote: &str) -
                 .ok_or_else(|| Error::msg("failed to get client circuit?!"))?;
             let circ = circuit.path_ref()?;
             for node in circ.iter() {
-                println!("Node: {}", node);
+                println!("Node: {node}");
             }
             Ok(())
         }
@@ -141,15 +141,15 @@ async fn test_connection_via_config(
     remote_url: &str,
 ) {
     let isolated = tor_client.isolated_client();
-    println!("Testing {}...", msg);
+    println!("Testing {msg}...");
     match isolated.reconfigure(&config, Reconfigure::WarnOnFailures) {
         Ok(_) => match build_circuit(&isolated, remote_url).await {
-            Ok(_) => println!("{} successful!", msg),
-            Err(_) => println!("{} FAILED", msg),
+            Ok(_) => println!("{msg} successful!"),
+            Err(_) => println!("{msg} FAILED"),
         },
         Err(e) => {
             error!("{}", e.report());
-            println!("{} FAILED", msg);
+            println!("{msg} FAILED");
         }
     }
 }

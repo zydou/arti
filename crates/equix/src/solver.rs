@@ -177,13 +177,18 @@ pub(crate) fn find_solutions(func: &HashX, mem: &mut SolverMemory, results: &mut
 
             // Walk the binary tree of collision locations, in order.
             // The leaf layer will have our SolutionItems.
-            loc.pair(&layer2).map(|loc| {
-                Layer1Collision::new(loc).unpack().pair(&layer1).map(|loc| {
-                    Layer0Collision::new(loc)
-                        .unpack()
-                        .pair(&layer0)
-                        .map(|item| items.push(item));
-                });
+            loc.pair(&layer2).into_iter().for_each(|loc| {
+                Layer1Collision::new(loc)
+                    .unpack()
+                    .pair(&layer1)
+                    .into_iter()
+                    .for_each(|loc| {
+                        Layer0Collision::new(loc)
+                            .unpack()
+                            .pair(&layer0)
+                            .into_iter()
+                            .for_each(|item| items.push(item));
+                    });
             });
 
             // Apply the ordering constraints and check for duplicates

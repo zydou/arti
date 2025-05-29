@@ -18,5 +18,5 @@ fn main() {
         .expect("Failed to read body.");
 
     // Will output if request was made using Tor.
-    println!("Response: {}", response);
+    println!("Response: {response}");
 }

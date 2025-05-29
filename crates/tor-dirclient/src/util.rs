@@ -14,7 +14,7 @@ pub(crate) fn encode_request(req: &http::Request<String>) -> String {
             val.to_str()
                 .expect("Added an HTTP header that wasn't UTF-8!")
         )
-        .unwrap();
+        .expect("Write to string failed");
     }
 
     if req.method() == http::Method::POST || !req.body().is_empty() {

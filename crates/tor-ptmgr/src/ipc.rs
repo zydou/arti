@@ -463,6 +463,7 @@ pub(crate) mod sealed {
         /// Receive a message from the pluggable transport binary asynchronously.
         ///
         /// Note: This will convert `PtMessage::Log` into a tracing log call automatically.
+        #[allow(clippy::cognitive_complexity)] // due to tracing
         pub async fn recv(&mut self) -> err::Result<PtMessage> {
             loop {
                 match self.stdout.next().await {
