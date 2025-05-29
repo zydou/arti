@@ -845,7 +845,7 @@ impl Reactor {
         if let Some(switch_cell) = self.circuits.maybe_update_primary_leg()? {
             self.circuits
                 .primary_leg_mut()?
-                .send_relay_cell(switch_cell)
+                .send_relay_cell(switch_cell, false)
                 .await?;
         }
 
@@ -922,7 +922,7 @@ impl Reactor {
                     .circuits
                     .leg_mut(leg)
                     .ok_or_else(|| internal!("leg disappeared?!"))?;
-                let res = leg.send_relay_cell(cell).await;
+                let res = leg.send_relay_cell(cell, false).await;
                 if let Some(done) = done {
                     // Don't care if the receiver goes away
                     let _ = done.send(res.clone());
@@ -937,7 +937,11 @@ impl Reactor {
                 match cell {
                     Ok(Some(cell)) => {
                         // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
-                        let outcome = self.circuits.primary_leg_mut()?.send_relay_cell(cell).await;
+                        let outcome = self
+                            .circuits
+                            .primary_leg_mut()?
+                            .send_relay_cell(cell, false)
+                            .await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone());
                         outcome?;
@@ -971,7 +975,7 @@ impl Reactor {
                             // TODO: Is this the right error type here? Or should there be a "HopDisappeared"?
                             .ok_or(Error::NoSuchHop)?
                             .relay_cell_format();
-                        let outcome = leg.send_relay_cell(cell).await;
+                        let outcome = leg.send_relay_cell(cell, false).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone().map(|_| (stream_id, hop, relay_format)));
                         outcome?;
@@ -1084,7 +1088,7 @@ impl Reactor {
                     .circuits
                     .leg_mut(leg)
                     .ok_or_else(|| internal!("leg disappeared?!"))?;
-                let res = leg.send_relay_cell(cell).await;
+                let res = leg.send_relay_cell(cell, false).await;
 
                 res?;
             }

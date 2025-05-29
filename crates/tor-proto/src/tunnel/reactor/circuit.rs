@@ -287,7 +287,7 @@ impl Circuit {
             early: false,
             cell,
         };
-        self.send_relay_cell(cell).await?;
+        self.send_relay_cell(cell, true).await?;
 
         let Some(conflux_handler) = self.conflux_handler.as_mut() else {
             return Err(internal!("ConfluxMsgHandler disappeared?!").into());
@@ -381,8 +381,12 @@ impl Circuit {
     /// SENDME window, an error is returned instead.
     ///
     /// Does not check whether the cell is well-formed or reasonable.
-    pub(super) async fn send_relay_cell(&mut self, msg: SendRelayCell) -> Result<()> {
-        if self.is_conflux_pending() {
+    pub(super) async fn send_relay_cell(
+        &mut self,
+        msg: SendRelayCell,
+        is_conflux_link: bool,
+    ) -> Result<()> {
+        if !is_conflux_link && self.is_conflux_pending() {
             // TODO(conflux): is this right? Should we ensure all the legs are linked?
             return Err(internal!("tried to send cell on unlinked circuit").into());
         }
@@ -1333,7 +1337,7 @@ impl Circuit {
         if let Some(hop) = self.hop_mut(hop_num) {
             let res = hop.close_stream(sid, behav, reason)?;
             if let Some(cell) = res {
-                self.send_relay_cell(cell).await?;
+                self.send_relay_cell(cell, false).await?;
             }
         }
         Ok(())
