@@ -1830,7 +1830,15 @@ pub(crate) mod test {
         .collect();
 
         let unique_id = UniqId::new(23, 17);
-        newcirc_ext(rt, unique_id, chan, hops, 2.into(), CircParameters::default()).await
+        newcirc_ext(
+            rt,
+            unique_id,
+            chan,
+            hops,
+            2.into(),
+            CircParameters::default(),
+        )
+        .await
     }
 
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
@@ -1968,7 +1976,15 @@ pub(crate) mod test {
         .collect();
 
         let unique_id = UniqId::new(23, 17);
-        let (circ, mut sink) = newcirc_ext(rt, unique_id, chan, hops, reply_hop, CircParameters::default()).await;
+        let (circ, mut sink) = newcirc_ext(
+            rt,
+            unique_id,
+            chan,
+            hops,
+            reply_hop,
+            CircParameters::default(),
+        )
+        .await;
         let params = CircParameters::default();
 
         let target = example_target();
