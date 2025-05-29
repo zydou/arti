@@ -3,8 +3,9 @@
 ConfigureNodes(
     # Authorities
     Node(tag="a", authority=1, relay=1).getN(4)
-    # Exits
-    + Node(tag="r", relay=1, exit=1).getN(5)
+    # Exits. We don't need many since authorities also function as exits,
+    # but let's have at least 1 non-authority exit relay.
+    + Node(tag="r", relay=1, exit=1).getN(1)
     # Simple tor client. Useful as a baseline check for "chutney verify",
     # and used in arti-bench for comparison.
     + Node(tag="torc", client=1, backend=NodeBackend.TOR).getN(1)
