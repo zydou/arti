@@ -253,12 +253,11 @@ impl sealed::RequestableInner for ConsensusRequest {
         }
         let d_encode_hex = |id: &RsaIdentity| hex::encode(id.as_bytes());
         if let Some(ids) = digest_list_stringify(&self.authority_ids, d_encode_hex, "+") {
-            // With authorities, "../consensus/<F1>+<F2>+<F3>.z"
+            // With authorities, "../consensus/<F1>+<F2>+<F3>"
             uri.push('/');
             uri.push_str(&ids);
         }
-        // Without authorities, "../consensus-microdesc.z"
-        uri.push_str(".z");
+        // Without authorities, "../consensus-microdesc"
 
         let mut req = http::Request::builder().method("GET").uri(uri);
         req = add_common_headers(req, self.anonymized());
@@ -352,7 +351,7 @@ impl sealed::RequestableInner for AuthCertRequest {
             })
             .collect();
 
-        let uri = format!("/tor/keys/fp-sk/{}.z", &ids.join("+"));
+        let uri = format!("/tor/keys/fp-sk/{}", &ids.join("+"));
 
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req, self.anonymized());
@@ -412,7 +411,7 @@ impl sealed::RequestableInner for MicrodescRequest {
         let d_encode_b64 = |d: &[u8; 32]| Base64Unpadded::encode_string(&d[..]);
         let ids = digest_list_stringify(&self.digests, d_encode_b64, "-")
             .ok_or(RequestError::EmptyRequest)?;
-        let uri = format!("/tor/micro/d/{}.z", &ids);
+        let uri = format!("/tor/micro/d/{}", &ids);
         let req = http::Request::builder().method("GET").uri(uri);
 
         let req = add_common_headers(req, self.anonymized());
@@ -502,8 +501,6 @@ impl sealed::RequestableInner for RouterDescRequest {
             }
         }
 
-        uri.push_str(".z");
-
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req, self.anonymized());
 
@@ -558,7 +555,7 @@ impl RoutersOwnDescRequest {
 #[cfg(feature = "routerdesc")]
 impl sealed::RequestableInner for RoutersOwnDescRequest {
     fn make_request(&self) -> Result<http::Request<String>> {
-        let uri = "/tor/server/authority.z";
+        let uri = "/tor/server/authority";
         let req = http::Request::builder().method("GET").uri(uri);
         let req = add_common_headers(req, self.anonymized());
 
@@ -746,7 +743,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/micro/d/J3QgYWN0dWFsbHkgU0hBLTI1Ni4uLi4uLi4uLi4uLi4-VGhpcyBpcyBhIHRlc3RpbmcgZGlnZXN0LiBpdCBpc24.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/micro/d/J3QgYWN0dWFsbHkgU0hBLTI1Ni4uLi4uLi4uLi4uLi4-VGhpcyBpcyBhIHRlc3RpbmcgZGlnZXN0LiBpdCBpc24 HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         // Try it with FromIterator, and use some accessors.
         let req2: MicrodescRequest = vec![*d1, *d2].into_iter().collect();
@@ -787,7 +784,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/keys/fp-sk/5468697320697320612074657374696e6720646e-27742061637475616c6c79205348412d3235362e+626c616820626c616820626c6168203120322033-49206c696b652070697a7a612066726f6d204e61.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/keys/fp-sk/5468697320697320612074657374696e6720646e-27742061637475616c6c79205348412d3235362e+626c616820626c616820626c6168203120322033-49206c696b652070697a7a612066726f6d204e61 HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         let req2: AuthCertRequest = vec![key1, key2].into_iter().collect();
         let req2 = crate::util::encode_request(&req2.make_request()?);
@@ -821,13 +818,13 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", all_encodings(), when));
+                   format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", all_encodings(), when));
 
         // Request without authorities
         let req = ConsensusRequest::default();
         let req = crate::util::encode_request(&req.make_request()?);
         assert_eq!(req,
-                   format!("GET /tor/status-vote/current/consensus-microdesc.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/status-vote/current/consensus-microdesc HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         Ok(())
     }
@@ -844,7 +841,7 @@ mod test {
         assert_eq!(
             req,
             format!(
-                "GET /tor/server/all.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n",
+                "GET /tor/server/all HTTP/1.0\r\naccept-encoding: {}\r\n\r\n",
                 all_encodings()
             )
         );
@@ -873,7 +870,7 @@ mod test {
         let req = crate::util::encode_request(&req.make_request()?);
 
         assert_eq!(req,
-                   format!("GET /tor/server/d/617420736f6d6520706f696e74204920676f7420+6f662077726974696e6720696e206865782e2e2e.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
+                   format!("GET /tor/server/d/617420736f6d6520706f696e74204920676f7420+6f662077726974696e6720696e206865782e2e2e HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", all_encodings()));
 
         // Try it with FromIterator, and use some accessors.
         let req2: RouterDescRequest = vec![*d1, *d2].into_iter().collect();
