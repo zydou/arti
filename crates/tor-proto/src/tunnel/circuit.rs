@@ -1764,6 +1764,7 @@ pub(crate) mod test {
         chan: Arc<Channel>,
         hops: Vec<path::HopDetail>,
         next_msg_from: HopNum,
+        params: CircParameters,
     ) -> (Arc<ClientCirc>, CircuitRxSender) {
         let circid = CircId::new(128).unwrap();
         let (_created_send, created_recv) = oneshot::channel();
@@ -1794,7 +1795,6 @@ pub(crate) mod test {
 
         let last_hop_num = u8::try_from(hops.len() - 1).unwrap();
         for (idx, peer_id) in hops.into_iter().enumerate() {
-            let params = CircParameters::default();
             let (tx, rx) = oneshot::channel();
             let idx = idx as u8;
 
@@ -1804,7 +1804,7 @@ pub(crate) mod test {
                     fwd_lasthop: idx == last_hop_num,
                     rev_lasthop: idx == u8::from(next_msg_from),
                     peer_id,
-                    params,
+                    params: params.clone(),
                     done: tx,
                 })
                 .unwrap();
@@ -1830,7 +1830,7 @@ pub(crate) mod test {
         .collect();
 
         let unique_id = UniqId::new(23, 17);
-        newcirc_ext(rt, unique_id, chan, hops, 2.into()).await
+        newcirc_ext(rt, unique_id, chan, hops, 2.into(), CircParameters::default()).await
     }
 
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
@@ -1968,7 +1968,7 @@ pub(crate) mod test {
         .collect();
 
         let unique_id = UniqId::new(23, 17);
-        let (circ, mut sink) = newcirc_ext(rt, unique_id, chan, hops, reply_hop).await;
+        let (circ, mut sink) = newcirc_ext(rt, unique_id, chan, hops, reply_hop, CircParameters::default()).await;
         let params = CircParameters::default();
 
         let target = example_target();
