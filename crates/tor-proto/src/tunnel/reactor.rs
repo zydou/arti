@@ -1343,7 +1343,16 @@ impl Reactor {
             return Ok(());
         }
 
-        let num_legs = circuits.len();
+        let unlinked_legs = self.circuits.num_unlinked();
+
+        // We need to send the LINK cell on each of the new circuits
+        // and on each of the existing, unlinked legs from self.circuits.
+        //
+        // In reality, there can only be one such circuit
+        // (the "initial" one from the previously single-path tunnel),
+        // because any circuits that to complete the conflux handshake
+        // get removed from the set.
+        let num_legs = circuits.len() + unlinked_legs;
 
         // Note: add_legs validates `circuits`
         let res = async {

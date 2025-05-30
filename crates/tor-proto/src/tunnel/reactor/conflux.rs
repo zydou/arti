@@ -877,6 +877,17 @@ impl ConfluxSet {
         Ok(())
     }
 
+    /// Get the number of unlinked or non-conflux legs.
+    #[cfg(feature = "conflux")]
+    pub(super) fn num_unlinked(&self) -> usize {
+        self.circuits()
+            .filter(|circ| {
+                let status = circ.conflux_status();
+                status.is_none() || status == Some(ConfluxStatus::Unlinked)
+            })
+            .count()
+    }
+
     /// Check if the specified sequence number is the sequence number of the
     /// next message we're expecting to handle.
     pub(super) fn is_seqno_in_order(&self, seq_recv: u64) -> bool {
