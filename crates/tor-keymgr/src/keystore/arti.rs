@@ -10,11 +10,13 @@ use std::io::{self};
 use std::path::Path;
 use std::result::Result as StdResult;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
 use crate::{
-    arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result, UnknownKeyTypeError,
+    arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result,
+    UnknownKeyTypeError, UnrecognizedEntryError, UnrecognizedEntryId,
 };
 use certs::UnparsedCert;
 use err::ArtiNativeKeystoreError;
@@ -27,6 +29,8 @@ use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
 use tor_key_forge::{CertData, KeystoreItem, KeystoreItemType};
+
+use super::KeystoreEntryResult;
 
 /// The Arti key store.
 ///
@@ -265,7 +269,7 @@ impl Keystore for ArtiNativeKeystore {
         }
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
         WalkDir::new(self.keystore_dir.as_path())
             .into_iter()
             .map(|entry| {
@@ -316,31 +320,42 @@ impl Keystore for ArtiNativeKeystore {
                         .map_err(ArtiNativeKeystoreError::Filesystem)?;
                 }
 
-                let malformed_err = |path: &Path, err| ArtiNativeKeystoreError::MalformedPath {
-                    path: path.into(),
-                    err,
+                let unrecognized_entry_err = |path: &Path, err| {
+                    let error = ArtiNativeKeystoreError::MalformedPath {
+                        path: path.into(),
+                        err,
+                    };
+                    let entry = UnrecognizedEntryId::Path(path.into());
+                    Some(Err(UnrecognizedEntryError::new(entry, Arc::new(error))))
                 };
 
-                let extension = path
-                    .extension()
-                    .ok_or_else(|| malformed_err(path, err::MalformedPathError::NoExtension))?
-                    .to_str()
-                    .ok_or_else(|| malformed_err(path, err::MalformedPathError::Utf8))?;
+                let Some(ext) = path.extension() else {
+                    return Ok(unrecognized_entry_err(
+                        path,
+                        err::MalformedPathError::NoExtension,
+                    ));
+                };
+
+                let Some(extension) = ext.to_str() else {
+                    return Ok(unrecognized_entry_err(path, err::MalformedPathError::Utf8));
+                };
 
                 let item_type = KeystoreItemType::from(extension);
                 // Strip away the file extension
-                let path = path.with_extension("");
+                let p = path.with_extension("");
                 // Construct slugs in platform-independent way
-                let slugs = path
+                let slugs = p
                     .components()
                     .map(|component| component.as_os_str().to_string_lossy())
                     .collect::<Vec<_>>()
                     .join(&arti_path::PATH_SEP.to_string());
-                ArtiPath::new(slugs)
-                    .map(|path| Some((path.into(), item_type)))
-                    .map_err(|e| {
-                        malformed_err(&path, err::MalformedPathError::InvalidArtiPath(e)).into()
-                    })
+                let opt = match ArtiPath::new(slugs) {
+                    Ok(path) => Some(Ok((path.into(), item_type))),
+                    Err(e) => {
+                        unrecognized_entry_err(path, err::MalformedPathError::InvalidArtiPath(e))
+                    }
+                };
+                Ok(opt)
             })
             .flatten_ok()
             .collect()
@@ -365,6 +380,7 @@ mod tests {
     use super::*;
     use crate::test_utils::ssh_keys::*;
     use crate::test_utils::sshkeygen_ed25519_strings;
+    use crate::test_utils::TEST_SPECIFIER_PATH;
     use crate::test_utils::{assert_found, TestSpecifier};
     use crate::KeyPath;
     use std::cmp::Ordering;
@@ -434,7 +450,13 @@ mod tests {
 
             let mut sorted_list = $list
                 .iter()
-                .map(|(path, _)| path.clone())
+                .filter_map(|entry| {
+                    if let Ok((path, _)) = entry {
+                        Some(path.clone())
+                    } else {
+                        None
+                    }
+                })
                 .collect::<Vec<_>>();
             sorted_list.sort();
 
@@ -690,7 +712,7 @@ mod tests {
     #[test]
     fn list() {
         // Initialize the key store
-        let (key_store, _keystore_dir) = init_keystore(true);
+        let (key_store, keystore_dir) = init_keystore(true);
 
         let mut expected_arti_paths = vec![TestSpecifier::default().arti_path().unwrap()];
 
@@ -720,6 +742,25 @@ mod tests {
 
             assert_contains_arti_paths!(expected_arti_paths, key_store.list().unwrap());
         }
+
+        // Insert key with invalid ArtiPath
+        let _ = fs::File::create(keystore_dir.path().join(TEST_SPECIFIER_PATH)).unwrap();
+        let entries = key_store.list().unwrap();
+        let mut unrecognized_entries = entries.iter().filter_map(|e| {
+            let Err(entry) = e else {
+                return None;
+            };
+            #[allow(irrefutable_let_patterns)]
+            let UnrecognizedEntryId::Path(path) = entry.entry() else {
+                return None;
+            };
+            Some(path)
+        });
+        assert_eq!(
+            unrecognized_entries.next().unwrap(),
+            Path::new(TEST_SPECIFIER_PATH)
+        );
+        assert!(unrecognized_entries.next().is_none());
     }
 
     #[test]

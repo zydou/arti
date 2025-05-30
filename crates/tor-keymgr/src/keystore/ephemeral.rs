@@ -3,14 +3,16 @@
 pub(crate) mod err;
 
 use std::collections::HashMap;
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use tor_error::internal;
 use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
-use crate::Error;
-use crate::{ArtiPath, KeyPath, KeySpecifier, Keystore, KeystoreId};
+use crate::{ArtiPath, Error, KeyPath, KeySpecifier, Keystore, KeystoreId, Result};
+
+use super::KeystoreEntryResult;
 
 /// The identifier of a key stored in the `ArtiEphemeralKeystore`.
 type KeyIdent = (ArtiPath, KeystoreItemType);
@@ -52,7 +54,7 @@ impl Keystore for ArtiEphemeralKeystore {
         &self,
         key_spec: &dyn KeySpecifier,
         item_type: &KeystoreItemType,
-    ) -> Result<bool, Error> {
+    ) -> StdResult<bool, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
@@ -65,7 +67,7 @@ impl Keystore for ArtiEphemeralKeystore {
         &self,
         key_spec: &dyn KeySpecifier,
         item_type: &KeystoreItemType,
-    ) -> Result<Option<ErasedKey>, Error> {
+    ) -> StdResult<Option<ErasedKey>, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
@@ -89,7 +91,7 @@ impl Keystore for ArtiEphemeralKeystore {
         }
     }
 
-    fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<(), Error> {
+    fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> StdResult<(), Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
@@ -106,7 +108,7 @@ impl Keystore for ArtiEphemeralKeystore {
         &self,
         key_spec: &dyn KeySpecifier,
         item_type: &KeystoreItemType,
-    ) -> Result<Option<()>, Error> {
+    ) -> StdResult<Option<()>, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
@@ -126,11 +128,11 @@ impl Keystore for ArtiEphemeralKeystore {
         }
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>, Error> {
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
         Ok(key_dictionary
             .keys()
-            .map(|(arti_path, item_type)| (arti_path.clone().into(), item_type.clone()))
+            .map(|(arti_path, item_type)| Ok((arti_path.clone().into(), item_type.clone())))
             .collect())
     }
 }

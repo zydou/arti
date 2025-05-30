@@ -6,7 +6,10 @@ use crate::keystore::ctor::err::{CTorKeystoreError, MalformedServiceKeyError};
 use crate::keystore::ctor::CTorKeystore;
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore, KeystoreId};
-use crate::{CTorPath, CTorServicePath, KeyPath, Result};
+use crate::{
+    CTorPath, CTorServicePath, KeyPath, KeystoreEntryResult, Result, UnrecognizedEntryError,
+    UnrecognizedEntryId,
+};
 
 use fs_mistrust::Mistrust;
 use tor_basic_utils::PathExt as _;
@@ -15,9 +18,13 @@ use tor_key_forge::{KeyType, KeystoreItemType};
 use tor_llcrypto::pk::ed25519;
 use tor_persist::hsnickname::HsNickname;
 
+use std::io;
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::sync::Arc;
+
+use itertools::Itertools;
+use walkdir::WalkDir;
 
 /// A read-only C Tor service keystore.
 ///
@@ -195,9 +202,8 @@ impl Keystore for CTorServiceKeystore {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
         use crate::CTorServicePath::*;
-        use itertools::Itertools;
 
         // This keystore can contain at most 2 keys (the public and private
         // keys of the service)
@@ -207,24 +213,107 @@ impl Keystore for CTorServiceKeystore {
                     nickname: self.nickname.clone(),
                     path: PublicKey,
                 },
-                KeyType::Ed25519PublicKey.into(),
+                KeyType::Ed25519PublicKey,
             ),
             (
                 CTorPath::Service {
                     nickname: self.nickname.clone(),
                     path: PrivateKey,
                 },
-                KeyType::Ed25519ExpandedKeypair.into(),
+                KeyType::Ed25519ExpandedKeypair,
             ),
         ];
 
-        all_keys
+        let valid_rel_paths = all_keys
             .into_iter()
-            .map(|(path, key_type)| {
-                self.contains(&path, &key_type)
-                    .map(|res: bool| (path, key_type, res))
+            .map(|(ctor_path, key_type)| {
+                let path = rel_path_if_supported!(
+                    self,
+                    ctor_path,
+                    Err(internal!("Failed to build {ctor_path:?} path?!").into()),
+                    KeystoreItemType::Key(key_type.clone())
+                );
+
+                Ok((ctor_path, key_type, path))
             })
-            .filter_map_ok(|(path, key_type, res)| res.then_some((path.into(), key_type)))
+            .collect::<Result<Vec<_>>>()?;
+
+        let keystore_path = self.keystore.keystore_dir.as_path();
+
+        // TODO: this block presents duplication with the equivalent
+        // [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) implementation
+        WalkDir::new(keystore_path)
+            .into_iter()
+            .map(|entry| {
+                let entry = entry
+                    .map_err(|e| {
+                        let msg = e.to_string();
+                        FilesystemError::Io {
+                            action: FilesystemAction::Read,
+                            path: keystore_path.into(),
+                            err: e
+                                .into_io_error()
+                                .unwrap_or_else(|| io::Error::other(msg.to_string()))
+                                .into(),
+                        }
+                    })
+                    .map_err(CTorKeystoreError::Filesystem)?;
+
+                let path = entry.path();
+
+                // Skip over directories as they won't be valid ctor-paths
+                if entry.file_type().is_dir() {
+                    return Ok(None);
+                }
+
+                let path = path.strip_prefix(keystore_path).map_err(|_| {
+                    /* This error should be impossible. */
+                    tor_error::internal!(
+                        "found key {} outside of keystore_dir {}?!",
+                        path.display_lossy(),
+                        keystore_path.display_lossy()
+                    )
+                })?;
+
+                if let Some(parent) = path.parent() {
+                    // Check the properties of the parent directory by attempting to list its
+                    // contents.
+                    self.keystore
+                        .keystore_dir
+                        .read_directory(parent)
+                        .map_err(|e| FilesystemError::FsMistrust {
+                            action: FilesystemAction::Read,
+                            path: parent.into(),
+                            err: e.into(),
+                        })
+                        .map_err(CTorKeystoreError::Filesystem)?;
+                }
+
+                // Check if path is one of the valid C Tor service key paths
+                let maybe_path =
+                    valid_rel_paths
+                        .iter()
+                        .find_map(|(ctor_path, key_type, rel_path)| {
+                            (path == rel_path.rel_path_unchecked()).then_some((ctor_path, key_type))
+                        });
+
+                let res = match maybe_path {
+                    Some((ctor_path, key_type)) => Ok((
+                        KeyPath::CTor(ctor_path.clone()),
+                        KeystoreItemType::Key(key_type.clone()),
+                    )),
+                    None => Err(UnrecognizedEntryError::new(
+                        UnrecognizedEntryId::Path(path.into()),
+                        Arc::new(CTorKeystoreError::MalformedKey {
+                            path: path.into(),
+                            err: MalformedServiceKeyError::NotAKey.into(),
+                        }),
+                    )),
+                };
+
+                Ok(Some(res))
+            })
+            .flatten_ok()
             .collect()
     }
 }
@@ -443,17 +532,30 @@ mod tests {
 
     #[test]
     fn list() {
-        let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
+        let (keystore, keystore_dir) = init_keystore("foo", "allium-cepa");
+
+        // Insert unrecognized key
+        let _ = fs::File::create(keystore_dir.path().join("unrecognized_key")).unwrap();
+
         let keys: Vec<_> = keystore.list().unwrap();
 
-        assert_eq!(keys.len(), 2);
+        // 2 recognized keys, 1 unrecognized key
+        assert_eq!(keys.len(), 3);
 
-        assert!(keys
-            .iter()
-            .any(|(_, key_type)| *key_type == KeyType::Ed25519ExpandedKeypair.into()));
+        assert!(keys.iter().any(|entry| {
+            if let Ok((_, key_type)) = entry.as_ref() {
+                return *key_type == KeyType::Ed25519ExpandedKeypair.into();
+            }
+            false
+        }));
 
-        assert!(keys
-            .iter()
-            .any(|(_, key_type)| *key_type == KeyType::Ed25519PublicKey.into()));
+        assert!(keys.iter().any(|entry| {
+            if let Ok((_, key_type)) = entry.as_ref() {
+                return *key_type == KeyType::Ed25519PublicKey.into();
+            }
+            false
+        }));
+
+        assert!(keys.iter().any(|entry| { entry.is_err() }));
     }
 }

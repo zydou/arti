@@ -10,7 +10,10 @@ pub(crate) mod ephemeral;
 
 use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItemType};
 
-use crate::{KeyPath, KeySpecifier, KeystoreId, Result};
+use crate::{KeyPath, KeySpecifier, KeystoreId, Result, UnrecognizedEntryError};
+
+/// A type alias returned by `Keystore::list`.
+pub type KeystoreEntryResult<T> = std::result::Result<T, UnrecognizedEntryError>;
 
 /// A generic key store.
 pub trait Keystore: Send + Sync + 'static {
@@ -48,6 +51,10 @@ pub trait Keystore: Send + Sync + 'static {
         item_type: &KeystoreItemType,
     ) -> Result<Option<()>>;
 
-    /// List all the keys in this keystore.
-    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>>;
+    /// List all the entries in this keystore.
+    ///
+    /// Returns a list of results, where `Ok` signifies a recognized entry,
+    /// and [`Err(KeystoreListError)`] an unrecognized one.
+    /// An entry is said to be recognized if it has a valid [`KeyPath`].
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>>;
 }

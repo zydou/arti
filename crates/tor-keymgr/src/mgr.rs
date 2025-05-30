@@ -311,12 +311,17 @@ impl KeyMgr {
     /// Return the keystore entry descriptors of the keys matching the specified [`KeyPathPattern`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
+    ///
+    /// NOTE: This function only returns the *recognized* entries that match the provided pattern.
+    /// The unrecognized entries (i.e. those that do not have a valid [`KeyPath`]) will be filtered out,
+    /// even if they match the specified pattern.
     pub fn list_matching(&self, pat: &KeyPathPattern) -> Result<Vec<KeystoreEntry>> {
         self.all_stores()
             .map(|store| -> Result<Vec<_>> {
                 Ok(store
                     .list()?
                     .into_iter()
+                    .filter_map(|entry| entry.ok())
                     .filter(|(key_path, _): &(KeyPath, KeystoreItemType)| key_path.matches(pat))
                     .map(|(path, key_type)| KeystoreEntry {
                         key_path: path.clone(),
@@ -656,15 +661,21 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ArtiPathUnavailableError, KeyPath};
+    use crate::keystore::arti::err::{ArtiNativeKeystoreError, MalformedPathError};
+    use crate::{
+        ArtiPath, ArtiPathUnavailableError, Error, KeyPath, Keystore, KeystoreEntryResult,
+        KeystoreError, UnrecognizedEntryError, UnrecognizedEntryId,
+    };
     use std::collections::HashMap;
+    use std::path::PathBuf;
     use std::result::Result as StdResult;
     use std::str::FromStr;
-    use std::sync::RwLock;
+    use std::sync::{Arc, RwLock};
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cert::CertifiedKey;
     use tor_cert::Ed25519Cert;
+    use tor_error::{ErrorKind, HasKind};
     use tor_key_forge::{
         CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
     };
@@ -898,6 +909,96 @@ mod tests {
         }
     }
 
+    struct KeystoreListMock {
+        id: KeystoreId,
+        valid_key_path: KeyPath,
+        invalid_key_path: PathBuf,
+    }
+
+    impl Default for KeystoreListMock {
+        fn default() -> Self {
+            Self {
+                id: KeystoreId::from_str("keystore_list_mock").unwrap(),
+                valid_key_path: KeyPath::Arti(
+                    ArtiPath::new("recognized_entry".to_owned()).unwrap(),
+                ),
+                invalid_key_path: PathBuf::from_str("unrecognized_entry").unwrap(),
+            }
+        }
+    }
+
+    impl Keystore for KeystoreListMock {
+        fn id(&self) -> &KeystoreId {
+            &self.id
+        }
+
+        fn get(
+            &self,
+            _key_spec: &dyn KeySpecifier,
+            _item_type: &KeystoreItemType,
+        ) -> Result<Option<ErasedKey>> {
+            Err(Error::Keystore(Arc::new(
+                KeystoreListMockError::MethodNotSuppored,
+            )))
+        }
+
+        fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
+            // Provide two entries, a recognized one and an unrecognized one
+            Ok(vec![
+                Ok((
+                    self.valid_key_path.clone(),
+                    KeystoreItemType::Key(KeyType::Ed25519PublicKey),
+                )),
+                Err(UnrecognizedEntryError::new(
+                    UnrecognizedEntryId::Path(self.invalid_key_path.clone()),
+                    Arc::new(ArtiNativeKeystoreError::MalformedPath {
+                        path: self.invalid_key_path.clone(),
+                        err: MalformedPathError::NoExtension,
+                    }),
+                )),
+            ])
+        }
+
+        fn insert(&self, _key: &dyn EncodableItem, _key_spec: &dyn KeySpecifier) -> Result<()> {
+            Err(Error::Keystore(Arc::new(
+                KeystoreListMockError::MethodNotSuppored,
+            )))
+        }
+
+        fn remove(
+            &self,
+            _key_spec: &dyn KeySpecifier,
+            _item_type: &KeystoreItemType,
+        ) -> Result<Option<()>> {
+            Err(Error::Keystore(Arc::new(
+                KeystoreListMockError::MethodNotSuppored,
+            )))
+        }
+
+        fn contains(
+            &self,
+            _key_spec: &dyn KeySpecifier,
+            _item_type: &KeystoreItemType,
+        ) -> Result<bool> {
+            Err(Error::Keystore(Arc::new(
+                KeystoreListMockError::MethodNotSuppored,
+            )))
+        }
+    }
+
+    #[derive(thiserror::Error, Debug, Clone, derive_more::Display)]
+    enum KeystoreListMockError {
+        MethodNotSuppored,
+    }
+
+    impl KeystoreError for KeystoreListMockError {}
+
+    impl HasKind for KeystoreListMockError {
+        fn kind(&self) -> ErrorKind {
+            ErrorKind::BadApiUsage
+        }
+    }
+
     macro_rules! impl_keystore {
         ($name:tt, $id:expr) => {
             struct $name {
@@ -989,14 +1090,14 @@ mod tests {
                         .map(|_| ()))
                 }
 
-                fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
+                fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
                     Ok(self
                         .inner
                         .read()
                         .unwrap()
                         .iter()
                         .map(|((arti_path, item_type), _)| {
-                            (KeyPath::Arti(arti_path.clone()), item_type.clone())
+                            Ok((KeyPath::Arti(arti_path.clone()), item_type.clone()))
                         })
                         .collect())
                 }
@@ -1424,6 +1525,22 @@ mod tests {
         assert_eq!(mgr.remove_entry(&entry_desc2).unwrap(), Some(()));
         assert!(mgr.get_entry::<TestItem>(&entry_desc2).unwrap().is_none());
         assert!(mgr.remove_entry(&entry_desc2).unwrap().is_none());
+    }
+
+    #[test]
+    fn list_matching_ignores_unrecognized_keys() {
+        let builder = KeyMgrBuilder::default().primary_store(Box::new(KeystoreListMock::default()));
+
+        let mgr = builder.build().unwrap();
+
+        let arti_pat = KeyPathPattern::Arti("*".to_string());
+        let matching = mgr.list_matching(&arti_pat).unwrap();
+        // assert the unrecognized key has been filterd out
+        assert_eq!(matching.len(), 1);
+        assert_eq!(
+            matching.first().unwrap().key_path(),
+            &KeystoreListMock::default().valid_key_path
+        );
     }
 
     /// Whether to generate a given item before running the `run_certificate_test`.
