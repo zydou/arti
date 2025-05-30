@@ -264,9 +264,14 @@ impl ConfluxSet {
             .remove(leg)
             .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
 
+        tracing::trace!("{}: Circuit removed from conflux set", circ.unique_id());
+
         self.mutable.remove(circ.unique_id());
 
         if self.legs.is_empty() {
+            // TODO: log the tunnel ID
+            tracing::debug!("Conflux set is now empty, tunnel reactor shutting down");
+
             // The last circuit in the set has just died, so the reactor should exit.
             return Err(ReactorError::Shutdown);
         }
@@ -702,6 +707,8 @@ impl ConfluxSet {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
+                let unique_id = leg.unique_id();
+
                 // The client SHOULD abandon and close circuit if the LINKED message takes too long to
                 // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
                 // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
@@ -805,6 +812,10 @@ impl ConfluxSet {
                 async move {
                     select_biased! {
                         () = conflux_hs_timeout.fuse() => {
+                            warn!(
+                                "{unique_id}: Conflux handshake timed out on circuit"
+                            );
+
                             // Conflux handshake has timed out, time to remove this circuit leg,
                             // and notify the handshake initiator.
                             Ok(Ok(CircuitAction::RemoveLeg {

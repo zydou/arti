@@ -62,7 +62,7 @@ use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tor_memquota::{derive_deftly_template_HasMemoryCost, memory_cost_structural_copy};
-use tracing::trace;
+use tracing::{info, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
 
@@ -846,6 +846,7 @@ impl Reactor {
         // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2946#note_3192013
         #[cfg(feature = "conflux")]
         if let Some(switch_cell) = self.circuits.maybe_update_primary_leg()? {
+            trace!("{}: Switching primary conflux leg...", self.unique_id);
             self.circuits
                 .primary_leg_mut()?
                 .send_relay_cell(switch_cell, false)
@@ -1053,6 +1054,8 @@ impl Reactor {
                 return Err(ReactorError::Shutdown);
             }
             RunOnceCmdInner::RemoveLeg { leg, reason } => {
+                warn!("{}: removing circuit leg: {reason}", self.unique_id);
+
                 let circ = self.circuits.remove(leg.0)?;
                 let is_conflux_pending = circ.is_conflux_pending();
 
@@ -1189,6 +1192,14 @@ impl Reactor {
             // Time to remove the conflux handshake context
             // and extract the results we have collected
             let conflux_ctx = self.conflux_hs_ctx.take().expect("context disappeared?!");
+
+            let success_count = conflux_ctx.results.iter().filter(|res| res.is_ok()).count();
+            let leg_count = conflux_ctx.results.len();
+
+            info!(
+                "{}: conflux tunnel ready ({success_count}/{leg_count} circuits successfully linked)",
+                self.unique_id
+            );
 
             send_conflux_outcome(conflux_ctx.answer, Ok(conflux_ctx.results))?;
 
@@ -1339,6 +1350,8 @@ impl Reactor {
         circuits: Vec<Circuit>,
         answer: ConfluxLinkResultChannel,
     ) -> StdResult<(), ReactorError> {
+        use tor_error::warn_report;
+
         if self.conflux_hs_ctx.is_some() {
             let err = internal!("conflux linking already in progress");
             send_conflux_outcome(answer, Err(err.into()))?;
@@ -1369,6 +1382,8 @@ impl Reactor {
         .await;
 
         if let Err(e) = res {
+            warn_report!(e, "Failed to link conflux circuits");
+
             send_conflux_outcome(answer, Err(e))?;
         } else {
             // Save the channel, to notify the user of completion.
