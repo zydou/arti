@@ -196,10 +196,11 @@ impl ConfluxSet {
     ///
     /// Returns an error if called before any circuit legs are available.
     pub(super) fn primary_leg_mut(&mut self) -> Result<&mut Circuit, Bug> {
-        // TODO(conflux): support more than one leg,
-        // and remove this check
+        #[cfg(not(feature = "conflux"))]
         if self.legs.len() > 1 {
-            return Err(internal!("multipath not currently supported"));
+            return Err(internal!(
+                "got multipath tunnel, but conflux feature is disabled?!"
+            ));
         }
 
         if self.legs.is_empty() {
