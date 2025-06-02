@@ -79,6 +79,11 @@ struct State<R> {
     /// Queue to tell the publisher to re-upload a descriptor for a given TP, since we've rotated
     /// that seed.
     publisher_update_tx: mpsc::Sender<TimePeriod>,
+
+    /// The [`RendRequestReceiver`], which contains the queue of [`RendRequest`]s.
+    ///
+    /// We need a reference to this in order to tell it when to update the suggested_effort value.
+    rend_request_rx: RendRequestReceiver,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -192,6 +197,8 @@ impl<R: Runtime> PowManager<R> {
             crate::mpsc_channel_no_memquota(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
         let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
+        let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
+        let rend_req_rx = RendRequestReceiver::new(suggested_effort.clone());
 
         let state = State {
             seeds,
@@ -203,11 +210,9 @@ impl<R: Runtime> PowManager<R> {
             suggested_effort: suggested_effort.clone(),
             runtime: runtime.clone(),
             storage_handle,
+            rend_request_rx: rend_req_rx.clone(),
         };
         let pow_manager = Arc::new(PowManager(RwLock::new(state)));
-
-        let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
-        let rend_req_rx = RendRequestReceiver::new(suggested_effort.clone());
 
         rend_req_rx.start_accept_thread(runtime, pow_manager.clone(), rend_req_rx_channel);
 
