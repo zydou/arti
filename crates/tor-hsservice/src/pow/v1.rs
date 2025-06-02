@@ -206,13 +206,10 @@ impl<R: Runtime> PowManager<R> {
         };
         let pow_manager = Arc::new(PowManager(RwLock::new(state)));
 
-        let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
-        let rend_req_rx = RendRequestReceiver::new(
-            runtime,
-            pow_manager.clone(),
-            rend_req_rx,
-            suggested_effort.clone(),
-        );
+        let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
+        let rend_req_rx = RendRequestReceiver::new(suggested_effort.clone());
+
+        rend_req_rx.start_accept_thread(runtime, pow_manager.clone(), rend_req_rx_channel);
 
         Ok(NewPowManager {
             pow_manager,
@@ -640,13 +637,8 @@ struct RendRequestReceiverInner {
 
 impl RendRequestReceiver {
     /// Create a new [`RendRequestReceiver`].
-    fn new<R: Runtime>(
-        runtime: R,
-        pow_manager: Arc<PowManager<R>>,
-        inner_receiver: mpsc::Receiver<RendRequest>,
-        suggested_effort: Arc<RwLock<Effort>>,
-    ) -> Self {
-        let receiver = RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
+    fn new(suggested_effort: Arc<RwLock<Effort>>) -> Self {
+        RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
             waker: None,
             num_enqueued_gte_suggested: 0,
@@ -655,13 +647,23 @@ impl RendRequestReceiver {
             last_transition: Instant::now(),
             total_effort: 0,
             suggested_effort,
-        })));
-        let receiver_clone = receiver.clone();
-        let accept_thread = runtime.clone().spawn_blocking(move || {
+        })))
+    }
+
+    /// Start helper thread to accept and validate [`RendRequest`]s.
+    fn start_accept_thread<R: Runtime>(
+        &self,
+        runtime: R,
+        pow_manager: Arc<PowManager<R>>,
+        inner_receiver: mpsc::Receiver<RendRequest>,
+    ) {
+        let receiver_clone = self.clone();
+        // spawn_blocking executes immediately, but some of our abstractions make clippy not
+        // realize this.
+        #[allow(clippy::let_underscore_future)]
+        let _ = runtime.clone().spawn_blocking(move || {
             receiver_clone.accept_loop(&runtime, &pow_manager, inner_receiver);
         });
-        drop(accept_thread);
-        receiver
     }
 
     /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW sovles, and
