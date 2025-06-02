@@ -620,6 +620,8 @@ struct RendRequestReceiverInner {
     /// Waker to inform async readers when there is a new message on the queue.
     waker: Option<Waker>,
 
+    /// When the current update period started.
+    update_period_start: Instant,
     /// Number of requests that were enqueued during the current update period, and had an effort
     /// greater than or equal to the suggested effort.
     num_enqueued_gte_suggested: usize,
@@ -646,6 +648,7 @@ impl RendRequestReceiver {
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
             waker: None,
+            update_period_start: Instant::now(),
             num_enqueued_gte_suggested: 0,
             num_dequeued: 0,
             idle_time: Duration::new(0, 0),
@@ -669,6 +672,66 @@ impl RendRequestReceiver {
         let _ = runtime.clone().spawn_blocking(move || {
             receiver_clone.accept_loop(&runtime, &pow_manager, inner_receiver);
         });
+    }
+
+    /// Update the suggested effort value, as per the algorithm in prop362
+    fn update_suggested_effort(&self) {
+        const CONFIG_DECAY_ADJUSTMENT: usize = 0; // TODO POW: Get from config
+
+        let mut inner = self.0.lock().expect("Lock poisened");
+
+        if inner.num_dequeued != 0 {
+            let update_period_duration = Instant::now() - inner.update_period_start;
+            let avg_request_duration = update_period_duration / inner.num_dequeued as u32;
+            if inner.queue.is_empty() {
+                let last_transition = inner.last_transition;
+                inner.idle_time += Instant::now() - last_transition;
+            }
+            let adjusted_idle_time = Duration::saturating_sub(
+                inner.idle_time,
+                avg_request_duration * inner.queue.len() as u32,
+            );
+            // TODO: use as_millis_f64 when stable
+            let idle_fraction =
+                adjusted_idle_time.as_millis() as f64 / update_period_duration.as_millis() as f64;
+            let busy_fraction = 1.0 - idle_fraction;
+
+            let mut suggested_effort = inner.suggested_effort.write().expect("Lock poisened");
+            let suggseted_effort_inner: u32 = (*suggested_effort).into();
+
+            if busy_fraction == 0.0 {
+                let new_suggested_effort =
+                    f64::from(suggseted_effort_inner) * (CONFIG_DECAY_ADJUSTMENT as f64 / 100.0);
+                *suggested_effort = Effort::from(new_suggested_effort as u32);
+            } else {
+                let theoretical_num_dequeued = inner.num_dequeued as f64 * (1.0 / busy_fraction);
+
+                if inner.num_enqueued_gte_suggested as f64 >= theoretical_num_dequeued {
+                    let effort_per_dequeued = inner.total_effort as f64 / inner.num_dequeued as f64;
+                    *suggested_effort = Effort::from(std::cmp::max(
+                        effort_per_dequeued as u32,
+                        suggseted_effort_inner + 1,
+                    ));
+                } else {
+                    let decay = inner.num_enqueued_gte_suggested as f64 / theoretical_num_dequeued;
+                    let adjusted_decay =
+                        decay + ((1.0 - decay) * (CONFIG_DECAY_ADJUSTMENT as f64 / 100.0));
+                    let new_suggested_effort = f64::from(suggseted_effort_inner) * adjusted_decay;
+                    *suggested_effort = Effort::from(new_suggested_effort as u32);
+                }
+            }
+
+            drop(suggested_effort);
+        }
+
+        let now = Instant::now();
+
+        inner.update_period_start = now;
+        inner.num_enqueued_gte_suggested = 0;
+        inner.num_dequeued = 0;
+        inner.idle_time = Duration::new(0, 0);
+        inner.last_transition = now;
+        inner.total_effort = 0;
     }
 
     /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW sovles, and
