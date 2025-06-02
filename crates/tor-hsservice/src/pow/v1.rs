@@ -66,7 +66,9 @@ struct State<R> {
     keymgr: Arc<KeyMgr>,
 
     /// Current suggested effort that we publish in the pow-params line.
-    suggested_effort: Effort,
+    ///
+    /// This is only read by the PowManager, and is written to by the [`RendRequestReceiver`].
+    suggested_effort: Arc<RwLock<Effort>>,
 
     /// Runtime
     runtime: R,
@@ -189,6 +191,8 @@ impl<R: Runtime> PowManager<R> {
         let (publisher_update_tx, publisher_update_rx) =
             crate::mpsc_channel_no_memquota(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
+        let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
+
         let state = State {
             seeds,
             nickname,
@@ -196,14 +200,19 @@ impl<R: Runtime> PowManager<R> {
             keymgr,
             publisher_update_tx,
             verifiers: HashMap::new(),
-            suggested_effort: Effort::zero(),
+            suggested_effort: suggested_effort.clone(),
             runtime: runtime.clone(),
             storage_handle,
         };
         let pow_manager = Arc::new(PowManager(RwLock::new(state)));
 
         let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
-        let rend_req_rx = RendRequestReceiver::new(runtime, pow_manager.clone(), rend_req_rx);
+        let rend_req_rx = RendRequestReceiver::new(
+            runtime,
+            pow_manager.clone(),
+            rend_req_rx,
+            suggested_effort.clone(),
+        );
 
         Ok(NewPowManager {
             pow_manager,
@@ -421,7 +430,8 @@ impl<R: Runtime> PowManager<R> {
                 .seeds
                 .get(&time_period)
                 .and_then(|x| Some((x.seeds.last()?.clone(), x.next_expiration_time)));
-            (seed, state.suggested_effort)
+            let suggested_effort = *state.suggested_effort.read().expect("Lock poisoned");
+            (seed, suggested_effort)
         };
 
         let (seed, expiration) = match seed_and_expiration {
@@ -607,6 +617,11 @@ struct RendRequestReceiverInner {
 
     /// Waker to inform async readers when there is a new message on the queue.
     waker: Option<Waker>,
+
+    /// Most recent published suggested effort value.
+    ///
+    /// We write to this, which is then published in the pow-params line by [`PowManager`].
+    suggested_effort: Arc<RwLock<Effort>>,
 }
 
 impl RendRequestReceiver {
@@ -615,10 +630,12 @@ impl RendRequestReceiver {
         runtime: R,
         pow_manager: Arc<PowManager<R>>,
         inner_receiver: mpsc::Receiver<RendRequest>,
+        suggested_effort: Arc<RwLock<Effort>>,
     ) -> Self {
         let receiver = RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
             waker: None,
+            suggested_effort,
         })));
         let receiver_clone = receiver.clone();
         let accept_thread = runtime.clone().spawn_blocking(move || {
