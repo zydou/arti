@@ -498,27 +498,35 @@ impl ConfluxSet {
         self.join_point = Some(join_point.clone());
 
         // The legs are valid, so add them to the set.
-        for mut circ in legs {
-            let conflux_handler = ConfluxMsgHandler::new_client(
-                join_point.hop,
-                self.nonce,
-                Arc::clone(&self.last_seq_delivered),
-                runtime.clone(),
-            );
-
-            circ.install_conflux_handler(conflux_handler);
+        for circ in legs {
             let mutable = Arc::clone(circ.mutable());
             let unique_id = circ.unique_id();
-
-            // Ensure the stream map of the last hop is shared by all the legs
-            let last_hop = circ
-                .hop_mut(join_point.hop)
-                .ok_or_else(|| bad_api_usage!("asked to join circuit with no hops"))?;
-            last_hop.set_stream_map(Arc::clone(&join_point.streams))?;
-
             let leg_id = self.legs.insert(circ);
             // Merge the mutable state of the circuit into our tunnel state.
             self.mutable.insert(unique_id, leg_id.into(), mutable);
+        }
+
+        for (_, circ) in self.legs.iter_mut() {
+            // The circuits that have a None status don't know they're part of
+            // a multi-path tunnel yet. They need to be initialized with a
+            // conflux message handler, and have their join point fixed up
+            // to share a stream map with the join point on all the other circuits.
+            if circ.conflux_status().is_none() {
+                let conflux_handler = ConfluxMsgHandler::new_client(
+                    join_point.hop,
+                    self.nonce,
+                    Arc::clone(&self.last_seq_delivered),
+                    runtime.clone(),
+                );
+
+                circ.install_conflux_handler(conflux_handler);
+
+                // Ensure the stream map of the last hop is shared by all the legs
+                let last_hop = circ
+                    .hop_mut(join_point.hop)
+                    .ok_or_else(|| bad_api_usage!("asked to join circuit with no hops"))?;
+                last_hop.set_stream_map(Arc::clone(&join_point.streams))?;
+            }
         }
 
         Ok(())
