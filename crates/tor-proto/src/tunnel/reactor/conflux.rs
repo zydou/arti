@@ -435,7 +435,7 @@ impl ConfluxSet {
             }
             None => {
                 let (hop, detail, streams) = (|| {
-                    let first_leg = legs.first()?;
+                    let first_leg = self.circuits().next()?;
                     let first_leg_path = first_leg.path();
                     let all_hops = first_leg_path.all_hops();
                     let hop_num = first_leg.last_hop_num()?;
