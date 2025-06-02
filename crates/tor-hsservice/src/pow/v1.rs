@@ -5,7 +5,7 @@
 //! * <https://spec.torproject.org/hspow-spec/v1-equix.html>
 
 use std::{
-    collections::{BinaryHeap, HashMap},
+    collections::{BTreeSet, HashMap},
     sync::{Arc, Mutex, RwLock},
     task::Waker,
     time::{Duration, Instant, SystemTime},
@@ -590,7 +590,7 @@ impl Eq for RendRequestOrdByEffort {}
 /// high-[`Effort`] requests first.
 ///
 /// This is implemented on top of a [`mpsc::Receiver`]. There is a thread that dequeues from the
-/// [`mpsc::Receiver`], checks the PoW solve, and if it is correct, adds it to a [`BinaryHeap`],
+/// [`mpsc::Receiver`], checks the PoW solve, and if it is correct, adds it to a [`BTreeSet`],
 /// which the [`Stream`] implementation reads from.
 ///
 /// This is not particularly optimized — queueing and dequeuing use a [`Mutex`], so there may be
@@ -603,7 +603,7 @@ pub(crate) struct RendRequestReceiver(Arc<Mutex<RendRequestReceiverInner>>);
 /// Inner implementation for [`RendRequestReceiver`].
 struct RendRequestReceiverInner {
     /// Internal priority queue of requests.
-    queue: BinaryHeap<RendRequestOrdByEffort>,
+    queue: BTreeSet<RendRequestOrdByEffort>,
 
     /// Waker to inform async readers when there is a new message on the queue.
     waker: Option<Waker>,
@@ -617,7 +617,7 @@ impl RendRequestReceiver {
         inner_receiver: mpsc::Receiver<RendRequest>,
     ) -> Self {
         let receiver = RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
-            queue: BinaryHeap::new(),
+            queue: BTreeSet::new(),
             waker: None,
         })));
         let receiver_clone = receiver.clone();
@@ -656,7 +656,7 @@ impl RendRequestReceiver {
             }
 
             let mut inner = self.0.lock().expect("Lock poisened");
-            inner.queue.push(rend_request);
+            inner.queue.insert(rend_request);
             if let Some(waker) = &inner.waker {
                 waker.wake_by_ref();
             }
@@ -672,7 +672,7 @@ impl Stream for RendRequestReceiver {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         let mut inner = self.get_mut().0.lock().expect("Lock poisened");
-        match inner.queue.pop() {
+        match inner.queue.pop_last() {
             Some(item) => std::task::Poll::Ready(Some(item.request)),
             None => {
                 inner.waker = Some(cx.waker().clone());
