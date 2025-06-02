@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
-use itertools::Itertools as _;
 use slotmap_careful::SlotMap;
 use tor_rtcompat::SleepProviderExt as _;
 use tracing::warn;
@@ -391,14 +390,7 @@ impl ConfluxSet {
 
     /// Add legs to the this conflux set.
     ///
-    // TODO(conflux): update this with the latest changes from torspec!369
-    ///
-    /// Returns an error if any of the legs are invalid,
-    /// or if adding the legs would cause the conflux set to contain
-    /// any circuits that have the same hop in the middle and guard positions
-    /// (legs of the form `G1 - M1 - E` and `G2 - M1 - E`,
-    /// or `G1 - M1 -E` and `G1 - M2 - E ` aren't allowed to be part
-    /// of the same conflux set).
+    /// Returns an error if any of the legs is invalid.
     ///
     /// A leg is considered valid if
     ///
@@ -409,6 +401,17 @@ impl ConfluxSet {
     ///
     /// Note: the circuits will not begin linking until
     /// [`link_circuits`](Self::link_circuits) is called.
+    ///
+    /// IMPORTANT: this function does not prevent the construction of conflux sets
+    /// where the circuit legs share guard or middle relays. It is the responsibility
+    /// of the caller to enforce the following invariant from prop354:
+    ///
+    /// "If building a conflux leg: Reject any circuits that have the same Guard as the other conflux
+    /// "leg(s) in the current conflux set, EXCEPT when one of the primary Guards is also the chosen
+    /// "Exit of this conflux set (in which case, re-use the non-Exit Guard)."
+    ///
+    /// This is because at this level we don't actually know which relays are the guards,
+    /// so we can't know if the join point happens to be one of the Guard + Exit relays.
     #[cfg(feature = "conflux")]
     pub(super) fn add_legs(
         &mut self,
@@ -489,44 +492,6 @@ impl ConfluxSet {
             if !leg_is_valid(leg)? {
                 return Err(bad_api_usage!("one more more conflux circuits are invalid"));
             }
-        }
-
-        let check_legs_disjoint = |(leg1, leg2): (&Circuit, &Circuit)| {
-            let path1 = leg1.path();
-            let path1_except_last = path1.all_hops().dropping_back(1);
-            let path2 = leg2.path();
-            let path2_except_last = path2.all_hops().dropping_back(1);
-
-            // At this point we've already validated the lengths of the new legs,
-            // so we know they all have the same length.
-            let mut zip = path1_except_last.zip(path2_except_last);
-
-            zip.all(|(h1, h2)| hops_eq(h1, h2).map(|res| !res).unwrap_or_default())
-        };
-
-        // TODO: reduce unnecessary iteration over `legs`
-        // without hurting readability
-
-        // Ensure the legs don't share guard or middle relays
-        //
-        // TODO(conflux): is this right?
-        // It means we allow legs of the form
-        //
-        //  N1 --- N2 ----
-        //                \
-        //                 E
-        //  N2 --- N1-----/
-        //
-        //  But I think that's alright.
-        if !self
-            .circuits()
-            .chain(legs.iter())
-            .cartesian_product(legs.iter())
-            .all(check_legs_disjoint)
-        {
-            return Err(bad_api_usage!(
-                "conflux circuits must not share hops in the same position"
-            ));
         }
 
         // Select a join point, or put the existing one back into self.
