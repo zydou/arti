@@ -137,6 +137,12 @@ impl<R: Runtime> State<R> {
     }
 }
 
+/// How frequently the suggested effort should be recalculated.
+const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
+
+/// When the suggested effort has changed by less than this much, we don't republish it.
+const SUGGESTED_EFFORT_DEADZONE: f64 = 0.15;
+
 /// How soon before a seed's expiration time we should rotate it and publish a new seed.
 const SEED_EARLY_ROTATION_TIME: Duration = Duration::from_secs(60 * 5);
 
@@ -242,8 +248,51 @@ impl<R: Runtime> PowManager<R> {
     async fn main_loop_task(self: Arc<Self>) {
         let runtime = self.0.write().expect("Lock poisoned").runtime.clone();
 
+        let mut last_suggested_effort_update = Instant::now();
+        let mut last_published_suggested_effort: u32 = (*self
+            .0
+            .read()
+            .expect("Lock poisoned")
+            .suggested_effort
+            .read()
+            .expect("Lock poisoned"))
+        .into();
+
         loop {
             let next_update_time = self.rotate_seeds_if_expiring().await;
+
+            // Update the suggested effort, if needed
+            if Instant::now() - last_suggested_effort_update >= HS_UPDATE_PERIOD {
+                let (tps_to_update, mut publisher_update_tx) = {
+                    let mut tps_to_update = vec![];
+
+                    let inner = self.0.read().expect("Lock poisoned");
+
+                    inner.rend_request_rx.update_suggested_effort();
+                    last_suggested_effort_update = Instant::now();
+                    let new_suggested_effort: u32 =
+                        (*inner.suggested_effort.read().expect("Lock poisoned")).into();
+
+                    let percent_change =
+                        f64::from(new_suggested_effort - last_published_suggested_effort)
+                            / f64::from(last_published_suggested_effort);
+                    if percent_change.abs() >= SUGGESTED_EFFORT_DEADZONE {
+                        last_published_suggested_effort = new_suggested_effort;
+
+                        tps_to_update = inner.seeds.iter().map(|x| *x.0).collect();
+                    }
+
+                    let publisher_update_tx = inner.publisher_update_tx.clone();
+                    (tps_to_update, publisher_update_tx)
+                };
+
+                for time_period in tps_to_update {
+                    let _ = publisher_update_tx.send(time_period).await;
+                }
+            }
+
+            let suggested_effort_update_delay =
+                HS_UPDATE_PERIOD - (Instant::now() - last_suggested_effort_update);
 
             // A new TimePeriod that we don't know about (and thus that isn't in next_update_time)
             // might get added at any point. Making sure that our maximum delay is the minimum
@@ -254,7 +303,8 @@ impl<R: Runtime> PowManager<R> {
             let delay = next_update_time
                 .map(|x| x.duration_since(SystemTime::now()).unwrap_or(max_delay))
                 .unwrap_or(max_delay)
-                .min(max_delay);
+                .min(max_delay)
+                .min(suggested_effort_update_delay);
 
             tracing::debug!(next_wakeup = ?delay, "Recalculated PoW seeds.");
 
