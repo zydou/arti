@@ -618,6 +618,20 @@ struct RendRequestReceiverInner {
     /// Waker to inform async readers when there is a new message on the queue.
     waker: Option<Waker>,
 
+    /// Number of requests that were enqueued during the current update period, and had an effort
+    /// greater than or equal to the suggested effort.
+    num_enqueued_gte_suggested: usize,
+    /// Number of requests that were dequeued during the current update period.
+    num_dequeued: usize,
+    /// Amount of time during the current update period that we spent with no requests in the
+    /// queue.
+    idle_time: Duration,
+    /// Time that the queue last went from having items in it to not having items in it, or vise
+    /// versa. This is used to update idle_time.
+    last_transition: Instant,
+    /// Sum of all effort values that were validated and enqueued during the current update period.
+    total_effort: u64,
+
     /// Most recent published suggested effort value.
     ///
     /// We write to this, which is then published in the pow-params line by [`PowManager`].
@@ -635,6 +649,11 @@ impl RendRequestReceiver {
         let receiver = RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
             waker: None,
+            num_enqueued_gte_suggested: 0,
+            num_dequeued: 0,
+            idle_time: Duration::new(0, 0),
+            last_transition: Instant::now(),
+            total_effort: 0,
             suggested_effort,
         })));
         let receiver_clone = receiver.clone();
@@ -647,6 +666,7 @@ impl RendRequestReceiver {
 
     /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW sovles, and
     /// enqueue onto the priority queue.
+    #[allow(clippy::cognitive_complexity)]
     fn accept_loop<R: Runtime>(
         self,
         runtime: &R,
@@ -673,6 +693,24 @@ impl RendRequestReceiver {
             }
 
             let mut inner = self.0.lock().expect("Lock poisened");
+            if inner.queue.is_empty() {
+                let now = Instant::now();
+                let last_transition = inner.last_transition;
+                inner.idle_time += now - last_transition;
+                inner.last_transition = now;
+            }
+            if let Some(ref request_pow) = rend_request.pow {
+                if request_pow.effort() >= *inner.suggested_effort.read().expect("Lock poisened") {
+                    inner.num_enqueued_gte_suggested += 1;
+                    let effort: u32 = request_pow.effort().into();
+                    if let Some(total_effort) = inner.total_effort.checked_add(effort.into()) {
+                        inner.total_effort = total_effort;
+                    } else {
+                        tracing::warn!("PoW total_effort would overflow");
+                        inner.total_effort = u64::MAX;
+                    }
+                }
+            }
             inner.queue.insert(rend_request);
             if let Some(waker) = &inner.waker {
                 waker.wake_by_ref();
@@ -690,7 +728,13 @@ impl Stream for RendRequestReceiver {
     ) -> std::task::Poll<Option<Self::Item>> {
         let mut inner = self.get_mut().0.lock().expect("Lock poisened");
         match inner.queue.pop_last() {
-            Some(item) => std::task::Poll::Ready(Some(item.request)),
+            Some(item) => {
+                inner.num_dequeued += 1;
+                if inner.queue.is_empty() {
+                    inner.last_transition = Instant::now();
+                }
+                std::task::Poll::Ready(Some(item.request))
+            }
             None => {
                 inner.waker = Some(cx.waker().clone());
                 std::task::Poll::Pending
