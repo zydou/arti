@@ -281,7 +281,7 @@ impl ConfluxSet {
             if #[cfg(feature = "conflux")] {
                 self.remove_conflux(circ)
             } else {
-                // Conflux is disabled, so we can't possible continue running if the only
+                // Conflux is disabled, so we can't possibly continue running if the only
                 // leg in the tunnel is gone.
                 //
                 // Technically this should be unreachable (because of the is_empty()
