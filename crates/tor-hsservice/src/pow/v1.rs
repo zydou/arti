@@ -137,6 +137,11 @@ impl<R: Runtime> State<R> {
     }
 }
 
+/// Maximum depth of the queue of [`RendRequest`]s.
+// TODO POW: Pick a better number, based on available memory or something like that.
+// TODO POW: Allow this to be changed in onion service config.
+const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 1024;
+
 /// How frequently the suggested effort should be recalculated.
 const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
 
@@ -830,6 +835,13 @@ impl RendRequestReceiver {
                         inner.total_effort = u64::MAX;
                     }
                 }
+            }
+            if inner.queue.len() >= REND_REQUEST_QUEUE_MAX_DEPTH {
+                let dropped_request = inner.queue.pop_first();
+                tracing::debug!(
+                    dropped_effort = ?dropped_request.map(|x| x.pow.map(|x| x.effort())),
+                    "RendRequest queue full, dropping request."
+                );
             }
             inner.queue.insert(rend_request);
             if let Some(waker) = &inner.waker {
