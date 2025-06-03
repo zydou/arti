@@ -10,3 +10,6 @@ publish = false
 [dependencies]
 anyhow = "1.0.75"
 arti-ureq = { path = "../../crates/arti-ureq" }
+
+[features]
+full = ["arti-ureq/full"]

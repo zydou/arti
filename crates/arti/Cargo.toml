@@ -57,6 +57,9 @@ full = [
     "tor-config-path/full",
     "tor-basic-utils/full",
     "tor-rpc-connect?/full",
+    "signal-hook",
+    "signal-hook-async-std",
+    "dialoguer",
 ]
 
 async-std = [
@@ -131,6 +134,7 @@ __is_experimental = []
 
 # These features exist for backwards compatibility, and shouldn't be used directly.
 # Next time we do a version bump, it would be good to get rid of them.
+
 signal-hook = ["async-signal"]
 signal-hook-async-std = ["async-signal"]
 dialoguer = []
