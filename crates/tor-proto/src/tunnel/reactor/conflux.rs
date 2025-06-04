@@ -24,16 +24,14 @@ use crate::circuit::path::HopDetail;
 use crate::circuit::TunnelMutableState;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
-use crate::tunnel::reactor::CircuitCmd;
 use crate::tunnel::streammap;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
-use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason};
+use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason, SendRelayCell};
 
 #[cfg(feature = "conflux")]
 use {
-    super::SendRelayCell,
     tor_cell::relaycell::conflux::{V1DesiredUx, V1LinkPayload, V1Nonce},
     tor_cell::relaycell::msg::{ConfluxLink, ConfluxSwitch},
 };
@@ -712,17 +710,16 @@ impl ConfluxSet {
                 // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
                 // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
                 // implementation currently uses Circuit Build Timeout).
-                let conflux_hs_timeout = if let Some(timeout) =  leg.conflux_hs_timeout() {
+                let conflux_hs_timeout = if let Some(timeout) = leg.conflux_hs_timeout() {
                     // TODO: ask Diziet if we can have a sleep_until_instant() function
-                    Box::pin(runtime.sleep_until_wallclock(timeout)) as Pin<Box<dyn Future<Output = ()> + Send>>
+                    Box::pin(runtime.sleep_until_wallclock(timeout))
+                        as Pin<Box<dyn Future<Output = ()> + Send>>
                 } else {
                     Box::pin(std::future::pending())
                 };
 
                 let mut ready_streams = leg.ready_streams_iterator();
                 let input = &mut leg.input;
-                let primary_id = self.primary_id;
-                let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
                 // We should replace this with a simple sink readiness check
@@ -762,43 +759,7 @@ impl ConfluxSet {
                         },
                         ret = next_ready_stream.fuse() => {
                             let ret = ret.map(|cmd| {
-                                // TODO: refactor this spaghetti
-                                let leg = if let Some(join_point) = conflux_join_point {
-                                    match &cmd {
-                                        CircuitCmd::Send(send) => {
-                                            // Conflux circuits always send multiplexed relay commands to
-                                            // to the last hop (the join point).
-                                            if cmd_counts_towards_seqno(send.cell.cmd()) {
-                                                if send.hop != join_point {
-                                                    return Err(crate::Error::Bug(internal!(
-                                                        "Leaky pipe on conflux circuit?! (target_hop={}, join_point={})",
-                                                        send.hop.display(),
-                                                        join_point.display(),
-                                                    )));
-                                                }
-
-                                                primary_id
-                                            } else {
-                                                // Non-multiplexed commands go on their original
-                                                // circuit and hop
-                                                leg_id
-                                            }
-                                        }
-                                        // The leg_id doesn't need to change (or doesn't matter)
-                                        // for these other commands.
-                                        CircuitCmd::HandleSendMe { .. } | CircuitCmd::CloseStream { .. }
-                                        | CircuitCmd::CleanShutdown => leg_id,
-                                        #[cfg(feature = "conflux")]
-                                        CircuitCmd::ConfluxRemove(_) | CircuitCmd::ConfluxHandshakeComplete (_) | CircuitCmd::Enqueue(_) => leg_id,
-                                    }
-                                } else {
-                                    // If there is no join point, it means this is not
-                                    // a multi-path tunnel, so we continue using
-                                    // the leg_id/hop the cmd came from.
-                                    leg_id
-                                };
-
-                                Ok(CircuitAction::RunCmd { leg, cmd })
+                                Ok(CircuitAction::RunCmd { leg: leg_id, cmd })
                             });
 
                             flatten(ret)
@@ -851,6 +812,60 @@ impl ConfluxSet {
     /// Returns `None` if either the `leg` or `hop` don't exist.
     pub(super) fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
         self.leg(leg)?.uses_stream_sendme(hop)
+    }
+
+    /// Encode `msg`, encrypt it, and send it to the 'hop'th hop.
+    ///
+    /// See [`Circuit::send_relay_cell`].
+    pub(super) async fn send_relay_cell_on_leg(
+        &mut self,
+        msg: SendRelayCell,
+        leg: Option<LegId>,
+        is_conflux_link: bool,
+    ) -> crate::Result<()> {
+        let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
+        let leg = if let Some(join_point) = conflux_join_point {
+            // Conflux circuits always send multiplexed relay commands to
+            // to the last hop (the join point).
+            if cmd_counts_towards_seqno(msg.cell.cmd()) {
+                if msg.hop != join_point {
+                    return Err(crate::Error::Bug(internal!(
+                        "Leaky pipe on conflux circuit?! (target_hop={}, join_point={})",
+                        msg.hop.display(),
+                        join_point.display(),
+                    )));
+                }
+
+                // Check if it's time to switch our primary leg.
+                #[cfg(feature = "conflux")]
+                if let Some(switch_cell) = self.maybe_update_primary_leg()? {
+                    //tracing::trace!("{}: Switching primary conflux leg...", self.unique_id);
+                    self.primary_leg_mut()?
+                        .send_relay_cell(switch_cell, false)
+                        .await?;
+                }
+
+                // Use the possibly updated primary leg
+                Some(self.primary_id.into())
+            } else {
+                // Non-multiplexed commands go on their original
+                // circuit and hop
+                leg
+            }
+        } else {
+            // If there is no join point, it means this is not
+            // a multi-path tunnel, so we continue using
+            // the leg_id/hop the cmd came from.
+            leg
+        };
+
+        let leg = leg.unwrap_or(self.primary_id.into());
+
+        let circ = self
+            .leg_mut(leg)
+            .ok_or_else(|| internal!("leg disappeared?!"))?;
+
+        circ.send_relay_cell(msg, is_conflux_link).await
     }
 
     /// Send a LINK cell down each unlinked leg.

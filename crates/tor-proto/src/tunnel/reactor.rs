@@ -839,20 +839,6 @@ impl Reactor {
             self.handle_run_once_cmd(cmd).await?;
         }
 
-        // Check if it's time to switch our primary leg.
-        //
-        // TODO(conflux): this only be done just before sending a cell.
-        //
-        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2946#note_3192013
-        #[cfg(feature = "conflux")]
-        if let Some(switch_cell) = self.circuits.maybe_update_primary_leg()? {
-            trace!("{}: Switching primary conflux leg...", self.unique_id);
-            self.circuits
-                .primary_leg_mut()?
-                .send_relay_cell(switch_cell, false)
-                .await?;
-        }
-
         Ok(())
     }
 
@@ -922,11 +908,10 @@ impl Reactor {
         match cmd {
             RunOnceCmdInner::Send { leg, cell, done } => {
                 // TODO: check the cc window
-                let leg = self
+                let res = self
                     .circuits
-                    .leg_mut(leg)
-                    .ok_or_else(|| internal!("leg disappeared?!"))?;
-                let res = leg.send_relay_cell(cell, false).await;
+                    .send_relay_cell_on_leg(cell, Some(leg), false)
+                    .await;
                 if let Some(done) = done {
                     // Don't care if the receiver goes away
                     let _ = done.send(res.clone());
@@ -943,8 +928,7 @@ impl Reactor {
                         // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
                         let outcome = self
                             .circuits
-                            .primary_leg_mut()?
-                            .send_relay_cell(cell, false)
+                            .send_relay_cell_on_leg(cell, None, false)
                             .await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone());
@@ -969,17 +953,21 @@ impl Reactor {
             } => {
                 match cell {
                     Ok((cell, stream_id)) => {
-                        let leg = self
+                        let circ = self
                             .circuits
                             .leg_mut(leg)
                             .ok_or_else(|| internal!("leg disappeared?!"))?;
                         let cell_hop = cell.hop;
-                        let relay_format = leg
+                        let relay_format = circ
                             .hop_mut(cell_hop)
                             // TODO: Is this the right error type here? Or should there be a "HopDisappeared"?
                             .ok_or(Error::NoSuchHop)?
                             .relay_cell_format();
-                        let outcome = leg.send_relay_cell(cell, false).await;
+
+                        let outcome = self
+                            .circuits
+                            .send_relay_cell_on_leg(cell, Some(leg), false)
+                            .await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone().map(|_| (stream_id, hop, relay_format)));
                         outcome?;
@@ -1090,11 +1078,10 @@ impl Reactor {
                 // instead of blocking on the sending of the LINKED_ACK.
                 self.note_conflux_handshake_result(Ok(()))?;
 
-                let leg = self
+                let res = self
                     .circuits
-                    .leg_mut(leg)
-                    .ok_or_else(|| internal!("leg disappeared?!"))?;
-                let res = leg.send_relay_cell(cell, false).await;
+                    .send_relay_cell_on_leg(cell, Some(leg), false)
+                    .await;
 
                 res?;
             }

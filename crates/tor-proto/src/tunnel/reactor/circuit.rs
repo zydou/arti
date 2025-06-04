@@ -381,6 +381,10 @@ impl Circuit {
     /// SENDME window, an error is returned instead.
     ///
     /// Does not check whether the cell is well-formed or reasonable.
+    ///
+    /// NOTE: the reactor should not call this function directly, only via
+    /// [`ConfluxSet::send_relay_cell_on_leg`](super::conflux::ConfluxSet::send_relay_cell_on_leg),
+    /// which will reroute the message, if necessary to the primary leg.
     pub(super) async fn send_relay_cell(
         &mut self,
         msg: SendRelayCell,
