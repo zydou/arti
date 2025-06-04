@@ -490,6 +490,18 @@ impl DataStream {
         let config = RateLimitedWriterConfig {
             rate: u64::MAX,  // bytes per second
             burst: u64::MAX, // bytes
+            // This number is chosen arbitrarily, but the idea is that we want to balance between
+            // throughput and latency. Assume the user tries to write a large buffer (~600 bytes).
+            // If we set this too small (for example 1), we'll be waking up frequently and writing a
+            // small number of bytes each time to the `DataWriterInner`, even if this isn't enough
+            // bytes to send a cell. If we set this too large (for example 510), we'll be waking up
+            // infrequently to write a larger number of bytes each time. So even if the
+            // `DataWriterInner` has almost a full cell's worth of data queued (for example 490) and
+            // only needs 509-490=19 more bytes before a cell can be sent, it will block until the
+            // rate limiter allows 510 more bytes.
+            //
+            // TODO(arti#2028): Is there an optimal value here?
+            wake_when_bytes_available: 200, // bytes
         };
         let w = DataWriter {
             writer: RateLimitedWriter::new(w, &config, time_provider),

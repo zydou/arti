@@ -28,6 +28,8 @@ pub(crate) struct RateLimitedWriter<W: AsyncWrite, P: SleepProvider> {
     /// For example, use [`SleepProvider::now()`], not [`Instant::now()`].
     #[educe(Debug(ignore))]
     sleep_provider: P,
+    /// See [`RateLimitedWriterConfig::wake_when_bytes_available`].
+    wake_when_bytes_available: u64,
     /// The inner writer.
     #[educe(Debug(ignore))]
     #[pin]
@@ -47,13 +49,14 @@ where
     // We take the rate and bucket max directly rather than a `TokenBucket` to ensure that the token
     // bucket only ever uses times from `sleep_provider`.
     pub(crate) fn new(writer: W, config: &RateLimitedWriterConfig, sleep_provider: P) -> Self {
-        let config = TokenBucketConfig {
+        let bucket_config = TokenBucketConfig {
             rate: config.rate,
             bucket_max: config.burst,
         };
         Self::from_token_bucket(
             writer,
-            TokenBucket::new(&config, sleep_provider.now()),
+            TokenBucket::new(&bucket_config, sleep_provider.now()),
+            config.wake_when_bytes_available,
             sleep_provider,
         )
     }
@@ -61,10 +64,16 @@ where
     /// Create a new [`RateLimitedWriter`] from a [`TokenBucket`].
     ///
     /// The token bucket must have only been used with times created by `sleep_provider`.
-    fn from_token_bucket(writer: W, bucket: TokenBucket<Instant>, sleep_provider: P) -> Self {
+    fn from_token_bucket(
+        writer: W,
+        bucket: TokenBucket<Instant>,
+        wake_when_bytes_available: u64,
+        sleep_provider: P,
+    ) -> Self {
         Self {
             bucket,
             sleep_provider,
+            wake_when_bytes_available,
             inner: writer,
             sleep_fut: None,
         }
@@ -146,19 +155,15 @@ where
 
                 // if no tokens in bucket, we must sleep
                 if available == 0 {
+                    // number of tokens we'll wait for
+                    let wake_at_tokens = to_u64(buf.len());
+
                     // If the user wants to write X tokens, we don't necessarily want to sleep until
                     // we have room for X tokens. We also don't want to wake every time that a
-                    // single byte can be written. Instead we'll wake when we have room to write 25%
-                    // of the given buffer. This is maybe a bit too "magic", but the alternative is
-                    // to provide some sort of configuration option to the user. We can consider
-                    // that route later if there's a good reason for it.
-                    let wake_at_tokens = to_u64(buf.len()).div_ceil(4);
-
-                    // Don't wait for fewer than 10 bytes, unless the buffer is smaller than 10
-                    // bytes. This is also magic and arbitrary, but if the user provided for example
-                    // 4 bytes, we don't want to wake after 1 byte is available.
+                    // single byte can be written. We allow the user to configure this threshold
+                    // with `RateLimitedWriterConfig::wake_when_bytes_available`.
                     let wake_at_tokens =
-                        std::cmp::max(wake_at_tokens, std::cmp::min(10, to_u64(buf.len())));
+                        std::cmp::min(wake_at_tokens, *self_.wake_when_bytes_available);
 
                     // If the bucket has a max of X tokens, we should never try to wait for >X
                     // tokens.
@@ -288,6 +293,16 @@ pub(crate) struct RateLimitedWriterConfig {
     pub(crate) rate: u64,
     /// The "burst" in bytes.
     pub(crate) burst: u64,
+    /// When polled, block until at most this many bytes are available.
+    ///
+    /// Or in other words, wake when we can write this many bytes, even if the provided buffer is
+    /// larger.
+    ///
+    /// For example if a user attempts to write a large buffer, we usually don't want to block until
+    /// the entire buffer can be written. We'd prefer several partial writes to a single large
+    /// write. So instead of blocking until the entire buffer can be written, we only block until
+    /// at most this many bytes are available.
+    pub(crate) wake_when_bytes_available: u64,
 }
 
 #[cfg(test)]
@@ -313,8 +328,15 @@ mod test {
             // drain the bucket
             tb.drain(100).unwrap();
 
+            let wake_when_bytes_available = 15;
+
             let mut writer = Vec::new();
-            let mut writer = RateLimitedWriter::from_token_bucket(&mut writer, tb, rt.clone());
+            let mut writer = RateLimitedWriter::from_token_bucket(
+                &mut writer,
+                tb,
+                wake_when_bytes_available,
+                rt.clone(),
+            );
 
             // drive time forward from 0 to 20_000 ms in 50 ms intervals
             let rt_clone = rt.clone();
@@ -326,7 +348,7 @@ mod test {
             })
             .unwrap();
 
-            // try writing 60 bytes, which sleeps until we can write at least 25% of it
+            // try writing 60 bytes, which sleeps until we can write at least 15 of them
             assert_eq!(15, writer.write(&[0; 60]).await.unwrap());
             assert_eq!(1500, rt.now().duration_since(start).as_millis());
 
@@ -337,7 +359,7 @@ mod test {
             // 2000 ms / (100 ms/token) = 20 bytes
             assert_eq!(
                 Some(20),
-                writer.write(&[0; 60]).now_or_never().map(Result::unwrap)
+                writer.write(&[0; 60]).now_or_never().map(Result::unwrap),
             );
         });
     }
