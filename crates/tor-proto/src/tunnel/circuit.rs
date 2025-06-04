@@ -392,6 +392,7 @@ pub struct PendingClientCirc {
 }
 
 /// Description of the network's current rules for building circuits.
+// XXXX This documentation is not right.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct CircParameters {
@@ -400,6 +401,28 @@ pub struct CircParameters {
     pub extend_by_ed25519_id: bool,
     /// Congestion control parameters for this circuit.
     pub ccontrol: CongestionControlParams,
+}
+
+/// A set of negotiated information about a given circuit hop.
+///
+/// Unlike [`CircParameters`], this type is crate-internal,
+/// and is the result of negotiation.
+#[derive(Clone, Debug)]
+pub(super) struct NegotiatedHopSettings {
+    /// The negotiated congestion control settings for this circuit.
+    pub(super) ccontrol: CongestionControlParams,
+}
+
+impl NegotiatedHopSettings {
+    /// Construct a new `NegotiatedHopSettings` based on `params`.
+    ///
+    /// This represents the `NegotiatedHopSettings` in a pre-negotiation state:
+    ///
+    pub(super) fn from_params(params: &CircParameters) -> Self {
+        Self {
+            ccontrol: params.ccontrol.clone(),
+        }
+    }
 }
 
 #[cfg(test)]

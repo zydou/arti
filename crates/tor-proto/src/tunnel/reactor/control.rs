@@ -5,6 +5,7 @@ use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
 };
+use crate::circuit::NegotiatedHopSettings;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
@@ -577,7 +578,9 @@ impl<'a> ControlHandler<'a> {
                     return Ok(());
                 };
 
-                leg.add_hop(format, peer_id, outbound, inbound, binding, &params)?;
+                let settings = NegotiatedHopSettings::from_params(&params);
+
+                leg.add_hop(format, peer_id, outbound, inbound, binding, &settings)?;
                 let _ = done.send(Ok(()));
 
                 Ok(())

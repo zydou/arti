@@ -9,8 +9,6 @@ use derive_builder::Builder;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_units::Percentage;
 
-use crate::circuit::CircParameters;
-
 /// Fixed window parameters that are for the SENDME v0 world of fixed congestion window.
 #[non_exhaustive]
 #[derive(Builder, Clone, Debug, amplify::Getters)]
@@ -218,7 +216,7 @@ impl CongestionControlParams {
 
 /// Return true iff the given sendme increment is valid with regards to the value in the circuit
 /// parameters that is taken from the consensus.
-pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CircParameters) -> bool {
+pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CongestionControlParams) -> bool {
     // Ease our lives a bit because the consensus value is u32.
     let inc_u32 = u32::from(inc);
     // A consensus value of 1 would allow this sendme increment to be 0 and thus
@@ -226,7 +224,7 @@ pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CircParameters) -> bool {
     if inc == 0 {
         return false;
     }
-    let inc_consensus = params.ccontrol.cwnd_params().sendme_inc();
+    let inc_consensus = params.cwnd_params().sendme_inc();
     // See prop324 section 10.3
     if inc_u32 > (inc_consensus.saturating_add(1)) || inc_u32 < (inc_consensus.saturating_sub(1)) {
         return false;
@@ -237,14 +235,13 @@ pub(crate) fn is_sendme_inc_valid(inc: u8, params: &CircParameters) -> bool {
 #[cfg(test)]
 mod test {
     use crate::{
-        ccparams::is_sendme_inc_valid, circuit::CircParameters,
-        congestion::test_utils::params::build_cc_vegas_params,
+        ccparams::is_sendme_inc_valid, congestion::test_utils::params::build_cc_vegas_params,
     };
 
     #[test]
     fn test_sendme_inc_valid() {
-        let params = CircParameters::new(true, build_cc_vegas_params());
-        let ref_inc = params.ccontrol.cwnd_params().sendme_inc() as u8;
+        let params = build_cc_vegas_params();
+        let ref_inc = params.cwnd_params().sendme_inc() as u8;
 
         // In range.
         assert!(is_sendme_inc_valid(ref_inc, &params));
