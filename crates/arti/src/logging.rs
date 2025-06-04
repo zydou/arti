@@ -151,7 +151,7 @@ fn filt_from_opt_str(s: &Option<String>, source: &str) -> Result<Option<Targets>
     })
 }
 
-/// Try to construct a tracing [`Layer`] for logging to stdout.
+/// Try to construct a tracing [`Layer`] for logging to stderr.
 fn console_layer<S>(config: &LoggingConfig, cli: Option<&str>) -> Result<impl Layer<S>>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
@@ -161,7 +161,7 @@ where
         .map(|s| filt_from_str_verbose(s, "--log-level command line parameter"))
         .or_else(|| filt_from_opt_str(&config.console, "logging.console").transpose())
         .unwrap_or_else(|| Ok(Targets::from_str("debug").expect("bad default")))?;
-    let use_color = std::io::stdout().is_terminal();
+    let use_color = std::io::stderr().is_terminal();
     // We used to suppress safe-logging on the console, but we removed that
     // feature: we cannot be certain that the console really is volatile. Even
     // if isatty() returns true on the console, we can't be sure that the
@@ -169,7 +169,7 @@ where
     Ok(fmt::Layer::default()
         .with_ansi(use_color)
         .with_timer(timer)
-        .with_writer(std::io::stdout) // we make this explicit, to match with use_color.
+        .with_writer(std::io::stderr) // we make this explicit, to match with use_color.
         .with_filter(filter))
 }
 

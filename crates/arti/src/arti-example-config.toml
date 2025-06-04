@@ -48,7 +48,7 @@
 [logging]
 
 # Specify filtering directives for sending trace messages to the console
-# (via standard output).
+# (via stderr).
 #
 # It can be as simple as a single loglevel, or as complicated as a
 # list with per-module settings.
