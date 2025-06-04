@@ -181,6 +181,11 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
         // bucket to effectively use a lower rate. For example if the rate was "1 token / sec" and
         // the elapsed time was "1.2 sec", we only want to refill 1 token and increment the time by
         // 1 second.
+        //
+        // While the docs for `tokens_to_duration` say that a smaller than expected duration may be
+        // returned, we have a test `test_duration_token_round_trip` which ensures that
+        // `tokens_to_duration` returns the expected value when used with the result from
+        // `duration_to_tokens`.
         let last_refill_inc =
             Self::tokens_to_duration(bucket_inc, self.rate).unwrap_or(Duration::ZERO);
 
@@ -413,6 +418,8 @@ mod test {
 
     use super::*;
 
+    use rand::Rng;
+
     #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
     struct MillisTimestamp(u64);
 
@@ -603,5 +610,62 @@ mod test {
         assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(200)));
         assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(200)));
         assert_eq!(tb.tokens_available_at(2), None);
+    }
+
+    #[test]
+    fn test_duration_token_round_trip() {
+        let tokens_to_duration = TokenBucket::<Instant>::tokens_to_duration;
+        let duration_to_tokens = TokenBucket::<Instant>::duration_to_tokens;
+
+        // start with some hand-picked cases
+        let mut duration_rate_pairs = vec![
+            (Duration::from_nanos(0), 1),
+            (Duration::from_nanos(1), 1),
+            (Duration::from_micros(2), 1),
+            (Duration::MAX, 1),
+            (Duration::from_nanos(0), 3),
+            (Duration::from_nanos(1), 3),
+            (Duration::from_micros(2), 3),
+            (Duration::MAX, 3),
+            (Duration::from_nanos(0), 1000),
+            (Duration::from_nanos(1), 1000),
+            (Duration::from_micros(2), 1000),
+            (Duration::MAX, 1000),
+            (Duration::from_nanos(0), u64::MAX),
+            (Duration::from_nanos(1), u64::MAX),
+            (Duration::from_micros(2), u64::MAX),
+            (Duration::MAX, u64::MAX),
+        ];
+
+        let mut rng = rand::rng();
+
+        // add some fuzzing
+        for _ in 0..10_000 {
+            let secs = rng.random();
+            let nanos = rng.random();
+            // Duration::new() may panic, so just skip if there's a panic rather than trying to
+            // write our own logic to avoid the panic in the first place
+            let Ok(random_duration) = std::panic::catch_unwind(|| Duration::new(secs, nanos))
+            else {
+                continue;
+            };
+            let random_rate = rng.random();
+            duration_rate_pairs.push((random_duration, random_rate));
+        }
+
+        // for various combinations of durations and rates, we ensure that after an initial
+        // `duration_to_tokens` calculation which may truncate, a round-trip between
+        // `tokens_to_duration` and `duration_to_tokens` isn't lossy
+        for (original_duration, rate) in duration_rate_pairs {
+            // this may give a smaller number of tokens than expected (see docs on
+            // `TokenBucket::duration_to_tokens`)
+            let tokens = duration_to_tokens(original_duration, rate);
+
+            // we want to ensure that converting these `tokens` to a duration and then back to
+            // tokens is not lossy, which implies that `tokens_to_duration` is returning the
+            // expected value and not a truncated value due to saturating arithmetic
+            let duration = tokens_to_duration(tokens, rate).unwrap();
+            assert_eq!(tokens, duration_to_tokens(duration, rate));
+        }
     }
 }
