@@ -2883,11 +2883,10 @@ dependencies = [
 
 [[package]]
 name = "hyper-examples"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arti-client",
- "bytes",
  "futures",
  "http",
  "http-body-util",
@@ -2895,14 +2894,11 @@ dependencies = [
  "hyper-util",
  "safelog",
  "tokio",
- "tokio-native-tls",
  "tokio-rustls",
  "tokio-util",
  "tor-cell",
  "tor-hsservice",
  "tor-proto",
- "tor-rtcompat",
- "tower-service",
  "tracing-subscriber",
  "webpki-roots",
 ]
