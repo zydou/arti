@@ -3,6 +3,106 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.4.4 - 5 June 2025
+
+Arti 1.4.4 continues our development efforts to support multi-legged tunnels in
+Arti via our Conflux feature. In addition to Conflux, we continue preparing
+support for our [Counter Galois Onion proposal][cgo] feature.
+
+As usual, there are also various under-the-hood improvements and bug fixes,
+which are documented below.
+
+### Breaking changes
+
+* Arti now requires Rust 1.83. ([!2999])
+
+### Major bugfixes
+
+* Fixed `fs-mistrust` builds on non-unix systems. ([!2962])
+
+### Major features
+
+* Arti now supports Circuit Handshake Extensions. ([!2980], [#1945], [prop346]).
+
+### Breaking changes in lower-level crates
+
+* `arti-ureq`: We no longer enable the `rustls` feature by default.
+* `tor-linkspec`, `tor-basic-utils`: Remove deprecated `empty_iterator()` method. ([!3001])
+* `tor-proto`: Remove deprecated `ClientCirc` functions. ([!2995])
+* `tor-keymgr`: Refactored the `Keystore::list` API. ([!3000], [#1922])
+* `tor-circmgr`: Make path module public on "--features=experimental-api". ([!2990], [#1981])
+* `tor-circmgr`: `CircRequestExt` and `CircResponseExt` are now separate types. ([!2972])
+* `tor-guardmgr`: Vanguard selection APIs now expect a `RelaySelector`. ([!3007])
+* `tor-protover*: `ProtoKind` is now backed by an `u8` type. ([!2980])
+
+### Conflux development
+
+* Continued development towards supporting Conflux tunnels in Arti. ([!2946],
+  [!2996], [!3005], [!3002]).
+
+### Counter Galois development
+
+* Continued development towards supporting Counter Galois in Arti. ([!2972],
+  [!2988], [!2993], [!2998], [!3010], [#1969])
+
+### Onion service development
+
+* Arti no longer uses MiddleOnly relays for rendezvous points or introduction points. ([!3007], [#2911])
+* Continued progress on service-side Proof-of-Work (PoW) support. ([!2697])
+
+### Directory
+
+* Arti no longer uses ".z" suffix in directory URLs. ([!3013])
+
+### Testing
+
+* Reverted commit related to Shadow writer shutdown bug. ([!2968])
+* Enable `--features=full` for our reproducible builds. ([!2956])
+* Fix various clippy warnings related to Rust 1.87. ([!3003])
+
+### Documentation
+
+* Release documentation was updated to include information on "Upgrade Blocker"
+  issues, removal of information of our old website location, and updated
+  information on `semver.md` files in the repository. ([!2987])
+
+### Infrastructure
+
+* Shadow was bumped to include a fix for an issue around `EPOLLRDHUP`. ([!2968])
+* We now only require one successful HS transfer in our Shadow CI. ([!2991])
+* We are now using the C Tor package from deb.torproject.org in our Shadow CI. ([!2989])
+* `strace` logging has been disabled in our Shadow CI. ([!2989])
+* Our Debian package now matches the default limits of file descriptors with systemd. ([!2937])
+* New script to ease maintaining Arti: the `cargo_sort` script is used to apply
+  `cargo sort` on our entire workspace. ([!3011], [#2014])
+* Arti now uses Rust 1.86 for Reproducible Builds CI target. ([!2992], [#1335])
+
+### Cleanups, minor features, and bugfixes
+
+* Implement `HasKind` trait for `TorAddrError`. ([!2965])
+* `tor-rtcompat`: We no longer bundle an unused copy of the Lets Encrypt root
+  certificate. ([!3006], [#2004])
+* `tor-proto`: New `extend()` and `create_firsthop()` methods to pick between ntor and ntor3 handshakes. ([!2967])
+* `tor-keymgr`: `ItemMetadata` now supports certificate metadata. ([!2921], [#1913])
+
+### Examples
+
+* `arti-ureq`: Bump `ureq` dependency to 3.0.11 and remove obsolete early
+  return in `await_input()`.
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+hjrgrn, Lionel Goffaux, Neel Chauhan, Niel Duysters, playbahn, retort-dev,
+shivam37483, syphyr, Tobias Stoeckmann, and Vijaya Bhaskar.
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+<!-- links go here -->
+
 # Arti 1.4.3 — 1 May 2025
 
 Arti 1.4.3 adds adds the framework for measuring metrics
