@@ -20,7 +20,7 @@ tor-bytes = { path = "../tor-bytes", version = "0.30.0", optional = true }
 
 [features]
 default = []
-full = ["caret/full", "serde", "tor-bytes"]
+full = ["caret/full", "serde", "tor-bytes", "tor-bytes?/full"]
 serde = ["serde_with"]
 tor-bytes = ["dep:tor-bytes"]
 

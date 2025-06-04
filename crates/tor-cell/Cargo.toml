@@ -43,8 +43,9 @@ full = [
     "tor-hscrypto?/full",
     "tor-linkspec/full",
     "tor-llcrypto/full",
-    "tor-units/full",
     "tor-memquota/full",
+    "tor-protover/full",
+    "tor-units/full",
 ]
 __is_experimental = []
 

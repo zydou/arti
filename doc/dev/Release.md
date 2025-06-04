@@ -7,6 +7,9 @@ Why not upgrade to the latest version before you start?
 
   * cargo-semver-checks
   * cargo-edit
+  * cargo-audit
+  * cargo-license
+  * cargo-sort
 
 In the documentation below,
 we sometimes use environment variables to indicate

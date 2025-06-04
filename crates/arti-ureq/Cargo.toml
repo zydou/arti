@@ -26,9 +26,9 @@ serde_json = "1.0.104"
 test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
 
 [features]
-default = ["rustls", "tokio"]
+default = ["native-tls", "tokio"]
 
-rustls = ["ureq/rustls", "tor-rtcompat/rustls", "__is_nonadditive"]
+rustls = ["ureq/rustls", "tor-rtcompat/rustls"]
 
 native-tls = ["ureq/native-tls", "tor-rtcompat/native-tls"]
 
@@ -43,6 +43,7 @@ full = [
     "native-tls",
     "tokio",
     "async-std",
+    "rustls",
 ]
 
 __is_nonadditive = []
