@@ -208,7 +208,6 @@ impl ConfluxSet {
                 "tried to get circuit leg before creating it?!"
             ))
         } else {
-            // TODO(conflux): implement primary leg selection
             let circ = self
                 .legs
                 .get_mut(self.primary_id)
