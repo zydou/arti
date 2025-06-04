@@ -44,11 +44,11 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
     ///
     /// The bucket will initially be full.
     /// The value `max` is commonly referred to as the "burst".
-    pub(crate) fn new(rate: u64, max: u64, now: I) -> Self {
+    pub(crate) fn new(config: &TokenBucketConfig, now: I) -> Self {
         Self {
-            rate,
-            bucket_max: max,
-            bucket: max,
+            rate: config.rate,
+            bucket_max: config.bucket_max,
+            bucket: config.bucket_max,
             last_refill: now,
         }
     }
@@ -92,18 +92,18 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
         Ok(ClaimedTokens::new(self, count))
     }
 
-    /// Adjust the refill `rate` and `max` tokens of the bucket.
+    /// Adjust the refill rate and max tokens of the bucket.
     ///
     /// If the new max is smaller than the existing number of tokens,
     /// the number of tokens will be reduced to the new max.
     ///
-    /// A `rate` and/or `max` of 0 is allowed.
+    /// A rate and/or max of 0 is allowed.
     // remove this when we use it in the future
     #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn adjust(&mut self, rate: u64, max: u64) {
-        self.rate = rate;
-        self.bucket_max = max;
-        self.bucket = std::cmp::min(self.bucket, max);
+    pub(crate) fn adjust(&mut self, config: &TokenBucketConfig) {
+        self.rate = config.rate;
+        self.bucket_max = config.bucket_max;
+        self.bucket = std::cmp::min(self.bucket, self.bucket_max);
     }
 
     /// An estimated time at which the bucket will have `tokens` available.
@@ -242,6 +242,15 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
         // (tokens / second) * (microseconds) / (microseconds / second) = tokens
         rate.saturating_mul(micros) / (1000 * 1000)
     }
+}
+
+/// The refill rate and token max for a [`TokenBucket`].
+pub(crate) struct TokenBucketConfig {
+    /// The refill rate in tokens/second.
+    pub(crate) rate: u64,
+    /// The max amount of tokens in the bucket.
+    /// Commonly referred to as the "burst".
+    pub(crate) bucket_max: u64,
 }
 
 /// A handle to a number of claimed tokens.
@@ -438,24 +447,40 @@ mod test {
 
     #[test]
     fn adjust() {
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(100));
+        let config = TokenBucketConfig {
+            rate: 10,
+            bucket_max: 100,
+        };
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
         assert_eq!(tb.bucket, 100);
         assert_eq!(tb.bucket_max, 100);
         assert_eq!(tb.rate, 10);
 
-        tb.adjust(20, 100);
+        tb.adjust(&TokenBucketConfig {
+            rate: 20,
+            bucket_max: 100,
+        });
         assert_eq!(tb.bucket, 100);
         assert_eq!(tb.bucket_max, 100);
 
-        tb.adjust(20, 40);
+        tb.adjust(&TokenBucketConfig {
+            rate: 20,
+            bucket_max: 40,
+        });
         assert_eq!(tb.bucket, 40);
         assert_eq!(tb.bucket_max, 40);
 
-        tb.adjust(20, 100);
+        tb.adjust(&TokenBucketConfig {
+            rate: 20,
+            bucket_max: 100,
+        });
         assert_eq!(tb.bucket, 40);
         assert_eq!(tb.bucket_max, 100);
 
-        tb.adjust(200, 100);
+        tb.adjust(&TokenBucketConfig {
+            rate: 200,
+            bucket_max: 100,
+        });
         assert_eq!(tb.bucket, 40);
         assert_eq!(tb.bucket_max, 100);
         assert_eq!(tb.rate, 200);
@@ -463,8 +488,16 @@ mod test {
 
     #[test]
     fn adjust_zero() {
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(100));
-        tb.adjust(0, 200);
+        let config = TokenBucketConfig {
+            rate: 10,
+            bucket_max: 100,
+        };
+
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
+        tb.adjust(&TokenBucketConfig {
+            rate: 0,
+            bucket_max: 200,
+        });
         assert_eq!(tb.bucket, 100);
         assert_eq!(tb.bucket_max, 200);
         assert_eq!(tb.rate, 0);
@@ -472,8 +505,11 @@ mod test {
         tb.refill(MillisTimestamp(10_000_000));
         assert_eq!(tb.bucket, 100);
 
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(100));
-        tb.adjust(10, 0);
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
+        tb.adjust(&TokenBucketConfig {
+            rate: 10,
+            bucket_max: 0,
+        });
         assert_eq!(tb.bucket, 0);
         assert_eq!(tb.bucket_max, 0);
         assert_eq!(tb.rate, 10);
@@ -481,8 +517,11 @@ mod test {
         tb.refill(MillisTimestamp(10_000_000));
         assert_eq!(tb.bucket, 0);
 
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(100));
-        tb.adjust(0, 0);
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
+        tb.adjust(&TokenBucketConfig {
+            rate: 0,
+            bucket_max: 0,
+        });
         assert_eq!(tb.bucket, 0);
         assert_eq!(tb.bucket_max, 0);
         assert_eq!(tb.rate, 0);
@@ -494,7 +533,11 @@ mod test {
     #[test]
     fn is_empty() {
         // increases 10 tokens/second (one every 100 ms)
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(100));
+        let config = TokenBucketConfig {
+            rate: 10,
+            bucket_max: 100,
+        };
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
         assert!(!tb.is_empty());
 
         tb.drain(99).unwrap();
@@ -513,7 +556,11 @@ mod test {
     #[test]
     fn correctness() {
         // increases 10 tokens/second (one every 100 ms)
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(100));
+        let config = TokenBucketConfig {
+            rate: 10,
+            bucket_max: 100,
+        };
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
 
         tb.drain(50).unwrap();
         assert_eq!(tb.bucket, 50);
@@ -538,7 +585,11 @@ mod test {
     #[test]
     fn rounding() {
         // increases 10 tokens/second (one every 100 ms)
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(0));
+        let config = TokenBucketConfig {
+            rate: 10,
+            bucket_max: 100,
+        };
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(0));
         tb.drain(100).unwrap();
 
         // ensure that refilling at 150 ms does not change the last refill time to 150 ms,
@@ -556,7 +607,11 @@ mod test {
     #[test]
     fn tokens_available_at() {
         // increases 10 tokens/second (one every 100 ms)
-        let mut tb = TokenBucket::new(10, 100, MillisTimestamp(0));
+        let config = TokenBucketConfig {
+            rate: 10,
+            bucket_max: 100,
+        };
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(0));
 
         // bucket is empty at 0 ms, next token at 100 ms
         tb.drain(100).unwrap();
@@ -605,7 +660,10 @@ mod test {
         assert_eq!(tb.tokens_available_at(u64::MAX), None);
 
         // set the refill rate to 0
-        tb.adjust(0, 100);
+        tb.adjust(&TokenBucketConfig {
+            rate: 0,
+            bucket_max: 100,
+        });
 
         assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(200)));
         assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(200)));

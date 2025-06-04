@@ -34,7 +34,7 @@ use crate::tunnel::circuit::ClientCirc;
 use crate::memquota::StreamAccount;
 use crate::stream::StreamReader;
 use crate::tunnel::StreamTarget;
-use crate::util::token_bucket::writer::RateLimitedWriter;
+use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
@@ -487,9 +487,12 @@ impl DataStream {
         let time_provider = DynTimeProvider::new(time_provider);
         // TODO(arti#534): need to be able to update this dynamically in response to flow control
         // events
-        let rate_limit = u64::MAX; // bytes per second
+        let config = RateLimitedWriterConfig {
+            rate: u64::MAX,  // bytes per second
+            burst: u64::MAX, // bytes
+        };
         let w = DataWriter {
-            writer: RateLimitedWriter::new(w, rate_limit, rate_limit, time_provider),
+            writer: RateLimitedWriter::new(w, &config, time_provider),
         };
 
         DataStream {

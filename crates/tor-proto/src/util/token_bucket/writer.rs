@@ -10,7 +10,7 @@ use futures::AsyncWrite;
 use sync_wrapper::SyncFuture;
 use tor_rtcompat::SleepProvider;
 
-use super::bucket::TokenBucket;
+use super::bucket::{TokenBucket, TokenBucketConfig};
 
 /// A rate-limited async [writer](AsyncWrite).
 ///
@@ -46,10 +46,14 @@ where
     /// Create a new [`RateLimitedWriter`].
     // We take the rate and bucket max directly rather than a `TokenBucket` to ensure that the token
     // bucket only ever uses times from `sleep_provider`.
-    pub(crate) fn new(writer: W, rate: u64, max: u64, sleep_provider: P) -> Self {
+    pub(crate) fn new(writer: W, config: &RateLimitedWriterConfig, sleep_provider: P) -> Self {
+        let config = TokenBucketConfig {
+            rate: config.rate,
+            bucket_max: config.burst,
+        };
         Self::from_token_bucket(
             writer,
-            TokenBucket::new(rate, max, sleep_provider.now()),
+            TokenBucket::new(&config, sleep_provider.now()),
             sleep_provider,
         )
     }
@@ -277,6 +281,14 @@ mod tokio_impl {
     }
 }
 
+/// The refill rate and burst for a [`RateLimitedWriter`].
+pub(crate) struct RateLimitedWriterConfig {
+    /// The refill rate in bytes/second.
+    pub(crate) rate: u64,
+    /// The "burst" in bytes.
+    pub(crate) burst: u64,
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -292,7 +304,11 @@ mod test {
             let start = rt.now();
 
             // increases 10 tokens/second (one every 100 ms)
-            let mut tb = TokenBucket::new(10, 100, start);
+            let config = TokenBucketConfig {
+                rate: 10,
+                bucket_max: 100,
+            };
+            let mut tb = TokenBucket::new(&config, start);
             // drain the bucket
             tb.drain(100).unwrap();
 
