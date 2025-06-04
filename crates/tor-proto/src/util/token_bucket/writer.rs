@@ -134,7 +134,7 @@ where
         self_.bucket.refill(now);
         let claim = self_.bucket.claim(to_u64(buf.len()));
 
-        let claim = match claim {
+        let mut claim = match claim {
             // claim was successful
             Ok(x) => x,
             // not enough tokens, so let's use a smaller buffer
@@ -214,8 +214,9 @@ where
             Poll::Ready(Ok(x)) => {
                 if x <= buf.len() {
                     claim
-                        .commit_fewer(to_u64(x))
+                        .reduce(to_u64(x))
                         .expect("can't commit fewer tokens?!");
+                    claim.commit();
                 } else {
                     cfg_if::cfg_if! {
                         if #[cfg(debug_assertions)] {

@@ -272,34 +272,26 @@ impl<'a, I> ClaimedTokens<'a, I> {
     }
 
     /// Commit the claimed tokens.
+    ///
+    /// This is equivalent to just dropping the [`ClaimedTokens`], but also returns whether the
+    /// token bucket became empty or not.
     pub(crate) fn commit(mut self) -> BecameEmpty {
         self.commit_impl()
     }
 
-    /// Commit a fewer number of tokens than the original claim.
+    /// Reduce the claim to a fewer number of tokens than the original claim.
     ///
-    /// If `count` is larger than the original claim,
-    /// an error will be returned containing this [`ClaimedTokens`].
-    ///
-    /// **Note:** In the case of an error, the [`ClaimedTokens`] will be returned.
-    /// Dropping this [`ClaimedTokens`] will commit the original amount claimed,
-    /// so make sure to handle this case.
-    pub(crate) fn commit_fewer(
-        mut self,
-        count: u64,
-    ) -> Result<BecameEmpty, (Self, InsufficientTokensError)> {
+    /// If `count` is larger than the original claim, an error will be returned containing the
+    /// current number of claimed tokens.
+    pub(crate) fn reduce(&mut self, count: u64) -> Result<(), InsufficientTokensError> {
         if count > self.count {
-            let self_count = self.count;
-            return Err((
-                self,
-                InsufficientTokensError {
-                    available: self_count,
-                },
-            ));
+            return Err(InsufficientTokensError {
+                available: self.count,
+            });
         }
 
         self.count = count;
-        Ok(self.commit_impl())
+        Ok(())
     }
 
     /// Discard the claim.
