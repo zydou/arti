@@ -9,7 +9,6 @@ use crate::crypto::cell::{
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
 use crate::tunnel::circuit::unique_id::UniqId;
-use crate::tunnel::circuit::CircParameters;
 use crate::tunnel::reactor::MetaCellDisposition;
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
@@ -42,9 +41,6 @@ where
     peer_id: OwnedChanTarget,
     /// Handshake state.
     state: Option<H::StateType>,
-    /// Parameters used for this extension.
-    #[allow(unused)] // TODO: Consider removing this if it does not become needed again.
-    params: CircParameters,
     /// In-progress settings that we're negotiating for this hop.
     settings: NegotiatedHopSettings,
     /// An identifier for logging about this reactor's circuit.
@@ -87,7 +83,7 @@ where
         handshake_id: HandshakeType,
         key: &H::KeyType,
         linkspecs: Vec<EncodedLinkSpec>,
-        params: CircParameters,
+        settings: NegotiatedHopSettings,
         client_aux_data: &impl Borrow<H::ClientAuxData>,
         circ: &mut Circuit,
         done: ReactorResultChannel<()>,
@@ -95,7 +91,6 @@ where
         match (|| {
             let mut rng = rand::rng();
             let unique_id = circ.unique_id;
-            let settings = NegotiatedHopSettings::from_params(&params);
 
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
             let n_hops = circ.crypto_out.n_layers();
@@ -120,7 +115,6 @@ where
             let extender = Self {
                 peer_id,
                 state: Some(state),
-                params,
                 settings,
                 unique_id,
                 expected_hop: hop,

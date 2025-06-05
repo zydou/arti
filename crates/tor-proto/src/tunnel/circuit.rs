@@ -414,14 +414,19 @@ pub(super) struct NegotiatedHopSettings {
 }
 
 impl NegotiatedHopSettings {
-    /// Construct a new `NegotiatedHopSettings` based on `params`.
+    /// Construct a new `NegotiatedHopSettings` based on `params` and `caps`
     ///
     /// This represents the `NegotiatedHopSettings` in a pre-negotiation state:
-    ///
-    pub(super) fn from_params(params: &CircParameters) -> Self {
-        Self {
+    /// the circuit negotiation process will modify it.
+    #[allow(clippy::unnecessary_wraps)] // likely to become fallible in the future.
+    pub(super) fn from_params(
+        params: &CircParameters,
+        caps: &tor_protover::Protocols,
+    ) -> Result<Self> {
+        let _ = caps; // XXXX will use this soon
+        Ok(Self {
             ccontrol: params.ccontrol.clone(),
-        }
+        })
     }
 }
 
@@ -791,12 +796,13 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
+        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -828,12 +834,13 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
+        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtorV3 {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -866,15 +873,14 @@ impl ClientCirc {
     // TODO hs: let's try to enforce the "you can't extend a circuit again once
     // it has been extended this way" property.  We could do that with internal
     // state, or some kind of a type state pattern.
-    //
-    // TODO hs: possibly we should take a set of Protovers, and not just `Params`.
     #[cfg(feature = "hs-common")]
     pub async fn extend_virtual(
         &self,
         protocol: handshake::RelayProtocol,
         role: handshake::HandshakeRole,
         seed: impl handshake::KeyGenerator,
-        params: CircParameters,
+        params: &CircParameters,
+        capabilities: &tor_protover::Protocols,
     ) -> Result<()> {
         use self::handshake::BoxedClientLayer;
 
@@ -884,11 +890,12 @@ impl ClientCirc {
         let BoxedClientLayer { fwd, back, binding } =
             protocol.construct_client_layers(role, seed)?;
 
+        let settings = NegotiatedHopSettings::from_params(params, capabilities)?;
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
             relay_cell_format,
             cell_crypto: (fwd, back, binding),
-            params,
+            settings,
             done: tx,
         };
 
@@ -1218,13 +1225,19 @@ impl PendingClientCirc {
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
     pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<Arc<ClientCirc>> {
+        // We no nothing about this relay, so we assume it supports no protocol capabilities at all.
+        //
+        // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
+        let protocols = tor_protover::Protocols::new();
+        let settings = NegotiatedHopSettings::from_params(&params, &protocols)?;
+
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
             .unbounded_send(CtrlMsg::Create {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::CreateFast,
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1270,6 +1283,7 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
+        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
 
         self.circ
             .control
@@ -1286,7 +1300,7 @@ impl PendingClientCirc {
                         .ed_identity()
                         .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
                 },
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1312,6 +1326,7 @@ impl PendingClientCirc {
     where
         Tg: tor_linkspec::CircTarget,
     {
+        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
         let (tx, rx) = oneshot::channel();
 
         self.circ
@@ -1326,7 +1341,7 @@ impl PendingClientCirc {
                         pk: *target.ntor_onion_key(),
                     },
                 },
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;

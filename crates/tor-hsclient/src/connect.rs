@@ -1284,6 +1284,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let params = onion_circparams_from_netparams(self.netdir.params())
             .map_err(into_internal!("Failed to build CircParameters"))?;
+        // TODO: We may be able to infer more about the supported protocols of the other side from our
+        // handshake, and from its descriptors.
+        //
+        // TODO CC: This is relevant for congestion control!
+        let protocols = self.netdir.client_protocol_status().required_protocols();
 
         rendezvous
             .rend_circ
@@ -1292,6 +1297,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 handshake::HandshakeRole::Initiator,
                 keygen,
                 params,
+                protocols,
             )
             .await
             .map_err(into_internal!(
@@ -1416,6 +1422,7 @@ trait MockableClientCirc: Debug {
         role: tor_proto::circuit::handshake::HandshakeRole,
         handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
+        capabilities: &tor_protover::Protocols,
     ) -> tor_proto::Result<()>;
 }
 
@@ -1471,8 +1478,9 @@ impl MockableClientCirc for ClientCirc {
         role: tor_proto::circuit::handshake::HandshakeRole,
         handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
+        capabilities: &tor_protover::Protocols,
     ) -> tor_proto::Result<()> {
-        ClientCirc::extend_virtual(self, protocol, role, handshake, params).await
+        ClientCirc::extend_virtual(self, protocol, role, handshake, &params, capabilities).await
     }
 }
 
@@ -1628,6 +1636,7 @@ mod test {
             role: tor_proto::circuit::handshake::HandshakeRole,
             handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
             params: CircParameters,
+            capabilities: &tor_protover::Protocols,
         ) -> tor_proto::Result<()> {
             todo!()
         }
