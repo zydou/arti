@@ -422,7 +422,7 @@ impl NegotiatedHopSettings {
     /// This represents the `NegotiatedHopSettings` in a pre-negotiation state:
     /// the circuit negotiation process will modify it.
     #[allow(clippy::unnecessary_wraps)] // likely to become fallible in the future.
-    pub(super) fn from_params(
+    pub(super) fn from_params_and_caps(
         params: &CircParameters,
         caps: &tor_protover::Protocols,
     ) -> Result<Self> {
@@ -810,7 +810,7 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
-        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
+        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
                 peer_id,
@@ -848,7 +848,7 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
-        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
+        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtorV3 {
                 peer_id,
@@ -904,7 +904,7 @@ impl ClientCirc {
         let BoxedClientLayer { fwd, back, binding } =
             protocol.construct_client_layers(role, seed)?;
 
-        let settings = NegotiatedHopSettings::from_params(params, capabilities)?;
+        let settings = NegotiatedHopSettings::from_params_and_caps(params, capabilities)?;
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
             relay_cell_format,
@@ -1243,7 +1243,7 @@ impl PendingClientCirc {
         //
         // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
         let protocols = tor_protover::Protocols::new();
-        let settings = NegotiatedHopSettings::from_params(&params, &protocols)?;
+        let settings = NegotiatedHopSettings::from_params_and_caps(&params, &protocols)?;
 
         let (tx, rx) = oneshot::channel();
         self.circ
@@ -1297,7 +1297,7 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
-        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
+        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
 
         self.circ
             .control
@@ -1340,7 +1340,7 @@ impl PendingClientCirc {
     where
         Tg: tor_linkspec::CircTarget,
     {
-        let settings = NegotiatedHopSettings::from_params(&params, target.protovers())?;
+        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
         let (tx, rx) = oneshot::channel();
 
         self.circ

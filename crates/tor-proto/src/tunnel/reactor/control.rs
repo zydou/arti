@@ -14,7 +14,7 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
-use crate::tunnel::reactor::circuit::circ_extensions_from_params;
+use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
 use crate::tunnel::reactor::{NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::skew::ClockSkew;
@@ -368,7 +368,7 @@ impl<'a> ControlHandler<'a> {
                 // TODO #1067, TODO #1947: support negotiating other formats.
                 let relay_cell_format = RelayCellFormat::V0;
 
-                let client_extensions = circ_extensions_from_params(&settings)?;
+                let client_extensions = circ_extensions_from_settings(&settings)?;
 
                 let (extender, cell) =
                     CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(

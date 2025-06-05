@@ -368,11 +368,9 @@ impl Circuit {
         let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
         let binding = None;
-        let settings = NegotiatedHopSettings::from_params(
-            params,
-            &"".parse().expect("couldn't construct empty protocols"),
-        )
-        .expect("Can't construct NegotiatedHopSettings");
+        let settings =
+            NegotiatedHopSettings::from_params_and_caps(params, &tor_protover::Protocols::new())
+                .expect("Can't construct NegotiatedHopSettings");
         self.add_hop(
             format,
             path::HopDetail::Relay(dummy_peer_id),
@@ -1211,7 +1209,7 @@ impl Circuit {
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
         // Set the client extensions.
-        let client_extensions = circ_extensions_from_params(&settings)?;
+        let client_extensions = circ_extensions_from_settings(&settings)?;
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,
         };
@@ -1800,7 +1798,7 @@ impl CircHop {
 /// Return the client circuit-creation extensions that we should use in order to negotiate
 /// a given set of circuit hop parameters.
 #[allow(clippy::unnecessary_wraps)]
-pub(super) fn circ_extensions_from_params(
+pub(super) fn circ_extensions_from_settings(
     params: &NegotiatedHopSettings,
 ) -> Result<Vec<CircRequestExt>> {
     // allow 'unused_mut' because of the combinations of `cfg` conditions below
