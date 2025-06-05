@@ -151,7 +151,7 @@ cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive-deftly = { version = "~1.0.0", features = ["full", "beta"], optional = true }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.1" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.9.3" }
 futures = "0.3.14"
 hickory-proto = { version = "0.24.4", optional = true }
 humantime = "2"

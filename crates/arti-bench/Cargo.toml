@@ -21,7 +21,7 @@ arti = { path = "../arti", version = "1.4.3" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.30.0" }
 clap = { version = "4.3.24", features = ["wrap_help"] }
 float-ord = "0.3"
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.1" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.9.3" }
 futures = "0.3.14"
 rand = "0.9.1"
 serde = { version = "1.0.103", features = ["derive"] }
