@@ -52,7 +52,7 @@ which are documented below.
 
 ### Directory
 
-* Arti no longer uses ".z" suffix in directory URLs. ([!3013])
+* Arti no longer uses the ".z" suffix in directory URLs. ([!3013])
 
 ### Testing
 
