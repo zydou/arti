@@ -10,13 +10,14 @@ use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::io::Result as IoResult;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-#[cfg(feature = "rpc")]
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 #[allow(unused)]
 use arti_client::HasKind;
 use arti_client::{ErrorKind, IntoTorAddr as _, StreamPrefs, TorClient};
+#[cfg(feature = "rpc")]
+use arti_rpcserver::RpcMgr;
 use tor_config::Listen;
 use tor_error::warn_report;
 #[cfg(feature = "rpc")]
@@ -27,6 +28,11 @@ use tor_socksproto::{Handshake as _, SocksAddr, SocksAuth, SocksCmd, SocksReques
 use anyhow::{anyhow, Context, Result};
 
 use crate::rpc::RpcProxySupport;
+
+/// Placeholder type when RPC is disabled at compile time.
+#[cfg(not(feature = "rpc"))]
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) enum RpcMgr {}
 
 /// Payload to return when an HTTP connection arrive on a Socks port
 const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
@@ -803,6 +809,8 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
         }) => (Some(rpc_mgr), Some(rpc_state_sender)),
         None => (None, None),
     };
+    #[cfg(not(feature = "rpc"))]
+    let rpc_mgr = None;
 
     if !listen.is_localhost_only() {
         warn!("Configured to listen for SOCKS on non-local addresses. This is usually insecure! We recommend listening on localhost only.");
@@ -852,6 +860,16 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
         }
     }
 
+    run_socks_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
+}
+
+/// Launch a SOCKS proxy from a given set of already bound listeners.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) async fn run_socks_proxy_with_listeners<R: Runtime>(
+    tor_client: TorClient<R>,
+    listeners: Vec<<R as tor_rtcompat::NetStreamProvider>::Listener>,
+    rpc_mgr: Option<Arc<RpcMgr>>,
+) -> Result<()> {
     // Create a stream of (incoming socket, listener_id) pairs, selected
     // across all the listeners.
     let mut incoming = futures::stream::select_all(
@@ -883,8 +901,8 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
             #[cfg(feature = "rpc")]
             rpc_mgr: rpc_mgr.clone(),
         };
-        let runtime_copy = runtime.clone();
-        runtime.spawn(async move {
+        let runtime_copy = tor_client.runtime().clone();
+        tor_client.runtime().spawn(async move {
             let res =
                 handle_socks_conn(runtime_copy, socks_context, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
