@@ -100,6 +100,55 @@ for funding the development of Arti!
 
 <!-- links go here -->
 
+[!2697]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2697
+[!2921]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2921
+[!2937]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2937
+[!2946]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2946
+[!2956]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2956
+[!2962]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2962
+[!2965]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2965
+[!2967]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2967
+[!2968]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2968
+[!2972]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2972
+[!2980]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2980
+[!2987]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2987
+[!2988]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2988
+[!2989]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2989
+[!2990]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2990
+[!2991]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2991
+[!2992]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2992
+[!2993]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2993
+[!2995]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2995
+[!2996]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2996
+[!2998]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2998
+[!2999]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2999
+[!3000]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3000
+[!3001]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3001
+[!3002]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3002
+[!3003]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3003
+[!3005]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3005
+[!3006]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3006
+[!3007]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3007
+[!3010]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3010
+[!3011]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3011
+[!3013]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3013
+[#1335]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1335
+[#1913]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1913
+[#1922]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1922
+[#1945]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1945
+[#1969]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1969
+[#1981]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1981
+[#2004]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2004
+[#2014]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2014
+[#2911]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2911
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[`cargo-sort`]: https://crates.io/crates/cargo-sort
+[cgo]: https://eprint.iacr.org/2025/583
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[prop346]: https://spec.torproject.org/proposals/346-protovers-again.html
+
+
+
 # Arti 1.4.3 — 1 May 2025
 
 Arti 1.4.3 adds adds the framework for measuring metrics
