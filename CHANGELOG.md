@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.4.4 - 5 June 2025
+# Arti 1.4.4 — 5 June 2025
 
 Arti 1.4.4 continues our development efforts to support multi-legged tunnels in
 Arti via our Conflux feature. In addition to Conflux, we continue preparing
@@ -40,7 +40,7 @@ which are documented below.
 * Continued development towards supporting Conflux tunnels in Arti. ([!2946],
   [!2996], [!3005], [!3002])
 
-### Counter Galois development
+### Counter Galois Onion development
 
 * Continued development towards supporting Counter Galois Onion relay cell encryption in Arti. ([!2972],
   [!2988], [!2993], [!2998], [!3010], [#1969])
@@ -49,10 +49,6 @@ which are documented below.
 
 * Arti no longer uses MiddleOnly relays for rendezvous points or introduction points. ([!3007], [#2911])
 * Continued progress on service-side Proof-of-Work (PoW) support. ([!2697])
-
-### Directory
-
-* Arti no longer uses the ".z" suffix in directory URLs. ([!3013])
 
 ### Testing
 
@@ -74,6 +70,7 @@ which are documented below.
 
 ### Cleanups, minor features, and bugfixes
 
+* Arti no longer uses the ".z" suffix in directory URLs. ([!3013])
 * Implement `HasKind` trait for `TorAddrError`. ([!2965])
 * `tor-rtcompat`: We no longer bundle an unused copy of the Lets Encrypt root
   certificate. ([!3006], [#2004])
