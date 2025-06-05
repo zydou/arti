@@ -116,26 +116,27 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
     /// for example if the refill rate is 0,
     /// the bucket max is too small,
     /// or the time is too large to be represented as an `I`.
-    pub(crate) fn tokens_available_at(&self, tokens: u64) -> Option<I> {
+    pub(crate) fn tokens_available_at(&self, tokens: u64) -> Result<I, NeverEnoughTokensError> {
         let tokens_needed = tokens.saturating_sub(self.bucket);
 
         // check if we currently have enough tokens before considering refilling
         if tokens_needed == 0 {
-            return Some(self.last_refill);
+            return Ok(self.last_refill);
         }
 
         // if the rate is 0, we'll never get more tokens
         if self.rate == 0 {
-            return None;
+            return Err(NeverEnoughTokensError::ZeroRate);
         }
 
         // if more tokens are wanted than the capacity of the bucket, we'll never get enough
         if tokens > self.bucket_max {
-            return None;
+            return Err(NeverEnoughTokensError::ExceedsMaxTokens);
         }
 
         // this may underestimate the time if either argument is very large
-        let time_needed = Self::tokens_to_duration(tokens_needed, self.rate)?;
+        let time_needed = Self::tokens_to_duration(tokens_needed, self.rate)
+            .ok_or(NeverEnoughTokensError::ZeroRate)?;
 
         // Always return at least 1 microsecond since:
         // 1. We don't want to return `Duration::ZERO` if the tokens aren't ready,
@@ -143,7 +144,9 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
         // 2. Clocks generally don't operate at <1 us resolution.
         let time_needed = std::cmp::max(time_needed, Duration::from_micros(1));
 
-        self.last_refill.checked_add(time_needed)
+        self.last_refill
+            .checked_add(time_needed)
+            .ok_or(NeverEnoughTokensError::InstantNotRepresentable)
     }
 
     /// Refill the bucket.
@@ -351,6 +354,21 @@ impl InsufficientTokensError {
     pub(crate) fn available_tokens(&self) -> u64 {
         self.available
     }
+}
+
+/// The token bucket will never have the requested number of tokens.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("there will never be enough tokens for this operation")]
+pub(crate) enum NeverEnoughTokensError {
+    /// The request exceeds the bucket's maximum number of tokens.
+    ExceedsMaxTokens,
+    /// The refill rate is 0.
+    ZeroRate,
+    /// The time is not representable.
+    ///
+    /// For example the if the rate is low and a large number of tokens were requested, it may be
+    /// too far in the future that it cannot be represented as a time value.
+    InstantNotRepresentable,
 }
 
 /// The token bucket transitioned from "empty" to "non-empty".
@@ -608,48 +626,53 @@ mod test {
         // bucket is empty at 0 ms, next token at 100 ms
         tb.drain(100).unwrap();
 
-        assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(0)));
-        assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(100)));
-        assert_eq!(tb.tokens_available_at(2), Some(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(0)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(100)));
+        assert_eq!(tb.tokens_available_at(2), Ok(MillisTimestamp(200)));
 
         // bucket is still empty at 40 ms, next token at 100 ms
         tb.refill(MillisTimestamp(40));
 
-        assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(0)));
-        assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(100)));
-        assert_eq!(tb.tokens_available_at(2), Some(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(0)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(100)));
+        assert_eq!(tb.tokens_available_at(2), Ok(MillisTimestamp(200)));
 
         // bucket has 1 token at 100 ms, next token at 200 ms
         tb.refill(MillisTimestamp(100));
 
-        assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(100)));
-        assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(100)));
-        assert_eq!(tb.tokens_available_at(2), Some(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(100)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(100)));
+        assert_eq!(tb.tokens_available_at(2), Ok(MillisTimestamp(200)));
 
         // bucket is empty at 100 ms, next token at 200 ms
         tb.drain(1).unwrap();
 
-        assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(100)));
-        assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(200)));
-        assert_eq!(tb.tokens_available_at(2), Some(MillisTimestamp(300)));
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(100)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(2), Ok(MillisTimestamp(300)));
 
         // bucket is empty at 140 ms, next token at 200 ms
         tb.refill(MillisTimestamp(140));
 
-        assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(100)));
-        assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(200)));
-        assert_eq!(tb.tokens_available_at(2), Some(MillisTimestamp(300)));
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(100)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(2), Ok(MillisTimestamp(300)));
 
         // bucket has 1 token at 210 ms, next token at 300 ms
         tb.refill(MillisTimestamp(210));
 
-        assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(200)));
-        assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(200)));
-        assert_eq!(tb.tokens_available_at(2), Some(MillisTimestamp(300)));
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(2), Ok(MillisTimestamp(300)));
 
-        assert_eq!(tb.tokens_available_at(100), Some(MillisTimestamp(10_100)));
-        assert_eq!(tb.tokens_available_at(101), None);
-        assert_eq!(tb.tokens_available_at(u64::MAX), None);
+        use NeverEnoughTokensError as NETE;
+
+        assert_eq!(tb.tokens_available_at(100), Ok(MillisTimestamp(10_100)));
+        assert_eq!(tb.tokens_available_at(101), Err(NETE::ExceedsMaxTokens));
+        assert_eq!(
+            tb.tokens_available_at(u64::MAX),
+            Err(NETE::ExceedsMaxTokens),
+        );
 
         // set the refill rate to 0
         tb.adjust(&TokenBucketConfig {
@@ -657,9 +680,9 @@ mod test {
             bucket_max: 100,
         });
 
-        assert_eq!(tb.tokens_available_at(0), Some(MillisTimestamp(200)));
-        assert_eq!(tb.tokens_available_at(1), Some(MillisTimestamp(200)));
-        assert_eq!(tb.tokens_available_at(2), None);
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(2), Err(NETE::ZeroRate));
     }
 
     #[test]

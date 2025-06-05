@@ -10,7 +10,7 @@ use futures::AsyncWrite;
 use sync_wrapper::SyncFuture;
 use tor_rtcompat::SleepProvider;
 
-use super::bucket::{TokenBucket, TokenBucketConfig};
+use super::bucket::{NeverEnoughTokensError, TokenBucket, TokenBucketConfig};
 
 /// A rate-limited async [writer](AsyncWrite).
 ///
@@ -169,9 +169,20 @@ where
                     // tokens.
                     let wake_at_tokens = std::cmp::min(wake_at_tokens, self_.bucket.max());
 
-                    // `None` indicates to sleep forever
                     let wake_at = self_.bucket.tokens_available_at(wake_at_tokens);
                     let sleep_for = wake_at.map(|x| x.saturating_duration_since(now));
+
+                    // `None` indicates to sleep forever
+                    let sleep_for = match sleep_for {
+                        Ok(x) => Some(x),
+                        Err(NeverEnoughTokensError::ExceedsMaxTokens) => {
+                            panic!("exceeds max tokens, but we took the max into account above");
+                        }
+                        // we aren't refilling, so sleep forever
+                        Err(NeverEnoughTokensError::ZeroRate) => None,
+                        // too far in the future to be represented, so sleep forever
+                        Err(NeverEnoughTokensError::InstantNotRepresentable) => None,
+                    };
 
                     // configure the sleep future and poll it to register
                     let poll = Self::register_sleep(
