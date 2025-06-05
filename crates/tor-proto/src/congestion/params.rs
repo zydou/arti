@@ -209,7 +209,7 @@ impl CongestionControlParams {
     }
 
     /// Make these parameters to use the fallback algorithm. This can't be reversed.
-    pub fn use_fallback_alg(&mut self) {
+    pub(crate) fn use_fallback_alg(&mut self) {
         self.alg = self.fallback_alg.clone();
     }
 }

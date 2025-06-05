@@ -392,7 +392,10 @@ pub struct PendingClientCirc {
 }
 
 /// Description of the network's current rules for building circuits.
-// XXXX This documentation is not right.
+///
+/// This type describes rules derived from the consensus,
+/// and possibly amended by our own configuration.
+/// It is usually used at a per-circuit level.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct CircParameters {
@@ -423,10 +426,17 @@ impl NegotiatedHopSettings {
         params: &CircParameters,
         caps: &tor_protover::Protocols,
     ) -> Result<Self> {
-        let _ = caps; // XXXX will use this soon
-        Ok(Self {
+        let mut settings = Self {
             ccontrol: params.ccontrol.clone(),
-        })
+        };
+
+        // Not supporting FlowCtrl=2 means we have to use the fallback congestion control algorithm
+        // which is the FixedWindow one.
+        if !caps.supports_named_subver(named::FLOWCTRL_CC) {
+            settings.ccontrol.use_fallback_alg();
+        }
+
+        Ok(settings)
     }
 }
 
@@ -1459,7 +1469,7 @@ pub(crate) mod test {
             .rsa_identity(EXAMPLE_RSA_ID.into());
         builder
             .ntor_onion_key(EXAMPLE_PK.into())
-            .protocols("FlowCtrl=1".parse().unwrap())
+            .protocols("FlowCtrl=1-2".parse().unwrap())
             .build()
             .unwrap()
     }
