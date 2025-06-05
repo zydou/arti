@@ -1,6 +1,6 @@
 [package]
 name = "tor-llcrypto"
-version = "0.30.0"
+version = "0.31.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.83"
@@ -66,7 +66,7 @@ sha3 = "0.10.6"
 signature = "2"
 subtle = "2"
 thiserror = "2"
-tor-memquota = { version = "0.30.0", path = "../tor-memquota", default-features = false, optional = true }
+tor-memquota = { version = "0.31.0", path = "../tor-memquota", default-features = false, optional = true }
 typenum = { version = "1.15.0", optional = true }
 visibility = "0.1.0"
 x25519-dalek = { version = "2.0.0", features = ["static_secrets"] }
@@ -77,7 +77,7 @@ cipher = "0.4.1"
 hex-literal = "0.4"
 rand = "0.9.1"
 serde_test = "1.0.124"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.30.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.31.0" }
 [package.metadata.docs.rs]
 all-features = true
 
