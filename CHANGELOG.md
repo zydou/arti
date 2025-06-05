@@ -42,7 +42,7 @@ which are documented below.
 
 ### Counter Galois development
 
-* Continued development towards supporting Counter Galois in Arti. ([!2972],
+* Continued development towards supporting Counter Galois Onion relay cell encryption in Arti. ([!2972],
   [!2988], [!2993], [!2998], [!3010], [#1969])
 
 ### Onion service development
