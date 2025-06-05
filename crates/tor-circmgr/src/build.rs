@@ -515,14 +515,18 @@ fn build_cc_vegas(
 
 /// Return the congestion control FixedWindow algorithm using the given network parameters.
 fn build_cc_fixedwindow(inp: &NetParameters) -> ccparams::Algorithm {
-    ccparams::Algorithm::FixedWindow(
-        ccparams::FixedWindowParamsBuilder::default()
-            .circ_window_start(inp.circuit_window.get() as u16)
-            .circ_window_min(inp.circuit_window.lower() as u16)
-            .circ_window_max(inp.circuit_window.upper() as u16)
-            .build()
-            .expect("Unable to build FixedWindow params from NetParams"),
-    )
+    ccparams::Algorithm::FixedWindow(build_cc_fixedwindow_params(inp))
+}
+
+/// Return the parameters for the congestion control FixedWindow algorithm
+/// using the given network parameters.
+fn build_cc_fixedwindow_params(inp: &NetParameters) -> ccparams::FixedWindowParams {
+    ccparams::FixedWindowParamsBuilder::default()
+        .circ_window_start(inp.circuit_window.get() as u16)
+        .circ_window_min(inp.circuit_window.lower() as u16)
+        .circ_window_max(inp.circuit_window.upper() as u16)
+        .build()
+        .expect("Unable to build FixedWindow params from NetParams")
 }
 
 /// Return a new circuit parameter struct using the given network parameters and algorithm to use.
@@ -557,7 +561,7 @@ fn circparameters_from_netparameters(
         .map_err(into_internal!("Unable to build RTT params from NetParams"))?;
     let ccontrol = ccparams::CongestionControlParamsBuilder::default()
         .alg(alg)
-        .fallback_alg(build_cc_fixedwindow(inp))
+        .fixed_window_params(build_cc_fixedwindow_params(inp))
         .cwnd_params(cwnd_params)
         .rtt_params(rtt_params)
         .build()

@@ -430,10 +430,14 @@ impl NegotiatedHopSettings {
             ccontrol: params.ccontrol.clone(),
         };
 
-        // Not supporting FlowCtrl=2 means we have to use the fallback congestion control algorithm
-        // which is the FixedWindow one.
-        if !caps.supports_named_subver(named::FLOWCTRL_CC) {
-            settings.ccontrol.use_fallback_alg();
+        match settings.ccontrol.alg() {
+            crate::ccparams::Algorithm::FixedWindow(_) => {}
+            crate::ccparams::Algorithm::Vegas(_) => {
+                // If the target doesn't support FLOWCTRL_CC, we can't use Vegas.
+                if !caps.supports_named_subver(named::FLOWCTRL_CC) {
+                    settings.ccontrol.use_fallback_alg();
+                }
+            }
         }
 
         Ok(settings)

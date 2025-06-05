@@ -185,12 +185,12 @@ impl CongestionWindowParams {
 pub struct CongestionControlParams {
     /// The congestion control algorithm to use.
     alg: Algorithm,
-    /// This is the fallback algorithm in case the one we have in the consensus is not supported by
-    /// the relay we are connecting to. Reminder that these parameteres are per-hop.
+    /// Parameters to the fallback fixed-window algorithm, which we use
+    /// when the one in `alg` is not supported by a given relay.
     ///
     /// It is put in here because by the time we do path selection, we don't have access to the
     /// consensus and so we have to keep our fallback ready.
-    fallback_alg: Algorithm,
+    fixed_window_params: FixedWindowParams,
     /// Congestion window parameters.
     #[getter(as_mut)]
     cwnd_params: CongestionWindowParams,
@@ -210,7 +210,7 @@ impl CongestionControlParams {
 
     /// Make these parameters to use the fallback algorithm. This can't be reversed.
     pub(crate) fn use_fallback_alg(&mut self) {
-        self.alg = self.fallback_alg.clone();
+        self.alg = Algorithm::FixedWindow(self.fixed_window_params.clone());
     }
 }
 
