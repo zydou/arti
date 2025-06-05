@@ -1,6 +1,6 @@
 [package]
 name = "tor-relay-crypto"
-version = "0.30.0"
+version = "0.31.0"
 authors = ["The Tor Project, Inc."]
 edition = "2021"
 rust-version = "1.83"
@@ -27,13 +27,13 @@ full = [
 derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
 humantime = "2"
-tor-cert = { path = "../tor-cert", version = "0.30.0", features = ["encode"] }
-tor-checkable = { path = "../tor-checkable", version = "0.30.0" }
-tor-error = { path = "../tor-error", version = "0.30.0" }
-tor-key-forge = { path = "../tor-key-forge", version = "0.30.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.30.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.30.0" }
-tor-persist = { path = "../tor-persist", version = "0.30.0" }
+tor-cert = { path = "../tor-cert", version = "0.31.0", features = ["encode"] }
+tor-checkable = { path = "../tor-checkable", version = "0.31.0" }
+tor-error = { path = "../tor-error", version = "0.31.0" }
+tor-key-forge = { path = "../tor-key-forge", version = "0.31.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.31.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.31.0" }
+tor-persist = { path = "../tor-persist", version = "0.31.0" }
 
 [dev-dependencies]
-tor-keymgr = { version = "0.30.0", path = "../tor-keymgr", features = ["testing"] }
+tor-keymgr = { version = "0.31.0", path = "../tor-keymgr", features = ["testing"] }

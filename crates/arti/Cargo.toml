@@ -1,6 +1,6 @@
 [package]
 name = "arti"
-version = "1.4.3"
+version = "1.4.4"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.83"
@@ -141,17 +141,17 @@ dialoguer = []
 
 [dependencies]
 anyhow = "1.0.23"
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.30.0", default-features = false, features = [
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.31.0", default-features = false, features = [
     "anyhow",
 ] }
-arti-rpcserver = { path = "../arti-rpcserver", version = "0.30.0", optional = true }
+arti-rpcserver = { path = "../arti-rpcserver", version = "0.31.0", optional = true }
 async-ctrlc = { version = "1.2.0", optional = true }
 async-signal = { version = "0.2.10", optional = true }
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive-deftly = { version = "~1.0.0", features = ["full", "beta"], optional = true }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.1" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.9.3" }
 futures = "0.3.14"
 hickory-proto = { version = "0.24.4", optional = true }
 humantime = "2"
@@ -176,17 +176,17 @@ time = "0.3.18"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 toml = "0.8.8"
-tor-async-utils = { path = "../tor-async-utils", version = "0.30.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.30.0" }
-tor-config = { path = "../tor-config", version = "0.30.0" }
-tor-config-path = { path = "../tor-config-path", version = "0.30.0" }
-tor-error = { path = "../tor-error", version = "0.30.0", default-features = false, features = ["tracing"] }
-tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.30.0", optional = true }
-tor-hsservice = { path = "../tor-hsservice", version = "0.30.0", optional = true }
-tor-rpc-connect = { path = "../tor-rpc-connect", version = "0.30.0", optional = true, features = ["rpc-server"] }
-tor-rpcbase = { path = "../tor-rpcbase", version = "0.30.0", optional = true }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.30.0", default-features = false }
-tor-socksproto = { path = "../tor-socksproto", version = "0.30.0" }
+tor-async-utils = { path = "../tor-async-utils", version = "0.31.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.31.0" }
+tor-config = { path = "../tor-config", version = "0.31.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.31.0" }
+tor-error = { path = "../tor-error", version = "0.31.0", default-features = false, features = ["tracing"] }
+tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.31.0", optional = true }
+tor-hsservice = { path = "../tor-hsservice", version = "0.31.0", optional = true }
+tor-rpc-connect = { path = "../tor-rpc-connect", version = "0.31.0", optional = true, features = ["rpc-server"] }
+tor-rpcbase = { path = "../tor-rpcbase", version = "0.31.0", optional = true }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.31.0", default-features = false }
+tor-socksproto = { path = "../tor-socksproto", version = "0.31.0" }
 tracing = "0.1.36"
 tracing-appender = "0.2.0"
 tracing-journald = { version = "0.3.0", optional = true }
@@ -194,7 +194,7 @@ tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 visibility = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.30.0", default-features = false, features = [
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.31.0", default-features = false, features = [
     "testing",
 ] }
 assert_cmd = "2.0.17"
@@ -205,10 +205,10 @@ regex = { version = "1", default-features = false, features = ["std"] }
 serde_json = "1.0.50"
 tempfile = "3"
 test-temp-dir = { version = "0.3.3", path = "../test-temp-dir" }
-tor-async-utils = { version = "0.30.0", path = "../tor-async-utils" }
-tor-config = { path = "../tor-config", version = "0.30.0", features = ["testing"] }
-tor-memquota = { version = "0.30.0", path = "../tor-memquota", default-features = false, features = ["testing"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.30.0" }
+tor-async-utils = { version = "0.31.0", path = "../tor-async-utils" }
+tor-config = { path = "../tor-config", version = "0.31.0", features = ["testing"] }
+tor-memquota = { version = "0.31.0", path = "../tor-memquota", default-features = false, features = ["testing"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.31.0" }
 trycmd = "0.15.4"
 [package.metadata.docs.rs]
 all-features = true

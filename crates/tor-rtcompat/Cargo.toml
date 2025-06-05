@@ -1,6 +1,6 @@
 [package]
 name = "tor-rtcompat"
-version = "0.30.0"
+version = "0.31.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.83"
@@ -83,8 +83,8 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
     "time",
 ] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
-tor-error = { version = "0.30.0", path = "../tor-error" }
-tor-general-addr = { version = "0.30.0", path = "../tor-general-addr" }
+tor-error = { version = "0.31.0", path = "../tor-error" }
+tor-general-addr = { version = "0.31.0", path = "../tor-general-addr" }
 tracing = "0.1.36"
 void = "1"
 

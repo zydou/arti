@@ -225,7 +225,7 @@ before you continue!
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
-   `maint/list_crates --versions  | grep -P '^tor|^arti'`
+   `maint/list_crates --version  | grep -P '^tor|^arti'`
    will show you the existing versions,
    which should usually all be the same.
    Pick the next minor version, and, for each such crate:

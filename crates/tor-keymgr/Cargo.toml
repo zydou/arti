@@ -1,6 +1,6 @@
 [package]
 name = "tor-keymgr"
-version = "0.30.0"
+version = "0.31.0"
 authors = ["The Tor Project, Inc.", "Gabriela Moldovan <gabi@torproject.org>"]
 edition = "2021"
 rust-version = "1.83"
@@ -51,7 +51,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
 dyn-clone = "1.0.11"
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.1", features = ["serde", "walkdir"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.9.3", features = ["serde", "walkdir"] }
 glob-match = "0.2.1"
 humantime = "2"
 inventory = "0.3.13"
@@ -61,15 +61,15 @@ serde = { version = "1.0.103", features = ["derive"] }
 signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.30.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.30.0", default-features = false }
-tor-config = { path = "../tor-config", version = "0.30.0" }
-tor-config-path = { path = "../tor-config-path", version = "0.30.0" }
-tor-error = { path = "../tor-error", version = "0.30.0", features = ["tracing"] }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.30.0" }
-tor-key-forge = { path = "../tor-key-forge", version = "0.30.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.30.0", features = ["keymgr"] }
-tor-persist = { path = "../tor-persist", version = "0.30.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.31.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.31.0", default-features = false }
+tor-config = { path = "../tor-config", version = "0.31.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.31.0" }
+tor-error = { path = "../tor-error", version = "0.31.0", features = ["tracing"] }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.31.0" }
+tor-key-forge = { path = "../tor-key-forge", version = "0.31.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.31.0", features = ["keymgr"] }
+tor-persist = { path = "../tor-persist", version = "0.31.0" }
 tracing = "0.1.36"
 walkdir = { version = "2" }
 zeroize = "1"
@@ -78,11 +78,11 @@ zeroize = "1"
 paste = "1"
 serde_json = "1.0.104"
 tempfile = "3"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.30.0" }
-tor-cert = { path = "../tor-cert", version = "0.30.0", features = ["encode"] }
-tor-checkable = { path = "../tor-checkable", version = "0.30.0" }
-tor-config = { path = "../tor-config", version = "0.30.0", features = ["testing"] }
-tor-llcrypto = { version = "0.30.0", path = "../tor-llcrypto", features = ["testing"] }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.31.0" }
+tor-cert = { path = "../tor-cert", version = "0.31.0", features = ["encode"] }
+tor-checkable = { path = "../tor-checkable", version = "0.31.0" }
+tor-config = { path = "../tor-config", version = "0.31.0", features = ["testing"] }
+tor-llcrypto = { version = "0.31.0", path = "../tor-llcrypto", features = ["testing"] }
 
 [package.metadata.docs.rs]
 all-features = true
