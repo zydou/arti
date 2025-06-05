@@ -22,7 +22,7 @@ which are documented below.
 
 ### Major features
 
-* Arti now supports Circuit Handshake Extensions. ([!2980], [#1945], [prop346]).
+* Arti now supports Circuit Handshake Extensions. ([!2980], [#1945], [prop346])
 
 ### Breaking changes in lower-level crates
 
@@ -33,12 +33,12 @@ which are documented below.
 * `tor-circmgr`: Make path module public on "--features=experimental-api". ([!2990], [#1981])
 * `tor-circmgr`: `CircRequestExt` and `CircResponseExt` are now separate types. ([!2972])
 * `tor-guardmgr`: Vanguard selection APIs now expect a `RelaySelector`. ([!3007])
-* `tor-protover*: `ProtoKind` is now backed by an `u8` type. ([!2980])
+* `tor-protover`: `ProtoKind` is now backed by an `u8` type. ([!2980])
 
 ### Conflux development
 
 * Continued development towards supporting Conflux tunnels in Arti. ([!2946],
-  [!2996], [!3005], [!3002]).
+  [!2996], [!3005], [!3002])
 
 ### Counter Galois development
 
@@ -59,12 +59,7 @@ which are documented below.
 * Reverted commit related to Shadow writer shutdown bug. ([!2968])
 * Enable `--features=full` for our reproducible builds. ([!2956])
 * Fix various new clippy warnings in Rust 1.87. ([!3003])
-
-### Documentation
-
-* Release documentation was updated to include information on "Upgrade Blocker"
-  issues, removal of information of our old website location, and updated
-  information on `semver.md` files in the repository. ([!2987])
+* `tor-keymgr`: internal refactoring to use structured certificate metadata in the tests. ([!2921], [#1913])
 
 ### Infrastructure
 
@@ -73,8 +68,8 @@ which are documented below.
 * We are now using the C Tor package from deb.torproject.org in our Shadow CI. ([!2989])
 * `strace` logging has been disabled in our Shadow CI. ([!2989])
 * Our Debian package now matches the default limits of file descriptors with systemd. ([!2937])
-* New script to ease maintaining Arti: the `cargo_sort` script is used to apply
-  `cargo sort` on our entire workspace. ([!3011], [#2014])
+* Updated the `cargo_sort` maintenance script to work correctly with
+  [`cargo-sort`] 2.0.0. ([!3011], [#2014])
 * Arti now uses Rust 1.86 for Reproducible Builds CI target. ([!2992], [#1335])
 
 ### Cleanups, minor features, and bugfixes
@@ -83,7 +78,9 @@ which are documented below.
 * `tor-rtcompat`: We no longer bundle an unused copy of the Lets Encrypt root
   certificate. ([!3006], [#2004])
 * `tor-proto`: New `extend()` and `create_firsthop()` methods to pick between ntor and ntor3 handshakes. ([!2967])
-* `tor-keymgr`: `ItemMetadata` now supports certificate metadata. ([!2921], [#1913])
+* Release documentation was updated to include information on "Upgrade Blocker"
+  issues, removal of information of our old website location, and updated
+  information on `semver.md` files in the repository. ([!2987])
 
 ### Examples
 
