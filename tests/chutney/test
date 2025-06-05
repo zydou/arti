@@ -5,6 +5,14 @@ set -xeuo pipefail
 # Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
 TEST_DOMAIN=example.com
 
+arti_client_port=$(\
+  jq -r \
+  'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .socksport)'\
+  "$CHUTNEY_DATA_DIR"/nodes/network.json)
+arti_dns_port=$(\
+  jq -r \
+  'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .dnsport)'\
+  "$CHUTNEY_DATA_DIR"/nodes/network.json)
 if [ -n "${RUNNING_IN_SHADOW:-}" ]; then
     # Resolving DNS through tor in shadow is currently broken:
     # <https://github.com/shadow/shadow/issues/323>.
@@ -14,13 +22,15 @@ if [ -n "${RUNNING_IN_SHADOW:-}" ]; then
     #
     # TODO: Fix or work around this. e.g. run a local `unbound` resolver inside
     # the simulation.
-    curl http://"$TEST_DOMAIN" -vs --socks5 127.0.0.1:9150 -o /dev/null
+    curl http://"$TEST_DOMAIN" -vs --socks5 127.0.0.1:"${arti_client_port}" -o /dev/null
 else
-    curl http://"$TEST_DOMAIN" -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+    curl http://"$TEST_DOMAIN" -vs --socks5-hostname 127.0.0.1:"${arti_client_port}" -o /dev/null
 
-    DIRECT_LOOKUP="$(dig +short $TEST_DOMAIN A)"
-    TOR_LOOKUP="$(dig @127.0.0.1 -p 35353 +short $TEST_DOMAIN A)"
-    [ "$DIRECT_LOOKUP" == "$TOR_LOOKUP" ]
+    DIRECT_LOOKUP=$(dig +short $TEST_DOMAIN A)
+    TOR_LOOKUP=$(dig @127.0.0.1 -p "${arti_dns_port}" +short $TEST_DOMAIN A)
+    # The direct lookup can and does return multiple entries.
+    # The tor lookup should correspond to one of them.
+    [[ "$DIRECT_LOOKUP" == *"$TOR_LOOKUP"* ]]
 fi
 
 ## This test only work on a chutney network with IPv6 support such as ipv6-exit-min,

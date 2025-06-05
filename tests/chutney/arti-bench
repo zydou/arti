@@ -26,7 +26,13 @@ fi
 target="basic"
 cd "$(git rev-parse --show-toplevel)"
 
-./tests/chutney/setup
+# Try to ensure we tear down the network on exit, including failure, ctrl-c, etc.
+function teardown() {
+    "${CHUTNEY_BIN}" stop "$target"
+}
+trap teardown EXIT
+
+./tests/chutney/setup -n "$target"
 
 cargo run -p arti-bench --locked --release -- -c "${CHUTNEY_DATA_DIR}/nodes/arti.toml" "$@"
 

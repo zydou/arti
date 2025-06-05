@@ -3,6 +3,7 @@
 set -xeuo pipefail
 
 SCRIPT_NAME=$(basename "$0")
+SCRIPT_DIR=$(realpath "$(dirname "$0")")
 
 function usage()
 {
@@ -17,12 +18,11 @@ Options:
   -n <network>: Name of the chutney network to launch (default: basic)
 
 Modules:
-  "proxy": Launch a arti-based SOCKS proxy.
+  <currently none>
 EOF
 }
 
-PROXY=no
-NETWORK="basic"
+NETWORK="${SCRIPT_DIR}/networks/arti-ci"
 while getopts "hn:" opt ; do
     case "$opt" in
 	h) usage
@@ -41,8 +41,6 @@ shift $((OPTIND-1))
 
 for module in "$@"; do
     case "$module" in
-	proxy) PROXY=yes
-	       ;;
 	*) echo "Unrecognized module. (Run $0 -h for usage)"
 	   ;;
     esac
@@ -51,6 +49,15 @@ done
 target="$NETWORK"
 cd "$(git rev-parse --show-toplevel)"
 echo "target=$target" > tests/chutney/arti.run
+
+# Verify jq is available. Generally it should just be on the PATH.
+# If needed we could add support for passing in a path to jq.
+if ! type -p jq; then
+    echo "It doesn't look like jq is installed."
+    echo "On debian, install with:"
+    echo "apt install jq"
+    exit 1
+fi
 
 # Set and fully resolve chutney bin if not already set.
 : "${CHUTNEY_BIN:=$(type -P chutney)}"
@@ -75,66 +82,23 @@ echo "export CHUTNEY_BIN=\"$CHUTNEY_BIN\"" >> tests/chutney/arti.run
 export CHUTNEY_DATA_DIR="${CHUTNEY_DATA_DIR:-$(pwd)}"
 echo "export CHUTNEY_DATA_DIR=\"$CHUTNEY_DATA_DIR\"" >> tests/chutney/arti.run
 
-"${CHUTNEY_BIN}" configure "$target"
-"${CHUTNEY_BIN}" start "$target"
-CHUTNEY_START_TIME=180 "${CHUTNEY_BIN}" wait_for_bootstrap "$target"
-"${CHUTNEY_BIN}" verify "$target"
-
-if [ "$PROXY" = "no" ] ; then
-    exit 0
-fi
-
-ARTI_FLAGS=()
-if [ "$(id -u)" = "0" ] ; then
-    # If we are root, then we're probably running from CI.  Tell Arti
-    # that's okay.
-    ARTI_FLAGS+=("-o" "application.allow_running_as_root=true")
-fi
-
 # It's not really possible to know where the user built the arti binary.
 # Was it a debug build, a release build, did they use '--target <triple>', etc?
 # Try the platform triple build directory first, and then the usual build directory.
 # It's possible we may choose a stale binary, but there's not much else we can
 # do here other than maybe comparing timestamps.
 if [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
-	cmd=./target/x86_64-unknown-linux-gnu/debug/arti
+	CHUTNEY_ARTI=./target/x86_64-unknown-linux-gnu/debug/arti
 elif [ -x ./target/debug/arti ]; then
-	cmd=./target/debug/arti
+	CHUTNEY_ARTI=./target/debug/arti
 else
 	echo "Could not find a debug arti binary. You can build it with 'cargo build -p arti'."
 	exit 1
 fi
+export CHUTNEY_ARTI
+echo "export CHUTNEY_ARTI=\"$CHUTNEY_ARTI\"" >> tests/chutney/arti.run
 
-(
-	set +e
-	"$cmd" proxy -c "${CHUTNEY_DATA_DIR}/nodes/arti.toml" -d 35353 \
-	       "${ARTI_FLAGS[@]}" &
-	arti_pid=$!
-	echo "pid=$arti_pid" >> tests/chutney/arti.run
-	wait "$arti_pid"
-	echo "result=$?" >> tests/chutney/arti.run
-) & disown
-
-# Wait for arti to start listening (it does so "immediately", but we don't want to get there first)
-# Really there should be a proper daemon startup protocol here, but arti doesn't have one yet.
-for idx in $(seq 30); do
-    if : >&/dev/null </dev/tcp/127.0.0.1/9150 ; then
-	echo "Port 9150 seems open."
-	break
-    elif [ "$idx" == 30 ]; then
-	echo "Waited 30 seconds without result; giving up on port 9150."
-	exit 1
-    else
-	echo "waiting for port 9150..."
-	sleep 1
-    fi
-    # verify Arti did not fail early
-    # shellcheck disable=SC1091
-    source tests/chutney/arti.run
-    pid="${pid:?}"
-    if ! kill -0 "$pid"; then
-	result="${result:?}"
-        echo "Arti failed to start with code $result"
-	exit 1
-    fi
-done
+"${CHUTNEY_BIN}" configure "$target"
+"${CHUTNEY_BIN}" start "$target"
+CHUTNEY_START_TIME=180 "${CHUTNEY_BIN}" wait_for_bootstrap "$target"
+"${CHUTNEY_BIN}" verify "$target"

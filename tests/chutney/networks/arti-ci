@@ -1,0 +1,21 @@
+# This is a network definition for use with chutney.
+
+ConfigureNodes(
+    # Authorities
+    Node(tag="a", authority=1, relay=1).getN(4)
+    # Exits. We don't need many since authorities also function as exits,
+    # but let's have at least 1 non-authority exit relay.
+    + Node(tag="r", relay=1, exit=1).getN(1)
+    # Simple tor client. Useful as a baseline check for "chutney verify",
+    # and used in arti-bench for comparison.
+    + Node(tag="torc", client=1, backend=NodeBackend.TOR).getN(1)
+    # Simple arti client. DNS port enabled for DNS test.
+    + Node(tag="artic", client=1, enable_dnsport=True, backend=NodeBackend.ARTI).getN(1)
+
+    # bridge authority
+    + Node(tag="ba", authority=1, bridgeauthority=1, relay=1).getN(1)
+    # Bridge
+    + Node(tag="br", bridge=1, relay=1).getN(1)
+    # arti bridge client
+    + Node(tag="bc", client=1, backend=NodeBackend.ARTI, bridgeclient=1).getN(1)
+)
