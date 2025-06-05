@@ -34,9 +34,11 @@ use crate::tunnel::circuit::ClientCirc;
 use crate::memquota::StreamAccount;
 use crate::stream::StreamReader;
 use crate::tunnel::StreamTarget;
+use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 use super::AnyCmdChecker;
 
@@ -164,6 +166,31 @@ pub struct ClientDataStreamCtrl {
     _memquota: StreamAccount,
 }
 
+/// The inner writer for [`DataWriter`].
+///
+/// This type is responsible for taking bytes and packaging them into cells.
+/// Rate limiting is implemented in [`DataWriter`] to avoid making this type more complex.
+#[derive(Debug)]
+struct DataWriterInner {
+    /// Internal state for this writer
+    ///
+    /// This is stored in an Option so that we can mutate it in the
+    /// AsyncWrite functions.  It might be possible to do better here,
+    /// and we should refactor if so.
+    state: Option<DataWriterState>,
+
+    /// The memory quota account that should be used for this stream's data
+    ///
+    /// Exists to keep the account alive
+    // If we liked, we could make this conditional; see DataReader.memquota
+    _memquota: StreamAccount,
+
+    /// A control object that can be used to monitor and control this stream
+    /// without needing to own it.
+    #[cfg(feature = "stream-ctrl")]
+    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+}
+
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
 ///
 /// See the [`DataStream`] docs for more information. In particular, note
@@ -199,23 +226,54 @@ pub struct ClientDataStreamCtrl {
 // `tor-proto` need to be reflected above.
 #[derive(Debug)]
 pub struct DataWriter {
-    /// Internal state for this writer
-    ///
-    /// This is stored in an Option so that we can mutate it in the
-    /// AsyncWrite functions.  It might be possible to do better here,
-    /// and we should refactor if so.
-    state: Option<DataWriterState>,
+    /// A wrapper around [`DataWriterInner`] that adds rate limiting.
+    writer: RateLimitedWriter<DataWriterInner, DynTimeProvider>,
+}
 
-    /// The memory quota account that should be used for this stream's data
-    ///
-    /// Exists to keep the account alive
-    // If we liked, we could make this conditional; see DataReader.memquota
-    _memquota: StreamAccount,
+impl AsyncWrite for DataWriter {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<IoResult<usize>> {
+        AsyncWrite::poll_write(Pin::new(&mut self.writer), cx, buf)
+    }
 
-    /// A control object that can be used to monitor and control this stream
-    /// without needing to own it.
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        AsyncWrite::poll_flush(Pin::new(&mut self.writer), cx)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        AsyncWrite::poll_close(Pin::new(&mut self.writer), cx)
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl TokioAsyncWrite for DataWriter {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<IoResult<usize>> {
+        TokioAsyncWrite::poll_write(Pin::new(&mut self.writer), cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_flush(Pin::new(&mut self.writer), cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.writer), cx)
+    }
+}
+
+impl DataWriter {
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(self.writer.inner().client_stream_ctrl())
+    }
 }
 
 /// The read half of a [`DataStream`], implementing [`futures::io::AsyncRead`].
@@ -348,8 +406,13 @@ impl DataStream {
     ///
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
-    pub(crate) fn new(reader: StreamReader, target: StreamTarget, memquota: StreamAccount) -> Self {
-        Self::new_inner(reader, target, false, memquota)
+    pub(crate) fn new<P: SleepProvider + CoarseTimeProvider>(
+        time_provider: P,
+        reader: StreamReader,
+        target: StreamTarget,
+        memquota: StreamAccount,
+    ) -> Self {
+        Self::new_inner(time_provider, reader, target, false, memquota)
     }
 
     /// Wrap raw stream reader and target parts as a connected DataStream.
@@ -359,16 +422,18 @@ impl DataStream {
     ///
     /// This is used by hidden services, exit relays, and directory servers to accept streams.
     #[cfg(feature = "hs-service")]
-    pub(crate) fn new_connected(
+    pub(crate) fn new_connected<P: SleepProvider + CoarseTimeProvider>(
+        time_provider: P,
         reader: StreamReader,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(reader, target, true, memquota)
+        Self::new_inner(time_provider, reader, target, true, memquota)
     }
 
     /// The shared implementation of the `new*()` functions.
-    fn new_inner(
+    fn new_inner<P: SleepProvider + CoarseTimeProvider>(
+        time_provider: P,
         reader: StreamReader,
         target: StreamTarget,
         connected: bool,
@@ -405,7 +470,7 @@ impl DataStream {
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };
-        let w = DataWriter {
+        let w = DataWriterInner {
             state: Some(DataWriterState::Ready(DataWriterImpl {
                 s: target,
                 buf: vec![0; out_buf_len].into_boxed_slice(),
@@ -418,6 +483,30 @@ impl DataStream {
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };
+
+        let time_provider = DynTimeProvider::new(time_provider);
+        // TODO(arti#534): need to be able to update this dynamically in response to flow control
+        // events
+        let config = RateLimitedWriterConfig {
+            rate: u64::MAX,  // bytes per second
+            burst: u64::MAX, // bytes
+            // This number is chosen arbitrarily, but the idea is that we want to balance between
+            // throughput and latency. Assume the user tries to write a large buffer (~600 bytes).
+            // If we set this too small (for example 1), we'll be waking up frequently and writing a
+            // small number of bytes each time to the `DataWriterInner`, even if this isn't enough
+            // bytes to send a cell. If we set this too large (for example 510), we'll be waking up
+            // infrequently to write a larger number of bytes each time. So even if the
+            // `DataWriterInner` has almost a full cell's worth of data queued (for example 490) and
+            // only needs 509-490=19 more bytes before a cell can be sent, it will block until the
+            // rate limiter allows 510 more bytes.
+            //
+            // TODO(arti#2028): Is there an optimal value here?
+            wake_when_bytes_available: 200, // bytes
+        };
+        let w = DataWriter {
+            writer: RateLimitedWriter::new(w, &config, time_provider),
+        };
+
         DataStream {
             w,
             r,
@@ -572,12 +661,11 @@ struct DataWriterImpl {
     status: Arc<Mutex<DataStreamStatus>>,
 }
 
-impl DataWriter {
-    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
-    /// interact with this stream without holding the stream itself.
+impl DataWriterInner {
+    /// See [`DataWriter::client_stream_ctrl`].
     #[cfg(feature = "stream-ctrl")]
-    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
-        Some(&self.ctrl)
+    fn client_stream_ctrl(&self) -> &Arc<ClientDataStreamCtrl> {
+        &self.ctrl
     }
 
     /// Helper for poll_flush() and poll_close(): Performs a flush, then
@@ -650,7 +738,7 @@ impl DataWriter {
     }
 }
 
-impl AsyncWrite for DataWriter {
+impl AsyncWrite for DataWriterInner {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -712,7 +800,7 @@ impl AsyncWrite for DataWriter {
 }
 
 #[cfg(feature = "tokio")]
-impl TokioAsyncWrite for DataWriter {
+impl TokioAsyncWrite for DataWriterInner {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
         TokioAsyncWrite::poll_write(Pin::new(&mut self.compat_write()), cx, buf)
     }

@@ -97,6 +97,13 @@ enum Impl {
 impl DynTimeProvider {
     /// Create a new `DynTimeProvider` from a concrete runtime type
     pub fn new<R: SleepProvider + CoarseTimeProvider>(runtime: R) -> Self {
+        // Try casting to a `DynTimeProvider` directly first, to avoid possibly creating a
+        // `DynTimeProvider` containing another `DynTimeProvider`.
+        let runtime = match downcast_value(runtime) {
+            Ok(x) => return x,
+            Err(x) => x,
+        };
+        // Try casting to a `PreferredRuntime`.
         let imp = match downcast_value(runtime) {
             Ok(preferred) => Impl::Preferred(preferred),
             Err(other) => Impl::Dyn(Box::new(other) as _),
@@ -308,4 +315,24 @@ mod test {
         assert_eq!(dc.0, 0);
         dc.0 = 1;
     }
+
+    if_preferred_runtime! {[
+        #[test]
+        fn dyn_time_provider_from_dyn_time_provider() {
+            // A new `DynTimeProvider(Impl::PreferredRuntime(_))`.
+            let x = DynTimeProvider::new(PreferredRuntime::create().unwrap());
+
+            // Cast `x` as a generic `SleepProvider + CoarseTimeProvider` and wrap in a new
+            // `DynTimeProvider`.
+            fn new_provider<R: SleepProvider + CoarseTimeProvider>(runtime: R) -> DynTimeProvider {
+                DynTimeProvider::new(runtime)
+            }
+            let x = new_provider(x);
+
+            // Ensure that `x` didn't end up as a `DynTimeProvider(Impl::Dyn(_))`.
+            assert!(matches!(x, DynTimeProvider(Impl::Preferred(_))));
+        }
+    ] [
+        // no test if there is no preferred runtime
+    ]}
 }

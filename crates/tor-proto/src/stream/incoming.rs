@@ -14,6 +14,7 @@ use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
+use tor_rtcompat::DynTimeProvider;
 
 /// A pending request from the other end of the circuit for us to open a new
 /// stream.
@@ -26,6 +27,8 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 /// message will be sent anyway.
 #[derive(Debug)]
 pub struct IncomingStream {
+    /// The runtime's time provider.
+    time_provider: DynTimeProvider,
     /// The message that the client sent us to begin the stream.
     request: IncomingStreamRequest,
     /// The information that we'll use to wire up the stream, if it is accepted.
@@ -39,12 +42,14 @@ pub struct IncomingStream {
 impl IncomingStream {
     /// Create a new `IncomingStream`.
     pub(crate) fn new(
+        time_provider: DynTimeProvider,
         request: IncomingStreamRequest,
         stream: StreamTarget,
         reader: StreamReader,
         memquota: StreamAccount,
     ) -> Self {
         Self {
+            time_provider,
             request,
             stream,
             reader,
@@ -61,6 +66,7 @@ impl IncomingStream {
     /// message letting them know the stream was accepted.
     pub async fn accept_data(self, message: msg::Connected) -> Result<DataStream> {
         let Self {
+            time_provider,
             request,
             mut stream,
             reader,
@@ -70,7 +76,12 @@ impl IncomingStream {
         match request {
             IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
                 stream.send(message.into()).await?;
-                Ok(DataStream::new_connected(reader, stream, memquota))
+                Ok(DataStream::new_connected(
+                    time_provider,
+                    reader,
+                    stream,
+                    memquota,
+                ))
             }
             IncomingStreamRequest::Resolve(_) => {
                 Err(internal!("Cannot accept data on a RESOLVE stream").into())

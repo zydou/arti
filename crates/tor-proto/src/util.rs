@@ -7,6 +7,7 @@ pub(crate) mod oneshot_broadcast;
 pub(crate) mod skew;
 pub(crate) mod sometimes_unbounded_sink;
 pub(crate) mod stream_poll_set;
+pub(crate) mod token_bucket;
 pub(crate) mod ts;
 
 use futures::Sink;

@@ -6700,6 +6700,7 @@ dependencies = [
  "static_assertions",
  "statrs",
  "subtle",
+ "sync_wrapper",
  "thiserror 2.0.12",
  "tokio",
  "tokio-util",

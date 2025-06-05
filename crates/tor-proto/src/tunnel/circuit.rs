@@ -715,7 +715,7 @@ impl ClientCirc {
                 ended: false,
             };
 
-            IncomingStream::new(req, target, reader, memquota)
+            IncomingStream::new(circ.time_provider.clone(), req, target, reader, memquota)
         }))
     }
 
@@ -942,7 +942,7 @@ impl ClientCirc {
         let (reader, target, memquota) = self
             .begin_stream_impl(msg, DataCmdChecker::new_any())
             .await?;
-        let mut stream = DataStream::new(reader, target, memquota);
+        let mut stream = DataStream::new(self.time_provider.clone(), reader, target, memquota);
         if !optimistic {
             stream.wait_for_connection().await?;
         }
