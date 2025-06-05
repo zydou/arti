@@ -58,7 +58,7 @@ which are documented below.
 
 * Reverted commit related to Shadow writer shutdown bug. ([!2968])
 * Enable `--features=full` for our reproducible builds. ([!2956])
-* Fix various clippy warnings related to Rust 1.87. ([!3003])
+* Fix various new clippy warnings in Rust 1.87. ([!3003])
 
 ### Documentation
 
