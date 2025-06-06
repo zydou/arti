@@ -657,7 +657,7 @@ impl ConfluxSet {
     ///
     /// If `check_can_send` is true, selects the lowest RTT leg that is ready to send.
     ///
-    /// Returns `None` if no suitable was found.
+    /// Returns `None` if no suitable leg was found.
     #[cfg(feature = "conflux")]
     fn select_primary_leg_min_rtt(&self, check_can_send: bool) -> Result<Option<LegIdKey>, Bug> {
         let mut best = None;
