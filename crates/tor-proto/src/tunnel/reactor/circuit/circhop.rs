@@ -73,7 +73,8 @@ impl CircHopList {
     /// of its highest priority stream.
     ///
     /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
-    /// To avoid contention, never create more than one [`Circuit::ready_streams_iterator`]
+    /// To avoid contention, never create more than one
+    /// [`ready_streams_iterator`](Self::ready_streams_iterator)
     /// stream at a time!
     ///
     /// This is cancellation-safe.
@@ -185,9 +186,9 @@ pub(crate) struct CircHop {
     /// this wouldn't be possible, because it would mean holding multiple
     /// mutable references to `self` (the reactor). Note, however,
     /// that there should never be any contention on this mutex:
-    /// we never create more than one [`Circuit::ready_streams_iterator`] stream
-    /// at a time, and we never clone/lock the hop's `StreamMap` outside of
-    /// [`Circuit::ready_streams_iterator`].
+    /// we never create more than one
+    /// [`ready_streams_iterator`](CircHopList::ready_streams_iterator) stream
+    /// at a time, and we never clone/lock the hop's `StreamMap` outside of it.
     map: Arc<Mutex<streammap::StreamMap>>,
     /// Congestion control object.
     ///
@@ -365,7 +366,7 @@ impl CircHop {
     /// Note that we received an END message (or other message indicating the end of
     /// the stream) on the stream with `id`.
     ///
-    /// See [`StreamMap::ending_msg_received`].
+    /// See [`StreamMap::ending_msg_received`](super::streammap::StreamMap::ending_msg_received).
     #[cfg(feature = "hs-service")]
     pub(super) fn ending_msg_received(&self, stream_id: StreamId) -> Result<()> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
