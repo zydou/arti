@@ -1,6 +1,7 @@
 //! An [`AsyncWrite`] rate limiter.
 
 use std::future::Future;
+use std::num::NonZero;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
@@ -29,7 +30,7 @@ pub(crate) struct RateLimitedWriter<W: AsyncWrite, P: SleepProvider> {
     #[educe(Debug(ignore))]
     sleep_provider: P,
     /// See [`RateLimitedWriterConfig::wake_when_bytes_available`].
-    wake_when_bytes_available: u64,
+    wake_when_bytes_available: NonZero<u64>,
     /// The inner writer.
     #[educe(Debug(ignore))]
     #[pin]
@@ -67,7 +68,7 @@ where
     fn from_token_bucket(
         writer: W,
         bucket: TokenBucket<Instant>,
-        wake_when_bytes_available: u64,
+        wake_when_bytes_available: NonZero<u64>,
         sleep_provider: P,
     ) -> Self {
         Self {
@@ -163,7 +164,7 @@ where
                     // single byte can be written. We allow the user to configure this threshold
                     // with `RateLimitedWriterConfig::wake_when_bytes_available`.
                     let wake_at_tokens =
-                        std::cmp::min(wake_at_tokens, *self_.wake_when_bytes_available);
+                        std::cmp::min(wake_at_tokens, self_.wake_when_bytes_available.get());
 
                     // If the bucket has a max of X tokens, we should never try to wait for >X
                     // tokens.
@@ -313,7 +314,7 @@ pub(crate) struct RateLimitedWriterConfig {
     /// the entire buffer can be written. We'd prefer several partial writes to a single large
     /// write. So instead of blocking until the entire buffer can be written, we only block until
     /// at most this many bytes are available.
-    pub(crate) wake_when_bytes_available: u64,
+    pub(crate) wake_when_bytes_available: NonZero<u64>,
 }
 
 #[cfg(test)]
@@ -339,7 +340,7 @@ mod test {
             // drain the bucket
             tb.drain(100).unwrap();
 
-            let wake_when_bytes_available = 15;
+            let wake_when_bytes_available = NonZero::new(15).unwrap();
 
             let mut writer = Vec::new();
             let mut writer = RateLimitedWriter::from_token_bucket(

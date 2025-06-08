@@ -20,6 +20,7 @@ use tor_cell::restricted_msg;
 
 use std::fmt::Debug;
 use std::io::Result as IoResult;
+use std::num::NonZero;
 use std::pin::Pin;
 #[cfg(any(feature = "stream-ctrl", feature = "experimental-api"))]
 use std::sync::Arc;
@@ -501,7 +502,7 @@ impl DataStream {
             // rate limiter allows 510 more bytes.
             //
             // TODO(arti#2028): Is there an optimal value here?
-            wake_when_bytes_available: 200, // bytes
+            wake_when_bytes_available: NonZero::new(200).expect("200 != 0"), // bytes
         };
         let w = DataWriter {
             writer: RateLimitedWriter::new(w, &config, time_provider),
