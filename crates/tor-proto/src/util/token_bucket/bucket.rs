@@ -473,7 +473,7 @@ mod test {
     }
 
     #[test]
-    fn adjust() {
+    fn adjust_now() {
         let time = MillisTimestamp(100);
 
         let config = TokenBucketConfig {
@@ -525,6 +525,62 @@ mod test {
         assert_eq!(tb.bucket, 40);
         assert_eq!(tb.bucket_max, 100);
         assert_eq!(tb.rate, 200);
+    }
+
+    #[test]
+    fn adjust_future() {
+        let config = TokenBucketConfig {
+            rate: 10,
+            bucket_max: 100,
+        };
+        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
+        assert_eq!(tb.bucket, 100);
+        assert_eq!(tb.bucket_max, 100);
+        assert_eq!(tb.rate, 10);
+
+        // at 300 ms: increase rate and max; bucket was already full, so doesn't gain any tokens
+        tb.adjust(
+            MillisTimestamp(300),
+            &TokenBucketConfig {
+                rate: 20,
+                bucket_max: 200,
+            },
+        );
+        assert_eq!(tb.bucket, 100);
+        assert_eq!(tb.bucket_max, 200);
+
+        // at 500 ms: no changes; bucket is refilled during `adjust()`, so gains 4 tokens
+        tb.adjust(
+            MillisTimestamp(500),
+            &TokenBucketConfig {
+                rate: 20,
+                bucket_max: 200,
+            },
+        );
+        assert_eq!(tb.bucket, 104);
+        assert_eq!(tb.bucket_max, 200);
+
+        // at 700 ms: lower rate and max; bucket is lowered to new max, so loses 4 tokens
+        tb.adjust(
+            MillisTimestamp(700),
+            &TokenBucketConfig {
+                rate: 0,
+                bucket_max: 100,
+            },
+        );
+        assert_eq!(tb.bucket, 100);
+        assert_eq!(tb.bucket_max, 100);
+
+        // at 900 ms: raise rate and max; rate was previously 0 so doesn't gain any tokens
+        tb.adjust(
+            MillisTimestamp(900),
+            &TokenBucketConfig {
+                rate: 100,
+                bucket_max: 200,
+            },
+        );
+        assert_eq!(tb.bucket, 100);
+        assert_eq!(tb.bucket_max, 200);
     }
 
     #[test]
