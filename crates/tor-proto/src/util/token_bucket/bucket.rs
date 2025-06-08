@@ -263,6 +263,7 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
 }
 
 /// The refill rate and token max for a [`TokenBucket`].
+#[derive(Clone, Debug)]
 pub(crate) struct TokenBucketConfig {
     /// The refill rate in tokens/second.
     pub(crate) rate: u64,

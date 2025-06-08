@@ -166,23 +166,37 @@ where
                     let wake_at_tokens =
                         std::cmp::min(wake_at_tokens, self_.wake_when_bytes_available.get());
 
-                    // If the bucket has a max of X tokens, we should never try to wait for >X
-                    // tokens.
-                    let wake_at_tokens = std::cmp::min(wake_at_tokens, self_.bucket.max());
+                    // max number of tokens the bucket can hold
+                    let bucket_max = self_.bucket.max();
 
-                    let wake_at = self_.bucket.tokens_available_at(wake_at_tokens);
-                    let sleep_for = wake_at.map(|x| x.saturating_duration_since(now));
+                    // how long to sleep for; `None` indicates to sleep forever
+                    let sleep_for = if bucket_max == 0 {
+                        // bucket can't hold any tokens, so sleep forever
+                        None
+                    } else {
+                        // if the bucket has a max of X tokens, we should never try to wait for >X
+                        // tokens
+                        let wake_at_tokens = std::cmp::min(wake_at_tokens, bucket_max);
 
-                    // `None` indicates to sleep forever
-                    let sleep_for = match sleep_for {
-                        Ok(x) => Some(x),
-                        Err(NeverEnoughTokensError::ExceedsMaxTokens) => {
-                            panic!("exceeds max tokens, but we took the max into account above");
+                        // if we asked for 0 tokens, we'd get a time of ~now, which is not what we
+                        // want
+                        debug_assert!(wake_at_tokens > 0);
+
+                        let wake_at = self_.bucket.tokens_available_at(wake_at_tokens);
+                        let sleep_for = wake_at.map(|x| x.saturating_duration_since(now));
+
+                        match sleep_for {
+                            Ok(x) => Some(x),
+                            Err(NeverEnoughTokensError::ExceedsMaxTokens) => {
+                                panic!(
+                                    "exceeds max tokens, but we took the max into account above"
+                                );
+                            }
+                            // we aren't refilling, so sleep forever
+                            Err(NeverEnoughTokensError::ZeroRate) => None,
+                            // too far in the future to be represented, so sleep forever
+                            Err(NeverEnoughTokensError::InstantNotRepresentable) => None,
                         }
-                        // we aren't refilling, so sleep forever
-                        Err(NeverEnoughTokensError::ZeroRate) => None,
-                        // too far in the future to be represented, so sleep forever
-                        Err(NeverEnoughTokensError::InstantNotRepresentable) => None,
                     };
 
                     // configure the sleep future and poll it to register
@@ -300,6 +314,7 @@ mod tokio_impl {
 }
 
 /// The refill rate and burst for a [`RateLimitedWriter`].
+#[derive(Clone, Debug)]
 pub(crate) struct RateLimitedWriterConfig {
     /// The refill rate in bytes/second.
     pub(crate) rate: u64,
@@ -374,5 +389,73 @@ mod test {
                 writer.write(&[0; 60]).now_or_never().map(Result::unwrap),
             );
         });
+    }
+
+    /// Test that writing to a token bucket which has a rate and/or max of 0 works as expected.
+    #[test]
+    fn rate_burst_zero() {
+        let configs = [
+            // non-zero rate, zero max
+            TokenBucketConfig {
+                rate: 10,
+                bucket_max: 0,
+            },
+            // zero rate, non-zero max
+            TokenBucketConfig {
+                rate: 0,
+                bucket_max: 10,
+            },
+            // zero rate, zero max
+            TokenBucketConfig {
+                rate: 0,
+                bucket_max: 0,
+            },
+        ];
+        for config in configs {
+            tor_rtmock::MockRuntime::test_with_various(|rt| {
+                let config = config.clone();
+                async move {
+                    // an empty token bucket
+                    let mut tb = TokenBucket::new(&config, rt.now());
+                    tb.drain(tb.max()).unwrap();
+                    assert!(tb.is_empty());
+
+                    let wake_when_bytes_available = NonZero::new(2).unwrap();
+
+                    let mut writer = Vec::new();
+                    let mut writer = RateLimitedWriter::from_token_bucket(
+                        &mut writer,
+                        tb,
+                        wake_when_bytes_available,
+                        rt.clone(),
+                    );
+
+                    // drive time forward from 0 to 10_000 ms in 100 ms intervals
+                    let rt_clone = rt.clone();
+                    rt.spawn(async move {
+                        for _ in 0..100 {
+                            rt_clone.progress_until_stalled().await;
+                            rt_clone.advance_by(Duration::from_millis(100)).await;
+                        }
+                    })
+                    .unwrap();
+
+                    // ensure that a write returns `Pending`
+                    assert_eq!(
+                        None,
+                        writer.write(&[0; 60]).now_or_never().map(Result::unwrap),
+                    );
+
+                    // wait 5 seconds
+                    rt.sleep(Duration::from_millis(5000)).await;
+
+                    // ensure that a write still returns `Pending`
+                    assert_eq!(
+                        None,
+                        writer.write(&[0; 60]).now_or_never().map(Result::unwrap),
+                    );
+                }
+            });
+        }
     }
 }
