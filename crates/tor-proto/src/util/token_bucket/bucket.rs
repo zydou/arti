@@ -94,13 +94,28 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
 
     /// Adjust the refill rate and max tokens of the bucket.
     ///
+    /// The token bucket is refilled up to `now` before changing the rate.
+    ///
     /// If the new max is smaller than the existing number of tokens,
     /// the number of tokens will be reduced to the new max.
     ///
     /// A rate and/or max of 0 is allowed.
     // remove this when we use it in the future
     #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn adjust(&mut self, config: &TokenBucketConfig) {
+    pub(crate) fn adjust(&mut self, now: I, config: &TokenBucketConfig) {
+        // make sure that the bucket gets the tokens it is owed before we change the rate
+        self.refill(now);
+
+        // If the old rate was small (or 0), the `refill()` might not have updated
+        // `added_tokens_at`.
+        //
+        // For example if the bucket has a rate of 0 and was last refilled 10 seconds ago, it will
+        // not have gained any tokens in the last 10 seconds. If we were to only update the rate to
+        // 100 tokens/second now, the bucket would immediately become eligible to refill 1000
+        // tokens. We only want the rate change to become effective now, not in the past, so we
+        // ensure this by resetting `added_tokens_at`.
+        self.added_tokens_at = std::cmp::max(self.added_tokens_at, now);
+
         self.rate = config.rate;
         self.bucket_max = config.bucket_max;
         self.bucket = std::cmp::min(self.bucket, self.bucket_max);
@@ -391,7 +406,9 @@ pub(crate) enum BecameEmpty {
 
 /// Any type implementing this must be represented as a measurement of a monotonically nondecreasing
 /// clock.
-pub(crate) trait TokenBucketInstant: Copy + Clone + Debug + PartialEq + PartialOrd {
+pub(crate) trait TokenBucketInstant:
+    Copy + Clone + Debug + PartialEq + Eq + PartialOrd + Ord
+{
     /// An unrealistically large time jump.
     ///
     /// We assume that any time change larger than this indicates a broken monotonic clock,
@@ -439,7 +456,7 @@ mod test {
 
     use rand::Rng;
 
-    #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     struct MillisTimestamp(u64);
 
     impl TokenBucketInstant for MillisTimestamp {
@@ -457,40 +474,54 @@ mod test {
 
     #[test]
     fn adjust() {
+        let time = MillisTimestamp(100);
+
         let config = TokenBucketConfig {
             rate: 10,
             bucket_max: 100,
         };
-        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
+        let mut tb = TokenBucket::new(&config, time);
         assert_eq!(tb.bucket, 100);
         assert_eq!(tb.bucket_max, 100);
         assert_eq!(tb.rate, 10);
 
-        tb.adjust(&TokenBucketConfig {
-            rate: 20,
-            bucket_max: 100,
-        });
+        tb.adjust(
+            time,
+            &TokenBucketConfig {
+                rate: 20,
+                bucket_max: 100,
+            },
+        );
         assert_eq!(tb.bucket, 100);
         assert_eq!(tb.bucket_max, 100);
 
-        tb.adjust(&TokenBucketConfig {
-            rate: 20,
-            bucket_max: 40,
-        });
+        tb.adjust(
+            time,
+            &TokenBucketConfig {
+                rate: 20,
+                bucket_max: 40,
+            },
+        );
         assert_eq!(tb.bucket, 40);
         assert_eq!(tb.bucket_max, 40);
 
-        tb.adjust(&TokenBucketConfig {
-            rate: 20,
-            bucket_max: 100,
-        });
+        tb.adjust(
+            time,
+            &TokenBucketConfig {
+                rate: 20,
+                bucket_max: 100,
+            },
+        );
         assert_eq!(tb.bucket, 40);
         assert_eq!(tb.bucket_max, 100);
 
-        tb.adjust(&TokenBucketConfig {
-            rate: 200,
-            bucket_max: 100,
-        });
+        tb.adjust(
+            time,
+            &TokenBucketConfig {
+                rate: 200,
+                bucket_max: 100,
+            },
+        );
         assert_eq!(tb.bucket, 40);
         assert_eq!(tb.bucket_max, 100);
         assert_eq!(tb.rate, 200);
@@ -498,16 +529,21 @@ mod test {
 
     #[test]
     fn adjust_zero() {
+        let time = MillisTimestamp(100);
+
         let config = TokenBucketConfig {
             rate: 10,
             bucket_max: 100,
         };
 
-        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
-        tb.adjust(&TokenBucketConfig {
-            rate: 0,
-            bucket_max: 200,
-        });
+        let mut tb = TokenBucket::new(&config, time);
+        tb.adjust(
+            time,
+            &TokenBucketConfig {
+                rate: 0,
+                bucket_max: 200,
+            },
+        );
         assert_eq!(tb.bucket, 100);
         assert_eq!(tb.bucket_max, 200);
         assert_eq!(tb.rate, 0);
@@ -515,11 +551,14 @@ mod test {
         tb.refill(MillisTimestamp(10_000_000));
         assert_eq!(tb.bucket, 100);
 
-        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
-        tb.adjust(&TokenBucketConfig {
-            rate: 10,
-            bucket_max: 0,
-        });
+        let mut tb = TokenBucket::new(&config, time);
+        tb.adjust(
+            time,
+            &TokenBucketConfig {
+                rate: 10,
+                bucket_max: 0,
+            },
+        );
         assert_eq!(tb.bucket, 0);
         assert_eq!(tb.bucket_max, 0);
         assert_eq!(tb.rate, 10);
@@ -527,11 +566,14 @@ mod test {
         tb.refill(MillisTimestamp(10_000_000));
         assert_eq!(tb.bucket, 0);
 
-        let mut tb = TokenBucket::new(&config, MillisTimestamp(100));
-        tb.adjust(&TokenBucketConfig {
-            rate: 0,
-            bucket_max: 0,
-        });
+        let mut tb = TokenBucket::new(&config, time);
+        tb.adjust(
+            time,
+            &TokenBucketConfig {
+                rate: 0,
+                bucket_max: 0,
+            },
+        );
         assert_eq!(tb.bucket, 0);
         assert_eq!(tb.bucket_max, 0);
         assert_eq!(tb.rate, 0);
@@ -674,14 +716,17 @@ mod test {
             Err(NETE::ExceedsMaxTokens),
         );
 
-        // set the refill rate to 0
-        tb.adjust(&TokenBucketConfig {
-            rate: 0,
-            bucket_max: 100,
-        });
+        // set the refill rate to 0; note that adjusting the rate also resets `added_tokens_at`
+        tb.adjust(
+            MillisTimestamp(210),
+            &TokenBucketConfig {
+                rate: 0,
+                bucket_max: 100,
+            },
+        );
 
-        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(200)));
-        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(200)));
+        assert_eq!(tb.tokens_available_at(0), Ok(MillisTimestamp(210)));
+        assert_eq!(tb.tokens_available_at(1), Ok(MillisTimestamp(210)));
         assert_eq!(tb.tokens_available_at(2), Err(NETE::ZeroRate));
     }
 
