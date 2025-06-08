@@ -36,7 +36,7 @@ pub(crate) struct TokenBucket<I> {
     /// specifically is the time that the most recent token was added. For example if the bucket
     /// refills one token every 100 ms, and the bucket is refilled at time 510 ms, the bucket would
     /// gain 5 tokens and the stored time would be 500 ms.
-    last_refill: I,
+    added_tokens_at: I,
 }
 
 impl<I: TokenBucketInstant> TokenBucket<I> {
@@ -49,7 +49,7 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
             rate: config.rate,
             bucket_max: config.bucket_max,
             bucket: config.bucket_max,
-            last_refill: now,
+            added_tokens_at: now,
         }
     }
 
@@ -121,7 +121,7 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
 
         // check if we currently have enough tokens before considering refilling
         if tokens_needed == 0 {
-            return Ok(self.last_refill);
+            return Ok(self.added_tokens_at);
         }
 
         // if the rate is 0, we'll never get more tokens
@@ -144,15 +144,15 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
         // 2. Clocks generally don't operate at <1 us resolution.
         let time_needed = std::cmp::max(time_needed, Duration::from_micros(1));
 
-        self.last_refill
+        self.added_tokens_at
             .checked_add(time_needed)
             .ok_or(NeverEnoughTokensError::InstantNotRepresentable)
     }
 
     /// Refill the bucket.
     pub(crate) fn refill(&mut self, now: I) -> BecameNonEmpty {
-        // time since the last refill
-        let elapsed = now.saturating_duration_since(self.last_refill);
+        // time since we last added tokens
+        let elapsed = now.saturating_duration_since(self.added_tokens_at);
 
         // If we exceeded the threshold, update the timestamp and return.
         // This is taken from tor, which has the comment below:
@@ -167,7 +167,7 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
                 "Time jump of {elapsed:?} is larger than {:?}; not refilling token bucket",
                 I::IGNORE_THRESHOLD,
             );
-            self.last_refill = now;
+            self.added_tokens_at = now;
             return BecameNonEmpty::No;
         }
 
@@ -179,24 +179,24 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
 
         self.bucket = std::cmp::min(self.bucket_max, self.bucket.saturating_add(bucket_inc));
 
-        // Compute how much we should increment the last refill time by. This avoids drifting if the
-        // `bucket_inc` was underestimated, and avoids rounding errors which could cause the token
-        // bucket to effectively use a lower rate. For example if the rate was "1 token / sec" and
-        // the elapsed time was "1.2 sec", we only want to refill 1 token and increment the time by
-        // 1 second.
+        // Compute how much we should increment the `last_added_tokens` time by. This avoids
+        // drifting if the `bucket_inc` was underestimated, and avoids rounding errors which could
+        // cause the token bucket to effectively use a lower rate. For example if the rate was
+        // "1 token / sec" and the elapsed time was "1.2 sec", we only want to refill 1 token and
+        // increment the time by 1 second.
         //
         // While the docs for `tokens_to_duration` say that a smaller than expected duration may be
         // returned, we have a test `test_duration_token_round_trip` which ensures that
         // `tokens_to_duration` returns the expected value when used with the result from
         // `duration_to_tokens`.
-        let last_refill_inc =
+        let added_tokens_at_inc =
             Self::tokens_to_duration(bucket_inc, self.rate).unwrap_or(Duration::ZERO);
 
-        self.last_refill = self
-            .last_refill
-            .checked_add(last_refill_inc)
+        self.added_tokens_at = self
+            .added_tokens_at
+            .checked_add(added_tokens_at_inc)
             .expect("overflowed time");
-        debug_assert!(self.last_refill <= now);
+        debug_assert!(self.added_tokens_at <= now);
 
         if old_bucket == 0 && self.bucket != 0 {
             BecameNonEmpty::Yes
@@ -602,7 +602,7 @@ mod test {
         let mut tb = TokenBucket::new(&config, MillisTimestamp(0));
         tb.drain(100).unwrap();
 
-        // ensure that refilling at 150 ms does not change the last refill time to 150 ms,
+        // ensure that refilling at 150 ms does not change the `added_tokens_at` time to 150 ms,
         // otherwise the next refill wouldn't occur until 250 ms instead of 200 ms
         tb.refill(MillisTimestamp(99));
         assert_eq!(tb.bucket, 0);
