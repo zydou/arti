@@ -41,15 +41,7 @@ full = [
     "tor-protover/full",
 ]
 
-experimental = [
-    "experimental-api",
-    "conflux",
-    "flowctl-cc",
-    "stream-ctrl",
-    "testing",
-    "bench",
-    "counter-galois-onion",
-]
+experimental = ["experimental-api", "conflux", "flowctl-cc", "stream-ctrl", "testing", "bench", "counter-galois-onion"]
 conflux = ["tor-cell/conflux", "__is_experimental"]
 flowctl-cc = ["__is_experimental"]
 
@@ -128,7 +120,6 @@ zeroize = "1"
 
 [dev-dependencies]
 criterion = "0.5.1"
-criterion-cycles-per-byte = "0.6.1"
 hex = "0.4"
 hex-literal = "0.4"
 humantime = "2"
@@ -138,6 +129,10 @@ statrs = "0.18.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.31.0", features = ["tokio", "native-tls"] }
 tracing-test = "0.2.4"
+
+[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dependencies]
+criterion-cycles-per-byte = "0.6.1"
+
 [package.metadata.docs.rs]
 all-features = true
 
