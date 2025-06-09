@@ -26,6 +26,10 @@ use bitflags::bitflags;
 #[cfg_attr(docsrs, doc(cfg(feature = "conflux")))]
 pub use super::conflux::{ConfluxLink, ConfluxLinked, ConfluxLinkedAck, ConfluxSwitch};
 
+#[cfg(feature = "flowctl-cc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "flowctl-cc")))]
+use super::flow_ctrl::{Xoff, Xon};
+
 #[cfg(feature = "hs")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs")))]
 pub use super::hs::{
@@ -94,6 +98,12 @@ pub enum AnyRelayMsg : RelayMsg {
     /// Switch to another leg in an already linked circuit construction.
     [feature = "conflux"]
     ConfluxSwitch,
+    /// Update a stream's transmit rate limit.
+    [feature = "flowctl-cc"]
+    Xon,
+    /// Disable transmitting on a stream.
+    [feature = "flowctl-cc"]
+    Xoff,
     /// Establish Introduction
     [feature = "hs"]
     EstablishIntro,
@@ -1423,6 +1433,9 @@ msg_impl_relaymsg!(
 
 #[cfg(feature = "conflux")]
 msg_impl_relaymsg!(ConfluxSwitch, ConfluxLink, ConfluxLinked, ConfluxLinkedAck);
+
+#[cfg(feature = "flowctl-cc")]
+msg_impl_relaymsg!(Xon, Xoff);
 
 #[cfg(test)]
 mod test {

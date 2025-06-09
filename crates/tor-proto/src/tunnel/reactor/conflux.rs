@@ -994,7 +994,8 @@ fn cmd_counts_towards_seqno(cmd: RelayCmd) -> bool {
         | RelayCmd::PADDING_NEGOTIATE
         | RelayCmd::PADDING_NEGOTIATED => false,
 
-        // TODO(cc): XOFF/XON
+        // Flow control cells must be ordered (see prop 329).
+        RelayCmd::XON | RelayCmd::XOFF => true,
 
         // These two are not multiplexed, because they must be processed immediately
         // to update sequence numbers before any other cells are processed on the circuit
