@@ -388,16 +388,19 @@ enum CircuitAction {
 }
 
 /// The reason for removing a circuit leg from the conflux set.
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display)]
 enum RemoveLegReason {
     /// The conflux handshake timed out.
     ///
     /// On the client-side, this means we didn't receive
     /// the CONFLUX_LINKED response in time.
+    #[display("conflux handshake timed out")]
     ConfluxHandshakeTimeout,
     /// An error occurred during conflux handshake.
+    #[display("{}", _0)]
     ConfluxHandshakeErr(Error),
     /// The channel was closed.
+    #[display("channel closed")]
     ChannelClosed,
 }
 
