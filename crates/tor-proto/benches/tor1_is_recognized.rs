@@ -1,7 +1,11 @@
 use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion};
-use criterion_cycles_per_byte::CyclesPerByte;
 use digest::Digest;
 use rand::prelude::*;
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+use criterion::measurement::WallTime as Meas;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use criterion_cycles_per_byte::CyclesPerByte as Meas;
 
 use tor_cell::relaycell::msg::SendmeTag;
 use tor_llcrypto::d::{Sha1, Sha3_256};
@@ -62,7 +66,7 @@ pub fn tor1_is_recognized_benchmark(c: &mut Criterion<impl Measurement>) {
 criterion_group!(
    name = tor1_is_recognized;
    config = Criterion::default()
-      .with_measurement(CyclesPerByte)
+      .with_measurement(Meas)
       .sample_size(5000);
    targets = tor1_is_recognized_benchmark);
 criterion_main!(tor1_is_recognized);

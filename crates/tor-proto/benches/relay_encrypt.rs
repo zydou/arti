@@ -1,6 +1,10 @@
 use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion, Throughput};
-use criterion_cycles_per_byte::CyclesPerByte;
 use rand::prelude::*;
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+use criterion::measurement::WallTime as Meas;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use criterion_cycles_per_byte::CyclesPerByte as Meas;
 
 #[cfg(feature = "counter-galois-onion")]
 use aes::{Aes128Enc, Aes256Enc};
@@ -92,7 +96,7 @@ pub fn relay_encrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 criterion_group!(
     name = relay_encrypt;
     config = Criterion::default()
-       .with_measurement(CyclesPerByte)
+       .with_measurement(Meas)
        .sample_size(5000);
     targets = relay_encrypt_benchmark);
 criterion_main!(relay_encrypt);

@@ -1,5 +1,9 @@
 use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion, Throughput};
-use criterion_cycles_per_byte::CyclesPerByte;
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+use criterion::measurement::WallTime as Meas;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use criterion_cycles_per_byte::CyclesPerByte as Meas;
 
 use rand::prelude::*;
 
@@ -125,7 +129,7 @@ pub fn exit_decrypt_benchmark(c: &mut Criterion<impl Measurement>) {
 criterion_group!(
     name = exit_decrypt;
     config = Criterion::default()
-       .with_measurement(CyclesPerByte)
+       .with_measurement(Meas)
        .sample_size(5000);
     targets = exit_decrypt_benchmark);
 criterion_main!(exit_decrypt);
