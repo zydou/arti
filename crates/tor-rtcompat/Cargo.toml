@@ -39,7 +39,6 @@ native-tls = ["native-tls-crate", "async-native-tls"]
 # which in turn introduces a GPL-incompatibility.
 rustls = [
     "futures-rustls",
-    "dep:rustls",
     "rustls-pki-types",
     "rustls-webpki",
     "__is_nonadditive",
@@ -71,7 +70,6 @@ hex = "0.4.3"
 native-tls-crate = { package = "native-tls", version = "0.2", optional = true }
 paste = "1"
 pin-project = "1"
-rustls = { version = "0.23.21", optional = true }
 rustls-pki-types = { version = "1.8", optional = true }
 rustls-webpki = { version = "0.103.1", optional = true }
 thiserror = "2"
