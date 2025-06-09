@@ -14,7 +14,6 @@ use std::pin::{pin, Pin};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
-use futures::future::Map;
 use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
@@ -33,7 +32,7 @@ use strum::EnumIter;
 //    tracing-test = { version = "0.2.4", features = ["no-env-filter"] }
 use tracing::{error, trace};
 
-use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
+use oneshot_fused_workaround::{self as oneshot, Canceled};
 use tor_error::error_report;
 use tor_rtcompat::{Blocking, ToplevelBlockOn};
 
@@ -451,29 +450,8 @@ impl Spawn for MockExecutor {
     }
 }
 
-impl MockExecutor {
-    /// Implementation of `spawn_blocking` and `blocking_io`
-    fn spawn_thread_inner<F, T>(&self, f: F) -> <Self as Blocking>::ThreadHandle<T>
-    where
-        F: FnOnce() -> T + Send + 'static,
-        T: Send + 'static,
-    {
-        // For the mock executor, everything runs on the same thread.
-        // If we need something more complex in the future, we can change this.
-        let (tx, rx) = oneshot::channel();
-        self.spawn_identified("Blocking".to_string(), async move {
-            match tx.send(f()) {
-                Ok(()) => (),
-                Err(_) => panic!("Failed to send future's output, did future panic?"),
-            }
-        });
-        rx.map(Box::new(|m| m.expect("Failed to receive future's output")))
-    }
-}
-
 impl Blocking for MockExecutor {
-    type ThreadHandle<T: Send + 'static> =
-        Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
+    type ThreadHandle<T: Send + 'static> = Pin<Box<dyn Future<Output = T>>>;
 
     fn spawn_blocking<F, T>(&self, f: F) -> Self::ThreadHandle<T>
     where
@@ -485,7 +463,10 @@ impl Blocking for MockExecutor {
             ThreadDescriptor::Executor | ThreadDescriptor::Subthread(_),
  "MockExecutor::spawn_blocking_io only allowed from future or subthread, being run by this executor"
         );
-        self.spawn_thread_inner(f)
+        Box::pin(
+            self.subthread_spawn("spawn_blocking", f)
+                .map(|x| x.expect("Error in spawn_blocking subthread.")),
+        )
     }
 
     fn reenter_block_on<F>(&self, future: F) -> F::Output
@@ -494,19 +475,6 @@ impl Blocking for MockExecutor {
         F::Output: Send + 'static,
     {
         self.subthread_block_on_future(future)
-    }
-
-    fn blocking_io<F, T>(&self, f: F) -> impl Future<Output = T>
-    where
-        F: FnOnce() -> T + Send + 'static,
-        T: Send + 'static,
-    {
-        assert_eq!(
-            THREAD_DESCRIPTOR.get(),
-            ThreadDescriptor::Executor,
-            "MockExecutor::blocking_io only allowed from future being polled by this executor"
-        );
-        self.spawn_thread_inner(f)
     }
 }
 
