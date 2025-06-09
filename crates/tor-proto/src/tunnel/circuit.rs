@@ -3086,32 +3086,22 @@ pub(crate) mod test {
 
             for (bad_cell, expected_err) in bad_hs_responses {
                 let TestTunnelCtx {
-                    tunnel: _tunnel,
+                    tunnel,
                     circs,
                     conflux_link_rx,
                 } = setup_good_conflux_tunnel(&rt).await;
 
-                let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
+                let [mut _circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
-                let link = await_link_payload(&mut circ1.chan_rx).await;
-
-                // Send a LINKED cell on the first leg...
-                let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-                circ1
-                    .circ_sink
-                    .send(rmsg_to_ccmsg(None, linked))
-                    .await
-                    .unwrap();
-
-                // ...and then respond with a bogus cell on the second
+                // Respond with a bogus cell on one of the legs
                 circ2.circ_sink.send(bad_cell).await.unwrap();
 
                 let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
-                // Get the handshake results of each circuit
-                let [res1, res2]: [StdResult<(), ConfluxHandshakeError>; 2] =
+                // Get the handshake results (the handshake results are reported early,
+                // without waiting for the second circuit leg's handshake to timeout,
+                // because this is a protocol violation causing the entire tunnel to shut down)
+                let [res2]: [StdResult<(), ConfluxHandshakeError>; 1] =
                     conflux_hs_res.try_into().unwrap();
-
-                assert!(res1.is_ok());
 
                 match res2.unwrap_err() {
                     ConfluxHandshakeError::Link(Error::CircProto(e)) => {
@@ -3119,6 +3109,8 @@ pub(crate) mod test {
                     }
                     e => panic!("unexpected error: {e:?}"),
                 }
+
+                assert!(tunnel.is_closing());
             }
         });
     }

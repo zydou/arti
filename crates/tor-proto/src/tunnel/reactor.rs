@@ -1056,13 +1056,29 @@ impl Reactor {
 
                 #[cfg(feature = "conflux")]
                 if is_conflux_pending {
-                    let error = match reason {
-                        RemoveLegReason::ConfluxHandshakeTimeout => ConfluxHandshakeError::Timeout,
-                        RemoveLegReason::ConfluxHandshakeErr(e) => ConfluxHandshakeError::Link(e),
-                        RemoveLegReason::ChannelClosed => ConfluxHandshakeError::ChannelClosed,
+                    let (error, proto_violation): (_, Option<Error>) = match &reason {
+                        RemoveLegReason::ConfluxHandshakeTimeout => {
+                            (ConfluxHandshakeError::Timeout, None)
+                        }
+                        RemoveLegReason::ConfluxHandshakeErr(e) => {
+                            (ConfluxHandshakeError::Link(e.clone()), Some(e.clone()))
+                        }
+                        RemoveLegReason::ChannelClosed => {
+                            (ConfluxHandshakeError::ChannelClosed, None)
+                        }
                     };
 
-                    self.note_conflux_handshake_result(Err(error))?;
+                    self.note_conflux_handshake_result(Err(error), proto_violation.is_some())?;
+
+                    if let Some(e) = proto_violation {
+                        tor_error::warn_report!(
+                            e,
+                            "{}: Malformed conflux handshake, tearing down tunnel",
+                            self.unique_id
+                        );
+
+                        return Err(e.into());
+                    }
                 }
             }
             #[cfg(feature = "conflux")]
@@ -1076,7 +1092,7 @@ impl Reactor {
                 // down anyway. OTOH, marking the handshake as complete slightly early
                 // means that on the happy path, the circuit is marked as usable sooner,
                 // instead of blocking on the sending of the LINKED_ACK.
-                self.note_conflux_handshake_result(Ok(()))?;
+                self.note_conflux_handshake_result(Ok(()), false)?;
 
                 let res = self
                     .circuits
@@ -1164,6 +1180,7 @@ impl Reactor {
     fn note_conflux_handshake_result(
         &mut self,
         res: StdResult<(), ConfluxHandshakeError>,
+        reactor_is_closing: bool,
     ) -> StdResult<(), ReactorError> {
         let tunnel_complete = match self.conflux_hs_ctx.as_mut() {
             Some(conflux_ctx) => {
@@ -1176,7 +1193,7 @@ impl Reactor {
             }
         };
 
-        if tunnel_complete {
+        if tunnel_complete || reactor_is_closing {
             // Time to remove the conflux handshake context
             // and extract the results we have collected
             let conflux_ctx = self.conflux_hs_ctx.take().expect("context disappeared?!");
