@@ -305,13 +305,13 @@ rust-clippy-nontest:
 
 rust-nightly:
   stage: test
-  # image: ${DOCKER_REGISTRY_URL}/rustlang/rust:nightly
+  image: ${DOCKER_REGISTRY_URL}/rustlang/rust:nightly
   # In case there is a bug in rust:nightly, you can instead pin an older
   # version of the Docker image until that bug is fixed.  To find the
   # SHA256 ID of the last working version of nightly, look at the logs
   # from the last successful CI run.  Here is an example of how to do so:
   #
-  image: rustlang/rust@sha256:2946231b7da65a96d7ecd2303bae9989db501bbb9cfa2edcf60d2dd4fbb49934
+  # image: rustlang/rust@sha256:415b7c22ab4a8a3ec3efc9cc8d7b018964f0c6757fff27bbd110e0ed92566321
   allow_failure: true
   script:
     - rustup show
