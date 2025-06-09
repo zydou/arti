@@ -3176,7 +3176,7 @@ pub(crate) mod test {
             let bad_switch = [
                 // SWITCH cells with seqno = 0 are not allowed
                 relaymsg::ConfluxSwitch::new(0),
-                // TODO(conflux): from c-tor:
+                // TODO(#2031): from c-tor:
                 //
                 // We have to make sure that the switch command is truely
                 // incrementing the sequence number, or else it becomes
