@@ -115,9 +115,11 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
     fn handshake_timeout(&self) -> Option<SystemTime> {
         /// The maximum amount of time to wait for the LINKED cell to arrive.
         //
-        // TODO(conflux): "This timeout MUST be no larger than the normal SOCKS/stream timeout in
-        // use for RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
-        // implementation currently uses Circuit Build Timeout)".
+        // TODO(conflux-tuning): we should pick a less arbitrary timeout
+        //
+        // "This timeout MUST be no larger than the normal SOCKS/stream timeout in
+        // use for RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead.
+        // (The C-Tor implementation currently uses Circuit Build Timeout)".
         const LINK_TIMEOUT: Duration = Duration::from_secs(60);
 
         self.link_sent.map(|link_sent| link_sent + LINK_TIMEOUT)
