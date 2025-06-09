@@ -17,6 +17,8 @@ use rand::{CryptoRng, Rng};
 pub mod conflux;
 pub mod extend;
 mod extlist;
+#[cfg(feature = "flowctl-cc")]
+pub mod flow_ctrl;
 #[cfg(feature = "hs")]
 pub mod hs;
 pub mod msg;
@@ -100,6 +102,11 @@ caret_int! {
         PADDING_NEGOTIATE = 41,
         /// Padding: reply to a PADDING_NEGOTIATE
         PADDING_NEGOTIATED = 42,
+
+        /// Flow control: rate update (transmit on with rate limit)
+        XON = 43,
+        /// Flow control: rate update (transmit off)
+        XOFF = 44,
     }
 }
 
@@ -130,7 +137,9 @@ impl RelayCmd {
             | RelayCmd::CONNECTED
             | RelayCmd::RESOLVE
             | RelayCmd::RESOLVED
-            | RelayCmd::BEGIN_DIR => StreamIdReq::WantSome,
+            | RelayCmd::BEGIN_DIR
+            | RelayCmd::XON
+            | RelayCmd::XOFF => StreamIdReq::WantSome,
             // NOTE: Even when a RelayCmd is not implemented (like these UDP-based commands),
             // we need to implement expects_streamid() unconditionally.
             // Otherwise we leak more information than necessary
