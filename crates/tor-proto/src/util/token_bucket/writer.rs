@@ -65,6 +65,7 @@ where
     /// Create a new [`RateLimitedWriter`] from a [`TokenBucket`].
     ///
     /// The token bucket must have only been used with times created by `sleep_provider`.
+    #[cfg_attr(test, visibility::make(pub(super)))]
     fn from_token_bucket(
         writer: W,
         bucket: TokenBucket<Instant>,
@@ -83,6 +84,40 @@ where
     /// Access the inner [`AsyncWrite`] writer.
     pub(crate) fn inner(&self) -> &W {
         &self.inner
+    }
+
+    /// Adjust the refill rate and burst.
+    ///
+    /// A rate and/or burst of 0 is allowed.
+    pub(crate) fn adjust(
+        self: &mut Pin<&mut Self>,
+        now: Instant,
+        config: &RateLimitedWriterConfig,
+    ) {
+        let self_ = self.as_mut().project();
+
+        // destructuring allows us to make sure we aren't forgetting to handle any fields
+        let RateLimitedWriterConfig {
+            rate,
+            burst,
+            wake_when_bytes_available,
+        } = *config;
+
+        let bucket_config = TokenBucketConfig {
+            rate,
+            bucket_max: burst,
+        };
+
+        self_.bucket.adjust(now, &bucket_config);
+        *self_.wake_when_bytes_available = wake_when_bytes_available;
+    }
+
+    /// The sleep provider.
+    ///
+    /// We don't want this to be generally accessible, only to other token bucket-related modules
+    /// like [`DynamicRateLimitedWriter`](super::dynamic_writer::DynamicRateLimitedWriter).
+    pub(super) fn sleep_provider(&self) -> &P {
+        &self.sleep_provider
     }
 
     /// Configure this writer to sleep for `duration`.
