@@ -153,7 +153,7 @@ derive-deftly = { version = "~1.0.0", features = ["full", "beta"], optional = tr
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 fs-mistrust = { path = "../fs-mistrust", version = "0.9.3" }
 futures = "0.3.14"
-hickory-proto = { version = "0.24.4", optional = true }
+hickory-proto = { version = "0.25.2", optional = true }
 humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.14.0"
