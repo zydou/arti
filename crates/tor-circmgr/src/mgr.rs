@@ -236,10 +236,10 @@ pub(crate) trait AbstractCircBuilder<R: Runtime>: Send + Sync {
     /// Return `Ok(true)` if we saved, and `Ok(false)` if we didn't hold the lock.
     fn save_state(&self) -> Result<bool>;
 
-    /// Return this builder's [`PathConfig`](crate::PathConfig).
+    /// Return this builder's [`PathConfig`].
     fn path_config(&self) -> Arc<PathConfig>;
 
-    /// Replace this builder's [`PathConfig`](crate::PathConfig).
+    /// Replace this builder's [`PathConfig`].
     // TODO: This is dead_code because we only call this for the CircuitBuilder specialization of
     // CircMgr, not from the generic version, because this trait doesn't provide guardmgr, which is
     // needed by the [`CircMgr::reconfigure`] function that would be the only caller of this. We

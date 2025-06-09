@@ -62,7 +62,7 @@ mod testing {
     impl<R: rand_core::CryptoRng> super::EntropicRng for FakeEntropicRng<R> {}
 }
 #[cfg(feature = "testing")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rpc")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 pub use testing::FakeEntropicRng;
 
 /// An exceptionally cautious wrapper for [`rand_core::OsRng`]
