@@ -1671,10 +1671,11 @@ impl NetDir {
             }
             Ok(iter) => {
                 let selection: Vec<_> = iter.map(Relay::clone).collect();
-                if selection.len() < n {
+                if selection.len() < n && selection.len() < relays.len() {
                     warn!(?self.weights, ?role,
-                          "After filtering, choose_multiple_weighted only returned {}/{} relays with nonzero weight. See bug #1907.",
-                          selection.len(), relays.len());
+                          "choose_multiple_weighted returned only {returned}, despite requesting {n}, \
+                          and having {filtered_len} available after filtering. See bug #1907.",
+                          returned=selection.len(), filtered_len=relays.len());
                 }
                 selection
             }
