@@ -320,14 +320,18 @@ impl Circuit {
         params: &crate::circuit::CircParameters,
         done: ReactorResultChannel<()>,
     ) {
+        use tor_protover::{named, Protocols};
+
         use crate::tunnel::circuit::test::DummyCrypto;
 
         let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
         let binding = None;
-        let settings = HopSettings::from_params_and_caps(params, &tor_protover::Protocols::new())
-            .expect("Can't construct HopSettings")
-            .without_negotiation();
+        let settings = HopSettings::from_params_and_caps(
+            params,
+            &[named::FLOWCTRL_CC].into_iter().collect::<Protocols>(),
+        )
+        .expect("Can't construct HopSettings");
         self.add_hop(format, dummy_peer_id, fwd, rev, binding, &settings)
             .expect("could not add hop to circuit");
         let _ = done.send(Ok(()));
