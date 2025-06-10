@@ -138,8 +138,6 @@ pub struct ConsensusRequest {
     last_consensus_published: Option<SystemTime>,
     /// A set of SHA3-256 digests of the _signed portion_ of consensuses we have.
     /// Used to declare what diffs we would accept.
-    ///
-    /// (Currently we don't send this, since we can't handle diffs.)
     last_consensus_sha3_256: Vec<[u8; 32]>,
     /// If present, the largest amount of clock skew to allow between ourself and a directory cache.
     skew_limit: Option<SkewLimit>,
