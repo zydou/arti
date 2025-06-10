@@ -573,7 +573,7 @@ impl ConfluxSet {
 
         // If this fails, it means we haven't updated our primary leg in a very long time.
         //
-        // TODO(conflux): there are currently no safeguards to prevent us from staying
+        // TODO(#2036): there are currently no safeguards to prevent us from staying
         // on the same leg for "too long". Perhaps we should design should_update_primary_leg()
         // such that it forces us to switch legs periodically, to prevent the seqno delta from
         // getting too big?
