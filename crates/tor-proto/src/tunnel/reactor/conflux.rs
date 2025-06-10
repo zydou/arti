@@ -136,7 +136,7 @@ impl ConfluxSet {
         // Note: the join point is only set for multi-path tunnels
         let join_point = None;
 
-        // TODO(conflux): read this from the consensus/config.
+        // TODO(#2035): read this from the consensus/config.
         #[cfg(feature = "conflux")]
         let desired_ux = V1DesiredUx::NO_OPINION;
 
