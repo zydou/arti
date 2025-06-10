@@ -622,7 +622,10 @@ impl NetParameters {
     /// Unrecognized parameters are ignored.
     pub fn from_map(p: &tor_netdoc::doc::netstatus::NetParams<i32>) -> Self {
         let mut params = NetParameters::default();
-        let _ = params.saturating_update(p.iter());
+        let unrecognized = params.saturating_update(p.iter());
+        for u in unrecognized {
+            tracing::debug!("Ignored unrecognized net param: {u}");
+        }
         params
     }
 
