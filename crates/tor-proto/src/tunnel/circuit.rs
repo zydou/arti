@@ -412,10 +412,14 @@ pub struct CircParameters {
     pub ccontrol: CongestionControlParams,
 }
 
-/// A set of negotiated information about a given circuit hop.
+/// The settings we use for single hop of a circuit.
 ///
-/// Unlike [`CircParameters`], this type is crate-internal,
-/// and is the result of negotiation.
+/// Unlike [`CircParameters`], this type is crate-internal.
+/// We construct it based on our settings from the circuit,
+/// and from the hop's actual capabilities.
+/// Then, we negotiate with the hop as part of circuit
+/// creation/extension to determine the actual settings that will be in use.
+/// Finally, we use those settings to construct the negotiated circuit hop.
 #[derive(Clone, Debug)]
 pub(super) struct HopSettings {
     /// The negotiated congestion control settings for this circuit.
