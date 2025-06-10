@@ -47,6 +47,7 @@ pub(super) mod path;
 pub(crate) mod unique_id;
 
 use crate::channel::Channel;
+use crate::circuit::handshake::RelayCryptLayerProtocol;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
@@ -69,6 +70,7 @@ use crate::{Error, ResolveError, Result};
 use educe::Educe;
 use path::HopDetail;
 use postage::watch;
+use tor_cell::relaycell::{self, RelayCellFormat};
 use tor_cell::{
     chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -454,7 +456,7 @@ pub struct CircParameters {
 // part of the circuit creation handshake.
 #[derive(Clone, Debug)]
 pub(super) struct HopSettings {
-    /// The negotiated congestion control settings for this circuit.
+    /// The negotiated congestion control settings for this hop .
     pub(super) ccontrol: CongestionControlParams,
 
     /// Maximum number of permitted incoming relay cells for this hop.
@@ -462,6 +464,12 @@ pub(super) struct HopSettings {
 
     /// Maximum number of permitted outgoing relay cells for this hop.
     pub(super) n_outgoing_cells_permitted: Option<u32>,
+
+    /// The relay cell encryption algorithm and cell format for this hop.
+    /// If this is None, we use the default.
+    relay_crypt_protocol: Option<RelayCryptLayerProtocol>,
+    /// The relay cell encryption algorithm to use for this hop if no better is available.
+    default_relay_crypt_protocol: RelayCryptLayerProtocol,
 }
 
 impl HopSettings {
@@ -479,10 +487,14 @@ impl HopSettings {
         params: &CircParameters,
         caps: &tor_protover::Protocols,
     ) -> Result<Self> {
+        let default_relay_crypt_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
         let mut settings = Self {
             ccontrol: params.ccontrol.clone(),
             n_incoming_cells_permitted: params.n_incoming_cells_permitted,
             n_outgoing_cells_permitted: params.n_outgoing_cells_permitted,
+            // XXXX: Start with CGO when appropriate.
+            relay_crypt_protocol: None,
+            default_relay_crypt_protocol,
         };
 
         match settings.ccontrol.alg() {
@@ -498,14 +510,30 @@ impl HopSettings {
         Ok(settings)
     }
 
+    /// Return the negotiated relay crypto protocol.
+    pub(super) fn relay_crypt_protocol(&self) -> RelayCryptLayerProtocol {
+        self.relay_crypt_protocol
+            .unwrap_or(self.default_relay_crypt_protocol)
+    }
+
+    /// Set the relay crypto protocol that we should use if we request or negotiate the desired one.
+    /// Tor1 is the default; onion service clients will want to specify HsTor1.
+    #[must_use]
+    pub(super) fn with_default_protocol(mut self, protocol: RelayCryptLayerProtocol) -> Self {
+        self.default_relay_crypt_protocol = protocol;
+        self
+    }
+
     /// Return a new `HopSettings` based on this one,
     /// representing the settings that we should use
     /// if circuit negotiation will be impossible.
     ///
     /// (Circuit negotiation is impossible when using the legacy ntor protocol,
     /// and when using CRATE_FAST.  It is currently unsupported with virtual hops.)
+    #[must_use]
     pub(super) fn without_negotiation(mut self) -> Self {
         self.ccontrol.use_fallback_alg();
+        self.relay_crypt_protocol = None;
         self
     }
 }
@@ -725,7 +753,7 @@ impl ClientCirc {
     #[cfg(feature = "send-control-msg")]
     pub async fn start_conversation(
         &self,
-        msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
+        msg: Option<relaycell::msg::AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
         hop: TargetHop,
     ) -> Result<Conversation<'_>> {
@@ -750,7 +778,7 @@ impl ClientCirc {
     #[cfg(feature = "send-control-msg")]
     pub async fn send_raw_msg(
         &self,
-        msg: tor_cell::relaycell::msg::AnyRelayMsg,
+        msg: relaycell::msg::AnyRelayMsg,
         hop: TargetHop,
     ) -> Result<()> {
         let (sender, receiver) = oneshot::channel();
@@ -784,7 +812,7 @@ impl ClientCirc {
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
-        allow_commands: &[tor_cell::relaycell::RelayCmd],
+        allow_commands: &[relaycell::RelayCmd],
         hop: TargetHop,
         filter: impl crate::stream::IncomingStreamRequestFilter,
     ) -> Result<impl futures::Stream<Item = IncomingStream>> {
@@ -1022,17 +1050,16 @@ impl ClientCirc {
         use self::handshake::BoxedClientLayer;
 
         let protocol = handshake::RelayCryptLayerProtocol::from(protocol);
-        let relay_cell_format = protocol.relay_cell_format();
 
         let BoxedClientLayer { fwd, back, binding } =
             protocol.construct_client_layers(role, seed)?;
 
         let settings = HopSettings::from_params_and_caps(params, capabilities)?
+            .with_default_protocol(protocol)
             // TODO #2037: We _should_ support negotiation here; see #2037.
             .without_negotiation();
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
-            relay_cell_format,
             cell_crypto: (fwd, back, binding),
             settings,
             done: tx,
@@ -1328,7 +1355,7 @@ impl Conversation<'_> {
     ///
     /// Responses are handled by the `MsgHandler` set up
     /// when the `Conversation` was created.
-    pub async fn send_message(&self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
+    pub async fn send_message(&self, msg: relaycell::msg::AnyRelayMsg) -> Result<()> {
         self.send_internal(Some(msg), None).await
     }
 
@@ -1337,10 +1364,10 @@ impl Conversation<'_> {
     /// The guts of `start_conversation` and `Conversation::send_msg`
     pub(crate) async fn send_internal(
         &self,
-        msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
+        msg: Option<relaycell::msg::AnyRelayMsg>,
         handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
     ) -> Result<()> {
-        let msg = msg.map(|msg| tor_cell::relaycell::AnyRelayMsgOuter::new(None, msg));
+        let msg = msg.map(|msg| relaycell::AnyRelayMsgOuter::new(None, msg));
         let (sender, receiver) = oneshot::channel();
 
         let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {

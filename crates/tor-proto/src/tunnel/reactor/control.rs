@@ -222,8 +222,6 @@ pub(crate) enum CtrlCmd {
     /// INTRODUCE and RENDEZVOUS messages.)
     #[cfg(feature = "hs-common")]
     ExtendVirtual {
-        /// Which relay cell format to use for this hop.
-        relay_cell_format: RelayCellFormat,
         /// The cryptographic algorithms and keys to use when communicating with
         /// the newly added hop.
         #[educe(Debug(ignore))]
@@ -370,7 +368,6 @@ impl<'a> ControlHandler<'a> {
                 };
 
                 let (extender, cell) = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
-                    RelayCellFormat::V0,
                     peer_id,
                     HandshakeType::NTOR,
                     &public_key,
@@ -407,14 +404,10 @@ impl<'a> ControlHandler<'a> {
                     return Ok(None);
                 };
 
-                // TODO #1067, TODO #1947: support negotiating other formats.
-                let relay_cell_format = RelayCellFormat::V0;
-
                 let client_extensions = circ_extensions_from_settings(&settings)?;
 
                 let (extender, cell) =
                     CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
-                        relay_cell_format,
                         peer_id,
                         HandshakeType::NTOR_V3,
                         &public_key,
@@ -633,7 +626,6 @@ impl<'a> ControlHandler<'a> {
             #[cfg(feature = "hs-common")]
             #[allow(unreachable_code)]
             CtrlCmd::ExtendVirtual {
-                relay_cell_format: format,
                 cell_crypto,
                 settings,
                 done,
@@ -654,7 +646,7 @@ impl<'a> ControlHandler<'a> {
                     return Ok(());
                 };
 
-                leg.add_hop(format, peer_id, outbound, inbound, binding, &settings)?;
+                leg.add_hop(peer_id, outbound, inbound, binding, &settings)?;
                 let _ = done.send(Ok(()));
 
                 Ok(())

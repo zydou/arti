@@ -21,7 +21,7 @@ use crate::crypto::cell::HopNum;
 use crate::stream::StreamRateLimit;
 use crate::{Error, Result};
 use circuit::ClientCirc;
-use circuit::{handshake, StreamMpscSender};
+use circuit::StreamMpscSender;
 use reactor::{CtrlMsg, FlowCtrlMsg};
 
 use postage::watch;

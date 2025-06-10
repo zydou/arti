@@ -25,7 +25,6 @@ use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
-use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::streammap;
 use crate::tunnel::TunnelScopedCircId;
@@ -330,6 +329,7 @@ impl Circuit {
         fwd_lasthop: bool,
         rev_lasthop: bool,
         dummy_peer_id: path::HopDetail,
+        // TODO: Take HopSettings instead of CircParams. XXXX
         params: &crate::circuit::CircParameters,
         done: ReactorResultChannel<()>,
     ) {
@@ -337,15 +337,18 @@ impl Circuit {
 
         use crate::tunnel::circuit::test::DummyCrypto;
 
+        let protocol = crate::circuit::handshake::RelayCryptLayerProtocol::Tor1(format);
         let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
         let binding = None;
+
         let settings = HopSettings::from_params_and_caps(
             params,
             &[named::FLOWCTRL_CC].into_iter().collect::<Protocols>(),
         )
-        .expect("Can't construct HopSettings");
-        self.add_hop(format, dummy_peer_id, fwd, rev, binding, &settings)
+        .expect("Can't construct HopSettings")
+        .with_default_protocol(protocol);
+        self.add_hop(dummy_peer_id, fwd, rev, binding, &settings)
             .expect("could not add hop to circuit");
         let _ = done.send(Ok(()));
     }
@@ -1000,7 +1003,6 @@ impl Circuit {
     /// the cryptographic handshake.
     async fn create_impl<H, W, M>(
         &mut self,
-        cell_protocol: RelayCryptLayerProtocol,
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
@@ -1040,16 +1042,15 @@ impl Circuit {
 
         H::handle_server_aux_data(&mut settings, &server_msg)?;
 
-        let relay_cell_format = cell_protocol.relay_cell_format();
-        let BoxedClientLayer { fwd, back, binding } =
-            cell_protocol.construct_client_layers(HandshakeRole::Initiator, keygen)?;
+        let BoxedClientLayer { fwd, back, binding } = settings
+            .relay_crypt_protocol()
+            .construct_client_layers(HandshakeRole::Initiator, keygen)?;
 
         trace!(circ_id = %self.unique_id, "Handshake complete; circuit created.");
 
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
-            relay_cell_format,
             path::HopDetail::Relay(peer_id),
             fwd,
             back,
@@ -1071,9 +1072,8 @@ impl Circuit {
         settings: HopSettings,
     ) -> Result<()> {
         // In a CREATE_FAST handshake, we can't negotiate a format other than this.
-        let protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
         let wrap = CreateFastWrap;
-        self.create_impl::<CreateFastClient, _, _>(protocol, recvcreated, &wrap, &(), settings, &())
+        self.create_impl::<CreateFastClient, _, _>(recvcreated, &wrap, &(), settings, &())
             .await
     }
 
@@ -1088,9 +1088,6 @@ impl Circuit {
         pubkey: NtorPublicKey,
         settings: HopSettings,
     ) -> Result<()> {
-        // In an ntor handshake, we can't negotiate a format other than this.
-        let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
-
         // Exit now if we have an Ed25519 or RSA identity mismatch.
         let target = RelayIds::builder()
             .ed_identity(ed_identity)
@@ -1102,15 +1099,8 @@ impl Circuit {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR,
         };
-        self.create_impl::<NtorClient, _, _>(
-            relay_cell_protocol,
-            recvcreated,
-            &wrap,
-            &pubkey,
-            settings,
-            &(),
-        )
-        .await
+        self.create_impl::<NtorClient, _, _>(recvcreated, &wrap, &pubkey, settings, &())
+            .await
     }
 
     /// Use the ntor-v3 handshake to connect to the first hop of this circuit.
@@ -1130,9 +1120,6 @@ impl Circuit {
             .expect("Unable to build RelayIds");
         self.channel.check_match(&target)?;
 
-        // TODO #1947: Add support for negotiating other formats.
-        let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
-
         // Set the client extensions.
         let client_extensions = circ_extensions_from_settings(&settings)?;
         let wrap = Create2Wrap {
@@ -1140,7 +1127,6 @@ impl Circuit {
         };
 
         self.create_impl::<NtorV3Client, _, _>(
-            relay_cell_protocol,
             recvcreated,
             &wrap,
             &pubkey,
@@ -1155,7 +1141,6 @@ impl Circuit {
     /// Will return an error if the circuit already has [`u8::MAX`] hops.
     pub(super) fn add_hop(
         &mut self,
-        format: RelayCellFormat,
         peer_id: path::HopDetail,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
@@ -1176,7 +1161,7 @@ impl Circuit {
 
         let hop_num = (hop_num as u8).into();
 
-        let hop = CircHop::new(self.unique_id, hop_num, format, settings);
+        let hop = CircHop::new(self.unique_id, hop_num, settings);
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
