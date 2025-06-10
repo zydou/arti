@@ -417,20 +417,20 @@ pub struct CircParameters {
 /// Unlike [`CircParameters`], this type is crate-internal,
 /// and is the result of negotiation.
 #[derive(Clone, Debug)]
-pub(super) struct NegotiatedHopSettings {
+pub(super) struct HopSettings {
     /// The negotiated congestion control settings for this circuit.
     pub(super) ccontrol: CongestionControlParams,
 }
 
-impl NegotiatedHopSettings {
-    /// Construct a new `NegotiatedHopSettings` based on `params` (a set of circuit parameters)
+impl HopSettings {
+    /// Construct a new `HopSettings` based on `params` (a set of circuit parameters)
     /// and `caps` (a set of protocol capabilities for a circuit target).
     ///
     /// The resulting settings will represent what the client would prefer to negotiate
     /// (determined by `params`),
     /// as modified by what the target relay is believed to support (represented by `caps`).
     ///
-    /// This represents the `NegotiatedHopSettings` in a pre-negotiation state:
+    /// This represents the `HopSettings` in a pre-negotiation state:
     /// the circuit negotiation process will modify it.
     #[allow(clippy::unnecessary_wraps)] // likely to become fallible in the future.
     pub(super) fn from_params_and_caps(
@@ -821,7 +821,7 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
-        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
                 peer_id,
@@ -859,7 +859,7 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
-        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtorV3 {
                 peer_id,
@@ -915,7 +915,7 @@ impl ClientCirc {
         let BoxedClientLayer { fwd, back, binding } =
             protocol.construct_client_layers(role, seed)?;
 
-        let settings = NegotiatedHopSettings::from_params_and_caps(params, capabilities)?;
+        let settings = HopSettings::from_params_and_caps(params, capabilities)?;
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
             relay_cell_format,
@@ -1254,7 +1254,7 @@ impl PendingClientCirc {
         //
         // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
         let protocols = tor_protover::Protocols::new();
-        let settings = NegotiatedHopSettings::from_params_and_caps(&params, &protocols)?;
+        let settings = HopSettings::from_params_and_caps(&params, &protocols)?;
 
         let (tx, rx) = oneshot::channel();
         self.circ
@@ -1308,7 +1308,7 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
-        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
 
         self.circ
             .control
@@ -1351,7 +1351,7 @@ impl PendingClientCirc {
     where
         Tg: tor_linkspec::CircTarget,
     {
-        let settings = NegotiatedHopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
         let (tx, rx) = oneshot::channel();
 
         self.circ

@@ -1,7 +1,7 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{Circuit, ReactorResultChannel};
-use crate::circuit::NegotiatedHopSettings;
+use crate::circuit::HopSettings;
 use crate::congestion;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
@@ -42,7 +42,7 @@ where
     /// Handshake state.
     state: Option<H::StateType>,
     /// In-progress settings that we're negotiating for this hop.
-    settings: NegotiatedHopSettings,
+    settings: HopSettings,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
@@ -83,7 +83,7 @@ where
         handshake_id: HandshakeType,
         key: &H::KeyType,
         linkspecs: Vec<EncodedLinkSpec>,
-        settings: NegotiatedHopSettings,
+        settings: HopSettings,
         client_aux_data: &impl Borrow<H::ClientAuxData>,
         circ: &mut Circuit,
         done: ReactorResultChannel<()>,
@@ -238,14 +238,14 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     /// Handle auxiliary handshake data returned when creating or extending a
     /// circuit.
     fn handle_server_aux_data(
-        settings: &mut NegotiatedHopSettings,
+        settings: &mut HopSettings,
         data: &<Self as ClientHandshake>::ServerAuxData,
     ) -> Result<()>;
 }
 
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(
-        settings: &mut NegotiatedHopSettings,
+        settings: &mut HopSettings,
         data: &Vec<CircResponseExt>,
     ) -> Result<()> {
         // Process all extensions.
@@ -297,14 +297,14 @@ impl HandshakeAuxDataHandler for NtorV3Client {
 }
 
 impl HandshakeAuxDataHandler for NtorClient {
-    fn handle_server_aux_data(_settings: &mut NegotiatedHopSettings, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_settings: &mut HopSettings, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }
 }
 
 impl HandshakeAuxDataHandler for CreateFastClient {
-    fn handle_server_aux_data(_settings: &mut NegotiatedHopSettings, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_settings: &mut HopSettings, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }

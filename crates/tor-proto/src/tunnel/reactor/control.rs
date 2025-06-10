@@ -7,7 +7,7 @@ use super::{
 };
 #[cfg(test)]
 use crate::circuit::CircParameters;
-use crate::circuit::NegotiatedHopSettings;
+use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
@@ -61,7 +61,7 @@ pub(crate) enum CtrlMsg {
         /// The handshake type to use for the first hop.
         handshake: CircuitHandshake,
         /// Other parameters relevant for circuit creation.
-        settings: NegotiatedHopSettings,
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -76,7 +76,7 @@ pub(crate) enum CtrlMsg {
         /// Information about how to connect to the relay we're extending to.
         linkspecs: Vec<EncodedLinkSpec>,
         /// Other parameters we are negotiating.
-        settings: NegotiatedHopSettings,
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -91,7 +91,7 @@ pub(crate) enum CtrlMsg {
         /// Information about how to connect to the relay we're extending to.
         linkspecs: Vec<EncodedLinkSpec>,
         /// Other parameters we are negotiating.
-        settings: NegotiatedHopSettings,
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -222,7 +222,7 @@ pub(crate) enum CtrlCmd {
             Option<CircuitBinding>,
         ),
         /// A set of parameters to negotiate with this hop.
-        settings: NegotiatedHopSettings,
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
