@@ -22,5 +22,4 @@ $CARGO update \
       -p filetime \
       -p tap:1.0.0 \
       -p event-listener:3.0.0 \
-      -p yoke:0.6.0 \
       -p paste
