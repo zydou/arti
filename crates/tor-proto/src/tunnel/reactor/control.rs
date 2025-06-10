@@ -5,13 +5,16 @@ use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
 };
+#[cfg(test)]
+use crate::circuit::CircParameters;
+use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
-use crate::tunnel::circuit::{path, CircParameters};
-use crate::tunnel::reactor::circuit::circ_extensions_from_params;
+use crate::tunnel::circuit::path;
+use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
 use crate::tunnel::reactor::{NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::skew::ClockSkew;
@@ -58,7 +61,7 @@ pub(crate) enum CtrlMsg {
         /// The handshake type to use for the first hop.
         handshake: CircuitHandshake,
         /// Other parameters relevant for circuit creation.
-        params: CircParameters,
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -72,8 +75,8 @@ pub(crate) enum CtrlMsg {
         public_key: NtorPublicKey,
         /// Information about how to connect to the relay we're extending to.
         linkspecs: Vec<EncodedLinkSpec>,
-        /// Other parameters relevant for circuit extension.
-        params: CircParameters,
+        /// Other parameters we are negotiating.
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -87,8 +90,8 @@ pub(crate) enum CtrlMsg {
         public_key: NtorV3PublicKey,
         /// Information about how to connect to the relay we're extending to.
         linkspecs: Vec<EncodedLinkSpec>,
-        /// Other parameters relevant for circuit extension.
-        params: CircParameters,
+        /// Other parameters we are negotiating.
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -218,8 +221,8 @@ pub(crate) enum CtrlCmd {
             Box<dyn InboundClientLayer + Send>,
             Option<CircuitBinding>,
         ),
-        /// A set of parameters used to configure this hop.
-        params: CircParameters,
+        /// A set of parameters to negotiate with this hop.
+        settings: HopSettings,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
@@ -311,7 +314,7 @@ impl<'a> ControlHandler<'a> {
                 peer_id,
                 public_key,
                 linkspecs,
-                params,
+                settings,
                 done,
             } => {
                 let Ok((leg_id, circ)) = self.reactor.circuits.single_leg_mut() else {
@@ -330,7 +333,7 @@ impl<'a> ControlHandler<'a> {
                     HandshakeType::NTOR,
                     &public_key,
                     linkspecs,
-                    params,
+                    settings,
                     &(),
                     circ,
                     done,
@@ -349,7 +352,7 @@ impl<'a> ControlHandler<'a> {
                 peer_id,
                 public_key,
                 linkspecs,
-                params,
+                settings,
                 done,
             } => {
                 let Ok((leg_id, circ)) = self.reactor.circuits.single_leg_mut() else {
@@ -365,7 +368,7 @@ impl<'a> ControlHandler<'a> {
                 // TODO #1067, TODO #1947: support negotiating other formats.
                 let relay_cell_format = RelayCellFormat::V0;
 
-                let client_extensions = circ_extensions_from_params(&params)?;
+                let client_extensions = circ_extensions_from_settings(&settings)?;
 
                 let (extender, cell) =
                     CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
@@ -374,7 +377,7 @@ impl<'a> ControlHandler<'a> {
                         HandshakeType::NTOR_V3,
                         &public_key,
                         linkspecs,
-                        params,
+                        settings,
                         &client_extensions,
                         circ,
                         done,
@@ -558,7 +561,7 @@ impl<'a> ControlHandler<'a> {
             CtrlCmd::ExtendVirtual {
                 relay_cell_format: format,
                 cell_crypto,
-                params,
+                settings,
                 done,
             } => {
                 let (outbound, inbound, binding) = cell_crypto;
@@ -577,7 +580,7 @@ impl<'a> ControlHandler<'a> {
                     return Ok(());
                 };
 
-                leg.add_hop(format, peer_id, outbound, inbound, binding, &params)?;
+                leg.add_hop(format, peer_id, outbound, inbound, binding, &settings)?;
                 let _ = done.send(Ok(()));
 
                 Ok(())

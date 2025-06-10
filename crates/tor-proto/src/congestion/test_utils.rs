@@ -49,7 +49,7 @@ pub(crate) mod params {
             .rtt_params(build_rtt_params())
             .cwnd_params(build_cwnd_params())
             .alg(Algorithm::Vegas(params.clone()))
-            .fallback_alg(Algorithm::FixedWindow(build_fixed_params()))
+            .fixed_window_params(build_fixed_params())
             .build()
             .expect("Unable to build CC params")
     }
@@ -60,7 +60,7 @@ pub(crate) mod params {
             .rtt_params(build_rtt_params())
             .cwnd_params(build_cwnd_params())
             .alg(Algorithm::FixedWindow(params.clone()))
-            .fallback_alg(Algorithm::FixedWindow(params))
+            .fixed_window_params(params)
             .build()
             .expect("Unable to build CC params")
     }

@@ -392,6 +392,16 @@ pub struct PendingClientCirc {
 }
 
 /// Description of the network's current rules for building circuits.
+///
+/// This type describes rules derived from the consensus,
+/// and possibly amended by our own configuration.
+///
+/// Typically, this type created once for an entire circuit,
+/// and any special per-hop information is derived
+/// from each hop as a CircTarget.
+/// Note however that callers _may_ provide different `CircParameters`
+/// for different hops within a circuit if they have some reason to do so,
+/// so we do not enforce that every hop in a circuit has the same `CircParameters`.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct CircParameters {
@@ -400,6 +410,67 @@ pub struct CircParameters {
     pub extend_by_ed25519_id: bool,
     /// Congestion control parameters for this circuit.
     pub ccontrol: CongestionControlParams,
+}
+
+/// The settings we use for single hop of a circuit.
+///
+/// Unlike [`CircParameters`], this type is crate-internal.
+/// We construct it based on our settings from the circuit,
+/// and from the hop's actual capabilities.
+/// Then, we negotiate with the hop as part of circuit
+/// creation/extension to determine the actual settings that will be in use.
+/// Finally, we use those settings to construct the negotiated circuit hop.
+//
+// TODO: Relays should probably derive an instance of this type too, as
+// part of the circuit creation handshake.
+#[derive(Clone, Debug)]
+pub(super) struct HopSettings {
+    /// The negotiated congestion control settings for this circuit.
+    pub(super) ccontrol: CongestionControlParams,
+}
+
+impl HopSettings {
+    /// Construct a new `HopSettings` based on `params` (a set of circuit parameters)
+    /// and `caps` (a set of protocol capabilities for a circuit target).
+    ///
+    /// The resulting settings will represent what the client would prefer to negotiate
+    /// (determined by `params`),
+    /// as modified by what the target relay is believed to support (represented by `caps`).
+    ///
+    /// This represents the `HopSettings` in a pre-negotiation state:
+    /// the circuit negotiation process will modify it.
+    #[allow(clippy::unnecessary_wraps)] // likely to become fallible in the future.
+    pub(super) fn from_params_and_caps(
+        params: &CircParameters,
+        caps: &tor_protover::Protocols,
+    ) -> Result<Self> {
+        let mut settings = Self {
+            ccontrol: params.ccontrol.clone(),
+        };
+
+        match settings.ccontrol.alg() {
+            crate::ccparams::Algorithm::FixedWindow(_) => {}
+            crate::ccparams::Algorithm::Vegas(_) => {
+                // If the target doesn't support FLOWCTRL_CC, we can't use Vegas.
+                if !caps.supports_named_subver(named::FLOWCTRL_CC) {
+                    settings.ccontrol.use_fallback_alg();
+                }
+            }
+        }
+
+        Ok(settings)
+    }
+
+    /// Return a new `HopSettings` based on this one,
+    /// representing the settings that we should use
+    /// if circuit negotiation will be impossible.
+    ///
+    /// (Circuit negotiation is impossible when using the legacy ntor protocol,
+    /// and when using CRATE_FAST.  It is currently unsupported with virtual hops.)
+    pub(super) fn without_negotiation(mut self) -> Self {
+        self.ccontrol.use_fallback_alg();
+        self
+    }
 }
 
 #[cfg(test)]
@@ -768,12 +839,14 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
+        let settings =
+            HopSettings::from_params_and_caps(&params, target.protovers())?.without_negotiation();
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -805,12 +878,13 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
+        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtorV3 {
                 peer_id,
                 public_key: key,
                 linkspecs,
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -843,15 +917,14 @@ impl ClientCirc {
     // TODO hs: let's try to enforce the "you can't extend a circuit again once
     // it has been extended this way" property.  We could do that with internal
     // state, or some kind of a type state pattern.
-    //
-    // TODO hs: possibly we should take a set of Protovers, and not just `Params`.
     #[cfg(feature = "hs-common")]
     pub async fn extend_virtual(
         &self,
         protocol: handshake::RelayProtocol,
         role: handshake::HandshakeRole,
         seed: impl handshake::KeyGenerator,
-        params: CircParameters,
+        params: &CircParameters,
+        capabilities: &tor_protover::Protocols,
     ) -> Result<()> {
         use self::handshake::BoxedClientLayer;
 
@@ -861,11 +934,14 @@ impl ClientCirc {
         let BoxedClientLayer { fwd, back, binding } =
             protocol.construct_client_layers(role, seed)?;
 
+        let settings = HopSettings::from_params_and_caps(params, capabilities)?
+            // TODO #2037: We _should_ support negotiation here; see #2037.
+            .without_negotiation();
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
             relay_cell_format,
             cell_crypto: (fwd, back, binding),
-            params,
+            settings,
             done: tx,
         };
 
@@ -1195,13 +1271,20 @@ impl PendingClientCirc {
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
     pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<Arc<ClientCirc>> {
+        // We no nothing about this relay, so we assume it supports no protocol capabilities at all.
+        //
+        // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
+        let protocols = tor_protover::Protocols::new();
+        let settings =
+            HopSettings::from_params_and_caps(&params, &protocols)?.without_negotiation();
+
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
             .unbounded_send(CtrlMsg::Create {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::CreateFast,
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1247,6 +1330,8 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
+        let settings =
+            HopSettings::from_params_and_caps(&params, target.protovers())?.without_negotiation();
 
         self.circ
             .control
@@ -1263,7 +1348,7 @@ impl PendingClientCirc {
                         .ed_identity()
                         .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
                 },
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1289,6 +1374,7 @@ impl PendingClientCirc {
     where
         Tg: tor_linkspec::CircTarget,
     {
+        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
         let (tx, rx) = oneshot::channel();
 
         self.circ
@@ -1303,7 +1389,7 @@ impl PendingClientCirc {
                         pk: *target.ntor_onion_key(),
                     },
                 },
-                params,
+                settings,
                 done: tx,
             })
             .map_err(|_| Error::CircuitClosed)?;
@@ -1421,7 +1507,7 @@ pub(crate) mod test {
             .rsa_identity(EXAMPLE_RSA_ID.into());
         builder
             .ntor_onion_key(EXAMPLE_PK.into())
-            .protocols("FlowCtrl=1".parse().unwrap())
+            .protocols("FlowCtrl=1-2".parse().unwrap())
             .build()
             .unwrap()
     }

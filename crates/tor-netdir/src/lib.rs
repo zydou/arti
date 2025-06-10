@@ -1463,6 +1463,16 @@ impl NetDir {
         self.consensus.relay_protocol_status()
     }
 
+    /// Return a [`ProtoStatus`](netstatus::ProtoStatus) that lists the
+    /// network's current requirements and recommendations for the list of
+    /// protocols that every relay must implement.
+    //
+    // TODO HS: See notes on relay_protocol_status above.
+    #[cfg(feature = "hs-common")]
+    pub fn client_protocol_status(&self) -> &netstatus::ProtoStatus {
+        self.consensus.client_protocol_status()
+    }
+
     /// Return weighted the fraction of relays we can use.  We only
     /// consider relays that match the predicate `usable`.  We weight
     /// this bandwidth according to the provided `role`.

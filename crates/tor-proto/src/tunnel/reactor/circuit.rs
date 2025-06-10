@@ -4,6 +4,7 @@ pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
+use crate::circuit::HopSettings;
 use crate::congestion::sendme;
 use crate::congestion::{CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
@@ -22,7 +23,7 @@ use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::{
-    CircParameters, CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
+    CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
 };
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
@@ -353,7 +354,7 @@ impl Circuit {
         format: RelayCellFormat,
         fwd_lasthop: bool,
         rev_lasthop: bool,
-        params: &CircParameters,
+        params: &crate::circuit::CircParameters,
         done: ReactorResultChannel<()>,
     ) {
         use crate::tunnel::circuit::test::DummyCrypto;
@@ -367,13 +368,16 @@ impl Circuit {
         let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
         let binding = None;
+        let settings = HopSettings::from_params_and_caps(params, &tor_protover::Protocols::new())
+            .expect("Can't construct HopSettings")
+            .without_negotiation();
         self.add_hop(
             format,
             path::HopDetail::Relay(dummy_peer_id),
             fwd,
             rev,
             binding,
-            params,
+            &settings,
         )
         .expect("could not add hop to circuit");
         let _ = done.send(Ok(()));
@@ -1038,20 +1042,20 @@ impl Circuit {
         &mut self,
         recv_created: oneshot::Receiver<CreateResponse>,
         handshake: CircuitHandshake,
-        params: &mut CircParameters,
+        settings: HopSettings,
         done: ReactorResultChannel<()>,
     ) -> StdResult<(), ReactorError> {
         let ret = match handshake {
-            CircuitHandshake::CreateFast => self.create_firsthop_fast(recv_created, params).await,
+            CircuitHandshake::CreateFast => self.create_firsthop_fast(recv_created, settings).await,
             CircuitHandshake::Ntor {
                 public_key,
                 ed_identity,
             } => {
-                self.create_firsthop_ntor(recv_created, ed_identity, public_key, params)
+                self.create_firsthop_ntor(recv_created, ed_identity, public_key, settings)
                     .await
             }
             CircuitHandshake::NtorV3 { public_key } => {
-                self.create_firsthop_ntor_v3(recv_created, public_key, params)
+                self.create_firsthop_ntor_v3(recv_created, public_key, settings)
                     .await
             }
         };
@@ -1075,7 +1079,7 @@ impl Circuit {
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
-        params: &mut CircParameters,
+        mut settings: HopSettings,
         msg: &M,
     ) -> Result<()>
     where
@@ -1109,7 +1113,7 @@ impl Circuit {
         let relay_handshake = wrap.decode_chanmsg(reply)?;
         let (server_msg, keygen) = H::client2(state, relay_handshake)?;
 
-        H::handle_server_aux_data(params, &server_msg)?;
+        H::handle_server_aux_data(&mut settings, &server_msg)?;
 
         let relay_cell_format = cell_protocol.relay_cell_format();
         let BoxedClientLayer { fwd, back, binding } =
@@ -1125,7 +1129,7 @@ impl Circuit {
             fwd,
             back,
             binding,
-            params,
+            &settings,
         )?;
         Ok(())
     }
@@ -1139,12 +1143,12 @@ impl Circuit {
     async fn create_firsthop_fast(
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
-        params: &mut CircParameters,
+        settings: HopSettings,
     ) -> Result<()> {
         // In a CREATE_FAST handshake, we can't negotiate a format other than this.
         let protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
         let wrap = CreateFastWrap;
-        self.create_impl::<CreateFastClient, _, _>(protocol, recvcreated, &wrap, &(), params, &())
+        self.create_impl::<CreateFastClient, _, _>(protocol, recvcreated, &wrap, &(), settings, &())
             .await
     }
 
@@ -1157,7 +1161,7 @@ impl Circuit {
         recvcreated: oneshot::Receiver<CreateResponse>,
         ed_identity: pk::ed25519::Ed25519Identity,
         pubkey: NtorPublicKey,
-        params: &mut CircParameters,
+        settings: HopSettings,
     ) -> Result<()> {
         // In an ntor handshake, we can't negotiate a format other than this.
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
@@ -1178,7 +1182,7 @@ impl Circuit {
             recvcreated,
             &wrap,
             &pubkey,
-            params,
+            settings,
             &(),
         )
         .await
@@ -1192,7 +1196,7 @@ impl Circuit {
         &mut self,
         recvcreated: oneshot::Receiver<CreateResponse>,
         pubkey: NtorV3PublicKey,
-        params: &mut CircParameters,
+        settings: HopSettings,
     ) -> Result<()> {
         // Exit now if we have a mismatched key.
         let target = RelayIds::builder()
@@ -1205,7 +1209,7 @@ impl Circuit {
         let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
         // Set the client extensions.
-        let client_extensions = circ_extensions_from_params(params)?;
+        let client_extensions = circ_extensions_from_settings(&settings)?;
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,
         };
@@ -1215,7 +1219,7 @@ impl Circuit {
             recvcreated,
             &wrap,
             &pubkey,
-            params,
+            settings,
             &client_extensions,
         )
         .await
@@ -1231,7 +1235,7 @@ impl Circuit {
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
         binding: Option<CircuitBinding>,
-        params: &CircParameters,
+        settings: &HopSettings,
     ) -> StdResult<(), Bug> {
         let hop_num = self.hops.len();
         debug_assert_eq!(hop_num, usize::from(self.num_hops()));
@@ -1247,7 +1251,7 @@ impl Circuit {
 
         let hop_num = (hop_num as u8).into();
 
-        let hop = CircHop::new(self.unique_id, hop_num, format, params);
+        let hop = CircHop::new(self.unique_id, hop_num, format, settings);
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
@@ -1679,13 +1683,13 @@ impl CircHop {
         unique_id: UniqId,
         hop_num: HopNum,
         relay_format: RelayCellFormat,
-        params: &CircParameters,
+        settings: &HopSettings,
     ) -> Self {
         CircHop {
             unique_id,
             hop_num,
             map: Arc::new(Mutex::new(streammap::StreamMap::new())),
-            ccontrol: CongestionControl::new(&params.ccontrol),
+            ccontrol: CongestionControl::new(&settings.ccontrol),
             inbound: RelayCellDecoder::new(relay_format),
             relay_format,
         }
@@ -1794,7 +1798,7 @@ impl CircHop {
 /// Return the client circuit-creation extensions that we should use in order to negotiate
 /// a given set of circuit hop parameters.
 #[allow(clippy::unnecessary_wraps)]
-pub(super) fn circ_extensions_from_params(params: &CircParameters) -> Result<Vec<CircRequestExt>> {
+pub(super) fn circ_extensions_from_settings(params: &HopSettings) -> Result<Vec<CircRequestExt>> {
     // allow 'unused_mut' because of the combinations of `cfg` conditions below
     #[allow(unused_mut)]
     let mut client_extensions = Vec::new();

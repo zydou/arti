@@ -1,6 +1,7 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{Circuit, ReactorResultChannel};
+use crate::circuit::HopSettings;
 use crate::congestion;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
@@ -8,7 +9,6 @@ use crate::crypto::cell::{
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
 use crate::tunnel::circuit::unique_id::UniqId;
-use crate::tunnel::circuit::CircParameters;
 use crate::tunnel::reactor::MetaCellDisposition;
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
@@ -41,8 +41,8 @@ where
     peer_id: OwnedChanTarget,
     /// Handshake state.
     state: Option<H::StateType>,
-    /// Parameters used for this extension.
-    params: CircParameters,
+    /// In-progress settings that we're negotiating for this hop.
+    settings: HopSettings,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
@@ -83,7 +83,7 @@ where
         handshake_id: HandshakeType,
         key: &H::KeyType,
         linkspecs: Vec<EncodedLinkSpec>,
-        params: CircParameters,
+        settings: HopSettings,
         client_aux_data: &impl Borrow<H::ClientAuxData>,
         circ: &mut Circuit,
         done: ReactorResultChannel<()>,
@@ -115,7 +115,7 @@ where
             let extender = Self {
                 peer_id,
                 state: Some(state),
-                params,
+                settings,
                 unique_id,
                 expected_hop: hop,
                 operation_finished: None,
@@ -167,7 +167,7 @@ where
 
         // Handle auxiliary data returned from the server, e.g. validating that
         // requested extensions have been acknowledged.
-        H::handle_server_aux_data(&mut self.params, &server_aux_data)?;
+        H::handle_server_aux_data(&mut self.settings, &server_aux_data)?;
 
         let layer = L::construct(keygen)?;
 
@@ -181,7 +181,7 @@ where
             Box::new(layer_fwd),
             Box::new(layer_back),
             Some(binding),
-            &self.params,
+            &self.settings,
         )?;
         Ok(MetaCellDisposition::ConversationFinished)
     }
@@ -238,14 +238,14 @@ pub(crate) trait HandshakeAuxDataHandler: ClientHandshake {
     /// Handle auxiliary handshake data returned when creating or extending a
     /// circuit.
     fn handle_server_aux_data(
-        params: &mut CircParameters,
+        settings: &mut HopSettings,
         data: &<Self as ClientHandshake>::ServerAuxData,
     ) -> Result<()>;
 }
 
 impl HandshakeAuxDataHandler for NtorV3Client {
     fn handle_server_aux_data(
-        params: &mut CircParameters,
+        settings: &mut HopSettings,
         data: &Vec<CircResponseExt>,
     ) -> Result<()> {
         // Process all extensions.
@@ -259,20 +259,20 @@ impl HandshakeAuxDataHandler for NtorV3Client {
                         if #[cfg(feature = "flowctl-cc")] {
                             // Unexpected ACK extension as in if CC is disabled on our side, we would never have
                             // requested it. Reject and circuit must be closed.
-                            if !params.ccontrol.is_enabled() {
+                            if !settings.ccontrol.is_enabled() {
                                 return Err(Error::HandshakeProto(
                                     "Received unexpected ntorv3 CC ack extension".into(),
                                 ));
                             }
                             let sendme_inc = ack_ext.sendme_inc();
                             // Invalid increment, reject and circuit must be closed.
-                            if !congestion::params::is_sendme_inc_valid(sendme_inc, params) {
+                            if !congestion::params::is_sendme_inc_valid(sendme_inc, &settings.ccontrol) {
                                 return Err(Error::HandshakeProto(
                                     "Received invalid sendme increment in CC ntorv3 extension".into(),
                                 ));
                             }
                             // Excellent, we have a negotiated sendme increment. Set it for this circuit.
-                            params
+                            settings
                                 .ccontrol
                                 .cwnd_params_mut()
                                 .set_sendme_inc(sendme_inc);
@@ -297,14 +297,14 @@ impl HandshakeAuxDataHandler for NtorV3Client {
 }
 
 impl HandshakeAuxDataHandler for NtorClient {
-    fn handle_server_aux_data(_params: &mut CircParameters, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_settings: &mut HopSettings, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }
 }
 
 impl HandshakeAuxDataHandler for CreateFastClient {
-    fn handle_server_aux_data(_params: &mut CircParameters, _data: &()) -> Result<()> {
+    fn handle_server_aux_data(_settings: &mut HopSettings, _data: &()) -> Result<()> {
         // This handshake doesn't have any auxiliary data; nothing to do.
         Ok(())
     }

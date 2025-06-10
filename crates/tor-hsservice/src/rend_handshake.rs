@@ -346,6 +346,9 @@ impl IntroRequest {
         let params = onion_circparams_from_netparams(netdir.params())
             .map_err(into_internal!("Unable to build CircParameters"))?;
 
+        // TODO CC: We may be able to do better based on the client's handshake message.
+        let protocols = netdir.client_protocol_status().required_protocols().clone();
+
         // We won't need the netdir any longer; stop holding the reference.
         drop(netdir);
 
@@ -359,7 +362,8 @@ impl IntroRequest {
                 handshake::RelayProtocol::HsV3,
                 handshake::HandshakeRole::Responder,
                 self.key_gen,
-                params,
+                &params,
+                &protocols,
             )
             .await
             .map_err(E::VirtualHop)?;
