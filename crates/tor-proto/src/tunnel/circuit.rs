@@ -423,7 +423,12 @@ pub(super) struct NegotiatedHopSettings {
 }
 
 impl NegotiatedHopSettings {
-    /// Construct a new `NegotiatedHopSettings` based on `params` and `caps`
+    /// Construct a new `NegotiatedHopSettings` based on `params` (a set of circuit parameters)
+    /// and `caps` (a set of protocol capabilities for a circuit target).
+    ///
+    /// The resulting settings will represent what the client would prefer to negotiate
+    /// (determined by `params`),
+    /// as modified by what the target relay is believed to support (represented by `caps`).
     ///
     /// This represents the `NegotiatedHopSettings` in a pre-negotiation state:
     /// the circuit negotiation process will modify it.
