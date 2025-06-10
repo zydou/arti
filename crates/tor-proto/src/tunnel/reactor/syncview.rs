@@ -1,6 +1,6 @@
 //! Implement synchronous views of circuit internals.
 
-use super::circuit::CircHop;
+use super::circuit::CircHopList;
 
 /// A view of a [`ClientCirc`](crate::tunnel::circuit::ClientCirc)'s internals, usable in a
 /// synchronous callback.
@@ -15,23 +15,19 @@ use super::circuit::CircHop;
 // or whether to try to stuff everything inside this type.
 pub struct ClientCircSyncView<'a> {
     /// The hops of the circuit used to implement this view.
-    pub(super) hops: &'a Vec<CircHop>,
+    pub(super) hops: &'a CircHopList,
 }
 
 impl<'a> ClientCircSyncView<'a> {
     /// Construct a new view of a circuit, given a mutable reference to its
     /// reactor.
-    pub(super) fn new(reactor: &'a Vec<CircHop>) -> Self {
+    pub(super) fn new(reactor: &'a CircHopList) -> Self {
         Self { hops: reactor }
     }
 
     /// Return the number of streams currently open on this circuit.
     pub fn n_open_streams(&self) -> usize {
-        self.hops
-            .iter()
-            .map(|hop| hop.n_open_streams())
-            // No need to worry about overflow; max streams per hop is U16_MAX
-            .sum()
+        self.hops.n_open_streams()
     }
 
     // TODO: We will eventually want to add more functionality here, but we

@@ -115,9 +115,11 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
     fn handshake_timeout(&self) -> Option<SystemTime> {
         /// The maximum amount of time to wait for the LINKED cell to arrive.
         //
-        // TODO(conflux): "This timeout MUST be no larger than the normal SOCKS/stream timeout in
-        // use for RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
-        // implementation currently uses Circuit Build Timeout)".
+        // TODO(conflux-tuning): we should pick a less arbitrary timeout
+        //
+        // "This timeout MUST be no larger than the normal SOCKS/stream timeout in
+        // use for RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead.
+        // (The C-Tor implementation currently uses Circuit Build Timeout)".
         const LINK_TIMEOUT: Duration = Duration::from_secs(60);
 
         self.link_sent.map(|link_sent| link_sent + LINK_TIMEOUT)
@@ -294,7 +296,7 @@ impl ClientConfluxMsgHandler {
 
     /// Validate the relative sequence number specified in a switch command.
     ///
-    /// TODO(conflux): the exact validation logic will presumably depend on
+    /// TODO(#2031): the exact validation logic will presumably depend on
     /// the configured UX?
     fn validate_switch_seqno(&self, rel_seqno: u32) -> crate::Result<()> {
         // The sequence number from the switch must be non-zero.
@@ -304,7 +306,7 @@ impl ClientConfluxMsgHandler {
             ));
         }
 
-        // TODO(conflux): from c-tor:
+        // TODO(#2031): from c-tor:
         //
         // We have to make sure that the switch command is truely
         // incrementing the sequence number, or else it becomes

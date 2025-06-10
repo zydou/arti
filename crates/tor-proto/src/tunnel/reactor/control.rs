@@ -248,6 +248,7 @@ pub(crate) enum CtrlCmd {
         relay_cell_format: RelayCellFormat,
         fwd_lasthop: bool,
         rev_lasthop: bool,
+        peer_id: path::HopDetail,
         params: CircParameters,
         done: ReactorResultChannel<()>,
     },
@@ -615,6 +616,7 @@ impl<'a> ControlHandler<'a> {
                 relay_cell_format,
                 fwd_lasthop,
                 rev_lasthop,
+                peer_id,
                 params,
                 done,
             } => {
@@ -628,7 +630,14 @@ impl<'a> ControlHandler<'a> {
                     return Ok(());
                 };
 
-                leg.handle_add_fake_hop(relay_cell_format, fwd_lasthop, rev_lasthop, &params, done);
+                leg.handle_add_fake_hop(
+                    relay_cell_format,
+                    fwd_lasthop,
+                    rev_lasthop,
+                    peer_id,
+                    &params,
+                    done,
+                );
 
                 Ok(())
             }

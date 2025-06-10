@@ -6,11 +6,10 @@ mod msghandler;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
-use itertools::Itertools as _;
 use slotmap_careful::SlotMap;
 use tor_rtcompat::SleepProviderExt as _;
 use tracing::warn;
@@ -25,15 +24,14 @@ use crate::circuit::path::HopDetail;
 use crate::circuit::TunnelMutableState;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
-use crate::tunnel::reactor::CircuitCmd;
+use crate::tunnel::streammap;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
-use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason};
+use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason, SendRelayCell};
 
 #[cfg(feature = "conflux")]
 use {
-    super::SendRelayCell,
     tor_cell::relaycell::conflux::{V1DesiredUx, V1LinkPayload, V1Nonce},
     tor_cell::relaycell::msg::{ConfluxLink, ConfluxSwitch},
 };
@@ -115,12 +113,15 @@ pub(super) struct ConfluxSet {
 }
 
 /// The conflux join point.
-#[derive(Debug, Clone)]
+#[derive(Clone, derive_more::Debug)]
 struct JoinPoint {
     /// The hop number.
     hop: HopNum,
     /// The [`HopDetail`] of the hop.
     detail: HopDetail,
+    /// The stream map of the joint point, shared with each circuit leg.
+    #[debug(skip)]
+    streams: Arc<Mutex<streammap::StreamMap>>,
 }
 
 impl ConfluxSet {
@@ -135,7 +136,7 @@ impl ConfluxSet {
         // Note: the join point is only set for multi-path tunnels
         let join_point = None;
 
-        // TODO(conflux): read this from the consensus/config.
+        // TODO(#2035): read this from the consensus/config.
         #[cfg(feature = "conflux")]
         let desired_ux = V1DesiredUx::NO_OPINION;
 
@@ -193,10 +194,11 @@ impl ConfluxSet {
     ///
     /// Returns an error if called before any circuit legs are available.
     pub(super) fn primary_leg_mut(&mut self) -> Result<&mut Circuit, Bug> {
-        // TODO(conflux): support more than one leg,
-        // and remove this check
+        #[cfg(not(feature = "conflux"))]
         if self.legs.len() > 1 {
-            return Err(internal!("multipath not currently supported"));
+            return Err(internal!(
+                "got multipath tunnel, but conflux feature is disabled?!"
+            ));
         }
 
         if self.legs.is_empty() {
@@ -204,7 +206,6 @@ impl ConfluxSet {
                 "tried to get circuit leg before creating it?!"
             ))
         } else {
-            // TODO(conflux): implement primary leg selection
             let circ = self
                 .legs
                 .get_mut(self.primary_id)
@@ -260,9 +261,14 @@ impl ConfluxSet {
             .remove(leg)
             .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
 
+        tracing::trace!("{}: Circuit removed from conflux set", circ.unique_id());
+
         self.mutable.remove(circ.unique_id());
 
         if self.legs.is_empty() {
+            // TODO: log the tunnel ID
+            tracing::debug!("Conflux set is now empty, tunnel reactor shutting down");
+
             // The last circuit in the set has just died, so the reactor should exit.
             return Err(ReactorError::Shutdown);
         }
@@ -277,7 +283,7 @@ impl ConfluxSet {
             if #[cfg(feature = "conflux")] {
                 self.remove_conflux(circ)
             } else {
-                // Conflux is disabled, so we can't possible continue running if the only
+                // Conflux is disabled, so we can't possibly continue running if the only
                 // leg in the tunnel is gone.
                 //
                 // Technically this should be unreachable (because of the is_empty()
@@ -387,14 +393,7 @@ impl ConfluxSet {
 
     /// Add legs to the this conflux set.
     ///
-    // TODO(conflux): update this with the latest changes from torspec!369
-    ///
-    /// Returns an error if any of the legs are invalid,
-    /// or if adding the legs would cause the conflux set to contain
-    /// any circuits that have the same hop in the middle and guard positions
-    /// (legs of the form `G1 - M1 - E` and `G2 - M1 - E`,
-    /// or `G1 - M1 -E` and `G1 - M2 - E ` aren't allowed to be part
-    /// of the same conflux set).
+    /// Returns an error if any of the legs is invalid.
     ///
     /// A leg is considered valid if
     ///
@@ -405,6 +404,17 @@ impl ConfluxSet {
     ///
     /// Note: the circuits will not begin linking until
     /// [`link_circuits`](Self::link_circuits) is called.
+    ///
+    /// IMPORTANT: this function does not prevent the construction of conflux sets
+    /// where the circuit legs share guard or middle relays. It is the responsibility
+    /// of the caller to enforce the following invariant from prop354:
+    ///
+    /// "If building a conflux leg: Reject any circuits that have the same Guard as the other conflux
+    /// "leg(s) in the current conflux set, EXCEPT when one of the primary Guards is also the chosen
+    /// "Exit of this conflux set (in which case, re-use the non-Exit Guard)."
+    ///
+    /// This is because at this level we don't actually know which relays are the guards,
+    /// so we can't know if the join point happens to be one of the Guard + Exit relays.
     #[cfg(feature = "conflux")]
     pub(super) fn add_legs(
         &mut self,
@@ -421,17 +431,23 @@ impl ConfluxSet {
                 p
             }
             None => {
-                let (hop, detail) = (|| {
-                    let first_leg = legs.first()?;
+                let (hop, detail, streams) = (|| {
+                    let first_leg = self.circuits().next()?;
                     let first_leg_path = first_leg.path();
                     let all_hops = first_leg_path.all_hops();
-                    let hop = first_leg.last_hop_num()?;
+                    let hop_num = first_leg.last_hop_num()?;
                     let detail = all_hops.last()?;
-                    Some((hop, detail.clone()))
+                    let hop = first_leg.hop(hop_num)?;
+                    let streams = Arc::clone(hop.stream_map());
+                    Some((hop_num, detail.clone(), streams))
                 })()
                 .ok_or_else(|| bad_api_usage!("asked to join circuit with no hops"))?;
 
-                JoinPoint { hop, detail }
+                JoinPoint {
+                    hop,
+                    detail,
+                    streams,
+                }
             }
         };
 
@@ -481,62 +497,39 @@ impl ConfluxSet {
             }
         }
 
-        let check_legs_disjoint = |(leg1, leg2): (&Circuit, &Circuit)| {
-            let path1 = leg1.path();
-            let path1_except_last = path1.all_hops().dropping_back(1);
-            let path2 = leg2.path();
-            let path2_except_last = path2.all_hops().dropping_back(1);
-
-            // At this point we've already validated the lengths of the new legs,
-            // so we know they all have the same length.
-            let mut zip = path1_except_last.zip(path2_except_last);
-
-            zip.all(|(h1, h2)| hops_eq(h1, h2).map(|res| !res).unwrap_or_default())
-        };
-
-        // TODO: reduce unnecessary iteration over `legs`
-        // without hurting readability
-
-        // Ensure the legs don't share guard or middle relays
-        //
-        // TODO(conflux): is this right?
-        // It means we allow legs of the form
-        //
-        //  N1 --- N2 ----
-        //                \
-        //                 E
-        //  N2 --- N1-----/
-        //
-        //  But I think that's alright.
-        if !self
-            .circuits()
-            .chain(legs.iter())
-            .cartesian_product(legs.iter())
-            .all(check_legs_disjoint)
-        {
-            return Err(bad_api_usage!(
-                "conflux circuits must not share hops in the same position"
-            ));
-        }
-
         // Select a join point, or put the existing one back into self.
         self.join_point = Some(join_point.clone());
 
         // The legs are valid, so add them to the set.
-        for mut circ in legs {
-            let conflux_handler = ConfluxMsgHandler::new_client(
-                join_point.hop,
-                self.nonce,
-                Arc::clone(&self.last_seq_delivered),
-                runtime.clone(),
-            );
-
-            circ.install_conflux_handler(conflux_handler);
+        for circ in legs {
             let mutable = Arc::clone(circ.mutable());
             let unique_id = circ.unique_id();
             let leg_id = self.legs.insert(circ);
             // Merge the mutable state of the circuit into our tunnel state.
             self.mutable.insert(unique_id, leg_id.into(), mutable);
+        }
+
+        for (_, circ) in self.legs.iter_mut() {
+            // The circuits that have a None status don't know they're part of
+            // a multi-path tunnel yet. They need to be initialized with a
+            // conflux message handler, and have their join point fixed up
+            // to share a stream map with the join point on all the other circuits.
+            if circ.conflux_status().is_none() {
+                let conflux_handler = ConfluxMsgHandler::new_client(
+                    join_point.hop,
+                    self.nonce,
+                    Arc::clone(&self.last_seq_delivered),
+                    runtime.clone(),
+                );
+
+                circ.install_conflux_handler(conflux_handler);
+
+                // Ensure the stream map of the last hop is shared by all the legs
+                let last_hop = circ
+                    .hop_mut(join_point.hop)
+                    .ok_or_else(|| bad_api_usage!("asked to join circuit with no hops"))?;
+                last_hop.set_stream_map(Arc::clone(&join_point.streams))?;
+            }
         }
 
         Ok(())
@@ -580,7 +573,7 @@ impl ConfluxSet {
 
         // If this fails, it means we haven't updated our primary leg in a very long time.
         //
-        // TODO(conflux): there are currently no safeguards to prevent us from staying
+        // TODO(#2036): there are currently no safeguards to prevent us from staying
         // on the same leg for "too long". Perhaps we should design should_update_primary_leg()
         // such that it forces us to switch legs periodically, to prevent the seqno delta from
         // getting too big?
@@ -664,7 +657,7 @@ impl ConfluxSet {
     ///
     /// If `check_can_send` is true, selects the lowest RTT leg that is ready to send.
     ///
-    /// Returns `None` if no suitable was found.
+    /// Returns `None` if no suitable leg was found.
     #[cfg(feature = "conflux")]
     fn select_primary_leg_min_rtt(&self, check_can_send: bool) -> Result<Option<LegIdKey>, Bug> {
         let mut best = None;
@@ -711,21 +704,26 @@ impl ConfluxSet {
         self.legs
             .iter_mut()
             .map(|(leg_id, leg)| {
+                let unique_id = leg.unique_id();
+
                 // The client SHOULD abandon and close circuit if the LINKED message takes too long to
                 // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
                 // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
                 // implementation currently uses Circuit Build Timeout).
-                let conflux_hs_timeout = if let Some(timeout) =  leg.conflux_hs_timeout() {
-                    // TODO: ask Diziet if we can have a sleep_until_instant() function
-                    Box::pin(runtime.sleep_until_wallclock(timeout)) as Pin<Box<dyn Future<Output = ()> + Send>>
+                let conflux_hs_timeout = if leg.conflux_status() == Some(ConfluxStatus::Pending) {
+                    if let Some(timeout) = leg.conflux_hs_timeout() {
+                        // TODO: ask Diziet if we can have a sleep_until_instant() function
+                        Box::pin(runtime.sleep_until_wallclock(timeout))
+                            as Pin<Box<dyn Future<Output = ()> + Send>>
+                    } else {
+                        Box::pin(std::future::pending())
+                    }
                 } else {
                     Box::pin(std::future::pending())
                 };
 
                 let mut ready_streams = leg.ready_streams_iterator();
                 let input = &mut leg.input;
-                let primary_id = self.primary_id;
-                let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
                 // We should replace this with a simple sink readiness check
@@ -765,43 +763,7 @@ impl ConfluxSet {
                         },
                         ret = next_ready_stream.fuse() => {
                             let ret = ret.map(|cmd| {
-                                // TODO: refactor this spaghetti
-                                let leg = if let Some(join_point) = conflux_join_point {
-                                    match &cmd {
-                                        CircuitCmd::Send(send) => {
-                                            // Conflux circuits always send multiplexed relay commands to
-                                            // to the last hop (the join point).
-                                            if cmd_counts_towards_seqno(send.cell.cmd()) {
-                                                if send.hop != join_point {
-                                                    return Err(crate::Error::Bug(internal!(
-                                                        "Leaky pipe on conflux circuit?! (target_hop={}, join_point={})",
-                                                        send.hop.display(),
-                                                        join_point.display(),
-                                                    )));
-                                                }
-
-                                                primary_id
-                                            } else {
-                                                // Non-multiplexed commands go on their original
-                                                // circuit and hop
-                                                leg_id
-                                            }
-                                        }
-                                        // The leg_id doesn't need to change (or doesn't matter)
-                                        // for these other commands.
-                                        CircuitCmd::HandleSendMe { .. } | CircuitCmd::CloseStream { .. }
-                                        | CircuitCmd::CleanShutdown => leg_id,
-                                        #[cfg(feature = "conflux")]
-                                        CircuitCmd::ConfluxRemove(_) | CircuitCmd::ConfluxHandshakeComplete (_) | CircuitCmd::Enqueue(_) => leg_id,
-                                    }
-                                } else {
-                                    // If there is no join point, it means this is not
-                                    // a multi-path tunnel, so we continue using
-                                    // the leg_id/hop the cmd came from.
-                                    leg_id
-                                };
-
-                                Ok(CircuitAction::RunCmd { leg, cmd })
+                                Ok(CircuitAction::RunCmd { leg: leg_id, cmd })
                             });
 
                             flatten(ret)
@@ -814,6 +776,10 @@ impl ConfluxSet {
                 async move {
                     select_biased! {
                         () = conflux_hs_timeout.fuse() => {
+                            warn!(
+                                "{unique_id}: Conflux handshake timed out on circuit"
+                            );
+
                             // Conflux handshake has timed out, time to remove this circuit leg,
                             // and notify the handshake initiator.
                             Ok(Ok(CircuitAction::RemoveLeg {
@@ -852,6 +818,57 @@ impl ConfluxSet {
         self.leg(leg)?.uses_stream_sendme(hop)
     }
 
+    /// Encode `msg`, encrypt it, and send it to the 'hop'th hop.
+    ///
+    /// See [`Circuit::send_relay_cell`].
+    pub(super) async fn send_relay_cell_on_leg(
+        &mut self,
+        msg: SendRelayCell,
+        leg: Option<LegId>,
+    ) -> crate::Result<()> {
+        let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
+        let leg = if let Some(join_point) = conflux_join_point {
+            // Conflux circuits always send multiplexed relay commands to
+            // to the last hop (the join point).
+            if cmd_counts_towards_seqno(msg.cell.cmd()) {
+                if msg.hop != join_point {
+                    return Err(crate::Error::Bug(internal!(
+                        "Leaky pipe on conflux circuit?! (target_hop={}, join_point={})",
+                        msg.hop.display(),
+                        join_point.display(),
+                    )));
+                }
+
+                // Check if it's time to switch our primary leg.
+                #[cfg(feature = "conflux")]
+                if let Some(switch_cell) = self.maybe_update_primary_leg()? {
+                    //tracing::trace!("{}: Switching primary conflux leg...", self.unique_id);
+                    self.primary_leg_mut()?.send_relay_cell(switch_cell).await?;
+                }
+
+                // Use the possibly updated primary leg
+                Some(self.primary_id.into())
+            } else {
+                // Non-multiplexed commands go on their original
+                // circuit and hop
+                leg
+            }
+        } else {
+            // If there is no join point, it means this is not
+            // a multi-path tunnel, so we continue using
+            // the leg_id/hop the cmd came from.
+            leg
+        };
+
+        let leg = leg.unwrap_or(self.primary_id.into());
+
+        let circ = self
+            .leg_mut(leg)
+            .ok_or_else(|| internal!("leg disappeared?!"))?;
+
+        circ.send_relay_cell(msg).await
+    }
+
     /// Send a LINK cell down each unlinked leg.
     #[cfg(feature = "conflux")]
     pub(super) async fn link_circuits(
@@ -885,6 +902,17 @@ impl ConfluxSet {
         // of handshake completion/conflux set readiness
 
         Ok(())
+    }
+
+    /// Get the number of unlinked or non-conflux legs.
+    #[cfg(feature = "conflux")]
+    pub(super) fn num_unlinked(&self) -> usize {
+        self.circuits()
+            .filter(|circ| {
+                let status = circ.conflux_status();
+                status.is_none() || status == Some(ConfluxStatus::Unlinked)
+            })
+            .count()
     }
 
     /// Check if the specified sequence number is the sequence number of the
@@ -1009,4 +1037,9 @@ fn cmd_counts_towards_seqno(cmd: RelayCmd) -> bool {
             false
         }
     }
+}
+
+#[cfg(test)]
+mod test {
+    // Tested in [`crate::tunnel::circuit::test`].
 }
