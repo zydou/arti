@@ -587,6 +587,18 @@ impl<R: Runtime> PowManager<R> {
     }
 }
 
+/// Trait to allow mocking PowManagerGeneric in tests.
+trait MockablePowManager {
+    /// Verify a PoW solve.
+    fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError>;
+}
+
+impl<R: Runtime> MockablePowManager for PowManager<R> {
+    fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError> {
+        PowManager::check_solve(self, solve)
+    }
+}
+
 /// Wrapper around [`RendRequest`] that implements [`std::cmp::Ord`] to sort by [`Effort`] and time.
 #[derive(Debug)]
 struct RendRequestOrdByEffort {
@@ -714,10 +726,10 @@ impl RendRequestReceiver {
     }
 
     /// Start helper thread to accept and validate [`RendRequest`]s.
-    fn start_accept_thread<R: Runtime>(
+    fn start_accept_thread<R: Runtime, P: MockablePowManager + Send + Sync + 'static>(
         &self,
         runtime: R,
-        pow_manager: Arc<PowManager<R>>,
+        pow_manager: Arc<P>,
         inner_receiver: mpsc::Receiver<RendRequest>,
     ) {
         let receiver_clone = self.clone();
@@ -792,10 +804,10 @@ impl RendRequestReceiver {
     /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW sovles, and
     /// enqueue onto the priority queue.
     #[allow(clippy::cognitive_complexity)]
-    fn accept_loop<R: Runtime>(
+    fn accept_loop<R: Runtime, P: MockablePowManager>(
         self,
         runtime: &R,
-        pow_manager: &Arc<PowManager<R>>,
+        pow_manager: &Arc<P>,
         mut receiver: mpsc::Receiver<RendRequest>,
     ) {
         loop {
