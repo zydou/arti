@@ -81,6 +81,13 @@ def_named! {
         ///
         /// [prop346]: https://spec.torproject.org/proposals/346-protovers-again.html
         NEGOTIATE_SUBPROTO = 5;
+
+        /// Support for counter galois onion relay encryption.
+        ///
+        /// (Reserved.)
+        ///
+        /// [prop359]: https://spec.torproject.org/proposals/359-cgo-redux.html
+        CRYPT_CGO = 6;
     }
 
     HSIntro {
