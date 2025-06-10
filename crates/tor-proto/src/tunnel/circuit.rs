@@ -420,6 +420,9 @@ pub struct CircParameters {
 /// Then, we negotiate with the hop as part of circuit
 /// creation/extension to determine the actual settings that will be in use.
 /// Finally, we use those settings to construct the negotiated circuit hop.
+//
+// TODO: Relays should probably derive an instance of this type too, as
+// part of the circuit creation handshake.
 #[derive(Clone, Debug)]
 pub(super) struct HopSettings {
     /// The negotiated congestion control settings for this circuit.
