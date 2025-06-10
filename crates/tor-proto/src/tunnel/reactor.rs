@@ -908,10 +908,7 @@ impl Reactor {
         match cmd {
             RunOnceCmdInner::Send { leg, cell, done } => {
                 // TODO: check the cc window
-                let res = self
-                    .circuits
-                    .send_relay_cell_on_leg(cell, Some(leg), false)
-                    .await;
+                let res = self.circuits.send_relay_cell_on_leg(cell, Some(leg)).await;
                 if let Some(done) = done {
                     // Don't care if the receiver goes away
                     let _ = done.send(res.clone());
@@ -926,10 +923,7 @@ impl Reactor {
                 match cell {
                     Ok(Some(cell)) => {
                         // TODO(conflux): let the RunOnceCmdInner specify which leg to send the cell on
-                        let outcome = self
-                            .circuits
-                            .send_relay_cell_on_leg(cell, None, false)
-                            .await;
+                        let outcome = self.circuits.send_relay_cell_on_leg(cell, None).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone());
                         outcome?;
@@ -964,10 +958,7 @@ impl Reactor {
                             .ok_or(Error::NoSuchHop)?
                             .relay_cell_format();
 
-                        let outcome = self
-                            .circuits
-                            .send_relay_cell_on_leg(cell, Some(leg), false)
-                            .await;
+                        let outcome = self.circuits.send_relay_cell_on_leg(cell, Some(leg)).await;
                         // don't care if receiver goes away.
                         let _ = done.send(outcome.clone().map(|_| (stream_id, hop, relay_format)));
                         outcome?;
@@ -1094,10 +1085,7 @@ impl Reactor {
                 // instead of blocking on the sending of the LINKED_ACK.
                 self.note_conflux_handshake_result(Ok(()), false)?;
 
-                let res = self
-                    .circuits
-                    .send_relay_cell_on_leg(cell, Some(leg), false)
-                    .await;
+                let res = self.circuits.send_relay_cell_on_leg(cell, Some(leg)).await;
 
                 res?;
             }

@@ -825,7 +825,6 @@ impl ConfluxSet {
         &mut self,
         msg: SendRelayCell,
         leg: Option<LegId>,
-        is_conflux_link: bool,
     ) -> crate::Result<()> {
         let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
         let leg = if let Some(join_point) = conflux_join_point {
@@ -844,9 +843,7 @@ impl ConfluxSet {
                 #[cfg(feature = "conflux")]
                 if let Some(switch_cell) = self.maybe_update_primary_leg()? {
                     //tracing::trace!("{}: Switching primary conflux leg...", self.unique_id);
-                    self.primary_leg_mut()?
-                        .send_relay_cell(switch_cell, false)
-                        .await?;
+                    self.primary_leg_mut()?.send_relay_cell(switch_cell).await?;
                 }
 
                 // Use the possibly updated primary leg
@@ -869,7 +866,7 @@ impl ConfluxSet {
             .leg_mut(leg)
             .ok_or_else(|| internal!("leg disappeared?!"))?;
 
-        circ.send_relay_cell(msg, is_conflux_link).await
+        circ.send_relay_cell(msg).await
     }
 
     /// Send a LINK cell down each unlinked leg.

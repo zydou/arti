@@ -287,7 +287,7 @@ impl Circuit {
             early: false,
             cell,
         };
-        self.send_relay_cell(cell, true).await?;
+        self.send_relay_cell(cell).await?;
 
         let Some(conflux_handler) = self.conflux_handler.as_mut() else {
             return Err(internal!("ConfluxMsgHandler disappeared?!").into());
@@ -373,21 +373,18 @@ impl Circuit {
     /// NOTE: the reactor should not call this function directly, only via
     /// [`ConfluxSet::send_relay_cell_on_leg`](super::conflux::ConfluxSet::send_relay_cell_on_leg),
     /// which will reroute the message, if necessary to the primary leg.
-    pub(super) async fn send_relay_cell(
-        &mut self,
-        msg: SendRelayCell,
-        is_conflux_link: bool,
-    ) -> Result<()> {
-        if !is_conflux_link && self.is_conflux_pending() {
-            // TODO(conflux): is this right? Should we ensure all the legs are linked?
-            return Err(internal!("tried to send cell on unlinked circuit").into());
-        }
-
+    pub(super) async fn send_relay_cell(&mut self, msg: SendRelayCell) -> Result<()> {
         let SendRelayCell {
             hop,
             early,
             cell: msg,
         } = msg;
+
+        let is_conflux_link = msg.cmd() == RelayCmd::CONFLUX_LINK;
+        if !is_conflux_link && self.is_conflux_pending() {
+            // TODO(conflux): is this right? Should we ensure all the legs are linked?
+            return Err(internal!("tried to send cell on unlinked circuit").into());
+        }
 
         trace!("{}: sending relay cell: {:?}", self.unique_id, msg);
 
@@ -1329,7 +1326,7 @@ impl Circuit {
         if let Some(hop) = self.hop_mut(hop_num) {
             let res = hop.close_stream(sid, behav, reason)?;
             if let Some(cell) = res {
-                self.send_relay_cell(cell, false).await?;
+                self.send_relay_cell(cell).await?;
             }
         }
         Ok(())
