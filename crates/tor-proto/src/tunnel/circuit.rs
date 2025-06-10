@@ -457,6 +457,17 @@ impl HopSettings {
 
         Ok(settings)
     }
+
+    /// Return a new `HopSettings` based on this one,
+    /// representing the settings that we should use
+    /// if circuit negotiation will be impossible.
+    ///
+    /// (Circuit negotiation is impossible when using the legacy ntor protocol,
+    /// and when using CRATE_FAST.  It is currently unsupported with virtual hops.)
+    pub(super) fn without_negotiation(mut self) -> Self {
+        self.ccontrol.use_fallback_alg();
+        self
+    }
 }
 
 #[cfg(test)]
@@ -825,7 +836,8 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
-        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings =
+            HopSettings::from_params_and_caps(&params, target.protovers())?.without_negotiation();
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
                 peer_id,
@@ -919,7 +931,9 @@ impl ClientCirc {
         let BoxedClientLayer { fwd, back, binding } =
             protocol.construct_client_layers(role, seed)?;
 
-        let settings = HopSettings::from_params_and_caps(params, capabilities)?;
+        let settings = HopSettings::from_params_and_caps(params, capabilities)?
+            // TODO #2037: We _should_ support negotiation here; see #2037.
+            .without_negotiation();
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
             relay_cell_format,
@@ -1258,7 +1272,8 @@ impl PendingClientCirc {
         //
         // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
         let protocols = tor_protover::Protocols::new();
-        let settings = HopSettings::from_params_and_caps(&params, &protocols)?;
+        let settings =
+            HopSettings::from_params_and_caps(&params, &protocols)?.without_negotiation();
 
         let (tx, rx) = oneshot::channel();
         self.circ
@@ -1312,7 +1327,8 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
-        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings =
+            HopSettings::from_params_and_caps(&params, target.protovers())?.without_negotiation();
 
         self.circ
             .control

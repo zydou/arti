@@ -369,7 +369,8 @@ impl Circuit {
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
         let binding = None;
         let settings = HopSettings::from_params_and_caps(params, &tor_protover::Protocols::new())
-            .expect("Can't construct HopSettings");
+            .expect("Can't construct HopSettings")
+            .without_negotiation();
         self.add_hop(
             format,
             path::HopDetail::Relay(dummy_peer_id),
