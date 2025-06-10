@@ -395,7 +395,13 @@ pub struct PendingClientCirc {
 ///
 /// This type describes rules derived from the consensus,
 /// and possibly amended by our own configuration.
-/// It is usually used at a per-circuit level.
+///
+/// Typically, this type created once for an entire circuit,
+/// and any special per-hop information is derived
+/// from each hop as a CircTarget.
+/// Note however that callers _may_ provide different `CircParameters`
+/// for different hops within a circuit if they have some reason to do so,
+/// so we do not enforce that every hop in a circuit has the same `CircParameters`.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct CircParameters {
