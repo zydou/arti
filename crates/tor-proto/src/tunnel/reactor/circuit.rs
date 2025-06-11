@@ -5,6 +5,8 @@ pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
+#[cfg(feature = "counter-galois-onion")]
+use crate::circuit::handshake::RelayCryptLayerProtocol;
 use crate::circuit::HopSettings;
 use crate::congestion::sendme;
 use crate::congestion::CongestionSignals;
@@ -1547,6 +1549,9 @@ pub(super) fn circ_extensions_from_settings(params: &HopSettings) -> Result<Vec<
     #[allow(unused_mut)]
     let mut client_extensions = Vec::new();
 
+    #[allow(unused, unused_mut)]
+    let mut cc_extension_set = false;
+
     if params.ccontrol.is_enabled() {
         cfg_if::cfg_if! {
             if #[cfg(feature = "flowctl-cc")] {
@@ -1562,6 +1567,7 @@ pub(super) fn circ_extensions_from_settings(params: &HopSettings) -> Result<Vec<
 
                 #[allow(unreachable_code)]
                 client_extensions.push(CircRequestExt::CcRequest(CcRequest::default()));
+                cc_extension_set = true;
             } else {
                 return Err(
                     tor_error::internal!(
@@ -1571,6 +1577,33 @@ pub(super) fn circ_extensions_from_settings(params: &HopSettings) -> Result<Vec<
                 );
             }
         }
+    }
+
+    // See whether we need to send a list of required protocol capabilities.
+    // These aren't "negotiated" per se; they're simply demanded.
+    // The relay will refuse the circuit if it doesn't support all of them,
+    // and if any of them isn't supported in the SubprotocolRequest extension.
+    //
+    // (In other words, don't add capabilities here just because you want the
+    // relay to have them! They must be explicitly listed as supported for use
+    // with this extension. For the current list, see
+    // https://spec.torproject.org/tor-spec/create-created-cells.html#subproto-request)
+    //
+    #[allow(unused_mut)]
+    let mut required_protocol_capabilities: Vec<tor_protover::NamedSubver> = Vec::new();
+
+    #[cfg(feature = "counter-galois-onion")]
+    if matches!(params.relay_crypt_protocol(), RelayCryptLayerProtocol::Cgo) {
+        if !cc_extension_set {
+            return Err(tor_error::internal!("Tried to negotiate CGO without CC.").into());
+        }
+        required_protocol_capabilities.push(tor_protover::named::RELAY_CRYPT_CGO);
+    }
+
+    if !required_protocol_capabilities.is_empty() {
+        client_extensions.push(CircRequestExt::SubprotocolRequest(
+            required_protocol_capabilities.into_iter().collect(),
+        ));
     }
 
     Ok(client_extensions)

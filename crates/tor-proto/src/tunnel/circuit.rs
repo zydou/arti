@@ -492,7 +492,6 @@ impl HopSettings {
             ccontrol: params.ccontrol.clone(),
             n_incoming_cells_permitted: params.n_incoming_cells_permitted,
             n_outgoing_cells_permitted: params.n_outgoing_cells_permitted,
-            // XXXX: Start with CGO when appropriate.
             relay_crypt_protocol: None,
             default_relay_crypt_protocol,
         };
@@ -505,6 +504,16 @@ impl HopSettings {
                     settings.ccontrol.use_fallback_alg();
                 }
             }
+        }
+
+        // Negotiate CGO if it is supported, if CC is also supported,
+        // and if CGO is available on this relay.
+        #[cfg(all(feature = "flowctl-cc", feature = "counter-galois-onion"))]
+        if !settings.ccontrol.alg().requires_stream_level_sendmes()
+            && caps.supports_named_subver(named::RELAY_NEGOTIATE_SUBPROTO)
+            && caps.supports_named_subver(named::RELAY_CRYPT_CGO)
+        {
+            settings.relay_crypt_protocol = Some(RelayCryptLayerProtocol::Cgo);
         }
 
         Ok(settings)

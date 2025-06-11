@@ -98,6 +98,17 @@ pub enum Algorithm {
     Vegas(VegasParams),
 }
 
+impl Algorithm {
+    /// Return true if this algorithm requires the use of (legacy) stream-level SENDME messages
+    /// for flow control.
+    pub(crate) fn requires_stream_level_sendmes(&self) -> bool {
+        match self {
+            Algorithm::FixedWindow(_) => true,
+            Algorithm::Vegas(_) => false,
+        }
+    }
+}
+
 caret_int! {
     /// Congestion control algorithm types defined by numerical values. See "cc_alg" in proposal
     /// 324 section 6.5.1 for the supported values.
