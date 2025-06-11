@@ -2903,7 +2903,11 @@ pub(crate) mod test {
     }
 
     #[cfg(feature = "conflux")]
-    async fn setup_conflux_tunnel(rt: &MockRuntime, same_hops: bool, params: CircParameters) -> TestTunnelCtx {
+    async fn setup_conflux_tunnel(
+        rt: &MockRuntime,
+        same_hops: bool,
+        params: CircParameters,
+    ) -> TestTunnelCtx {
         let hops1 = hop_details(3, 0);
         let hops2 = if same_hops {
             hops1.clone()
@@ -2924,15 +2928,8 @@ pub(crate) mod test {
 
         let (chan2, rx2, chan_sink2) = working_fake_channel(rt);
 
-        let (circ2, sink2) = newcirc_ext(
-            rt,
-            UniqId::new(2, 4),
-            chan2,
-            hops2,
-            2.into(),
-            params,
-        )
-        .await;
+        let (circ2, sink2) =
+            newcirc_ext(rt, UniqId::new(2, 4), chan2, hops2, 2.into(), params).await;
 
         let (answer_tx, answer_rx) = oneshot::channel();
         circ2
