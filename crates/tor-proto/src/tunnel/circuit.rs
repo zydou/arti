@@ -3118,6 +3118,40 @@ pub(crate) mod test {
     #[traced_test]
     #[test]
     #[cfg(feature = "conflux")]
+    fn unexpected_conflux_cell() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let nonce = V1Nonce::new(&mut testing_rng());
+            let link_payload = V1LinkPayload::new(nonce, V1DesiredUx::NO_OPINION);
+            let bad_cells = [
+                rmsg_to_ccmsg(
+                    None,
+                    relaymsg::ConfluxLinked::new(link_payload.clone()).into(),
+                ),
+                rmsg_to_ccmsg(
+                    None,
+                    relaymsg::ConfluxLink::new(link_payload.clone()).into(),
+                ),
+                rmsg_to_ccmsg(None, relaymsg::ConfluxSwitch::new(0).into()),
+            ];
+
+            for bad_cell in bad_cells {
+                let (chan, mut _rx, _sink) = working_fake_channel(&rt);
+                let (circ, mut sink) = newcirc(&rt, chan).await;
+
+                sink.send(bad_cell).await.unwrap();
+                rt.advance_until_stalled().await;
+
+                // Note: unfortunately we can't assert the circuit is
+                // closing for the reason, because the reactor just logs
+                // the error and then exits.
+                assert!(circ.is_closing());
+            }
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    #[cfg(feature = "conflux")]
     fn conflux_bad_linked() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let TestTunnelCtx {

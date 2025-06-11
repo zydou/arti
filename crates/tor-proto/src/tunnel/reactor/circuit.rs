@@ -680,8 +680,6 @@ impl Circuit {
         let Some(conflux_handler) = self.conflux_handler.as_mut() else {
             // If conflux is not enabled, tear down the circuit
             // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329)
-            //
-            // TODO(conflux): make sure this is properly implemented
             return Err(Error::CircProto(format!(
                 "Received {} cell from hop {} on non-conflux client circuit?!",
                 msg.cmd(),
