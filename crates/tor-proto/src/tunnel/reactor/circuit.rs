@@ -386,7 +386,8 @@ impl Circuit {
 
         let is_conflux_link = msg.cmd() == RelayCmd::CONFLUX_LINK;
         if !is_conflux_link && self.is_conflux_pending() {
-            // TODO(conflux): is this right? Should we ensure all the legs are linked?
+            // Note: it is the responsibility of the reactor user to wait until
+            // at least one of the legs completes the handshake.
             return Err(internal!("tried to send cell on unlinked circuit").into());
         }
 
