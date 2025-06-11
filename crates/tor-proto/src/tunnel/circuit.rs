@@ -2841,20 +2841,28 @@ pub(crate) mod test {
         use std::error::Error as _;
 
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
-            let TestTunnelCtx {
-                tunnel: _tunnel,
-                circs: _circs,
-                conflux_link_rx,
-            } = setup_bad_conflux_tunnel(&rt).await;
+            let params = CircParameters::default();
+            let invalid_tunnels = [
+                setup_bad_conflux_tunnel(&rt).await,
+                setup_conflux_tunnel(&rt, true, params).await,
+            ];
 
-            let conflux_hs_err = conflux_link_rx.await.unwrap().unwrap_err();
-            let err_src = conflux_hs_err.source().unwrap();
+            for tunnel in invalid_tunnels {
+                let TestTunnelCtx {
+                    tunnel: _tunnel,
+                    circs: _circs,
+                    conflux_link_rx,
+                } = tunnel;
 
-            // The two circuits don't end in the same hop (no join point),
-            // so the reactor will refuse to link them
-            assert!(err_src
-                .to_string()
-                .contains("one more more conflux circuits are invalid"));
+                let conflux_hs_err = conflux_link_rx.await.unwrap().unwrap_err();
+                let err_src = conflux_hs_err.source().unwrap();
+
+                // The two circuits don't end in the same hop (no join point),
+                // so the reactor will refuse to link them
+                assert!(err_src
+                    .to_string()
+                    .contains("one more more conflux circuits are invalid"));
+            }
         });
     }
 
