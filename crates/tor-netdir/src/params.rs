@@ -443,7 +443,7 @@ pub struct NetParameters {
     ///
     /// During each "time period", each onion service gets a different blinded
     /// ID, and the hash ring gets a new layout.
-    pub hsdir_timeperiod_length: IntegerMinutes<BoundedInt32<30, 14400>> = (1440)
+    pub hsdir_timeperiod_length: IntegerMinutes<BoundedInt32<5, 14400>> = (1440)
         from "hsdir_interval",
 
     /// The number of positions at the hash ring where an onion service
