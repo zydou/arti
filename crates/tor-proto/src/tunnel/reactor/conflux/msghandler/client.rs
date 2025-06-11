@@ -281,8 +281,6 @@ impl ClientConfluxMsgHandler {
 
         let rel_seqno = switch.seqno();
 
-        // TODO(conflux): bail if we receive two consecutive SWITCH cells
-
         self.validate_switch_seqno(rel_seqno)?;
 
         // Update the absolute sequence number on this leg by the delta.

@@ -386,7 +386,8 @@ impl Circuit {
 
         let is_conflux_link = msg.cmd() == RelayCmd::CONFLUX_LINK;
         if !is_conflux_link && self.is_conflux_pending() {
-            // TODO(conflux): is this right? Should we ensure all the legs are linked?
+            // Note: it is the responsibility of the reactor user to wait until
+            // at least one of the legs completes the handshake.
             return Err(internal!("tried to send cell on unlinked circuit").into());
         }
 
@@ -680,8 +681,6 @@ impl Circuit {
         let Some(conflux_handler) = self.conflux_handler.as_mut() else {
             // If conflux is not enabled, tear down the circuit
             // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329)
-            //
-            // TODO(conflux): make sure this is properly implemented
             return Err(Error::CircProto(format!(
                 "Received {} cell from hop {} on non-conflux client circuit?!",
                 msg.cmd(),
