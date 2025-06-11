@@ -297,6 +297,15 @@ impl TunnelMutableState {
 
         Ok(mutable.binding_key(hop))
     }
+
+    /// Return the number of legs in this tunnel.
+    ///
+    /// TODO(conflux-fork): this can be removed once we modify `path_ref`
+    /// to return *all* the Paths in the tunnel.
+    fn n_legs(&self) -> usize {
+        let lock = self.0.lock().expect("lock poisoned");
+        lock.len()
+    }
 }
 
 /// The mutable state of a circuit.
@@ -699,15 +708,6 @@ impl ClientCirc {
     //
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
-    //
-    // TODO(conflux): when conflux is ready, we need to update these docs to say
-    // that on a multipath circuit, this function **must** be called on the "main"
-    // (initial) circuit into which all of the other circuit legs are linked,
-    // or on the resulting ClientTunnel itself.
-    //
-    // Any incoming request handlers installed on the other circuits
-    // (which are are shutdown using CtrlCmd::ShutdownAndReturnCircuit)
-    // will be discarded (along with the reactor of that circuit)
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
@@ -721,6 +721,14 @@ impl ClientCirc {
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
+
+        // TODO(#2002): support onion service conflux
+        let circ_count = self.mutable.n_legs();
+        if circ_count != 1 {
+            return Err(
+                internal!("Cannot allow stream requests on tunnel with {circ_count} legs",).into(),
+            );
+        }
 
         let time_prov = self.time_provider.clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
@@ -741,9 +749,6 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        // TODO(conflux): maybe this function should take a HopLocation instead of a HopNum,
-        // but we currently cannot resolve `HopLocation`s outside of the reactor
-        // (and we need the resolved HopNum to assert the stream request indeed came from the right hop below).
         let allowed_hop_num = hop_num;
 
         let circ = Arc::clone(self);
@@ -765,7 +770,7 @@ impl ClientCirc {
             // security-critical.
             assert_eq!(allowed_hop_num, hop_num);
 
-            // TODO(conflux): figure out what this is going to look like
+            // TODO(#2002): figure out what this is going to look like
             // for onion services (perhaps we should forbid this function
             // from being called on a multipath circuit?)
             //
@@ -3551,6 +3556,54 @@ pub(crate) mod test {
             // TODO: sort stream_data to work around the lack of handling of
             // out-of-order cells at the mock exit
             assert_eq!(stream_state.data_recvd, stream_data);
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    #[cfg(all(feature = "conflux", feature = "hs-service"))]
+    fn conflux_incoming_stream() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            use std::error::Error as _;
+
+            const EXPECTED_HOP: u8 = 1;
+
+            let TestTunnelCtx {
+                tunnel,
+                circs,
+                conflux_link_rx,
+            } = setup_good_conflux_tunnel(&rt).await;
+
+            let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
+
+            let link = await_link_payload(&mut circ1.chan_rx).await;
+            for circ in [&mut circ1, &mut circ2] {
+                let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
+                circ.circ_sink
+                    .send(rmsg_to_ccmsg(None, linked))
+                    .await
+                    .unwrap();
+            }
+
+            let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
+            assert!(conflux_hs_res.iter().all(|res| res.is_ok()));
+
+            // TODO(#2002): we don't currently support conflux for onion services
+            let err = tunnel
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    EXPECTED_HOP.into(),
+                    AllowAllStreamsFilter,
+                )
+                .await
+                // IncomingStream doesn't impl Debug, so we need to map to a different type
+                .map(|_| ())
+                .unwrap_err();
+
+            let err_src = err.source().unwrap();
+            assert!(err_src
+                .to_string()
+                .contains("Cannot allow stream requests on tunnel with 2 legs"));
         });
     }
 }
