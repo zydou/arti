@@ -1364,10 +1364,6 @@ impl Reactor {
         // Note: add_legs validates `circuits`
         let res = async {
             self.circuits.add_legs(circuits, &self.runtime)?;
-
-            // TODO(conflux): check if we negotiated prop324 cc on *all* circuits,
-            // returning an error if not?
-
             self.circuits.link_circuits(&self.runtime).await
         }
         .await;

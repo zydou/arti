@@ -7,6 +7,7 @@
 use crate::Result;
 
 use super::{
+    params::{Algorithm, FixedWindowParams},
     rtt::RoundtripTimeEstimator,
     sendme::{self, WindowParams},
     CongestionControlAlgorithm, CongestionSignals, CongestionWindow, State,
@@ -20,16 +21,20 @@ pub(crate) struct FixedWindow {
     recvwindow: sendme::CircRecvWindow,
     /// Window used to say how many cells we can send.
     sendwindow: sendme::CircSendWindow,
+    /// The params from the consensus.
+    params: FixedWindowParams,
 }
 
 impl FixedWindow {
     /// Create a new `FixedWindow` form a given initial sendwindow size.
     ///
     /// Note: the initial recvwindow size is given by [`sendme::CircParams::start`].
-    pub(crate) fn new(initial_window: u16) -> Self {
+    pub(crate) fn new(params: FixedWindowParams) -> Self {
+        let initial_window = params.circ_window_start();
         Self {
             recvwindow: sendme::CircRecvWindow::new(sendme::CircParams::start()),
             sendwindow: sendme::CircSendWindow::new(initial_window),
+            params,
         }
     }
 }
@@ -81,5 +86,9 @@ impl CongestionControlAlgorithm for FixedWindow {
     #[cfg(test)]
     fn send_window(&self) -> u32 {
         u32::from(self.sendwindow.window())
+    }
+
+    fn algorithm(&self) -> Algorithm {
+        Algorithm::FixedWindow(self.params)
     }
 }

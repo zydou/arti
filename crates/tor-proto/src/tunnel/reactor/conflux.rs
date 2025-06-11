@@ -466,14 +466,6 @@ impl ConfluxSet {
             }
         };
 
-        // Check if the last hop of leg is the same as the one from the first hop.
-        let hop_eq_joint_point = |hop: Option<&HopDetail>| -> Result<bool, Bug> {
-            Ok(hop
-                .map(|hop| hops_eq(hop, &join_point.detail))
-                .transpose()?
-                .unwrap_or_default())
-        };
-
         // A leg is considered valid if
         //
         //   * the circuit has the expected length
@@ -485,8 +477,39 @@ impl ConfluxSet {
         //
         // Returns an error if any hops are virtual.
         let leg_is_valid = |leg: &Circuit| -> Result<bool, Bug> {
-            Ok(leg.last_hop_num() == Some(join_point.hop)
-                && hop_eq_joint_point(leg.path().all_hops().last())?
+            use crate::ccparams::Algorithm;
+
+            let path = leg.path();
+            let Some(last_hop) = path.all_hops().last() else {
+                // A circuit with no hops is invalid
+                return Ok(false);
+            };
+
+            // TODO: this sort of duplicates the check above.
+            // The difference is that above we read the hop detail
+            // information from the circuit Path, whereas here we get
+            // the actual last CircHop of the circuit.
+            let Some(last_hop_num) = leg.last_hop_num() else {
+                // A circuit with no hops is invalid
+                return Ok(false);
+            };
+
+            let circhop = leg
+                .hop(last_hop_num)
+                .ok_or_else(|| internal!("hop disappeared?!"))?;
+
+            // Ensure we negotiated a suitable cc algorithm
+            let is_cc_suitable = match circhop.ccontrol().algorithm() {
+                Algorithm::FixedWindow(_) => false,
+                Algorithm::Vegas(_) => true,
+            };
+
+            if !is_cc_suitable {
+                return Ok(false);
+            }
+
+            Ok(last_hop_num == join_point.hop
+                && hops_eq(last_hop, &join_point.detail)?
                 && !leg.has_streams()
                 && leg.conflux_status().is_none())
         };

@@ -84,6 +84,9 @@ pub(crate) trait CongestionControlAlgorithm: Send + std::fmt::Debug {
     /// Test Only: Return the congestion window.
     #[cfg(test)]
     fn send_window(&self) -> u32;
+
+    /// Return the congestion control [`Algorithm`] implemented by this type.
+    fn algorithm(&self) -> Algorithm;
 }
 
 /// These are congestion signals used by a congestion control algorithm to make decisions. These
@@ -275,10 +278,10 @@ impl CongestionControl {
         let state = State::default();
         // Use what the consensus tells us to use.
         let algorithm: Box<dyn CongestionControlAlgorithm> = match params.alg() {
-            Algorithm::FixedWindow(p) => Box::new(fixed::FixedWindow::new(p.circ_window_start())),
+            Algorithm::FixedWindow(p) => Box::new(fixed::FixedWindow::new(*p)),
             Algorithm::Vegas(ref p) => {
                 let cwnd = CongestionWindow::new(params.cwnd_params());
-                Box::new(vegas::Vegas::new(p, &state, cwnd))
+                Box::new(vegas::Vegas::new(*p, &state, cwnd))
             }
         };
         Self {
@@ -387,6 +390,12 @@ impl CongestionControl {
     #[cfg(feature = "conflux")]
     pub(crate) fn rtt(&self) -> &RoundtripTimeEstimator {
         &self.rtt
+    }
+
+    /// Return the congestion control algorithm.
+    #[cfg(feature = "conflux")]
+    pub(crate) fn algorithm(&self) -> Algorithm {
+        self.algorithm.algorithm()
     }
 }
 
