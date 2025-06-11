@@ -3178,30 +3178,6 @@ pub(crate) mod test {
                 // and have a test for it
             ];
 
-            let TestTunnelCtx {
-                tunnel: _tunnel,
-                circs,
-                conflux_link_rx: _,
-            } = setup_good_conflux_tunnel(&rt).await;
-
-            let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
-
-            let link = await_link_payload(&mut circ1.chan_rx).await;
-
-            let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-            circ1
-                .circ_sink
-                .send(rmsg_to_ccmsg(None, linked))
-                .await
-                .unwrap();
-
-            let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-            circ2
-                .circ_sink
-                .send(rmsg_to_ccmsg(None, linked))
-                .await
-                .unwrap();
-
             for bad_cell in bad_switch {
                 let TestTunnelCtx {
                     tunnel,
