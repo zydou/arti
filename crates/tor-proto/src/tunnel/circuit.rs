@@ -2903,7 +2903,7 @@ pub(crate) mod test {
     }
 
     #[cfg(feature = "conflux")]
-    async fn setup_conflux_tunnel(rt: &MockRuntime, same_hops: bool) -> TestTunnelCtx {
+    async fn setup_conflux_tunnel(rt: &MockRuntime, same_hops: bool, params: CircParameters) -> TestTunnelCtx {
         let hops1 = hop_details(3, 0);
         let hops2 = if same_hops {
             hops1.clone()
@@ -2918,7 +2918,7 @@ pub(crate) mod test {
             chan1,
             hops1,
             2.into(),
-            CircParameters::new(true, build_cc_vegas_params()),
+            params.clone(),
         )
         .await;
 
@@ -2930,7 +2930,7 @@ pub(crate) mod test {
             chan2,
             hops2,
             2.into(),
-            CircParameters::new(true, build_cc_vegas_params()),
+            params,
         )
         .await;
 
@@ -2982,7 +2982,8 @@ pub(crate) mod test {
         // the calling code prevents guard reuse (except in the case where
         // one of the guards happens to be Guard + Exit)
         let same_hops = true;
-        setup_conflux_tunnel(rt, same_hops).await
+        let params = CircParameters::new(true, build_cc_vegas_params());
+        setup_conflux_tunnel(rt, same_hops, params).await
     }
 
     #[cfg(feature = "conflux")]
@@ -2991,7 +2992,8 @@ pub(crate) mod test {
         // so they won't end in the same hop (no join point),
         // causing the reactor to refuse to link them.
         let same_hops = false;
-        setup_conflux_tunnel(rt, same_hops).await
+        let params = CircParameters::new(true, build_cc_vegas_params());
+        setup_conflux_tunnel(rt, same_hops, params).await
     }
 
     #[traced_test]
