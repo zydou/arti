@@ -30,7 +30,7 @@ use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
-use crate::tunnel::{streammap, HopLocation, TargetHop, TunnelId};
+use crate::tunnel::{streammap, HopLocation, TargetHop, TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -701,6 +701,7 @@ impl Reactor {
             incoming_stream_req_handler: None,
         };
 
+        let unique_id = TunnelScopedCircId::new(tunnel_id, unique_id);
         let circuit_leg = Circuit::new(
             channel,
             channel_id,

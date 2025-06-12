@@ -29,6 +29,7 @@ use crate::tunnel::circuit::{
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::streammap;
+use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
@@ -125,7 +126,7 @@ pub(crate) struct Circuit {
     /// This circuit's identifier on the upstream channel.
     channel_id: CircId,
     /// An identifier for logging about this reactor's circuit.
-    unique_id: UniqId,
+    unique_id: TunnelScopedCircId,
     /// A handler for conflux cells.
     ///
     /// Set once the conflux handshake is initiated by the reactor
@@ -220,7 +221,7 @@ impl Circuit {
     pub(super) fn new(
         channel: Arc<Channel>,
         channel_id: CircId,
-        unique_id: UniqId,
+        unique_id: TunnelScopedCircId,
         input: CircuitRxReceiver,
         memquota: CircuitAccount,
         mutable: Arc<MutableState>,
@@ -246,7 +247,7 @@ impl Circuit {
 
     /// Return the process-unique identifier of this circuit.
     pub(super) fn unique_id(&self) -> UniqId {
-        self.unique_id
+        self.unique_id.unique_id()
     }
 
     /// Return the shared mutable state of this circuit.

@@ -7,11 +7,11 @@ use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
-use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
+use crate::tunnel::TunnelScopedCircId;
 use crate::{Error, Result};
 
 use futures::stream::FuturesUnordered;
@@ -173,8 +173,8 @@ impl CircHopList {
 
 /// Represents the reactor's view of a single hop.
 pub(crate) struct CircHop {
-    /// Reactor unique ID. Used for logging.
-    unique_id: UniqId,
+    /// The unique ID of the circuit. Used for logging.
+    unique_id: TunnelScopedCircId,
     /// Hop number in the path.
     hop_num: HopNum,
     /// Map from stream IDs to streams.
@@ -210,7 +210,7 @@ pub(crate) struct CircHop {
 impl CircHop {
     /// Create a new hop.
     pub(super) fn new(
-        unique_id: UniqId,
+        unique_id: TunnelScopedCircId,
         hop_num: HopNum,
         relay_format: RelayCellFormat,
         settings: &HopSettings,

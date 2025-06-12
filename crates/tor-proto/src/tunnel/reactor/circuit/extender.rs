@@ -8,8 +8,8 @@ use crate::crypto::cell::{
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
-use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::reactor::MetaCellDisposition;
+use crate::tunnel::TunnelScopedCircId;
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
@@ -44,7 +44,7 @@ where
     /// In-progress settings that we're negotiating for this hop.
     settings: HopSettings,
     /// An identifier for logging about this reactor's circuit.
-    unique_id: UniqId,
+    unique_id: TunnelScopedCircId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
     expected_hop: HopNum,
     /// The relay cell format we intend to use for this hop.
