@@ -189,12 +189,13 @@ impl<
 
         match &self.target_method {
             Some(method) => debug!(
-                "{}: starting Tor handshake with {:?}",
-                self.unique_id, method
+                stream_id = %self.unique_id,
+                "starting Tor handshake with {:?}",
+                method
             ),
-            None => debug!("{}: starting Tor handshake", self.unique_id),
+            None => debug!(stream_id = %self.unique_id, "starting Tor handshake"),
         }
-        trace!("{}: sending versions", self.unique_id);
+        trace!(stream_id = %self.unique_id, "sending versions");
         // Send versions cell
         {
             let my_versions = msg::Versions::new(LINK_PROTOCOLS)
@@ -213,7 +214,7 @@ impl<
         let versions_flushed_wallclock = now_fn();
 
         // Get versions cell.
-        trace!("{}: waiting for versions", self.unique_id);
+        trace!(stream_id = %self.unique_id, "waiting for versions");
         let their_versions: msg::Versions = {
             // TODO: this could be turned into another function, I suppose.
             let mut hdr = [0_u8; 5];
@@ -245,13 +246,13 @@ impl<
                 .extract()
                 .map_err(|e| Error::from_bytes_err(e, "versions cell"))?
         };
-        trace!("{}: received {:?}", self.unique_id, their_versions);
+        trace!(stream_id = %self.unique_id, "received {:?}", their_versions);
 
         // Determine which link protocol we negotiated.
         let link_protocol = their_versions
             .best_shared_link_protocol(LINK_PROTOCOLS)
             .ok_or_else(|| Error::HandshakeProto("No shared link protocols".into()))?;
-        trace!("{}: negotiated version {}", self.unique_id, link_protocol);
+        trace!(stream_id = %self.unique_id, "negotiated version {}", link_protocol);
 
         // Now we can switch to using a "Framed". We can ignore the
         // AsyncRead/AsyncWrite aspects of the tls, and just treat it
@@ -265,11 +266,11 @@ impl<
         let mut seen_authchallenge = false;
 
         // Loop: reject duplicate and unexpected cells
-        trace!("{}: waiting for rest of handshake.", self.unique_id);
+        trace!(stream_id = %self.unique_id, "waiting for rest of handshake.");
         while let Some(m) = tls.next().await {
             use HandshakeMsg::*;
             let (_, m) = m.map_err(codec_err_to_handshake)?.into_circid_and_msg();
-            trace!("{}: received a {} cell.", self.unique_id, m.cmd());
+            trace!(stream_id = %self.unique_id, "received a {} cell.", m.cmd());
             match m {
                 // Are these technically allowed?
                 Padding(_) | Vpadding(_) => (),
@@ -307,7 +308,7 @@ impl<
             )),
             (None, _) => Err(Error::HandshakeProto("Missing certs cell".into())),
             (Some(certs_cell), Some((netinfo_cell, netinfo_rcvd_at))) => {
-                trace!("{}: received handshake, ready to verify.", self.unique_id);
+                trace!(stream_id = %self.unique_id, "received handshake, ready to verify.");
                 // Try to compute our clock skew.  It won't be authenticated
                 // yet, since we haven't checked the certificates.
                 let clock_skew = if let Some(netinfo_timestamp) = netinfo_cell.timestamp() {
@@ -534,8 +535,8 @@ impl<
         let rsa_id = pkrsa.to_rsa_identity();
 
         trace!(
-            "{}: Validated identity as {} [{}]",
-            self.unique_id,
+            stream_id = %self.unique_id,
+            "Validated identity as {} [{}]",
             identity_key,
             rsa_id
         );
@@ -613,7 +614,7 @@ impl<
         // final cell on the handshake, and update the channel completion
         // time to be no earlier than _that_ timestamp.
         crate::note_incoming_traffic();
-        trace!("{}: Sending netinfo cell.", self.unique_id);
+        trace!(stream_id = %self.unique_id, "Sending netinfo cell.");
 
         // We do indeed want the real IP here, regardless of whether the
         // ChannelMethod is Direct connection or not.  The role of the IP in a
@@ -632,8 +633,9 @@ impl<
             .map_err(codec_err_to_handshake)?;
 
         debug!(
-            "{}: Completed handshake with {} [{}]",
-            self.unique_id, self.ed25519_id, self.rsa_id
+            stream_id = %self.unique_id,
+            "Completed handshake with {} [{}]",
+            self.ed25519_id, self.rsa_id
         );
 
         // Grab a new handle on which we can apply StreamOps (needed for KIST).

@@ -265,10 +265,10 @@ impl CircHop {
     ) -> Result<Option<SendRelayCell>> {
         let should_send_end = self.map.lock().expect("lock poisoned").terminate(id, why)?;
         trace!(
-            "{}: Ending stream {}; should_send_end={:?}",
-            self.unique_id,
-            id,
-            should_send_end
+            circ_id = %self.unique_id,
+            stream_id = %id,
+            should_send_end = ?should_send_end,
+            "Ending stream",
         );
         // TODO: I am about 80% sure that we only send an END cell if
         // we didn't already get an END cell.  But I should double-check!
@@ -335,8 +335,9 @@ impl CircHop {
         let mut hop_map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = hop_map.get_mut(stream_id) else {
             warn!(
-                "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
-                self.unique_id, stream_id
+                circ_id = %self.unique_id,
+                stream_id = %stream_id,
+                "sending a relay cell for non-existent or non-open stream!",
             );
             return Err(Error::CircProto(format!(
                 "tried to send a relay cell on non-open stream {}",

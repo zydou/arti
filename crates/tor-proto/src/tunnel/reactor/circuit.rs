@@ -391,7 +391,7 @@ impl Circuit {
             return Err(internal!("tried to send cell on unlinked circuit").into());
         }
 
-        trace!("{}: sending relay cell: {:?}", self.unique_id, msg);
+        trace!(circ_id = %self.unique_id, cell = ?msg, "sending relay cell");
 
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
@@ -453,15 +453,15 @@ impl Circuit {
         leg: LegId,
         cell: ClientCircChanMsg,
     ) -> Result<Vec<CircuitCmd>> {
-        trace!("{}: handling cell: {:?}", self.unique_id, cell);
+        trace!(circ_id = %self.unique_id, cell = ?cell, "handling cell");
         use ClientCircChanMsg::*;
         match cell {
             Relay(r) => self.handle_relay_cell(handlers, leg, r),
             Destroy(d) => {
                 let reason = d.reason();
                 debug!(
-                    "{}: Received DESTROY cell. Reason: {} [{}]",
-                    self.unique_id,
+                    circ_id = %self.unique_id,
+                    "Received DESTROY cell. Reason: {} [{}]",
                     reason.human_str(),
                     reason
                 );
@@ -864,8 +864,8 @@ impl Circuit {
                 // IncomingStreamRequestHandler, we need to do it elsewhere, in
                 // a different way.
                 debug!(
-                    "{}: Incoming stream request receiver dropped",
-                    self.unique_id
+                    circ_id = %self.unique_id,
+                    "Incoming stream request receiver dropped",
                 );
                 // This will _cause_ the circuit to get closed.
                 return Err(Error::CircuitClosed);
@@ -952,9 +952,9 @@ impl Circuit {
         };
         let create_cell = wrap.to_chanmsg(msg);
         trace!(
-            "{}: Extending to hop 1 with {}",
-            self.unique_id,
-            create_cell.cmd()
+            circ_id = %self.unique_id,
+            create = %create_cell.cmd(),
+            "Extending to hop 1",
         );
         self.send_msg(create_cell).await?;
 
@@ -971,7 +971,7 @@ impl Circuit {
         let BoxedClientLayer { fwd, back, binding } =
             cell_protocol.construct_client_layers(HandshakeRole::Initiator, keygen)?;
 
-        trace!("{}: Handshake complete; circuit created.", self.unique_id);
+        trace!(circ_id = %self.unique_id, "Handshake complete; circuit created.");
 
         let peer_id = self.channel.target().clone();
 
@@ -1147,8 +1147,8 @@ impl Circuit {
                 .into_msg();
             let reason = truncated.reason();
             debug!(
-                "{}: Truncated from hop {}. Reason: {} [{}]",
-                self.unique_id,
+                circ_id = %self.unique_id,
+                "Truncated from hop {}. Reason: {} [{}]",
                 hopnum.display(),
                 reason.human_str(),
                 reason
@@ -1157,7 +1157,7 @@ impl Circuit {
             return Ok(Some(CircuitCmd::CleanShutdown));
         }
 
-        trace!("{}: Received meta-cell {:?}", self.unique_id, msg);
+        trace!(circ_id = %self.unique_id, cell = ?msg, "Received meta-cell");
 
         #[cfg(feature = "conflux")]
         if matches!(
@@ -1172,8 +1172,8 @@ impl Circuit {
 
         if self.is_conflux_pending() {
             warn!(
-                "{}: received unexpected cell {msg:?} on unlinked conflux circuit",
-                self.unique_id,
+                circ_id = %self.unique_id,
+                "received unexpected cell {msg:?} on unlinked conflux circuit",
             );
             return Err(Error::CircProto(
                 "Received unexpected cell on unlinked circuit".into(),
@@ -1192,9 +1192,9 @@ impl Circuit {
                 // Somebody was waiting for a message -- maybe this message
                 let ret = handler.handle_msg(msg, self);
                 trace!(
-                    "{}: meta handler completed with result: {:?}",
-                    self.unique_id,
-                    ret
+                    circ_id = %self.unique_id,
+                    result = ?ret,
+                    "meta handler completed",
                 );
                 match ret {
                     #[cfg(feature = "send-control-msg")]
