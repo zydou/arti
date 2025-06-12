@@ -288,7 +288,12 @@ impl<'a> ControlHandler<'a> {
 
     /// Handle a control message.
     pub(super) fn handle_msg(&mut self, msg: CtrlMsg) -> Result<Option<RunOnceCmdInner>> {
-        trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
+        trace!(
+            tunnel_id = %self.reactor.tunnel_id,
+            msg = ?msg,
+            "reactor received control message"
+        );
+
         match msg {
             // This is handled earlier, since it requires blocking.
             CtrlMsg::Create { done, .. } => {
@@ -554,7 +559,12 @@ impl<'a> ControlHandler<'a> {
 
     /// Handle a control command.
     pub(super) fn handle_cmd(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
-        trace!("{}: reactor received {:?}", self.reactor.unique_id, msg);
+        trace!(
+            tunnel_id = %self.reactor.tunnel_id,
+            msg = ?msg,
+            "reactor received control command"
+        );
+
         match msg {
             CtrlCmd::Shutdown => self.reactor.handle_shutdown().map(|_| ()),
             #[cfg(feature = "hs-common")]

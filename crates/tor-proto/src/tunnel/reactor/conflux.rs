@@ -261,7 +261,10 @@ impl ConfluxSet {
             .remove(leg)
             .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
 
-        tracing::trace!("{}: Circuit removed from conflux set", circ.unique_id());
+        tracing::trace!(
+            circ_id = %circ.unique_id(),
+            "Circuit removed from conflux set"
+        );
 
         self.mutable.remove(circ.unique_id());
 

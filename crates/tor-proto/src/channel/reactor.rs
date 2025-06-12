@@ -187,7 +187,7 @@ impl<S: SleepProvider> Reactor<S> {
     /// Once this function returns, the channel is dead, and can't be
     /// used again.
     pub async fn run(mut self) -> Result<()> {
-        trace!("{}: Running reactor", &self);
+        trace!(channel_id = %self, "Running reactor");
         let result: Result<()> = loop {
             match self.run_once().await {
                 Ok(()) => (),
@@ -195,7 +195,7 @@ impl<S: SleepProvider> Reactor<S> {
                 Err(ReactorError::Err(e)) => break Err(e),
             }
         };
-        debug!("{}: Reactor stopped: {:?}", &self, result);
+        debug!(channel_id = %self, "Reactor stopped");
         // Inform any waiters that the channel has closed.
         let close_msg = result.as_ref().map_err(Clone::clone).map(|()| CloseInfo);
         self.reactor_closed_tx.send(close_msg);
@@ -272,7 +272,12 @@ impl<S: SleepProvider> Reactor<S> {
 
     /// Handle a CtrlMsg other than Shutdown.
     async fn handle_control(&mut self, msg: CtrlMsg) -> Result<()> {
-        trace!("{}: reactor received {:?}", &self, msg);
+        trace!(
+            channel_id = %self,
+            msg = ?msg,
+            "reactor received control message"
+        );
+
         match msg {
             CtrlMsg::Shutdown => panic!(), // was handled in reactor loop.
             CtrlMsg::CloseCircuit(id) => self.outbound_destroy_circ(id).await?,
@@ -337,8 +342,8 @@ impl<S: SleepProvider> Reactor<S> {
         match msg {
             Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
             _ => trace!(
-                "{}: received {} for {}",
-                &self,
+                channel_id = %self,
+                "received {} for {}",
                 msg.cmd(),
                 CircId::get_or_zero(circid)
             ),
@@ -417,7 +422,7 @@ impl<S: SleepProvider> Reactor<S> {
             // If the circuit is waiting for CREATED, tell it that it
             // won't get one.
             Some(CircEnt::Opening(oneshot, _)) => {
-                trace!("{}: Passing destroy to pending circuit {}", &self, circid);
+                trace!(channel_id = %self, "Passing destroy to pending circuit {}", circid);
                 oneshot
                     .send(msg.try_into()?)
                     // TODO(nickm) I think that this one actually means the other side
@@ -428,7 +433,7 @@ impl<S: SleepProvider> Reactor<S> {
             }
             // It's an open circuit: tell it that it got a DESTROY cell.
             Some(CircEnt::Open(mut sink)) => {
-                trace!("{}: Passing destroy to open circuit {}", &self, circid);
+                trace!(channel_id = %self, "Passing destroy to open circuit {}", circid);
                 sink.send(msg.try_into()?)
                     .await
                     // TODO(nickm) I think that this one actually means the other side
@@ -441,7 +446,7 @@ impl<S: SleepProvider> Reactor<S> {
             Some(CircEnt::DestroySent(_)) => Ok(()),
             // Got a DESTROY cell for a circuit we don't have.
             None => {
-                trace!("{}: Destroy for nonexistent circuit {}", &self, circid);
+                trace!(channel_id = %self, "Destroy for nonexistent circuit {}", circid);
                 Err(Error::ChanProto("Destroy for nonexistent circuit".into()))
             }
         }
@@ -456,7 +461,7 @@ impl<S: SleepProvider> Reactor<S> {
     /// Called when a circuit goes away: sends a DESTROY cell and removes
     /// the circuit.
     async fn outbound_destroy_circ(&mut self, id: CircId) -> Result<()> {
-        trace!("{}: Circuit {} is gone; sending DESTROY", &self, id);
+        trace!(channel_id = %self, "Circuit {} is gone; sending DESTROY", id);
         // Remove the circuit's entry from the map: nothing more
         // can be done with it.
         // TODO: It would be great to have a tighter upper bound for

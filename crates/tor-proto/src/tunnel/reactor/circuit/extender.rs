@@ -8,8 +8,8 @@ use crate::crypto::cell::{
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
-use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::reactor::MetaCellDisposition;
+use crate::tunnel::TunnelScopedCircId;
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
@@ -44,7 +44,7 @@ where
     /// In-progress settings that we're negotiating for this hop.
     settings: HopSettings,
     /// An identifier for logging about this reactor's circuit.
-    unique_id: UniqId,
+    unique_id: TunnelScopedCircId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
     expected_hop: HopNum,
     /// The relay cell format we intend to use for this hop.
@@ -96,10 +96,10 @@ where
             let n_hops = circ.crypto_out.n_layers();
             let hop = ((n_hops - 1) as u8).into();
             trace!(
-                "{}: Extending circuit to hop {} with {:?}",
-                unique_id,
-                n_hops + 1,
-                linkspecs
+                circ_id = %unique_id,
+                target_hop = n_hops + 1,
+                linkspecs = ?linkspecs,
+                "Extending circuit",
             );
             let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
             let cell = AnyRelayMsgOuter::new(None, extend_msg.into());
@@ -110,7 +110,7 @@ where
                 cell,
             };
 
-            trace!("{}: waiting for EXTENDED2 cell", unique_id);
+            trace!(circ_id = %unique_id, "waiting for EXTENDED2 cell");
             // ... and now we wait for a response.
             let extender = Self {
                 peer_id,
@@ -153,8 +153,8 @@ where
         let relay_handshake = msg.into_body();
 
         trace!(
-            "{}: Received EXTENDED2 cell; completing handshake.",
-            self.unique_id
+            circ_id = %self.unique_id,
+            "Received EXTENDED2 cell; completing handshake.",
         );
         // Now perform the second part of the handshake, and see if it
         // succeeded.
@@ -171,7 +171,7 @@ where
 
         let layer = L::construct(keygen)?;
 
-        trace!("{}: Handshake complete; circuit extended.", self.unique_id);
+        trace!(circ_id = %self.unique_id, "Handshake complete; circuit extended.");
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back, binding) = layer.split_client_layer();

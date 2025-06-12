@@ -355,8 +355,8 @@ impl Sink<AnyChanCell> for ChannelSender {
             match cell.msg() {
                 Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
                 _ => trace!(
-                    "{}: Sending {} for {}",
-                    this.unique_id,
+                    channel_id = %this.unique_id,
+                    "Sending {} for {}",
                     cell.msg().cmd(),
                     CircId::get_or_zero(cell.circid())
                 ),
