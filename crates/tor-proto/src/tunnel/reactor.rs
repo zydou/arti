@@ -30,7 +30,7 @@ use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
-use crate::tunnel::{streammap, HopLocation, TargetHop};
+use crate::tunnel::{streammap, HopLocation, TargetHop, TunnelId};
 use crate::util::err::ReactorError;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -486,7 +486,7 @@ macro_rules! unwrap_or_shutdown {
         match $res {
             None => {
                 trace!(
-                    circ_id = %$self.unique_id,
+                    tunnel_id = %$self.tunnel_id,
                     reason = %$reason,
                     "reactor shutdown"
                 );
@@ -539,8 +539,8 @@ pub struct Reactor {
     // TODO(conflux): document all the reasons why the reactor might
     // chose to tear down a circuit or tunnel (timeouts, protocol violations, etc.)
     circuits: ConfluxSet,
-    /// An identifier for logging about this reactor's circuit.
-    unique_id: UniqId,
+    /// An identifier for logging about this tunnel reactor.
+    tunnel_id: TunnelId,
     /// Handlers, shared with `Circuit`.
     cell_handlers: CellHandlers,
     /// The time provider, used for conflux handshake timeouts.
@@ -688,6 +688,7 @@ impl Reactor {
         oneshot::Receiver<void::Void>,
         Arc<TunnelMutableState>,
     ) {
+        let tunnel_id = TunnelId::next();
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
         let mutable = Arc::new(MutableState::default());
@@ -716,7 +717,7 @@ impl Reactor {
             control: control_rx,
             command: command_rx,
             reactor_closed_tx,
-            unique_id,
+            tunnel_id,
             cell_handlers,
             runtime,
             #[cfg(feature = "conflux")]
@@ -734,7 +735,7 @@ impl Reactor {
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
     pub async fn run(mut self) -> Result<()> {
-        trace!(circ_id = %self.unique_id, "Running circuit reactor");
+        trace!(tunnel_id = %self.tunnel_id, "Running tunnel reactor");
         let result: Result<()> = loop {
             match self.run_once().await {
                 Ok(()) => (),
@@ -742,7 +743,7 @@ impl Reactor {
                 Err(ReactorError::Err(e)) => break Err(e),
             }
         };
-        trace!(circ_id = %self.unique_id, "Circuit reactor stopped: {:?}", result);
+        trace!(tunnel_id = %self.tunnel_id, "Tunnel reactor stopped: {:?}", result);
         result
     }
 
@@ -752,8 +753,8 @@ impl Reactor {
         // If all the circuits are closed, shut down the reactor
         if self.circuits.is_empty() {
             trace!(
-                circ_id = %self.unique_id,
-                "Circuit reactor shutting down: all circuits have closed",
+                tunnel_id = %self.tunnel_id,
+                "Tunnel reactor shutting down: all circuits have closed",
             );
 
             return Err(ReactorError::Shutdown);
@@ -1031,11 +1032,11 @@ impl Reactor {
                 let _ = answer.send(res.map_err(Into::into));
             }
             RunOnceCmdInner::CleanShutdown => {
-                trace!(circ_id = %self.unique_id, "reactor shutdown due to handled cell");
+                trace!(tunnel_id = %self.tunnel_id, "reactor shutdown due to handled cell");
                 return Err(ReactorError::Shutdown);
             }
             RunOnceCmdInner::RemoveLeg { leg, reason } => {
-                warn!(circ_id = %self.unique_id, reason = %reason, "removing circuit leg");
+                warn!(tunnel_id = %self.tunnel_id, reason = %reason, "removing circuit leg");
 
                 let circ = self.circuits.remove(leg.0)?;
                 let is_conflux_pending = circ.is_conflux_pending();
@@ -1068,7 +1069,7 @@ impl Reactor {
                         tor_error::warn_report!(
                             e,
                             "{}: Malformed conflux handshake, tearing down tunnel",
-                            self.unique_id
+                            self.tunnel_id
                         );
 
                         return Err(e.into());
@@ -1193,8 +1194,7 @@ impl Reactor {
             let leg_count = conflux_ctx.results.len();
 
             info!(
-                // XXX: this should say tunnel_Id
-                circ_id = %self.unique_id,
+                tunnel_id = %self.tunnel_id,
                 "conflux tunnel ready ({success_count}/{leg_count} circuits successfully linked)",
             );
 
@@ -1240,8 +1240,7 @@ impl Reactor {
     /// Handle a shutdown request.
     fn handle_shutdown(&self) -> StdResult<Option<RunOnceCmdInner>, ReactorError> {
         trace!(
-            // XXX this should say tunnel_id
-            circ_id = %self.unique_id,
+            tunnel_id = %self.tunnel_id,
             "reactor shutdown due to explicit request",
         );
 

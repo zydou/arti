@@ -289,8 +289,7 @@ impl<'a> ControlHandler<'a> {
     /// Handle a control message.
     pub(super) fn handle_msg(&mut self, msg: CtrlMsg) -> Result<Option<RunOnceCmdInner>> {
         trace!(
-            // XXX this should say tunnel_id
-            circ_id = %self.reactor.unique_id,
+            tunnel_id = %self.reactor.tunnel_id,
             msg = ?msg,
             "reactor received control message"
         );
@@ -561,8 +560,7 @@ impl<'a> ControlHandler<'a> {
     /// Handle a control command.
     pub(super) fn handle_cmd(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
         trace!(
-            // XXX this should say tunnel_id
-            circ_id = %self.reactor.unique_id,
+            tunnel_id = %self.reactor.tunnel_id,
             msg = ?msg,
             "reactor received control command"
         );
