@@ -15,6 +15,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use crate::circuit::UniqId;
 use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 use circuit::ClientCirc;
@@ -42,6 +43,32 @@ impl TunnelId {
         let id = NEXT_TUNNEL_ID.fetch_add(1, Ordering::Relaxed);
         assert!(id != 0, "Exhausted Tunnel ID space?!");
         TunnelId(id)
+    }
+}
+
+/// The identifier of a circuit [`UniqId`] within a tunnel.
+///
+/// This type is only needed for logging purposes: a circuit's [`UniqId`] is
+/// process-unique, but in the logs it's often useful to display the
+/// owning tunnel's ID alongside the circuit identifier.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
+#[display("Circ {}.{}", tunnel_id, circ_id.display_chan_circ())]
+pub(crate) struct TunnelScopedCircId {
+    /// The identifier of the owning tunnel
+    tunnel_id: TunnelId,
+    /// The process-unique identifier of the circuit
+    circ_id: UniqId,
+}
+
+impl TunnelScopedCircId {
+    /// Create a new [`TunnelScopedCircId`] from the specified identifiers.
+    pub(crate) fn new(tunnel_id: TunnelId, circ_id: UniqId) -> Self {
+        Self { tunnel_id, circ_id }
+    }
+
+    /// Return the [`UniqId`].
+    pub(crate) fn unique_id(&self) -> UniqId {
+        self.circ_id
     }
 }
 
