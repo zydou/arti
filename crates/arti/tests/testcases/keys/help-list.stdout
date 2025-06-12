@@ -1,0 +1,11 @@
+List keys and certificates
+
+Usage: arti keys list [OPTIONS]
+
+Options:
+  -c, --config <FILE>                 Specify which config file(s) to read. Defaults to [File("[..]"), Dir("[..]")]
+  -k, --keystore-id <KEYSTORE_ID>     Identifier of the keystore. If omitted, keys and certificates from all the keystores will be returned
+  -o <KEY=VALUE>                      Override config file parameters, using TOML-like syntax.
+  -l, --log-level <LEVEL>             Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error').
+      --disable-fs-permission-checks  Don't check permissions on the files we use.
+  -h, --help                          Print help

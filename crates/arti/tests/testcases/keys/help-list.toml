@@ -1,0 +1,3 @@
+bin.name = "arti"
+args = "keys list --help"
+status.code = 0

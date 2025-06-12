@@ -184,6 +184,8 @@ implementation with another.
 * `restricted-discovery` -- Build with experimental restricted discovery
   support. Restricted discovery support will become non-experimental
   once [#1795] is closed.
+* `onion-service-cli-extra` -- build with additional key and state management
+  command line functionalities.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make

@@ -74,6 +74,8 @@ path of the key on disk (relative to the root directory of the key store).
 
 * `ctor-keystore` -- build with C Tor keystore support
 * `ephemeral-keystore` -- build with ephemeral keystore support
+* `onion-service-cli-extra` -- build with additional key and state management
+  command line functionalities
 
 [^1]: Remember, semantic versioning is what makes various `cargo`
 features work reliably. To be explicit: if you want `cargo update`

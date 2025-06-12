@@ -4,8 +4,8 @@
 
 use crate::{
     ArtiPath, BoxedKeystore, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
-    KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeystoreCorruptionError, KeystoreId,
-    KeystoreSelector, Result,
+    KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeystoreCorruptionError,
+    KeystoreEntryResult, KeystoreId, KeystoreSelector, Result,
 };
 
 use itertools::Itertools;
@@ -332,6 +332,45 @@ impl KeyMgr {
             })
             .flatten_ok()
             .collect::<Result<Vec<_>>>()
+    }
+
+    /// List keys and certificates of the specified keystore.
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn list_by_id(
+        &self,
+        id: &KeystoreId,
+    ) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
+        self.find_keystore(id)?.list()
+    }
+
+    /// List keys and certificates of all the keystores.
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
+        self.all_stores()
+            .map(|store| -> Result<Vec<_>> {
+                Ok(store
+                    .list()?
+                    .into_iter()
+                    .map(|entry| match entry {
+                        Ok((key_path, key_type)) => Ok(KeystoreEntry {
+                            key_path: key_path.clone(),
+                            key_type,
+                            keystore_id: store.id(),
+                        }),
+                        Err(e) => Err(e),
+                    })
+                    .collect::<Vec<_>>())
+            })
+            .flatten_ok()
+            .collect::<Result<Vec<_>>>()
+    }
+
+    /// List keys and certificates of a specific keystore.
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn list_keystores(&self) -> Vec<KeystoreId> {
+        self.all_stores()
+            .map(|store| store.id().to_owned())
+            .collect()
     }
 
     /// Describe the specified key.
@@ -909,6 +948,9 @@ mod tests {
         }
     }
 
+    const KEYSTORE_LIST_MOCK_ID: &str = "keystore_list_mock";
+    const KEYSTORE_LIST_MOCK_UNRECOGNIZED_PATH_STR: &str = "unrecognized_entry";
+
     struct KeystoreListMock {
         id: KeystoreId,
         valid_key_path: KeyPath,
@@ -918,11 +960,10 @@ mod tests {
     impl Default for KeystoreListMock {
         fn default() -> Self {
             Self {
-                id: KeystoreId::from_str("keystore_list_mock").unwrap(),
-                valid_key_path: KeyPath::Arti(
-                    ArtiPath::new("recognized_entry".to_owned()).unwrap(),
-                ),
-                invalid_key_path: PathBuf::from_str("unrecognized_entry").unwrap(),
+                id: KeystoreId::from_str(KEYSTORE_LIST_MOCK_ID).unwrap(),
+                valid_key_path: KeyPath::Arti(TestKeySpecifierListMock.arti_path().unwrap()),
+                invalid_key_path: PathBuf::from_str(KEYSTORE_LIST_MOCK_UNRECOGNIZED_PATH_STR)
+                    .unwrap(),
             }
         }
     }
@@ -947,7 +988,7 @@ mod tests {
             Ok(vec![
                 Ok((
                     self.valid_key_path.clone(),
-                    KeystoreItemType::Key(KeyType::Ed25519PublicKey),
+                    TestItem::new("capibara").item.item_type().unwrap(),
                 )),
                 Err(UnrecognizedEntryError::new(
                     UnrecognizedEntryId::Path(self.invalid_key_path.clone()),
@@ -1133,6 +1174,7 @@ mod tests {
     impl_specifier!(TestKeySpecifier2, "spec2");
     impl_specifier!(TestKeySpecifier3, "spec3");
     impl_specifier!(TestKeySpecifier4, "spec4");
+    impl_specifier!(TestKeySpecifierListMock, "recognized_entry");
 
     impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
 
@@ -1541,6 +1583,116 @@ mod tests {
             matching.first().unwrap().key_path(),
             &KeystoreListMock::default().valid_key_path
         );
+    }
+
+    #[cfg(feature = "onion-service-cli-extra")]
+    #[test]
+    fn lists() {
+        let mut builder =
+            KeyMgrBuilder::default().primary_store(Box::new(KeystoreListMock::default()));
+        builder
+            .secondary_stores()
+            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+
+        let mgr = builder.build().unwrap();
+        let keystore2id = KeystoreId::from_str("keystore2").unwrap();
+        let keystore3id = KeystoreId::from_str("keystore3").unwrap();
+
+        // Insert a key into Keystore2
+        let _ = mgr
+            .insert(
+                TestItem::new("coot"),
+                &TestKeySpecifier2,
+                KeystoreSelector::Id(&keystore2id),
+                true,
+            )
+            .unwrap();
+
+        // Insert a key into Keystore3
+        let _ = mgr
+            .insert(
+                TestItem::new("penguin"),
+                &TestKeySpecifier3,
+                KeystoreSelector::Id(&keystore3id),
+                true,
+            )
+            .unwrap();
+
+        // Test `list_by_id`
+        let entries = mgr
+            .list_by_id(&KeystoreId::from_str(KEYSTORE_LIST_MOCK_ID).unwrap())
+            .unwrap();
+
+        let assert_key = |path, ty, expected_path: &ArtiPath, expected_type| {
+            assert_eq!(ty, expected_type);
+            assert_eq!(path, &KeyPath::Arti(expected_path.clone()));
+        };
+        let item_type = TestItem::new("axolotl").item.item_type().unwrap();
+        let unrecognized_entry_id = UnrecognizedEntryId::Path(
+            PathBuf::from_str(KEYSTORE_LIST_MOCK_UNRECOGNIZED_PATH_STR).unwrap(),
+        );
+        let list_mock_key_spec = TestKeySpecifierListMock.arti_path().unwrap();
+
+        // Primary keystore contains a valid key and an unrecognized key
+        let mut recognized_entries = 0;
+        let mut unrecognized_entries = 0;
+        for entry in entries.iter() {
+            match entry {
+                Ok((key_path, key_type)) => {
+                    assert_key(key_path, key_type, &list_mock_key_spec, &item_type);
+                    recognized_entries += 1;
+                }
+                Err(u) => {
+                    assert_eq!(u.entry(), &unrecognized_entry_id);
+                    unrecognized_entries += 1;
+                }
+            }
+        }
+        assert_eq!(recognized_entries, 1);
+        assert_eq!(unrecognized_entries, 1);
+
+        // Test `list`
+        let entries = mgr.list().unwrap();
+
+        let expected_items = [
+            (
+                KeystoreId::from_str("keystore_list_mock").unwrap(),
+                TestKeySpecifierListMock.arti_path().unwrap(),
+            ),
+            (keystore2id, TestKeySpecifier2.arti_path().unwrap()),
+            (keystore3id, TestKeySpecifier3.arti_path().unwrap()),
+        ];
+
+        // Secondary keystores contain 1 valid key each
+        let mut recognized_entries = 0;
+        let mut unrecognized_entries = 0;
+        for entry in entries.iter() {
+            match entry {
+                Ok(e) => {
+                    if let Some((_, expected_arti_path)) = expected_items
+                        .iter()
+                        .find(|(keystore_id, _)| keystore_id == e.keystore_id())
+                    {
+                        assert_key(e.key_path(), e.key_type(), expected_arti_path, &item_type);
+                        recognized_entries += 1;
+                        continue;
+                    }
+
+                    panic!("Unexpected key encountered {:?}", e);
+                }
+                Err(u) => {
+                    assert_eq!(u.entry(), &unrecognized_entry_id);
+                    unrecognized_entries += 1;
+                }
+            }
+        }
+        assert_eq!(recognized_entries, 3);
+        assert_eq!(unrecognized_entries, 1);
+
+        // Test `list_keystores`
+        let keystores = mgr.list_keystores().iter().len();
+
+        assert_eq!(keystores, 3);
     }
 
     /// Whether to generate a given item before running the `run_certificate_test`.
