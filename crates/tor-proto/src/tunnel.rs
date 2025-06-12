@@ -8,9 +8,11 @@ pub(crate) mod msghandler;
 pub(crate) mod reactor;
 mod streammap;
 
+use derive_more::Display;
 use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::crypto::cell::HopNum;
@@ -22,6 +24,26 @@ use reactor::{CtrlMsg, LegId};
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayCellFormat, StreamId};
+
+/// The unique identifier of a tunnel.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
+#[display("{}", _0)]
+pub(crate) struct TunnelId(u64);
+
+impl TunnelId {
+    /// Create a new TunnelId.
+    ///
+    /// # Panics
+    ///
+    /// Panics if we have exhausted the possible space of u64 IDs.
+    pub(crate) fn next() -> TunnelId {
+        /// The next unique tunnel ID.
+        static NEXT_TUNNEL_ID: AtomicU64 = AtomicU64::new(1);
+        let id = NEXT_TUNNEL_ID.fetch_add(1, Ordering::Relaxed);
+        assert!(id != 0, "Exhausted Tunnel ID space?!");
+        TunnelId(id)
+    }
+}
 
 // TODO(#1857): Make this pub and not `allow(dead_code)`.
 /// A precise position in a tunnel.
