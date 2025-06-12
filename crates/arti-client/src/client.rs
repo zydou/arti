@@ -475,6 +475,14 @@ impl InertTorClient {
             None => Ok(None),
         }
     }
+
+    /// Getter for keymgr.
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn keymgr(&self) -> crate::Result<&KeyMgr> {
+        Ok(self.keymgr.as_ref().ok_or(ErrorDetail::KeystoreRequired {
+            action: "get key manager handle",
+        })?)
+    }
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.

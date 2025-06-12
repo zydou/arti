@@ -116,7 +116,11 @@ use clap::{value_parser, Arg, ArgAction, Command};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
-#[cfg(any(feature = "hsc", feature = "onion-service-service"))]
+#[cfg(any(
+    feature = "hsc",
+    feature = "onion-service-service",
+    feature = "onion-service-cli-extra"
+))]
 use clap::Subcommand as _;
 
 #[cfg(feature = "experimental-api")]
@@ -294,6 +298,12 @@ where
         }
     }
 
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-cli-extra")] {
+            let clap_app = subcommands::keys::KeysSubcommands::augment_subcommands(clap_app);
+        }
+    }
+
     // Tracing doesn't log anything when there is no subscriber set.  But we want to see
     // logging messages from config parsing etc.  We can't set the global default subscriber
     // because we can only set it once.  The other ways involve a closure.  So we have a
@@ -382,6 +392,15 @@ where
     // Check for the "proxy" subcommand.
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         return subcommands::proxy::run(runtime, proxy_matches, cfg_sources, config, client_config);
+    }
+
+    // Check for the optional "keys" subcommand.
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-cli-extra")] {
+            if let Some(keys_matches) = matches.subcommand_matches("keys") {
+                return subcommands::keys::run(runtime, keys_matches, &client_config);
+            }
+        }
     }
 
     // Check for the optional "hss" subcommand.

@@ -38,6 +38,7 @@ experimental = ["ephemeral-keystore", "ctor-keystore", "testing", "experimental-
 experimental-api = ["__is_experimental"]
 ephemeral-keystore = ["__is_experimental"]
 ctor-keystore = ["data-encoding", "__is_experimental"]
+onion-service-cli-extra = ["keymgr", "__is_experimental"]
 testing = ["__is_experimental"]
 __is_experimental = []
 

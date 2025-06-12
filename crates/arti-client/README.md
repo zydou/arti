@@ -226,7 +226,7 @@ match tor_client.connect(("example.com", 80)).await {
   documents. Requires a C compiler.
 * `bridge-client` -- Build with support for bridges.
 * `memquota` -- Build with support for memory use tracking and limiting.
-* `onion-service-client` -- Build with support for connecting to onion 
+* `onion-service-client` -- Build with support for connecting to onion
   services. Note that this is not yet as secure as C-Tor and shouldn't be used
   for security-sensitive purposes.
 * `onion-service-service` -- Build with support for running onion services.
@@ -280,7 +280,9 @@ implementation with another.
 * `error_detail` -- expose the `arti_client::Error` inner error type.
 * `dirfilter` -- expose the `DirFilter` API, which lets you modify a network
   directory before it is used.
-* `experimental` -- Build with all experimental features above, along with
+* `onion-service-cli-extra` -- build with additional key and state management
+  command line functionalities.
+* `experimental` -- build with all experimental features above, along with
   all experimental features from other arti crates.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
