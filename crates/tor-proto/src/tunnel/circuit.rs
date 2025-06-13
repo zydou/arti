@@ -2361,6 +2361,7 @@ pub(crate) mod test {
                 circ.command
                     .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
+                        leg: circ.unique_id(),
                         done: tx,
                     })
                     .unwrap();
@@ -2409,6 +2410,7 @@ pub(crate) mod test {
                 circ.command
                     .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
+                        leg: circ.unique_id(),
                         done: tx,
                     })
                     .unwrap();
