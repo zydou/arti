@@ -272,7 +272,7 @@ impl Circuit {
     /// Send a LINK cell to the specified hop.
     ///
     /// This must be called *after* a [`ConfluxMsgHandler`] is installed
-    /// on the circuit with [`install_conflux_handler`](Self::install_conflux_handler).
+    /// on the circuit with [`add_to_conflux_tunnel`](Self::add_to_conflux_tunnel).
     #[cfg(feature = "conflux")]
     pub(super) async fn begin_conflux_link(
         &mut self,
