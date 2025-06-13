@@ -60,7 +60,7 @@ use crate::tunnel::reactor::CtrlCmd;
 use crate::tunnel::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
-use crate::tunnel::{LegId, StreamTarget, TargetHop};
+use crate::tunnel::{StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
@@ -205,17 +205,19 @@ pub struct ClientCirc {
 /// We should revisit this decision at some point, and decide whether an async API
 /// would be preferable.
 #[derive(Debug, Default)]
-pub(super) struct TunnelMutableState(Mutex<HashMap<UniqId, (LegId, Arc<MutableState>)>>);
+// XXX: no need to store UniqId in the value
+pub(super) struct TunnelMutableState(Mutex<HashMap<UniqId, (UniqId, Arc<MutableState>)>>);
 
 impl TunnelMutableState {
     /// Add the [`MutableState`] of a circuit.
-    pub(super) fn insert(&self, unique_id: UniqId, leg: LegId, mutable: Arc<MutableState>) {
+    pub(super) fn insert(&self, unique_id: UniqId, mutable: Arc<MutableState>) {
         #[allow(unused)] // unused in non-debug builds
         let state = self
             .0
             .lock()
             .expect("lock poisoned")
-            .insert(unique_id, (leg, mutable));
+            // XXX: remove the second unique_id
+            .insert(unique_id, (unique_id, mutable));
 
         debug_assert!(state.is_none());
     }

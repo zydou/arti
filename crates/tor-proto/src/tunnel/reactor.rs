@@ -60,8 +60,8 @@ use derive_deftly::Deftly;
 use derive_more::From;
 use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
-use tor_memquota::{derive_deftly_template_HasMemoryCost, memory_cost_structural_copy};
 use tracing::{info, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
@@ -166,7 +166,7 @@ enum RunOnceCmdInner {
     /// Send a RELAY cell.
     Send {
         /// The leg the cell should be sent on.
-        leg: LegId,
+        leg: UniqId,
         /// The cell to send.
         cell: SendRelayCell,
         /// A channel for sending completion notifications.
@@ -190,7 +190,7 @@ enum RunOnceCmdInner {
     /// Handle a SENDME message.
     HandleSendMe {
         /// The leg the SENDME was received on.
-        leg: LegId,
+        leg: UniqId,
         /// The hop number.
         hop: HopNum,
         /// The SENDME message to handle.
@@ -207,7 +207,7 @@ enum RunOnceCmdInner {
         /// caller.
         hop: HopLocation,
         /// The circuit leg to begin the stream on.
-        leg: LegId,
+        leg: UniqId,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
     },
@@ -232,7 +232,7 @@ enum RunOnceCmdInner {
     /// Remove a circuit leg from the conflux set.
     RemoveLeg {
         /// The circuit leg to remove.
-        leg: LegId,
+        leg: UniqId,
         /// The reason for removal.
         ///
         /// This is only used for conflux circuits that get removed
@@ -257,7 +257,7 @@ enum RunOnceCmdInner {
     ConfluxHandshakeComplete {
         /// The circuit leg that has completed the handshake,
         /// This is the leg the cell should be sent on.
-        leg: LegId,
+        leg: UniqId,
         /// The cell to send.
         cell: SendRelayCell,
     },
@@ -274,7 +274,7 @@ enum RunOnceCmdInner {
     #[cfg(feature = "conflux")]
     Enqueue {
         /// The leg the entry originated from.
-        leg: LegId,
+        leg: UniqId,
         /// The out-of-order message.
         msg: OooRelayMsg,
     },
@@ -283,46 +283,35 @@ enum RunOnceCmdInner {
 }
 
 impl RunOnceCmdInner {
-    /// Create a [`RunOnceCmdInner`] out of a [`CircuitCmd`] and [`LegIdKey`].
-    fn from_circuit_cmd(leg: LegIdKey, cmd: CircuitCmd) -> Self {
+    /// Create a [`RunOnceCmdInner`] out of a [`CircuitCmd`] and [`UniqId`].
+    fn from_circuit_cmd(leg: UniqId, cmd: CircuitCmd) -> Self {
         match cmd {
             CircuitCmd::Send(cell) => Self::Send {
-                leg: LegId(leg),
+                leg,
                 cell,
                 done: None,
             },
-            CircuitCmd::HandleSendMe { hop, sendme } => Self::HandleSendMe {
-                leg: LegId(leg),
-                hop,
-                sendme,
-            },
+            CircuitCmd::HandleSendMe { hop, sendme } => Self::HandleSendMe { leg, hop, sendme },
             CircuitCmd::CloseStream {
                 hop,
                 sid,
                 behav,
                 reason,
             } => Self::CloseStream {
-                hop: HopLocation::Hop((LegId(leg), hop)),
+                hop: HopLocation::Hop((leg, hop)),
                 sid,
                 behav,
                 reason,
                 done: None,
             },
             #[cfg(feature = "conflux")]
-            CircuitCmd::ConfluxRemove(reason) => Self::RemoveLeg {
-                leg: LegId(leg),
-                reason,
-            },
+            CircuitCmd::ConfluxRemove(reason) => Self::RemoveLeg { leg, reason },
             #[cfg(feature = "conflux")]
-            CircuitCmd::ConfluxHandshakeComplete(cell) => Self::ConfluxHandshakeComplete {
-                leg: LegId(leg),
-                cell,
-            },
+            CircuitCmd::ConfluxHandshakeComplete(cell) => {
+                Self::ConfluxHandshakeComplete { leg, cell }
+            }
             #[cfg(feature = "conflux")]
-            CircuitCmd::Enqueue(msg) => Self::Enqueue {
-                leg: LegId(leg),
-                msg,
-            },
+            CircuitCmd::Enqueue(msg) => Self::Enqueue { leg, msg },
             CircuitCmd::CleanShutdown => Self::CleanShutdown,
         }
     }
@@ -349,7 +338,7 @@ enum CircuitAction {
     /// Run a single `CircuitCmd` command.
     RunCmd {
         /// The unique identifier of the circuit leg to run the command on
-        leg: LegIdKey,
+        leg: UniqId,
         /// The command to run.
         cmd: CircuitCmd,
     },
@@ -358,7 +347,7 @@ enum CircuitAction {
     /// Handle an input message.
     HandleCell {
         /// The unique identifier of the circuit leg the message was received on.
-        leg: LegIdKey,
+        leg: UniqId,
         /// The message to handle.
         cell: ClientCircChanMsg,
     },
@@ -374,7 +363,7 @@ enum CircuitAction {
     /// See the [`ConfluxSet::remove`] docs for more on the exact behavior of this command.
     RemoveLeg {
         /// The leg to remove.
-        leg: LegIdKey,
+        leg: UniqId,
         /// The reason for removal.
         ///
         /// This is only used for conflux circuits that get removed
@@ -447,35 +436,6 @@ pub(crate) enum MetaCellDisposition {
     // installed, and to let them say "not for me, maybe for somebody else?".
     // But right now we don't need that.
 }
-
-/// A unique identifier for a circuit leg.
-///
-/// After the circuit is torn down, its `LegId` becomes invalid.
-/// The same `LegId` won't be reused for a future circuit.
-//
-// TODO(#1857): make this pub
-#[allow(unused)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Deftly)]
-#[derive_deftly(HasMemoryCost)]
-pub(crate) struct LegId(pub(crate) LegIdKey);
-
-// TODO(#1999): can we use `UniqId` as the key instead of this newtype?
-//
-// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2996#note_3199069
-slotmap_careful::new_key_type! {
-    /// A key type for the circuit leg slotmap
-    ///
-    /// See [`LegId`].
-    pub(crate) struct LegIdKey;
-}
-
-impl From<LegIdKey> for LegId {
-    fn from(leg_id: LegIdKey) -> Self {
-        LegId(leg_id)
-    }
-}
-
-memory_cost_structural_copy!(LegIdKey);
 
 /// Unwrap the specified [`Option`], returning a [`ReactorError::Shutdown`] if it is `None`.
 ///
@@ -577,7 +537,7 @@ struct ConfluxHandshakeCtx {
 #[cfg(feature = "conflux")]
 struct ConfluxHeapEntry {
     /// The leg id this message came from.
-    leg_id: LegId,
+    leg_id: UniqId,
     /// The out of order message
     msg: OooRelayMsg,
 }
@@ -632,8 +592,8 @@ pub(crate) struct StreamReqInfo {
     // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
     // incoming stream request from two separate hops.  (There is only one that's valid.)
     pub(crate) hop_num: HopNum,
-    /// The [`LegId`] of the circuit the request came on.
-    pub(crate) leg: LegId,
+    /// The [`UniqId`] of the circuit the request came on.
+    pub(crate) leg: UniqId,
     /// The format which must be used with this stream to encode messages.
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) relay_cell_format: RelayCellFormat,
@@ -766,7 +726,7 @@ impl Reactor {
         let single_path_with_hops = self
             .circuits
             .single_leg_mut()
-            .is_ok_and(|(_id, leg)| !leg.has_hops());
+            .is_ok_and(|leg| !leg.has_hops());
         if single_path_with_hops {
             self.wait_for_create().await?;
 
@@ -810,10 +770,10 @@ impl Reactor {
             CircuitAction::HandleCell { leg, cell } => {
                 let circ = self
                     .circuits
-                    .leg_mut(LegId(leg))
+                    .leg_mut(leg)
                     .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
 
-                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, leg.into(), cell)?;
+                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, leg, cell)?;
                 if circ_cmds.is_empty() {
                     None
                 } else {
@@ -830,13 +790,9 @@ impl Reactor {
                     Some(cmd)
                 }
             }
-            CircuitAction::RemoveLeg { leg, reason } => Some(
-                RunOnceCmdInner::RemoveLeg {
-                    leg: LegId(leg),
-                    reason,
-                }
-                .into(),
-            ),
+            CircuitAction::RemoveLeg { leg, reason } => {
+                Some(RunOnceCmdInner::RemoveLeg { leg, reason }.into())
+            }
         };
 
         if let Some(cmd) = cmd {
@@ -874,7 +830,7 @@ impl Reactor {
                     entry.msg.msg,
                 )?
                 .map(|cmd| {
-                    RunOnceCmd::Single(RunOnceCmdInner::from_circuit_cmd(entry.leg_id.0, cmd))
+                    RunOnceCmd::Single(RunOnceCmdInner::from_circuit_cmd(entry.leg_id, cmd))
                 });
 
             if let Some(cmd) = cmd {
@@ -1024,10 +980,7 @@ impl Reactor {
                 leg.handle_sendme(hop, sendme, signals)?;
             }
             RunOnceCmdInner::FirstHopClockSkew { answer } => {
-                let res = self
-                    .circuits
-                    .single_leg_mut()
-                    .map(|(_id, leg)| leg.clock_skew());
+                let res = self.circuits.single_leg_mut().map(|leg| leg.clock_skew());
 
                 // don't care if the sender goes away
                 let _ = answer.send(res.map_err(Into::into));
@@ -1039,7 +992,7 @@ impl Reactor {
             RunOnceCmdInner::RemoveLeg { leg, reason } => {
                 warn!(tunnel_id = %self.tunnel_id, reason = %reason, "removing circuit leg");
 
-                let circ = self.circuits.remove(leg.0)?;
+                let circ = self.circuits.remove(leg)?;
                 let is_conflux_pending = circ.is_conflux_pending();
 
                 // Drop the removed leg. This will cause it to close if it's not already closed.
@@ -1130,7 +1083,7 @@ impl Reactor {
                         params,
                         done,
                     } => {
-                        let (_id, leg) = self.circuits.single_leg_mut()?;
+                        let leg = self.circuits.single_leg_mut()?;
                         leg.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, peer_id, &params, done);
                         return Ok(())
                     },
@@ -1152,7 +1105,7 @@ impl Reactor {
             } => {
                 // TODO(conflux): instead of crashing the reactor, it might be better
                 // to send the error via the done channel instead
-                let (_id, leg) = self.circuits.single_leg_mut()?;
+                let leg = self.circuits.single_leg_mut()?;
                 leg.handle_create(recv_created, handshake, settings, done)
                     .await
             }
@@ -1281,7 +1234,8 @@ impl Reactor {
         match hop {
             TargetHop::Hop(hop) => Ok(hop),
             TargetHop::LastHop => {
-                if let Ok((leg_id, leg)) = self.circuits.single_leg() {
+                if let Ok(leg) = self.circuits.single_leg() {
+                    let leg_id = leg.unique_id();
                     // single-path tunnel
                     let hop = leg.last_hop_num().ok_or(NoHopsBuiltError)?;
                     Ok(HopLocation::Hop((leg_id, hop)))
@@ -1296,14 +1250,14 @@ impl Reactor {
         }
     }
 
-    /// Resolves a [`HopLocation`] to a [`LegId`] and [`HopNum`].
+    /// Resolves a [`HopLocation`] to a [`UniqId`] and [`HopNum`].
     ///
     /// After resolving a `HopLocation::JoinPoint`,
-    /// the [`LegId`] and [`HopNum`] can become stale if the primary leg changes.
+    /// the [`UniqId`] and [`HopNum`] can become stale if the primary leg changes.
     ///
-    /// You should try to only resolve to a specific [`LegId`] and [`HopNum`] immediately before you
+    /// You should try to only resolve to a specific [`UniqId`] and [`HopNum`] immediately before you
     /// need them,
-    /// and you should not hold on to the resolved [`LegId`] and [`HopNum`] between reactor
+    /// and you should not hold on to the resolved [`UniqId`] and [`HopNum`] between reactor
     /// iterations as the primary leg may change from one iteration to the next.
     ///
     /// Returns [`NoJoinPointError`] if trying to resolve `HopLocation::JoinPoint`
@@ -1311,7 +1265,7 @@ impl Reactor {
     fn resolve_hop_location(
         &self,
         hop: HopLocation,
-    ) -> StdResult<(LegId, HopNum), NoJoinPointError> {
+    ) -> StdResult<(UniqId, HopNum), NoJoinPointError> {
         match hop {
             HopLocation::Hop((leg_id, hop_num)) => Ok((leg_id, hop_num)),
             HopLocation::JoinPoint => {
@@ -1328,7 +1282,7 @@ impl Reactor {
     /// Does congestion control use stream SENDMEs for the given hop?
     ///
     /// Returns `None` if either the `leg` or `hop` don't exist.
-    fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+    fn uses_stream_sendme(&self, leg: UniqId, hop: HopNum) -> Option<bool> {
         self.circuits.uses_stream_sendme(leg, hop)
     }
 

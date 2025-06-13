@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
-use slotmap_careful::SlotMap;
+use smallvec::{smallvec, SmallVec};
 use tor_rtcompat::SleepProviderExt as _;
 use tracing::warn;
 
@@ -21,14 +21,14 @@ use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
 use tor_linkspec::HasRelayIds as _;
 
 use crate::circuit::path::HopDetail;
-use crate::circuit::TunnelMutableState;
+use crate::circuit::{TunnelMutableState, UniqId};
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
 use crate::tunnel::{streammap, TunnelId};
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
-use super::{Circuit, CircuitAction, LegId, LegIdKey, RemoveLegReason, SendRelayCell};
+use super::{Circuit, CircuitAction, RemoveLegReason, SendRelayCell};
 
 #[cfg(feature = "conflux")]
 use {
@@ -38,6 +38,13 @@ use {
 
 #[cfg(feature = "conflux")]
 pub(crate) use msghandler::{ConfluxAction, ConfluxMsgHandler, OooRelayMsg};
+
+/// The maximum number of conflux legs to store in the conflux set SmallVec.
+///
+/// Attempting to store more legs will cause the SmallVec to spill to the heap.
+///
+/// Note: this value was picked arbitrarily and may not be suitable.
+const MAX_CONFLUX_LEGS: usize = 16;
 
 /// A set with one or more circuits.
 ///
@@ -74,13 +81,13 @@ pub(super) struct ConfluxSet {
     /// that gets used for logging purposes.
     tunnel_id: TunnelId,
     /// The circuits in this conflux set.
-    legs: SlotMap<LegIdKey, Circuit>,
+    legs: SmallVec<[Circuit; MAX_CONFLUX_LEGS]>,
     /// Tunnel state, shared with `ClientCirc`.
     ///
     /// Contains the [`MutableState`](super::MutableState) of each circuit in the set.
     mutable: Arc<TunnelMutableState>,
     /// The unique identifier of the primary leg
-    primary_id: LegIdKey,
+    primary_id: UniqId,
     /// The join point of the set, if this is a multi-path set.
     ///
     /// Initially the conflux set starts out as a single-path set with no join point.
@@ -137,10 +144,11 @@ impl ConfluxSet {
         tunnel_id: TunnelId,
         circuit_leg: Circuit,
     ) -> (Self, Arc<TunnelMutableState>) {
-        let mut legs: SlotMap<LegIdKey, Circuit> = SlotMap::with_key();
-        let circ_mutable = Arc::clone(circuit_leg.mutable());
+        let primary_id = circuit_leg.unique_id();
+        // XXX unnecessary copy of unique_id
         let unique_id = circuit_leg.unique_id();
-        let primary_id = legs.insert(circuit_leg);
+        let circ_mutable = Arc::clone(circuit_leg.mutable());
+        let legs = smallvec![circuit_leg];
         // Note: the join point is only set for multi-path tunnels
         let join_point = None;
 
@@ -149,7 +157,7 @@ impl ConfluxSet {
         let desired_ux = V1DesiredUx::NO_OPINION;
 
         let mutable = Arc::new(TunnelMutableState::default());
-        mutable.insert(unique_id, primary_id.into(), circ_mutable);
+        mutable.insert(unique_id, circ_mutable);
 
         let set = Self {
             tunnel_id,
@@ -175,8 +183,9 @@ impl ConfluxSet {
     ///
     /// Calling this function will empty the [`ConfluxSet`].
     pub(super) fn take_single_leg(&mut self) -> Result<Circuit, NotSingleLegError> {
-        let circ = get_single(self.legs.remove(self.primary_id).into_iter())?;
-        Ok(circ)
+        let primary_index =
+            element_idx(self.legs.iter(), self.primary_id).ok_or(NotSingleError::None)?;
+        Ok(self.legs.remove(primary_index))
     }
 
     /// Return a reference to the only leg of this conflux set,
@@ -184,9 +193,8 @@ impl ConfluxSet {
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
-    pub(super) fn single_leg(&self) -> Result<(LegId, &Circuit), NotSingleLegError> {
-        let (circ_id, circ) = get_single(self.legs.iter())?;
-        Ok((LegId(circ_id), circ))
+    pub(super) fn single_leg(&self) -> Result<&Circuit, NotSingleLegError> {
+        Ok(get_single(self.legs.iter())?)
     }
 
     /// Return a mutable reference to the only leg of this conflux set,
@@ -194,9 +202,8 @@ impl ConfluxSet {
     ///
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
-    pub(super) fn single_leg_mut(&mut self) -> Result<(LegId, &mut Circuit), NotSingleLegError> {
-        let (circ_id, circ) = get_single(self.legs.iter_mut())?;
-        Ok((LegId(circ_id), circ))
+    pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, NotSingleLegError> {
+        Ok(get_single(self.legs.iter_mut())?)
     }
 
     /// Return the primary leg of this conflux set.
@@ -216,27 +223,26 @@ impl ConfluxSet {
             ))
         } else {
             let circ = self
-                .legs
-                .get_mut(self.primary_id)
-                .ok_or_else(|| internal!("slotmap is empty?!"))?;
+                .leg_mut(self.primary_id)
+                .ok_or_else(|| internal!("conflux set is empty?!"))?;
 
             Ok(circ)
         }
     }
 
     /// Return a reference to the leg of this conflux set with the given id.
-    pub(super) fn leg(&self, leg_id: LegId) -> Option<&Circuit> {
-        self.legs.get(leg_id.0)
+    pub(super) fn leg(&self, leg_id: UniqId) -> Option<&Circuit> {
+        self.legs.iter().find(|circ| circ.unique_id() == leg_id)
     }
 
     /// Return a mutable reference to the leg of this conflux set with the given id.
-    pub(super) fn leg_mut(&mut self, leg_id: LegId) -> Option<&mut Circuit> {
-        self.legs.get_mut(leg_id.0)
+    pub(super) fn leg_mut(&mut self, leg_id: UniqId) -> Option<&mut Circuit> {
+        self.legs.iter_mut().find(|circ| circ.unique_id() == leg_id)
     }
 
-    /// Return the LegId of the primary leg.
-    pub(super) fn primary_leg_id(&self) -> LegId {
-        LegId(self.primary_id)
+    /// Return the UniqId of the primary leg.
+    pub(super) fn primary_leg_id(&self) -> UniqId {
+        self.primary_id
     }
 
     /// Return the number of legs in this conflux set.
@@ -264,11 +270,10 @@ impl ConfluxSet {
     /// We do not yet support resumption. See [2.4.3. Closing circuits] in prop329.
     ///
     /// [2.4.3. Closing circuits]: https://spec.torproject.org/proposals/329-traffic-splitting.html#243-closing-circuits
-    pub(super) fn remove(&mut self, leg: LegIdKey) -> Result<Circuit, ReactorError> {
-        let circ = self
-            .legs
-            .remove(leg)
+    pub(super) fn remove(&mut self, leg: UniqId) -> Result<Circuit, ReactorError> {
+        let idx = element_idx(self.legs.iter(), leg)
             .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
+        let circ: Circuit = self.legs.remove(idx);
 
         tracing::trace!(
             circ_id = %circ.unique_id(),
@@ -374,7 +379,7 @@ impl ConfluxSet {
     fn max_last_seq_recv(&self) -> Option<u64> {
         self.legs
             .iter()
-            .filter_map(|(_id, leg)| leg.last_seq_recv().ok())
+            .filter_map(|leg| leg.last_seq_recv().ok())
             .max()
     }
 
@@ -383,7 +388,7 @@ impl ConfluxSet {
     fn max_last_seq_sent(&self) -> Option<u64> {
         self.legs
             .iter()
-            .filter_map(|(_id, leg)| leg.last_seq_sent().ok())
+            .filter_map(|leg| leg.last_seq_sent().ok())
             .max()
     }
 
@@ -400,7 +405,7 @@ impl ConfluxSet {
 
     /// Return an iterator of all circuits in the conflux set.
     fn circuits(&self) -> impl Iterator<Item = &Circuit> {
-        self.legs.iter().map(|(_id, leg)| leg)
+        self.legs.iter()
     }
 
     /// Add legs to the this conflux set.
@@ -539,12 +544,12 @@ impl ConfluxSet {
         for circ in legs {
             let mutable = Arc::clone(circ.mutable());
             let unique_id = circ.unique_id();
-            let leg_id = self.legs.insert(circ);
+            self.legs.push(circ);
             // Merge the mutable state of the circuit into our tunnel state.
-            self.mutable.insert(unique_id, leg_id.into(), mutable);
+            self.mutable.insert(unique_id, mutable);
         }
 
-        for (_, circ) in self.legs.iter_mut() {
+        for circ in self.legs.iter_mut() {
             // The circuits that have a None status don't know they're part of
             // a multi-path tunnel yet. They need to be initialized with a
             // conflux message handler, and have their join point fixed up
@@ -650,7 +655,7 @@ impl ConfluxSet {
     ///
     /// Returns `None` if no suitable was found.
     #[cfg(feature = "conflux")]
-    fn select_primary_leg(&self) -> Result<Option<LegIdKey>, Bug> {
+    fn select_primary_leg(&self) -> Result<Option<UniqId>, Bug> {
         match self.desired_ux {
             V1DesiredUx::NO_OPINION | V1DesiredUx::MIN_LATENCY => {
                 self.select_primary_leg_min_rtt(false)
@@ -679,9 +684,9 @@ impl ConfluxSet {
         let best = self
             .legs
             .iter()
-            .filter_map(|(id, leg)| leg.init_rtt().map(|rtt| (LegId(id), rtt)))
-            .min_by_key(|(_leg_id, rtt)| *rtt)
-            .map(|(leg_id, _rtt)| leg_id.0);
+            .filter_map(|leg| leg.init_rtt().map(|rtt| (leg, rtt)))
+            .min_by_key(|(_leg, rtt)| *rtt)
+            .map(|(leg, _rtt)| leg.unique_id());
 
         if let Some(best) = best {
             self.primary_id = best;
@@ -695,10 +700,11 @@ impl ConfluxSet {
     ///
     /// Returns `None` if no suitable leg was found.
     #[cfg(feature = "conflux")]
-    fn select_primary_leg_min_rtt(&self, check_can_send: bool) -> Result<Option<LegIdKey>, Bug> {
+    fn select_primary_leg_min_rtt(&self, check_can_send: bool) -> Result<Option<UniqId>, Bug> {
         let mut best = None;
 
-        for (leg_id, circ) in self.legs.iter() {
+        for circ in self.legs.iter() {
+            let leg_id = circ.unique_id();
             let join_point = self.join_point_hop(circ)?;
             let ccontrol = join_point.ccontrol();
 
@@ -739,7 +745,7 @@ impl ConfluxSet {
     ) -> impl Future<Output = Result<CircuitAction, crate::Error>> + 'a {
         self.legs
             .iter_mut()
-            .map(|(leg_id, leg)| {
+            .map(|leg| {
                 let unique_id = leg.unique_id();
                 let tunnel_id = self.tunnel_id;
 
@@ -791,16 +797,16 @@ impl ConfluxSet {
                         ret = input.next().fuse() => {
                             let Some(cell) = ret else {
                                 return Ok(CircuitAction::RemoveLeg {
-                                    leg: leg_id,
+                                    leg: unique_id,
                                     reason: RemoveLegReason::ChannelClosed,
                                 });
                             };
 
-                            Ok(CircuitAction::HandleCell { leg: leg_id, cell })
+                            Ok(CircuitAction::HandleCell { leg: unique_id, cell })
                         },
                         ret = next_ready_stream.fuse() => {
                             let ret = ret.map(|cmd| {
-                                Ok(CircuitAction::RunCmd { leg: leg_id, cmd })
+                                Ok(CircuitAction::RunCmd { leg: unique_id, cmd })
                             });
 
                             flatten(ret)
@@ -822,7 +828,7 @@ impl ConfluxSet {
                             // Conflux handshake has timed out, time to remove this circuit leg,
                             // and notify the handshake initiator.
                             Ok(Ok(CircuitAction::RemoveLeg {
-                                leg: leg_id,
+                                leg: unique_id,
                                 reason: RemoveLegReason::ConfluxHandshakeTimeout,
                             }))
                         }
@@ -844,16 +850,16 @@ impl ConfluxSet {
     }
 
     /// The join point on the current primary leg.
-    pub(super) fn primary_join_point(&self) -> Option<(LegId, HopNum)> {
+    pub(super) fn primary_join_point(&self) -> Option<(UniqId, HopNum)> {
         self.join_point
             .as_ref()
-            .map(|join_point| (LegId(self.primary_id), join_point.hop))
+            .map(|join_point| (self.primary_id, join_point.hop))
     }
 
     /// Does congestion control use stream SENDMEs for the given hop?
     ///
     /// Returns `None` if either the `leg` or `hop` don't exist.
-    pub(super) fn uses_stream_sendme(&self, leg: LegId, hop: HopNum) -> Option<bool> {
+    pub(super) fn uses_stream_sendme(&self, leg: UniqId, hop: HopNum) -> Option<bool> {
         self.leg(leg)?.uses_stream_sendme(hop)
     }
 
@@ -863,7 +869,7 @@ impl ConfluxSet {
     pub(super) async fn send_relay_cell_on_leg(
         &mut self,
         msg: SendRelayCell,
-        leg: Option<LegId>,
+        leg: Option<UniqId>,
     ) -> crate::Result<()> {
         let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
         let leg = if let Some(join_point) = conflux_join_point {
@@ -886,7 +892,7 @@ impl ConfluxSet {
                 }
 
                 // Use the possibly updated primary leg
-                Some(self.primary_id.into())
+                Some(self.primary_id)
             } else {
                 // Non-multiplexed commands go on their original
                 // circuit and hop
@@ -899,7 +905,7 @@ impl ConfluxSet {
             leg
         };
 
-        let leg = leg.unwrap_or(self.primary_id.into());
+        let leg = leg.unwrap_or(self.primary_id);
 
         let circ = self
             .leg_mut(leg)
@@ -919,12 +925,12 @@ impl ConfluxSet {
             .ok_or_else(|| internal!("no join point when trying to send LINK"))?;
 
         // Link all the circuits that haven't started the conflux handshake yet.
-        for (_, circ) in self
+        for circ in self
             .legs
             .iter_mut()
             // TODO: it is an internal error if any of the legs don't have a conflux handler
             // (i.e. if conflux_status() returns None)
-            .filter(|(_, circ)| circ.conflux_status() == Some(ConfluxStatus::Unlinked))
+            .filter(|circ| circ.conflux_status() == Some(ConfluxStatus::Unlinked))
         {
             let v1_payload = V1LinkPayload::new(self.nonce, self.desired_ux);
             let link = ConfluxLink::new(v1_payload);
@@ -960,6 +966,14 @@ impl ConfluxSet {
         let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::Acquire);
         seq_recv == last_seq_delivered + 1
     }
+}
+
+/// Get the index of the specified element in `iterator`.
+fn element_idx<'a>(
+    mut iterator: impl Iterator<Item = &'a Circuit>,
+    circ_id: UniqId,
+) -> Option<usize> {
+    iterator.position(|circ| circ.unique_id() == circ_id)
 }
 
 // TODO: replace this with Itertools::exactly_one()?

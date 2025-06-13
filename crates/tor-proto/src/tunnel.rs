@@ -20,7 +20,7 @@ use crate::crypto::cell::HopNum;
 use crate::{Error, Result};
 use circuit::ClientCirc;
 use circuit::{handshake, StreamMpscSender};
-use reactor::{CtrlMsg, LegId};
+use reactor::CtrlMsg;
 
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
@@ -78,7 +78,7 @@ impl TunnelScopedCircId {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(crate) enum HopLocation {
     /// A specific position in a tunnel.
-    Hop((LegId, HopNum)),
+    Hop((UniqId, HopNum)),
     /// The join point of a multi-path tunnel.
     JoinPoint,
 }

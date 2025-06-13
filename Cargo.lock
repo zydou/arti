@@ -6560,6 +6560,7 @@ dependencies = [
  "regex",
  "safelog",
  "slotmap-careful",
+ "smallvec",
  "static_assertions",
  "statrs",
  "subtle",
