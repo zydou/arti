@@ -3336,9 +3336,11 @@ pub(crate) mod test {
     struct ConfluxExitState {
         /// The runtime.
         runtime: MockRuntime,
+        /// The client view of the tunnel.
+        tunnel: Arc<ClientCirc>,
         /// The RTT delay to introduce just before sending the LINKED cell.
         init_rtt_delay: Option<Duration>,
-        /// The RTT delay to introduce after the 100th cell.
+        /// The RTT delay to introduce just before sending a SENDME.
         ///
         /// Used to trigger the client to send a SWITCH.
         rtt_delay: Option<Duration>,
@@ -3396,6 +3398,7 @@ pub(crate) mod test {
     async fn run_mock_conflux_exit(state: ConfluxExitState) -> ConfluxEndpointResult {
         let ConfluxExitState {
             runtime,
+            tunnel,
             init_rtt_delay,
             rtt_delay,
             leg,
@@ -3412,6 +3415,8 @@ pub(crate) mod test {
         let stream_len = stream_state.lock().unwrap().expected_data_len;
         let mut data_cells_received = 0_usize;
         let mut cell_count = 0_usize;
+        let mut tags = vec![];
+
         while stream_state.lock().unwrap().data_recvd.len() < stream_len {
             // Wait for the BEGIN cell to arrive...
             let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
@@ -3459,28 +3464,49 @@ pub(crate) mod test {
                 }
                 AnyRelayMsg::Data(dat) => {
                     data_cells_received += 1;
-
                     stream_state
                         .lock()
                         .unwrap()
                         .data_recvd
                         .extend_from_slice(dat.as_ref());
+
+                    let is_next_cell_sendme = data_cells_received % 31 == 0;
+                    if is_next_cell_sendme {
+                        if tags.is_empty() {
+                            // Important: we need to make sure all the SENDMEs
+                            // we sent so far have been processed by the reactor
+                            // (otherwise the next QuerySendWindow call
+                            // might return an outdated list of tags!)
+                            runtime.advance_until_stalled().await;
+                            let (tx, rx) = oneshot::channel();
+                            tunnel
+                                .command
+                                .unbounded_send(CtrlCmd::QuerySendWindow {
+                                    hop: 2.into(),
+                                    leg,
+                                    done: tx,
+                                })
+                                .unwrap();
+
+                            // Get a fresh batch of tags.
+                            let (_window, new_tags) = rx.await.unwrap().unwrap();
+                            tags = new_tags;
+                        }
+
+                        let tag = tags.remove(0);
+
+                        // Introduce an artificial delay, to make one circ have worse RTT
+                        // than the other, and thus trigger a SWITCH
+                        if let Some(rtt_delay) = rtt_delay {
+                            runtime.advance_by(rtt_delay).await;
+                        }
+                        // Make and send a circuit-level SENDME
+                        let sendme = relaymsg::Sendme::from(tag).into();
+
+                        sink.send(rmsg_to_ccmsg(None, sendme)).await.unwrap();
+                    }
                 }
                 _ => panic!("unexpected message {rmsg:?} on leg {leg}"),
-            }
-
-            if data_cells_received == 100 {
-                // Introduce an artificial delay, to make one circ have worse RTT
-                // than the other, and thus trigger a SWITCH
-                if let Some(rtt_delay) = rtt_delay {
-                    runtime.advance_by(rtt_delay).await;
-                }
-
-                // Make and send a circuit-level SENDME
-                let sendme =
-                    relaymsg::Sendme::new_tag(hex!("2100000000000000000000000000000000000000"))
-                        .into();
-                sink.send(rmsg_to_ccmsg(None, sendme)).await.unwrap();
             }
         }
 
@@ -3589,6 +3615,7 @@ pub(crate) mod test {
             for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay) in relays.into_iter() {
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
                     runtime: rt.clone(),
+                    tunnel: Arc::clone(&tunnel),
                     leg,
                     init_rtt_delay,
                     rtt_delay,
