@@ -3295,7 +3295,7 @@ pub(crate) mod test {
             /// The tunnel reactor handle
             tunnel: Arc<ClientCirc>,
             /// Data to send on a stream.
-            stream_data: Vec<u8>,
+            send_data: Vec<u8>,
         },
     }
 
@@ -3487,7 +3487,7 @@ pub(crate) mod test {
     async fn run_conflux_client(
         tunnel: Arc<ClientCirc>,
         conflux_link_rx: oneshot::Receiver<Result<ConfluxHandshakeResult>>,
-        stream_data: Vec<u8>,
+        send_data: Vec<u8>,
     ) -> ConfluxEndpointResult {
         let res = conflux_link_rx.await;
 
@@ -3503,7 +3503,7 @@ pub(crate) mod test {
             .await
             .unwrap();
 
-        stream.write_all(&stream_data).await.unwrap();
+        stream.write_all(&send_data).await.unwrap();
         stream.flush().await.unwrap();
 
         ConfluxEndpointResult::Circuit(tunnel)
@@ -3516,8 +3516,8 @@ pub(crate) mod test {
             ConfluxTestEndpoint::Client {
                 tunnel,
                 conflux_link_rx,
-                stream_data,
-            } => run_conflux_client(tunnel, conflux_link_rx, stream_data).await,
+                send_data,
+            } => run_conflux_client(tunnel, conflux_link_rx, send_data).await,
         }
     }
 
@@ -3539,13 +3539,13 @@ pub(crate) mod test {
             let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
             // The stream data we're going to send over the conflux tunnel
-            let stream_data = (0..255_u8)
+            let send_data = (0..255_u8)
                 .cycle()
                 .take(NUM_CELLS * CELL_SIZE)
                 .collect::<Vec<_>>();
             let stream_state = Arc::new(Mutex::new(ConfluxStreamState {
                 data_recvd: vec![],
-                expected_data_len: stream_data.len(),
+                expected_data_len: send_data.len(),
                 begin_recvd: false,
                 end_recvd: false,
             }));
@@ -3596,7 +3596,7 @@ pub(crate) mod test {
                 run_conflux_endpoint(ConfluxTestEndpoint::Client {
                     tunnel,
                     conflux_link_rx,
-                    stream_data: stream_data.clone(),
+                    send_data: send_data.clone(),
                 }),
             ));
             let _sinks = futures::future::join_all(tasks).await;
@@ -3605,9 +3605,9 @@ pub(crate) mod test {
             assert!(stream_state.begin_recvd);
             assert!(stream_state.end_recvd);
 
-            // TODO: sort stream_data to work around the lack of handling of
+            // TODO: sort send_data to work around the lack of handling of
             // out-of-order cells at the mock exit
-            assert_eq!(stream_state.data_recvd, stream_data);
+            assert_eq!(stream_state.data_recvd, send_data);
         });
     }
 
