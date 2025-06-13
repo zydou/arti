@@ -2,13 +2,17 @@
 
 use std::fmt::{Display, Formatter};
 
+use derive_deftly::Deftly;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
+
 /// Process-unique identifier for a circuit.
 ///
 /// We could use channel_id.circid here, but the circid can be reused
 /// over time.  This won't ever repeat on a 64-bit architecture, and
 /// is super-unlikely to repeat on a 32-bit architecture.  (If
 /// we're about to return a repeat value, we assert instead.)
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct UniqId {
     /// Channel that this circuit is on.
     chan: usize,
