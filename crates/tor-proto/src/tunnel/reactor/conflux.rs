@@ -554,7 +554,7 @@ impl ConfluxSet {
                     runtime.clone(),
                 );
 
-                circ.install_conflux_handler(conflux_handler);
+                circ.install_conflux_handler(self.tunnel_id, conflux_handler);
 
                 // Ensure the stream map of the last hop is shared by all the legs
                 let last_hop = circ

@@ -80,6 +80,7 @@ use {
 use {
     super::conflux::{ConfluxAction, OooRelayMsg},
     crate::tunnel::reactor::RemoveLegReason,
+    crate::tunnel::TunnelId,
 };
 
 pub(super) use circhop::{CircHop, CircHopList};
@@ -259,7 +260,8 @@ impl Circuit {
     ///
     /// Once this is called, the circuit will be able to handle conflux cells.
     #[cfg(feature = "conflux")]
-    pub(super) fn install_conflux_handler(&mut self, conflux_handler: ConfluxMsgHandler) {
+    pub(super) fn install_conflux_handler(&mut self, tunnel_id: TunnelId, conflux_handler: ConfluxMsgHandler) {
+        self.unique_id = TunnelScopedCircId::new(tunnel_id, self.unique_id.unique_id());
         self.conflux_handler = Some(conflux_handler);
     }
 
