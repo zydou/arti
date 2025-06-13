@@ -3364,6 +3364,10 @@ pub(crate) mod test {
         /// The number of cells after which to expect a SWITCH
         /// cell from the client.
         expect_switch: Vec<usize>,
+        /// Channel for receiving completion notifications from the other leg.
+        done_rx: oneshot::Receiver<()>,
+        /// Channel for sending completion notifications to the other leg.
+        done_tx: oneshot::Sender<()>,
         /// Whether this circuit leg should act as the primary (sending) leg.
         is_sending_leg: bool,
     }
@@ -3414,6 +3418,8 @@ pub(crate) mod test {
             mut sink,
             stream_state,
             mut expect_switch,
+            done_tx,
+            mut done_rx,
             is_sending_leg,
         } = state;
 
@@ -3428,8 +3434,21 @@ pub(crate) mod test {
         let mut streamid = None;
 
         while stream_state.lock().unwrap().data_recvd.len() < stream_len {
-            // Wait for the BEGIN cell to arrive...
-            let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
+            use futures::select;
+
+            // Wait for the BEGIN cell to arrive, or for the transfer to complete
+            // (we need to bail if the other leg already completed);
+            let res = select! {
+                res = rx.next() => {
+                    res.unwrap()
+                },
+                res = done_rx => {
+                    res.unwrap();
+                    break;
+                }
+            };
+
+            let (_id, chmsg) = res.into_circid_and_msg();
             cell_count += 1;
             let rmsg = match chmsg {
                 AnyChanMsg::Relay(r) => {
@@ -3532,6 +3551,9 @@ pub(crate) mod test {
             stream_state.lock().unwrap().end_sent = true;
         }
 
+        // This is allowed to fail, because the other leg might have exited first.
+        let _ = done_tx.send(());
+
         ConfluxEndpointResult::Relay { rx, sink }
     }
 
@@ -3611,6 +3633,11 @@ pub(crate) mod test {
             }));
 
             let mut tasks = vec![];
+
+            // Channels used by the mock relays to notify each other
+            // of stream transfer completion.
+            let (tx1, rx1) = oneshot::channel();
+            let (tx2, rx2) = oneshot::channel();
             // Note: we can't have two advance_by() calls running
             // at the same time (it's a limitation of MockRuntime),
             // so we need to be careful to not cause concurrent delays
@@ -3620,6 +3647,8 @@ pub(crate) mod test {
                     circ1.chan_rx,
                     circ1.circ_sink,
                     circ1.unique_id,
+                    tx1,
+                    rx2,
                     // We expect the client to start sending on the leg with no initial RTT delay,
                     // and then switch to the one with the lower overall RTT
                     vec![2],
@@ -3631,6 +3660,8 @@ pub(crate) mod test {
                     circ2.chan_rx,
                     circ2.circ_sink,
                     circ2.unique_id,
+                    tx2,
+                    rx1,
                     vec![1],
                     Some(Duration::from_millis(200)),
                     None,
@@ -3639,7 +3670,7 @@ pub(crate) mod test {
             ];
 
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
-            for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay, is_sending_leg) in
+            for (rx, sink, leg, done_tx, done_rx, expect_switch, init_rtt_delay, rtt_delay, is_sending_leg) in
                 relays.into_iter()
             {
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
@@ -3652,6 +3683,8 @@ pub(crate) mod test {
                     sink,
                     stream_state: Arc::clone(&stream_state),
                     expect_switch,
+                    done_tx,
+                    done_rx,
                     is_sending_leg,
                 });
 
