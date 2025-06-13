@@ -261,7 +261,11 @@ impl Circuit {
     ///
     /// Once this is called, the circuit will be able to handle conflux cells.
     #[cfg(feature = "conflux")]
-    pub(super) fn add_to_conflux_tunnel(&mut self, tunnel_id: TunnelId, conflux_handler: ConfluxMsgHandler) {
+    pub(super) fn add_to_conflux_tunnel(
+        &mut self,
+        tunnel_id: TunnelId,
+        conflux_handler: ConfluxMsgHandler,
+    ) {
         self.unique_id = TunnelScopedCircId::new(tunnel_id, self.unique_id.unique_id());
         self.conflux_handler = Some(conflux_handler);
     }

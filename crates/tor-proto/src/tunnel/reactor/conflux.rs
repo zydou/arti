@@ -133,7 +133,10 @@ impl ConfluxSet {
     /// Create a new conflux set, consisting of a single leg.
     ///
     /// Returns the newly created set and a reference to its [`TunnelMutableState`].
-    pub(super) fn new(tunnel_id: TunnelId, circuit_leg: Circuit) -> (Self, Arc<TunnelMutableState>) {
+    pub(super) fn new(
+        tunnel_id: TunnelId,
+        circuit_leg: Circuit,
+    ) -> (Self, Arc<TunnelMutableState>) {
         let mut legs: SlotMap<LegIdKey, Circuit> = SlotMap::with_key();
         let circ_mutable = Arc::clone(circuit_leg.mutable());
         let unique_id = circuit_leg.unique_id();
