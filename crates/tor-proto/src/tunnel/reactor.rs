@@ -711,7 +711,7 @@ impl Reactor {
             Arc::clone(&mutable),
         );
 
-        let (circuits, mutable) = ConfluxSet::new(circuit_leg);
+        let (circuits, mutable) = ConfluxSet::new(tunnel_id, circuit_leg);
 
         let reactor = Reactor {
             circuits,
