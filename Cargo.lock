@@ -5958,7 +5958,6 @@ dependencies = [
  "anyhow",
  "derive_more",
  "futures",
- "once_cell",
  "paste",
  "retry-error",
  "static_assertions",
