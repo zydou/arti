@@ -54,8 +54,6 @@ use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
 use tracing::{debug, trace, warn};
 
-#[cfg(feature = "conflux")]
-use super::conflux::ConfluxMsgHandler;
 use super::{
     CellHandlers, CircuitHandshake, CloseStreamBehavior, LegId, ReactorResultChannel, SendRelayCell,
 };
@@ -78,6 +76,7 @@ use {
 
 #[cfg(feature = "conflux")]
 use {
+    super::conflux::ConfluxMsgHandler,
     super::conflux::{ConfluxAction, OooRelayMsg},
     crate::tunnel::reactor::RemoveLegReason,
     crate::tunnel::TunnelId,
