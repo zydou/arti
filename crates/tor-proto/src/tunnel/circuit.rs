@@ -3313,22 +3313,41 @@ pub(crate) mod test {
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     struct ConfluxStreamState {
+        /// The data received so far on this stream.
         data_recvd: Vec<u8>,
+        /// The total amount of data we expect to receive on this stream.
         expected_data_len: usize,
+        /// Whether we have seen a BEGIN cell yet.
         begin_recvd: bool,
+        /// Whether we have seen an END cell yet.
         end_recvd: bool,
     }
 
+    /// The state of a mock exit.
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     struct ConfluxExitState {
+        /// The runtime.
         runtime: MockRuntime,
+        /// The RTT delay to introduce just before sending the LINKED cell.
         init_rtt_delay: Option<Duration>,
+        /// The RTT delay to introduce after the 100th cell.
+        ///
+        /// Used to trigger the client to send a SWITCH.
         rtt_delay: Option<Duration>,
+        /// The leg this state is associated with.
+        ///
+        /// Used in panic messages.
         leg: usize,
+        /// Channel for receiving cells from the client.
         rx: Receiver<ChanCell<AnyChanMsg>>,
+        /// Channel for sending cells to the client.
         sink: CircuitRxSender,
+        /// State of the (only) expected stream on this tunnel,
+        /// shared by all the mock exit endpoints.
         stream_state: Arc<Mutex<ConfluxStreamState>>,
+        /// The number of cells after which to expect a SWITCH
+        /// cell from the client.
         expect_switch: Vec<usize>,
     }
 
