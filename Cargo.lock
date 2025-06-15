@@ -5808,7 +5808,6 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "notify",
- "once_cell",
  "paste",
  "postage",
  "regex",

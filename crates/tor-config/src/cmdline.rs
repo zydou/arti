@@ -1,7 +1,7 @@
 //! Implement a configuration source based on command-line arguments.
 
-use once_cell::sync::Lazy;
 use regex::Regex;
+use std::sync::LazyLock;
 
 /// A CmdLine holds a set of command-line arguments that augment a
 /// configuration.
@@ -108,7 +108,7 @@ impl figment::Provider for CmdLine {
 /// pretty happy to convert strings to other stuff.
 fn tweak_toml_bareword(s: &str) -> Option<String> {
     /// Regex to match a keyword=bareword item.
-    static RE: Lazy<Regex> = Lazy::new(|| {
+    static RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(
             r#"(?x:
                ^
