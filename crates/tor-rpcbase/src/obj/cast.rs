@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::Object;
 
@@ -177,7 +177,7 @@ impl CastTable {
 ///
 /// Because this table doesn't support any casting, it is okay to use it with
 /// any concrete type.
-pub(super) static EMPTY_CAST_TABLE: Lazy<CastTable> = Lazy::new(|| CastTable {
+pub(super) static EMPTY_CAST_TABLE: LazyLock<CastTable> = LazyLock::new(|| CastTable {
     table: HashMap::new(),
 });
 

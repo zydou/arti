@@ -8,7 +8,7 @@ use std::{
 
 use derive_deftly::define_derive_deftly;
 use downcast_rs::Downcast;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 /// The parameters and method name associated with a given Request.
 ///
@@ -214,7 +214,8 @@ use crate::{is_valid_rpc_identifier, InvalidRpcIdentifier, ObjectId};
 /// Return true if `name` is the name of some method.
 pub fn is_method_name(name: &str) -> bool {
     /// Lazy set of all method names.
-    static METHOD_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| iter_method_names().collect());
+    static METHOD_NAMES: LazyLock<HashSet<&'static str>> =
+        LazyLock::new(|| iter_method_names().collect());
     METHOD_NAMES.contains(name)
 }
 
@@ -228,8 +229,8 @@ pub fn iter_method_names() -> impl Iterator<Item = &'static str> {
 /// Given a type ID, return its RPC MethodInfo_ (if any).
 pub(crate) fn method_info_by_typeid(typeid: any::TypeId) -> Option<&'static MethodInfo_> {
     /// Lazy map from TypeId to RPC method name.
-    static METHOD_INFO_BY_TYPEID: Lazy<HashMap<any::TypeId, &'static MethodInfo_>> =
-        Lazy::new(|| {
+    static METHOD_INFO_BY_TYPEID: LazyLock<HashMap<any::TypeId, &'static MethodInfo_>> =
+        LazyLock::new(|| {
             inventory::iter::<MethodInfo_>()
                 .map(|mi| ((mi.typeid)(), mi))
                 .collect()

@@ -6693,7 +6693,6 @@ dependencies = [
  "futures",
  "futures-await-test",
  "inventory",
- "once_cell",
  "paste",
  "regex",
  "serde",
