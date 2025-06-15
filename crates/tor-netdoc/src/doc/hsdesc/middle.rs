@@ -1,6 +1,6 @@
 //! Handle the middle document of an onion service descriptor.
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use subtle::ConstantTimeEq;
 use tor_hscrypto::pk::{HsBlindId, HsClientDescEncSecretKey, HsSvcDescEncKey};
 use tor_hscrypto::{RevisionCounter, Subcredential};
@@ -177,7 +177,7 @@ decl_keyword! {
 
 /// Rules about how keywords appear in the middle document of an onion service
 /// descriptor.
-static HS_MIDDLE_RULES: Lazy<SectionRules<HsMiddleKwd>> = Lazy::new(|| {
+static HS_MIDDLE_RULES: LazyLock<SectionRules<HsMiddleKwd>> = LazyLock::new(|| {
     use HsMiddleKwd::*;
 
     let mut rules = SectionRules::builder();

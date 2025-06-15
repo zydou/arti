@@ -11,8 +11,8 @@ use crate::types::misc::{UnvalidatedEdCert, B64};
 use crate::{NetdocErrorKind as EK, Result};
 
 use itertools::Itertools as _;
-use once_cell::sync::Lazy;
 use smallvec::SmallVec;
+use std::sync::LazyLock;
 use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
@@ -63,7 +63,7 @@ decl_keyword! {
 
 /// Rules about how keywords appear in the header part of an onion service
 /// descriptor.
-static HS_INNER_HEADER_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
+static HS_INNER_HEADER_RULES: LazyLock<SectionRules<HsInnerKwd>> = LazyLock::new(|| {
     use HsInnerKwd::*;
 
     let mut rules = SectionRules::builder();
@@ -78,7 +78,7 @@ static HS_INNER_HEADER_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
 
 /// Rules about how keywords appear in each introduction-point section of an
 /// onion service descriptor.
-static HS_INNER_INTRO_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
+static HS_INNER_INTRO_RULES: LazyLock<SectionRules<HsInnerKwd>> = LazyLock::new(|| {
     use HsInnerKwd::*;
 
     let mut rules = SectionRules::builder();

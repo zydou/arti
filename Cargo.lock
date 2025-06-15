@@ -6453,7 +6453,6 @@ dependencies = [
  "humantime",
  "itertools 0.14.0",
  "memchr",
- "once_cell",
  "phf",
  "rand 0.9.1",
  "serde",

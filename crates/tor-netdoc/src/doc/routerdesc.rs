@@ -43,8 +43,8 @@ use crate::util::PeekableIterator;
 use crate::{doc, AllowAnnotations, Error, NetdocErrorKind as EK, Result};
 
 use ll::pk::ed25519::Ed25519Identity;
-use once_cell::sync::Lazy;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::{net, time};
 use tor_cert::CertType;
 use tor_checkable::{signed, timed, Timebound};
@@ -258,7 +258,7 @@ decl_keyword! {
 }
 
 /// Rules for parsing a set of router descriptor annotations.
-static ROUTER_ANNOTATIONS: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
+static ROUTER_ANNOTATIONS: LazyLock<SectionRules<RouterKwd>> = LazyLock::new(|| {
     use RouterKwd::*;
 
     let mut rules = SectionRules::builder();
@@ -273,7 +273,7 @@ static ROUTER_ANNOTATIONS: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
 });
 /// Rules for tokens that are allowed in the first part of a
 /// router descriptor.
-static ROUTER_HEADER_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
+static ROUTER_HEADER_RULES: LazyLock<SectionRules<RouterKwd>> = LazyLock::new(|| {
     use RouterKwd::*;
 
     let mut rules = SectionRules::builder();
@@ -285,7 +285,7 @@ static ROUTER_HEADER_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
 });
 /// Rules for  tokens that are allowed in the first part of a
 /// router descriptor.
-static ROUTER_BODY_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
+static ROUTER_BODY_RULES: LazyLock<SectionRules<RouterKwd>> = LazyLock::new(|| {
     use RouterKwd::*;
 
     let mut rules = SectionRules::builder();
@@ -329,7 +329,7 @@ static ROUTER_BODY_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
 });
 
 /// Rules for items that appear at the end of a router descriptor.
-static ROUTER_SIG_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
+static ROUTER_SIG_RULES: LazyLock<SectionRules<RouterKwd>> = LazyLock::new(|| {
     use RouterKwd::*;
 
     let mut rules = SectionRules::builder();

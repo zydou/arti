@@ -1,6 +1,6 @@
 //! Implement parsing for the outer document of an onion service descriptor.
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use tor_cert::Ed25519Cert;
 use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
@@ -117,7 +117,7 @@ decl_keyword! {
 
 /// Rules about how keywords appear in the outer document of an onion service
 /// descriptor.
-static HS_OUTER_RULES: Lazy<SectionRules<HsOuterKwd>> = Lazy::new(|| {
+static HS_OUTER_RULES: LazyLock<SectionRules<HsOuterKwd>> = LazyLock::new(|| {
     use HsOuterKwd::*;
 
     let mut rules = SectionRules::builder();

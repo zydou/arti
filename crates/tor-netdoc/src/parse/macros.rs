@@ -65,8 +65,8 @@ macro_rules! decl_keyword {
             fn from_idx(i : usize) -> Option<Self> {
                 // Note looking up the value in a vec.  This may or may
                 // not be faster than a case statement would be.
-                static VALS: once_cell::sync::Lazy<Vec<$name>> =
-                    once_cell::sync::Lazy::new(
+                static VALS: std::sync::LazyLock<Vec<$name>> =
+                    std::sync::LazyLock::new(
                         || vec![ $($name::$i , )*
                               $name::UNRECOGNIZED,
                                  $name::ANN_UNRECOGNIZED ]);

@@ -65,7 +65,7 @@ use tor_protover::Protocols;
 
 use bitflags::bitflags;
 use digest::Digest;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use tor_checkable::{timed::TimerangeBound, ExternallySigned};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -865,7 +865,7 @@ decl_keyword! {
 }
 
 /// Shared parts of rules for all kinds of netstatus headers
-static NS_HEADER_RULES_COMMON_: Lazy<SectionRulesBuilder<NetstatusKwd>> = Lazy::new(|| {
+static NS_HEADER_RULES_COMMON_: LazyLock<SectionRulesBuilder<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = SectionRules::builder();
     rules.add(NETWORK_STATUS_VERSION.rule().required().args(1..=2));
@@ -885,7 +885,7 @@ static NS_HEADER_RULES_COMMON_: Lazy<SectionRulesBuilder<NetstatusKwd>> = Lazy::
     rules
 });
 /// Rules for parsing the header of a consensus.
-static NS_HEADER_RULES_CONSENSUS: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
+static NS_HEADER_RULES_CONSENSUS: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = NS_HEADER_RULES_COMMON_.clone();
     rules.add(CONSENSUS_METHOD.rule().args(1..=1));
@@ -924,7 +924,7 @@ static NS_VOTERINFO_RULES_VOTE: SectionRules<NetstatusKwd> = {
 };
  */
 /// Rules for parsing a single voter's information in a consensus
-static NS_VOTERINFO_RULES_CONSENSUS: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
+static NS_VOTERINFO_RULES_CONSENSUS: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = SectionRules::builder();
     rules.add(DIR_SOURCE.rule().required().args(6..));
@@ -934,21 +934,22 @@ static NS_VOTERINFO_RULES_CONSENSUS: Lazy<SectionRules<NetstatusKwd>> = Lazy::ne
     rules.build()
 });
 /// Shared rules for parsing a single routerstatus
-static NS_ROUTERSTATUS_RULES_COMMON_: Lazy<SectionRulesBuilder<NetstatusKwd>> = Lazy::new(|| {
-    use NetstatusKwd::*;
-    let mut rules = SectionRules::builder();
-    rules.add(RS_A.rule().may_repeat().args(1..));
-    rules.add(RS_S.rule().required());
-    rules.add(RS_V.rule());
-    rules.add(RS_PR.rule().required());
-    rules.add(RS_W.rule());
-    rules.add(RS_P.rule().args(2..));
-    rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
-    rules
-});
+static NS_ROUTERSTATUS_RULES_COMMON_: LazyLock<SectionRulesBuilder<NetstatusKwd>> =
+    LazyLock::new(|| {
+        use NetstatusKwd::*;
+        let mut rules = SectionRules::builder();
+        rules.add(RS_A.rule().may_repeat().args(1..));
+        rules.add(RS_S.rule().required());
+        rules.add(RS_V.rule());
+        rules.add(RS_PR.rule().required());
+        rules.add(RS_W.rule());
+        rules.add(RS_P.rule().args(2..));
+        rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
+        rules
+    });
 
 /// Rules for parsing a single routerstatus in an NS consensus
-static NS_ROUTERSTATUS_RULES_NSCON: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
+static NS_ROUTERSTATUS_RULES_NSCON: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = NS_ROUTERSTATUS_RULES_COMMON_.clone();
     rules.add(RS_R.rule().required().args(8..));
@@ -967,7 +968,7 @@ static NS_ROUTERSTATUS_RULES_VOTE: SectionRules<NetstatusKwd> = {
     };
 */
 /// Rules for parsing a single routerstatus in a microdesc consensus
-static NS_ROUTERSTATUS_RULES_MDCON: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
+static NS_ROUTERSTATUS_RULES_MDCON: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = NS_ROUTERSTATUS_RULES_COMMON_.clone();
     rules.add(RS_R.rule().required().args(6..));
@@ -975,7 +976,7 @@ static NS_ROUTERSTATUS_RULES_MDCON: Lazy<SectionRules<NetstatusKwd>> = Lazy::new
     rules.build()
 });
 /// Rules for parsing consensus fields from a footer.
-static NS_FOOTER_RULES: Lazy<SectionRules<NetstatusKwd>> = Lazy::new(|| {
+static NS_FOOTER_RULES: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = SectionRules::builder();
     rules.add(DIRECTORY_FOOTER.rule().required().no_args());
