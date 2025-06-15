@@ -6329,7 +6329,6 @@ dependencies = [
  "getrandom 0.3.3",
  "hex",
  "hex-literal",
- "once_cell",
  "openssl",
  "rand 0.9.1",
  "rand_chacha 0.9.0",
