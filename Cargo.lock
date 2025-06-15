@@ -5908,7 +5908,6 @@ dependencies = [
  "humantime-serde",
  "itertools 0.14.0",
  "memmap2",
- "once_cell",
  "oneshot-fused-workaround",
  "paste",
  "postage",
