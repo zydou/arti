@@ -11,8 +11,8 @@ use derive_more::AsRef;
 
 use directories::ProjectDirs;
 use fs_mistrust::{Mistrust, MistrustBuilder};
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_config::{impl_standard_builder, mistrust::BuilderExt, ConfigBuildError};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
@@ -89,9 +89,9 @@ fn get_program_dir() -> Result<PathBuf, CfgPathError> {
 
 /// A `ProjectDirs` object for Arti relays.
 fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
-    /// lazy cell holding the ProjectDirs object.
-    static PROJECT_DIRS: Lazy<Option<ProjectDirs>> =
-        Lazy::new(|| ProjectDirs::from("org", "torproject", "Arti-Relay"));
+    /// lazy lock holding the ProjectDirs object.
+    static PROJECT_DIRS: LazyLock<Option<ProjectDirs>> =
+        LazyLock::new(|| ProjectDirs::from("org", "torproject", "Arti-Relay"));
 
     PROJECT_DIRS.as_ref().ok_or(CfgPathError::NoProjectDirs)
 }
