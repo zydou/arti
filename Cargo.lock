@@ -2230,7 +2230,6 @@ dependencies = [
  "derive_builder_fork_arti",
  "dirs",
  "libc",
- "once_cell",
  "pwd-grp",
  "serde",
  "serde_json",
