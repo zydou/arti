@@ -6360,7 +6360,6 @@ version = "0.31.0"
 dependencies = [
  "futures",
  "humantime",
- "once_cell",
  "thiserror 2.0.12",
  "tor-error",
  "tor-rtcompat",
