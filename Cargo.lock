@@ -5836,7 +5836,6 @@ dependencies = [
  "derive_builder_fork_arti",
  "directories",
  "dirs",
- "once_cell",
  "rmp-serde",
  "serde",
  "serde_json",
