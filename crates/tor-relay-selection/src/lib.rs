@@ -83,8 +83,8 @@ pub(crate) mod testing {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::{LowLevelRelayPredicate, RelaySelectionConfig};
-    use once_cell::sync::Lazy;
     use std::collections::HashSet;
+    use std::sync::LazyLock;
     use tor_netdir::{NetDir, Relay, SubnetConfig};
     use tor_netdoc::doc::netstatus::RelayFlags;
 
@@ -109,7 +109,7 @@ pub(crate) mod testing {
 
     /// Return a basic configuration.
     pub(crate) fn cfg() -> RelaySelectionConfig<'static> {
-        static STABLE_PORTS: Lazy<HashSet<u16>> = Lazy::new(|| [22].into_iter().collect());
+        static STABLE_PORTS: LazyLock<HashSet<u16>> = LazyLock::new(|| [22].into_iter().collect());
         RelaySelectionConfig {
             long_lived_ports: &STABLE_PORTS,
             subnet_config: SubnetConfig::default(),
