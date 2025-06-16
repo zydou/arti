@@ -300,7 +300,7 @@ impl<'a> ControlHandler<'a> {
                 if self.reactor.circuits.len() == 1 {
                     // This should've been handled in Reactor::run_once()
                     // (ControlHandler::handle_msg() is never called before wait_for_create()).
-                    debug_assert!(self.reactor.circuits.single_leg()?.1.has_hops());
+                    debug_assert!(self.reactor.circuits.single_leg()?.has_hops());
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot create first hop twice"
@@ -323,7 +323,7 @@ impl<'a> ControlHandler<'a> {
                 settings,
                 done,
             } => {
-                let Ok((leg_id, circ)) = self.reactor.circuits.single_leg_mut() else {
+                let Ok(circ) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -349,7 +349,7 @@ impl<'a> ControlHandler<'a> {
                     .set_meta_handler(Box::new(extender))?;
 
                 Ok(Some(RunOnceCmdInner::Send {
-                    leg: leg_id,
+                    leg: circ.unique_id(),
                     cell,
                     done: None,
                 }))
@@ -361,7 +361,7 @@ impl<'a> ControlHandler<'a> {
                 settings,
                 done,
             } => {
-                let Ok((leg_id, circ)) = self.reactor.circuits.single_leg_mut() else {
+                let Ok(circ) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -393,7 +393,7 @@ impl<'a> ControlHandler<'a> {
                     .set_meta_handler(Box::new(extender))?;
 
                 Ok(Some(RunOnceCmdInner::Send {
-                    leg: leg_id,
+                    leg: circ.unique_id(),
                     cell,
                     done: None,
                 }))
@@ -581,7 +581,7 @@ impl<'a> ControlHandler<'a> {
                 // describe why the virtual hop was added, or something?
                 let peer_id = path::HopDetail::Virtual;
 
-                let Ok((_id, leg)) = self.reactor.circuits.single_leg_mut() else {
+                let Ok(leg) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot extend multipath tunnel"
@@ -630,7 +630,7 @@ impl<'a> ControlHandler<'a> {
                 params,
                 done,
             } => {
-                let Ok((_id, leg)) = self.reactor.circuits.single_leg_mut() else {
+                let Ok(leg) = self.reactor.circuits.single_leg_mut() else {
                     // Don't care if the receiver goes away
                     let _ = done.send(Err(tor_error::bad_api_usage!(
                         "cannot add fake hop to multipath tunnel"
@@ -655,7 +655,7 @@ impl<'a> ControlHandler<'a> {
             CtrlCmd::QuerySendWindow { hop, done } => {
                 // Immediately invoked function means that errors will be sent to the channel.
                 let _ = done.send((|| {
-                    let (_id, leg) =
+                    let leg =
                         self.reactor
                             .circuits
                             .single_leg_mut()

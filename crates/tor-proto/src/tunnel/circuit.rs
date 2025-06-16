@@ -60,7 +60,7 @@ use crate::tunnel::reactor::CtrlCmd;
 use crate::tunnel::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
-use crate::tunnel::{LegId, StreamTarget, TargetHop};
+use crate::tunnel::{StreamTarget, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
@@ -205,17 +205,17 @@ pub struct ClientCirc {
 /// We should revisit this decision at some point, and decide whether an async API
 /// would be preferable.
 #[derive(Debug, Default)]
-pub(super) struct TunnelMutableState(Mutex<HashMap<UniqId, (LegId, Arc<MutableState>)>>);
+pub(super) struct TunnelMutableState(Mutex<HashMap<UniqId, Arc<MutableState>>>);
 
 impl TunnelMutableState {
     /// Add the [`MutableState`] of a circuit.
-    pub(super) fn insert(&self, unique_id: UniqId, leg: LegId, mutable: Arc<MutableState>) {
+    pub(super) fn insert(&self, unique_id: UniqId, mutable: Arc<MutableState>) {
         #[allow(unused)] // unused in non-debug builds
         let state = self
             .0
             .lock()
             .expect("lock poisoned")
-            .insert(unique_id, (leg, mutable));
+            .insert(unique_id, mutable);
 
         debug_assert!(state.is_none());
     }
@@ -233,7 +233,7 @@ impl TunnelMutableState {
     /// See [`MutableState::path`].
     fn path_ref(&self, unique_id: UniqId) -> Result<Arc<Path>> {
         let lock = self.0.lock().expect("lock poisoned");
-        let (_leg, mutable) = lock
+        let mutable = lock
             .get(&unique_id)
             .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
 
@@ -246,7 +246,7 @@ impl TunnelMutableState {
     /// Returns `Ok(None)` if the specified circuit doesn't have any hops.
     fn first_hop(&self, unique_id: UniqId) -> Result<Option<OwnedChanTarget>> {
         let lock = self.0.lock().expect("lock poisoned");
-        let (_leg, mutable) = lock
+        let mutable = lock
             .get(&unique_id)
             .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
 
@@ -268,7 +268,7 @@ impl TunnelMutableState {
     /// See [`MutableState::last_hop_num`].
     fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
         let lock = self.0.lock().expect("lock poisoned");
-        let (_leg, mutable) = lock
+        let mutable = lock
             .get(&unique_id)
             .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
 
@@ -280,7 +280,7 @@ impl TunnelMutableState {
     /// See [`MutableState::n_hops`].
     fn n_hops(&self, unique_id: UniqId) -> Result<usize> {
         let lock = self.0.lock().expect("lock poisoned");
-        let (_leg, mutable) = lock
+        let mutable = lock
             .get(&unique_id)
             .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
 
@@ -291,7 +291,7 @@ impl TunnelMutableState {
     /// secret with with `hop` on the circuit with the specified `unique_id`.
     fn binding_key(&self, unique_id: UniqId, hop: HopNum) -> Result<Option<CircuitBinding>> {
         let lock = self.0.lock().expect("lock poisoned");
-        let (_leg, mutable) = lock
+        let mutable = lock
             .get(&unique_id)
             .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
 

@@ -55,7 +55,7 @@ use safelog::sensitive as sv;
 use tracing::{debug, trace, warn};
 
 use super::{
-    CellHandlers, CircuitHandshake, CloseStreamBehavior, LegId, ReactorResultChannel, SendRelayCell,
+    CellHandlers, CircuitHandshake, CloseStreamBehavior, ReactorResultChannel, SendRelayCell,
 };
 
 use std::borrow::Borrow;
@@ -140,8 +140,8 @@ pub(crate) struct Circuit {
 
 /// A command to run in response to a circuit event.
 ///
-/// Unlike `RunOnceCmdInner`, doesn't know anything about `LegId`s.
-/// The user of the `CircuitCmd`s is supposed to know the `LegId`
+/// Unlike `RunOnceCmdInner`, doesn't know anything about `UniqId`s.
+/// The user of the `CircuitCmd`s is supposed to know the `UniqId`
 /// of the circuit the `CircuitCmd` came from.
 ///
 /// This type gets mapped to a `RunOnceCmdInner` in the circuit reactor.
@@ -457,7 +457,7 @@ impl Circuit {
     pub(super) fn handle_cell(
         &mut self,
         handlers: &mut CellHandlers,
-        leg: LegId,
+        leg: UniqId,
         cell: ClientCircChanMsg,
     ) -> Result<Vec<CircuitCmd>> {
         trace!(circ_id = %self.unique_id, cell = ?cell, "handling cell");
@@ -510,7 +510,7 @@ impl Circuit {
     fn handle_relay_cell(
         &mut self,
         handlers: &mut CellHandlers,
-        leg: LegId,
+        leg: UniqId,
         cell: Relay,
     ) -> Result<Vec<CircuitCmd>> {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
@@ -592,7 +592,7 @@ impl Circuit {
         &mut self,
         handlers: &mut CellHandlers,
         hopnum: HopNum,
-        leg: LegId,
+        leg: UniqId,
         cell_counts_toward_windows: bool,
         msg: UnparsedRelayMsg,
     ) -> Result<Option<CircuitCmd>> {
@@ -644,7 +644,7 @@ impl Circuit {
         &mut self,
         handlers: &mut CellHandlers,
         hopnum: HopNum,
-        leg: LegId,
+        leg: UniqId,
         cell_counts_toward_windows: bool,
         streamid: StreamId,
         msg: UnparsedRelayMsg,
@@ -734,7 +734,7 @@ impl Circuit {
         msg: UnparsedRelayMsg,
         stream_id: StreamId,
         hop_num: HopNum,
-        leg: LegId,
+        leg: UniqId,
     ) -> Result<Option<CircuitCmd>> {
         use super::syncview::ClientCircSyncView;
         use tor_cell::relaycell::msg::EndReason;
