@@ -61,8 +61,6 @@ impl OpenStreamEnt {
 
     /// Handle an incoming sendme.
     ///
-    /// On success, return the number of cells left in the window.
-    ///
     /// On failure, return an error: the caller should close the stream or
     /// circuit with a protocol error.
     pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
