@@ -36,10 +36,6 @@ impl StreamSendFlowControl {
     }
 
     /// Returns a new xon/xoff-based [`StreamSendFlowControl`].
-    ///
-    /// **NOTE:** This isn't actually implemented yet,
-    /// and is currently a no-op congestion control.
-    // TODO(#534): remove the note above
     pub(crate) fn new_xon_xoff_based(rate_limit_updater: watch::Sender<StreamRateLimit>) -> Self {
         Self {
             e: StreamSendFlowControlEnum::XonXoffBased(XonXoffControl { rate_limit_updater }),
@@ -53,7 +49,8 @@ impl StreamSendFlowControl {
                 !sendme::cmd_counts_towards_windows(msg.cmd()) || w.window() > 0
             }
             StreamSendFlowControlEnum::XonXoffBased(_) => {
-                // TODO(#534): xon-based will depend on number of bytes in the body of DATA messages
+                // we perform rate-limiting in the `DataWriter`,
+                // so we send any messages that made it past the `DataWriter`
                 true
             }
         }
@@ -78,8 +75,8 @@ impl StreamSendFlowControl {
                 }
             }
             StreamSendFlowControlEnum::XonXoffBased(_) => {
-                // TODO(#534): xon-based will update state based on number of bytes in the body of
-                // DATA messages
+                // xon/xoff flow control doesn't have "capacity";
+                // the capacity is effectively controlled by the congestion control
                 Ok(())
             }
         }
