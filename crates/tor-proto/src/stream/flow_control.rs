@@ -1,6 +1,7 @@
 //! Code for implementing flow control (stream-level).
 
-use tor_cell::relaycell::RelayMsg;
+use tor_cell::relaycell::msg::Sendme;
+use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use crate::congestion::sendme;
 use crate::{Error, Result};
@@ -88,9 +89,21 @@ impl StreamSendFlowControl {
     ///
     /// On failure, return an error: the caller should close the stream or
     /// circuit with a protocol error.
-    pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<()> {
+    ///
+    /// Takes the [`UnparsedRelayMsg`] so that we don't even try to decode it if we're not using the
+    /// correct type of flow control.
+    pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         match &mut self.e {
-            StreamSendFlowControlEnum::WindowBased(w) => w.put(),
+            StreamSendFlowControlEnum::WindowBased(w) => {
+                let _sendme = msg
+                    .decode::<Sendme>()
+                    .map_err(|e| {
+                        Error::from_bytes_err(e, "failed to decode stream sendme message")
+                    })?
+                    .into_msg();
+
+                w.put()
+            }
             StreamSendFlowControlEnum::XonXoffBased => Err(Error::CircProto(
                 "Stream level SENDME not allowed due to congestion control".into(),
             )),

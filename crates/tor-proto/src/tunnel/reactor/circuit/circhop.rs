@@ -18,7 +18,7 @@ use futures::stream::FuturesUnordered;
 use futures::Stream;
 use safelog::sensitive as sv;
 use tor_cell::chancell::BoxedCellBody;
-use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
     RelayMsg, StreamId, UnparsedRelayMsg,
@@ -490,15 +490,10 @@ impl CircHop {
         // The stream for this message exists, and is open.
 
         if msg.cmd() == RelayCmd::SENDME {
-            let _sendme = msg
-                .decode::<Sendme>()
-                .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
-                .into_msg();
-
             // We need to handle sendmes here, not in the stream's
             // recv() method, or else we'd never notice them if the
             // stream isn't reading.
-            ent.put_for_incoming_sendme()?;
+            ent.put_for_incoming_sendme(msg)?;
             return Ok(false);
         }
 

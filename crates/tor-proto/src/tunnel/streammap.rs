@@ -65,8 +65,8 @@ impl OpenStreamEnt {
     ///
     /// On failure, return an error: the caller should close the stream or
     /// circuit with a protocol error.
-    pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<()> {
-        self.flow_ctrl.put_for_incoming_sendme()?;
+    pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.flow_ctrl.put_for_incoming_sendme(msg)?;
         // Wake the stream if it was blocked on flow control.
         if let Some(waker) = self.flow_ctrl_waker.take() {
             waker.wake();
