@@ -706,13 +706,9 @@ impl<'a> ControlHandler<'a> {
             CtrlCmd::QuerySendWindow { hop, leg, done } => {
                 // Immediately invoked function means that errors will be sent to the channel.
                 let _ = done.send((|| {
-                    let leg =
-                        self.reactor
-                            .circuits
-                            .leg_mut(leg)
-                            .ok_or_else(|| bad_api_usage!(
-                                "cannot query send window of non-existent circuit"
-                            ))?;
+                    let leg = self.reactor.circuits.leg_mut(leg).ok_or_else(|| {
+                        bad_api_usage!("cannot query send window of non-existent circuit")
+                    })?;
 
                     let hop = leg.hop_mut(hop).ok_or(bad_api_usage!(
                         "received QuerySendWindow for unknown hop {}",
