@@ -240,39 +240,6 @@ pub struct DataWriter {
     writer: DynamicRateLimitedWriter<DataWriterInner, RateConfigStream, DynTimeProvider>,
 }
 
-impl AsyncWrite for DataWriter {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<IoResult<usize>> {
-        AsyncWrite::poll_write(Pin::new(&mut self.writer), cx, buf)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        AsyncWrite::poll_flush(Pin::new(&mut self.writer), cx)
-    }
-
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        AsyncWrite::poll_close(Pin::new(&mut self.writer), cx)
-    }
-}
-
-#[cfg(feature = "tokio")]
-impl TokioAsyncWrite for DataWriter {
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
-        TokioAsyncWrite::poll_write(Pin::new(&mut self.compat_write()), cx, buf)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        TokioAsyncWrite::poll_flush(Pin::new(&mut self.compat_write()), cx)
-    }
-
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.compat_write()), cx)
-    }
-}
-
 impl DataWriter {
     /// Create a new rate-limited [`DataWriter`] from a [`DataWriterInner`].
     fn new(inner: DataWriterInner, time_provider: DynTimeProvider) -> Self {
@@ -313,6 +280,39 @@ impl DataWriter {
     #[cfg(feature = "stream-ctrl")]
     pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
         Some(self.writer.inner().client_stream_ctrl())
+    }
+}
+
+impl AsyncWrite for DataWriter {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<IoResult<usize>> {
+        AsyncWrite::poll_write(Pin::new(&mut self.writer), cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        AsyncWrite::poll_flush(Pin::new(&mut self.writer), cx)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        AsyncWrite::poll_close(Pin::new(&mut self.writer), cx)
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl TokioAsyncWrite for DataWriter {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
+        TokioAsyncWrite::poll_write(Pin::new(&mut self.compat_write()), cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_flush(Pin::new(&mut self.compat_write()), cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.compat_write()), cx)
     }
 }
 
