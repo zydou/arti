@@ -35,6 +35,7 @@ use crate::tunnel::circuit::ClientCirc;
 use crate::memquota::StreamAccount;
 use crate::stream::StreamReader;
 use crate::tunnel::StreamTarget;
+use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
 use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
@@ -42,6 +43,13 @@ use tor_error::internal;
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 use super::AnyCmdChecker;
+
+/// A stream of [`RateLimitedWriterConfig`] used to update a [`DynamicRateLimitedWriter`].
+///
+/// This is not implemented yet, so it's just an `Empty` stream.
+/// We use a type alias to make `DataWriter` a little nicer.
+// TODO(arti#534): use a proper stream
+type RateConfigStream = futures::stream::Empty<RateLimitedWriterConfig>;
 
 /// An anonymized stream over the Tor network.
 ///
@@ -228,7 +236,7 @@ struct DataWriterInner {
 #[derive(Debug)]
 pub struct DataWriter {
     /// A wrapper around [`DataWriterInner`] that adds rate limiting.
-    writer: RateLimitedWriter<DataWriterInner, DynTimeProvider>,
+    writer: DynamicRateLimitedWriter<DataWriterInner, RateConfigStream, DynTimeProvider>,
 }
 
 impl AsyncWrite for DataWriter {
@@ -251,20 +259,16 @@ impl AsyncWrite for DataWriter {
 
 #[cfg(feature = "tokio")]
 impl TokioAsyncWrite for DataWriter {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<IoResult<usize>> {
-        TokioAsyncWrite::poll_write(Pin::new(&mut self.writer), cx, buf)
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
+        TokioAsyncWrite::poll_write(Pin::new(&mut self.compat_write()), cx, buf)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        TokioAsyncWrite::poll_flush(Pin::new(&mut self.writer), cx)
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_flush(Pin::new(&mut self.compat_write()), cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.writer), cx)
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.compat_write()), cx)
     }
 }
 
@@ -486,8 +490,6 @@ impl DataStream {
         };
 
         let time_provider = DynTimeProvider::new(time_provider);
-        // TODO(arti#534): need to be able to update this dynamically in response to flow control
-        // events
         let config = RateLimitedWriterConfig {
             rate: u64::MAX,  // bytes per second
             burst: u64::MAX, // bytes
@@ -504,9 +506,14 @@ impl DataStream {
             // TODO(arti#2028): Is there an optimal value here?
             wake_when_bytes_available: NonZero::new(200).expect("200 != 0"), // bytes
         };
-        let w = DataWriter {
-            writer: RateLimitedWriter::new(w, &config, time_provider),
-        };
+
+        // TODO(arti#534): Need to be able to update this stream dynamically in response to flow
+        // control events. For now we just provide an empty stream.
+        let config_updates = futures::stream::empty();
+
+        let w = RateLimitedWriter::new(w, &config, time_provider);
+        let w = DynamicRateLimitedWriter::new(w, config_updates);
+        let w = DataWriter { writer: w };
 
         DataStream {
             w,

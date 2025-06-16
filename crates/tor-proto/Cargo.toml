@@ -61,7 +61,7 @@ hs-service = ["hs-common"]
 hs-common = ["tor-hscrypto"]
 experimental-api = ["__is_experimental"]
 # start_conversation etc.; TODO HS should be renamed
-send-control-msg = ["visibility"]
+send-control-msg = []
 stream-ctrl = ["__is_experimental"]
 counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval"]
 
@@ -69,7 +69,7 @@ counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval"]
 # covered by semver.
 testing = ["__is_experimental"]
 tokio = ["tokio-crate", "tokio-util"]
-bench = ["__is_experimental", "visibility"]
+bench = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
@@ -126,7 +126,7 @@ tor-rtmock = { path = "../tor-rtmock", version = "0.31.0" }
 tor-units = { path = "../tor-units", version = "0.31.0", features = ["memquota-memcost"] }
 tracing = "0.1.36"
 typenum = "1.12"
-visibility = { version = "0.1.0", optional = true }
+visibility = { version = "0.1.0" }
 void = "1"
 zeroize = "1"
 

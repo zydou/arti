@@ -100,8 +100,6 @@ impl<I: TokenBucketInstant> TokenBucket<I> {
     /// the number of tokens will be reduced to the new max.
     ///
     /// A rate and/or max of 0 is allowed.
-    // remove this when we use it in the future
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn adjust(&mut self, now: I, config: &TokenBucketConfig) {
         // make sure that the bucket gets the tokens it is owed before we change the rate
         self.refill(now);
