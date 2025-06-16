@@ -3296,6 +3296,8 @@ pub(crate) mod test {
             tunnel: Arc<ClientCirc>,
             /// Data to send on a stream.
             send_data: Vec<u8>,
+            /// Data we expect to receive on a stream.
+            recv_data: Vec<u8>,
         },
     }
 
@@ -3488,6 +3490,7 @@ pub(crate) mod test {
         tunnel: Arc<ClientCirc>,
         conflux_link_rx: oneshot::Receiver<Result<ConfluxHandshakeResult>>,
         send_data: Vec<u8>,
+        recv_data: Vec<u8>,
     ) -> ConfluxEndpointResult {
         let res = conflux_link_rx.await;
 
@@ -3506,6 +3509,10 @@ pub(crate) mod test {
         stream.write_all(&send_data).await.unwrap();
         stream.flush().await.unwrap();
 
+        let mut recv: Vec<u8> = Vec::new();
+        stream.read_to_end(&mut recv).await.unwrap();
+        assert_eq!(recv_data, recv);
+
         ConfluxEndpointResult::Circuit(tunnel)
     }
 
@@ -3517,7 +3524,8 @@ pub(crate) mod test {
                 tunnel,
                 conflux_link_rx,
                 send_data,
-            } => run_conflux_client(tunnel, conflux_link_rx, send_data).await,
+                recv_data,
+            } => run_conflux_client(tunnel, conflux_link_rx, send_data, recv_data).await,
         }
     }
 
@@ -3597,6 +3605,7 @@ pub(crate) mod test {
                     tunnel,
                     conflux_link_rx,
                     send_data: send_data.clone(),
+                    recv_data: vec![],
                 }),
             ));
             let _sinks = futures::future::join_all(tasks).await;
@@ -3658,4 +3667,7 @@ pub(crate) mod test {
                 .contains("Cannot allow stream requests on tunnel with 2 legs"));
         });
     }
+
+    // TODO: add a test where the client receives data on a multipath stream,
+    // and ensure it handles ooo cells correctly
 }
