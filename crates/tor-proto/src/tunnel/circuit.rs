@@ -3309,7 +3309,10 @@ pub(crate) mod test {
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     enum ConfluxEndpointResult {
-        Circuit(Arc<ClientCirc>),
+        Circuit {
+            tunnel: Arc<ClientCirc>,
+            stream: DataStream,
+        },
         Relay {
             rx: Receiver<ChanCell<AnyChanMsg>>,
             sink: CircuitRxSender,
@@ -3328,6 +3331,8 @@ pub(crate) mod test {
         begin_recvd: bool,
         /// Whether we have seen an END cell yet.
         end_recvd: bool,
+        /// Whether we have sent an END cell yet.
+        end_sent: bool,
     }
 
     /// The state of a mock exit.
@@ -3358,6 +3363,8 @@ pub(crate) mod test {
         /// The number of cells after which to expect a SWITCH
         /// cell from the client.
         expect_switch: Vec<usize>,
+        /// Whether this circuit leg should act as the primary (sending) leg.
+        is_sending_leg: bool,
     }
 
     #[cfg(feature = "conflux")]
@@ -3406,6 +3413,7 @@ pub(crate) mod test {
             mut sink,
             stream_state,
             mut expect_switch,
+            is_sending_leg,
         } = state;
 
         // Do the conflux handshake
@@ -3416,6 +3424,7 @@ pub(crate) mod test {
         let mut data_cells_received = 0_usize;
         let mut cell_count = 0_usize;
         let mut tags = vec![];
+        let mut streamid = None;
 
         while stream_state.lock().unwrap().data_recvd.len() < stream_len {
             // Wait for the BEGIN cell to arrive...
@@ -3428,7 +3437,10 @@ pub(crate) mod test {
                 }
                 other => panic!("{:?}", other),
             };
-            let (streamid, rmsg) = rmsg.into_streamid_and_msg();
+            let (new_streamid, rmsg) = rmsg.into_streamid_and_msg();
+            if streamid.is_none() {
+                streamid = new_streamid;
+            }
 
             let begin_recvd = stream_state.lock().unwrap().begin_recvd;
             let end_recvd = stream_state.lock().unwrap().end_recvd;
@@ -3510,6 +3522,15 @@ pub(crate) mod test {
             }
         }
 
+        let end_recvd = stream_state.lock().unwrap().end_recvd;
+
+        // Close the stream if the other endpoint hasn't already done so
+        if is_sending_leg && !end_recvd {
+            let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
+            sink.send(rmsg_to_ccmsg(streamid, end)).await.unwrap();
+            stream_state.lock().unwrap().end_sent = true;
+        }
+
         ConfluxEndpointResult::Relay { rx, sink }
     }
 
@@ -3538,10 +3559,11 @@ pub(crate) mod test {
         stream.flush().await.unwrap();
 
         let mut recv: Vec<u8> = Vec::new();
-        stream.read_to_end(&mut recv).await.unwrap();
+        let recv_len = stream.read_to_end(&mut recv).await.unwrap();
+        assert_eq!(recv_len, recv_data.len());
         assert_eq!(recv_data, recv);
 
-        ConfluxEndpointResult::Circuit(tunnel)
+        ConfluxEndpointResult::Circuit { tunnel, stream }
     }
 
     #[cfg(feature = "conflux")]
@@ -3584,6 +3606,7 @@ pub(crate) mod test {
                 expected_data_len: send_data.len(),
                 begin_recvd: false,
                 end_recvd: false,
+                end_sent: false,
             }));
 
             let mut tasks = vec![];
@@ -3601,6 +3624,7 @@ pub(crate) mod test {
                     vec![2],
                     None,
                     Some(Duration::from_millis(300)),
+                    true,
                 ),
                 (
                     circ2.chan_rx,
@@ -3609,10 +3633,11 @@ pub(crate) mod test {
                     vec![1],
                     Some(Duration::from_millis(200)),
                     None,
+                    false,
                 ),
             ];
 
-            for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay) in relays.into_iter() {
+            for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay, is_sending_leg) in relays.into_iter() {
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
                     runtime: rt.clone(),
                     tunnel: Arc::clone(&tunnel),
@@ -3623,6 +3648,7 @@ pub(crate) mod test {
                     sink,
                     stream_state: Arc::clone(&stream_state),
                     expect_switch,
+                    is_sending_leg,
                 });
 
                 tasks.push(rt.spawn_join(format!("relay task {leg}"), run_conflux_endpoint(relay)));
@@ -3638,10 +3664,8 @@ pub(crate) mod test {
                 }),
             ));
             let _sinks = futures::future::join_all(tasks).await;
-
             let stream_state = stream_state.lock().unwrap();
             assert!(stream_state.begin_recvd);
-            assert!(stream_state.end_recvd);
 
             // TODO: sort send_data to work around the lack of handling of
             // out-of-order cells at the mock exit
