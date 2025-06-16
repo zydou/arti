@@ -495,11 +495,18 @@ impl CircHop {
 
         // The stream for this message exists, and is open.
 
+        // We need to handle SENDME/XON/XOFF messages here, not in the stream's recv() method, or
+        // else we'd never notice them if the stream isn't reading.
         if msg.cmd() == RelayCmd::SENDME {
-            // We need to handle sendmes here, not in the stream's
-            // recv() method, or else we'd never notice them if the
-            // stream isn't reading.
             ent.put_for_incoming_sendme(msg)?;
+            return Ok(false);
+        }
+        if msg.cmd() == RelayCmd::XON {
+            ent.handle_incoming_xon(msg)?;
+            return Ok(false);
+        }
+        if msg.cmd() == RelayCmd::XOFF {
+            ent.handle_incoming_xoff(msg)?;
             return Ok(false);
         }
 

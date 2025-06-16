@@ -1,6 +1,7 @@
 //! Code for implementing flow control (stream-level).
 
 use postage::watch;
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -111,7 +112,68 @@ impl StreamSendFlowControl {
         }
     }
 
-    // TODO(#534): Add methods for handling incoming xon, xoff.
+    /// Handle an incoming XON message.
+    ///
+    /// Takes the [`UnparsedRelayMsg`] so that we don't even try to decode it if we're not using the
+    /// correct type of flow control.
+    pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        match &mut self.e {
+            StreamSendFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
+                "XON messages not allowed with window flow control".into(),
+            )),
+            StreamSendFlowControlEnum::XonXoffBased(control) => {
+                let xon = msg
+                    .decode::<Xon>()
+                    .map_err(|e| Error::from_bytes_err(e, "failed to decode XON message"))?
+                    .into_msg();
+
+                // > Parties SHOULD treat XON or XOFF cells with unrecognized versions as a protocol
+                // > violation.
+                if *xon.version() != 0 {
+                    return Err(Error::CircProto("Unrecognized XON version".into()));
+                }
+
+                let rate = match xon.kbps_ewma() {
+                    XonKbpsEwma::Limited(rate_kbps) => {
+                        let rate_kbps = u64::from(rate_kbps.get());
+                        // convert from kbps to bytes/s
+                        StreamRateLimit::new_bytes_per_sec(rate_kbps * 1000 / 8)
+                    }
+                    XonKbpsEwma::Unlimited => StreamRateLimit::MAX,
+                };
+
+                *control.rate_limit_updater.borrow_mut() = rate;
+                Ok(())
+            }
+        }
+    }
+
+    /// Handle an incoming XOFF message.
+    ///
+    /// Takes the [`UnparsedRelayMsg`] so that we don't even try to decode it if we're not using the
+    /// correct type of flow control.
+    pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        match &mut self.e {
+            StreamSendFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
+                "XOFF messages not allowed with window flow control".into(),
+            )),
+            StreamSendFlowControlEnum::XonXoffBased(control) => {
+                let xoff = msg
+                    .decode::<Xoff>()
+                    .map_err(|e| Error::from_bytes_err(e, "failed to decode XOFF message"))?
+                    .into_msg();
+
+                // > Parties SHOULD treat XON or XOFF cells with unrecognized versions as a protocol
+                // > violation.
+                if *xoff.version() != 0 {
+                    return Err(Error::CircProto("Unrecognized XOFF version".into()));
+                }
+
+                *control.rate_limit_updater.borrow_mut() = StreamRateLimit::ZERO;
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Control state for XON/XOFF flow control.

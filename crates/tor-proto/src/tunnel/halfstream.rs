@@ -50,9 +50,18 @@ impl HalfStream {
     /// no ends here.
     pub(super) fn handle_msg(&mut self, msg: UnparsedRelayMsg) -> Result<StreamStatus> {
         use StreamStatus::*;
+
+        // We handle SENDME/XON/XOFF separately, and don't give it to the checker.
         if msg.cmd() == RelayCmd::SENDME {
-            // We handle SENDME separately, and don't give it to the checker.
             self.send_flow_control.put_for_incoming_sendme(msg)?;
+            return Ok(Open);
+        }
+        if msg.cmd() == RelayCmd::XON {
+            self.send_flow_control.handle_incoming_xon(msg)?;
+            return Ok(Open);
+        }
+        if msg.cmd() == RelayCmd::XOFF {
+            self.send_flow_control.handle_incoming_xoff(msg)?;
             return Ok(Open);
         }
 

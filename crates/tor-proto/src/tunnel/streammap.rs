@@ -72,6 +72,22 @@ impl OpenStreamEnt {
         Ok(())
     }
 
+    /// Handle an incoming XON message.
+    ///
+    /// On failure, return an error: the caller should close the stream or
+    /// circuit with a protocol error.
+    pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.flow_ctrl.handle_incoming_xon(msg)
+    }
+
+    /// Handle an incoming XOFF message.
+    ///
+    /// On failure, return an error: the caller should close the stream or
+    /// circuit with a protocol error.
+    pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.flow_ctrl.handle_incoming_xoff(msg)
+    }
+
     /// Take capacity to send `msg`. If there's insufficient capacity, returns
     /// an error. Should be called at the point we've fully committed to
     /// sending the message.

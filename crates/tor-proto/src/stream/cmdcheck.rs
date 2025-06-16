@@ -23,9 +23,9 @@ pub(crate) enum StreamStatus {
 /// END cell on the stream.  See `crate::tunnel::circuit::halfstream` for more
 /// information.
 ///
-/// NOTE: The checking DOES NOT take SENDME messages into account; those are
+/// NOTE: The checking DOES NOT take SENDME/XON/XOFF messages into account; those are
 /// handled separately.  Neither of the methods on this trait will ever be
-/// passed a SENDME message.
+/// passed a SENDME/XON/XOFF message.
 ///
 /// See [`circuit::reactor`](crate::tunnel::reactor) for more information on
 /// how these checks relate to other checks performed on incoming messages.
