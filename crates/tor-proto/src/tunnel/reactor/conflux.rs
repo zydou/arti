@@ -145,8 +145,6 @@ impl ConfluxSet {
         circuit_leg: Circuit,
     ) -> (Self, Arc<TunnelMutableState>) {
         let primary_id = circuit_leg.unique_id();
-        // XXX unnecessary copy of unique_id
-        let unique_id = circuit_leg.unique_id();
         let circ_mutable = Arc::clone(circuit_leg.mutable());
         let legs = smallvec![circuit_leg];
         // Note: the join point is only set for multi-path tunnels
@@ -157,7 +155,7 @@ impl ConfluxSet {
         let desired_ux = V1DesiredUx::NO_OPINION;
 
         let mutable = Arc::new(TunnelMutableState::default());
-        mutable.insert(unique_id, circ_mutable);
+        mutable.insert(primary_id, circ_mutable);
 
         let set = Self {
             tunnel_id,
