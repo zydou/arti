@@ -9,7 +9,7 @@ use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
-use crate::stream::AnyCmdChecker;
+use crate::stream::{AnyCmdChecker, StreamRateLimit};
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
 use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
@@ -19,6 +19,7 @@ use crate::util::skew::ClockSkew;
 use crate::Result;
 #[cfg(test)]
 use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
+use postage::watch;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
@@ -112,6 +113,8 @@ pub(crate) enum CtrlMsg {
         sender: StreamMpscSender<UnparsedRelayMsg>,
         /// A channel to receive messages to send on this stream from.
         rx: StreamMpscReceiver<AnyRelayMsg>,
+        /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
+        rate_limit_notifier: watch::Sender<StreamRateLimit>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
@@ -417,6 +420,7 @@ impl<'a> ControlHandler<'a> {
                 message,
                 sender,
                 rx,
+                rate_limit_notifier,
                 done,
                 cmd_checker,
             } => {
@@ -450,7 +454,14 @@ impl<'a> ControlHandler<'a> {
                     }
                 };
 
-                let cell = circ.begin_stream(hop_num, message, sender, rx, cmd_checker)?;
+                let cell = circ.begin_stream(
+                    hop_num,
+                    message,
+                    sender,
+                    rx,
+                    rate_limit_notifier,
+                    cmd_checker,
+                )?;
                 Ok(Some(RunOnceCmdInner::BeginStream {
                     leg: leg_id,
                     cell,

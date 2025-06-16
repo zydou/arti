@@ -6,7 +6,7 @@ use crate::circuit::HopSettings;
 use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
-use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamRateLimit, StreamSendFlowControl, StreamStatus};
 use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
@@ -16,6 +16,7 @@ use crate::{Error, Result};
 
 use futures::stream::FuturesUnordered;
 use futures::Stream;
+use postage::watch;
 use safelog::sensitive as sv;
 use tor_cell::chancell::BoxedCellBody;
 use tor_cell::relaycell::msg::AnyRelayMsg;
@@ -241,9 +242,10 @@ impl CircHop {
         message: AnyRelayMsg,
         sender: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_send_flow_ctrl();
+        let flow_ctrl = self.build_send_flow_ctrl(rate_limit_updater);
         let r =
             self.map
                 .lock()
@@ -363,6 +365,7 @@ impl CircHop {
         &self,
         sink: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
         stream_id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
@@ -370,7 +373,7 @@ impl CircHop {
         hop_map.add_ent_with_id(
             sink,
             rx,
-            self.build_send_flow_ctrl(),
+            self.build_send_flow_ctrl(rate_limit_updater),
             stream_id,
             cmd_checker,
         )?;
@@ -468,12 +471,15 @@ impl CircHop {
     }
 
     /// Builds the (sending) flow control handler for a new stream.
-    fn build_send_flow_ctrl(&self) -> StreamSendFlowControl {
+    fn build_send_flow_ctrl(
+        &self,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
+    ) -> StreamSendFlowControl {
         if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
             StreamSendFlowControl::new_window_based(window)
         } else {
-            StreamSendFlowControl::new_xon_xoff_based()
+            StreamSendFlowControl::new_xon_xoff_based(rate_limit_updater)
         }
     }
 

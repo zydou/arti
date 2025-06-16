@@ -7,9 +7,11 @@ use tor_cell::relaycell::msg::EndReason;
 use tor_cell::relaycell::{RelayCellFormat, RelayCmd};
 
 use futures::io::{AsyncRead, AsyncWrite};
+use futures::stream::StreamExt;
 use futures::task::{Context, Poll};
 use futures::{Future, Stream};
 use pin_project::pin_project;
+use postage::watch;
 
 #[cfg(feature = "tokio")]
 use tokio_crate::io::ReadBuf;
@@ -34,7 +36,7 @@ use educe::Educe;
 use crate::tunnel::circuit::ClientCirc;
 
 use crate::memquota::StreamAccount;
-use crate::stream::StreamReceiver;
+use crate::stream::{StreamRateLimit, StreamReceiver};
 use crate::tunnel::StreamTarget;
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
 use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
@@ -47,10 +49,13 @@ use super::AnyCmdChecker;
 
 /// A stream of [`RateLimitedWriterConfig`] used to update a [`DynamicRateLimitedWriter`].
 ///
-/// This is not implemented yet, so it's just an `Empty` stream.
+/// Unfortunately we need to store the result of a [`StreamExt::map`] and [`StreamExt::fuse`] in
+/// [`DataWriter`], which leaves us with this ugly type.
 /// We use a type alias to make `DataWriter` a little nicer.
-// TODO(arti#534): use a proper stream
-type RateConfigStream = futures::stream::Empty<RateLimitedWriterConfig>;
+type RateConfigStream = futures::stream::Map<
+    futures::stream::Fuse<watch::Receiver<StreamRateLimit>>,
+    fn(StreamRateLimit) -> RateLimitedWriterConfig,
+>;
 
 /// An anonymized stream over the Tor network.
 ///
@@ -242,9 +247,14 @@ pub struct DataWriter {
 
 impl DataWriter {
     /// Create a new rate-limited [`DataWriter`] from a [`DataWriterInner`].
-    fn new(inner: DataWriterInner, time_provider: DynTimeProvider) -> Self {
+    fn new(
+        inner: DataWriterInner,
+        rate_limit_updates: watch::Receiver<StreamRateLimit>,
+        time_provider: DynTimeProvider,
+    ) -> Self {
         /// Converts a `rate` into a `RateLimitedWriterConfig`.
-        fn rate_to_config(rate: u64) -> RateLimitedWriterConfig {
+        fn rate_to_config(rate: StreamRateLimit) -> RateLimitedWriterConfig {
+            let rate = rate.get_bytes_per_sec();
             RateLimitedWriterConfig {
                 rate,        // bytes per second
                 burst: rate, // bytes
@@ -264,13 +274,15 @@ impl DataWriter {
             }
         }
 
-        // TODO(arti#534): Need to be able to update this stream dynamically in response to flow
-        // control events. For now we just provide an empty stream.
-        let config_updates = futures::stream::empty();
+        // get the current rate from the `watch::Receiver`, which we'll use as the initial rate
+        let initial_rate: StreamRateLimit = *rate_limit_updates.borrow();
+
+        // map the rate update stream to the type required by `DynamicRateLimitedWriter`
+        let rate_limit_updates = rate_limit_updates.fuse().map(rate_to_config as fn(_) -> _);
 
         // build the rate limiter
-        let writer = RateLimitedWriter::new(inner, &rate_to_config(u64::MAX), time_provider);
-        let writer = DynamicRateLimitedWriter::new(writer, config_updates);
+        let writer = RateLimitedWriter::new(inner, &rate_to_config(initial_rate), time_provider);
+        let writer = DynamicRateLimitedWriter::new(writer, rate_limit_updates);
 
         Self { writer }
     }
@@ -481,6 +493,7 @@ impl DataStream {
     ) -> Self {
         let relay_cell_format = target.relay_cell_format();
         let out_buf_len = Data::max_body_len(relay_cell_format);
+        let rate_limit_stream = target.rate_limit_stream().clone();
 
         #[cfg(feature = "stream-ctrl")]
         let status = {
@@ -527,7 +540,7 @@ impl DataStream {
         let time_provider = DynTimeProvider::new(time_provider);
 
         DataStream {
-            w: DataWriter::new(w, time_provider),
+            w: DataWriter::new(w, rate_limit_stream, time_provider),
             r,
             #[cfg(feature = "stream-ctrl")]
             ctrl,

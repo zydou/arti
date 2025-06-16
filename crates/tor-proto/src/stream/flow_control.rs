@@ -1,5 +1,6 @@
 //! Code for implementing flow control (stream-level).
 
+use postage::watch;
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -12,7 +13,7 @@ enum StreamSendFlowControlEnum {
     /// "legacy" sendme-window-based flow control.
     WindowBased(sendme::StreamSendWindow),
     /// XON/XOFF flow control.
-    XonXoffBased,
+    XonXoffBased(XonXoffControl),
 }
 
 /// Manages outgoing flow control for a stream.
@@ -38,9 +39,9 @@ impl StreamSendFlowControl {
     /// **NOTE:** This isn't actually implemented yet,
     /// and is currently a no-op congestion control.
     // TODO(#534): remove the note above
-    pub(crate) fn new_xon_xoff_based() -> Self {
+    pub(crate) fn new_xon_xoff_based(rate_limit_updater: watch::Sender<StreamRateLimit>) -> Self {
         Self {
-            e: StreamSendFlowControlEnum::XonXoffBased,
+            e: StreamSendFlowControlEnum::XonXoffBased(XonXoffControl { rate_limit_updater }),
         }
     }
 
@@ -50,7 +51,7 @@ impl StreamSendFlowControl {
             StreamSendFlowControlEnum::WindowBased(w) => {
                 !sendme::cmd_counts_towards_windows(msg.cmd()) || w.window() > 0
             }
-            StreamSendFlowControlEnum::XonXoffBased => {
+            StreamSendFlowControlEnum::XonXoffBased(_) => {
                 // TODO(#534): xon-based will depend on number of bytes in the body of DATA messages
                 true
             }
@@ -75,7 +76,7 @@ impl StreamSendFlowControl {
                     Ok(())
                 }
             }
-            StreamSendFlowControlEnum::XonXoffBased => {
+            StreamSendFlowControlEnum::XonXoffBased(_) => {
                 // TODO(#534): xon-based will update state based on number of bytes in the body of
                 // DATA messages
                 Ok(())
@@ -104,11 +105,50 @@ impl StreamSendFlowControl {
 
                 w.put()
             }
-            StreamSendFlowControlEnum::XonXoffBased => Err(Error::CircProto(
+            StreamSendFlowControlEnum::XonXoffBased(_) => Err(Error::CircProto(
                 "Stream level SENDME not allowed due to congestion control".into(),
             )),
         }
     }
 
     // TODO(#534): Add methods for handling incoming xon, xoff.
+}
+
+/// Control state for XON/XOFF flow control.
+#[derive(Debug)]
+struct XonXoffControl {
+    /// How we communicate rate limit updates to the
+    /// [`DataWriter`](crate::stream::data::DataWriter).
+    rate_limit_updater: watch::Sender<StreamRateLimit>,
+}
+
+/// A newtype wrapper for a tor stream rate limit that makes the units explicit.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct StreamRateLimit {
+    /// The rate in bytes/s.
+    rate: u64,
+}
+
+impl StreamRateLimit {
+    /// A maximum rate limit.
+    pub(crate) const MAX: Self = Self::new_bytes_per_sec(u64::MAX);
+
+    /// A rate limit of 0.
+    pub(crate) const ZERO: Self = Self::new_bytes_per_sec(0);
+
+    /// A new [`StreamRateLimit`] with `rate` bytes/s.
+    pub(crate) const fn new_bytes_per_sec(rate: u64) -> Self {
+        Self { rate }
+    }
+
+    /// The rate in bytes/s.
+    pub(crate) const fn get_bytes_per_sec(&self) -> u64 {
+        self.rate
+    }
+}
+
+impl std::fmt::Display for StreamRateLimit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} bytes/s", self.rate)
+    }
 }
