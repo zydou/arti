@@ -54,8 +54,6 @@ use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
 use tracing::{debug, trace, warn};
 
-#[cfg(feature = "conflux")]
-use super::conflux::ConfluxMsgHandler;
 use super::{
     CellHandlers, CircuitHandshake, CloseStreamBehavior, LegId, ReactorResultChannel, SendRelayCell,
 };
@@ -78,8 +76,10 @@ use {
 
 #[cfg(feature = "conflux")]
 use {
+    super::conflux::ConfluxMsgHandler,
     super::conflux::{ConfluxAction, OooRelayMsg},
     crate::tunnel::reactor::RemoveLegReason,
+    crate::tunnel::TunnelId,
 };
 
 pub(super) use circhop::{CircHop, CircHopList};
@@ -255,18 +255,24 @@ impl Circuit {
         &self.mutable
     }
 
-    /// Install a [`ConfluxMsgHandler`] on this circuit,
+    /// Add this circuit to a multipath tunnel, by associating it with a new [`TunnelId`],
+    /// and installing a [`ConfluxMsgHandler`] on this circuit.
     ///
     /// Once this is called, the circuit will be able to handle conflux cells.
     #[cfg(feature = "conflux")]
-    pub(super) fn install_conflux_handler(&mut self, conflux_handler: ConfluxMsgHandler) {
+    pub(super) fn add_to_conflux_tunnel(
+        &mut self,
+        tunnel_id: TunnelId,
+        conflux_handler: ConfluxMsgHandler,
+    ) {
+        self.unique_id = TunnelScopedCircId::new(tunnel_id, self.unique_id.unique_id());
         self.conflux_handler = Some(conflux_handler);
     }
 
     /// Send a LINK cell to the specified hop.
     ///
     /// This must be called *after* a [`ConfluxMsgHandler`] is installed
-    /// on the circuit with [`install_conflux_handler`](Self::install_conflux_handler).
+    /// on the circuit with [`add_to_conflux_tunnel`](Self::add_to_conflux_tunnel).
     #[cfg(feature = "conflux")]
     pub(super) async fn begin_conflux_link(
         &mut self,

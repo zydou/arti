@@ -24,7 +24,7 @@ use crate::circuit::path::HopDetail;
 use crate::circuit::TunnelMutableState;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
-use crate::tunnel::streammap;
+use crate::tunnel::{streammap, TunnelId};
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
@@ -68,6 +68,11 @@ pub(crate) use msghandler::{ConfluxAction, ConfluxMsgHandler, OooRelayMsg};
 /// the `ConfluxSet` will return a [`ReactorError::Shutdown`] error,
 /// which will cause the reactor to shut down.
 pub(super) struct ConfluxSet {
+    /// The unique identifier of the tunnel this conflux set belongs to.
+    ///
+    /// Used for setting the internal [`TunnelId`] of [`Circuit`]s
+    /// that gets used for logging purposes.
+    tunnel_id: TunnelId,
     /// The circuits in this conflux set.
     legs: SlotMap<LegIdKey, Circuit>,
     /// Tunnel state, shared with `ClientCirc`.
@@ -128,7 +133,10 @@ impl ConfluxSet {
     /// Create a new conflux set, consisting of a single leg.
     ///
     /// Returns the newly created set and a reference to its [`TunnelMutableState`].
-    pub(super) fn new(circuit_leg: Circuit) -> (Self, Arc<TunnelMutableState>) {
+    pub(super) fn new(
+        tunnel_id: TunnelId,
+        circuit_leg: Circuit,
+    ) -> (Self, Arc<TunnelMutableState>) {
         let mut legs: SlotMap<LegIdKey, Circuit> = SlotMap::with_key();
         let circ_mutable = Arc::clone(circuit_leg.mutable());
         let unique_id = circuit_leg.unique_id();
@@ -144,6 +152,7 @@ impl ConfluxSet {
         mutable.insert(unique_id, primary_id.into(), circ_mutable);
 
         let set = Self {
+            tunnel_id,
             legs,
             primary_id,
             join_point,
@@ -548,7 +557,7 @@ impl ConfluxSet {
                     runtime.clone(),
                 );
 
-                circ.install_conflux_handler(conflux_handler);
+                circ.add_to_conflux_tunnel(self.tunnel_id, conflux_handler);
 
                 // Ensure the stream map of the last hop is shared by all the legs
                 let last_hop = circ
@@ -654,6 +663,7 @@ impl ConfluxSet {
             _ => {
                 // Default to MIN_RTT if we don't recognized the desired UX value
                 warn!(
+                    tunnel_id = %self.tunnel_id,
                     "Ignoring unrecognized conflux desired UX {}, using MIN_LATENCY",
                     self.desired_ux
                 );
@@ -731,6 +741,7 @@ impl ConfluxSet {
             .iter_mut()
             .map(|(leg_id, leg)| {
                 let unique_id = leg.unique_id();
+                let tunnel_id = self.tunnel_id;
 
                 // The client SHOULD abandon and close circuit if the LINKED message takes too long to
                 // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
@@ -803,7 +814,9 @@ impl ConfluxSet {
                     select_biased! {
                         () = conflux_hs_timeout.fuse() => {
                             warn!(
-                                "{unique_id}: Conflux handshake timed out on circuit"
+                                tunnel_id = %tunnel_id,
+                                circ_id = %unique_id,
+                                "Conflux handshake timed out on circuit"
                             );
 
                             // Conflux handshake has timed out, time to remove this circuit leg,
