@@ -3670,8 +3670,17 @@ pub(crate) mod test {
             ];
 
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
-            for (rx, sink, leg, done_tx, done_rx, expect_switch, init_rtt_delay, rtt_delay, is_sending_leg) in
-                relays.into_iter()
+            for (
+                rx,
+                sink,
+                leg,
+                done_tx,
+                done_rx,
+                expect_switch,
+                init_rtt_delay,
+                rtt_delay,
+                is_sending_leg,
+            ) in relays.into_iter()
             {
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
                     runtime: Arc::clone(&relay_runtime),
