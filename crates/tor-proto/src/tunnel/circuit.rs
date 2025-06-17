@@ -3576,9 +3576,7 @@ pub(crate) mod test {
                 ),
             ];
 
-            for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay) in
-                relays.into_iter()
-            {
+            for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay) in relays.into_iter() {
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
                     runtime: rt.clone(),
                     leg,
