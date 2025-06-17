@@ -1,6 +1,7 @@
 //! Code for implementing flow control (stream-level).
 
 use postage::watch;
+#[cfg(feature = "flowctl-cc")]
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
@@ -14,6 +15,7 @@ enum StreamSendFlowControlEnum {
     /// "legacy" sendme-window-based flow control.
     WindowBased(sendme::StreamSendWindow),
     /// XON/XOFF flow control.
+    #[cfg(feature = "flowctl-cc")]
     XonXoffBased(XonXoffControl),
 }
 
@@ -36,6 +38,7 @@ impl StreamSendFlowControl {
     }
 
     /// Returns a new xon/xoff-based [`StreamSendFlowControl`].
+    #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff_based(rate_limit_updater: watch::Sender<StreamRateLimit>) -> Self {
         Self {
             e: StreamSendFlowControlEnum::XonXoffBased(XonXoffControl { rate_limit_updater }),
@@ -48,6 +51,7 @@ impl StreamSendFlowControl {
             StreamSendFlowControlEnum::WindowBased(w) => {
                 !sendme::cmd_counts_towards_windows(msg.cmd()) || w.window() > 0
             }
+            #[cfg(feature = "flowctl-cc")]
             StreamSendFlowControlEnum::XonXoffBased(_) => {
                 // we perform rate-limiting in the `DataWriter`,
                 // so we send any messages that made it past the `DataWriter`
@@ -74,6 +78,7 @@ impl StreamSendFlowControl {
                     Ok(())
                 }
             }
+            #[cfg(feature = "flowctl-cc")]
             StreamSendFlowControlEnum::XonXoffBased(_) => {
                 // xon/xoff flow control doesn't have "capacity";
                 // the capacity is effectively controlled by the congestion control
@@ -103,6 +108,7 @@ impl StreamSendFlowControl {
 
                 w.put()
             }
+            #[cfg(feature = "flowctl-cc")]
             StreamSendFlowControlEnum::XonXoffBased(_) => Err(Error::CircProto(
                 "Stream level SENDME not allowed due to congestion control".into(),
             )),
@@ -118,6 +124,7 @@ impl StreamSendFlowControl {
             StreamSendFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
                 "XON messages not allowed with window flow control".into(),
             )),
+            #[cfg(feature = "flowctl-cc")]
             StreamSendFlowControlEnum::XonXoffBased(control) => {
                 let xon = msg
                     .decode::<Xon>()
@@ -154,6 +161,7 @@ impl StreamSendFlowControl {
             StreamSendFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
                 "XOFF messages not allowed with window flow control".into(),
             )),
+            #[cfg(feature = "flowctl-cc")]
             StreamSendFlowControlEnum::XonXoffBased(control) => {
                 let xoff = msg
                     .decode::<Xoff>()
