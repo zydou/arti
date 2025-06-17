@@ -971,6 +971,52 @@ truncated line";
     }
 
     #[test]
+    fn test_leading_space_forbidden() {
+        // We need to make sure that items with a leading space aren't accepted:
+        // the spec forbids it, and it can provide a vector for inflating the size
+        // of downloaded hsdescs (see prop360).
+
+        // Try a simple item with a space at the front.
+        let s = "    guava space\n";
+        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s).unwrap();
+        let toks: Vec<_> = r.collect();
+
+        // No space allowed at the start of a line.
+        assert_eq!(
+            toks[0].as_ref().err().unwrap(),
+            &EK::BadKeyword.at_pos(Pos::from_line(1, 1))
+        );
+
+        // Try an item with an object, inserting space at the start of each ine in turn.
+        let s = "cherry
+-----BEGIN WHATEVER-----
+8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S
+-----END WHATEVER-----
+";
+
+        let orig_lines = s
+            .split_terminator('\n')
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        assert_eq!(orig_lines.len(), 4);
+        let expected_kinds = [
+            EK::BadKeyword,
+            EK::BadKeyword,
+            EK::BadObjectBase64,
+            EK::BadObjectBase64,
+        ];
+        for pos in 0..orig_lines.len() {
+            let mut lines = orig_lines.clone();
+            lines[pos] = format!(" {}", lines[pos]);
+            let joined = format!("{}\n", lines.join("\n"));
+
+            let r: NetDocReader<'_, Fruit> = NetDocReader::new(&joined).unwrap();
+            let toks: Result<Vec<_>> = r.collect();
+            assert_eq!(toks.unwrap_err().netdoc_error_kind(), expected_kinds[pos]);
+        }
+    }
+
+    #[test]
     fn test_validate_strings() {
         use validate_utf_8_rules as v;
         assert_eq!(v(""), Ok(""));
