@@ -80,7 +80,7 @@ fi
 
 # Look for errors in arti logs.
 # TODO: Maybe fail on warnings, too? There currently are a few, though.
-arti_errs=$(find shadow.data/hosts/ -name 'arti*.stdout' -exec grep --with-filename '\bERROR\b' \{\} \;)
+arti_errs=$(find shadow.data/hosts/ -name 'arti.log.txt' -exec grep --with-filename '\bERROR\b' \{\} \;)
 if [ -n "$arti_errs" ]; then
   echo "Found arti errors:"
   echo "$arti_errs"
@@ -131,7 +131,7 @@ HOSTS=(
 
 for HOST in "${HOSTS[@]}"; do
   # There should be only one such file per host.
-  file=(shadow.data/hosts/"$HOST"/arti*.stdout)
+  file=(shadow.data/hosts/"$HOST"/arti.log.txt)
   # TODO: this is a temporary measure until we implement other ways of testing
   # that the circuits we've built have the desired properties.
   bugs="$(grep -c Bug "${file[*]}" || true)"
