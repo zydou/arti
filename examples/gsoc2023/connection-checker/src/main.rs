@@ -96,12 +96,12 @@ async fn build_circuit(tor_client: &TorClient<PreferredRuntime>, remote: &str) -
     info!("Attempting to build circuit...");
     match tor_client.connect(remote).await {
         Ok(stream) => {
-            let circuit = stream
+            let tunnel = stream
                 .client_stream_ctrl()
                 .ok_or_else(|| Error::msg("failed to get client stream ctrl?!"))?
-                .circuit()
+                .tunnel()
                 .ok_or_else(|| Error::msg("failed to get client circuit?!"))?;
-            let circ = circuit.path_ref()?;
+            let circ = tunnel.path_ref()?;
             for node in circ.iter() {
                 println!("Node: {node}");
             }
