@@ -2891,6 +2891,7 @@ pub(crate) mod test {
         chan_rx: Receiver<AnyChanCell>,
         chan_tx: Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
         circ_sink: CircuitRxSender,
+        unique_id: UniqId,
     }
 
     #[derive(Debug)]
@@ -2979,12 +2980,14 @@ pub(crate) mod test {
             chan_rx: rx1,
             chan_tx: chan_sink1,
             circ_sink: sink1,
+            unique_id: circ1.unique_id(),
         };
 
         let circ_ctx2 = TestCircuitCtx {
             chan_rx: rx2,
             chan_tx: chan_sink2,
             circ_sink: sink2,
+            unique_id: circ2.unique_id(),
         };
 
         TestTunnelCtx {
@@ -3338,7 +3341,7 @@ pub(crate) mod test {
         /// The leg this state is associated with.
         ///
         /// Used in panic messages.
-        leg: usize,
+        leg: UniqId,
         /// Channel for receiving cells from the client.
         rx: Receiver<ChanCell<AnyChanMsg>>,
         /// Channel for sending cells to the client.
@@ -3556,6 +3559,7 @@ pub(crate) mod test {
                 (
                     circ1.chan_rx,
                     circ1.circ_sink,
+                    circ1.unique_id,
                     // We expect the client to start sending on the leg with no initial RTT delay,
                     // and then switch to the one with the lower overall RTT
                     vec![2],
@@ -3565,14 +3569,15 @@ pub(crate) mod test {
                 (
                     circ2.chan_rx,
                     circ2.circ_sink,
+                    circ2.unique_id,
                     vec![1],
                     Some(Duration::from_millis(200)),
                     None,
                 ),
             ];
 
-            for (leg, (rx, sink, expect_switch, init_rtt_delay, rtt_delay)) in
-                relays.into_iter().enumerate()
+            for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay) in
+                relays.into_iter()
             {
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
                     runtime: rt.clone(),
