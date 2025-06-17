@@ -205,8 +205,8 @@ impl<R: Runtime> mockable::MockableAPI<R> for () {
         _if_modified_since: Option<SystemTime>,
     ) -> Result<Option<String>, Error> {
         // TODO actually support _if_modified_since
-        let circuit = circmgr.get_or_launch_dir_specific(bridge).await?;
-        let mut stream = circuit
+        let tunnel = circmgr.get_or_launch_dir_specific(bridge).await?;
+        let mut stream = tunnel
             .begin_dir_stream()
             .await
             .map_err(Error::StreamFailed)?;
@@ -1324,7 +1324,7 @@ pub enum Error {
 
     /// Couldn't establish a directory stream to the bridge
     #[error("Failed to establish directory stream")]
-    StreamFailed(#[source] tor_proto::Error),
+    StreamFailed(#[source] tor_circmgr::Error),
 
     /// Directory request failed
     #[error("Directory request failed")]
