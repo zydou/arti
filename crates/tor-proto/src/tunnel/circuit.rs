@@ -1482,6 +1482,7 @@ pub(crate) mod test {
     use {
         crate::tunnel::reactor::ConfluxHandshakeResult,
         crate::util::err::ConfluxHandshakeError,
+        futures::lock::Mutex as AsyncMutex,
         std::result::Result as StdResult,
         tor_cell::relaycell::conflux::{V1DesiredUx, V1LinkPayload, V1Nonce},
         tor_cell::relaycell::msg::ConfluxLink,
@@ -3340,7 +3341,7 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     struct ConfluxExitState {
         /// The runtime.
-        runtime: MockRuntime,
+        runtime: Arc<AsyncMutex<MockRuntime>>,
         /// The client view of the tunnel.
         tunnel: Arc<ClientCirc>,
         /// The RTT delay to introduce just before sending the LINKED cell.
@@ -3369,7 +3370,7 @@ pub(crate) mod test {
 
     #[cfg(feature = "conflux")]
     async fn good_exit_handshake(
-        runtime: &MockRuntime,
+        runtime: &Arc<AsyncMutex<MockRuntime>>,
         init_rtt_delay: Option<Duration>,
         rx: &mut Receiver<ChanCell<AnyChanMsg>>,
         sink: &mut CircuitRxSender,
@@ -3380,7 +3381,7 @@ pub(crate) mod test {
         // Introduce an artificial delay, to make one circ have a better initial RTT
         // than the other
         if let Some(init_rtt_delay) = init_rtt_delay {
-            runtime.advance_by(init_rtt_delay).await;
+            runtime.lock().await.advance_by(init_rtt_delay).await;
         }
 
         // Reply with a LINKED cell...
@@ -3489,7 +3490,7 @@ pub(crate) mod test {
                             // we sent so far have been processed by the reactor
                             // (otherwise the next QuerySendWindow call
                             // might return an outdated list of tags!)
-                            runtime.advance_until_stalled().await;
+                            runtime.lock().await.advance_until_stalled().await;
                             let (tx, rx) = oneshot::channel();
                             tunnel
                                 .command
@@ -3510,7 +3511,7 @@ pub(crate) mod test {
                         // Introduce an artificial delay, to make one circ have worse RTT
                         // than the other, and thus trigger a SWITCH
                         if let Some(rtt_delay) = rtt_delay {
-                            runtime.advance_by(rtt_delay).await;
+                            runtime.lock().await.advance_by(rtt_delay).await;
                         }
                         // Make and send a circuit-level SENDME
                         let sendme = relaymsg::Sendme::from(tag).into();
@@ -3637,11 +3638,12 @@ pub(crate) mod test {
                 ),
             ];
 
+            let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
             for (rx, sink, leg, expect_switch, init_rtt_delay, rtt_delay, is_sending_leg) in
                 relays.into_iter()
             {
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
-                    runtime: rt.clone(),
+                    runtime: Arc::clone(&relay_runtime),
                     tunnel: Arc::clone(&tunnel),
                     leg,
                     init_rtt_delay,
