@@ -309,6 +309,10 @@ mod test {
                 poll_read_responses: self.poll_read_responses.clone(),
             })
         }
+
+        fn source_info(&self) -> tor_proto::Result<Option<tor_dirclient::SourceInfo>> {
+            Ok(None)
+        }
     }
 
     #[derive(Debug)]

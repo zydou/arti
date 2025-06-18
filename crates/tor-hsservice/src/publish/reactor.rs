@@ -77,6 +77,7 @@ use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config_path::{CfgPath, CfgPathResolver};
+use tor_dirclient::SourceInfo;
 use tor_netdir::{DirEvent, NetDir};
 
 use crate::config::restricted_discovery::{
@@ -320,6 +321,9 @@ pub(crate) trait MockableClientCirc: Send + Sync {
     /// Start a new stream to the last relay in the circuit, using
     /// a BEGIN_DIR cell.
     async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error>;
+
+    /// Try to get a SourceInfo for this circuit, for using it in a directory request.
+    fn source_info(&self) -> tor_proto::Result<Option<SourceInfo>>;
 }
 
 #[async_trait]
@@ -328,6 +332,10 @@ impl MockableClientCirc for ClientCirc {
 
     async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error> {
         ClientCirc::begin_dir_stream(self).await
+    }
+
+    fn source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
+        SourceInfo::from_circuit(self)
     }
 }
 
@@ -1711,13 +1719,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 OwnedCircTarget::from_circ_target(hsdir),
             )
             .await?;
-
+        let source: Option<SourceInfo> = circuit
+            .source_info()
+            .map_err(into_internal!("Couldn't get SourceInfo for circuit"))?;
         let mut stream = circuit
             .begin_dir_stream()
             .await
             .map_err(UploadError::Stream)?;
 
-        let _response: String = send_request(&imm.runtime, &request, &mut stream, None)
+        let _response: String = send_request(&imm.runtime, &request, &mut stream, source)
             .await
             .map_err(|dir_error| -> UploadError {
                 match dir_error {

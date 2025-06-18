@@ -18,6 +18,7 @@ use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::hs::pow::ProofOfWork;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
 use tor_circmgr::build::onion_circparams_from_netparams;
+use tor_dirclient::SourceInfo;
 use tor_error::{debug_report, warn_report, Bug};
 use tor_hscrypto::Subcredential;
 use tor_proto::circuit::handshake::hs_ntor;
@@ -578,12 +579,15 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 OwnedCircTarget::from_circ_target(hsdir),
             )
             .await?;
+        let source = circuit
+            .m_source_info()
+            .map_err(into_internal!("Couldn't get SourceInfo for circuit"))?;
         let mut stream = circuit
             .m_begin_dir_stream()
             .await
             .map_err(DescriptorErrorDetail::Stream)?;
 
-        let response = tor_dirclient::send_request(self.runtime, &request, &mut stream, None)
+        let response = tor_dirclient::send_request(self.runtime, &request, &mut stream, source)
             .await
             .map_err(|dir_error| match dir_error {
                 tor_dirclient::Error::RequestFailed(rfe) => DescriptorErrorDetail::from(rfe.error),
@@ -1415,6 +1419,9 @@ trait MockableClientCirc: Debug {
     where
         Self: 'r;
 
+    /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
+    fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>>;
+
     /// Add a virtual hop to the circuit.
     async fn m_extend_virtual(
         &self,
@@ -1481,6 +1488,11 @@ impl MockableClientCirc for ClientCirc {
         capabilities: &tor_protover::Protocols,
     ) -> tor_proto::Result<()> {
         ClientCirc::extend_virtual(self, protocol, role, handshake, &params, capabilities).await
+    }
+
+    /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
+    fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
+        SourceInfo::from_circuit(self)
     }
 }
 
@@ -1639,6 +1651,11 @@ mod test {
             capabilities: &tor_protover::Protocols,
         ) -> tor_proto::Result<()> {
             todo!()
+        }
+
+        /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
+        fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
+            Ok(None)
         }
     }
 
