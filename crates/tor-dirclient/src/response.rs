@@ -160,14 +160,14 @@ impl SourceInfo {
     ///
     /// Return an error if the circuit is closed;
     /// return `Ok(None)` if the circuit's last hop is virtual.
-    pub(crate) fn from_circuit(circuit: &ClientCirc) -> tor_proto::Result<Option<Self>> {
-        let Some(last_hop) = circuit.last_hop()? else {
-            return Ok(None);
-        };
-        Ok(Some(SourceInfo {
-            circuit: circuit.unique_id(),
-            cache_id: last_hop.into(),
-        }))
+    pub fn from_circuit(circuit: &ClientCirc) -> tor_proto::Result<Option<Self>> {
+        match circuit.last_hop() {
+            None => Ok(None),
+            Some(last_hop) => Some(SourceInfo {
+                circuit: circuit.unique_id(),
+                cache_id: last_hop.into(),
+            }),
+        }
     }
 
     /// Return the unique circuit identifier for the circuit on which
