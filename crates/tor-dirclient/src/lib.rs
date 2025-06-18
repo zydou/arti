@@ -141,7 +141,7 @@ where
 
     let wrap_err = |error| {
         Error::RequestFailed(RequestFailedError {
-            source: Some(source.clone()),
+            source: source.clone(),
             error,
         })
     };
@@ -150,7 +150,7 @@ where
 
     // Launch the stream.
     let mut stream = runtime
-        .timeout(begin_timeout, circuit.begin_dir_stream())
+        .timeout(begin_timeout, circuit.clone().begin_dir_stream())
         .await
         .map_err(RequestError::from)
         .map_err(wrap_err)?
@@ -159,10 +159,10 @@ where
 
     // TODO: Perhaps we want separate timeouts for each phase of this.
     // For now, we just use higher-level timeouts in `dirmgr`.
-    let r = send_request(runtime, req, &mut stream, Some(source.clone())).await;
+    let r = send_request(runtime, req, &mut stream, source.clone()).await;
 
     if should_retire_circ(&r) {
-        retire_circ(&circ_mgr, &source, "Partial response");
+        retire_circ(&circ_mgr, &circuit.unique_id(), "Partial response");
     }
 
     r
@@ -436,11 +436,10 @@ where
 }
 
 /// Retire a directory circuit because of an error we've encountered on it.
-fn retire_circ<R>(circ_mgr: &Arc<CircMgr<R>>, source_info: &SourceInfo, error: &str)
+fn retire_circ<R>(circ_mgr: &Arc<CircMgr<R>>, id: &tor_proto::circuit::UniqId, error: &str)
 where
     R: Runtime,
 {
-    let id = source_info.unique_circ_id();
     info!(
         "{}: Retiring circuit because of directory failure: {}",
         &id, &error
