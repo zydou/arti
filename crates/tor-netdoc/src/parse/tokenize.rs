@@ -466,12 +466,7 @@ impl<'a, K: Keyword> Item<'a, K> {
     /// Return the position at the end of the last argument.  (This will
     /// point to a newline.)
     fn last_arg_end_pos(&self) -> Pos {
-        let args = self.args_as_vec();
-        if let Some(last_arg) = args.last() {
-            Pos::at_end_of(last_arg)
-        } else {
-            Pos::at_end_of(self.kwd_str)
-        }
+        Pos::at_end_of(self.args)
     }
     /// Return the position of the end of this object. (This will point to a
     /// newline.)
@@ -1042,5 +1037,34 @@ truncated line";
             let nul_pos = e.pos().offset_within(s).unwrap();
             assert_eq!(s.as_bytes()[nul_pos], 0);
         }
+    }
+
+    fn single_fruit(s: &str) -> Item<'_, Fruit> {
+        NetDocReader::<Fruit>::new(s)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+    }
+
+    #[test]
+    fn end_of_item() {
+        let s = "guava friends 123   \n";
+        let item = single_fruit(s);
+        assert_eq!(
+            item.end_pos().within(s),
+            Pos::from_byte(s.find('\n').unwrap()).within(s)
+        );
+
+        let s = "cherry
+-----BEGIN WHATEVER-----
+8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S
+-----END WHATEVER-----\n";
+        let item = single_fruit(s);
+        dbg!(&item);
+        assert_eq!(
+            item.end_pos().within(s),
+            Pos::from_byte(s.rfind('\n').unwrap()).within(s)
+        );
     }
 }
