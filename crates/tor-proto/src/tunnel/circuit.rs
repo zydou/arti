@@ -3629,7 +3629,7 @@ pub(crate) mod test {
             let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
             // The stream data we're going to send over the conflux tunnel
-            let send_data = (0..255_u8)
+            let mut send_data = (0..255_u8)
                 .cycle()
                 .take(NUM_CELLS * CELL_SIZE)
                 .collect::<Vec<_>>();
@@ -3700,11 +3700,11 @@ pub(crate) mod test {
                 }),
             ));
             let _sinks = futures::future::join_all(tasks).await;
-            let stream_state = stream_state.lock().unwrap();
+            let mut stream_state = stream_state.lock().unwrap();
             assert!(stream_state.begin_recvd);
 
-            // TODO: sort send_data to work around the lack of handling of
-            // out-of-order cells at the mock exit
+            stream_state.data_recvd.sort();
+            send_data.sort();
             assert_eq!(stream_state.data_recvd, send_data);
         });
     }
