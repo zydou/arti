@@ -481,6 +481,15 @@ impl<'a, K: Keyword> Item<'a, K> {
     pub(crate) fn offset_after(&self, s: &str) -> Option<usize> {
         self.end_pos().offset_within(s).map(|nl_pos| nl_pos + 1)
     }
+
+    /// Return the text of this item, if it originated within `str`,
+    /// from the start of its keyword up to and including its final newline.
+    #[allow(dead_code)] // unused when hsdesc not enabled.
+    pub(crate) fn text_within<'b>(&self, s: &'b str) -> Option<&'b str> {
+        let start = self.pos().offset_within(s)?;
+        let end = self.end_pos().offset_within(s)?;
+        s.get(start..=end)
+    }
 }
 
 /// Represents an Item that might not be present, whose arguments we
