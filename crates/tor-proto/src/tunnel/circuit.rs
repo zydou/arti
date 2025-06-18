@@ -507,6 +507,27 @@ impl ClientCirc {
             .expect("called first_hop on an un-constructed circuit"))
     }
 
+    /// Return a description of the last hop of the circuit.
+    ///
+    /// Return None if the last hop is virtual.
+    ///
+    /// See caveats on [`ClientCirc::last_hop_num()`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no last hop.  (This should be impossible outside of
+    /// the tor-proto crate, but within the crate it's possible to have a
+    /// circuit with no hops.)
+    pub fn last_hop(&self) -> Result<Option<OwnedChanTarget>> {
+        let path = self.path_ref()?;
+        Ok(path
+            .hops()
+            .last()
+            .expect("Called last_hop an an un-constructed circuit")
+            .as_chan_target()
+            .map(OwnedChanTarget::from_chan_target))
+    }
+
     /// Return the [`HopNum`] of the last hop of this circuit.
     ///
     /// Returns an error if there is no last hop.  (This should be impossible outside of the
