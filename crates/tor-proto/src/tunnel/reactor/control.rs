@@ -139,7 +139,7 @@ pub(crate) enum CtrlMsg {
     #[cfg(feature = "send-control-msg")]
     SendMsg {
         /// The hop to receive this message.
-        hop_num: HopNum,
+        hop: TargetHop,
         /// The message to send.
         msg: AnyRelayMsg,
         /// A sender that we use to tell the caller that the message was sent
@@ -530,11 +530,13 @@ impl<'a> ControlHandler<'a> {
             // This will involve updating ClientCIrc::send_raw_msg() to take a
             // leg id argument (which is a breaking change.
             #[cfg(feature = "send-control-msg")]
-            CtrlMsg::SendMsg {
-                hop_num,
-                msg,
-                sender,
-            } => {
+            CtrlMsg::SendMsg { hop, msg, sender } => {
+                let Some((leg_id, hop_num)) = self.reactor.target_hop_to_hopnum_id(hop) else {
+                    // Don't care if receiver goes away
+                    let _ = sender.send(Err(bad_api_usage!("Unknown {hop:?}").into()));
+                    return Ok(None);
+                };
+
                 let cell = AnyRelayMsgOuter::new(None, msg);
                 let cell = SendRelayCell {
                     hop: hop_num,
@@ -542,10 +544,8 @@ impl<'a> ControlHandler<'a> {
                     cell,
                 };
 
-                let leg = self.reactor.circuits.primary_leg_id();
-
                 Ok(Some(RunOnceCmdInner::Send {
-                    leg,
+                    leg: leg_id,
                     cell,
                     done: Some(sender),
                 }))

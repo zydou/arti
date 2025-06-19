@@ -523,6 +523,18 @@ impl ClientCirc {
             .ok_or_else(|| internal!("no last hop index"))?)
     }
 
+    /// Return a [`TargetHop`] representing precisely the last hop of the circuit as in set as a
+    /// HopLocation with its id and hop number.
+    ///
+    /// Return an error if there is no last hop.
+    pub fn last_hop(&self) -> Result<TargetHop> {
+        let hop_num = self
+            .mutable
+            .last_hop_num(self.unique_id)?
+            .ok_or_else(|| bad_api_usage!("no last hop"))?;
+        Ok((self.unique_id, hop_num).into())
+    }
+
     /// Return a [`Path`] object describing all the hops in this circuit.
     ///
     /// Note that this `Path` is not automatically updated if the circuit is
@@ -675,14 +687,10 @@ impl ClientCirc {
     pub async fn send_raw_msg(
         &self,
         msg: tor_cell::relaycell::msg::AnyRelayMsg,
-        hop_num: HopNum,
+        hop: TargetHop,
     ) -> Result<()> {
         let (sender, receiver) = oneshot::channel();
-        let ctrl_msg = CtrlMsg::SendMsg {
-            hop_num,
-            msg,
-            sender,
-        };
+        let ctrl_msg = CtrlMsg::SendMsg { hop, msg, sender };
         self.control
             .unbounded_send(ctrl_msg)
             .map_err(|_| Error::CircuitClosed)?;
