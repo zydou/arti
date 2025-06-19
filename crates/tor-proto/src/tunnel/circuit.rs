@@ -3523,6 +3523,11 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     fn multipath_stream() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            /// The number of data cells to send.
+            const NUM_CELLS: usize = 300;
+            /// 498 bytes per DATA cell.
+            const CELL_SIZE: usize = 498;
+
             let TestTunnelCtx {
                 tunnel,
                 circs,
@@ -3531,7 +3536,7 @@ pub(crate) mod test {
             let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
             // The stream data we're going to send over the conflux tunnel
-            let stream_data = (0..255_u8).cycle().take(300 * 498).collect::<Vec<_>>();
+            let stream_data = (0..255_u8).cycle().take(NUM_CELLS * CELL_SIZE).collect::<Vec<_>>();
             let stream_state = Arc::new(Mutex::new(ConfluxStreamState {
                 data_recvd: vec![],
                 expected_data_len: stream_data.len(),
