@@ -2893,7 +2893,7 @@ pub(crate) mod test {
     struct TestCircuitCtx {
         chan_rx: Receiver<AnyChanCell>,
         chan_tx: Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
-        circ_sink: CircuitRxSender,
+        circ_tx: CircuitRxSender,
         unique_id: UniqId,
     }
 
@@ -2982,14 +2982,14 @@ pub(crate) mod test {
         let circ_ctx1 = TestCircuitCtx {
             chan_rx: rx1,
             chan_tx: chan_sink1,
-            circ_sink: sink1,
+            circ_tx: sink1,
             unique_id: circ1.unique_id(),
         };
 
         let circ_ctx2 = TestCircuitCtx {
             chan_rx: rx2,
             chan_tx: chan_sink2,
-            circ_sink: sink2,
+            circ_tx: sink2,
             unique_id: circ2.unique_id(),
         };
 
@@ -3060,7 +3060,7 @@ pub(crate) mod test {
             // Send a LINK cell on the first leg...
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ1
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
@@ -3127,7 +3127,7 @@ pub(crate) mod test {
                 let [mut _circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
                 // Respond with a bogus cell on one of the legs
-                circ2.circ_sink.send(bad_cell).await.unwrap();
+                circ2.circ_tx.send(bad_cell).await.unwrap();
 
                 let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
                 // Get the handshake results (the handshake results are reported early,
@@ -3200,7 +3200,7 @@ pub(crate) mod test {
             // Send a LINK cell on the first leg...
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ1
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
@@ -3208,13 +3208,13 @@ pub(crate) mod test {
             // ...and two LINKED cells on the second
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ2
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ2
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
@@ -3259,7 +3259,7 @@ pub(crate) mod test {
                 // Send a LINKED cell on both legs
                 for circ in [&mut circ1, &mut circ2] {
                     let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-                    circ.circ_sink
+                    circ.circ_tx
                         .send(rmsg_to_ccmsg(None, linked))
                         .await
                         .unwrap();
@@ -3273,7 +3273,7 @@ pub(crate) mod test {
                 // which causes the tunnel reactor to shut down
                 for circ in [&mut circ1, &mut circ2] {
                     let msg = rmsg_to_ccmsg(None, bad_cell.clone().into());
-                    circ.circ_sink.send(msg).await.unwrap();
+                    circ.circ_tx.send(msg).await.unwrap();
                 }
 
                 // The tunnel should be shutting down
@@ -3419,7 +3419,7 @@ pub(crate) mod test {
             &runtime,
             init_rtt_delay,
             &mut circ.chan_rx,
-            &mut circ.circ_sink,
+            &mut circ.circ_tx,
         )
         .await;
 
@@ -3469,7 +3469,7 @@ pub(crate) mod test {
                     stream_state.lock().unwrap().begin_recvd = true;
                     // Reply with a connected cell...
                     let connected = relaymsg::Connected::new_empty().into();
-                    circ.circ_sink
+                    circ.circ_tx
                         .send(rmsg_to_ccmsg(streamid, connected))
                         .await
                         .unwrap();
@@ -3535,7 +3535,7 @@ pub(crate) mod test {
                         // Make and send a circuit-level SENDME
                         let sendme = relaymsg::Sendme::from(tag).into();
 
-                        circ.circ_sink
+                        circ.circ_tx
                             .send(rmsg_to_ccmsg(None, sendme))
                             .await
                             .unwrap();
@@ -3550,7 +3550,7 @@ pub(crate) mod test {
         // Close the stream if the other endpoint hasn't already done so
         if is_sending_leg && !end_recvd {
             let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
-            circ.circ_sink
+            circ.circ_tx
                 .send(rmsg_to_ccmsg(streamid, end))
                 .await
                 .unwrap();
@@ -3738,7 +3738,7 @@ pub(crate) mod test {
             let link = await_link_payload(&mut circ1.chan_rx).await;
             for circ in [&mut circ1, &mut circ2] {
                 let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-                circ.circ_sink
+                circ.circ_tx
                     .send(rmsg_to_ccmsg(None, linked))
                     .await
                     .unwrap();
