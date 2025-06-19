@@ -651,9 +651,16 @@ impl ClientCirc {
         &self,
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-        hop_num: HopNum,
+        hop: TargetHop,
     ) -> Result<Conversation<'_>> {
-        let handler = Box::new(UserMsgHandler::new(hop_num, reply_handler));
+        // We need to resolve the TargetHop into a precise HopLocation so our msg handler can match
+        // the right Leg/Hop with inbound cell.
+        let (sender, receiver) = oneshot::channel();
+        self.command
+            .unbounded_send(CtrlCmd::ResolveTargetHop { hop, done: sender })
+            .map_err(|_| Error::CircuitClosed)?;
+        let hop_location = receiver.await.map_err(|_| Error::CircuitClosed)??;
+        let handler = Box::new(UserMsgHandler::new(hop_location, reply_handler));
         let conversation = Conversation(self);
         conversation.send_internal(msg, Some(handler)).await?;
         Ok(conversation)

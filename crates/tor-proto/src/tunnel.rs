@@ -102,6 +102,16 @@ impl From<(UniqId, HopNum)> for TargetHop {
     }
 }
 
+impl HopLocation {
+    /// Return the hop number if not a JointPoint.
+    pub fn hop_num(&self) -> Option<HopNum> {
+        match self {
+            Self::Hop((_, hop_num)) => Some(*hop_num),
+            Self::JoinPoint => None,
+        }
+    }
+}
+
 /// Internal handle, used to implement a stream on a particular circuit.
 ///
 /// The reader and the writer for a stream should hold a `StreamTarget` for the stream;

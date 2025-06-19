@@ -226,6 +226,13 @@ pub(crate) enum CtrlCmd {
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
+    /// Resolve a given [`TargetHop`] into a precise [`HopLocation`].
+    ResolveTargetHop {
+        /// The target hop to resolve.
+        hop: TargetHop,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<HopLocation>,
+    },
     /// Begin accepting streams on this circuit.
     #[cfg(feature = "hs-service")]
     AwaitStreamRequest {
@@ -602,6 +609,14 @@ impl<'a> ControlHandler<'a> {
                 leg.add_hop(format, peer_id, outbound, inbound, binding, &settings)?;
                 let _ = done.send(Ok(()));
 
+                Ok(())
+            }
+            CtrlCmd::ResolveTargetHop { hop, done } => {
+                let _ = done.send(
+                    self.reactor
+                        .resolve_target_hop(hop)
+                        .map_err(|_| crate::util::err::Error::NoSuchHop),
+                );
                 Ok(())
             }
             #[cfg(feature = "hs-service")]

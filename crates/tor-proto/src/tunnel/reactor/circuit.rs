@@ -1202,7 +1202,8 @@ impl Circuit {
         // MetaCellHandler API to support returning Option<RunOnceCmdInner>
         // (because some cells will require sending a response)
         if let Some(mut handler) = handlers.meta_handler.take() {
-            if handler.expected_hop() == hopnum {
+            // The handler has a TargetHop so we do a quick convert for equality check.
+            if handler.expected_hop() == (self.unique_id(), hopnum).into() {
                 // Somebody was waiting for a message -- maybe this message
                 let ret = handler.handle_msg(msg, self);
                 trace!(

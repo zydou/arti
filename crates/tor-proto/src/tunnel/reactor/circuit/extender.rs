@@ -2,7 +2,6 @@
 
 use super::{Circuit, ReactorResultChannel};
 use crate::circuit::HopSettings;
-use crate::congestion;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
 };
@@ -10,6 +9,7 @@ use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
 use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::TunnelScopedCircId;
+use crate::{congestion, HopLocation};
 use crate::{Error, Result};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
@@ -196,8 +196,8 @@ where
     FWD: OutboundClientLayer + 'static + Send,
     REV: InboundClientLayer + 'static + Send,
 {
-    fn expected_hop(&self) -> HopNum {
-        self.expected_hop
+    fn expected_hop(&self) -> HopLocation {
+        (self.unique_id.unique_id(), self.expected_hop).into()
     }
     fn handle_msg(
         &mut self,

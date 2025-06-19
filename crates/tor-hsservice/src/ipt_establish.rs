@@ -733,9 +733,6 @@ impl<R: Runtime> Reactor<R> {
             // longer than necessary.
             (protovers, circuit, ipt_details)
         };
-        let intro_pt_hop = circuit
-            .last_hop_num()
-            .map_err(into_internal!("Somehow built a circuit with no hops!?"))?;
 
         let establish_intro = {
             let ipt_sid_id = (*self.k_sid).as_ref().verifying_key().into();
@@ -794,7 +791,7 @@ impl<R: Runtime> Reactor<R> {
             replay_log,
         };
         let _conversation = circuit
-            .start_conversation(Some(establish_intro), handler, intro_pt_hop)
+            .start_conversation(Some(establish_intro), handler, TargetHop::LastHop)
             .await
             .map_err(IptEstablisherError::SendEstablishIntro)?;
         // At this point, we have `await`ed for the Conversation to exist, so we know

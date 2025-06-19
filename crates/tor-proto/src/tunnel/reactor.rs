@@ -406,7 +406,7 @@ enum RemoveLegReason {
 pub(crate) trait MetaCellHandler: Send {
     /// The hop we're expecting the message to come from. This is compared against the hop
     /// from which we actually receive messages, and an error is thrown if the two don't match.
-    fn expected_hop(&self) -> HopNum;
+    fn expected_hop(&self) -> HopLocation;
     /// Called when the message we were waiting for arrives.
     ///
     /// Gets a copy of the `Reactor` in order to do anything it likes there.
@@ -1177,8 +1177,13 @@ impl Reactor {
                     .as_ref()
                     .or(handlers.meta_handler.as_ref())
                     .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
+                // We should always have a precise HopLocation here so this should never fails but
+                // in case we have a ::JointPoint, we'll notice.
+                let hop = handler.expected_hop().hop_num().ok_or(bad_api_usage!(
+                    "MsgHandler doesn't have a precise HopLocation"
+                ))?;
                 Ok::<_, crate::Error>(SendRelayCell {
-                    hop: handler.expected_hop(),
+                    hop,
                     early: false,
                     cell: msg,
                 })
