@@ -3536,7 +3536,10 @@ pub(crate) mod test {
             let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
             // The stream data we're going to send over the conflux tunnel
-            let stream_data = (0..255_u8).cycle().take(NUM_CELLS * CELL_SIZE).collect::<Vec<_>>();
+            let stream_data = (0..255_u8)
+                .cycle()
+                .take(NUM_CELLS * CELL_SIZE)
+                .collect::<Vec<_>>();
             let stream_state = Arc::new(Mutex::new(ConfluxStreamState {
                 data_recvd: vec![],
                 expected_data_len: stream_data.len(),
