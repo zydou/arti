@@ -14,6 +14,7 @@ use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
     msg::IntroEstablished,
 };
+use tor_proto::TargetHop;
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {
@@ -748,7 +749,8 @@ impl<R: Runtime> Reactor<R> {
                 }
             }
             let circuit_binding_key = circuit
-                .binding_key(intro_pt_hop)
+                .binding_key(TargetHop::LastHop)
+                .await
                 .map_err(IptEstablisherError::CircuitState)?
                 .ok_or(internal!("No binding key for introduction point!?"))?;
             let body: Vec<u8> = details

@@ -287,17 +287,6 @@ impl TunnelMutableState {
         Ok(mutable.n_hops())
     }
 
-    /// Return the cryptographic material used to prove knowledge of a shared
-    /// secret with with `hop` on the circuit with the specified `unique_id`.
-    fn binding_key(&self, unique_id: UniqId, hop: HopNum) -> Result<Option<CircuitBinding>> {
-        let lock = self.0.lock().expect("lock poisoned");
-        let mutable = lock
-            .get(&unique_id)
-            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
-
-        Ok(mutable.binding_key(hop))
-    }
-
     /// Return the number of legs in this tunnel.
     ///
     /// TODO(conflux-fork): this can be removed once we modify `path_ref`
@@ -569,10 +558,15 @@ impl ClientCirc {
     ///
     /// Return None if we have no circuit binding information for the hop, or if
     /// the hop does not exist.
-    pub fn binding_key(&self, hop: HopNum) -> Result<Option<CircuitBinding>> {
-        self.mutable
-            .binding_key(self.unique_id, hop)
-            .map_err(|_| Error::CircuitClosed)
+    #[cfg(feature = "hs-service")]
+    pub async fn binding_key(&self, hop: TargetHop) -> Result<Option<CircuitBinding>> {
+        let (sender, receiver) = oneshot::channel();
+        let msg = CtrlCmd::GetBindingKey { hop, done: sender };
+        self.command
+            .unbounded_send(msg)
+            .map_err(|_| Error::CircuitClosed)?;
+
+        receiver.await.map_err(|_| Error::CircuitClosed)?
     }
 
     /// Start an ad-hoc protocol exchange to the specified hop on this circuit

@@ -242,6 +242,14 @@ pub(crate) enum CtrlCmd {
         #[cfg(feature = "hs-service")]
         filter: Box<dyn IncomingStreamRequestFilter>,
     },
+    /// Request the binding key of a target hop.
+    #[cfg(feature = "hs-service")]
+    GetBindingKey {
+        /// The hop for which we want the key.
+        hop: TargetHop,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<Option<CircuitBinding>>,
+    },
     /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
     #[cfg(test)]
     AddFakeHop {
@@ -618,6 +626,28 @@ impl<'a> ControlHandler<'a> {
                     .cell_handlers
                     .set_incoming_stream_req_handler(handler);
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
+
+                Ok(())
+            }
+            #[cfg(feature = "hs-service")]
+            CtrlCmd::GetBindingKey { hop, done } => {
+                let Some((leg_id, hop_num)) = self.reactor.target_hop_to_hopnum_id(hop) else {
+                    let _ = done.send(Err(tor_error::internal!(
+                        "Unknown TargetHop when getting binding key"
+                    )
+                    .into()));
+                    return Ok(());
+                };
+                let Some(circuit) = self.reactor.circuits.leg(leg_id) else {
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "Unknown circuit id {leg_id} when getting binding key"
+                    )
+                    .into()));
+                    return Ok(());
+                };
+                // Get the binding key from the mutable state and send it back.
+                let key = circuit.mutable().binding_key(hop_num);
+                let _ = done.send(Ok(key));
 
                 Ok(())
             }
