@@ -1280,6 +1280,19 @@ impl Reactor {
         }
     }
 
+    /// Resolve a [`TargetHop`] directly into a [`UniqId`] and [`HopNum`].
+    ///
+    /// This is a helper function that basically calls both resolve_target_hop and
+    /// resolve_hop_location back to back.
+    ///
+    /// It returns None on failure to resolve meaning that if you want more detailed error on why
+    /// it failed, explicitly use the resolve_hop_location() and resolve_target_hop() functions.
+    pub(crate) fn target_hop_to_hopnum_id(&self, hop: TargetHop) -> Option<(UniqId, HopNum)> {
+        self.resolve_target_hop(hop)
+            .ok()
+            .and_then(|resolved| self.resolve_hop_location(resolved).ok())
+    }
+
     /// Does congestion control use stream SENDMEs for the given hop?
     ///
     /// Returns `None` if either the `leg` or `hop` don't exist.
