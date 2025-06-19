@@ -96,6 +96,12 @@ pub enum TargetHop {
     LastHop,
 }
 
+impl From<(UniqId, HopNum)> for TargetHop {
+    fn from(v: (UniqId, HopNum)) -> Self {
+        TargetHop::Hop(HopLocation::Hop(v))
+    }
+}
+
 /// Internal handle, used to implement a stream on a particular circuit.
 ///
 /// The reader and the writer for a stream should hold a `StreamTarget` for the stream;
