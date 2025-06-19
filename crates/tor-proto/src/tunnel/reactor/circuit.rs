@@ -52,6 +52,7 @@ use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use futures::{SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
+use tor_rtcompat::DynTimeProvider;
 use tracing::{debug, trace, warn};
 
 use super::{
@@ -100,6 +101,8 @@ pub(crate) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
 /// Regular (non-multipath) circuits have a single leg.
 /// Conflux (multipath) circuits have `N` (usually, `N = 2`).
 pub(crate) struct Circuit {
+    /// The time provider.
+    runtime: DynTimeProvider,
     /// The channel this circuit is attached to.
     channel: Arc<Channel>,
     /// Sender object used to actually send cells.
@@ -219,6 +222,7 @@ pub(super) use unsupported_client_cell;
 impl Circuit {
     /// Create a new non-multipath circuit.
     pub(super) fn new(
+        runtime: DynTimeProvider,
         channel: Arc<Channel>,
         channel_id: CircId,
         unique_id: TunnelScopedCircId,
@@ -230,6 +234,7 @@ impl Circuit {
 
         let crypto_out = OutboundClientCrypt::new();
         Circuit {
+            runtime,
             channel,
             chan_sender,
             input,
