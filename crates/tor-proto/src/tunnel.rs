@@ -72,22 +72,20 @@ impl TunnelScopedCircId {
     }
 }
 
-// TODO(#1857): Make this pub and not `allow(dead_code)`.
 /// A precise position in a tunnel.
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum HopLocation {
+#[non_exhaustive]
+pub enum HopLocation {
     /// A specific position in a tunnel.
     Hop((UniqId, HopNum)),
     /// The join point of a multi-path tunnel.
     JoinPoint,
 }
 
-// TODO(#1857): Make this pub and not `allow(dead_code)`.
 /// A position in a tunnel.
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum TargetHop {
+#[non_exhaustive]
+pub enum TargetHop {
     /// A specific position in a tunnel.
     Hop(HopLocation),
     /// The last hop of a tunnel.
