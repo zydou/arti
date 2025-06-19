@@ -3645,9 +3645,41 @@ pub(crate) mod test {
             let (tx1, rx1) = oneshot::channel();
             let (tx2, rx2) = oneshot::channel();
 
+            // The 9 RTT delays to insert before each of the 9 SENDMEs
+            // the exit will end up sending.
+            //
             // Note: the first delay is the init_rtt delay (measured during the conflux HS).
-            let circ1_rtt_delays = [None, Some(Duration::from_millis(300))].into_iter();
-            let circ2_rtt_delays = [Some(Duration::from_millis(200)), None].into_iter();
+            let circ1_rtt_delays = [
+                // Initially, circ1 has better RTT, so we will start on this leg.
+                Some(Duration::from_millis(100)),
+                // But then its RTT takes a turn for the worse,
+                // triggering a switch after the first SENDME is processed
+                // (this happens after sending 123 DATA cells).
+                Some(Duration::from_millis(500)),
+                Some(Duration::from_millis(700)),
+                Some(Duration::from_millis(900)),
+                Some(Duration::from_millis(1100)),
+                Some(Duration::from_millis(1300)),
+                Some(Duration::from_millis(1500)),
+                Some(Duration::from_millis(1700)),
+                Some(Duration::from_millis(1900)),
+                Some(Duration::from_millis(2100)),
+            ]
+            .into_iter();
+
+            let circ2_rtt_delays = [
+                Some(Duration::from_millis(200)),
+                Some(Duration::from_millis(400)),
+                Some(Duration::from_millis(600)),
+                Some(Duration::from_millis(800)),
+                Some(Duration::from_millis(1000)),
+                Some(Duration::from_millis(1200)),
+                Some(Duration::from_millis(1400)),
+                Some(Duration::from_millis(1600)),
+                Some(Duration::from_millis(1800)),
+                Some(Duration::from_millis(2000)),
+            ]
+            .into_iter();
 
             // Note: we can't have two advance_by() calls running
             // at the same time (it's a limitation of MockRuntime),
@@ -3658,13 +3690,24 @@ pub(crate) mod test {
                     circ1,
                     tx1,
                     rx2,
-                    // We expect the client to start sending on the leg with no initial RTT delay,
-                    // and then switch to the one with the lower overall RTT
-                    vec![2],
+                    // We start on this leg, and receive a BEGIN cell,
+                    // followed by 4 * 31 = 124 DATA cells, then we switch to circ1,
+                    // and then finally we switch back here, and get another SWITCH
+                    // as the 126th cell.
+                    vec![126],
                     circ1_rtt_delays,
                     true,
                 ),
-                (circ2, tx2, rx1, vec![1], circ2_rtt_delays, false),
+                (
+                    circ2,
+                    tx2,
+                    rx1,
+                    // The SWITCH is the first cell we received after the conflux HS
+                    // on this leg.
+                    vec![1],
+                    circ2_rtt_delays,
+                    false,
+                ),
             ];
 
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
