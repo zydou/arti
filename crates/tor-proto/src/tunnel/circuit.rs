@@ -3315,8 +3315,7 @@ pub(crate) mod test {
             stream: DataStream,
         },
         Relay {
-            rx: Receiver<ChanCell<AnyChanMsg>>,
-            sink: CircuitRxSender,
+            circ: TestCircuitCtx,
         },
     }
 
@@ -3344,20 +3343,14 @@ pub(crate) mod test {
         runtime: Arc<AsyncMutex<MockRuntime>>,
         /// The client view of the tunnel.
         tunnel: Arc<ClientCirc>,
+        /// The circuit test context.
+        circ: TestCircuitCtx,
         /// The RTT delay to introduce just before sending the LINKED cell.
         init_rtt_delay: Option<Duration>,
         /// The RTT delay to introduce just before sending a SENDME.
         ///
         /// Used to trigger the client to send a SWITCH.
         rtt_delay: Option<Duration>,
-        /// The leg this state is associated with.
-        ///
-        /// Used in panic messages.
-        leg: UniqId,
-        /// Channel for receiving cells from the client.
-        rx: Receiver<ChanCell<AnyChanMsg>>,
-        /// Channel for sending cells to the client.
-        sink: CircuitRxSender,
         /// State of the (only) expected stream on this tunnel,
         /// shared by all the mock exit endpoints.
         stream_state: Arc<Mutex<ConfluxStreamState>>,
@@ -3411,11 +3404,9 @@ pub(crate) mod test {
         let ConfluxExitState {
             runtime,
             tunnel,
+            mut circ,
             init_rtt_delay,
             rtt_delay,
-            leg,
-            mut rx,
-            mut sink,
             stream_state,
             mut expect_switch,
             done_tx,
@@ -3424,7 +3415,7 @@ pub(crate) mod test {
         } = state;
 
         // Do the conflux handshake
-        good_exit_handshake(&runtime, init_rtt_delay, &mut rx, &mut sink).await;
+        good_exit_handshake(&runtime, init_rtt_delay, &mut circ.chan_rx, &mut circ.circ_sink).await;
 
         // Expect the client to open a stream, and de-multiplex the received stream data
         let stream_len = stream_state.lock().unwrap().expected_data_len;
@@ -3439,7 +3430,7 @@ pub(crate) mod test {
             // Wait for the BEGIN cell to arrive, or for the transfer to complete
             // (we need to bail if the other leg already completed);
             let res = select! {
-                res = rx.next() => {
+                res = circ.chan_rx.next() => {
                     res.unwrap()
                 },
                 res = done_rx => {
@@ -3472,7 +3463,7 @@ pub(crate) mod test {
                     stream_state.lock().unwrap().begin_recvd = true;
                     // Reply with a connected cell...
                     let connected = relaymsg::Connected::new_empty().into();
-                    sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                    circ.circ_sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
                 }
                 AnyRelayMsg::End(_) if !end_recvd => {
                     stream_state.lock().unwrap().end_recvd = true;
@@ -3515,7 +3506,7 @@ pub(crate) mod test {
                                 .command
                                 .unbounded_send(CtrlCmd::QuerySendWindow {
                                     hop: 2.into(),
-                                    leg,
+                                    leg: circ.unique_id,
                                     done: tx,
                                 })
                                 .unwrap();
@@ -3535,10 +3526,10 @@ pub(crate) mod test {
                         // Make and send a circuit-level SENDME
                         let sendme = relaymsg::Sendme::from(tag).into();
 
-                        sink.send(rmsg_to_ccmsg(None, sendme)).await.unwrap();
+                        circ.circ_sink.send(rmsg_to_ccmsg(None, sendme)).await.unwrap();
                     }
                 }
-                _ => panic!("unexpected message {rmsg:?} on leg {leg}"),
+                _ => panic!("unexpected message {rmsg:?} on leg {}", circ.unique_id),
             }
         }
 
@@ -3547,14 +3538,17 @@ pub(crate) mod test {
         // Close the stream if the other endpoint hasn't already done so
         if is_sending_leg && !end_recvd {
             let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
-            sink.send(rmsg_to_ccmsg(streamid, end)).await.unwrap();
+            circ.circ_sink
+                .send(rmsg_to_ccmsg(streamid, end))
+                .await
+                .unwrap();
             stream_state.lock().unwrap().end_sent = true;
         }
 
         // This is allowed to fail, because the other leg might have exited first.
         let _ = done_tx.send(());
 
-        ConfluxEndpointResult::Relay { rx, sink }
+        ConfluxEndpointResult::Relay { circ }
     }
 
     #[cfg(feature = "conflux")]
@@ -3644,9 +3638,7 @@ pub(crate) mod test {
             // on the two circuits.
             let relays = [
                 (
-                    circ1.chan_rx,
-                    circ1.circ_sink,
-                    circ1.unique_id,
+                    circ1,
                     tx1,
                     rx2,
                     // We expect the client to start sending on the leg with no initial RTT delay,
@@ -3657,9 +3649,7 @@ pub(crate) mod test {
                     true,
                 ),
                 (
-                    circ2.chan_rx,
-                    circ2.circ_sink,
-                    circ2.unique_id,
+                    circ2,
                     tx2,
                     rx1,
                     vec![1],
@@ -3671,9 +3661,7 @@ pub(crate) mod test {
 
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
             for (
-                rx,
-                sink,
-                leg,
+                circ,
                 done_tx,
                 done_rx,
                 expect_switch,
@@ -3682,14 +3670,13 @@ pub(crate) mod test {
                 is_sending_leg,
             ) in relays.into_iter()
             {
+                let leg = circ.unique_id;
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
                     runtime: Arc::clone(&relay_runtime),
                     tunnel: Arc::clone(&tunnel),
-                    leg,
+                    circ,
                     init_rtt_delay,
                     rtt_delay,
-                    rx,
-                    sink,
                     stream_state: Arc::clone(&stream_state),
                     expect_switch,
                     done_tx,
