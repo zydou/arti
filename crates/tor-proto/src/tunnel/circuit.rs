@@ -3415,7 +3415,13 @@ pub(crate) mod test {
         } = state;
 
         // Do the conflux handshake
-        good_exit_handshake(&runtime, init_rtt_delay, &mut circ.chan_rx, &mut circ.circ_sink).await;
+        good_exit_handshake(
+            &runtime,
+            init_rtt_delay,
+            &mut circ.chan_rx,
+            &mut circ.circ_sink,
+        )
+        .await;
 
         // Expect the client to open a stream, and de-multiplex the received stream data
         let stream_len = stream_state.lock().unwrap().expected_data_len;
@@ -3463,7 +3469,10 @@ pub(crate) mod test {
                     stream_state.lock().unwrap().begin_recvd = true;
                     // Reply with a connected cell...
                     let connected = relaymsg::Connected::new_empty().into();
-                    circ.circ_sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                    circ.circ_sink
+                        .send(rmsg_to_ccmsg(streamid, connected))
+                        .await
+                        .unwrap();
                 }
                 AnyRelayMsg::End(_) if !end_recvd => {
                     stream_state.lock().unwrap().end_recvd = true;
@@ -3526,7 +3535,10 @@ pub(crate) mod test {
                         // Make and send a circuit-level SENDME
                         let sendme = relaymsg::Sendme::from(tag).into();
 
-                        circ.circ_sink.send(rmsg_to_ccmsg(None, sendme)).await.unwrap();
+                        circ.circ_sink
+                            .send(rmsg_to_ccmsg(None, sendme))
+                            .await
+                            .unwrap();
                     }
                 }
                 _ => panic!("unexpected message {rmsg:?} on leg {}", circ.unique_id),
