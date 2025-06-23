@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
     let stream = tor_client.connect((host, port)).await?;
 
     // The rest is just standard usage of Hyper.
-    println!("[+] Making request to: {}", url);
+    eprintln!("[+] Making request to: {}", url);
 
     if https {
         // Get root_certs required for TLS.
@@ -92,7 +92,7 @@ async fn make_request(
         )
         .await?;
 
-    println!("[+] Response status: {}", resp.status());
+    eprintln!("[+] Response status: {}", resp.status());
 
     while let Some(frame) = resp.body_mut().frame().await {
         let bytes = frame?.into_data().unwrap();
