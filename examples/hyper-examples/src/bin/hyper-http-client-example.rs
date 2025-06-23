@@ -49,6 +49,8 @@ async fn main() -> Result<()> {
 
     if https {
         // Get root_certs required for TLS.
+        // Because we use `rustls` we manually load Mozilla's CA roots, this because
+        // due to `rustls` we don't have access to the system's CA store.
         let mut root_cert_store = tokio_rustls::rustls::RootCertStore::empty();
         root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         let config = tokio_rustls::rustls::ClientConfig::builder()
@@ -56,6 +58,8 @@ async fn main() -> Result<()> {
             .with_no_client_auth();
 
         // Use `tokio_rustls` connector to create a TLS connection.
+        // In this example we prefer `rustls` for easier portability. You can alternatively use
+        // `native-tls` if you prefer.
         let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
         let server_name = host
             .to_string()
