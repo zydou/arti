@@ -25,7 +25,7 @@ struct WebHandler {
 
 impl WebHandler {
     async fn serve(&self, request: Request<Incoming>) -> Result<Response<String>> {
-        println!("[+] Incoming request: {:?}", request);
+        eprintln!("[+] Incoming request: {:?}", request);
 
         let path = request.uri().path();
 
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
     let client = TorClient::create_bootstrapped(config).await.unwrap();
 
     // Launch onion service.
-    println!("[+] Launching onion service...");
+    eprintln!("[+] Launching onion service...");
     let svc_cfg = OnionServiceConfigBuilder::default()
         .nickname("test".parse().unwrap())
         .build()
@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
     let start = tokio::time::Instant::now();
     let mut status_stream = service.status_events();
 
-    print!(
+    eprint!(
         "[+] Waiting for onion service to be reachable. Please wait {} seconds...\r",
         timeout.as_secs()
     );
@@ -118,13 +118,13 @@ async fn main() -> Result<()> {
 
             // Output remaining seconds until timeout.
             _ = sleep(tokio::time::Duration::from_secs(1)) => {
-                print!("[+] Waiting for onion service to be reachable. Please wait {} seconds...\r", remaining.as_secs());
+                eprint!("[+] Waiting for onion service to be reachable. Please wait {} seconds...\r", remaining.as_secs());
                 std::io::stdout().flush().unwrap();
             }
         }
     }
 
-    println!(
+    eprintln!(
         "\n\n[+] Onion service is reachable at: {}",
         service.onion_address().expect("Onion address not found")
     );
@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
     }
 
     drop(service);
-    println!("[+] Onion service exited cleanly.");
+    eprintln!("[+] Onion service exited cleanly.");
 
     Ok(())
 }
