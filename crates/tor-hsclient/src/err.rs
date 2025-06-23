@@ -396,6 +396,7 @@ impl HasKind for DescriptorErrorDetail {
             DED::Stream(e) => e.kind(),
             DED::Directory(RE::HttpStatus(st, _)) if *st == 404 => EK::OnionServiceNotFound,
             DED::Directory(RE::ResponseTooLong(_)) => EK::OnionServiceProtocolViolation,
+            DED::Directory(RE::HeadersTooLong(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(RE::Utf8Encoding(_)) => EK::OnionServiceProtocolViolation,
             DED::Directory(other_re) => other_re.kind(),
             DED::Descriptor(e) => e.kind(),

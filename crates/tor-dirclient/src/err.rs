@@ -69,6 +69,10 @@ pub enum RequestError {
     #[error("response too long; gave up after {0} bytes")]
     ResponseTooLong(usize),
 
+    /// Received too many bytes in our headers.
+    #[error("headers too long; gave up after {0} bytes")]
+    HeadersTooLong(usize),
+
     /// Data received was not UTF-8 encoded.
     #[error("Couldn't decode data as UTF-8.")]
     Utf8Encoding(#[from] std::string::FromUtf8Error),
@@ -181,6 +185,7 @@ impl HasKind for RequestError {
             E::DirTimeout => EK::TorNetworkTimeout,
             E::TruncatedHeaders => EK::TorProtocolViolation,
             E::ResponseTooLong(_) => EK::TorProtocolViolation,
+            E::HeadersTooLong(_) => EK::TorProtocolViolation,
             E::Utf8Encoding(_) => EK::TorProtocolViolation,
             // TODO: it would be good to get more information out of the IoError
             // in this case, but that would require a bunch of gnarly

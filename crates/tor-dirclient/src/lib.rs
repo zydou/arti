@@ -282,6 +282,11 @@ where
     Ok(DirResponse::new(200, None, ok.err(), result, source))
 }
 
+/// Maximum length for the HTTP headers in a single request or response.
+///
+/// Chosen more or less arbitrarily.
+const MAX_HEADERS_LEN: usize = 16384;
+
 /// Read and parse HTTP/1 headers from `stream`.
 async fn read_headers<S>(stream: &mut S) -> RequestResult<HeaderStatus>
 where
@@ -308,9 +313,8 @@ where
                     return Err(RequestError::TruncatedHeaders);
                 }
 
-                // TODO(nickm): Pick a better maximum
-                if buf.len() >= 16384 {
-                    return Err(httparse::Error::TooManyHeaders.into());
+                if buf.len() >= MAX_HEADERS_LEN {
+                    return Err(RequestError::HeadersTooLong(buf.len()));
                 }
             }
             httparse::Status::Complete(n_parsed) => {
@@ -878,7 +882,7 @@ mod test {
         assert!(matches!(
             response,
             Err(Error::RequestFailed(RequestFailedError {
-                error: RequestError::HttparseError(_),
+                error: RequestError::HeadersTooLong(_),
                 ..
             }))
         ));
