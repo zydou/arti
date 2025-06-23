@@ -1,4 +1,4 @@
-Return the identity key for the specified service
+Run keystore management commands
 
 Usage: arti keys [OPTIONS] <COMMAND>
 
