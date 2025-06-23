@@ -510,13 +510,26 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             {
                 Ok(desc) => break desc,
                 Err(error) => {
-                    debug_report!(
-                        &error,
-                        "failed hsdir desc fetch for {} from {}/{}",
-                        &self.hsid,
-                        &relay.id(),
-                        &relay.rsa_id()
-                    );
+                    if error.should_report_as_suspicious() {
+                        // Note that not every protocol violation is suspicious:
+                        // we only warn on the protocol violations that look like attempts
+                        // to do a traffic tagging attack via hsdir inflation.
+                        // (See proposal 360.)
+                        warn_report!(
+                            &error,
+                            "Suspicious failure while downloading hsdesc for {} from relay {}",
+                            &self.hsid,
+                            relay.display_relay_ids(),
+                        );
+                    } else {
+                        debug_report!(
+                            &error,
+                            "failed hsdir desc fetch for {} from {}/{}",
+                            &self.hsid,
+                            &relay.id(),
+                            &relay.rsa_id()
+                        );
+                    }
                     errors.push(tor_error::Report(DescriptorError {
                         hsdir: hsdir_for_error,
                         error,
@@ -579,7 +592,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 OwnedCircTarget::from_circ_target(hsdir),
             )
             .await?;
-        let source = circuit
+        let source: Option<SourceInfo> = circuit
             .m_source_info()
             .map_err(into_internal!("Couldn't get SourceInfo for circuit"))?;
         let mut stream = circuit

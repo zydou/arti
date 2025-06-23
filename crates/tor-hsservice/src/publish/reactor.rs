@@ -550,6 +550,19 @@ pub enum UploadError {
 }
 define_asref_dyn_std_error!(UploadError);
 
+impl UploadError {
+    /// Return true if this error is one that we should report as a suspicious event,
+    /// along with the dirserver, and description of the relevant document.
+    pub(crate) fn should_report_as_suspicious(&self) -> bool {
+        match self {
+            UploadError::Request(e) => e.error.should_report_as_suspicious_if_anon(),
+            UploadError::Circuit(_) => false, // TODO prop360
+            UploadError::Stream(_) => false,  // TODO prop360
+            UploadError::Bug(_) => false,
+        }
+    }
+}
+
 impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
     #[allow(clippy::too_many_arguments)]
@@ -1775,8 +1788,25 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             imm.runtime.clone(),
         );
 
-        let fallible_op =
-            || Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm));
+        let fallible_op = || async {
+            let r = Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await;
+
+            if let Err(e) = &r {
+                if e.should_report_as_suspicious() {
+                    // Note that not every protocol violation is suspicious:
+                    // we only warn on the protocol violations that look like attempts
+                    // to do a traffic tagging attack via hsdir inflation.
+                    // (See proposal 360.)
+                    warn_report!(
+                        &e.clone(),
+                        "Suspicious error while uploading descriptor to {}/{}",
+                        ed_id,
+                        rsa_id
+                    );
+                }
+            }
+            r
+        };
 
         let outcome: Result<(), BackoffError<UploadError>> = runner.run(fallible_op).await;
         match outcome {

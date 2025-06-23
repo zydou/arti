@@ -433,6 +433,28 @@ impl tor_error::HasKind for HsDescError {
     }
 }
 
+impl HsDescError {
+    /// Return true if this error is one that we should report as a suspicious event.
+    pub fn should_report_as_suspicious(&self) -> bool {
+        use crate::NetdocErrorKind as EK;
+        use HsDescError as E;
+        #[allow(clippy::match_like_matches_macro)]
+        match self {
+            E::OuterParsing(e) => match e.netdoc_error_kind() {
+                EK::ExtraneousSpace => true,
+                _ => false,
+            },
+            E::OuterValidation(_) => false,
+            E::MissingDecryptionKey => false,
+            E::WrongDecryptionKey => false,
+            E::DecryptionFailed => false,
+            E::InnerParsing(_) => false,
+            E::InnerValidation(_) => false,
+            E::Bug(_) => false,
+        }
+    }
+}
+
 impl IntroPointDesc {
     /// Start building a description of an intro point
     pub fn builder() -> IntroPointDescBuilder {

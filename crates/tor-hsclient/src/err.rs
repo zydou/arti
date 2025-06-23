@@ -479,3 +479,19 @@ pub(crate) enum ProofOfWorkError {
     #[allow(dead_code)]
     SolverDisconnected,
 }
+
+impl DescriptorErrorDetail {
+    /// Return true if this error is one that we should report as a suspicious event,
+    /// along with the dirserver and description of the relevant document.
+    pub(crate) fn should_report_as_suspicious(&self) -> bool {
+        use DescriptorErrorDetail as E;
+        match self {
+            E::Timeout => false,
+            E::Circuit(_) => false,
+            E::Stream(_) => false, // TODO prop360
+            E::Directory(e) => e.should_report_as_suspicious_if_anon(),
+            E::Descriptor(e) => e.should_report_as_suspicious(),
+            E::Bug(_) => false,
+        }
+    }
+}

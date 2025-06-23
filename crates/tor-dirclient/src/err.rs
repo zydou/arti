@@ -218,3 +218,42 @@ impl HasKind for Error {
         }
     }
 }
+
+#[cfg(any(feature = "hs-client", feature = "hs-service"))]
+impl Error {
+    /// Return true if this error is one that we should report as a suspicious event,
+    /// along with the dirserver and description of the relevant document,
+    /// if the request was made anonymously.
+    pub fn should_report_as_suspicious_if_anon(&self) -> bool {
+        use Error as E;
+        match self {
+            E::CircMgr(_) => false,
+            E::RequestFailed(e) => e.error.should_report_as_suspicious_if_anon(),
+            E::Bug(_) => false,
+        }
+    }
+}
+#[cfg(any(feature = "hs-client", feature = "hs-service"))]
+impl RequestError {
+    /// Return true if this error is one that we should report as a suspicious event,
+    /// along with the dirserver and description of the relevant document,
+    /// if the request was made anonymously.
+    pub fn should_report_as_suspicious_if_anon(&self) -> bool {
+        match self {
+            RequestError::ResponseTooLong(_) => true,
+            RequestError::HeadersTooLong(_) => true,
+            RequestError::Proto(_) => false, // TODO prop360.
+
+            RequestError::DirTimeout => false,
+            RequestError::TruncatedHeaders => false,
+            RequestError::Utf8Encoding(_) => false,
+            RequestError::IoError(_) => false,
+            RequestError::HttparseError(_) => false,
+            RequestError::HttpError(_) => false,
+            RequestError::ContentEncoding(_) => false,
+            RequestError::TooMuchClockSkew => false,
+            RequestError::EmptyRequest => false,
+            RequestError::HttpStatus(_, _) => false,
+        }
+    }
+}
