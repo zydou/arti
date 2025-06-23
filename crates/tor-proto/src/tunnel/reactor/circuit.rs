@@ -1256,7 +1256,8 @@ impl Circuit {
                 // but we don't support those any longer.
                  Error::CircProto("missing tag on circuit sendme".into()))?;
         // Update the CC object that we received a SENDME along with possible congestion signals.
-        hop.ccontrol_mut().note_sendme_received(&runtime, tag, signals)?;
+        hop.ccontrol_mut()
+            .note_sendme_received(&runtime, tag, signals)?;
         Ok(None)
     }
 
