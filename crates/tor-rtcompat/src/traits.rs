@@ -368,6 +368,9 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///    Use `spawn_blocking` for that.
     ///  * Performance better than using `spawn_blocking` each time is not guaranteed.
     ///
+    /// Otherwise the semantics are the same as
+    /// [`spawn_blocking`](Self::spawn_blocking).
+    ///
     /// ### Panics
     ///
     /// `Blocking::block_in_place` may only be called from within
