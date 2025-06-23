@@ -96,6 +96,7 @@ itertools = "0.14.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 polyval = { version = "0.6", optional = true }
+postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.9.1"
 rand_core = "0.9.3"
 safelog = { path = "../safelog", version = "0.4.5" }
