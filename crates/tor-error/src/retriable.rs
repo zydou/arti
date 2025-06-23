@@ -197,8 +197,7 @@ impl RetryTime {
         I: Iterator<Item = RetryTime>,
         F: FnOnce() -> Duration,
     {
-        let chosen_delay =
-            once_cell::unsync::Lazy::new(|| AbsRetryTime::from_sum(now, choose_delay()));
+        let chosen_delay = std::cell::LazyCell::new(|| AbsRetryTime::from_sum(now, choose_delay()));
 
         items
             .map(|item| match item {

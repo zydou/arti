@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Command, Parser, Subcommand, ValueEnum};
 use fs_mistrust::anon_home::PathExt as _;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use tor_config::{ConfigurationSource, ConfigurationSources};
 use tor_config_path::CfgPathError;
 
@@ -16,8 +16,8 @@ use crate::config::default_config_paths;
 /// A cached copy of the default config paths.
 ///
 /// We cache the values to ensure they are consistent between the help text and the values used.
-static DEFAULT_CONFIG_PATHS: Lazy<Result<Vec<PathBuf>, CfgPathError>> =
-    Lazy::new(default_config_paths);
+static DEFAULT_CONFIG_PATHS: LazyLock<Result<Vec<PathBuf>, CfgPathError>> =
+    LazyLock::new(default_config_paths);
 
 /// A Rust Tor relay implementation.
 #[derive(Clone, Debug, Parser)]

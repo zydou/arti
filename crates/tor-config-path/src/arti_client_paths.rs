@@ -6,7 +6,7 @@
 use std::{borrow::Cow, path::PathBuf};
 
 use directories::ProjectDirs;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::{CfgPathError, CfgPathResolver};
 
@@ -64,9 +64,9 @@ fn get_program_dir() -> Result<PathBuf, CfgPathError> {
 
 /// Return a ProjectDirs object for the Arti project.
 fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
-    /// lazy cell holding the ProjectDirs object.
-    static PROJECT_DIRS: Lazy<Option<ProjectDirs>> =
-        Lazy::new(|| ProjectDirs::from("org", "torproject", "Arti"));
+    /// lazy lock holding the ProjectDirs object.
+    static PROJECT_DIRS: LazyLock<Option<ProjectDirs>> =
+        LazyLock::new(|| ProjectDirs::from("org", "torproject", "Arti"));
 
     PROJECT_DIRS.as_ref().ok_or(CfgPathError::NoProjectDirs)
 }

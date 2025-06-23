@@ -29,7 +29,7 @@ use tracing::{debug, info, trace, warn};
 
 use crate::storage::Store;
 #[cfg(test)]
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 #[cfg(test)]
 use std::sync::Mutex;
 use tor_circmgr::{CircMgr, DirInfo};
@@ -297,7 +297,7 @@ async fn fetch_single<R: Runtime>(
 /// Note that only one test uses this: otherwise there would be a race
 /// condition. :p
 #[cfg(test)]
-static CANNED_RESPONSE: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(vec![]));
+static CANNED_RESPONSE: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(vec![]));
 
 /// Launch a set of download requests for a set of missing objects in
 /// `missing`, and return each request along with the response it received.

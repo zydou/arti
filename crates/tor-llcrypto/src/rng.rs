@@ -160,9 +160,9 @@ impl rand_core::CryptoRng for CautiousRng {}
 #[cfg(not(target_arch = "wasm32"))]
 mod backup {
 
-    use once_cell::sync::Lazy;
     use rand::{rngs::ReseedingRng, RngCore};
     use rand_chacha::ChaCha20Core;
+    use std::sync::LazyLock;
     use std::sync::{Mutex, MutexGuard};
 
     /// The type we've chosen to use for our backup Rng.
@@ -174,7 +174,7 @@ mod backup {
     type BackupRng = ReseedingRng<ChaCha20Core, Box<dyn RngCore + Send>>;
 
     /// Static instance of our BackupRng; None if we failed to construct one.
-    static JITTER_BACKUP: Lazy<Option<Mutex<BackupRng>>> = Lazy::new(new_backup_rng);
+    static JITTER_BACKUP: LazyLock<Option<Mutex<BackupRng>>> = LazyLock::new(new_backup_rng);
 
     /// Construct a new instance of our backup Rng;
     /// return None on failure.

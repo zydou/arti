@@ -1540,7 +1540,7 @@ mod test {
     use crate::mocks::{FakeBuilder, FakeCirc, FakeId, FakeOp};
     use crate::usage::{ExitPolicy, SupportedCircUsage};
     use crate::{Error, IsolationToken, StreamIsolation, TargetCircUsage, TargetPort, TargetPorts};
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
     use tor_guardmgr::fallback::FallbackList;
     use tor_guardmgr::TestConfig;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -1552,7 +1552,7 @@ mod test {
     #[allow(deprecated)] // TODO #1885
     use tor_rtmock::MockSleepRuntime;
 
-    static FALLBACKS_EMPTY: Lazy<FallbackList> = Lazy::new(|| [].into());
+    static FALLBACKS_EMPTY: LazyLock<FallbackList> = LazyLock::new(|| [].into());
 
     fn di() -> DirInfo<'static> {
         (&*FALLBACKS_EMPTY).into()

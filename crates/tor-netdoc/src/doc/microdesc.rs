@@ -27,9 +27,9 @@ use tor_llcrypto::d;
 use tor_llcrypto::pk::{curve25519, ed25519, rsa};
 
 use digest::Digest;
-use once_cell::sync::Lazy;
 use std::str::FromStr as _;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
 use std::time;
 
@@ -188,7 +188,7 @@ decl_keyword! {
 }
 
 /// Rules about annotations that can appear before a Microdescriptor
-static MICRODESC_ANNOTATIONS: Lazy<SectionRules<MicrodescKwd>> = Lazy::new(|| {
+static MICRODESC_ANNOTATIONS: LazyLock<SectionRules<MicrodescKwd>> = LazyLock::new(|| {
     use MicrodescKwd::*;
     let mut rules = SectionRules::builder();
     rules.add(ANN_LAST_LISTED.rule().args(1..));
@@ -200,7 +200,7 @@ static MICRODESC_ANNOTATIONS: Lazy<SectionRules<MicrodescKwd>> = Lazy::new(|| {
 });
 /// Rules about entries that must appear in an Microdesc, and how they must
 /// be formed.
-static MICRODESC_RULES: Lazy<SectionRules<MicrodescKwd>> = Lazy::new(|| {
+static MICRODESC_RULES: LazyLock<SectionRules<MicrodescKwd>> = LazyLock::new(|| {
     use MicrodescKwd::*;
 
     let mut rules = SectionRules::builder();

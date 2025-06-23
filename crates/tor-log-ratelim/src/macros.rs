@@ -229,8 +229,8 @@ macro_rules! log_ratelim {
     // The strong reference for each RateLim is held by a task that flushes
     // the logger as appropriate, and drops the strong reference once it's
     // quiescent.
-    static LOGGERS: Lazy<Mutex<WeakValueHashMap<String, Weak<RateLim<Lg>>>>> =
-      Lazy::new(|| Mutex::new(WeakValueHashMap::new()));
+    static LOGGERS: LazyLock<Mutex<WeakValueHashMap<String, Weak<RateLim<Lg>>>>> =
+    LazyLock::new(|| Mutex::new(WeakValueHashMap::new()));
 
     // We assign a separate rate limit for each activity.
     // For now, this is string-ly typed.

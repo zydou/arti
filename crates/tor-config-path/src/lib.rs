@@ -49,7 +49,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 #[cfg(feature = "expand-paths")]
-use {directories::BaseDirs, once_cell::sync::Lazy};
+use {directories::BaseDirs, std::sync::LazyLock};
 
 use tor_error::{ErrorKind, HasKind};
 
@@ -282,9 +282,9 @@ impl std::fmt::Display for CfgPath {
 // use the same home directory expansion that we use in this crate for `~` expansion.
 #[cfg(feature = "expand-paths")]
 pub fn home() -> Result<&'static Path, CfgPathError> {
-    /// Lazy cell holding the home directory.
-    static HOME_DIR: Lazy<Option<PathBuf>> =
-        Lazy::new(|| Some(BaseDirs::new()?.home_dir().to_owned()));
+    /// Lazy lock holding the home directory.
+    static HOME_DIR: LazyLock<Option<PathBuf>> =
+        LazyLock::new(|| Some(BaseDirs::new()?.home_dir().to_owned()));
     HOME_DIR
         .as_ref()
         .map(PathBuf::as_path)

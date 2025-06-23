@@ -444,16 +444,19 @@ impl fmt::Display for DirProgress {
         /// Format this time in a format useful for displaying
         /// lifetime boundaries.
         fn fmt_time(t: SystemTime) -> String {
-            use once_cell::sync::Lazy;
+            use std::sync::LazyLock;
             /// Formatter object for lifetime boundaries.
             ///
             /// We use "YYYY-MM-DD HH:MM:SS UTC" here, since we never have
             /// sub-second times here, and using non-UTC offsets is confusing
             /// in this context.
-            static FORMAT: Lazy<Vec<time::format_description::FormatItem>> = Lazy::new(|| {
-                time::format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second] UTC")
+            static FORMAT: LazyLock<Vec<time::format_description::FormatItem>> =
+                LazyLock::new(|| {
+                    time::format_description::parse(
+                        "[year]-[month]-[day] [hour]:[minute]:[second] UTC",
+                    )
                     .expect("Invalid time format")
-            });
+                });
             OffsetDateTime::from(t)
                 .format(&FORMAT)
                 .unwrap_or_else(|_| "(could not format)".into())

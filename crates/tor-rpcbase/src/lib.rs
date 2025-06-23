@@ -72,7 +72,7 @@ pub use obj::cast::CastTable;
 #[doc(hidden)]
 pub use {
     derive_deftly, dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory,
-    method::MethodInfo_, once_cell, paste, tor_async_utils, tor_error::internal, typetag,
+    method::MethodInfo_, paste, tor_async_utils, tor_error::internal, typetag,
 };
 
 /// Templates for use with [`derive_deftly`]

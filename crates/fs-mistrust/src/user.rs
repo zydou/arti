@@ -4,7 +4,7 @@
 mod serde_support;
 
 use crate::Error;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::{
     collections::HashMap,
     ffi::{OsStr, OsString},
@@ -35,8 +35,8 @@ struct TrustedUsersCache<U: PwdGrpProvider> {
 ///
 /// It isn't 100% correct since we don't track changes to the passwd/group databases.
 /// That might not be OK everywhere, but it is OK in this application.
-static CACHE: Lazy<Mutex<TrustedUsersCache<PwdGrp>>> =
-    Lazy::new(|| Mutex::new(TrustedUsersCache::default()));
+static CACHE: LazyLock<Mutex<TrustedUsersCache<PwdGrp>>> =
+    LazyLock::new(|| Mutex::new(TrustedUsersCache::default()));
 
 /// Convert an [`io::Error `] representing a user/group handling failure into an [`Error`]
 fn handle_pwd_error(e: io::Error) -> Error {

@@ -86,7 +86,7 @@ pub mod macro_prelude {
         ratelim::{rt::rt_support, RateLim},
         Activity, Loggable,
     };
-    pub use once_cell::sync::Lazy;
+    pub use std::sync::LazyLock;
     pub use std::sync::{Arc, Mutex, Weak};
     pub use tor_error::ErrorReport;
     pub use tracing;

@@ -18,7 +18,7 @@ use tor_checkable::{signed, timed};
 use tor_llcrypto::pk::rsa;
 use tor_llcrypto::{d, pk, pk::rsa::RsaIdentity};
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use std::{net, time};
 
@@ -46,7 +46,7 @@ decl_keyword! {
 
 /// Rules about entries that must appear in an AuthCert, and how they must
 /// be formed.
-static AUTHCERT_RULES: Lazy<SectionRules<AuthCertKwd>> = Lazy::new(|| {
+static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
     use AuthCertKwd::*;
 
     let mut rules = SectionRules::builder();

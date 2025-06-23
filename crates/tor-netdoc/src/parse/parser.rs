@@ -324,10 +324,10 @@ mod test {
     use crate::parse::macros::test::Fruit;
     use crate::parse::tokenize::{Item, NetDocReader};
     use crate::{Error, NetdocErrorKind as EK, Result};
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
     /// Rules for parsing a set of router annotations.
-    static FRUIT_SALAD: Lazy<SectionRules<Fruit>> = Lazy::new(|| {
+    static FRUIT_SALAD: LazyLock<SectionRules<Fruit>> = LazyLock::new(|| {
         use Fruit::*;
         let mut rules = SectionRules::builder();
         rules.add(ANN_TASTY.rule().required().args(1..=1));

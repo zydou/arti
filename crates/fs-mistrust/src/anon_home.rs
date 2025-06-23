@@ -11,10 +11,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 /// Cached value of our observed home directory.
-static HOMEDIRS: Lazy<Vec<PathBuf>> = Lazy::new(default_homedirs);
+static HOMEDIRS: LazyLock<Vec<PathBuf>> = LazyLock::new(default_homedirs);
 
 /// Return a list of home directories in official and canonical forms.
 fn default_homedirs() -> Vec<PathBuf> {

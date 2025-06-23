@@ -20,7 +20,6 @@ full = ["tor-error/full", "tor-rtcompat/full"]
 
 futures = "0.3.14"
 humantime = "2"
-once_cell = "1.18"
 thiserror = "2"
 tor-error = { path = "../tor-error", version = "0.31.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.31.0" }
