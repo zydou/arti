@@ -651,7 +651,7 @@ impl ConfluxSet {
 
     /// Return the best leg according to the configured desired UX.
     ///
-    /// Returns `None` if no suitable was found.
+    /// Returns `None` if no suitable leg was found.
     #[cfg(feature = "conflux")]
     fn select_primary_leg(&self) -> Result<Option<UniqId>, Bug> {
         match self.desired_ux {
