@@ -303,6 +303,12 @@ pub trait Blocking: Clone + Send + Sync + 'static {
         T: Send + 'static;
 
     /// Future from [`spawn_blocking`](Self::spawn_blocking)
+    ///
+    /// The function callback (`f: F` in [`spawn_blocking`](Self::spawn_blocking)
+    /// will start to run regardless of whether this future is awaited.
+    ///
+    /// Dropping this future doesn't stop the callback; it detaches it:
+    /// the function will continue to run, but its output can no longer be collected.
     type ThreadHandle<T: Send + 'static>: Future<Output = T>;
 
     /// Block on a future, from within `Blocking::spawn_blocking`
@@ -361,6 +367,9 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     ///    the amount of cpu time used).
     ///    Use `spawn_blocking` for that.
     ///  * Performance better than using `spawn_blocking` each time is not guaranteed.
+    ///
+    /// Otherwise the semantics are the same as
+    /// [`spawn_blocking`](Self::spawn_blocking).
     ///
     /// ### Panics
     ///
