@@ -1,4 +1,4 @@
-//! The `key` subcommand.
+//! The `keys` subcommand.
 
 use std::str::FromStr;
 
@@ -17,7 +17,7 @@ const LINE_LEN: usize = 80;
 /// The `keys` subcommands the arti CLI will be augmented with.
 #[derive(Debug, Parser)]
 pub(crate) enum KeysSubcommands {
-    /// Return the identity key for the specified service.
+    /// Run keystore management commands.
     #[command(subcommand)]
     Keys(KeysSubcommand),
 }
