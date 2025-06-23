@@ -435,6 +435,12 @@ impl tor_error::HasKind for HsDescError {
 
 impl HsDescError {
     /// Return true if this error is one that we should report as a suspicious event.
+    ///
+    /// Note that this is a defense-in-depth check
+    /// for resisting descriptor-length inflation attacks:
+    /// Our limits on total download size and/or total cell counts are the defense
+    /// that really matters.
+    /// (See prop360 for more information.)
     pub fn should_report_as_suspicious(&self) -> bool {
         use crate::NetdocErrorKind as EK;
         use HsDescError as E;
