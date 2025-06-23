@@ -442,9 +442,14 @@ impl HsDescError {
         match self {
             E::OuterParsing(e) => match e.netdoc_error_kind() {
                 EK::ExtraneousSpace => true,
+                EK::WrongEndingToken => true,
+                EK::MissingKeyword => true,
                 _ => false,
             },
-            E::OuterValidation(_) => false,
+            E::OuterValidation(e) => match e.netdoc_error_kind() {
+                EK::BadSignature => true,
+                _ => false,
+            },
             E::MissingDecryptionKey => false,
             E::WrongDecryptionKey => false,
             E::DecryptionFailed => false,
