@@ -19,7 +19,10 @@ async fn main() -> Result<()> {
 
     // You can run this example with any arbitrary HTTP/1.1 (raw or within TLS) URL, but we'll default to check.torproject.org
     // because it's a good way of demonstrating that the connection is via Tor.
-    let url: Uri = TEST_URL.parse().unwrap();
+    let url: Uri = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| TEST_URL.into())
+        .parse()?;
     let host = url.host().unwrap();
     let https = url.scheme() == Some(&Scheme::HTTPS);
 
