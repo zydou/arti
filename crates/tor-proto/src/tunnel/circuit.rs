@@ -3561,6 +3561,12 @@ pub(crate) mod test {
         // This is allowed to fail, because the other leg might have exited first.
         let _ = done_tx.send(());
 
+        // Ensure we received all the switch cells we were expecting
+        assert!(
+            expect_switch.is_empty(),
+            "expect_switch = {expect_switch:?}"
+        );
+
         ConfluxEndpointResult::Relay { circ }
     }
 
