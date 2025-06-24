@@ -3415,15 +3415,6 @@ pub(crate) mod test {
 
         let mut rtt_delays = rtt_delays.into_iter();
 
-        // Do the conflux handshake
-        good_exit_handshake(
-            &runtime,
-            rtt_delays.next().flatten(),
-            &mut circ.chan_rx,
-            &mut circ.circ_tx,
-        )
-        .await;
-
         // Expect the client to open a stream, and de-multiplex the received stream data
         let stream_len = stream_state.lock().unwrap().expected_data_len;
         let mut data_cells_received = 0_usize;
@@ -3677,10 +3668,26 @@ pub(crate) mod test {
             ];
 
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
-            for (circ, done_tx, done_rx, expect_switch, rtt_delays, is_sending_leg) in
+            for (mut circ, done_tx, done_rx, expect_switch, mut rtt_delays, is_sending_leg) in
                 relays.into_iter()
             {
                 let leg = circ.unique_id;
+
+                // Do the conflux handshake
+                //
+                // We do this outside of run_conflux_endpoint,
+                // toa void running both handshakes at concurrently
+                // (this gives more predictable RTT delays:
+                // if both handshake tasks run at once, they race
+                // to advance the mock runtime's clock)
+                good_exit_handshake(
+                    &relay_runtime,
+                    rtt_delays.next().flatten(),
+                    &mut circ.chan_rx,
+                    &mut circ.circ_tx,
+                )
+                .await;
+
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
                     runtime: Arc::clone(&relay_runtime),
                     tunnel: Arc::clone(&tunnel),
