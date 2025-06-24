@@ -76,9 +76,8 @@ async fn main() -> Result<()> {
     let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
     eprintln!("[+] Onion address: {}", service.onion_address().expect("Onion address not found"));
 
-    // Wait until the service is believed to be fully reachable.
-    // `is_fully_reachable` is no guarantee that the service is reachable or not.
-    // The service might still be accessible after the timeout and you can attempt visiting.
+    // `is_fully_reachable` might remain false even if the service is reachable in practice;
+    // after a timeout, we stop waiting for that and try anyway.
     let timeout_seconds = 60;
     eprintln!(
         "[+] Waiting for onion service to be reachable. Please wait {} seconds...\r",
