@@ -74,7 +74,10 @@ async fn main() -> Result<()> {
         .build()
         .unwrap();
     let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
-    eprintln!("[+] Onion address: {}", service.onion_address().expect("Onion address not found"));
+    eprintln!(
+        "[+] Onion address: {}",
+        service.onion_address().expect("Onion address not found")
+    );
 
     // `is_fully_reachable` might remain false even if the service is reachable in practice;
     // after a timeout, we stop waiting for that and try anyway.
@@ -84,14 +87,14 @@ async fn main() -> Result<()> {
         timeout_seconds
     );
     let status_stream = service.status_events();
-    let mut binding = status_stream
-    .filter(|status| futures::future::ready(status.state().is_fully_reachable()));
+    let mut binding =
+        status_stream.filter(|status| futures::future::ready(status.state().is_fully_reachable()));
     match tokio::time::timeout(tokio::time::Duration::from_secs(timeout_seconds), binding.next()).await {
         Ok(Some(_)) => eprintln!("[+] Onion service is fully reachable."),
         Ok(None) => eprintln!("[-] Status stream ended unexpectedly."),
         Err(_) => eprintln!("[-] Timeout waiting for service to become reachable. You can still attempt to visit the service."),
     }
-    
+
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)
         .take_until(handler.shutdown.cancelled());
     tokio::pin!(stream_requests);
