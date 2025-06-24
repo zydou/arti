@@ -713,7 +713,7 @@ impl ConfluxSet {
                     best = Some((leg_id, ewma_rtt));
                 }
                 Some(best_so_far) => {
-                    if best_so_far.1 < ewma_rtt {
+                    if best_so_far.1 <= ewma_rtt {
                         best = Some(best_so_far);
                     } else {
                         best = Some((leg_id, ewma_rtt));
