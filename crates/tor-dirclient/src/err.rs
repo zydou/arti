@@ -239,11 +239,12 @@ impl RequestError {
     /// along with the dirserver and description of the relevant document,
     /// if the request was made anonymously.
     pub fn should_report_as_suspicious_if_anon(&self) -> bool {
+        use tor_proto::Error as PE;
         match self {
             RequestError::ResponseTooLong(_) => true,
             RequestError::HeadersTooLong(_) => true,
-            RequestError::Proto(_) => false, // TODO prop360.
-
+            RequestError::Proto(PE::ExcessInboundCells) => true,
+            RequestError::Proto(_) => false,
             RequestError::DirTimeout => false,
             RequestError::TruncatedHeaders => false,
             RequestError::Utf8Encoding(_) => false,
