@@ -651,7 +651,7 @@ impl ConfluxSet {
 
     /// Return the best leg according to the configured desired UX.
     ///
-    /// Returns `None` if no suitable was found.
+    /// Returns `None` if no suitable leg was found.
     #[cfg(feature = "conflux")]
     fn select_primary_leg(&self) -> Result<Option<UniqId>, Bug> {
         match self.desired_ux {
@@ -664,7 +664,7 @@ impl ConfluxSet {
                 self.select_primary_leg_min_rtt(false)
             }
             _ => {
-                // Default to MIN_RTT if we don't recognized the desired UX value
+                // Default to MIN_RTT if we don't recognize the desired UX value
                 warn!(
                     tunnel_id = %self.tunnel_id,
                     "Ignoring unrecognized conflux desired UX {}, using MIN_LATENCY",
