@@ -24,6 +24,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
     rng: &mut Rng,
     key_rng: &mut KeyRng,
     now: SystemTime,
+    max_hsdesc_len: usize,
 ) -> Result<VersionedDescriptor, FatalError> {
     // TODO: should this be configurable? If so, we should read it from the svc config.
     //
@@ -131,7 +132,8 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
         .lifetime(((ipt_set.lifetime.as_secs() / 60) as u16).into())
         .revision_counter(revision_counter)
         .subcredential(subcredential)
-        .auth_clients(auth_clients.as_deref());
+        .auth_clients(auth_clients.as_deref())
+        .max_generated_len(max_hsdesc_len);
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "hs-pow-full")] {
@@ -147,9 +149,10 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
         }
     }
 
-    let desc = desc
-        .build_sign(rng)
-        .map_err(|e| into_internal!("failed to build descriptor")(e))?;
+    let desc = desc.build_sign(rng).map_err(|e| match e {
+        tor_bytes::EncodeError::BadLengthValue => FatalError::HsDescTooLong,
+        e => into_internal!("failed to build descriptor")(e).into(),
+    })?;
 
     Ok(VersionedDescriptor {
         desc,

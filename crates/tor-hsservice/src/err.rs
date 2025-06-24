@@ -255,6 +255,10 @@ pub enum FatalError {
     #[cfg(feature = "restricted-discovery")]
     RestrictedDiscoveryNoClients,
 
+    /// Descriptor was too long to upload
+    #[error("HsDesc was too large to upload: try fewer authorized clients or introduction points")]
+    HsDescTooLong,
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
@@ -287,6 +291,7 @@ impl HasKind for FatalError {
             FE::MissingField(_) => EK::BadApiUsage,
             #[cfg(feature = "restricted-discovery")]
             FE::RestrictedDiscoveryNoClients => EK::InvalidConfig,
+            FE::HsDescTooLong => EK::InvalidConfig,
             FE::Bug(e) => e.kind(),
         }
     }

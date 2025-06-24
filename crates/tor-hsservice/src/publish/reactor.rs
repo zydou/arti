@@ -1495,6 +1495,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             Fatal(#[from] FatalError),
         }
 
+        let max_hsdesc_len: usize = netdir
+            .params()
+            .hsdir_max_desc_size
+            .try_into()
+            .expect("Unable to convert positive int32 to usize!?");
+
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
@@ -1593,6 +1599,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 &mut rng,
                                 &mut key_rng,
                                 imm.runtime.wallclock(),
+                                max_hsdesc_len,
                             )?
                         };
 
