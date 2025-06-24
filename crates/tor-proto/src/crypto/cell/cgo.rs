@@ -580,12 +580,10 @@ where
         CryptState::<EtBC, PrfBC>::seed_len() * 2 + crate::crypto::binding::CIRC_BINDING_LEN
     }
     fn initialize(seed: &[u8]) -> crate::Result<Self> {
-        assert_eq!(EtBC::KEY_LEN, PrfBC::KEY_LEN);
-        // TODO MSRV 1.79: Replace the above assertion with this.
-        // const {
-        //    // can't use assert_eq!() in const
-        //    assert!(EtBC::KEY_LEN == PrfBC::KEY_LEN);
-        // }
+        const {
+            // can't use assert_eq!() in const
+            assert!(EtBC::KEY_LEN == PrfBC::KEY_LEN);
+        }
         if seed.len() != Self::seed_len() {
             return Err(internal!("Invalid seed length").into());
         }
