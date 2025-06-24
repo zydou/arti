@@ -963,10 +963,16 @@ impl ConfluxSet {
                     )));
                 }
 
+                let old_primary_leg = self.primary_id;
                 // Check if it's time to switch our primary leg.
                 #[cfg(feature = "conflux")]
                 if let Some(switch_cell) = self.maybe_update_primary_leg()? {
-                    //tracing::trace!("{}: Switching primary conflux leg...", self.unique_id);
+                    trace!(
+                        old = ?old_primary_leg,
+                        new = ?self.primary_id,
+                        "Switching primary conflux leg..."
+                    );
+
                     self.primary_leg_mut()?.send_relay_cell(switch_cell).await?;
                 }
 
