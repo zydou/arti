@@ -614,6 +614,11 @@ impl ConfluxSet {
             into_internal!("Seqno delta for switch does not fit in u32?!"),
         )?;
 
+        // We need to carry the last_seq_sent over to the next leg
+        // (the next cell sent will have seqno = prev_last_seq_sent + 1)
+        self.primary_leg_mut()?
+            .set_last_seq_sent(prev_last_seq_sent)?;
+
         let switch = ConfluxSwitch::new(seqno_delta);
         let cell = AnyRelayMsgOuter::new(None, switch.into());
         Ok(Some(SendRelayCell {

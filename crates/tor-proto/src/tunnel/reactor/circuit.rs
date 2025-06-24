@@ -718,6 +718,20 @@ impl Circuit {
         Ok(handler.last_seq_sent())
     }
 
+    /// For conflux: set the sequence number of the last cell sent on this leg.
+    ///
+    /// Returns an error if this circuit is not part of a conflux set.
+    #[cfg(feature = "conflux")]
+    pub(super) fn set_last_seq_sent(&mut self, n: u64) -> Result<()> {
+        let handler = self
+            .conflux_handler
+            .as_mut()
+            .ok_or_else(|| internal!("tried to get last_seq_sent of non-conflux circ"))?;
+
+        handler.set_last_seq_sent(n);
+        Ok(())
+    }
+
     /// For conflux: return the sequence number of the last cell received on this leg.
     ///
     /// Returns an error if this circuit is not part of a conflux set.
