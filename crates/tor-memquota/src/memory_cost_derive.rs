@@ -96,8 +96,8 @@ macro_rules! memory_cost_structural_copy { { $($ty:ty),* $(,)? } => { $(
 memory_cost_structural_copy! {
     u8, u16, u32, u64, usize,
     i8, i16, i32, i64, isize,
-    // TODO MSRV 1.79: use std::num::NonZero<_> and avoid all these qualified
-    // names
+    // Generic NonZero<T> impl isn't possible, so we use qualified types. See:
+    // https://github.com/rust-lang/rust/issues/142966
     std::num::NonZeroU8, std::num::NonZeroU16, std::num::NonZeroU32, std::num::NonZeroU64,
     std::num::NonZeroI8, std::num::NonZeroI16, std::num::NonZeroI32, std::num::NonZeroI64,
     std::num::NonZeroUsize,
