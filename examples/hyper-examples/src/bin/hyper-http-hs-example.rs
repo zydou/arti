@@ -7,7 +7,6 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
 use arti_client::{TorClient, TorClientConfig};
@@ -17,15 +16,13 @@ use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_hsservice::StreamRequest;
 use tor_proto::stream::IncomingStreamRequest;
 
-use std::io::Write;
-
 struct WebHandler {
     shutdown: CancellationToken,
 }
 
 impl WebHandler {
     async fn serve(&self, request: Request<Incoming>) -> Result<Response<String>> {
-        eprintln!("[+] Incoming request: {:?}", request);
+        println!("[+] Incoming request: {:?}", request);
 
         let path = request.uri().path();
 
@@ -77,58 +74,25 @@ async fn main() -> Result<()> {
         .build()
         .unwrap();
     let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
+    eprintln!("[+] Onion address: {}", service.onion_address().expect("Onion address not found"));
 
     // Wait until the service is believed to be fully reachable.
-    // `is_fully_reachable` is no guarantee that the service is reachable or not, so we implement
-    // a timeout to avoid waiting indefinitely.
-    let timeout = tokio::time::Duration::from_secs(60);
-    let start = tokio::time::Instant::now();
-    let mut status_stream = service.status_events();
-
-    eprint!(
-        "[+] Waiting for onion service to be reachable. Please wait {} seconds...\r",
-        timeout.as_secs()
-    );
-    loop {
-        let elapsed = tokio::time::Instant::now().duration_since(start);
-        let remaining = timeout.checked_sub(elapsed).unwrap_or_default();
-
-        // If the timeout has elapsed we stop checking the status of the onion service.
-        // Because `is_fully_reachable` is no guarantee, the service may still be reachable.
-        if remaining.is_zero() {
-            eprintln!(
-                "[-] Timeout for status check reached. Still trying to serve onion address..."
-            );
-            break;
-        }
-
-        tokio::select! {
-            // Check status of onion service.
-            // Note that `is_fully_reachable` is not a guarantee that the service is reachable or not.
-            maybe_status = status_stream.next() => {
-                if let Some(status) = maybe_status {
-                    if status.state().is_fully_reachable() {
-                        break;
-                    }
-                } else {
-                    eprintln!("[-] Status stream ended unexpectedly.");
-                    break;
-                }
-            }
-
-            // Output remaining seconds until timeout.
-            _ = sleep(tokio::time::Duration::from_secs(1)) => {
-                eprint!("[+] Waiting for onion service to be reachable. Please wait {} seconds...\r", remaining.as_secs());
-                std::io::stdout().flush().unwrap();
-            }
-        }
-    }
-
+    // `is_fully_reachable` is no guarantee that the service is reachable or not.
+    // The service might still be accessible after the timeout and you can attempt visiting.
+    let timeout_seconds = 60;
     eprintln!(
-        "\n\n[+] Onion service is reachable at: {}",
-        service.onion_address().expect("Onion address not found")
+        "[+] Waiting for onion service to be reachable. Please wait {} seconds...\r",
+        timeout_seconds
     );
-
+    let status_stream = service.status_events();
+    let mut binding = status_stream
+    .filter(|status| futures::future::ready(status.state().is_fully_reachable()));
+    match tokio::time::timeout(tokio::time::Duration::from_secs(timeout_seconds), binding.next()).await {
+        Ok(Some(_)) => eprintln!("[+] Onion service is fully reachable."),
+        Ok(None) => eprintln!("[-] Status stream ended unexpectedly."),
+        Err(_) => eprintln!("[-] Timeout waiting for service to become reachable. You can still attempt to visit the service."),
+    }
+    
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)
         .take_until(handler.shutdown.cancelled());
     tokio::pin!(stream_requests);
