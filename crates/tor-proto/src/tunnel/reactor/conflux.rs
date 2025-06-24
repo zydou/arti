@@ -12,7 +12,7 @@ use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
 use smallvec::{smallvec, SmallVec};
 use tor_rtcompat::SleepProviderExt as _;
-use tracing::warn;
+use tracing::{info, trace, warn};
 
 use tor_async_utils::SinkPrepareExt as _;
 use tor_basic_utils::flatten;
@@ -736,6 +736,52 @@ impl ConfluxSet {
         &'a mut self,
         runtime: &'a tor_rtcompat::DynTimeProvider,
     ) -> impl Future<Output = Result<CircuitAction, crate::Error>> + 'a {
+        let is_blocked_on_cc = |leg: &Circuit, hop| {
+            let Some(join_point) = leg.hop(hop) else {
+                // TODO: return an error?
+                warn!(
+                    tunnel_id = %self.tunnel_id,
+                    circ_id = %leg.unique_id(),
+                    hop = %hop.display(),
+                    "Join point hop not found on circuit?!"
+                );
+                return false;
+            };
+
+            !join_point.ccontrol().can_send()
+        };
+
+        let all_blocked_on_cc = self.legs.iter_mut().all(|leg| {
+            let Some(join_hop) = self.join_point.as_ref().map(|join_point| join_point.hop) else {
+                return false;
+            };
+
+            is_blocked_on_cc(leg, join_hop)
+        });
+
+        let primary_join_point = self.primary_join_point();
+        let primary_blocked_on_cc = {
+            if let Some((primary_id, hopnum)) = primary_join_point {
+                if let Some(leg) = self.leg(primary_id) {
+                    is_blocked_on_cc(leg, hopnum)
+                } else {
+                    // TODO: return an error?
+                    warn!(
+                        tunnel_id = %self.tunnel_id,
+                        circ_id = %primary_id,
+                        "Sending leg disappeared?!"
+                    );
+
+                    false
+                }
+            } else {
+                false
+            }
+        };
+
+        #[cfg(feature = "conflux")]
+        let desired_ux = self.desired_ux;
+
         self.legs
             .iter_mut()
             .map(|leg| {
@@ -766,9 +812,49 @@ impl ConfluxSet {
                 let send_fut = leg.chan_sender.prepare_send_from(async move {
                     // A future to wait for the next ready stream.
                     let next_ready_stream = async {
+                        cfg_if::cfg_if! {
+                            if #[cfg(feature = "conflux")] {
+                                let stop_ready_streams_poll = if all_blocked_on_cc {
+                                        // All legs are blocked on cc, so we must stop reading from
+                                        // the edge connection for now.
+                                        Some("all legs blocked on congestion control")
+                                    } else if primary_blocked_on_cc && desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
+                                        // The primary leg is blocked on cc, and we can't switch because we're
+                                        // using the high throughput algorithm, so we must stop reading
+                                        // from the edge connection.
+                                        //
+                                        // Note: if the selected algorithm is HIGH_THROUGHPUT,
+                                        // it's okay to continue reading from the edge connection,
+                                        // because maybe_update_primary_leg() will select a new,
+                                        // non-blocked primary leg, just before sending.
+                                        Some("sending leg blocked on congestion control")
+                                    } else {
+                                        // We can continue reading from the edge connection
+                                        None
+                                    };
+                            } else {
+                                // If conflux is disabled, there's no reason to
+                                // stop reading from the streams of our only circuit.
+                                let stop_ready_streams_poll: Option<&str> = None;
+                            }
+                        };
+
+                        if let Some(reason) = stop_ready_streams_poll {
+                            trace!(
+                                tunnel_id = %tunnel_id,
+                                join_point = ?primary_join_point,
+                                reason = %reason,
+                                "Pausing edge connection reads"
+                            );
+
+                            let () = std::future::pending().await;
+                            unreachable!();
+                        }
+
                         match ready_streams.next().await {
                             Some(x) => x,
                             None => {
+                                info!(circ_id=%unique_id, "no ready streams (maybe blocked on cc?)");
                                 // There are no ready streams (for example, they may all be
                                 // blocked due to congestion control), so there is nothing
                                 // to do.
