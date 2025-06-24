@@ -408,6 +408,28 @@ pub struct CircParameters {
     pub extend_by_ed25519_id: bool,
     /// Congestion control parameters for this circuit.
     pub ccontrol: CongestionControlParams,
+
+    /// Maximum number of permitted incoming relay cells for each hop.
+    ///
+    /// If we would receive more relay cells than this from a single hop,
+    /// we close the circuit with [`ExcessInboundCells`](Error::ExcessInboundCells).
+    ///
+    /// If this value is None, then there is no limit to the number of inbound cells.
+    ///
+    /// Known limitation: If this value if `u32::MAX`,
+    /// then a limit of `u32::MAX - 1` is enforced.
+    pub n_incoming_cells_permitted: Option<u32>,
+
+    /// Maximum number of permitted outgoing relay cells for each hop.
+    ///
+    /// If we would try to send more relay cells than this from a single hop,
+    /// we close the circuit with [`ExcessOutboundCells`](Error::ExcessOutboundCells).
+    ///
+    /// If this value is None, then there is no limit to the number of outbound cells.
+    ///
+    /// Known limitation: If this value if `u32::MAX`,
+    /// then a limit of `u32::MAX - 1` is enforced.
+    pub n_outgoing_cells_permitted: Option<u32>,
 }
 
 /// The settings we use for single hop of a circuit.
@@ -425,6 +447,12 @@ pub struct CircParameters {
 pub(super) struct HopSettings {
     /// The negotiated congestion control settings for this circuit.
     pub(super) ccontrol: CongestionControlParams,
+
+    /// Maximum number of permitted incoming relay cells for this hop.
+    pub(super) n_incoming_cells_permitted: Option<u32>,
+
+    /// Maximum number of permitted outgoing relay cells for this hop.
+    pub(super) n_outgoing_cells_permitted: Option<u32>,
 }
 
 impl HopSettings {
@@ -444,6 +472,8 @@ impl HopSettings {
     ) -> Result<Self> {
         let mut settings = Self {
             ccontrol: params.ccontrol.clone(),
+            n_incoming_cells_permitted: params.n_incoming_cells_permitted,
+            n_outgoing_cells_permitted: params.n_outgoing_cells_permitted,
         };
 
         match settings.ccontrol.alg() {
@@ -477,6 +507,8 @@ impl std::default::Default for CircParameters {
         Self {
             extend_by_ed25519_id: true,
             ccontrol: crate::congestion::test_utils::params::build_cc_fixed_params(),
+            n_incoming_cells_permitted: None,
+            n_outgoing_cells_permitted: None,
         }
     }
 }
@@ -487,6 +519,8 @@ impl CircParameters {
         Self {
             extend_by_ed25519_id,
             ccontrol,
+            n_incoming_cells_permitted: None,
+            n_outgoing_cells_permitted: None,
         }
     }
 }

@@ -411,6 +411,12 @@ impl Circuit {
         let stream_id = msg.stream_id();
         let circhop = self.hops.get_mut(hop).ok_or(Error::NoSuchHop)?;
 
+        // We might be out of capacity entirely; see if we are about to hit a limit.
+        //
+        // TODO: If we ever add a notion of _recoverable_ errors below, we'll
+        // need a way to restore this limit, and similarly for take_capacity_to_send().
+        circhop.decrement_outbound_cell_limit()?;
+
         // We need to apply stream-level flow control *before* encoding the message.
         if c_t_w {
             if let Some(stream_id) = stream_id {
@@ -521,6 +527,11 @@ impl Circuit {
         cell: Relay,
     ) -> Result<Vec<CircuitCmd>> {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
+
+        // Check whether we are allowed to receive more data for this circuit hop.
+        self.hop_mut(hopnum)
+            .ok_or_else(|| internal!("nonexistent hop {:?}", hopnum))?
+            .decrement_inbound_cell_limit()?;
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
 
