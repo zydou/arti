@@ -3288,9 +3288,9 @@ pub(crate) mod test {
     /// Run a conflux test endpoint.
     #[cfg(feature = "conflux")]
     #[derive(Debug)]
-    enum ConfluxTestEndpoint {
+    enum ConfluxTestEndpoint<I: Iterator<Item = Option<Duration>>> {
         /// Pretend to be an exit relay.
-        Relay(ConfluxExitState),
+        Relay(ConfluxExitState<I>),
         /// Client task.
         Client {
             /// Channel for receiving the outcome of the conflux handshakes.
@@ -3338,19 +3338,17 @@ pub(crate) mod test {
     /// The state of a mock exit.
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
-    struct ConfluxExitState {
+    struct ConfluxExitState<I: Iterator<Item = Option<Duration>>> {
         /// The runtime.
         runtime: Arc<AsyncMutex<MockRuntime>>,
         /// The client view of the tunnel.
         tunnel: Arc<ClientCirc>,
         /// The circuit test context.
         circ: TestCircuitCtx,
-        /// The RTT delay to introduce just before sending the LINKED cell.
-        init_rtt_delay: Option<Duration>,
-        /// The RTT delay to introduce just before sending a SENDME.
+        /// The RTT delay to introduce just before each SENDME.
         ///
         /// Used to trigger the client to send a SWITCH.
-        rtt_delay: Option<Duration>,
+        rtt_delays: I,
         /// State of the (only) expected stream on this tunnel,
         /// shared by all the mock exit endpoints.
         stream_state: Arc<Mutex<ConfluxStreamState>>,
@@ -3400,13 +3398,14 @@ pub(crate) mod test {
     }
 
     #[cfg(feature = "conflux")]
-    async fn run_mock_conflux_exit(state: ConfluxExitState) -> ConfluxEndpointResult {
+    async fn run_mock_conflux_exit<I: Iterator<Item = Option<Duration>>>(
+        state: ConfluxExitState<I>,
+    ) -> ConfluxEndpointResult {
         let ConfluxExitState {
             runtime,
             tunnel,
             mut circ,
-            init_rtt_delay,
-            rtt_delay,
+            rtt_delays,
             stream_state,
             mut expect_switch,
             done_tx,
@@ -3414,10 +3413,12 @@ pub(crate) mod test {
             is_sending_leg,
         } = state;
 
+        let mut rtt_delays = rtt_delays.into_iter();
+
         // Do the conflux handshake
         good_exit_handshake(
             &runtime,
-            init_rtt_delay,
+            rtt_delays.next().flatten(),
             &mut circ.chan_rx,
             &mut circ.circ_tx,
         )
@@ -3529,7 +3530,7 @@ pub(crate) mod test {
 
                         // Introduce an artificial delay, to make one circ have worse RTT
                         // than the other, and thus trigger a SWITCH
-                        if let Some(rtt_delay) = rtt_delay {
+                        if let Some(rtt_delay) = rtt_delays.next().flatten() {
                             runtime.lock().await.advance_by(rtt_delay).await;
                         }
                         // Make and send a circuit-level SENDME
@@ -3596,7 +3597,9 @@ pub(crate) mod test {
     }
 
     #[cfg(feature = "conflux")]
-    async fn run_conflux_endpoint(endpoint: ConfluxTestEndpoint) -> ConfluxEndpointResult {
+    async fn run_conflux_endpoint<I: Iterator<Item = Option<Duration>>>(
+        endpoint: ConfluxTestEndpoint<I>,
+    ) -> ConfluxEndpointResult {
         match endpoint {
             ConfluxTestEndpoint::Relay(state) => run_mock_conflux_exit(state).await,
             ConfluxTestEndpoint::Client {
@@ -3644,6 +3647,11 @@ pub(crate) mod test {
             // of stream transfer completion.
             let (tx1, rx1) = oneshot::channel();
             let (tx2, rx2) = oneshot::channel();
+
+            // Note: the first delay is the init_rtt delay (measured during the conflux HS).
+            let circ1_rtt_delays = [None, Some(Duration::from_millis(300))].into_iter();
+            let circ2_rtt_delays = [Some(Duration::from_millis(200)), None].into_iter();
+
             // Note: we can't have two advance_by() calls running
             // at the same time (it's a limitation of MockRuntime),
             // so we need to be careful to not cause concurrent delays
@@ -3656,8 +3664,7 @@ pub(crate) mod test {
                     // We expect the client to start sending on the leg with no initial RTT delay,
                     // and then switch to the one with the lower overall RTT
                     vec![2],
-                    None,
-                    Some(Duration::from_millis(300)),
+                    circ1_rtt_delays,
                     true,
                 ),
                 (
@@ -3665,8 +3672,7 @@ pub(crate) mod test {
                     tx2,
                     rx1,
                     vec![1],
-                    Some(Duration::from_millis(200)),
-                    None,
+                    circ2_rtt_delays,
                     false,
                 ),
             ];
@@ -3677,8 +3683,7 @@ pub(crate) mod test {
                 done_tx,
                 done_rx,
                 expect_switch,
-                init_rtt_delay,
-                rtt_delay,
+                rtt_delays,
                 is_sending_leg,
             ) in relays.into_iter()
             {
@@ -3687,8 +3692,7 @@ pub(crate) mod test {
                     runtime: Arc::clone(&relay_runtime),
                     tunnel: Arc::clone(&tunnel),
                     circ,
-                    init_rtt_delay,
-                    rtt_delay,
+                    rtt_delays,
                     stream_state: Arc::clone(&stream_state),
                     expect_switch,
                     done_tx,
