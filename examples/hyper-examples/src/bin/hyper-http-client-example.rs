@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
 
     let stream = tor_client.connect((host, port)).await?;
 
-    // The rest is just standard usage of Hyper.
+    // Following part is just standard usage of Hyper.
     eprintln!("[+] Making request to: {}", url);
 
     if https {
