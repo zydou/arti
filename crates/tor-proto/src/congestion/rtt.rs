@@ -91,18 +91,16 @@ impl RoundtripTimeEstimator {
         self.clock_stalled.load(Ordering::SeqCst)
     }
 
-    /// Return the EWMA RTT in usec or u32 MAX if we don't have an estimate yet.
-    pub(crate) fn ewma_rtt_usec(&self) -> u32 {
+    /// Return the EWMA RTT in usec or `None` if we don't have an estimate yet.
+    pub(crate) fn ewma_rtt_usec(&self) -> Option<u32> {
         self.ewma_rtt
-            .and_then(|rtt| u32::try_from(rtt.as_micros()).ok())
-            .unwrap_or(u32::MAX)
+            .map(|rtt| u32::try_from(rtt.as_micros()).ok().unwrap_or(u32::MAX))
     }
 
-    /// Return the Minimum RTT in usec or u32 MAX value if we don't have an estimate yet.
-    pub(crate) fn min_rtt_usec(&self) -> u32 {
+    /// Return the Minimum RTT in usec or `None` if we don't have an estimate yet.
+    pub(crate) fn min_rtt_usec(&self) -> Option<u32> {
         self.min_rtt
-            .and_then(|rtt| u32::try_from(rtt.as_micros()).ok())
-            .unwrap_or(u32::MAX)
+            .map(|rtt| u32::try_from(rtt.as_micros()).ok().unwrap_or(u32::MAX))
     }
 
     /// Inform the estimator that we did (at time `now`) something that we'll expect a SENDME to

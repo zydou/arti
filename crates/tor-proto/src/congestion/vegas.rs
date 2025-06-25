@@ -55,10 +55,12 @@ impl BdpEstimator {
             // higher than the current cwnd, it will underestimate it.
             //
             // To clarify this is equivalent to: cwnd * min_rtt / ewma_rtt.
+            let min_rtt_usec = rtt.min_rtt_usec().unwrap_or(u32::MAX);
+            let ewma_rtt_usec = rtt.ewma_rtt_usec().unwrap_or(u32::MAX);
             self.bdp = cwnd
                 .get()
-                .saturating_mul(rtt.min_rtt_usec())
-                .saturating_div(rtt.ewma_rtt_usec());
+                .saturating_mul(min_rtt_usec)
+                .saturating_div(ewma_rtt_usec);
         }
     }
 }
@@ -443,8 +445,8 @@ pub(crate) mod test {
                 .sendme_received(&mut self.state, &mut self.rtt, signals);
             assert!(ret.is_ok());
 
-            assert_eq!(self.rtt.ewma_rtt_usec(), p.ewma_rtt_usec_out);
-            assert_eq!(self.rtt.min_rtt_usec(), p.min_rtt_usec_out);
+            assert_eq!(self.rtt.ewma_rtt_usec().unwrap(), p.ewma_rtt_usec_out);
+            assert_eq!(self.rtt.min_rtt_usec().unwrap(), p.min_rtt_usec_out);
             assert_eq!(self.vegas.cwnd().expect("No CWND").get(), p.cwnd_out);
             assert_eq!(
                 self.vegas.cwnd().expect("No CWND").is_full(),

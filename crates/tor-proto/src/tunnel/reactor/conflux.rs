@@ -711,7 +711,14 @@ impl ConfluxSet {
             }
 
             let rtt = ccontrol.rtt();
-            let ewma_rtt = rtt.ewma_rtt_usec();
+            let init_rtt_usec = || {
+                circ.init_rtt()
+                    .map(|rtt| u32::try_from(rtt.as_micros()).unwrap_or(u32::MAX))
+            };
+
+            let Some(ewma_rtt) = rtt.ewma_rtt_usec().or_else(init_rtt_usec) else {
+                return Err(internal!("attempted to select primary leg before HS completed?!"));
+            };
 
             match best.take() {
                 None => {
