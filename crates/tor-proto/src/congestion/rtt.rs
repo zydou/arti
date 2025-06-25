@@ -120,7 +120,7 @@ impl RoundtripTimeEstimator {
         // If we're in slow start, we don't perform any sanity checks, as per spec. If we don't
         // have a current estimate, we can't use it for sanity checking, because it doesn't
         // exist.
-        !(in_slow_start || self.ewma_rtt.is_none())
+        !in_slow_start && self.ewma_rtt.is_some()
     }
 
     /// Given a raw RTT value we just observed, compute whether or not we think the clock has
