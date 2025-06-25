@@ -3667,25 +3667,12 @@ pub(crate) mod test {
                     circ1_rtt_delays,
                     true,
                 ),
-                (
-                    circ2,
-                    tx2,
-                    rx1,
-                    vec![1],
-                    circ2_rtt_delays,
-                    false,
-                ),
+                (circ2, tx2, rx1, vec![1], circ2_rtt_delays, false),
             ];
 
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
-            for (
-                circ,
-                done_tx,
-                done_rx,
-                expect_switch,
-                rtt_delays,
-                is_sending_leg,
-            ) in relays.into_iter()
+            for (circ, done_tx, done_rx, expect_switch, rtt_delays, is_sending_leg) in
+                relays.into_iter()
             {
                 let leg = circ.unique_id;
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
