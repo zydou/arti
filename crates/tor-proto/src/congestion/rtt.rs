@@ -43,15 +43,21 @@ pub(crate) struct RoundtripTimeEstimator {
     /// long as it is within one congestion window.
     sendme_expected_from: VecDeque<Instant>,
     /// The last *measured* round-trip time.
-    last_rtt: Duration,
+    ///
+    /// This is `None` iff we have not managed to get any estimate yet.
+    last_rtt: Option<Duration>,
     /// The current smoothed *estimate* of what the round-trip time is.
     ///
-    /// This is zero iff we have not managed to get any estimate yet.
-    ewma_rtt: Duration,
+    /// This is `None` iff we have not managed to get any estimate yet.
+    ewma_rtt: Option<Duration>,
     /// The minimum observed value of `last_rtt`.
-    min_rtt: Duration,
+    ///
+    /// This is `None` iff we have not managed to get any estimate yet.
+    min_rtt: Option<Duration>,
     /// The maximum observed value of `last_rtt`.
-    max_rtt: Duration,
+    ///
+    /// This is `None` iff we have not managed to get any estimate yet.
+    max_rtt: Option<Duration>,
     /// The network parameters we're using.
     params: RoundTripEstimatorParams,
     /// A reference to a shared boolean for storing if the clock is stalled or not.
@@ -66,10 +72,10 @@ impl RoundtripTimeEstimator {
     pub(crate) fn new(params: &RoundTripEstimatorParams) -> Self {
         Self {
             sendme_expected_from: Default::default(),
-            last_rtt: Default::default(),
-            ewma_rtt: Default::default(),
-            min_rtt: Duration::ZERO,
-            max_rtt: Default::default(),
+            last_rtt: None,
+            ewma_rtt: None,
+            min_rtt: None,
+            max_rtt: None,
             params: params.clone(),
             clock_stalled: AtomicBool::default(),
         }
@@ -77,7 +83,7 @@ impl RoundtripTimeEstimator {
 
     /// Return true iff the estimator is ready to be used or read.
     pub(crate) fn is_ready(&self) -> bool {
-        !self.clock_stalled() && !self.last_rtt.is_zero()
+        !self.clock_stalled() && self.last_rtt.is_some()
     }
 
     /// Return the state of the clock stalled indicator.
@@ -87,12 +93,16 @@ impl RoundtripTimeEstimator {
 
     /// Return the EWMA RTT in usec or u32 MAX if we don't have an estimate yet.
     pub(crate) fn ewma_rtt_usec(&self) -> u32 {
-        u32::try_from(self.ewma_rtt.as_micros()).unwrap_or(u32::MAX)
+        self.ewma_rtt
+            .and_then(|rtt| u32::try_from(rtt.as_micros()).ok())
+            .unwrap_or(u32::MAX)
     }
 
     /// Return the Minimum RTT in usec or u32 MAX value if we don't have an estimate yet.
     pub(crate) fn min_rtt_usec(&self) -> u32 {
-        u32::try_from(self.min_rtt.as_micros()).unwrap_or(u32::MAX)
+        self.min_rtt
+            .and_then(|rtt| u32::try_from(rtt.as_micros()).ok())
+            .unwrap_or(u32::MAX)
     }
 
     /// Inform the estimator that we did (at time `now`) something that we'll expect a SENDME to
@@ -110,7 +120,7 @@ impl RoundtripTimeEstimator {
         // If we're in slow start, we don't perform any sanity checks, as per spec. If we don't
         // have a current estimate, we can't use it for sanity checking, because it doesn't
         // exist.
-        !(in_slow_start || self.ewma_rtt.is_zero())
+        !in_slow_start && self.ewma_rtt.is_some()
     }
 
     /// Given a raw RTT value we just observed, compute whether or not we think the clock has
@@ -121,12 +131,16 @@ impl RoundtripTimeEstimator {
             self.clock_stalled.store(true, Ordering::SeqCst);
             true
         } else if self.can_crosscheck_with_current_estimate(in_slow_start) {
+            let ewma_rtt = self
+                .ewma_rtt
+                .expect("ewma_rtt was not checked by can_crosscheck_with_current_estimate?!");
+
             /// Discrepancy ratio of a new RTT value that we allow against the current RTT in order
             /// to declare if the clock has stalled or not. This value is taken from proposal 324
             /// section 2.1.1 CLOCK_HEURISTICS and has the same name as in C-tor.
             const DELTA_DISCREPANCY_RATIO_MAX: u32 = 5000;
             // If we have enough data, check the sanity of our measurement against our EWMA value.
-            if raw_rtt > self.ewma_rtt * DELTA_DISCREPANCY_RATIO_MAX {
+            if raw_rtt > ewma_rtt * DELTA_DISCREPANCY_RATIO_MAX {
                 // The clock significantly jumped forward.
                 //
                 // Don't update the global cache, though, since this is triggerable over the
@@ -134,7 +148,7 @@ impl RoundtripTimeEstimator {
                 //
                 // FIXME(eta): We should probably log something here?
                 true
-            } else if self.ewma_rtt > raw_rtt * DELTA_DISCREPANCY_RATIO_MAX {
+            } else if ewma_rtt > raw_rtt * DELTA_DISCREPANCY_RATIO_MAX {
                 // The clock might have stalled. We can't really make a decision just off this
                 // one measurement, though, so we'll use the stored stall value.
                 self.clock_stalled.load(Ordering::SeqCst)
@@ -178,8 +192,8 @@ impl RoundtripTimeEstimator {
             return Ok(());
         }
 
-        self.max_rtt = self.max_rtt.max(raw_rtt);
-        self.last_rtt = raw_rtt;
+        self.max_rtt = self.max_rtt.max(Some(raw_rtt));
+        self.last_rtt = Some(raw_rtt);
 
         // This is the "N" for N-EWMA.
         let ewma_n = u64::from(if state.in_slow_start() {
@@ -194,7 +208,7 @@ impl RoundtripTimeEstimator {
 
         // Get the USEC values.
         let raw_rtt_usec = raw_rtt.as_micros() as u64;
-        let prev_ewma_rtt_usec = self.ewma_rtt.as_micros() as u64;
+        let prev_ewma_rtt_usec = self.ewma_rtt.map(|rtt| rtt.as_micros() as u64);
 
         // This is the actual EWMA calculation.
         // C-tor simplifies this as follows for rounding error reasons:
@@ -203,23 +217,30 @@ impl RoundtripTimeEstimator {
         //      = (value*2 + EWMA_prev*(N-1))/(N+1)
         //
         // Spec: prop324 section 2.1.2 (N_EWMA_SMOOTHING)
-        let new_ewma_rtt_usec = if prev_ewma_rtt_usec == 0 {
-            raw_rtt_usec
-        } else {
-            ((raw_rtt_usec * 2) + ((ewma_n - 1) * prev_ewma_rtt_usec)) / (ewma_n + 1)
+        let new_ewma_rtt_usec = match prev_ewma_rtt_usec {
+            None => raw_rtt_usec,
+            Some(prev_ewma_rtt_usec) => {
+                ((raw_rtt_usec * 2) + ((ewma_n - 1) * prev_ewma_rtt_usec)) / (ewma_n + 1)
+            }
         };
-        self.ewma_rtt = Duration::from_micros(new_ewma_rtt_usec);
+        let ewma_rtt = Duration::from_micros(new_ewma_rtt_usec);
+        self.ewma_rtt = Some(ewma_rtt);
 
-        if self.min_rtt.is_zero() {
+        let Some(min_rtt) = self.min_rtt else {
             self.min_rtt = self.ewma_rtt;
-        } else if cwnd.get() == cwnd.min() && !state.in_slow_start() {
+            return Ok(());
+        };
+
+        if cwnd.get() == cwnd.min() && !state.in_slow_start() {
             // The cast is OK even if lossy, we only care about the usec level.
-            let max = max(self.ewma_rtt, self.min_rtt).as_micros() as u64;
-            let min = min(self.ewma_rtt, self.min_rtt).as_micros() as u64;
+            let max = max(ewma_rtt, min_rtt).as_micros() as u64;
+            let min = min(ewma_rtt, min_rtt).as_micros() as u64;
             let rtt_reset_pct = u64::from(self.params.rtt_reset_pct().as_percent());
-            self.min_rtt = Duration::from_micros(
+            let min_rtt = Duration::from_micros(
                 (rtt_reset_pct * max / 100) + (100 - rtt_reset_pct) * min / 100,
             );
+
+            self.min_rtt = Some(min_rtt);
         } else if self.ewma_rtt < self.min_rtt {
             self.min_rtt = self.ewma_rtt;
         }
@@ -293,15 +314,15 @@ mod test {
                 .expect("Error on RTT update");
             assert_eq!(
                 estimator.last_rtt,
-                Duration::from_micros(self.last_rtt_usec_out)
+                Some(Duration::from_micros(self.last_rtt_usec_out))
             );
             assert_eq!(
                 estimator.ewma_rtt,
-                Duration::from_micros(self.ewma_rtt_usec_out)
+                Some(Duration::from_micros(self.ewma_rtt_usec_out))
             );
             assert_eq!(
                 estimator.min_rtt,
-                Duration::from_micros(self.min_rtt_usec_out)
+                Some(Duration::from_micros(self.min_rtt_usec_out))
             );
         }
     }
