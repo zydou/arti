@@ -663,6 +663,7 @@ impl Reactor {
 
         let unique_id = TunnelScopedCircId::new(tunnel_id, unique_id);
         let circuit_leg = Circuit::new(
+            runtime.clone(),
             channel,
             channel_id,
             unique_id,

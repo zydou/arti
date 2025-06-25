@@ -27,8 +27,6 @@ mod rtt;
 pub(crate) mod sendme;
 mod vegas;
 
-use std::time::Instant;
-
 use crate::{Error, Result};
 
 use self::{
@@ -37,6 +35,7 @@ use self::{
     sendme::SendmeValidator,
 };
 use tor_cell::relaycell::msg::SendmeTag;
+use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 /// This trait defines what a congestion control algorithm must implement in order to interface
 /// with the circuit reactor.
@@ -308,6 +307,7 @@ impl CongestionControl {
     /// An error is returned if there is a protocol violation with regards to congestion control.
     pub(crate) fn note_sendme_received(
         &mut self,
+        runtime: &DynTimeProvider,
         tag: SendmeTag,
         signals: CongestionSignals,
     ) -> Result<()> {
@@ -315,12 +315,13 @@ impl CongestionControl {
         // closing the circuit.
         self.sendme_validator.validate(Some(tag))?;
 
+        let now = runtime.now();
         // Update our RTT estimate if the algorithm yields back a congestion window. RTT
         // measurements only make sense for a congestion window. For example, FixedWindow here
         // doesn't use it and so no need for the RTT.
         if let Some(cwnd) = self.algorithm.cwnd() {
             self.rtt
-                .update(Instant::now(), &self.state, cwnd)
+                .update(now, &self.state, cwnd)
                 .map_err(|e| Error::CircProto(e.to_string()))?;
         }
 
@@ -346,7 +347,7 @@ impl CongestionControl {
     ///
     /// An error is returned if there is a protocol violation with regards to flow or congestion
     /// control.
-    pub(crate) fn note_data_sent<U>(&mut self, tag: &U) -> Result<()>
+    pub(crate) fn note_data_sent<U>(&mut self, runtime: &DynTimeProvider, tag: &U) -> Result<()>
     where
         U: Clone + Into<SendmeTag>,
     {
@@ -361,7 +362,7 @@ impl CongestionControl {
             self.sendme_validator.record(tag);
             // Only keep the SENDME timestamp if the algorithm has a congestion window.
             if self.algorithm.cwnd().is_some() {
-                self.rtt.expect_sendme(Instant::now());
+                self.rtt.expect_sendme(runtime.now());
             }
         }
 

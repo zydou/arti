@@ -52,6 +52,7 @@ use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use futures::{SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
 use safelog::sensitive as sv;
+use tor_rtcompat::DynTimeProvider;
 use tracing::{debug, trace, warn};
 
 use super::{
@@ -100,6 +101,8 @@ pub(crate) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
 /// Regular (non-multipath) circuits have a single leg.
 /// Conflux (multipath) circuits have `N` (usually, `N = 2`).
 pub(crate) struct Circuit {
+    /// The time provider.
+    runtime: DynTimeProvider,
     /// The channel this circuit is attached to.
     channel: Arc<Channel>,
     /// Sender object used to actually send cells.
@@ -219,6 +222,7 @@ pub(super) use unsupported_client_cell;
 impl Circuit {
     /// Create a new non-multipath circuit.
     pub(super) fn new(
+        runtime: DynTimeProvider,
         channel: Arc<Channel>,
         channel_id: CircId,
         unique_id: TunnelScopedCircId,
@@ -230,6 +234,7 @@ impl Circuit {
 
         let crypto_out = OutboundClientCrypt::new();
         Circuit {
+            runtime,
             channel,
             chan_sender,
             input,
@@ -400,6 +405,8 @@ impl Circuit {
 
         trace!(circ_id = %self.unique_id, cell = ?msg, "sending relay cell");
 
+        // Cloned, because we borrow mutably from self when we get the circhop.
+        let runtime = self.runtime.clone();
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
         let circhop = self.hops.get_mut(hop).ok_or(Error::NoSuchHop)?;
@@ -428,7 +435,7 @@ impl Circuit {
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
-            circhop.ccontrol_mut().note_data_sent(&tag)?;
+            circhop.ccontrol_mut().note_data_sent(&runtime, &tag)?;
         }
 
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
@@ -1235,6 +1242,9 @@ impl Circuit {
         msg: Sendme,
         signals: CongestionSignals,
     ) -> Result<Option<CircuitCmd>> {
+        // Cloned, because we borrow mutably from self when we get the circhop.
+        let runtime = self.runtime.clone();
+
         // No need to call "shutdown" on errors in this function;
         // it's called from the reactor task and errors will propagate there.
         let hop = self
@@ -1246,7 +1256,8 @@ impl Circuit {
                 // but we don't support those any longer.
                  Error::CircProto("missing tag on circuit sendme".into()))?;
         // Update the CC object that we received a SENDME along with possible congestion signals.
-        hop.ccontrol_mut().note_sendme_received(tag, signals)?;
+        hop.ccontrol_mut()
+            .note_sendme_received(&runtime, tag, signals)?;
         Ok(None)
     }
 
