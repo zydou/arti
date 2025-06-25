@@ -721,12 +721,10 @@ impl ClientCirc {
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
-        hop_num: HopNum,
+        hop: TargetHop,
         filter: impl crate::stream::IncomingStreamRequestFilter,
     ) -> Result<impl futures::Stream<Item = IncomingStream>> {
         use futures::stream::StreamExt;
-
-        use crate::tunnel::HopLocation;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
@@ -749,7 +747,7 @@ impl ClientCirc {
             .unbounded_send(CtrlCmd::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
-                hop_num,
+                hop,
                 done: tx,
                 filter: Box::new(filter),
             })
@@ -758,15 +756,18 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        let allowed_hop_num = hop_num;
+        let allowed_hop_loc = match hop {
+            TargetHop::Hop(loc) => Some(loc),
+            _ => None,
+        }
+        .ok_or_else(|| bad_api_usage!("Expected TargetHop with HopLocation"))?;
 
         let circ = Arc::clone(self);
         Ok(incoming_receiver.map(move |req_ctx| {
             let StreamReqInfo {
                 req,
                 stream_id,
-                hop_num,
-                leg,
+                hop,
                 receiver,
                 msg_tx,
                 memquota,
@@ -777,7 +778,7 @@ impl ClientCirc {
             // assertion is just here to make sure that we don't ever
             // accidentally remove or fail to enforce that check, since it is
             // security-critical.
-            assert_eq!(allowed_hop_num, hop_num);
+            assert_eq!(allowed_hop_loc, hop);
 
             // TODO(#2002): figure out what this is going to look like
             // for onion services (perhaps we should forbid this function
@@ -788,7 +789,7 @@ impl ClientCirc {
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
                 tx: msg_tx,
-                hop: HopLocation::Hop((leg, hop_num)),
+                hop: allowed_hop_loc,
                 stream_id,
                 relay_cell_format,
             };
@@ -2602,7 +2603,7 @@ pub(crate) mod test {
             let _incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2611,7 +2612,7 @@ pub(crate) mod test {
             let incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await;
@@ -2640,7 +2641,7 @@ pub(crate) mod test {
             let mut incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2719,7 +2720,7 @@ pub(crate) mod test {
             let mut incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2810,7 +2811,7 @@ pub(crate) mod test {
             let mut incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    EXPECTED_HOP.into(),
+                    (circ.unique_id(), EXPECTED_HOP.into()).into(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -3608,7 +3609,7 @@ pub(crate) mod test {
             let err = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    EXPECTED_HOP.into(),
+                    (tunnel.unique_id(), EXPECTED_HOP.into()).into(),
                     AllowAllStreamsFilter,
                 )
                 .await

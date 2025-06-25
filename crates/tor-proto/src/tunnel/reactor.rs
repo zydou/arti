@@ -591,9 +591,7 @@ pub(crate) struct StreamReqInfo {
     //
     // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
     // incoming stream request from two separate hops.  (There is only one that's valid.)
-    pub(crate) hop_num: HopNum,
-    /// The [`UniqId`] of the circuit the request came on.
-    pub(crate) leg: UniqId,
+    pub(crate) hop: HopLocation,
     /// The format which must be used with this stream to encode messages.
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) relay_cell_format: RelayCellFormat,

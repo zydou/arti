@@ -839,8 +839,7 @@ impl Circuit {
         let outcome = Pin::new(&mut handler.incoming_sender).try_send(StreamReqInfo {
             req,
             stream_id,
-            hop_num,
-            leg,
+            hop: (leg, hop_num).into(),
             msg_tx,
             receiver,
             memquota,

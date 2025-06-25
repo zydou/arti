@@ -369,7 +369,7 @@ impl IntroRequest {
             .map_err(E::VirtualHop)?;
 
         let virtual_hop = circuit
-            .last_hop_num()
+            .last_hop()
             .map_err(into_internal!("Circuit with no virtual hop"))?;
 
         // Accept begins from that virtual hop

@@ -5,11 +5,9 @@ use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
 };
-#[cfg(test)]
-use crate::circuit::CircParameters;
 use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
-use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
+use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
@@ -19,6 +17,8 @@ use crate::tunnel::reactor::{NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
+#[cfg(test)]
+use crate::{circuit::CircParameters, crypto::cell::HopNum};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
@@ -243,7 +243,7 @@ pub(crate) enum CtrlCmd {
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
         /// The hop that is allowed to create streams.
-        hop_num: HopNum,
+        hop: TargetHop,
         /// A filter used to check requests before passing them on.
         #[educe(Debug(ignore))]
         #[cfg(feature = "hs-service")]
@@ -623,10 +623,14 @@ impl<'a> ControlHandler<'a> {
             CtrlCmd::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
-                hop_num,
+                hop,
                 done,
                 filter,
             } => {
+                let Some((_, hop_num)) = self.reactor.target_hop_to_hopnum_id(hop) else {
+                    let _ = done.send(Err(crate::Error::NoSuchHop));
+                    return Ok(());
+                };
                 // TODO: At some point we might want to add a CtrlCmd for
                 // de-registering the handler.  See comments on `allow_stream_requests`.
                 let handler = IncomingStreamRequestHandler {

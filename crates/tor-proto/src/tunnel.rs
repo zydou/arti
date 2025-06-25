@@ -8,6 +8,7 @@ pub(crate) mod msghandler;
 pub(crate) mod reactor;
 mod streammap;
 
+use derive_deftly::Deftly;
 use derive_more::Display;
 use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
@@ -25,6 +26,7 @@ use reactor::CtrlMsg;
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayCellFormat, StreamId};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 /// The unique identifier of a tunnel.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
@@ -73,7 +75,8 @@ impl TunnelScopedCircId {
 }
 
 /// A precise position in a tunnel.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Deftly, Copy, Clone, PartialEq, Eq)]
+#[derive_deftly(HasMemoryCost)]
 #[non_exhaustive]
 pub enum HopLocation {
     /// A specific position in a tunnel.
@@ -96,9 +99,15 @@ pub enum TargetHop {
     LastHop,
 }
 
+impl From<(UniqId, HopNum)> for HopLocation {
+    fn from(v: (UniqId, HopNum)) -> Self {
+        HopLocation::Hop(v)
+    }
+}
+
 impl From<(UniqId, HopNum)> for TargetHop {
     fn from(v: (UniqId, HopNum)) -> Self {
-        TargetHop::Hop(HopLocation::Hop(v))
+        TargetHop::Hop(v.into())
     }
 }
 
