@@ -3335,6 +3335,18 @@ pub(crate) mod test {
         end_sent: bool,
     }
 
+    /// An object describing a SWITCH cell that we expect to receive
+    /// in the mock exit
+    #[derive(Debug)]
+    #[cfg(feature = "conflux")]
+    struct ExpectedSwitch {
+        /// The number of cells we've seen on this leg so far,
+        /// up to and including the SWITCH.
+        cells_so_far: usize,
+        /// The expected seqno in SWITCH cell,
+        seqno: u32,
+    }
+
     /// The state of a mock exit.
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
@@ -3354,7 +3366,7 @@ pub(crate) mod test {
         stream_state: Arc<Mutex<ConfluxStreamState>>,
         /// The number of cells after which to expect a SWITCH
         /// cell from the client.
-        expect_switch: Vec<usize>,
+        expect_switch: Vec<ExpectedSwitch>,
         /// Channel for receiving completion notifications from the other leg.
         done_rx: oneshot::Receiver<()>,
         /// Channel for sending completion notifications to the other leg.
@@ -3473,11 +3485,12 @@ pub(crate) mod test {
                 AnyRelayMsg::End(_) if end_recvd => {
                     panic!("received two END cells for the same stream?!");
                 }
-                AnyRelayMsg::ConfluxSwitch(_) => {
+                AnyRelayMsg::ConfluxSwitch(cell) => {
                     // Ensure we got the SWITCH after the expected number of cells
-                    let cells_until_switch = expect_switch.remove(0);
+                    let expected = expect_switch.remove(0);
 
-                    assert_eq!(cells_until_switch, cell_count);
+                    assert_eq!(expected.cells_so_far, cell_count);
+                    assert_eq!(expected.seqno, cell.seqno());
 
                     // To keep the tests simple, we don't handle out of order cells,
                     // and simply sort the received data at the end.
@@ -3690,11 +3703,25 @@ pub(crate) mod test {
                     circ1,
                     tx1,
                     rx2,
-                    // We start on this leg, and receive a BEGIN cell,
-                    // followed by 4 * 31 = 124 DATA cells, then we switch to circ1,
-                    // and then finally we switch back here, and get another SWITCH
-                    // as the 126th cell.
-                    vec![126],
+                    vec![ExpectedSwitch {
+                        // We start on this leg, and receive a BEGIN cell,
+                        // followed by (4 * 31 - 1) = 123 DATA cells.
+                        // Then it becomes blocked on CC, then finally the reactor
+                        // realizes it has some SENDMEs to process, and
+                        // then as a result of the new RTT measurement, we switch to circ1,
+                        // and then finally we switch back here, and get another SWITCH
+                        // as the 126th cell.
+                        cells_so_far: 126,
+                        // Leg 2 switches back to this leg after the 249th cell
+                        // (just before sending the 250th one):
+                        // seqno = 125 carried over from leg 1 (see the seqno of the
+                        // SWITCH expected on leg 2 below), plus 1 SWITCH, plus
+                        // 4 * 31 = 124 DATA cells after which the RTT of the first leg
+                        // is deemed favorable again.
+                        //
+                        // 249 - 125 (last_seq_sent of leg 1) = 124
+                        seqno: 124,
+                    }],
                     circ1_rtt_delays,
                     true,
                 ),
@@ -3702,9 +3729,13 @@ pub(crate) mod test {
                     circ2,
                     tx2,
                     rx1,
-                    // The SWITCH is the first cell we received after the conflux HS
-                    // on this leg.
-                    vec![1],
+                    vec![ExpectedSwitch {
+                        // The SWITCH is the first cell we received after the conflux HS
+                        // on this leg.
+                        cells_so_far: 1,
+                        // See explanation on the ExpectedSwitch from circ1 above.
+                        seqno: 125,
+                    }],
                     circ2_rtt_delays,
                     false,
                 ),
