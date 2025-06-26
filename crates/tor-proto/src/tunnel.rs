@@ -227,7 +227,13 @@ impl StreamTarget {
         self.circ.protocol_error();
     }
 
-    /// Send a SENDME cell for this stream.
+    /// Request to send a SENDME cell for this stream.
+    ///
+    /// This sends a request to the circuit reactor to send a stream-level SENDME, but it does not
+    /// block or wait for a response from the circuit reactor.
+    /// An error is only returned if we are unable to send the request.
+    /// This means that if the circuit reactor is unable to send the SENDME, we are not notified of
+    /// this here and an error will not be returned.
     pub(crate) fn send_sendme(&mut self) -> Result<()> {
         self.circ
             .control
