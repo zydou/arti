@@ -866,20 +866,17 @@ impl DataReader {
     }
 }
 
-/// An enumeration for the state of a DataReader.
+/// An enumeration for the state of a [`DataReader`].
 #[derive(Educe)]
 #[educe(Debug)]
 enum DataReaderState {
     /// In this state we have received an end cell or an error.
     Closed,
-    /// In this state the reader is not currently fetching a cell; it
-    /// either has data or not.
+    /// In this state the reader is not yet closed.
     Ready(DataReaderImpl),
-    /// The cell stream last returned "pending".
-    ReadingCell(DataReaderImpl),
 }
 
-/// Wrapper for the read part of a DataStream
+/// Wrapper for the read part of a [`DataStream`].
 #[derive(Educe)]
 #[educe(Debug)]
 #[pin_project]
@@ -928,10 +925,9 @@ impl AsyncRead for DataReader {
                         return Poll::Ready(Ok(n_copied));
                     }
 
-                    // No data available!  We have to launch a read.
+                    // No data available!  We have to try reading.
                     imp
                 }
-                DataReaderState::ReadingCell(imp) => imp,
                 DataReaderState::Closed => {
                     // TODO: Why are we returning an error rather than continuing to return EOF?
                     self.state = Some(DataReaderState::Closed);
@@ -961,9 +957,9 @@ impl AsyncRead for DataReader {
                     state = DataReaderState::Ready(imp);
                 }
                 Poll::Pending => {
-                    // The future is pending; store it and tell the
+                    // No cells ready, so tell the
                     // caller to get back to us later.
-                    self.state = Some(DataReaderState::ReadingCell(imp));
+                    self.state = Some(DataReaderState::Ready(imp));
                     return Poll::Pending;
                 }
             }
