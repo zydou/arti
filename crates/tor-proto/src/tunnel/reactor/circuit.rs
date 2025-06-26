@@ -1296,6 +1296,7 @@ impl Circuit {
     /// Returns a [`Stream`] of [`CircuitCmd`] to poll from the main loop.
     ///
     /// The iterator contains at most one [`CircuitCmd`] for each hop,
+    /// (excluding the `exclude` hop, if specified),
     /// representing the instructions for handling the ready-item, if any,
     /// of its highest priority stream.
     ///
@@ -1304,8 +1305,8 @@ impl Circuit {
     /// stream at a time!
     ///
     /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(&self) -> impl Stream<Item = Result<CircuitCmd>> {
-        self.hops.ready_streams_iterator()
+    pub(super) fn ready_streams_iterator(&self, exclude: Option<HopNum>) -> impl Stream<Item = Result<CircuitCmd>> {
+        self.hops.ready_streams_iterator(exclude)
     }
 
     /// Return the congestion signals for this reactor. This is used by congestion control module.

@@ -737,6 +737,102 @@ impl ConfluxSet {
         Ok(best.map(|(leg_id, _)| leg_id))
     }
 
+    /// Returns `true` if our conflux join point is blocked on congestion control
+    /// on the specified `circuit`.
+    ///
+    /// Returns `false` if the join point is not blocked on cc,
+    /// or if this is a single-path set.
+    ///
+    /// Returns an error if this is a multipath tunnel,
+    /// but the joint point hop doesn't exist on the specified circuit.
+    #[cfg(feature = "conflux")]
+    fn is_join_point_blocked_on_cc(join_hop: HopNum, circuit: &Circuit) -> Result<bool, Bug> {
+        let join_circhop = circuit.hop(join_hop).ok_or_else(|| internal!(
+            "Join point hop {} not found on circuit {}?!",
+            join_hop.display(), circuit.unique_id(),
+        ))?;
+
+        Ok(!join_circhop.ccontrol().can_send())
+    }
+
+    /// Returns the `HopNum` of the join point
+    /// if [`next_circ_action`](Self::next_circ_action)
+    /// should avoid polling the join point streams entirely.
+    #[cfg(feature = "conflux")]
+    fn should_skip_join_point(&self) -> Result<Option<HopNum>, Bug> {
+        let Some(join_hop) = self.join_point.as_ref().map(|join_point| join_point.hop) else {
+            // Single-path, there is no join point
+            return Ok(None);
+        };
+
+        let primary_blocked_on_cc = {
+            let primary = self.leg(self.primary_id).ok_or_else(|| {
+                internal!("primary leg disappeared?!")
+            })?;
+            Self::is_join_point_blocked_on_cc(join_hop, primary)?
+        };
+
+        if !primary_blocked_on_cc {
+            // Easy, we can just carry on
+            return Ok(None);
+        }
+
+        let primary_join_point = self.primary_join_point();
+
+        // Now, if the primary *is* blocked on cc, we may still be able to poll
+        // the join point streams (if we're using the right desired UX)
+        let exclude = if self.desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
+            // The primary leg is blocked on cc, and we can't switch because we're
+            // not using the high throughput algorithm, so we must stop reading
+            // the join point streams.
+            //
+            // Note: if the selected algorithm is HIGH_THROUGHPUT,
+            // it's okay to continue reading from the edge connection,
+            // because maybe_update_primary_leg() will select a new,
+            // non-blocked primary leg, just before sending.
+            trace!(
+                tunnel_id = %self.tunnel_id,
+                join_point = ?primary_join_point,
+                reason = "sending leg blocked on congestion control",
+                "Pausing join point stream reads"
+            );
+
+            Some(join_hop)
+        } else {
+            // Ah-ha, the desired UX is HIGH_THROUGHPUT, which means we can switch
+            // to an unblocked leg before sending any cells over the join point,
+            // as long as there are some unblocked legs.
+
+            // TODO: figure out how to rewrite this with an idiomatic iterator combinator
+            let mut all_blocked_on_cc = true;
+            for leg in &self.legs {
+                all_blocked_on_cc = Self::is_join_point_blocked_on_cc(join_hop, leg)?;
+                if !all_blocked_on_cc {
+                    break;
+                }
+            }
+
+            if all_blocked_on_cc {
+                // All legs are blocked on cc, so we must stop reading from
+                // the join point streams for now.
+                trace!(
+                    tunnel_id = %self.tunnel_id,
+                    join_point = ?primary_join_point,
+                    reason = "all legs blocked on congestion control",
+                    "Pausing join point stream reads"
+                );
+
+                Some(join_hop)
+            } else {
+                // At least one leg is not blocked, so we can continue reading
+                // from the join point streams
+                None
+            }
+        };
+
+        Ok(exclude)
+    }
+
     /// Returns the next ready [`CircuitAction`],
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
     ///
@@ -747,54 +843,18 @@ impl ConfluxSet {
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
         runtime: &'a tor_rtcompat::DynTimeProvider,
-    ) -> impl Future<Output = Result<CircuitAction, crate::Error>> + 'a {
-        let is_blocked_on_cc = |leg: &Circuit, hop| {
-            let Some(join_point) = leg.hop(hop) else {
-                // TODO: return an error?
-                warn!(
-                    tunnel_id = %self.tunnel_id,
-                    circ_id = %leg.unique_id(),
-                    hop = %hop.display(),
-                    "Join point hop not found on circuit?!"
-                );
-                return false;
-            };
-
-            !join_point.ccontrol().can_send()
-        };
-
-        let all_blocked_on_cc = self.legs.iter_mut().all(|leg| {
-            let Some(join_hop) = self.join_point.as_ref().map(|join_point| join_point.hop) else {
-                return false;
-            };
-
-            is_blocked_on_cc(leg, join_hop)
-        });
-
-        let primary_join_point = self.primary_join_point();
-        let primary_blocked_on_cc = {
-            if let Some((primary_id, hopnum)) = primary_join_point {
-                if let Some(leg) = self.leg(primary_id) {
-                    is_blocked_on_cc(leg, hopnum)
-                } else {
-                    // TODO: return an error?
-                    warn!(
-                        tunnel_id = %self.tunnel_id,
-                        circ_id = %primary_id,
-                        "Sending leg disappeared?!"
-                    );
-
-                    false
-                }
+    ) -> Result<impl Future<Output = Result<CircuitAction, crate::Error>> + 'a, Bug> {
+        // Avoid polling the streams on the join point if our primary
+        // leg is blocked on cc
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "conflux")] {
+                let exclude_hop = self.should_skip_join_point()?;
             } else {
-                false
+                let exclude_hop: Option<HopNum> = None;
             }
         };
 
-        #[cfg(feature = "conflux")]
-        let desired_ux = self.desired_ux;
-
-        self.legs
+        Ok(self.legs
             .iter_mut()
             .map(|leg| {
                 let unique_id = leg.unique_id();
@@ -816,7 +876,7 @@ impl ConfluxSet {
                     Box::pin(std::future::pending())
                 };
 
-                let mut ready_streams = leg.ready_streams_iterator();
+                let mut ready_streams = leg.ready_streams_iterator(exclude_hop);
                 let input = &mut leg.input;
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
@@ -824,45 +884,6 @@ impl ConfluxSet {
                 let send_fut = leg.chan_sender.prepare_send_from(async move {
                     // A future to wait for the next ready stream.
                     let next_ready_stream = async {
-                        cfg_if::cfg_if! {
-                            if #[cfg(feature = "conflux")] {
-                                let stop_ready_streams_poll = if all_blocked_on_cc {
-                                        // All legs are blocked on cc, so we must stop reading from
-                                        // the edge connection for now.
-                                        Some("all legs blocked on congestion control")
-                                    } else if primary_blocked_on_cc && desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
-                                        // The primary leg is blocked on cc, and we can't switch because we're
-                                        // using the high throughput algorithm, so we must stop reading
-                                        // from the edge connection.
-                                        //
-                                        // Note: if the selected algorithm is HIGH_THROUGHPUT,
-                                        // it's okay to continue reading from the edge connection,
-                                        // because maybe_update_primary_leg() will select a new,
-                                        // non-blocked primary leg, just before sending.
-                                        Some("sending leg blocked on congestion control")
-                                    } else {
-                                        // We can continue reading from the edge connection
-                                        None
-                                    };
-                            } else {
-                                // If conflux is disabled, there's no reason to
-                                // stop reading from the streams of our only circuit.
-                                let stop_ready_streams_poll: Option<&str> = None;
-                            }
-                        };
-
-                        if let Some(reason) = stop_ready_streams_poll {
-                            trace!(
-                                tunnel_id = %tunnel_id,
-                                join_point = ?primary_join_point,
-                                reason = %reason,
-                                "Pausing edge connection reads"
-                            );
-
-                            let () = std::future::pending().await;
-                            unreachable!();
-                        }
-
                         match ready_streams.next().await {
                             Some(x) => x,
                             None => {
@@ -937,7 +958,7 @@ impl ConfluxSet {
             .into_future()
             .map(|(next, _)| next.ok_or(internal!("empty conflux set").into()))
             // Clean up the nested `Result`s before returning to the caller.
-            .map(|res| flatten(flatten(res)))
+            .map(|res| flatten(flatten(res))))
     }
 
     /// The join point on the current primary leg.
