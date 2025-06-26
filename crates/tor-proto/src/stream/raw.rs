@@ -51,7 +51,7 @@ impl StreamReceiver {
             })?;
 
         if sendme::cell_counts_towards_windows(&msg) && self.recv_window.take()? {
-            self.target.send_sendme().await?;
+            self.target.send_sendme()?;
             self.recv_window.put();
         }
 

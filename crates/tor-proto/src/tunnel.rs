@@ -228,19 +228,14 @@ impl StreamTarget {
     }
 
     /// Send a SENDME cell for this stream.
-    pub(crate) async fn send_sendme(&mut self) -> Result<()> {
-        let (tx, rx) = oneshot::channel();
-
+    pub(crate) fn send_sendme(&mut self) -> Result<()> {
         self.circ
             .control
             .unbounded_send(CtrlMsg::SendSendme {
                 stream_id: self.stream_id,
                 hop: self.hop,
-                sender: tx,
             })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        rx.await.map_err(|_| Error::CircuitClosed)?
+            .map_err(|_| Error::CircuitClosed)
     }
 
     /// Return a reference to the circuit that this `StreamTarget` is using.
