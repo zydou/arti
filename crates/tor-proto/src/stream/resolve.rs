@@ -1,8 +1,10 @@
 //! Declare a type for streams that do hostname lookups
 
 use crate::memquota::StreamAccount;
-use crate::stream::StreamReader;
+use crate::stream::StreamReceiver;
 use crate::{Error, Result};
+
+use futures::StreamExt;
 use tor_cell::relaycell::msg::Resolved;
 use tor_cell::relaycell::RelayCmd;
 use tor_cell::restricted_msg;
@@ -13,7 +15,7 @@ use super::AnyCmdChecker;
 /// cell.
 pub struct ResolveStream {
     /// The underlying RawCellStream.
-    s: StreamReader,
+    s: StreamReceiver,
 
     /// The memory quota account that should be used for this "stream"'s data
     ///
@@ -33,7 +35,7 @@ impl ResolveStream {
     /// Wrap a RawCellStream into a ResolveStream.
     ///
     /// Call only after sending a RESOLVE cell.
-    pub(crate) fn new(s: StreamReader, memquota: StreamAccount) -> Self {
+    pub(crate) fn new(s: StreamReceiver, memquota: StreamAccount) -> Self {
         ResolveStream {
             s,
             _memquota: memquota,
@@ -44,7 +46,10 @@ impl ResolveStream {
     /// name lookup request.
     pub async fn read_msg(&mut self) -> Result<Resolved> {
         use ResolveResponseMsg::*;
-        let cell = self.s.recv().await?;
+        let cell = match self.s.next().await {
+            Some(cell) => cell?,
+            None => return Err(Error::NotConnected),
+        };
         let msg = match cell.decode::<ResolveResponseMsg>() {
             Ok(cell) => cell.into_msg(),
             Err(e) => {

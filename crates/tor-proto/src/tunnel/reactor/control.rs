@@ -13,7 +13,7 @@ use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
 use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
-use crate::tunnel::reactor::{NtorClient, ReactorError};
+use crate::tunnel::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
@@ -22,8 +22,8 @@ use crate::{circuit::CircParameters, crypto::cell::HopNum};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
-use tracing::trace;
+use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
+use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
 use {
     super::StreamReqSender, crate::stream::IncomingStreamRequestFilter,
@@ -167,8 +167,6 @@ pub(crate) enum CtrlMsg {
         stream_id: StreamId,
         /// The hop number the stream is on.
         hop: HopLocation,
-        /// A sender that we use to tell the caller that the SENDME was sent.
-        sender: oneshot::Sender<Result<()>>,
     },
     /// Get the clock skew claimed by the first hop of the circuit.
     FirstHopClockSkew {
@@ -473,20 +471,23 @@ impl<'a> ControlHandler<'a> {
                 done: Some(done),
             })),
             // TODO(#1860): remove stream-level sendme support
-            CtrlMsg::SendSendme {
-                stream_id,
-                hop,
-                sender,
-            } => {
-                // If resolving the hop fails,
-                // we want to report an error back to the initiator and not shut down the reactor.
+            CtrlMsg::SendSendme { stream_id, hop } => {
                 let (leg_id, hop_num) = match self.reactor.resolve_hop_location(hop) {
                     Ok(x) => x,
-                    Err(e) => {
-                        let e = into_bad_api_usage!("Could not resolve hop {hop:?}")(e);
-                        // don't care if receiver goes away
-                        let _ = sender.send(Err(e.into()));
-                        return Ok(None);
+                    Err(NoJoinPointError) => {
+                        // A stream tried to send a stream-level SENDME message to the join point of
+                        // a tunnel that has never had a join point. Currently in arti, only a
+                        // `StreamTarget` asks us to send a stream-level SENDME, and this tunnel
+                        // originally created the `StreamTarget` to begin with. So this is a
+                        // legitimate bug somewhere in the tunnel code.
+                        let err = internal!(
+                            "Could not send a stream-level SENDME to a join point on a tunnel without a join point",
+                        );
+                        // TODO: Rather than calling `warn_report` here, we should call
+                        // `trace_report!` from `Reactor::run_once()`. Since this is an internal
+                        // error, `trace_report!` should log it at "warn" level.
+                        warn_report!(err, "Tunnel reactor error");
+                        return Err(err.into());
                     }
                 };
 
@@ -494,18 +495,18 @@ impl<'a> ControlHandler<'a> {
                 let sendme_required = match self.reactor.uses_stream_sendme(leg_id, hop_num) {
                     Some(x) => x,
                     None => {
-                        // don't care if receiver goes away
-                        let _ = sender.send(Err(bad_api_usage!(
-                            "Unknown hop {hop_num:?} on leg {leg_id:?}"
-                        )
-                        .into()));
+                        // The leg/hop has disappeared. This is fine since the stream may have ended
+                        // and been cleaned up while this `CtrlMsg::SendSendme` message was queued.
+                        // It is possible that is a bug and this is an incorrect leg/hop number, but
+                        // it's not currently possible to differentiate between an incorrect leg/hop
+                        // number and a circuit hop that has been closed.
+                        debug!("Could not send a stream-level SENDME on a hop that does not exist. Ignoring.");
                         return Ok(None);
                     }
                 };
 
                 if !sendme_required {
-                    // don't care if receiver goes away
-                    let _ = sender.send(Ok(()));
+                    // Nothing to do, so discard the SENDME.
                     return Ok(None);
                 }
 
@@ -521,7 +522,7 @@ impl<'a> ControlHandler<'a> {
                 Ok(Some(RunOnceCmdInner::Send {
                     leg: leg_id,
                     cell,
-                    done: Some(sender),
+                    done: None,
                 }))
             }
             // TODO(conflux): this should specify which leg to send the msg on

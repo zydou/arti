@@ -2,7 +2,7 @@
 
 use bitvec::prelude::*;
 
-use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
+use super::{AnyCmdChecker, DataStream, StreamReceiver, StreamStatus};
 use crate::circuit::ClientCircSyncView;
 use crate::memquota::StreamAccount;
 use crate::tunnel::reactor::CloseStreamBehavior;
@@ -33,8 +33,8 @@ pub struct IncomingStream {
     request: IncomingStreamRequest,
     /// The information that we'll use to wire up the stream, if it is accepted.
     stream: StreamTarget,
-    /// The underlying `StreamReader`.
-    reader: StreamReader,
+    /// The underlying `StreamReceiver`.
+    receiver: StreamReceiver,
     /// The memory quota account that should be used for this stream's data
     memquota: StreamAccount,
 }
@@ -45,14 +45,14 @@ impl IncomingStream {
         time_provider: DynTimeProvider,
         request: IncomingStreamRequest,
         stream: StreamTarget,
-        reader: StreamReader,
+        receiver: StreamReceiver,
         memquota: StreamAccount,
     ) -> Self {
         Self {
             time_provider,
             request,
             stream,
-            reader,
+            receiver,
             memquota,
         }
     }
@@ -69,7 +69,7 @@ impl IncomingStream {
             time_provider,
             request,
             mut stream,
-            reader,
+            receiver,
             memquota,
         } = self;
 
@@ -78,7 +78,7 @@ impl IncomingStream {
                 stream.send(message.into()).await?;
                 Ok(DataStream::new_connected(
                     time_provider,
-                    reader,
+                    receiver,
                     stream,
                     memquota,
                 ))
