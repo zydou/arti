@@ -3691,7 +3691,7 @@ pub(crate) mod test {
     #[traced_test]
     #[test]
     #[cfg(feature = "conflux")]
-    fn multipath_stream() {
+    fn multipath_client_to_exit() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             /// The number of data cells to send.
             const NUM_CELLS: usize = 300;
