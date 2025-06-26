@@ -3501,7 +3501,19 @@ pub(crate) mod test {
         let mut tags = vec![];
         let mut streamid = None;
 
-        while stream_state.lock().unwrap().data_recvd.len() < stream_len {
+        loop {
+            let should_exit = {
+                let stream_state = stream_state.lock().unwrap();
+                let done_reading = stream_state.data_recvd.len() >= stream_len;
+                let done_writing = true; // XXX support for writing to the stream
+
+                (stream_state.begin_recvd || stream_state.end_recvd) && done_reading && done_writing
+            };
+
+            if should_exit {
+                break;
+            }
+
             use futures::select;
 
             // Wait for the BEGIN cell to arrive, or for the transfer to complete
