@@ -9,7 +9,7 @@ if [ ! -f /.dockerenv ]; then
     echo Use docker_reproducible_build instead to get the right environment
 fi
 if [ $# -eq 0 ]; then
-	echo usage : "$0" '<linux|windows|macos...>'
+	echo usage : "$0" '<linux|windows|macos|android...>'
 	exit 1
 fi
 
@@ -18,11 +18,13 @@ fi
 linux=""
 windows=""
 macos=""
+android=""
 while [ "$#" -ne 0 ]; do
 	case "$1" in
 	linux)   linux=1;;
 	windows) windows=1;;
 	macos)   macos=1;;
+	android) android=1;;
 	*)
 		echo "unknown target : $1" >&2
 		exit 1;;
@@ -36,8 +38,11 @@ here=$(pwd)
 ## the architecture was chosen as old enough that it should cover most usage
 ## while still supporting useful features like AES-NI. Older architectures
 ## won't be able to execute the resulting binary.
-export CFLAGS="-march=westmere"
-export RUSTFLAGS="-C target-cpu=westmere"
+if [ -z $android ]; then
+  export CFLAGS="-march=westmere"
+  export RUSTFLAGS="-C target-cpu=westmere"
+fi
+export SOURCE_DATE_EPOCH="0"
 
 ## force build to run in a fixed location. Necessary because the build path
 ## is somehow captured when compiling.
@@ -58,8 +63,12 @@ cargo_build_arti () {
 	cargo_build -p arti --release --features full,static "$@"
 }
 
-## add missing dependencies
-apk add perl make git musl-dev
+echo "android: '$android'"
+if [ -z $android ]; then
+  ## add missing dependencies
+  apk add perl make git musl-dev
+fi
+
 if [ -n "$linux" ]; then
 	## no additional dependencies specifically for Linux
 
@@ -68,6 +77,14 @@ if [ -n "$linux" ]; then
 	## to system libraries. It is required to get a well behaving result.
 	cargo_build_arti --target x86_64-unknown-linux-musl
 	mv /arti/target/x86_64-unknown-linux-musl/release/arti "$here"/arti-linux
+fi
+if [ -n "$android" ]; then
+  cargo ndk --target aarch64-linux-android build --locked -p arti --release --features full,static
+  mv target/aarch64-linux-android/release/arti "$here"/arti-android-aarch64
+  "$ANDROID_NDK_ROOT"/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip "$here"/arti-android-aarch64
+  cargo ndk --target armv7-linux-androideabi build --locked -p arti --release --features full,static
+  mv target/armv7-linux-androideabi/release/arti "$here"/arti-android-armv7
+  "$ANDROID_NDK_ROOT"/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip "$here"/arti-android-armv7
 fi
 if [ -n "$windows" ]; then
 	apk add mingw-w64-gcc
@@ -124,5 +141,6 @@ set +x
 echo "branch       :" "$(git rev-parse --abbrev-ref HEAD)"
 echo "commit       :" "$(git rev-parse HEAD)"
 [ -z "$linux" ]   || echo "Linux hash   :" "$(sha256sum "$here"/arti-linux       | cut -d " " -f 1)"
+[ -z "$android" ]   || echo -e "Android hash   :" "\n$(sha256sum "$here"/arti-android* | cut -d " " -f 1)"
 [ -z "$windows" ] || echo "Windows hash :" "$(sha256sum "$here"/arti-windows.exe | cut -d " " -f 1)"
 [ -z "$macos" ]   || echo "MacOS hash   :" "$(sha256sum "$here"/arti-macos       | cut -d " " -f 1)"
