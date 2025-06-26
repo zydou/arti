@@ -464,7 +464,7 @@ impl DataStream {
             _memquota: memquota.clone(),
         });
         let r = DataReader {
-            state: Some(DataReaderState::Ready(DataReaderImpl {
+            state: Some(DataReaderState::Open(DataReaderImpl {
                 s: receiver,
                 pending: Vec::new(),
                 offset: 0,
@@ -537,7 +537,7 @@ impl DataStream {
         // We must put state back before returning
         let state = self.r.state.take().expect("Missing state in DataReader");
 
-        if let DataReaderState::Ready(mut imp) = state {
+        if let DataReaderState::Open(mut imp) = state {
             let result = if imp.connected {
                 Ok(())
             } else {
@@ -546,7 +546,7 @@ impl DataStream {
             };
             self.r.state = Some(match result {
                 Err(_) => DataReaderState::Closed,
-                Ok(_) => DataReaderState::Ready(imp),
+                Ok(_) => DataReaderState::Open(imp),
             });
             result
         } else {
@@ -867,13 +867,16 @@ impl DataReader {
 }
 
 /// An enumeration for the state of a [`DataReader`].
+// TODO: We don't need to implement the state in this way anymore now that we've removed the saved
+// future. There are a few ways we could simplify this. See:
+// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3076#note_3218210
 #[derive(Educe)]
 #[educe(Debug)]
 enum DataReaderState {
     /// In this state we have received an end cell or an error.
     Closed,
-    /// In this state the reader is not yet closed.
-    Ready(DataReaderImpl),
+    /// In this state the reader is open.
+    Open(DataReaderImpl),
 }
 
 /// Wrapper for the read part of a [`DataStream`].
@@ -916,12 +919,12 @@ impl AsyncRead for DataReader {
 
         loop {
             let mut imp = match state {
-                DataReaderState::Ready(mut imp) => {
+                DataReaderState::Open(mut imp) => {
                     // There may be data to read already.
                     let n_copied = imp.extract_bytes(buf);
                     if n_copied != 0 {
                         // We read data into the buffer.  Tell the caller.
-                        self.state = Some(DataReaderState::Ready(imp));
+                        self.state = Some(DataReaderState::Open(imp));
                         return Poll::Ready(Ok(n_copied));
                     }
 
@@ -954,12 +957,12 @@ impl AsyncRead for DataReader {
                 }
                 Poll::Ready(Ok(())) => {
                     // It read a cell!  Continue the loop.
-                    state = DataReaderState::Ready(imp);
+                    state = DataReaderState::Open(imp);
                 }
                 Poll::Pending => {
                     // No cells ready, so tell the
                     // caller to get back to us later.
-                    self.state = Some(DataReaderState::Ready(imp));
+                    self.state = Some(DataReaderState::Open(imp));
                     return Poll::Pending;
                 }
             }
