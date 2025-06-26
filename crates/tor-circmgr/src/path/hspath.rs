@@ -680,7 +680,7 @@ mod test {
                 Error::NoRelay {
                     ref problem,
                     ..
-                } if problem ==  "Failed: rejected 0/3 as not usable as middle relay; 3/3 as in same family as already selected"
+                } if problem ==  "Failed: rejected 3/3 as in same family as already selected"
             ),
             "{err:?}"
         );
@@ -705,7 +705,7 @@ mod test {
                 Error::NoRelay {
                     ref problem,
                     ..
-                } if problem ==  "Failed: rejected 0/40 as not usable as middle relay; 40/40 as in same family as already selected"
+                } if problem ==  "Failed: rejected 40/40 as in same family as already selected"
             ),
             "{err:?}"
         );
@@ -751,7 +751,7 @@ mod test {
                         Error::NoRelay {
                             ref problem,
                             ..
-                        } if problem == "Failed: rejected 0/2 as not usable as middle relay; 2/2 as already selected",
+                        } if problem == "Failed: rejected 2/2 as already selected",
                     ),
                     "{err:?}"
                 );
