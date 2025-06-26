@@ -717,7 +717,9 @@ impl ConfluxSet {
             };
 
             let Some(ewma_rtt) = rtt.ewma_rtt_usec().or_else(init_rtt_usec) else {
-                return Err(internal!("attempted to select primary leg before HS completed?!"));
+                return Err(internal!(
+                    "attempted to select primary leg before HS completed?!"
+                ));
             };
 
             match best.take() {
@@ -747,10 +749,13 @@ impl ConfluxSet {
     /// but the joint point hop doesn't exist on the specified circuit.
     #[cfg(feature = "conflux")]
     fn is_join_point_blocked_on_cc(join_hop: HopNum, circuit: &Circuit) -> Result<bool, Bug> {
-        let join_circhop = circuit.hop(join_hop).ok_or_else(|| internal!(
-            "Join point hop {} not found on circuit {}?!",
-            join_hop.display(), circuit.unique_id(),
-        ))?;
+        let join_circhop = circuit.hop(join_hop).ok_or_else(|| {
+            internal!(
+                "Join point hop {} not found on circuit {}?!",
+                join_hop.display(),
+                circuit.unique_id(),
+            )
+        })?;
 
         Ok(!join_circhop.ccontrol().can_send())
     }
@@ -766,9 +771,9 @@ impl ConfluxSet {
         };
 
         let primary_blocked_on_cc = {
-            let primary = self.leg(self.primary_id).ok_or_else(|| {
-                internal!("primary leg disappeared?!")
-            })?;
+            let primary = self
+                .leg(self.primary_id)
+                .ok_or_else(|| internal!("primary leg disappeared?!"))?;
             Self::is_join_point_blocked_on_cc(join_hop, primary)?
         };
 

@@ -1305,7 +1305,10 @@ impl Circuit {
     /// stream at a time!
     ///
     /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(&self, exclude: Option<HopNum>) -> impl Stream<Item = Result<CircuitCmd>> {
+    pub(super) fn ready_streams_iterator(
+        &self,
+        exclude: Option<HopNum>,
+    ) -> impl Stream<Item = Result<CircuitCmd>> {
         self.hops.ready_streams_iterator(exclude)
     }
 
