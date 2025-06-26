@@ -16,13 +16,13 @@ use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
 use crate::tunnel::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::skew::ClockSkew;
-use crate::{Error, Result};
+use crate::Result;
 #[cfg(test)]
 use crate::{circuit::CircParameters, crypto::cell::HopNum};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
+use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
 use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
 use {
@@ -480,9 +480,14 @@ impl<'a> ControlHandler<'a> {
                         // `StreamTarget` asks us to send a stream-level SENDME, and this tunnel
                         // originally created the `StreamTarget` to begin with. So this is a
                         // legitimate bug somewhere in the tunnel code.
-                        return Err(Error::CircProto(
-                            "Could not send a stream-level SENDME to a join point on a tunnel without a join point".into(),
-                        ));
+                        let err = internal!(
+                            "Could not send a stream-level SENDME to a join point on a tunnel without a join point",
+                        );
+                        // TODO: Rather than calling `warn_report` here, we should call
+                        // `trace_report!` from `Reactor::run_once()`. Since this is an internal
+                        // error, `trace_report!` should log it at "warn" level.
+                        warn_report!(err, "Tunnel reactor error");
+                        return Err(err.into());
                     }
                 };
 
