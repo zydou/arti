@@ -3985,6 +3985,258 @@ pub(crate) mod test {
         });
     }
 
+    #[cfg(feature = "conflux")]
+    async fn run_multipath_exit_to_client_test(
+        rt: MockRuntime,
+        tunnel: TestTunnelCtx,
+        cells_to_send: Vec<(UniqId, AnyRelayMsg)>,
+        send_data: Vec<u8>,
+        recv_data: Vec<u8>,
+    ) -> Arc<Mutex<ConfluxStreamState>> {
+        let TestTunnelCtx {
+            tunnel,
+            circs,
+            conflux_link_rx,
+        } = tunnel;
+        let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
+
+        let stream_state = Arc::new(Mutex::new(ConfluxStreamState::new(send_data.len())));
+
+        let mut tasks = vec![];
+        let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
+        let (cells_tx1, cells_rx1) = mpsc::channel(1);
+        let (cells_tx2, cells_rx2) = mpsc::channel(1);
+
+        let dispatcher = CellDispatcher {
+            leg_tx: [(circ1.unique_id, cells_tx1), (circ2.unique_id, cells_tx2)]
+                .into_iter()
+                .collect(),
+            cells_to_send,
+        };
+
+        // Channels used by the mock relays to notify each other
+        // of various events.
+        let (tx1, rx1) = mpsc::channel(1);
+        let (tx2, rx2) = mpsc::channel(1);
+
+        let relay1 = ConfluxExitState {
+            runtime: Arc::clone(&relay_runtime),
+            tunnel: Arc::clone(&tunnel),
+            circ: circ1,
+            rtt_delays: [].into_iter(),
+            stream_state: Arc::clone(&stream_state),
+            // Expect no SWITCH cells from the client
+            expect_switch: vec![],
+            event_tx: tx1,
+            event_rx: rx2,
+            is_sending_leg: false,
+            cells_rx: cells_rx1,
+        };
+
+        let relay2 = ConfluxExitState {
+            runtime: Arc::clone(&relay_runtime),
+            tunnel: Arc::clone(&tunnel),
+            circ: circ2,
+            rtt_delays: [].into_iter(),
+            stream_state: Arc::clone(&stream_state),
+            // Expect no SWITCH cells from the client
+            expect_switch: vec![],
+            event_tx: tx2,
+            event_rx: rx1,
+            is_sending_leg: true,
+            cells_rx: cells_rx2,
+        };
+
+        // Run the cell dispatcher, which tells each exit leg task
+        // what cells to write.
+        //
+        // This enables us to write out-of-order cells deterministically.
+        rt.spawn(dispatcher.run()).unwrap();
+
+        for mut mock_relay in [relay1, relay2] {
+            let leg = mock_relay.circ.unique_id;
+
+            good_exit_handshake(
+                &relay_runtime,
+                mock_relay.rtt_delays.next().flatten(),
+                &mut mock_relay.circ.chan_rx,
+                &mut mock_relay.circ.circ_tx,
+            )
+            .await;
+
+            let relay = ConfluxTestEndpoint::Relay(mock_relay);
+
+            tasks.push(rt.spawn_join(format!("relay task {leg}"), run_conflux_endpoint(relay)));
+        }
+
+        tasks.push(rt.spawn_join(
+            "client task".to_string(),
+            run_conflux_endpoint(ConfluxTestEndpoint::Client {
+                tunnel,
+                conflux_link_rx,
+                send_data: send_data.clone(),
+                recv_data,
+            }),
+        ));
+
+        // Wait for all the tasks to complete
+        let _sinks = futures::future::join_all(tasks).await;
+
+        stream_state
+    }
+
+    #[traced_test]
+    #[test]
+    #[cfg(feature = "conflux")]
+    fn multipath_exit_to_client() {
+        // The data we expect the client to read from the stream
+        const TO_SEND: &[u8] =
+            b"But something about Buster Friendly irritated John Isidore, one specific thing";
+
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            // The indices of the tunnel legs.
+            const CIRC1: usize = 0;
+            const CIRC2: usize = 1;
+
+            // The client receives the following cells, in the order indicated
+            // by the t0-t8 "timestamps" (where C = CONNECTED, D = DATA, E = END,
+            // S = SWITCH):
+            //
+            //  Leg 1 (CIRC1):   -----------D--------------------- D -- D -- C
+            //                              |                      |    |    | \
+            //                              |                      |    |    |  v
+            //                              |                      |    |    | client
+            //                              |                      |    |    |  ^
+            //                              |                      |    |    |/
+            //  Leg 2 (CIRC2): E - D -- D --\--- D* -- S (seqno=4)-/----/----/
+            //                 |   |    |   |    |       |         |    |    |
+            //                 |   |    |   |    |       |         |    |    |
+            //                 |   |    |   |    |       |         |    |    |
+            //  Time:          t8  t7   t6  t5   t4      t3        t2   t1  t0
+            //
+            //
+            //  The cells marked with * are out of order.
+            //
+            // Note: t0 is the time when the client receives the first cell,
+            // and t8 is the time when it receives the last one.
+            // In other words, this test simulates a mock exit that "sent" the cells
+            // in the order t0, t1, t2, t5, t4, t6, t7, t8
+            let simple_switch = vec![
+                (CIRC1, relaymsg::Data::new(&TO_SEND[0..5]).unwrap().into()),
+                (CIRC1, relaymsg::Data::new(&TO_SEND[5..10]).unwrap().into()),
+                // Switch to sending on the second leg
+                (CIRC2, relaymsg::ConfluxSwitch::new(4).into()),
+                // An out of order cell!
+                (CIRC2, relaymsg::Data::new(&TO_SEND[20..30]).unwrap().into()),
+                // The missing cell (as indicated by seqno = 4 from the switch cell above)
+                // is finally arriving on leg1
+                (CIRC1, relaymsg::Data::new(&TO_SEND[10..20]).unwrap().into()),
+                (CIRC2, relaymsg::Data::new(&TO_SEND[30..40]).unwrap().into()),
+                (CIRC2, relaymsg::Data::new(&TO_SEND[40..]).unwrap().into()),
+            ];
+
+            //  Leg 1 (CIRC1): ---------------- D  ------D* --- S(seqno = 3) -- D - D ---------------------------- C
+            //                                  |        |          |           |   |                              | \
+            //                                  |        |          |           |   |                              |  v
+            //                                  |        |          |           |   |                              |  client
+            //                                  |        |          |           |   |                              |  ^
+            //                                  |        |          |           |   |                              | /
+            //  Leg 2 (CIRC2): E - S(seqno = 2) \ -- D --\----------\---------- \ --\--- D* -- D* - S(seqno = 3) --/
+            //                 |        |       |    |   |          |           |   |    |     |         |         |
+            //                 |        |       |    |   |          |           |   |    |     |         |         |
+            //                 |        |       |    |   |          |           |   |    |     |         |         |
+            //  Time:          t11      t10     t9   t8  t7         t6          t5  t4   t3    t2        t1        t0
+            //  =====================================================================================================
+            //  Leg 1 LSR:      8        8      8 7  7   7          6           3   2    1      1        1         1
+            //  Leg 2 LSR:      9        8      6 6  6   5          5           5   5    5      4        3         0
+            //  LSD:            9        8      8 7  6   5          5       5   3   2    1      1        1         1
+            //                                    ^ OOO cell is delivered   ^ the OOO cells are delivered to the stream
+            //
+            //
+            //  (LSR = last seq received, LSD = last seq delivered, both from the client's POV)
+            //
+            //
+            // The client keeps track of the `last_seqno_received` (LSR) on each leg.
+            // This is incremented for each cell that counts towards the seqnos (BEGIN, DATA, etc.)
+            // that is received on the leg. The client also tracks the `last_seqno_delivered` (LSD),
+            // which is the seqno of the last cell delivered to a stream
+            // (this is global for the whole tunnel, whereas the LSR is different for each leg).
+            //
+            // When switching to leg `N`, the seqno in the switch is, from the POV of the sender,
+            // the delta between the absolute seqno (i.e. the total number of cells[^1] sent)
+            // and the value of this absolute seqno when leg `N` was last used.
+            //
+            // At the time of the first SWITCH from `t1`, the exit "sent" 3 cells:
+            // a `CONNECTED` cell, which was received by the client at `t0`, and 2 `DATA` cells that
+            // haven't been received yet. At this point, the exit decides to switch to leg 2,
+            // on which it hasn't sent any cells yet, so the seqno is set to `3 - 0 = 3`.
+            //
+            // At `t6` when the exit sends the second switch (leg 2 -> leg 1), has "sent" 6 cells
+            // (`C` plus the data cells that are received at `t1 - 5` and `t8`.
+            // The seqno is `6 - 3 = 3`, because when it last sent on leg 1,
+            // the absolute seqno was `3`.
+            //
+            // At `t10`, the absolute seqno is 8 (8 qualifying cells have been sent so far).
+            // When the exit last sent on leg 2 (which we are switching to),
+            // the absolute seqno was `6`, so the `SWITCH` cell will have `8 - 6 = 2` as the seqno.
+            //
+            // [^1]: only counting the cells that count towards sequence numbers
+            let multiple_switches = vec![
+                // Immediately switch to sending on the second leg
+                // (indicating that we've already sent 3 cells (including the CONNECTED)
+                (CIRC2, relaymsg::ConfluxSwitch::new(3).into()),
+                // Two out of order cells!
+                (CIRC2, relaymsg::Data::new(&TO_SEND[15..20]).unwrap().into()),
+                (CIRC2, relaymsg::Data::new(&TO_SEND[20..30]).unwrap().into()),
+                // The missing cells finally arrive on the first leg
+                (CIRC1, relaymsg::Data::new(&TO_SEND[0..10]).unwrap().into()),
+                (CIRC1, relaymsg::Data::new(&TO_SEND[10..15]).unwrap().into()),
+                // Switch back to the first leg
+                (CIRC1, relaymsg::ConfluxSwitch::new(3).into()),
+                // OOO cell
+                (CIRC1, relaymsg::Data::new(&TO_SEND[31..40]).unwrap().into()),
+                // Missing cell is received
+                (CIRC2, relaymsg::Data::new(&TO_SEND[30..31]).unwrap().into()),
+                // The remaining cells are in-order
+                (CIRC1, relaymsg::Data::new(&TO_SEND[40..]).unwrap().into()),
+                // Switch right after we've sent all the data we had to send
+                (CIRC2, relaymsg::ConfluxSwitch::new(2).into()),
+            ];
+
+            // TODO: give these tests the ability to control when END cells are sent
+            // (currently we have ensure the is_sending_leg is set to true
+            // on the leg that ends up sending the last data cell).
+            //
+            // TODO: test the edge cases
+            let tests = [simple_switch, multiple_switches];
+
+            for cells_to_send in tests {
+                let tunnel = setup_good_conflux_tunnel(&rt).await;
+                assert_eq!(tunnel.circs.len(), 2);
+                let circ_ids = [tunnel.circs[0].unique_id, tunnel.circs[1].unique_id];
+                let cells_to_send = cells_to_send
+                    .into_iter()
+                    .map(|(i, cell)| (circ_ids[i], cell))
+                    .collect();
+
+                // The client won't be sending any DATA cells on this stream
+                let send_data = vec![];
+                let stream_state = run_multipath_exit_to_client_test(
+                    rt.clone(),
+                    tunnel,
+                    cells_to_send,
+                    send_data.clone(),
+                    TO_SEND.into(),
+                )
+                .await;
+                let stream_state = stream_state.lock().unwrap();
+                assert!(stream_state.begin_recvd);
+                // We don't expect the client to have sent anything
+                assert!(stream_state.data_recvd.is_empty());
+            }
+        });
+    }
+
     #[traced_test]
     #[test]
     #[cfg(all(feature = "conflux", feature = "hs-service"))]
@@ -4032,7 +4284,4 @@ pub(crate) mod test {
                 .contains("Cannot allow stream requests on tunnel with 2 legs"));
         });
     }
-
-    // TODO: add a test where the client receives data on a multipath stream,
-    // and ensure it handles ooo cells correctly
 }
