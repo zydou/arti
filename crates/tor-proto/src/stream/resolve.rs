@@ -3,6 +3,8 @@
 use crate::memquota::StreamAccount;
 use crate::stream::StreamReceiver;
 use crate::{Error, Result};
+
+use futures::StreamExt;
 use tor_cell::relaycell::msg::Resolved;
 use tor_cell::relaycell::RelayCmd;
 use tor_cell::restricted_msg;
@@ -44,7 +46,10 @@ impl ResolveStream {
     /// name lookup request.
     pub async fn read_msg(&mut self) -> Result<Resolved> {
         use ResolveResponseMsg::*;
-        let cell = self.s.recv().await?;
+        let cell = match self.s.next().await {
+            Some(cell) => cell?,
+            None => return Err(Error::NotConnected),
+        };
         let msg = match cell.decode::<ResolveResponseMsg>() {
             Ok(cell) => cell.into_msg(),
             Err(e) => {

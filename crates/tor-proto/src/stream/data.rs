@@ -8,7 +8,8 @@ use tor_cell::relaycell::{RelayCellFormat, RelayCmd};
 
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::{Context, Poll};
-use futures::Future;
+use futures::{Future, Stream};
+use pin_project::pin_project;
 
 #[cfg(feature = "tokio")]
 use tokio_crate::io::ReadBuf;
@@ -536,12 +537,12 @@ impl DataStream {
         // We must put state back before returning
         let state = self.r.state.take().expect("Missing state in DataReader");
 
-        if let DataReaderState::Ready(imp) = state {
-            let (imp, result) = if imp.connected {
-                (imp, Ok(()))
+        if let DataReaderState::Ready(mut imp) = state {
+            let result = if imp.connected {
+                Ok(())
             } else {
                 // This succeeds if the cell is CONNECTED, and fails otherwise.
-                imp.read_cell().await
+                std::future::poll_fn(|cx| Pin::new(&mut imp).read_cell(cx)).await
             };
             self.r.state = Some(match result {
                 Err(_) => DataReaderState::Closed,
@@ -866,12 +867,6 @@ impl DataReader {
 }
 
 /// An enumeration for the state of a DataReader.
-///
-/// We have to use an enum here because, when we're waiting for
-/// ReadingCell to complete, the future returned by `read_cell()` owns the
-/// DataCellImpl.  If we wanted to store the future and the cell at the
-/// same time, we'd need to make a self-referential structure, which isn't
-/// possible in safe Rust AIUI.
 #[derive(Educe)]
 #[educe(Debug)]
 enum DataReaderState {
@@ -880,20 +875,18 @@ enum DataReaderState {
     /// In this state the reader is not currently fetching a cell; it
     /// either has data or not.
     Ready(DataReaderImpl),
-    /// The reader is currently fetching a cell: this future is the
-    /// progress it is making.
-    ReadingCell(
-        #[educe(Debug(method = "skip_fmt"))] //
-        BoxSyncFuture<'static, (DataReaderImpl, Result<()>)>,
-    ),
+    /// The cell stream last returned "pending".
+    ReadingCell(DataReaderImpl),
 }
 
 /// Wrapper for the read part of a DataStream
 #[derive(Educe)]
 #[educe(Debug)]
+#[pin_project]
 struct DataReaderImpl {
     /// The underlying StreamReceiver object.
     #[educe(Debug(method = "skip_fmt"))]
+    #[pin]
     s: StreamReceiver,
 
     /// If present, data that we received on this stream but have not
@@ -925,7 +918,7 @@ impl AsyncRead for DataReader {
         let mut state = self.state.take().expect("Missing state in DataReader");
 
         loop {
-            let mut future = match state {
+            let mut imp = match state {
                 DataReaderState::Ready(mut imp) => {
                     // There may be data to read already.
                     let n_copied = imp.extract_bytes(buf);
@@ -936,25 +929,25 @@ impl AsyncRead for DataReader {
                     }
 
                     // No data available!  We have to launch a read.
-                    Box::pin(imp.read_cell())
+                    imp
                 }
-                DataReaderState::ReadingCell(fut) => fut,
+                DataReaderState::ReadingCell(imp) => imp,
                 DataReaderState::Closed => {
+                    // TODO: Why are we returning an error rather than continuing to return EOF?
                     self.state = Some(DataReaderState::Closed);
                     return Poll::Ready(Err(Error::NotConnected.into()));
                 }
             };
 
-            // We have a future that represents an in-progress read.
-            // See if it can make progress.
-            match future.as_mut().poll(cx) {
-                Poll::Ready((_imp, Err(e))) => {
+            // See if a cell is ready.
+            match Pin::new(&mut imp).read_cell(cx) {
+                Poll::Ready(Err(e)) => {
                     // There aren't any survivable errors in the current
                     // design.
                     self.state = Some(DataReaderState::Closed);
                     #[cfg(feature = "stream-ctrl")]
                     {
-                        _imp.status.lock().expect("lock poisoned").record_error(&e);
+                        imp.status.lock().expect("lock poisoned").record_error(&e);
                     }
                     let result = if matches!(e, Error::EndReceived(EndReason::DONE)) {
                         Ok(0)
@@ -963,14 +956,14 @@ impl AsyncRead for DataReader {
                     };
                     return Poll::Ready(result);
                 }
-                Poll::Ready((imp, Ok(()))) => {
+                Poll::Ready(Ok(())) => {
                     // It read a cell!  Continue the loop.
                     state = DataReaderState::Ready(imp);
                 }
                 Poll::Pending => {
                     // The future is pending; store it and tell the
                     // caller to get back to us later.
-                    self.state = Some(DataReaderState::ReadingCell(future));
+                    self.state = Some(DataReaderState::ReadingCell(imp));
                     return Poll::Pending;
                 }
             }
@@ -1007,23 +1000,24 @@ impl DataReaderImpl {
     }
 
     /// Load self.pending with the contents of a new data cell.
-    ///
-    /// This function takes ownership of self so that we can avoid
-    /// self-referential lifetimes.
-    async fn read_cell(mut self) -> (Self, Result<()>) {
+    fn read_cell(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         use DataStreamMsg::*;
-        let msg = match self.s.recv().await {
-            Ok(unparsed) => match unparsed.decode::<DataStreamMsg>() {
+        let msg = match self.as_mut().project().s.poll_next(cx) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(Some(Ok(unparsed))) => match unparsed.decode::<DataStreamMsg>() {
                 Ok(cell) => cell.into_msg(),
                 Err(e) => {
                     self.s.protocol_error();
-                    return (
-                        self,
-                        Err(Error::from_bytes_err(e, "message on a data stream")),
-                    );
+                    return Poll::Ready(Err(Error::from_bytes_err(e, "message on a data stream")));
                 }
             },
-            Err(e) => return (self, Err(e)),
+            Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
+            // TODO: This doesn't seem right to me, but seems to be the behaviour of the code before
+            // the refactoring, so I've kept the same behaviour. I think if the cell stream is
+            // terminated, we should be returning `None` here and not considering it as an error.
+            // The `StreamReceiver` will have already returned an error if the cell stream was
+            // terminated without an END message.
+            Poll::Ready(None) => return Poll::Ready(Err(Error::NotConnected)),
         };
 
         let result = match msg {
@@ -1057,7 +1051,7 @@ impl DataReaderImpl {
             End(e) => Err(Error::EndReceived(e.reason())),
         };
 
-        (self, result)
+        Poll::Ready(result)
     }
 
     /// Add the data from `d` to the end of our pending bytes.
