@@ -287,17 +287,6 @@ impl TunnelMutableState {
         Ok(mutable.n_hops())
     }
 
-    /// Return the cryptographic material used to prove knowledge of a shared
-    /// secret with with `hop` on the circuit with the specified `unique_id`.
-    fn binding_key(&self, unique_id: UniqId, hop: HopNum) -> Result<Option<CircuitBinding>> {
-        let lock = self.0.lock().expect("lock poisoned");
-        let mutable = lock
-            .get(&unique_id)
-            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
-
-        Ok(mutable.binding_key(hop))
-    }
-
     /// Return the number of legs in this tunnel.
     ///
     /// TODO(conflux-fork): this can be removed once we modify `path_ref`
@@ -534,6 +523,18 @@ impl ClientCirc {
             .ok_or_else(|| internal!("no last hop index"))?)
     }
 
+    /// Return a [`TargetHop`] representing precisely the last hop of the circuit as in set as a
+    /// HopLocation with its id and hop number.
+    ///
+    /// Return an error if there is no last hop.
+    pub fn last_hop(&self) -> Result<TargetHop> {
+        let hop_num = self
+            .mutable
+            .last_hop_num(self.unique_id)?
+            .ok_or_else(|| bad_api_usage!("no last hop"))?;
+        Ok((self.unique_id, hop_num).into())
+    }
+
     /// Return a [`Path`] object describing all the hops in this circuit.
     ///
     /// Note that this `Path` is not automatically updated if the circuit is
@@ -569,10 +570,15 @@ impl ClientCirc {
     ///
     /// Return None if we have no circuit binding information for the hop, or if
     /// the hop does not exist.
-    pub fn binding_key(&self, hop: HopNum) -> Result<Option<CircuitBinding>> {
-        self.mutable
-            .binding_key(self.unique_id, hop)
-            .map_err(|_| Error::CircuitClosed)
+    #[cfg(feature = "hs-service")]
+    pub async fn binding_key(&self, hop: TargetHop) -> Result<Option<CircuitBinding>> {
+        let (sender, receiver) = oneshot::channel();
+        let msg = CtrlCmd::GetBindingKey { hop, done: sender };
+        self.command
+            .unbounded_send(msg)
+            .map_err(|_| Error::CircuitClosed)?;
+
+        receiver.await.map_err(|_| Error::CircuitClosed)?
     }
 
     /// Start an ad-hoc protocol exchange to the specified hop on this circuit
@@ -657,9 +663,16 @@ impl ClientCirc {
         &self,
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-        hop_num: HopNum,
+        hop: TargetHop,
     ) -> Result<Conversation<'_>> {
-        let handler = Box::new(UserMsgHandler::new(hop_num, reply_handler));
+        // We need to resolve the TargetHop into a precise HopLocation so our msg handler can match
+        // the right Leg/Hop with inbound cell.
+        let (sender, receiver) = oneshot::channel();
+        self.command
+            .unbounded_send(CtrlCmd::ResolveTargetHop { hop, done: sender })
+            .map_err(|_| Error::CircuitClosed)?;
+        let hop_location = receiver.await.map_err(|_| Error::CircuitClosed)??;
+        let handler = Box::new(UserMsgHandler::new(hop_location, reply_handler));
         let conversation = Conversation(self);
         conversation.send_internal(msg, Some(handler)).await?;
         Ok(conversation)
@@ -674,14 +687,10 @@ impl ClientCirc {
     pub async fn send_raw_msg(
         &self,
         msg: tor_cell::relaycell::msg::AnyRelayMsg,
-        hop_num: HopNum,
+        hop: TargetHop,
     ) -> Result<()> {
         let (sender, receiver) = oneshot::channel();
-        let ctrl_msg = CtrlMsg::SendMsg {
-            hop_num,
-            msg,
-            sender,
-        };
+        let ctrl_msg = CtrlMsg::SendMsg { hop, msg, sender };
         self.control
             .unbounded_send(ctrl_msg)
             .map_err(|_| Error::CircuitClosed)?;
@@ -712,12 +721,10 @@ impl ClientCirc {
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
-        hop_num: HopNum,
+        hop: TargetHop,
         filter: impl crate::stream::IncomingStreamRequestFilter,
     ) -> Result<impl futures::Stream<Item = IncomingStream>> {
         use futures::stream::StreamExt;
-
-        use crate::tunnel::HopLocation;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
@@ -740,7 +747,7 @@ impl ClientCirc {
             .unbounded_send(CtrlCmd::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
-                hop_num,
+                hop,
                 done: tx,
                 filter: Box::new(filter),
             })
@@ -749,15 +756,18 @@ impl ClientCirc {
         // Check whether the AwaitStreamRequest was processed successfully.
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        let allowed_hop_num = hop_num;
+        let allowed_hop_loc = match hop {
+            TargetHop::Hop(loc) => Some(loc),
+            _ => None,
+        }
+        .ok_or_else(|| bad_api_usage!("Expected TargetHop with HopLocation"))?;
 
         let circ = Arc::clone(self);
         Ok(incoming_receiver.map(move |req_ctx| {
             let StreamReqInfo {
                 req,
                 stream_id,
-                hop_num,
-                leg,
+                hop,
                 receiver,
                 msg_tx,
                 memquota,
@@ -768,7 +778,7 @@ impl ClientCirc {
             // assertion is just here to make sure that we don't ever
             // accidentally remove or fail to enforce that check, since it is
             // security-critical.
-            assert_eq!(allowed_hop_num, hop_num);
+            assert_eq!(allowed_hop_loc, hop);
 
             // TODO(#2002): figure out what this is going to look like
             // for onion services (perhaps we should forbid this function
@@ -779,7 +789,7 @@ impl ClientCirc {
             let target = StreamTarget {
                 circ: Arc::clone(&circ),
                 tx: msg_tx,
-                hop: HopLocation::Hop((leg, hop_num)),
+                hop: allowed_hop_loc,
                 stream_id,
                 relay_cell_format,
             };
@@ -2593,7 +2603,7 @@ pub(crate) mod test {
             let _incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2602,7 +2612,7 @@ pub(crate) mod test {
             let incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await;
@@ -2631,7 +2641,7 @@ pub(crate) mod test {
             let mut incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2710,7 +2720,7 @@ pub(crate) mod test {
             let mut incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop_num().unwrap(),
+                    circ.last_hop().unwrap(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2801,7 +2811,7 @@ pub(crate) mod test {
             let mut incoming = circ
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    EXPECTED_HOP.into(),
+                    (circ.unique_id(), EXPECTED_HOP.into()).into(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -3599,7 +3609,7 @@ pub(crate) mod test {
             let err = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    EXPECTED_HOP.into(),
+                    (tunnel.unique_id(), EXPECTED_HOP.into()).into(),
                     AllowAllStreamsFilter,
                 )
                 .await

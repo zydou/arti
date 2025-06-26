@@ -238,11 +238,6 @@ impl ConfluxSet {
         self.legs.iter_mut().find(|circ| circ.unique_id() == leg_id)
     }
 
-    /// Return the UniqId of the primary leg.
-    pub(super) fn primary_leg_id(&self) -> UniqId {
-        self.primary_id
-    }
-
     /// Return the number of legs in this conflux set.
     pub(super) fn len(&self) -> usize {
         self.legs.len()

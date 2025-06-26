@@ -406,7 +406,7 @@ enum RemoveLegReason {
 pub(crate) trait MetaCellHandler: Send {
     /// The hop we're expecting the message to come from. This is compared against the hop
     /// from which we actually receive messages, and an error is thrown if the two don't match.
-    fn expected_hop(&self) -> HopNum;
+    fn expected_hop(&self) -> HopLocation;
     /// Called when the message we were waiting for arrives.
     ///
     /// Gets a copy of the `Reactor` in order to do anything it likes there.
@@ -591,9 +591,7 @@ pub(crate) struct StreamReqInfo {
     //
     // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
     // incoming stream request from two separate hops.  (There is only one that's valid.)
-    pub(crate) hop_num: HopNum,
-    /// The [`UniqId`] of the circuit the request came on.
-    pub(crate) leg: UniqId,
+    pub(crate) hop: HopLocation,
     /// The format which must be used with this stream to encode messages.
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) relay_cell_format: RelayCellFormat,
@@ -1177,8 +1175,13 @@ impl Reactor {
                     .as_ref()
                     .or(handlers.meta_handler.as_ref())
                     .ok_or_else(|| internal!("tried to use an ended Conversation"))?;
+                // We should always have a precise HopLocation here so this should never fails but
+                // in case we have a ::JointPoint, we'll notice.
+                let hop = handler.expected_hop().hop_num().ok_or(bad_api_usage!(
+                    "MsgHandler doesn't have a precise HopLocation"
+                ))?;
                 Ok::<_, crate::Error>(SendRelayCell {
-                    hop: handler.expected_hop(),
+                    hop,
                     early: false,
                     cell: msg,
                 })
@@ -1278,6 +1281,19 @@ impl Reactor {
                 }
             }
         }
+    }
+
+    /// Resolve a [`TargetHop`] directly into a [`UniqId`] and [`HopNum`].
+    ///
+    /// This is a helper function that basically calls both resolve_target_hop and
+    /// resolve_hop_location back to back.
+    ///
+    /// It returns None on failure to resolve meaning that if you want more detailed error on why
+    /// it failed, explicitly use the resolve_hop_location() and resolve_target_hop() functions.
+    pub(crate) fn target_hop_to_hopnum_id(&self, hop: TargetHop) -> Option<(UniqId, HopNum)> {
+        self.resolve_target_hop(hop)
+            .ok()
+            .and_then(|resolved| self.resolve_hop_location(resolved).ok())
     }
 
     /// Does congestion control use stream SENDMEs for the given hop?

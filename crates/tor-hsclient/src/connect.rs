@@ -1467,8 +1467,8 @@ impl MockableClientCirc for ClientCirc {
         msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
     ) -> tor_proto::Result<Self::Conversation<'_>> {
-        let last_hop = self.last_hop_num()?;
-        ClientCirc::start_conversation(self, msg, reply_handler, last_hop).await
+        ClientCirc::start_conversation(self, msg, reply_handler, tor_proto::TargetHop::LastHop)
+            .await
     }
     type Conversation<'r> = tor_proto::circuit::Conversation<'r>;
 

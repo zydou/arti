@@ -353,7 +353,7 @@ impl IntroRequest {
         drop(netdir);
 
         let last_real_hop = circuit
-            .last_hop_num()
+            .last_hop()
             .map_err(into_internal!("Circuit with no final hop"))?;
 
         // Add a virtual hop.
@@ -369,7 +369,7 @@ impl IntroRequest {
             .map_err(E::VirtualHop)?;
 
         let virtual_hop = circuit
-            .last_hop_num()
+            .last_hop()
             .map_err(into_internal!("Circuit with no virtual hop"))?;
 
         // Accept begins from that virtual hop

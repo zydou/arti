@@ -68,7 +68,7 @@ pub use util::skew::ClockSkew;
 pub use channel::params::ChannelPaddingInstructions;
 pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
-pub use tunnel::circuit;
+pub use tunnel::{circuit, HopLocation, TargetHop};
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;

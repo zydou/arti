@@ -8,6 +8,7 @@ pub(crate) mod msghandler;
 pub(crate) mod reactor;
 mod streammap;
 
+use derive_deftly::Deftly;
 use derive_more::Display;
 use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
@@ -25,6 +26,7 @@ use reactor::CtrlMsg;
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayCellFormat, StreamId};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 /// The unique identifier of a tunnel.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
@@ -72,22 +74,21 @@ impl TunnelScopedCircId {
     }
 }
 
-// TODO(#1857): Make this pub and not `allow(dead_code)`.
 /// A precise position in a tunnel.
-#[allow(dead_code)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum HopLocation {
+#[derive(Debug, Deftly, Copy, Clone, PartialEq, Eq)]
+#[derive_deftly(HasMemoryCost)]
+#[non_exhaustive]
+pub enum HopLocation {
     /// A specific position in a tunnel.
     Hop((UniqId, HopNum)),
     /// The join point of a multi-path tunnel.
     JoinPoint,
 }
 
-// TODO(#1857): Make this pub and not `allow(dead_code)`.
 /// A position in a tunnel.
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum TargetHop {
+#[non_exhaustive]
+pub enum TargetHop {
     /// A specific position in a tunnel.
     Hop(HopLocation),
     /// The last hop of a tunnel.
@@ -96,6 +97,28 @@ pub(crate) enum TargetHop {
     /// Some tunnels may be extended or truncated,
     /// which means that the "last hop" may change at any time.
     LastHop,
+}
+
+impl From<(UniqId, HopNum)> for HopLocation {
+    fn from(v: (UniqId, HopNum)) -> Self {
+        HopLocation::Hop(v)
+    }
+}
+
+impl From<(UniqId, HopNum)> for TargetHop {
+    fn from(v: (UniqId, HopNum)) -> Self {
+        TargetHop::Hop(v.into())
+    }
+}
+
+impl HopLocation {
+    /// Return the hop number if not a JointPoint.
+    pub fn hop_num(&self) -> Option<HopNum> {
+        match self {
+            Self::Hop((_, hop_num)) => Some(*hop_num),
+            Self::JoinPoint => None,
+        }
+    }
 }
 
 /// Internal handle, used to implement a stream on a particular circuit.

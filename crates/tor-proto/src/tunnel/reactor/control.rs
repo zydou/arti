@@ -5,11 +5,9 @@ use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
 };
-#[cfg(test)]
-use crate::circuit::CircParameters;
 use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
-use crate::crypto::cell::{HopNum, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
+use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::AnyCmdChecker;
 use crate::tunnel::circuit::celltypes::CreateResponse;
@@ -19,6 +17,8 @@ use crate::tunnel::reactor::{NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
+#[cfg(test)]
+use crate::{circuit::CircParameters, crypto::cell::HopNum};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
@@ -139,7 +139,7 @@ pub(crate) enum CtrlMsg {
     #[cfg(feature = "send-control-msg")]
     SendMsg {
         /// The hop to receive this message.
-        hop_num: HopNum,
+        hop: TargetHop,
         /// The message to send.
         msg: AnyRelayMsg,
         /// A sender that we use to tell the caller that the message was sent
@@ -226,6 +226,13 @@ pub(crate) enum CtrlCmd {
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
     },
+    /// Resolve a given [`TargetHop`] into a precise [`HopLocation`].
+    ResolveTargetHop {
+        /// The target hop to resolve.
+        hop: TargetHop,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<HopLocation>,
+    },
     /// Begin accepting streams on this circuit.
     #[cfg(feature = "hs-service")]
     AwaitStreamRequest {
@@ -236,11 +243,19 @@ pub(crate) enum CtrlCmd {
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
         /// The hop that is allowed to create streams.
-        hop_num: HopNum,
+        hop: TargetHop,
         /// A filter used to check requests before passing them on.
         #[educe(Debug(ignore))]
         #[cfg(feature = "hs-service")]
         filter: Box<dyn IncomingStreamRequestFilter>,
+    },
+    /// Request the binding key of a target hop.
+    #[cfg(feature = "hs-service")]
+    GetBindingKey {
+        /// The hop for which we want the key.
+        hop: TargetHop,
+        /// Oneshot channel to notify on completion.
+        done: ReactorResultChannel<Option<CircuitBinding>>,
     },
     /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
     #[cfg(test)]
@@ -515,11 +530,13 @@ impl<'a> ControlHandler<'a> {
             // This will involve updating ClientCIrc::send_raw_msg() to take a
             // leg id argument (which is a breaking change.
             #[cfg(feature = "send-control-msg")]
-            CtrlMsg::SendMsg {
-                hop_num,
-                msg,
-                sender,
-            } => {
+            CtrlMsg::SendMsg { hop, msg, sender } => {
+                let Some((leg_id, hop_num)) = self.reactor.target_hop_to_hopnum_id(hop) else {
+                    // Don't care if receiver goes away
+                    let _ = sender.send(Err(bad_api_usage!("Unknown {hop:?}").into()));
+                    return Ok(None);
+                };
+
                 let cell = AnyRelayMsgOuter::new(None, msg);
                 let cell = SendRelayCell {
                     hop: hop_num,
@@ -527,10 +544,8 @@ impl<'a> ControlHandler<'a> {
                     cell,
                 };
 
-                let leg = self.reactor.circuits.primary_leg_id();
-
                 Ok(Some(RunOnceCmdInner::Send {
-                    leg,
+                    leg: leg_id,
                     cell,
                     done: Some(sender),
                 }))
@@ -596,14 +611,26 @@ impl<'a> ControlHandler<'a> {
 
                 Ok(())
             }
+            CtrlCmd::ResolveTargetHop { hop, done } => {
+                let _ = done.send(
+                    self.reactor
+                        .resolve_target_hop(hop)
+                        .map_err(|_| crate::util::err::Error::NoSuchHop),
+                );
+                Ok(())
+            }
             #[cfg(feature = "hs-service")]
             CtrlCmd::AwaitStreamRequest {
                 cmd_checker,
                 incoming_sender,
-                hop_num,
+                hop,
                 done,
                 filter,
             } => {
+                let Some((_, hop_num)) = self.reactor.target_hop_to_hopnum_id(hop) else {
+                    let _ = done.send(Err(crate::Error::NoSuchHop));
+                    return Ok(());
+                };
                 // TODO: At some point we might want to add a CtrlCmd for
                 // de-registering the handler.  See comments on `allow_stream_requests`.
                 let handler = IncomingStreamRequestHandler {
@@ -618,6 +645,28 @@ impl<'a> ControlHandler<'a> {
                     .cell_handlers
                     .set_incoming_stream_req_handler(handler);
                 let _ = done.send(ret); // don't care if the corresponding receiver goes away.
+
+                Ok(())
+            }
+            #[cfg(feature = "hs-service")]
+            CtrlCmd::GetBindingKey { hop, done } => {
+                let Some((leg_id, hop_num)) = self.reactor.target_hop_to_hopnum_id(hop) else {
+                    let _ = done.send(Err(tor_error::internal!(
+                        "Unknown TargetHop when getting binding key"
+                    )
+                    .into()));
+                    return Ok(());
+                };
+                let Some(circuit) = self.reactor.circuits.leg(leg_id) else {
+                    let _ = done.send(Err(tor_error::bad_api_usage!(
+                        "Unknown circuit id {leg_id} when getting binding key"
+                    )
+                    .into()));
+                    return Ok(());
+                };
+                // Get the binding key from the mutable state and send it back.
+                let key = circuit.mutable().binding_key(hop_num);
+                let _ = done.send(Ok(key));
 
                 Ok(())
             }
