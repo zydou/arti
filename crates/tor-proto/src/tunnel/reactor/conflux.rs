@@ -718,7 +718,7 @@ impl ConfluxSet {
 
             let Some(ewma_rtt) = rtt.ewma_rtt_usec().or_else(init_rtt_usec) else {
                 return Err(internal!(
-                    "attempted to select primary leg before HS completed?!"
+                    "attempted to select primary leg before handshake completed?!"
                 ));
             };
 
