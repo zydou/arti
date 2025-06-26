@@ -24,7 +24,7 @@ use crate::time::TimePeriod;
 pub use hs_client_intro_auth::{HsClientIntroAuthKey, HsClientIntroAuthKeypair};
 
 define_bytes! {
-/// The identity of a v3 onion service. (KP_hs_id)
+/// The identity of a v3 onion service. (`KP_hs_id`)
 ///
 /// This is the decoded and validated ed25519 public key that is encoded as a
 /// `${base32}.onion` address.  When expanded, it is a public key whose
@@ -57,7 +57,7 @@ impl Debug for HsId {
 }
 
 define_pk_keypair! {
-/// The identity of a v3 onion service, expanded into a public key. (KP_hs_id)
+/// The identity of a v3 onion service, expanded into a public key. (`KP_hs_id`)
 ///
 /// This is the decoded and validated ed25519 public key that is encoded as
 /// a `${base32}.onion` address.
