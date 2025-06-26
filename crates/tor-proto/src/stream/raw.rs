@@ -11,13 +11,13 @@ use futures::stream::StreamExt;
 
 /// The read part of a stream on a particular circuit.
 #[derive(Debug)]
-pub struct StreamReader {
+pub struct StreamReceiver {
     /// The underlying `StreamTarget` for this stream.
     ///
     /// A reader has this target in order to:
     ///   * Make the reactor send SENDME messages.
     ///   * Tell the reactor when there is a protocol error.
-    ///   * Keep the stream alive at least until the StreamReader
+    ///   * Keep the stream alive at least until the StreamReceiver
     ///     is dropped.
     pub(crate) target: StreamTarget,
     /// Channel to receive stream messages from the reactor.
@@ -33,7 +33,7 @@ pub struct StreamReader {
     pub(crate) ended: bool,
 }
 
-impl StreamReader {
+impl StreamReceiver {
     /// Try to read the next relay message from this stream.
     async fn recv_raw(&mut self) -> Result<UnparsedRelayMsg> {
         if self.ended {

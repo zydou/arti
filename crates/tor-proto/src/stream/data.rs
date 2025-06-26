@@ -33,7 +33,7 @@ use educe::Educe;
 use crate::tunnel::circuit::ClientCirc;
 
 use crate::memquota::StreamAccount;
-use crate::stream::StreamReader;
+use crate::stream::StreamReceiver;
 use crate::tunnel::StreamTarget;
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
 use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
@@ -407,20 +407,20 @@ impl ClientDataStreamCtrl {
 }
 
 impl DataStream {
-    /// Wrap raw stream reader and target parts as a DataStream.
+    /// Wrap raw stream receiver and target parts as a DataStream.
     ///
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
     pub(crate) fn new<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
-        reader: StreamReader,
+        receiver: StreamReceiver,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(time_provider, reader, target, false, memquota)
+        Self::new_inner(time_provider, receiver, target, false, memquota)
     }
 
-    /// Wrap raw stream reader and target parts as a connected DataStream.
+    /// Wrap raw stream receiver and target parts as a connected DataStream.
     ///
     /// Unlike [`DataStream::new`], this creates a `DataStream` that does not expect to receive a
     /// CONNECTED cell.
@@ -429,17 +429,17 @@ impl DataStream {
     #[cfg(feature = "hs-service")]
     pub(crate) fn new_connected<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
-        reader: StreamReader,
+        receiver: StreamReceiver,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(time_provider, reader, target, true, memquota)
+        Self::new_inner(time_provider, receiver, target, true, memquota)
     }
 
     /// The shared implementation of the `new*()` functions.
     fn new_inner<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
-        reader: StreamReader,
+        receiver: StreamReceiver,
         target: StreamTarget,
         connected: bool,
         memquota: StreamAccount,
@@ -464,7 +464,7 @@ impl DataStream {
         });
         let r = DataReader {
             state: Some(DataReaderState::Ready(DataReaderImpl {
-                s: reader,
+                s: receiver,
                 pending: Vec::new(),
                 offset: 0,
                 connected,
@@ -721,7 +721,7 @@ impl DataWriterInner {
                     // Tell the StreamTarget to close, so that the reactor
                     // realizes that we are done sending. (Dropping `imp.s` does not
                     // suffice, since there may be other clones of it.  In particular,
-                    // the StreamReader has one, which it uses to keep the stream
+                    // the StreamReceiver has one, which it uses to keep the stream
                     // open, among other things.)
                     imp.s.close();
 
@@ -892,9 +892,9 @@ enum DataReaderState {
 #[derive(Educe)]
 #[educe(Debug)]
 struct DataReaderImpl {
-    /// The underlying StreamReader object.
+    /// The underlying StreamReceiver object.
     #[educe(Debug(method = "skip_fmt"))]
-    s: StreamReader,
+    s: StreamReceiver,
 
     /// If present, data that we received on this stream but have not
     /// been able to send to the caller yet.

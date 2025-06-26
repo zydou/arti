@@ -53,7 +53,7 @@ use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
-    StreamReader,
+    StreamReceiver,
 };
 use crate::tunnel::circuit::celltypes::*;
 use crate::tunnel::reactor::CtrlCmd;
@@ -794,7 +794,7 @@ impl ClientCirc {
                 relay_cell_format,
             };
 
-            let reader = StreamReader {
+            let reader = StreamReceiver {
                 target: target.clone(),
                 receiver,
                 recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
@@ -978,7 +978,7 @@ impl ClientCirc {
         self: &Arc<ClientCirc>,
         begin_msg: AnyRelayMsg,
         cmd_checker: AnyCmdChecker,
-    ) -> Result<(StreamReader, StreamTarget, StreamAccount)> {
+    ) -> Result<(StreamReceiver, StreamTarget, StreamAccount)> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
         let hop = TargetHop::LastHop;
@@ -1013,14 +1013,14 @@ impl ClientCirc {
             relay_cell_format,
         };
 
-        let reader = StreamReader {
+        let stream_receiver = StreamReceiver {
             target: target.clone(),
             receiver,
             recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
             ended: false,
         };
 
-        Ok((reader, target, memquota))
+        Ok((stream_receiver, target, memquota))
     }
 
     /// Start a DataStream (anonymized connection) to the given
@@ -1030,10 +1030,15 @@ impl ClientCirc {
         msg: AnyRelayMsg,
         optimistic: bool,
     ) -> Result<DataStream> {
-        let (reader, target, memquota) = self
+        let (stream_receiver, target, memquota) = self
             .begin_stream_impl(msg, DataCmdChecker::new_any())
             .await?;
-        let mut stream = DataStream::new(self.time_provider.clone(), reader, target, memquota);
+        let mut stream = DataStream::new(
+            self.time_provider.clone(),
+            stream_receiver,
+            target,
+            memquota,
+        );
         if !optimistic {
             stream.wait_for_connection().await?;
         }
@@ -1123,10 +1128,10 @@ impl ClientCirc {
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
     async fn try_resolve(self: &Arc<ClientCirc>, msg: Resolve) -> Result<Resolved> {
-        let (reader, _target, memquota) = self
+        let (stream_receiver, _target, memquota) = self
             .begin_stream_impl(msg.into(), ResolveCmdChecker::new_any())
             .await?;
-        let mut resolve_stream = ResolveStream::new(reader, memquota);
+        let mut resolve_stream = ResolveStream::new(stream_receiver, memquota);
         resolve_stream.read_msg().await
     }
 
