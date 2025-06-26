@@ -765,11 +765,12 @@ impl ConfluxSet {
     /// should avoid polling the join point streams entirely.
     #[cfg(feature = "conflux")]
     fn should_skip_join_point(&self) -> Result<Option<HopNum>, Bug> {
-        let Some(join_hop) = self.join_point.as_ref().map(|join_point| join_point.hop) else {
+        let Some(primary_join_point) = self.primary_join_point() else {
             // Single-path, there is no join point
             return Ok(None);
         };
 
+        let join_hop = primary_join_point.1;
         let primary_blocked_on_cc = {
             let primary = self
                 .leg(self.primary_id)
@@ -781,8 +782,6 @@ impl ConfluxSet {
             // Easy, we can just carry on
             return Ok(None);
         }
-
-        let primary_join_point = self.primary_join_point();
 
         // Now, if the primary *is* blocked on cc, we may still be able to poll
         // the join point streams (if we're using the right desired UX)
