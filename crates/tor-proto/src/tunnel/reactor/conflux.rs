@@ -968,28 +968,25 @@ impl ConfluxSet {
             // to the last hop (the join point).
             if cmd_counts_towards_seqno(msg.cell.cmd()) {
                 if msg.hop != join_point {
-                    return Err(crate::Error::Bug(internal!(
-                        "Leaky pipe on conflux circuit?! (target_hop={}, join_point={})",
-                        msg.hop.display(),
-                        join_point.display(),
-                    )));
+                    // For leaky pipe, we must continue using the original leg
+                    leg
+                } else {
+                    let old_primary_leg = self.primary_id;
+                    // Check if it's time to switch our primary leg.
+                    #[cfg(feature = "conflux")]
+                    if let Some(switch_cell) = self.maybe_update_primary_leg()? {
+                        trace!(
+                            old = ?old_primary_leg,
+                            new = ?self.primary_id,
+                            "Switching primary conflux leg..."
+                        );
+
+                        self.primary_leg_mut()?.send_relay_cell(switch_cell).await?;
+                    }
+
+                    // Use the possibly updated primary leg
+                    Some(self.primary_id)
                 }
-
-                let old_primary_leg = self.primary_id;
-                // Check if it's time to switch our primary leg.
-                #[cfg(feature = "conflux")]
-                if let Some(switch_cell) = self.maybe_update_primary_leg()? {
-                    trace!(
-                        old = ?old_primary_leg,
-                        new = ?self.primary_id,
-                        "Switching primary conflux leg..."
-                    );
-
-                    self.primary_leg_mut()?.send_relay_cell(switch_cell).await?;
-                }
-
-                // Use the possibly updated primary leg
-                Some(self.primary_id)
             } else {
                 // Non-multiplexed commands go on their original
                 // circuit and hop
