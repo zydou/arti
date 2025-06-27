@@ -298,7 +298,7 @@ impl ConfluxSet {
                 //
                 // Technically this should be unreachable (because of the is_empty()
                 // check above)
-                return Err(internal!("Multiple legs in single-path tunnel?!").into());
+                Err(internal!("Multiple legs in single-path tunnel?!").into())
             }
         }
     }
