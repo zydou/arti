@@ -1549,7 +1549,9 @@ pub(crate) mod test {
     use {
         crate::tunnel::reactor::ConfluxHandshakeResult,
         crate::util::err::ConfluxHandshakeError,
+        futures::future::FusedFuture,
         futures::lock::Mutex as AsyncMutex,
+        std::pin::Pin,
         std::result::Result as StdResult,
         tor_cell::relaycell::conflux::{V1DesiredUx, V1LinkPayload, V1Nonce},
         tor_cell::relaycell::msg::ConfluxLink,
@@ -3427,6 +3429,43 @@ pub(crate) mod test {
         seqno: u32,
     }
 
+    /// Object dispatching cells for delivery on the appropriate
+    /// leg in a multipath tunnel.
+    ///
+    /// Used to send out-of-order cells from the mock exit
+    /// to the client under test.
+    #[cfg(feature = "conflux")]
+    struct CellDispatcher {
+        /// Channels on which to send the [`CellToSend`] commands on.
+        leg_tx: HashMap<UniqId, mpsc::Sender<CellToSend>>,
+        /// The list of cells to send,
+        cells_to_send: Vec<(UniqId, AnyRelayMsg)>,
+    }
+
+    #[cfg(feature = "conflux")]
+    impl CellDispatcher {
+        async fn run(mut self) {
+            while !self.cells_to_send.is_empty() {
+                let (circ_id, cell) = self.cells_to_send.remove(0);
+                let cell_tx = self.leg_tx.get_mut(&circ_id).unwrap();
+                let (done_tx, done_rx) = oneshot::channel();
+                cell_tx.send(CellToSend { done_tx, cell }).await.unwrap();
+                // Wait for the cell to be sent before sending the next one.
+                let () = done_rx.await.unwrap();
+            }
+        }
+    }
+
+    /// A cell for the mock exit to send on one of its legs.
+    #[cfg(feature = "conflux")]
+    #[derive(Debug)]
+    struct CellToSend {
+        /// Channel for notifying the control task that the cell was sent.
+        done_tx: oneshot::Sender<()>,
+        /// The cell to send.
+        cell: AnyRelayMsg,
+    }
+
     /// The state of a mock exit.
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
@@ -3453,6 +3492,8 @@ pub(crate) mod test {
         event_tx: mpsc::Sender<MockExitEvent>,
         /// Whether this circuit leg should act as the primary (sending) leg.
         is_sending_leg: bool,
+        /// A channel for receiving cells to send on this stream.
+        cells_rx: mpsc::Receiver<CellToSend>,
     }
 
     #[cfg(feature = "conflux")]
@@ -3512,6 +3553,7 @@ pub(crate) mod test {
             mut event_tx,
             mut event_rx,
             is_sending_leg,
+            mut cells_rx,
         } = state;
 
         let mut rtt_delays = rtt_delays.into_iter();
@@ -3522,7 +3564,7 @@ pub(crate) mod test {
         let mut cell_count = 0_usize;
         let mut tags = vec![];
         let mut streamid = None;
-        let done_writing = true; // XXX support for writing to the stream
+        let mut done_writing = false;
 
         loop {
             let should_exit = {
@@ -3537,6 +3579,15 @@ pub(crate) mod test {
             }
 
             use futures::select;
+
+            // Only start reading from the dispatcher channel after the stream is open
+            // and we're ready to start sending cells.
+            let mut next_cell = if streamid.is_some() && !done_writing {
+                Box::pin(cells_rx.next().fuse())
+                    as Pin<Box<dyn FusedFuture<Output = Option<CellToSend>> + Send>>
+            } else {
+                Box::pin(std::future::pending().fuse())
+            };
 
             // Wait for the BEGIN cell to arrive, or for the transfer to complete
             // (we need to bail if the other leg already completed);
@@ -3560,6 +3611,30 @@ pub(crate) mod test {
                             continue;
                         },
                     }
+                }
+                res = next_cell => {
+                    if let Some(cell_to_send) = res {
+                        let CellToSend { cell, done_tx } = cell_to_send;
+
+                        // SWITCH cells don't have a stream ID
+                        let streamid = if matches!(cell, AnyRelayMsg::ConfluxSwitch(_)) {
+                            None
+                        } else {
+                            streamid
+                        };
+
+                        circ.circ_tx
+                            .send(rmsg_to_ccmsg(streamid, cell))
+                            .await
+                            .unwrap();
+
+                        runtime.lock().await.advance_until_stalled().await;
+                        done_tx.send(()).unwrap();
+                    } else {
+                        done_writing = true;
+                    }
+
+                    continue;
                 }
             };
 
@@ -3836,6 +3911,12 @@ pub(crate) mod test {
             }];
 
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
+
+            // Drop the senders and close the channels,
+            // we have nothing to send in this test.
+            let (_, cells_rx1) = mpsc::channel(1);
+            let (_, cells_rx2) = mpsc::channel(1);
+
             let relay1 = ConfluxExitState {
                 runtime: Arc::clone(&relay_runtime),
                 tunnel: Arc::clone(&tunnel),
@@ -3846,6 +3927,7 @@ pub(crate) mod test {
                 event_tx: tx1,
                 event_rx: rx2,
                 is_sending_leg: true,
+                cells_rx: cells_rx1,
             };
 
             let relay2 = ConfluxExitState {
@@ -3858,6 +3940,7 @@ pub(crate) mod test {
                 event_tx: tx2,
                 event_rx: rx1,
                 is_sending_leg: false,
+                cells_rx: cells_rx2,
             };
 
             for mut mock_relay in [relay1, relay2] {
