@@ -138,6 +138,10 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
         self.last_seq_sent
     }
 
+    fn set_last_seq_sent(&mut self, n: u64) {
+        self.last_seq_sent = n;
+    }
+
     fn inc_last_seq_recv(&mut self) {
         self.last_seq_recv += 1;
     }

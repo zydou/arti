@@ -12,7 +12,7 @@ use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
 use smallvec::{smallvec, SmallVec};
 use tor_rtcompat::SleepProviderExt as _;
-use tracing::warn;
+use tracing::{info, trace, warn};
 
 use tor_async_utils::SinkPrepareExt as _;
 use tor_basic_utils::flatten;
@@ -298,7 +298,7 @@ impl ConfluxSet {
                 //
                 // Technically this should be unreachable (because of the is_empty()
                 // check above)
-                return Err(internal!("Multiple legs in single-path tunnel?!").into());
+                Err(internal!("Multiple legs in single-path tunnel?!").into())
             }
         }
     }
@@ -614,6 +614,11 @@ impl ConfluxSet {
             into_internal!("Seqno delta for switch does not fit in u32?!"),
         )?;
 
+        // We need to carry the last_seq_sent over to the next leg
+        // (the next cell sent will have seqno = prev_last_seq_sent + 1)
+        self.primary_leg_mut()?
+            .set_last_seq_sent(prev_last_seq_sent)?;
+
         let switch = ConfluxSwitch::new(seqno_delta);
         let cell = AnyRelayMsgOuter::new(None, switch.into());
         Ok(Some(SendRelayCell {
@@ -706,14 +711,23 @@ impl ConfluxSet {
             }
 
             let rtt = ccontrol.rtt();
-            let ewma_rtt = rtt.ewma_rtt_usec();
+            let init_rtt_usec = || {
+                circ.init_rtt()
+                    .map(|rtt| u32::try_from(rtt.as_micros()).unwrap_or(u32::MAX))
+            };
+
+            let Some(ewma_rtt) = rtt.ewma_rtt_usec().or_else(init_rtt_usec) else {
+                return Err(internal!(
+                    "attempted to select primary leg before handshake completed?!"
+                ));
+            };
 
             match best.take() {
                 None => {
                     best = Some((leg_id, ewma_rtt));
                 }
                 Some(best_so_far) => {
-                    if best_so_far.1 < ewma_rtt {
+                    if best_so_far.1 <= ewma_rtt {
                         best = Some(best_so_far);
                     } else {
                         best = Some((leg_id, ewma_rtt));
@@ -725,6 +739,104 @@ impl ConfluxSet {
         Ok(best.map(|(leg_id, _)| leg_id))
     }
 
+    /// Returns `true` if our conflux join point is blocked on congestion control
+    /// on the specified `circuit`.
+    ///
+    /// Returns `false` if the join point is not blocked on cc,
+    /// or if this is a single-path set.
+    ///
+    /// Returns an error if this is a multipath tunnel,
+    /// but the joint point hop doesn't exist on the specified circuit.
+    #[cfg(feature = "conflux")]
+    fn is_join_point_blocked_on_cc(join_hop: HopNum, circuit: &Circuit) -> Result<bool, Bug> {
+        let join_circhop = circuit.hop(join_hop).ok_or_else(|| {
+            internal!(
+                "Join point hop {} not found on circuit {}?!",
+                join_hop.display(),
+                circuit.unique_id(),
+            )
+        })?;
+
+        Ok(!join_circhop.ccontrol().can_send())
+    }
+
+    /// Returns the `HopNum` of the join point
+    /// if [`next_circ_action`](Self::next_circ_action)
+    /// should avoid polling the join point streams entirely.
+    #[cfg(feature = "conflux")]
+    fn should_skip_join_point(&self) -> Result<Option<HopNum>, Bug> {
+        let Some(primary_join_point) = self.primary_join_point() else {
+            // Single-path, there is no join point
+            return Ok(None);
+        };
+
+        let join_hop = primary_join_point.1;
+        let primary_blocked_on_cc = {
+            let primary = self
+                .leg(self.primary_id)
+                .ok_or_else(|| internal!("primary leg disappeared?!"))?;
+            Self::is_join_point_blocked_on_cc(join_hop, primary)?
+        };
+
+        if !primary_blocked_on_cc {
+            // Easy, we can just carry on
+            return Ok(None);
+        }
+
+        // Now, if the primary *is* blocked on cc, we may still be able to poll
+        // the join point streams (if we're using the right desired UX)
+        let exclude = if self.desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
+            // The primary leg is blocked on cc, and we can't switch because we're
+            // not using the high throughput algorithm, so we must stop reading
+            // the join point streams.
+            //
+            // Note: if the selected algorithm is HIGH_THROUGHPUT,
+            // it's okay to continue reading from the edge connection,
+            // because maybe_update_primary_leg() will select a new,
+            // non-blocked primary leg, just before sending.
+            trace!(
+                tunnel_id = %self.tunnel_id,
+                join_point = ?primary_join_point,
+                reason = "sending leg blocked on congestion control",
+                "Pausing join point stream reads"
+            );
+
+            Some(join_hop)
+        } else {
+            // Ah-ha, the desired UX is HIGH_THROUGHPUT, which means we can switch
+            // to an unblocked leg before sending any cells over the join point,
+            // as long as there are some unblocked legs.
+
+            // TODO: figure out how to rewrite this with an idiomatic iterator combinator
+            let mut all_blocked_on_cc = true;
+            for leg in &self.legs {
+                all_blocked_on_cc = Self::is_join_point_blocked_on_cc(join_hop, leg)?;
+                if !all_blocked_on_cc {
+                    break;
+                }
+            }
+
+            if all_blocked_on_cc {
+                // All legs are blocked on cc, so we must stop reading from
+                // the join point streams for now.
+                trace!(
+                    tunnel_id = %self.tunnel_id,
+                    join_point = ?primary_join_point,
+                    reason = "all legs blocked on congestion control",
+                    "Pausing join point stream reads"
+                );
+
+                Some(join_hop)
+            } else {
+                // At least one leg is not blocked, so we can continue reading
+                // from the join point streams
+                None
+            }
+        };
+
+        Ok(exclude)
+    }
+
     /// Returns the next ready [`CircuitAction`],
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
     ///
@@ -732,11 +844,22 @@ impl ConfluxSet {
     /// or other internal errors occur.
     ///
     /// This is cancellation-safe.
+    #[allow(clippy::unnecessary_wraps)] // Can return Err if conflux is enabled
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
         runtime: &'a tor_rtcompat::DynTimeProvider,
-    ) -> impl Future<Output = Result<CircuitAction, crate::Error>> + 'a {
-        self.legs
+    ) -> Result<impl Future<Output = Result<CircuitAction, crate::Error>> + 'a, Bug> {
+        // Avoid polling the streams on the join point if our primary
+        // leg is blocked on cc
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "conflux")] {
+                let exclude_hop = self.should_skip_join_point()?;
+            } else {
+                let exclude_hop: Option<HopNum> = None;
+            }
+        };
+
+        Ok(self.legs
             .iter_mut()
             .map(|leg| {
                 let unique_id = leg.unique_id();
@@ -758,7 +881,7 @@ impl ConfluxSet {
                     Box::pin(std::future::pending())
                 };
 
-                let mut ready_streams = leg.ready_streams_iterator();
+                let mut ready_streams = leg.ready_streams_iterator(exclude_hop);
                 let input = &mut leg.input;
                 // TODO: we don't really need prepare_send_from here
                 // because the inner select_biased! is cancel-safe.
@@ -769,6 +892,7 @@ impl ConfluxSet {
                         match ready_streams.next().await {
                             Some(x) => x,
                             None => {
+                                info!(circ_id=%unique_id, "no ready streams (maybe blocked on cc?)");
                                 // There are no ready streams (for example, they may all be
                                 // blocked due to congestion control), so there is nothing
                                 // to do.
@@ -839,7 +963,7 @@ impl ConfluxSet {
             .into_future()
             .map(|(next, _)| next.ok_or(internal!("empty conflux set").into()))
             // Clean up the nested `Result`s before returning to the caller.
-            .map(|res| flatten(flatten(res)))
+            .map(|res| flatten(flatten(res))))
     }
 
     /// The join point on the current primary leg.
@@ -870,22 +994,25 @@ impl ConfluxSet {
             // to the last hop (the join point).
             if cmd_counts_towards_seqno(msg.cell.cmd()) {
                 if msg.hop != join_point {
-                    return Err(crate::Error::Bug(internal!(
-                        "Leaky pipe on conflux circuit?! (target_hop={}, join_point={})",
-                        msg.hop.display(),
-                        join_point.display(),
-                    )));
-                }
+                    // For leaky pipe, we must continue using the original leg
+                    leg
+                } else {
+                    let old_primary_leg = self.primary_id;
+                    // Check if it's time to switch our primary leg.
+                    #[cfg(feature = "conflux")]
+                    if let Some(switch_cell) = self.maybe_update_primary_leg()? {
+                        trace!(
+                            old = ?old_primary_leg,
+                            new = ?self.primary_id,
+                            "Switching primary conflux leg..."
+                        );
 
-                // Check if it's time to switch our primary leg.
-                #[cfg(feature = "conflux")]
-                if let Some(switch_cell) = self.maybe_update_primary_leg()? {
-                    //tracing::trace!("{}: Switching primary conflux leg...", self.unique_id);
-                    self.primary_leg_mut()?.send_relay_cell(switch_cell).await?;
-                }
+                        self.primary_leg_mut()?.send_relay_cell(switch_cell).await?;
+                    }
 
-                // Use the possibly updated primary leg
-                Some(self.primary_id)
+                    // Use the possibly updated primary leg
+                    Some(self.primary_id)
+                }
             } else {
                 // Non-multiplexed commands go on their original
                 // circuit and hop

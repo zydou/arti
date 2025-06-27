@@ -192,6 +192,11 @@ impl ConfluxMsgHandler {
         self.handler.last_seq_sent()
     }
 
+    /// Set the sequence number of the last message sent on this leg.
+    pub(crate) fn set_last_seq_sent(&mut self, n: u64) {
+        self.handler.set_last_seq_sent(n);
+    }
+
     /// Return the sequence number of the last message received on this leg.
     pub(crate) fn last_seq_recv(&self) -> u64 {
         self.handler.last_seq_recv()
@@ -252,6 +257,9 @@ trait AbstractConfluxMsgHandler {
 
     /// Return the sequence number of the last message sent on this leg.
     fn last_seq_sent(&self) -> u64;
+
+    /// Set the sequence number of the last message sent on this leg.
+    fn set_last_seq_sent(&mut self, n: u64);
 
     /// Increment the sequence number of the last message received on this leg.
     fn inc_last_seq_recv(&mut self);

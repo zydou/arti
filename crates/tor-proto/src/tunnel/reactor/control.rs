@@ -18,7 +18,7 @@ use crate::tunnel::{streammap, HopLocation, TargetHop};
 use crate::util::skew::ClockSkew;
 use crate::Result;
 #[cfg(test)]
-use crate::{circuit::CircParameters, crypto::cell::HopNum};
+use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
@@ -269,6 +269,7 @@ pub(crate) enum CtrlCmd {
     #[cfg(test)]
     QuerySendWindow {
         hop: HopNum,
+        leg: UniqId,
         done: ReactorResultChannel<(u32, Vec<SendmeTag>)>,
     },
     /// Shut down the reactor, and return the underlying [`Circuit`],
@@ -574,6 +575,7 @@ impl<'a> ControlHandler<'a> {
     }
 
     /// Handle a control command.
+    #[allow(clippy::needless_pass_by_value)] // Needed when conflux is enabled
     pub(super) fn handle_cmd(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
         trace!(
             tunnel_id = %self.reactor.tunnel_id,
@@ -702,16 +704,12 @@ impl<'a> ControlHandler<'a> {
                 Ok(())
             }
             #[cfg(test)]
-            CtrlCmd::QuerySendWindow { hop, done } => {
+            CtrlCmd::QuerySendWindow { hop, leg, done } => {
                 // Immediately invoked function means that errors will be sent to the channel.
                 let _ = done.send((|| {
-                    let leg =
-                        self.reactor
-                            .circuits
-                            .single_leg_mut()
-                            .map_err(into_bad_api_usage!(
-                                "cannot query send window of multipath tunnel"
-                            ))?;
+                    let leg = self.reactor.circuits.leg_mut(leg).ok_or_else(|| {
+                        bad_api_usage!("cannot query send window of non-existent circuit")
+                    })?;
 
                     let hop = leg.hop_mut(hop).ok_or(bad_api_usage!(
                         "received QuerySendWindow for unknown hop {}",

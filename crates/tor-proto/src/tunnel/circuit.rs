@@ -1482,6 +1482,7 @@ pub(crate) mod test {
     use {
         crate::tunnel::reactor::ConfluxHandshakeResult,
         crate::util::err::ConfluxHandshakeError,
+        futures::lock::Mutex as AsyncMutex,
         std::result::Result as StdResult,
         tor_cell::relaycell::conflux::{V1DesiredUx, V1LinkPayload, V1Nonce},
         tor_cell::relaycell::msg::ConfluxLink,
@@ -2361,6 +2362,7 @@ pub(crate) mod test {
                 circ.command
                     .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
+                        leg: circ.unique_id(),
                         done: tx,
                     })
                     .unwrap();
@@ -2409,6 +2411,7 @@ pub(crate) mod test {
                 circ.command
                     .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
+                        leg: circ.unique_id(),
                         done: tx,
                     })
                     .unwrap();
@@ -2890,7 +2893,8 @@ pub(crate) mod test {
     struct TestCircuitCtx {
         chan_rx: Receiver<AnyChanCell>,
         chan_tx: Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
-        circ_sink: CircuitRxSender,
+        circ_tx: CircuitRxSender,
+        unique_id: UniqId,
     }
 
     #[derive(Debug)]
@@ -2978,13 +2982,15 @@ pub(crate) mod test {
         let circ_ctx1 = TestCircuitCtx {
             chan_rx: rx1,
             chan_tx: chan_sink1,
-            circ_sink: sink1,
+            circ_tx: sink1,
+            unique_id: circ1.unique_id(),
         };
 
         let circ_ctx2 = TestCircuitCtx {
             chan_rx: rx2,
             chan_tx: chan_sink2,
-            circ_sink: sink2,
+            circ_tx: sink2,
+            unique_id: circ2.unique_id(),
         };
 
         TestTunnelCtx {
@@ -3054,7 +3060,7 @@ pub(crate) mod test {
             // Send a LINK cell on the first leg...
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ1
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
@@ -3121,7 +3127,7 @@ pub(crate) mod test {
                 let [mut _circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
                 // Respond with a bogus cell on one of the legs
-                circ2.circ_sink.send(bad_cell).await.unwrap();
+                circ2.circ_tx.send(bad_cell).await.unwrap();
 
                 let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
                 // Get the handshake results (the handshake results are reported early,
@@ -3194,7 +3200,7 @@ pub(crate) mod test {
             // Send a LINK cell on the first leg...
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ1
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
@@ -3202,13 +3208,13 @@ pub(crate) mod test {
             // ...and two LINKED cells on the second
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ2
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
             let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
             circ2
-                .circ_sink
+                .circ_tx
                 .send(rmsg_to_ccmsg(None, linked))
                 .await
                 .unwrap();
@@ -3253,7 +3259,7 @@ pub(crate) mod test {
                 // Send a LINKED cell on both legs
                 for circ in [&mut circ1, &mut circ2] {
                     let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-                    circ.circ_sink
+                    circ.circ_tx
                         .send(rmsg_to_ccmsg(None, linked))
                         .await
                         .unwrap();
@@ -3267,7 +3273,7 @@ pub(crate) mod test {
                 // which causes the tunnel reactor to shut down
                 for circ in [&mut circ1, &mut circ2] {
                     let msg = rmsg_to_ccmsg(None, bad_cell.clone().into());
-                    circ.circ_sink.send(msg).await.unwrap();
+                    circ.circ_tx.send(msg).await.unwrap();
                 }
 
                 // The tunnel should be shutting down
@@ -3282,9 +3288,9 @@ pub(crate) mod test {
     /// Run a conflux test endpoint.
     #[cfg(feature = "conflux")]
     #[derive(Debug)]
-    enum ConfluxTestEndpoint {
+    enum ConfluxTestEndpoint<I: Iterator<Item = Option<Duration>>> {
         /// Pretend to be an exit relay.
-        Relay(ConfluxExitState),
+        Relay(ConfluxExitState<I>),
         /// Client task.
         Client {
             /// Channel for receiving the outcome of the conflux handshakes.
@@ -3292,7 +3298,9 @@ pub(crate) mod test {
             /// The tunnel reactor handle
             tunnel: Arc<ClientCirc>,
             /// Data to send on a stream.
-            stream_data: Vec<u8>,
+            send_data: Vec<u8>,
+            /// Data we expect to receive on a stream.
+            recv_data: Vec<u8>,
         },
     }
 
@@ -3302,10 +3310,12 @@ pub(crate) mod test {
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     enum ConfluxEndpointResult {
-        Circuit(Arc<ClientCirc>),
+        Circuit {
+            tunnel: Arc<ClientCirc>,
+            stream: DataStream,
+        },
         Relay {
-            rx: Receiver<ChanCell<AnyChanMsg>>,
-            sink: CircuitRxSender,
+            circ: TestCircuitCtx,
         },
     }
 
@@ -3313,28 +3323,61 @@ pub(crate) mod test {
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     struct ConfluxStreamState {
+        /// The data received so far on this stream.
         data_recvd: Vec<u8>,
+        /// The total amount of data we expect to receive on this stream.
         expected_data_len: usize,
+        /// Whether we have seen a BEGIN cell yet.
         begin_recvd: bool,
+        /// Whether we have seen an END cell yet.
         end_recvd: bool,
+        /// Whether we have sent an END cell yet.
+        end_sent: bool,
     }
 
+    /// An object describing a SWITCH cell that we expect to receive
+    /// in the mock exit
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
-    struct ConfluxExitState {
-        runtime: MockRuntime,
-        init_rtt_delay: Option<Duration>,
-        rtt_delay: Option<Duration>,
-        leg: usize,
-        rx: Receiver<ChanCell<AnyChanMsg>>,
-        sink: CircuitRxSender,
+    struct ExpectedSwitch {
+        /// The number of cells we've seen on this leg so far,
+        /// up to and including the SWITCH.
+        cells_so_far: usize,
+        /// The expected seqno in SWITCH cell,
+        seqno: u32,
+    }
+
+    /// The state of a mock exit.
+    #[derive(Debug)]
+    #[cfg(feature = "conflux")]
+    struct ConfluxExitState<I: Iterator<Item = Option<Duration>>> {
+        /// The runtime.
+        runtime: Arc<AsyncMutex<MockRuntime>>,
+        /// The client view of the tunnel.
+        tunnel: Arc<ClientCirc>,
+        /// The circuit test context.
+        circ: TestCircuitCtx,
+        /// The RTT delay to introduce just before each SENDME.
+        ///
+        /// Used to trigger the client to send a SWITCH.
+        rtt_delays: I,
+        /// State of the (only) expected stream on this tunnel,
+        /// shared by all the mock exit endpoints.
         stream_state: Arc<Mutex<ConfluxStreamState>>,
-        expect_switch: Vec<usize>,
+        /// The number of cells after which to expect a SWITCH
+        /// cell from the client.
+        expect_switch: Vec<ExpectedSwitch>,
+        /// Channel for receiving completion notifications from the other leg.
+        done_rx: oneshot::Receiver<()>,
+        /// Channel for sending completion notifications to the other leg.
+        done_tx: oneshot::Sender<()>,
+        /// Whether this circuit leg should act as the primary (sending) leg.
+        is_sending_leg: bool,
     }
 
     #[cfg(feature = "conflux")]
     async fn good_exit_handshake(
-        runtime: &MockRuntime,
+        runtime: &Arc<AsyncMutex<MockRuntime>>,
         init_rtt_delay: Option<Duration>,
         rx: &mut Receiver<ChanCell<AnyChanMsg>>,
         sink: &mut CircuitRxSender,
@@ -3345,7 +3388,7 @@ pub(crate) mod test {
         // Introduce an artificial delay, to make one circ have a better initial RTT
         // than the other
         if let Some(init_rtt_delay) = init_rtt_delay {
-            runtime.advance_by(init_rtt_delay).await;
+            runtime.lock().await.advance_by(init_rtt_delay).await;
         }
 
         // Reply with a LINKED cell...
@@ -3367,28 +3410,46 @@ pub(crate) mod test {
     }
 
     #[cfg(feature = "conflux")]
-    async fn run_mock_conflux_exit(state: ConfluxExitState) -> ConfluxEndpointResult {
+    async fn run_mock_conflux_exit<I: Iterator<Item = Option<Duration>>>(
+        state: ConfluxExitState<I>,
+    ) -> ConfluxEndpointResult {
         let ConfluxExitState {
             runtime,
-            init_rtt_delay,
-            rtt_delay,
-            leg,
-            mut rx,
-            mut sink,
+            tunnel,
+            mut circ,
+            rtt_delays,
             stream_state,
             mut expect_switch,
+            done_tx,
+            mut done_rx,
+            is_sending_leg,
         } = state;
 
-        // Do the conflux handshake
-        good_exit_handshake(&runtime, init_rtt_delay, &mut rx, &mut sink).await;
+        let mut rtt_delays = rtt_delays.into_iter();
 
         // Expect the client to open a stream, and de-multiplex the received stream data
         let stream_len = stream_state.lock().unwrap().expected_data_len;
         let mut data_cells_received = 0_usize;
         let mut cell_count = 0_usize;
+        let mut tags = vec![];
+        let mut streamid = None;
+
         while stream_state.lock().unwrap().data_recvd.len() < stream_len {
-            // Wait for the BEGIN cell to arrive...
-            let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
+            use futures::select;
+
+            // Wait for the BEGIN cell to arrive, or for the transfer to complete
+            // (we need to bail if the other leg already completed);
+            let res = select! {
+                res = circ.chan_rx.next() => {
+                    res.unwrap()
+                },
+                res = done_rx => {
+                    res.unwrap();
+                    break;
+                }
+            };
+
+            let (_id, chmsg) = res.into_circid_and_msg();
             cell_count += 1;
             let rmsg = match chmsg {
                 AnyChanMsg::Relay(r) => {
@@ -3397,7 +3458,10 @@ pub(crate) mod test {
                 }
                 other => panic!("{:?}", other),
             };
-            let (streamid, rmsg) = rmsg.into_streamid_and_msg();
+            let (new_streamid, rmsg) = rmsg.into_streamid_and_msg();
+            if streamid.is_none() {
+                streamid = new_streamid;
+            }
 
             let begin_recvd = stream_state.lock().unwrap().begin_recvd;
             let end_recvd = stream_state.lock().unwrap().end_recvd;
@@ -3409,7 +3473,10 @@ pub(crate) mod test {
                     stream_state.lock().unwrap().begin_recvd = true;
                     // Reply with a connected cell...
                     let connected = relaymsg::Connected::new_empty().into();
-                    sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                    circ.circ_tx
+                        .send(rmsg_to_ccmsg(streamid, connected))
+                        .await
+                        .unwrap();
                 }
                 AnyRelayMsg::End(_) if !end_recvd => {
                     stream_state.lock().unwrap().end_recvd = true;
@@ -3418,11 +3485,12 @@ pub(crate) mod test {
                 AnyRelayMsg::End(_) if end_recvd => {
                     panic!("received two END cells for the same stream?!");
                 }
-                AnyRelayMsg::ConfluxSwitch(_) => {
+                AnyRelayMsg::ConfluxSwitch(cell) => {
                     // Ensure we got the SWITCH after the expected number of cells
-                    let cells_until_switch = expect_switch.remove(0);
+                    let expected = expect_switch.remove(0);
 
-                    assert_eq!(cells_until_switch, cell_count);
+                    assert_eq!(expected.cells_so_far, cell_count);
+                    assert_eq!(expected.seqno, cell.seqno());
 
                     // To keep the tests simple, we don't handle out of order cells,
                     // and simply sort the received data at the end.
@@ -3433,39 +3501,85 @@ pub(crate) mod test {
                 }
                 AnyRelayMsg::Data(dat) => {
                     data_cells_received += 1;
-
                     stream_state
                         .lock()
                         .unwrap()
                         .data_recvd
                         .extend_from_slice(dat.as_ref());
-                }
-                _ => panic!("unexpected message {rmsg:?} on leg {leg}"),
-            }
 
-            if data_cells_received == 100 {
-                // Introduce an artificial delay, to make one circ have worse RTT
-                // than the other, and thus trigger a SWITCH
-                if let Some(rtt_delay) = rtt_delay {
-                    runtime.advance_by(rtt_delay).await;
-                }
+                    let is_next_cell_sendme = data_cells_received % 31 == 0;
+                    if is_next_cell_sendme {
+                        if tags.is_empty() {
+                            // Important: we need to make sure all the SENDMEs
+                            // we sent so far have been processed by the reactor
+                            // (otherwise the next QuerySendWindow call
+                            // might return an outdated list of tags!)
+                            runtime.lock().await.advance_until_stalled().await;
+                            let (tx, rx) = oneshot::channel();
+                            tunnel
+                                .command
+                                .unbounded_send(CtrlCmd::QuerySendWindow {
+                                    hop: 2.into(),
+                                    leg: circ.unique_id,
+                                    done: tx,
+                                })
+                                .unwrap();
 
-                // Make and send a circuit-level SENDME
-                let sendme =
-                    relaymsg::Sendme::new_tag(hex!("2100000000000000000000000000000000000000"))
-                        .into();
-                sink.send(rmsg_to_ccmsg(None, sendme)).await.unwrap();
+                            // Get a fresh batch of tags.
+                            let (_window, new_tags) = rx.await.unwrap().unwrap();
+                            tags = new_tags;
+                        }
+
+                        let tag = tags.remove(0);
+
+                        // Introduce an artificial delay, to make one circ have worse RTT
+                        // than the other, and thus trigger a SWITCH
+                        if let Some(rtt_delay) = rtt_delays.next().flatten() {
+                            runtime.lock().await.advance_by(rtt_delay).await;
+                        }
+                        // Make and send a circuit-level SENDME
+                        let sendme = relaymsg::Sendme::from(tag).into();
+
+                        circ.circ_tx
+                            .send(rmsg_to_ccmsg(None, sendme))
+                            .await
+                            .unwrap();
+                    }
+                }
+                _ => panic!("unexpected message {rmsg:?} on leg {}", circ.unique_id),
             }
         }
 
-        ConfluxEndpointResult::Relay { rx, sink }
+        let end_recvd = stream_state.lock().unwrap().end_recvd;
+
+        // Close the stream if the other endpoint hasn't already done so
+        if is_sending_leg && !end_recvd {
+            let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
+            circ.circ_tx
+                .send(rmsg_to_ccmsg(streamid, end))
+                .await
+                .unwrap();
+            stream_state.lock().unwrap().end_sent = true;
+        }
+
+        // This is allowed to fail, because the other leg might have exited first.
+        let _ = done_tx.send(());
+
+        // Ensure we received all the switch cells we were expecting
+        assert!(
+            expect_switch.is_empty(),
+            "expect_switch = {expect_switch:?}"
+        );
+
+        ConfluxEndpointResult::Relay { circ }
     }
 
     #[cfg(feature = "conflux")]
     async fn run_conflux_client(
         tunnel: Arc<ClientCirc>,
         conflux_link_rx: oneshot::Receiver<Result<ConfluxHandshakeResult>>,
-        stream_data: Vec<u8>,
+        send_data: Vec<u8>,
+        recv_data: Vec<u8>,
     ) -> ConfluxEndpointResult {
         let res = conflux_link_rx.await;
 
@@ -3481,21 +3595,29 @@ pub(crate) mod test {
             .await
             .unwrap();
 
-        stream.write_all(&stream_data).await.unwrap();
+        stream.write_all(&send_data).await.unwrap();
         stream.flush().await.unwrap();
 
-        ConfluxEndpointResult::Circuit(tunnel)
+        let mut recv: Vec<u8> = Vec::new();
+        let recv_len = stream.read_to_end(&mut recv).await.unwrap();
+        assert_eq!(recv_len, recv_data.len());
+        assert_eq!(recv_data, recv);
+
+        ConfluxEndpointResult::Circuit { tunnel, stream }
     }
 
     #[cfg(feature = "conflux")]
-    async fn run_conflux_endpoint(endpoint: ConfluxTestEndpoint) -> ConfluxEndpointResult {
+    async fn run_conflux_endpoint<I: Iterator<Item = Option<Duration>>>(
+        endpoint: ConfluxTestEndpoint<I>,
+    ) -> ConfluxEndpointResult {
         match endpoint {
             ConfluxTestEndpoint::Relay(state) => run_mock_conflux_exit(state).await,
             ConfluxTestEndpoint::Client {
                 tunnel,
                 conflux_link_rx,
-                stream_data,
-            } => run_conflux_client(tunnel, conflux_link_rx, stream_data).await,
+                send_data,
+                recv_data,
+            } => run_conflux_client(tunnel, conflux_link_rx, send_data, recv_data).await,
         }
     }
 
@@ -3504,6 +3626,11 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     fn multipath_stream() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            /// The number of data cells to send.
+            const NUM_CELLS: usize = 300;
+            /// 498 bytes per DATA cell.
+            const CELL_SIZE: usize = 498;
+
             let TestTunnelCtx {
                 tunnel,
                 circs,
@@ -3512,50 +3639,139 @@ pub(crate) mod test {
             let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
             // The stream data we're going to send over the conflux tunnel
-            let stream_data = (0..255_u8).cycle().take(300 * 498).collect::<Vec<_>>();
+            let mut send_data = (0..255_u8)
+                .cycle()
+                .take(NUM_CELLS * CELL_SIZE)
+                .collect::<Vec<_>>();
             let stream_state = Arc::new(Mutex::new(ConfluxStreamState {
                 data_recvd: vec![],
-                expected_data_len: stream_data.len(),
+                expected_data_len: send_data.len(),
                 begin_recvd: false,
                 end_recvd: false,
+                end_sent: false,
             }));
 
             let mut tasks = vec![];
+
+            // Channels used by the mock relays to notify each other
+            // of stream transfer completion.
+            let (tx1, rx1) = oneshot::channel();
+            let (tx2, rx2) = oneshot::channel();
+
+            // The 9 RTT delays to insert before each of the 9 SENDMEs
+            // the exit will end up sending.
+            //
+            // Note: the first delay is the init_rtt delay (measured during the conflux HS).
+            let circ1_rtt_delays = [
+                // Initially, circ1 has better RTT, so we will start on this leg.
+                Some(Duration::from_millis(100)),
+                // But then its RTT takes a turn for the worse,
+                // triggering a switch after the first SENDME is processed
+                // (this happens after sending 123 DATA cells).
+                Some(Duration::from_millis(500)),
+                Some(Duration::from_millis(700)),
+                Some(Duration::from_millis(900)),
+                Some(Duration::from_millis(1100)),
+                Some(Duration::from_millis(1300)),
+                Some(Duration::from_millis(1500)),
+                Some(Duration::from_millis(1700)),
+                Some(Duration::from_millis(1900)),
+                Some(Duration::from_millis(2100)),
+            ]
+            .into_iter();
+
+            let circ2_rtt_delays = [
+                Some(Duration::from_millis(200)),
+                Some(Duration::from_millis(400)),
+                Some(Duration::from_millis(600)),
+                Some(Duration::from_millis(800)),
+                Some(Duration::from_millis(1000)),
+                Some(Duration::from_millis(1200)),
+                Some(Duration::from_millis(1400)),
+                Some(Duration::from_millis(1600)),
+                Some(Duration::from_millis(1800)),
+                Some(Duration::from_millis(2000)),
+            ]
+            .into_iter();
+
             // Note: we can't have two advance_by() calls running
             // at the same time (it's a limitation of MockRuntime),
             // so we need to be careful to not cause concurrent delays
             // on the two circuits.
             let relays = [
                 (
-                    circ1.chan_rx,
-                    circ1.circ_sink,
-                    // We expect the client to start sending on the leg with no initial RTT delay,
-                    // and then switch to the one with the lower overall RTT
-                    vec![2],
-                    None,
-                    Some(Duration::from_millis(300)),
+                    circ1,
+                    tx1,
+                    rx2,
+                    vec![ExpectedSwitch {
+                        // We start on this leg, and receive a BEGIN cell,
+                        // followed by (4 * 31 - 1) = 123 DATA cells.
+                        // Then it becomes blocked on CC, then finally the reactor
+                        // realizes it has some SENDMEs to process, and
+                        // then as a result of the new RTT measurement, we switch to circ1,
+                        // and then finally we switch back here, and get another SWITCH
+                        // as the 126th cell.
+                        cells_so_far: 126,
+                        // Leg 2 switches back to this leg after the 249th cell
+                        // (just before sending the 250th one):
+                        // seqno = 125 carried over from leg 1 (see the seqno of the
+                        // SWITCH expected on leg 2 below), plus 1 SWITCH, plus
+                        // 4 * 31 = 124 DATA cells after which the RTT of the first leg
+                        // is deemed favorable again.
+                        //
+                        // 249 - 125 (last_seq_sent of leg 1) = 124
+                        seqno: 124,
+                    }],
+                    circ1_rtt_delays,
+                    true,
                 ),
                 (
-                    circ2.chan_rx,
-                    circ2.circ_sink,
-                    vec![1],
-                    Some(Duration::from_millis(200)),
-                    None,
+                    circ2,
+                    tx2,
+                    rx1,
+                    vec![ExpectedSwitch {
+                        // The SWITCH is the first cell we received after the conflux HS
+                        // on this leg.
+                        cells_so_far: 1,
+                        // See explanation on the ExpectedSwitch from circ1 above.
+                        seqno: 125,
+                    }],
+                    circ2_rtt_delays,
+                    false,
                 ),
             ];
 
-            for (leg, (rx, sink, expect_switch, init_rtt_delay, rtt_delay)) in
-                relays.into_iter().enumerate()
+            let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
+            for (mut circ, done_tx, done_rx, expect_switch, mut rtt_delays, is_sending_leg) in
+                relays.into_iter()
             {
+                let leg = circ.unique_id;
+
+                // Do the conflux handshake
+                //
+                // We do this outside of run_conflux_endpoint,
+                // toa void running both handshakes at concurrently
+                // (this gives more predictable RTT delays:
+                // if both handshake tasks run at once, they race
+                // to advance the mock runtime's clock)
+                good_exit_handshake(
+                    &relay_runtime,
+                    rtt_delays.next().flatten(),
+                    &mut circ.chan_rx,
+                    &mut circ.circ_tx,
+                )
+                .await;
+
                 let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
-                    runtime: rt.clone(),
-                    leg,
-                    init_rtt_delay,
-                    rtt_delay,
-                    rx,
-                    sink,
+                    runtime: Arc::clone(&relay_runtime),
+                    tunnel: Arc::clone(&tunnel),
+                    circ,
+                    rtt_delays,
                     stream_state: Arc::clone(&stream_state),
                     expect_switch,
+                    done_tx,
+                    done_rx,
+                    is_sending_leg,
                 });
 
                 tasks.push(rt.spawn_join(format!("relay task {leg}"), run_conflux_endpoint(relay)));
@@ -3566,18 +3782,17 @@ pub(crate) mod test {
                 run_conflux_endpoint(ConfluxTestEndpoint::Client {
                     tunnel,
                     conflux_link_rx,
-                    stream_data: stream_data.clone(),
+                    send_data: send_data.clone(),
+                    recv_data: vec![],
                 }),
             ));
             let _sinks = futures::future::join_all(tasks).await;
-
-            let stream_state = stream_state.lock().unwrap();
+            let mut stream_state = stream_state.lock().unwrap();
             assert!(stream_state.begin_recvd);
-            assert!(stream_state.end_recvd);
 
-            // TODO: sort stream_data to work around the lack of handling of
-            // out-of-order cells at the mock exit
-            assert_eq!(stream_state.data_recvd, stream_data);
+            stream_state.data_recvd.sort();
+            send_data.sort();
+            assert_eq!(stream_state.data_recvd, send_data);
         });
     }
 
@@ -3601,7 +3816,7 @@ pub(crate) mod test {
             let link = await_link_payload(&mut circ1.chan_rx).await;
             for circ in [&mut circ1, &mut circ2] {
                 let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
-                circ.circ_sink
+                circ.circ_tx
                     .send(rmsg_to_ccmsg(None, linked))
                     .await
                     .unwrap();
@@ -3628,4 +3843,7 @@ pub(crate) mod test {
                 .contains("Cannot allow stream requests on tunnel with 2 legs"));
         });
     }
+
+    // TODO: add a test where the client receives data on a multipath stream,
+    // and ensure it handles ooo cells correctly
 }

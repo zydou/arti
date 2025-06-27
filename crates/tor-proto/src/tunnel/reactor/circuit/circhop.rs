@@ -80,11 +80,21 @@ impl CircHopList {
     /// stream at a time!
     ///
     /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(&self) -> impl Stream<Item = Result<CircuitCmd>> {
+    pub(super) fn ready_streams_iterator(
+        &self,
+        exclude: Option<HopNum>,
+    ) -> impl Stream<Item = Result<CircuitCmd>> {
         self.hops
             .iter()
             .enumerate()
             .filter_map(|(i, hop)| {
+                let hop_num = HopNum::from(i as u8);
+
+                if exclude == Some(hop_num) {
+                    // We must skip polling this hop
+                    return None;
+                }
+
                 if !hop.ccontrol().can_send() {
                     // We can't send anything on this hop that counts towards SENDME windows.
                     //
@@ -104,7 +114,6 @@ impl CircHopList {
                     return None;
                 }
 
-                let hop_num = HopNum::from(i as u8);
                 let hop_map = Arc::clone(&self.hops[i].map);
                 Some(futures::future::poll_fn(move |cx| {
                     // Process an outbound message from the first ready stream on
