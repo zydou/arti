@@ -3447,10 +3447,10 @@ pub(crate) mod test {
         /// The number of cells after which to expect a SWITCH
         /// cell from the client.
         expect_switch: Vec<ExpectedSwitch>,
-        /// Channel for receiving completion notifications from the other leg.
-        done_rx: oneshot::Receiver<()>,
-        /// Channel for sending completion notifications to the other leg.
-        done_tx: oneshot::Sender<()>,
+        /// Channel for receiving notifications from the other leg.
+        event_rx: mpsc::Receiver<MockExitEvent>,
+        /// Channel for sending notifications to the other leg.
+        event_tx: mpsc::Sender<MockExitEvent>,
         /// Whether this circuit leg should act as the primary (sending) leg.
         is_sending_leg: bool,
     }
@@ -3489,6 +3489,15 @@ pub(crate) mod test {
         assert!(matches!(rmsg, AnyRelayMsg::ConfluxLinkedAck(_)));
     }
 
+    /// An event sent by one mock conflux leg to another.
+    #[derive(Copy, Clone, Debug)]
+    enum MockExitEvent {
+        /// Inform the other leg we are done.
+        Done,
+        /// Inform the other leg a stream was opened.
+        BeginRecvd(StreamId),
+    }
+
     #[cfg(feature = "conflux")]
     async fn run_mock_conflux_exit<I: Iterator<Item = Option<Duration>>>(
         state: ConfluxExitState<I>,
@@ -3500,8 +3509,8 @@ pub(crate) mod test {
             rtt_delays,
             stream_state,
             mut expect_switch,
-            done_tx,
-            mut done_rx,
+            mut event_tx,
+            mut event_rx,
             is_sending_leg,
         } = state;
 
@@ -3513,12 +3522,12 @@ pub(crate) mod test {
         let mut cell_count = 0_usize;
         let mut tags = vec![];
         let mut streamid = None;
+        let done_writing = true; // XXX support for writing to the stream
 
         loop {
             let should_exit = {
                 let stream_state = stream_state.lock().unwrap();
                 let done_reading = stream_state.data_recvd.len() >= stream_len;
-                let done_writing = true; // XXX support for writing to the stream
 
                 (stream_state.begin_recvd || stream_state.end_recvd) && done_reading && done_writing
             };
@@ -3535,9 +3544,22 @@ pub(crate) mod test {
                 res = circ.chan_rx.next() => {
                     res.unwrap()
                 },
-                res = done_rx => {
-                    res.unwrap();
-                    break;
+                res = event_rx.next() => {
+                    let Some(event) = res else {
+                        break;
+                    };
+
+                    match event {
+                        MockExitEvent::Done => {
+                            break;
+                        },
+                        MockExitEvent::BeginRecvd(id) => {
+                            // The stream is now open (the other leg received the BEGIN),
+                            // so we're reading to start reading cells from the cell dispatcher.
+                            streamid = Some(id);
+                            continue;
+                        },
+                    }
                 }
             };
 
@@ -3567,6 +3589,11 @@ pub(crate) mod test {
                     let connected = relaymsg::Connected::new_empty().into();
                     circ.circ_tx
                         .send(rmsg_to_ccmsg(streamid, connected))
+                        .await
+                        .unwrap();
+                    // Tell the other leg we received a BEGIN cell
+                    event_tx
+                        .send(MockExitEvent::BeginRecvd(streamid.unwrap()))
                         .await
                         .unwrap();
                 }
@@ -3655,7 +3682,7 @@ pub(crate) mod test {
         }
 
         // This is allowed to fail, because the other leg might have exited first.
-        let _ = done_tx.send(());
+        let _ = event_tx.send(MockExitEvent::Done).await;
 
         // Ensure we received all the switch cells we were expecting
         assert!(
@@ -3740,9 +3767,9 @@ pub(crate) mod test {
             let mut tasks = vec![];
 
             // Channels used by the mock relays to notify each other
-            // of stream transfer completion.
-            let (tx1, rx1) = oneshot::channel();
-            let (tx2, rx2) = oneshot::channel();
+            // of various events.
+            let (tx1, rx1) = mpsc::channel(1);
+            let (tx2, rx2) = mpsc::channel(1);
 
             // The 9 RTT delays to insert before each of the 9 SENDMEs
             // the exit will end up sending.
@@ -3816,8 +3843,8 @@ pub(crate) mod test {
                 rtt_delays: circ1_rtt_delays,
                 stream_state: Arc::clone(&stream_state),
                 expect_switch: expected_switches1,
-                done_tx: tx1,
-                done_rx: rx2,
+                event_tx: tx1,
+                event_rx: rx2,
                 is_sending_leg: true,
             };
 
@@ -3828,8 +3855,8 @@ pub(crate) mod test {
                 rtt_delays: circ2_rtt_delays,
                 stream_state: Arc::clone(&stream_state),
                 expect_switch: expected_switches2,
-                done_tx: tx2,
-                done_rx: rx1,
+                event_tx: tx2,
+                event_rx: rx1,
                 is_sending_leg: false,
             };
 
