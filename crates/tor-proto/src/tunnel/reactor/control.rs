@@ -575,6 +575,7 @@ impl<'a> ControlHandler<'a> {
     }
 
     /// Handle a control command.
+    #[allow(clippy::needless_pass_by_value)] // Needed when conflux is enabled
     pub(super) fn handle_cmd(&mut self, msg: CtrlCmd) -> StdResult<(), ReactorError> {
         trace!(
             tunnel_id = %self.reactor.tunnel_id,
