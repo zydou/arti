@@ -844,6 +844,7 @@ impl ConfluxSet {
     /// or other internal errors occur.
     ///
     /// This is cancellation-safe.
+    #[allow(clippy::unnecessary_wraps)] // Can return Err if conflux is enabled
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
         runtime: &'a tor_rtcompat::DynTimeProvider,
