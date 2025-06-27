@@ -3402,6 +3402,19 @@ pub(crate) mod test {
         end_sent: bool,
     }
 
+    #[cfg(feature = "conflux")]
+    impl ConfluxStreamState {
+        fn new(expected_data_len: usize) -> Self {
+            Self {
+                data_recvd: vec![],
+                expected_data_len,
+                begin_recvd: false,
+                end_recvd: false,
+                end_sent: false,
+            }
+        }
+    }
+
     /// An object describing a SWITCH cell that we expect to receive
     /// in the mock exit
     #[derive(Debug)]
@@ -3722,13 +3735,7 @@ pub(crate) mod test {
                 .cycle()
                 .take(NUM_CELLS * CELL_SIZE)
                 .collect::<Vec<_>>();
-            let stream_state = Arc::new(Mutex::new(ConfluxStreamState {
-                data_recvd: vec![],
-                expected_data_len: send_data.len(),
-                begin_recvd: false,
-                end_recvd: false,
-                end_sent: false,
-            }));
+            let stream_state = Arc::new(Mutex::new(ConfluxStreamState::new(send_data.len())));
 
             let mut tasks = vec![];
 
