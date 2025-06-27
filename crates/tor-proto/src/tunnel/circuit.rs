@@ -3801,30 +3801,33 @@ pub(crate) mod test {
                 seqno: 125,
             }];
 
-            let relays = [
-                (
-                    circ1,
-                    tx1,
-                    rx2,
-                    expected_switches1,
-                    circ1_rtt_delays,
-                    true,
-                ),
-                (
-                    circ2,
-                    tx2,
-                    rx1,
-                    expected_switches2,
-                    circ2_rtt_delays,
-                    false,
-                ),
-            ];
-
             let relay_runtime = Arc::new(AsyncMutex::new(rt.clone()));
-            for (mut circ, done_tx, done_rx, expect_switch, mut rtt_delays, is_sending_leg) in
-                relays.into_iter()
-            {
-                let leg = circ.unique_id;
+            let relay1 = ConfluxExitState {
+                runtime: Arc::clone(&relay_runtime),
+                tunnel: Arc::clone(&tunnel),
+                circ: circ1,
+                rtt_delays: circ1_rtt_delays,
+                stream_state: Arc::clone(&stream_state),
+                expect_switch: expected_switches1,
+                done_tx: tx1,
+                done_rx: rx2,
+                is_sending_leg: true,
+            };
+
+            let relay2 = ConfluxExitState {
+                runtime: Arc::clone(&relay_runtime),
+                tunnel: Arc::clone(&tunnel),
+                circ: circ2,
+                rtt_delays: circ2_rtt_delays,
+                stream_state: Arc::clone(&stream_state),
+                expect_switch: expected_switches2,
+                done_tx: tx2,
+                done_rx: rx1,
+                is_sending_leg: false,
+            };
+
+            for mut mock_relay in [relay1, relay2] {
+                let leg = mock_relay.circ.unique_id;
 
                 // Do the conflux handshake
                 //
@@ -3835,23 +3838,13 @@ pub(crate) mod test {
                 // to advance the mock runtime's clock)
                 good_exit_handshake(
                     &relay_runtime,
-                    rtt_delays.next().flatten(),
-                    &mut circ.chan_rx,
-                    &mut circ.circ_tx,
+                    mock_relay.rtt_delays.next().flatten(),
+                    &mut mock_relay.circ.chan_rx,
+                    &mut mock_relay.circ.circ_tx,
                 )
                 .await;
 
-                let relay = ConfluxTestEndpoint::Relay(ConfluxExitState {
-                    runtime: Arc::clone(&relay_runtime),
-                    tunnel: Arc::clone(&tunnel),
-                    circ,
-                    rtt_delays,
-                    stream_state: Arc::clone(&stream_state),
-                    expect_switch,
-                    done_tx,
-                    done_rx,
-                    is_sending_leg,
-                });
+                let relay = ConfluxTestEndpoint::Relay(mock_relay);
 
                 tasks.push(rt.spawn_join(format!("relay task {leg}"), run_conflux_endpoint(relay)));
             }
