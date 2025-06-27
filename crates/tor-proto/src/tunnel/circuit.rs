@@ -3773,10 +3773,6 @@ pub(crate) mod test {
             ]
             .into_iter();
 
-            // Note: we can't have two advance_by() calls running
-            // at the same time (it's a limitation of MockRuntime),
-            // so we need to be careful to not cause concurrent delays
-            // on the two circuits.
             let relays = [
                 (
                     circ1,
