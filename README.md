@@ -9,7 +9,7 @@ of the [Tor](https://www.torproject.org/) anonymity protocols in the
 ## Links:
 
 This is the README for the Arti project as a whole.
-If you want find more practical information
+If you want to find more practical information
 you might want to check out these links:
 
    * [The Arti website](https://arti.torproject.org)
@@ -59,11 +59,11 @@ needlessly hard to understand and improve.
 Arti can connect to the Tor network, bootstrap a
 view of the Tor directory, and make anonymized connections over the network.
 Now that Arti has reached version 1.0.0, we believe it is suitable for
-actual use to anonymise connections.
+actual use to anonymize connections.
 
 There are a number of areas (especially at the lower layers) where APIs
 (especially internal APIs) are not stable,
-and are likely to change them.
+and we are likely to change them.
 Right now that includes the command line interface to the `arti` program.
 
 And of course it's still very new so there are likely to be bugs.
@@ -119,7 +119,7 @@ That library's API will allow you to
 make connections over the Tor network,
 and obtain streams/sinks usable from async Rust.
 
-We make fairly frequent semver bumps the Arti library API,
+We make fairly frequent semver bumps to the Arti library API,
 and to our lower-level crates.
 However, in practice, we don't often make disruptive changes
 that aren't easy to sort out in a dependency.
