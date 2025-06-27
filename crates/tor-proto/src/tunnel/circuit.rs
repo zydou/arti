@@ -3773,30 +3773,40 @@ pub(crate) mod test {
             ]
             .into_iter();
 
+            let expected_switches1 = vec![ExpectedSwitch {
+                // We start on this leg, and receive a BEGIN cell,
+                // followed by (4 * 31 - 1) = 123 DATA cells.
+                // Then it becomes blocked on CC, then finally the reactor
+                // realizes it has some SENDMEs to process, and
+                // then as a result of the new RTT measurement, we switch to circ1,
+                // and then finally we switch back here, and get another SWITCH
+                // as the 126th cell.
+                cells_so_far: 126,
+                // Leg 2 switches back to this leg after the 249th cell
+                // (just before sending the 250th one):
+                // seqno = 125 carried over from leg 1 (see the seqno of the
+                // SWITCH expected on leg 2 below), plus 1 SWITCH, plus
+                // 4 * 31 = 124 DATA cells after which the RTT of the first leg
+                // is deemed favorable again.
+                //
+                // 249 - 125 (last_seq_sent of leg 1) = 124
+                seqno: 124,
+            }];
+
+            let expected_switches2 = vec![ExpectedSwitch {
+                // The SWITCH is the first cell we received after the conflux HS
+                // on this leg.
+                cells_so_far: 1,
+                // See explanation on the ExpectedSwitch from circ1 above.
+                seqno: 125,
+            }];
+
             let relays = [
                 (
                     circ1,
                     tx1,
                     rx2,
-                    vec![ExpectedSwitch {
-                        // We start on this leg, and receive a BEGIN cell,
-                        // followed by (4 * 31 - 1) = 123 DATA cells.
-                        // Then it becomes blocked on CC, then finally the reactor
-                        // realizes it has some SENDMEs to process, and
-                        // then as a result of the new RTT measurement, we switch to circ1,
-                        // and then finally we switch back here, and get another SWITCH
-                        // as the 126th cell.
-                        cells_so_far: 126,
-                        // Leg 2 switches back to this leg after the 249th cell
-                        // (just before sending the 250th one):
-                        // seqno = 125 carried over from leg 1 (see the seqno of the
-                        // SWITCH expected on leg 2 below), plus 1 SWITCH, plus
-                        // 4 * 31 = 124 DATA cells after which the RTT of the first leg
-                        // is deemed favorable again.
-                        //
-                        // 249 - 125 (last_seq_sent of leg 1) = 124
-                        seqno: 124,
-                    }],
+                    expected_switches1,
                     circ1_rtt_delays,
                     true,
                 ),
@@ -3804,13 +3814,7 @@ pub(crate) mod test {
                     circ2,
                     tx2,
                     rx1,
-                    vec![ExpectedSwitch {
-                        // The SWITCH is the first cell we received after the conflux HS
-                        // on this leg.
-                        cells_so_far: 1,
-                        // See explanation on the ExpectedSwitch from circ1 above.
-                        seqno: 125,
-                    }],
+                    expected_switches2,
                     circ2_rtt_delays,
                     false,
                 ),
