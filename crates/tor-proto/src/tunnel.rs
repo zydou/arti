@@ -901,7 +901,7 @@ impl StreamTarget {
     /// Called when a circuit-level protocol error has occurred and the
     /// tunnel needs to shut down.
     pub(crate) fn protocol_error(&mut self) {
-        todo!()
+        self.tunnel.terminate();
     }
 
     /// Request to send a SENDME cell for this stream.
