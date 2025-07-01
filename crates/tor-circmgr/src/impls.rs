@@ -39,7 +39,7 @@ impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
     }
 
     fn is_closing(&self) -> bool {
-        self.is_closing()
+        self.is_closed()
     }
 
     fn unique_id(&self) -> UniqId {

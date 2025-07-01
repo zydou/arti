@@ -222,8 +222,9 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
-    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
-        self.0.get_or_launch_dir(netdir).await
+    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<ClientDirTunnel> {
+        let tunnel = self.0.get_or_launch_dir(netdir).await?;
+        Ok(tunnel.into())
     }
 
     /// Return a circuit suitable for exiting to all of the provided
@@ -239,8 +240,9 @@ impl<R: Runtime> CircMgr<R> {
         // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
         //             additive. The function should be refactored to be builder-like.
         #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
-    ) -> Result<Arc<ClientCirc>> {
-        self.0
+    ) -> Result<ClientDataTunnel> {
+        let tunnel = self
+            .0
             .get_or_launch_exit(
                 netdir,
                 ports,
@@ -248,7 +250,8 @@ impl<R: Runtime> CircMgr<R> {
                 #[cfg(feature = "geoip")]
                 country_code,
             )
-            .await
+            .await?;
+        Ok(tunnel.into())
     }
 
     /// Return a circuit to a specific relay, suitable for using for direct
@@ -260,8 +263,9 @@ impl<R: Runtime> CircMgr<R> {
     pub async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
         &self,
         target: T,
-    ) -> Result<Arc<ClientCirc>> {
-        self.0.get_or_launch_dir_specific(target).await
+    ) -> Result<ClientDirTunnel> {
+        let tunnel = self.0.get_or_launch_dir_specific(target).await?;
+        Ok(tunnel.into())
     }
 
     /// Launch the periodic daemon tasks required by the manager to function properly.
