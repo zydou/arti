@@ -135,6 +135,35 @@ impl ClientTunnel {
         self.circ.is_closing()
     }
 
+    /// Return a [`TargetHop`] representing precisely the last hop of the circuit as in set as a
+    /// HopLocation with its id and hop number.
+    ///
+    /// Return an error if there is no last hop.
+    pub fn last_hop(&self) -> Result<TargetHop> {
+        let uniq_id = self.unique_id();
+        let hop_num = self
+            .circ
+            .mutable
+            .last_hop_num(uniq_id)?
+            .ok_or_else(|| bad_api_usage!("no last hop"))?;
+        Ok((uniq_id, hop_num).into())
+    }
+
+    /// Return a description of the last hop of the tunnel.
+    ///
+    /// Return None if the last hop is virtual; return an error
+    /// if the tunnel has no circuits, or all of its circuits are zero length.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no last hop.  (This should be impossible outside of
+    /// the tor-proto crate, but within the crate it's possible to have a
+    /// circuit with no hops.)
+    pub fn last_hop_info(&self) -> Result<Option<OwnedChanTarget>> {
+        self.circ.last_hop_info()
+    }
+
     /// Return the number of hops this tunnel as. Fail for a multi path.
     pub fn n_hops(&self) -> Result<usize> {
         self.as_single_circ()?.n_hops()

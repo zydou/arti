@@ -55,6 +55,20 @@ define_derive_deftly! {
             self.tunnel_ref().is_closed()
         }
 
+        /// Return a [`TargetHop`] representing precisely the last hop of the circuit as in set as a
+        /// HopLocation with its id and hop number.
+        ///
+        /// Return an error if there is no last hop.
+        pub fn last_hop(&self) -> Result<TargetHop> {
+            self.tunnel_ref().last_hop()
+                .map_err(|error| Error::Protocol {
+                    action: "get last hop",
+                    peer: None,
+                    error,
+                    unique_id: Some(self.tunnel.unique_id()),
+                })
+        }
+
         /// Shutdown the tunnel meaning this sends a shutdown command to the underlying circuit
         /// reactor which will stop asynchronously.
         ///
