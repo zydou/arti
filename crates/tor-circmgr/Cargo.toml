@@ -21,6 +21,7 @@ full = [
     "vanguards",
     "retry-error/full",
     "safelog/full",
+    "send-control-msg",
     "tor-basic-utils/full",
     "tor-cell/full",
     "tor-chanmgr/full",
@@ -61,6 +62,7 @@ geoip = [
     "__is_experimental",
 ]
 experimental-api = ["visibility", "__is_experimental"]
+send-control-msg = []
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
 hs-common = []

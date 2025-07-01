@@ -56,7 +56,7 @@ use crate::tunnel::circuit::celltypes::*;
 use crate::tunnel::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::util::skew::ClockSkew;
 use cfg_if::cfg_if;
-use tor_cell::relaycell::{self, RelayCellFormat};
+use tor_cell::relaycell::RelayCellFormat;
 use crate::{Error, Result};
 use educe::Educe;
 use path::HopDetail;
@@ -87,13 +87,7 @@ pub use path::{Path, PathEntry};
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
-#[cfg(feature = "send-control-msg")]
-use {crate::tunnel::msghandler::UserMsgHandler, crate::tunnel::reactor::MetaCellHandler};
-
 pub use crate::tunnel::reactor::syncview::ClientCircSyncView;
-#[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub use {crate::tunnel::msghandler::MsgHandler, crate::tunnel::reactor::MetaCellDisposition};
 
 /// MPSC queue relating to a stream (either inbound or outbound), sender
 pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
@@ -707,103 +701,6 @@ impl ClientCirc {
         receiver.await.map_err(|_| Error::CircuitClosed)?
     }
 
-    /// Start an ad-hoc protocol exchange to the specified hop on this circuit
-    ///
-    /// To use this:
-    ///
-    ///  0. Create an inter-task channel you'll use to receive
-    ///     the outcome of your conversation,
-    ///     and bundle it into a [`MsgHandler`].
-    ///
-    ///  1. Call `start_conversation`.
-    ///     This will install a your handler, for incoming messages,
-    ///     and send the outgoing message (if you provided one).
-    ///     After that, each message on the circuit
-    ///     that isn't handled by the core machinery
-    ///     is passed to your provided `reply_handler`.
-    ///
-    ///  2. Possibly call `send_msg` on the [`Conversation`],
-    ///     from the call site of `start_conversation`,
-    ///     possibly multiple times, from time to time,
-    ///     to send further desired messages to the peer.
-    ///
-    ///  3. In your [`MsgHandler`], process the incoming messages.
-    ///     You may respond by
-    ///     sending additional messages
-    ///     When the protocol exchange is finished,
-    ///     `MsgHandler::handle_msg` should return
-    ///     [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
-    ///
-    /// If you don't need the `Conversation` to send followup messages,
-    /// you may simply drop it,
-    /// and rely on the responses you get from your handler,
-    /// on the channel from step 0 above.
-    /// Your handler will remain installed and able to process incoming messages
-    /// until it returns `ConversationFinished`.
-    ///
-    /// (If you don't want to accept any replies at all, it may be
-    /// simpler to use [`ClientCirc::send_raw_msg`].)
-    ///
-    /// Note that it is quite possible to use this function to violate the tor
-    /// protocol; most users of this API will not need to call it.  It is used
-    /// to implement most of the onion service handshake.
-    ///
-    /// # Limitations
-    ///
-    /// Only one conversation may be active at any one time,
-    /// for any one circuit.
-    /// This generally means that this function should not be called
-    /// on a circuit which might be shared with anyone else.
-    ///
-    /// Likewise, it is forbidden to try to extend the circuit,
-    /// while the conversation is in progress.
-    ///
-    /// After the conversation has finished, the circuit may be extended.
-    /// Or, `start_conversation` may be called again;
-    /// but, in that case there will be a gap between the two conversations,
-    /// during which no `MsgHandler` is installed,
-    /// and unexpected incoming messages would close the circuit.
-    ///
-    /// If these restrictions are violated, the circuit will be closed with an error.
-    ///
-    /// ## Precise definition of the lifetime of a conversation
-    ///
-    /// A conversation is in progress from entry to `start_conversation`,
-    /// until entry to the body of the [`MsgHandler::handle_msg`]
-    /// call which returns [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
-    /// (*Entry* since `handle_msg` is synchronously embedded
-    /// into the incoming message processing.)
-    /// So you may start a new conversation as soon as you have the final response
-    /// via your inter-task channel from (0) above.
-    ///
-    /// The lifetime relationship of the [`Conversation`],
-    /// vs the handler returning `ConversationFinished`
-    /// is not enforced by the type system.
-    // Doing so without still leaving plenty of scope for runtime errors doesn't seem possible,
-    // at least while allowing sending followup messages from outside the handler.
-    //
-    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
-    //   tor-proto interface.
-    #[cfg(feature = "send-control-msg")]
-    pub async fn start_conversation(
-        &self,
-        msg: Option<relaycell::msg::AnyRelayMsg>,
-        reply_handler: impl MsgHandler + Send + 'static,
-        hop: TargetHop,
-    ) -> Result<Conversation<'_>> {
-        // We need to resolve the TargetHop into a precise HopLocation so our msg handler can match
-        // the right Leg/Hop with inbound cell.
-        let (sender, receiver) = oneshot::channel();
-        self.command
-            .unbounded_send(CtrlCmd::ResolveTargetHop { hop, done: sender })
-            .map_err(|_| Error::CircuitClosed)?;
-        let hop_location = receiver.await.map_err(|_| Error::CircuitClosed)??;
-        let handler = Box::new(UserMsgHandler::new(hop_location, reply_handler));
-        let conversation = Conversation(self);
-        conversation.send_internal(msg, Some(handler)).await?;
-        Ok(conversation)
-    }
-
     /// Extend the circuit, via the most appropriate circuit extension handshake,
     /// to the chosen `target` hop.
     pub async fn extend<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
@@ -1003,53 +900,6 @@ impl ClientCirc {
     /// of just ()
     pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
         self.reactor_closed_rx.clone().map(|_| ())
-    }
-}
-
-/// Handle to use during an ongoing protocol exchange with a circuit's last hop
-///
-/// This is obtained from [`ClientCirc::start_conversation`],
-/// and used to send messages to the last hop relay.
-//
-// TODO(conflux): this should use ClientTunnel, and it should be moved into
-// the tunnel module.
-#[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub struct Conversation<'r>(&'r ClientCirc);
-
-#[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-impl Conversation<'_> {
-    /// Send a protocol message as part of an ad-hoc exchange
-    ///
-    /// Responses are handled by the `MsgHandler` set up
-    /// when the `Conversation` was created.
-    pub async fn send_message(&self, msg: relaycell::msg::AnyRelayMsg) -> Result<()> {
-        self.send_internal(Some(msg), None).await
-    }
-
-    /// Send a `SendMsgAndInstallHandler` to the reactor and wait for the outcome
-    ///
-    /// The guts of `start_conversation` and `Conversation::send_msg`
-    pub(crate) async fn send_internal(
-        &self,
-        msg: Option<relaycell::msg::AnyRelayMsg>,
-        handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
-    ) -> Result<()> {
-        let msg = msg.map(|msg| relaycell::AnyRelayMsgOuter::new(None, msg));
-        let (sender, receiver) = oneshot::channel();
-
-        let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
-            msg,
-            handler,
-            sender,
-        };
-        self.0
-            .control
-            .unbounded_send(ctrl_msg)
-            .map_err(|_| Error::CircuitClosed)?;
-
-        receiver.await.map_err(|_| Error::CircuitClosed)?
     }
 }
 

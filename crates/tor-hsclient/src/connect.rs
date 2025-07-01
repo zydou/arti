@@ -46,7 +46,8 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
-use tor_proto::circuit::{CircParameters, MetaCellDisposition, MsgHandler};
+use tor_proto::circuit::CircParameters;
+use tor_proto::{MetaCellDisposition, MsgHandler};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
 use crate::pow::HsPowClient;
@@ -1556,7 +1557,7 @@ impl MockableClientDir for ClientOnionServiceDirTunnel {
 
 #[async_trait]
 impl MockableClientData for ClientOnionServiceDataTunnel {
-    type Conversation<'r> = tor_proto::circuit::Conversation<'r>;
+    type Conversation<'r> = tor_proto::Conversation<'r>;
 
     async fn m_start_conversation_last_hop(
         &self,
@@ -1580,7 +1581,7 @@ impl MockableClientData for ClientOnionServiceDataTunnel {
 
 #[async_trait]
 impl MockableClientIntro for ClientOnionServiceIntroTunnel {
-    type Conversation<'r> = tor_proto::circuit::Conversation<'r>;
+    type Conversation<'r> = tor_proto::Conversation<'r>;
 
     async fn m_start_conversation_last_hop(
         &self,

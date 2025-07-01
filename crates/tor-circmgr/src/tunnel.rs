@@ -9,13 +9,12 @@ use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::internal;
 use tor_linkspec::{CircTarget, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::{
-    circuit::{
-        handshake, CircParameters, CircuitBinding, ClientCirc, Conversation, MsgHandler, Path,
-        UniqId,
-    },
+    circuit::{handshake, CircParameters, CircuitBinding, ClientCirc, Path, UniqId},
     stream::{DataStream, StreamParameters},
     ClockSkew, TargetHop,
 };
+#[cfg(feature = "send-control-msg")]
+use tor_proto::{Conversation, MsgHandler};
 
 use crate::{Error, Result};
 
@@ -98,13 +97,20 @@ define_derive_deftly! {
 
         /// Start an ad-hoc protocol exchange to the specified hop on this tunnel.
         ///
-        /// See [ClientCirc::start_conversation()] documentation for more details.
+        /// See [ClientTunnel::start_conversation()] documentation for more details.
+        #[cfg_attr(feature = "send-control-msg", cfg(feature = "send-control-msg"))]
         pub async fn start_conversation(&self,
-            _msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
-            _reply_handler: impl MsgHandler + Send + 'static,
-            _hop: TargetHop
+            msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
+            reply_handler: impl MsgHandler + Send + 'static,
+            hop: TargetHop
         ) -> Result<Conversation<'_>> {
-            todo!()
+            self.tunnel_ref().start_conversation(msg, reply_handler, hop).await
+                .map_err(|error| Error::Protocol {
+                    action: "start conversation",
+                    peer: None,
+                    error,
+                    unique_id: Some(self.tunnel_ref().unique_id()),
+                })
         }
 
         /// Return a future that will resolve once this circuit has closed.

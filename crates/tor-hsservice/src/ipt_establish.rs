@@ -856,7 +856,7 @@ struct IptMsgHandler {
     replay_log: futures::lock::OwnedMutexGuard<IptReplayLog>,
 }
 
-impl tor_proto::circuit::MsgHandler for IptMsgHandler {
+impl tor_proto::MsgHandler for IptMsgHandler {
     fn handle_msg(&mut self, any_msg: AnyRelayMsg) -> tor_proto::Result<MetaCellDisposition> {
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             if let Some(tx) = self.established_tx.take() {
