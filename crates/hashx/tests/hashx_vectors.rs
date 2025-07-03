@@ -18,7 +18,7 @@ const HASH_SEED2_987654321123456789: [u8; 32] =
 #[test]
 fn seed1() {
     let func = HashX::new(SEED1).unwrap();
-    println!("{:?}\n", func);
+    println!("{func:?}\n");
     assert_eq!(func.hash_to_u64(0), 0x98eacb7d56542f2b);
     assert_eq!(func.hash_to_u64(123456), 0xaf937ca60ad5bdae);
     assert_eq!(func.hash_to_bytes(0), HASH_SEED1_0);
@@ -28,7 +28,7 @@ fn seed1() {
 #[test]
 fn seed2() {
     let func = HashX::new(SEED2).unwrap();
-    println!("{:?}\n", func);
+    println!("{func:?}\n");
     assert_eq!(func.hash_to_u64(123456), 0xaab0bbf45b153dab);
     assert_eq!(func.hash_to_u64(987654321123456789), 0x7432327c49f0fe8d);
     assert_eq!(func.hash_to_bytes(123456), HASH_SEED2_123456);
@@ -44,7 +44,7 @@ fn seed1_interp() {
         .runtime(hashx::RuntimeOption::InterpretOnly)
         .build(SEED1)
         .unwrap();
-    println!("{:?}\n", func);
+    println!("{func:?}\n");
     assert_eq!(func.hash_to_bytes(0), HASH_SEED1_0);
     assert_eq!(func.hash_to_bytes(123456), HASH_SEED1_123456);
 }
@@ -55,7 +55,7 @@ fn seed2_interp() {
         .runtime(hashx::RuntimeOption::InterpretOnly)
         .build(SEED2)
         .unwrap();
-    println!("{:?}\n", func);
+    println!("{func:?}\n");
     assert_eq!(func.hash_to_bytes(123456), HASH_SEED2_123456);
     assert_eq!(
         func.hash_to_bytes(987654321123456789),
@@ -92,7 +92,7 @@ fn seed1_compile() {
         .runtime(hashx::RuntimeOption::CompileOnly)
         .build(SEED1)
         .unwrap();
-    println!("{:?}\n", func);
+    println!("{func:?}\n");
     assert_eq!(func.hash_to_bytes(0), HASH_SEED1_0);
     assert_eq!(func.hash_to_bytes(123456), HASH_SEED1_123456);
 }
@@ -107,7 +107,7 @@ fn seed2_compile() {
         .runtime(hashx::RuntimeOption::CompileOnly)
         .build(SEED2)
         .unwrap();
-    println!("{:?}\n", func);
+    println!("{func:?}\n");
     assert_eq!(func.hash_to_bytes(123456), HASH_SEED2_123456);
     assert_eq!(
         func.hash_to_bytes(987654321123456789),
