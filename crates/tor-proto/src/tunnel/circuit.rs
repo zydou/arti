@@ -3306,7 +3306,7 @@ pub(crate) mod test {
 
     /// Structure for returning the sinks, channels, etc. that must stay
     /// alive until the test is complete.
-    #[allow(unused)]
+    #[allow(unused, clippy::large_enum_variant)]
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     enum ConfluxEndpointResult {
