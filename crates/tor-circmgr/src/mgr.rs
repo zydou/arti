@@ -1622,13 +1622,13 @@ mod test {
             let webports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
             // Check initialization.
-            assert_eq!(mgr.n_circs(), 0);
+            assert_eq!(mgr.n_tunnels(), 0);
             assert!(mgr.peek_builder().script.lock().unwrap().is_empty());
 
             // Launch a tunnel ; make sure we get it.
             let c1 = rt.wait_for(mgr.get_or_launch(&webports, di())).await;
             let c1 = c1.unwrap().0;
-            assert_eq!(mgr.n_circs(), 1);
+            assert_eq!(mgr.n_tunnels(), 1);
 
             // Make sure we get the one we already made if we ask for it.
             let port80 = TargetTunnelUsage::new_from_ipv4_ports(&[80]);
@@ -1636,7 +1636,7 @@ mod test {
 
             let c2 = c2.unwrap().0;
             assert!(FakeCirc::eq(&c1, &c2));
-            assert_eq!(mgr.n_circs(), 1);
+            assert_eq!(mgr.n_tunnels(), 1);
 
             // Now try launching two tunnels "at once" to make sure that our
             // pending-tunnel code works.
@@ -1661,15 +1661,15 @@ mod test {
             assert!(!FakeCirc::eq(&c1, &c3));
             assert!(FakeCirc::eq(&c3, &c4));
             assert_eq!(c3.id(), c4.id());
-            assert_eq!(mgr.n_circs(), 2);
+            assert_eq!(mgr.n_tunnels(), 2);
 
             // Now we're going to remove c3 from consideration.  It's the
             // same as c4, so removing c4 will give us None.
-            let c3_taken = mgr.take_circ(&c3.id()).unwrap();
-            let now_its_gone = mgr.take_circ(&c4.id());
+            let c3_taken = mgr.take_tunnel(&c3.id()).unwrap();
+            let now_its_gone = mgr.take_tunnel(&c4.id());
             assert!(FakeCirc::eq(&c3_taken, &c3));
             assert!(now_its_gone.is_none());
-            assert_eq!(mgr.n_circs(), 1);
+            assert_eq!(mgr.n_tunnels(), 1);
 
             // Having removed them, let's launch another dnsport and make
             // sure we get a different tunnel.
@@ -1677,12 +1677,12 @@ mod test {
             let c5 = c5.unwrap().0;
             assert!(!FakeCirc::eq(&c3, &c5));
             assert!(!FakeCirc::eq(&c4, &c5));
-            assert_eq!(mgr.n_circs(), 2);
+            assert_eq!(mgr.n_tunnels(), 2);
 
             // Now try launch_by_usage.
-            let prev = mgr.n_pending_circs();
+            let prev = mgr.n_pending_tunnels();
             assert!(mgr.launch_by_usage(&dnsport, di()).is_ok());
-            assert_eq!(mgr.n_pending_circs(), prev + 1);
+            assert_eq!(mgr.n_pending_tunnels(), prev + 1);
             // TODO: Actually make sure that launch_by_usage launched
             // the right thing.
         });
@@ -2067,7 +2067,7 @@ mod test {
             // it was not dirty until 15 seconds after the cutoff.
             let now = rt.now();
 
-            mgr.expire_circs(now);
+            mgr.expire_tunnels(now);
 
             let (pop2, imap2) = rt
                 .wait_for(futures::future::join(
@@ -2111,7 +2111,7 @@ mod test {
     #[test]
     fn test_find_supported() {
         let (ep_none, ep_web, ep_full) = get_exit_policies();
-        let fake_circ = Arc::new(FakeCirc { id: FakeId::next() });
+        let fake_circ = FakeCirc { id: FakeId::next() };
         let expiration = ExpirationInfo::Unused {
             use_before: Instant::now() + Duration::from_secs(60 * 60),
         };

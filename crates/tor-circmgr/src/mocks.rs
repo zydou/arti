@@ -154,14 +154,14 @@ impl<RT: Runtime> AbstractTunnelBuilder<RT> for FakeBuilder<RT> {
         Ok((plan, supported_circ_usage))
     }
 
-    async fn build_tunnel(&self, plan: FakePlan) -> Result<(SupportedTunnelUsage, Arc<FakeCirc>)> {
+    async fn build_tunnel(&self, plan: FakePlan) -> Result<(SupportedTunnelUsage, FakeCirc)> {
         let op = plan.op;
         let sl = self.runtime.sleep(FAKE_CIRC_DELAY);
         self.runtime.allow_one_advance(FAKE_CIRC_DELAY);
         sl.await;
         match op {
-            FakeOp::Succeed => Ok((plan.spec, Arc::new(FakeCirc { id: FakeId::next() }))),
-            FakeOp::WrongSpec(s) => Ok((s, Arc::new(FakeCirc { id: FakeId::next() }))),
+            FakeOp::Succeed => Ok((plan.spec, FakeCirc { id: FakeId::next() })),
+            FakeOp::WrongSpec(s) => Ok((s, FakeCirc { id: FakeId::next() })),
             FakeOp::Fail => Err(Error::CircTimeout(None)),
             FakeOp::Delay(d) => {
                 let sl = self.runtime.sleep(d);
