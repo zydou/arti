@@ -33,11 +33,18 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["ephemeral-keystore", "ctor-keystore", "testing", "experimental-api"]
+experimental = [
+    "ephemeral-keystore",
+    "ctor-keystore",
+    "testing",
+    "experimental-api",
+    "onion-service-cli-extra",
+]
 
 experimental-api = ["__is_experimental"]
 ephemeral-keystore = ["__is_experimental"]
 ctor-keystore = ["data-encoding", "__is_experimental"]
+
 onion-service-cli-extra = ["keymgr", "__is_experimental"]
 testing = ["__is_experimental"]
 __is_experimental = []
@@ -47,7 +54,7 @@ amplify = { version = "4", default-features = false, features = ["derive"] }
 arrayvec = "0.7.3"
 cfg-if = "1.0.0"
 data-encoding = { version = "2.3.1", optional = true }
-derive-deftly = { version = "~1.0.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
