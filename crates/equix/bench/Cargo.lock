@@ -312,7 +312,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "equix"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "arrayvec",
  "blake2",
