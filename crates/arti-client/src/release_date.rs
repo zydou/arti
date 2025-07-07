@@ -15,4 +15,4 @@
 /// from consensuses older than our software:
 /// the fact that we released _this_ version
 /// indicates that a newer consensus probably permits this version.)
-pub(crate) const ARTI_CLIENT_RELEASE_DATE: &str = "2025-06-05";
+pub(crate) const ARTI_CLIENT_RELEASE_DATE: &str = "2025-07-07";
