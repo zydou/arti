@@ -28,8 +28,8 @@ which are documented below.
 
 ### Onion service development
 
-- Decreased the minimum allowed duration of a time period to 5,
-  according to the changes from [torspec!406]. ([!3041])
+- Decreased the minimum allowed duration of the `hsdir_interval` to 5 minutes,
+  according to the changes from [torspec!406]. ([!3042])
 - New experimental `arti keys list` and `arti keys list-keystores` subcommands
   for listing the existing keys and configured keystores.
   ([#2043], [!3023], [!3060])
@@ -130,7 +130,7 @@ which are documented below.
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-Dan Ballard, hashcatHitman, hjrgrn, nield, parazyd, trinity-1686a.
+Dan Ballard, hashcatHitman, hjrgrn, nield, parazyd, and trinity-1686a.
 
 Also, our deep thanks to
 the [Bureau of Democracy, Human Rights and Labor],
