@@ -63,10 +63,10 @@ which are documented below.
 - Addressed several small conflux-related TODOs and typos. ([!3045], [!3065])
 - Removed all uses of `HopNum` outside of `tor-proto`. ([!3075])
 - Fixed a bug causing multipath tunnels to send cells in violation of congestion
-  control. ([04754e99])
+  control. ([04754e99b8e5899bdb0a6511b486001905dea503]])
 - Fixed an off-by-one error which caused unnecessary leg switching when all
-  circuits in a multipath tunnel had the same, equally "best" RTT. ([712785e0])
-- Fixed a conflux sequence number accounting bug. ([e675585b])
+  circuits in a multipath tunnel had the same, equally "best" RTT. ([712785e00911543030871d6360fc3c6eeb5b33b5])
+- Fixed a conflux sequence number accounting bug. ([e675585b9e8ecff1ccf097e3be320631253816d8])
 - Added tests for conflux stream management. ([!3034], [!3077])
 
 ### Internal cleanup and refactoring
@@ -193,12 +193,12 @@ for funding the development of Arti!
 [#2033]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2033
 [#2043]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2043
 [#2049]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2049
-[04754e99]: https://gitlab.torproject.org/tpo/core/arti/-/commit/04754e99b8e5899bdb0a6511b486001905dea503
-[712785e0]: https://gitlab.torproject.org/tpo/core/arti/-/commit/712785e00911543030871d6360fc3c6eeb5b33b5
+[04754e99b8e5899bdb0a6511b486001905dea503]: https://gitlab.torproject.org/tpo/core/arti/-/commit/04754e99b8e5899bdb0a6511b486001905dea503
+[712785e00911543030871d6360fc3c6eeb5b33b5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/712785e00911543030871d6360fc3c6eeb5b33b5
 [Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [Chutney]: https://gitlab.torproject.org/tpo/core/chutney
 [Conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
-[e675585b]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e675585b9e8ecff1ccf097e3be320631253816d8
+[e675585b9e8ecff1ccf097e3be320631253816d8]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e675585b9e8ecff1ccf097e3be320631253816d8
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [proposal 324]: https://spec.torproject.org/proposals/324-rtt-congestion-control.html
 [torspec!406]: https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/406
