@@ -43,7 +43,8 @@ which are documented below.
 - `DataWriter` is now rate-limited.  For now, the rate is set very high (`u64::MAX`),
   but in the future it will be dynamically changed as we receive XON/XOFF signals.
   ([#1992], [!3014], [!3029], [!3033])
-- Added experimental support for XON/XOFF cells. ([!3031], [!3061])
+- Added experimental support for XON/XOFF cells,
+  gated behind the `flowctl-cc` feature. ([!3031], [!3061])
 - Add a new async notification channel that will be used in the flow control
   implementation. ([!3066])
 
