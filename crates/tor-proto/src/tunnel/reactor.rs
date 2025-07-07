@@ -1245,7 +1245,7 @@ impl Reactor {
                     Ok(HopLocation::Hop((leg_id, hop)))
                 } else if !self.circuits.is_empty() {
                     // multi-path tunnel
-                    return Ok(HopLocation::JoinPoint);
+                    Ok(HopLocation::JoinPoint)
                 } else {
                     // no legs
                     Err(NoHopsBuiltError)
