@@ -59,7 +59,7 @@ full = [
     "tor-rpc-connect?/full",
     "signal-hook",
     "signal-hook-async-std",
-    "dialoguer",
+    "dialoguer", "tor-key-forge/full", "tor-keymgr/full",
 ]
 
 async-std = [
@@ -78,6 +78,7 @@ memquota = ["arti-client/memquota"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio", "tokio-util"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
+
 onion-service-cli-extra = ["arti-client/onion-service-cli-extra", "__is_experimental"]
 onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice"]
 vanguards = ["arti-client/vanguards"]
@@ -121,7 +122,7 @@ experimental = [
     "restricted-discovery",
     "hsc",
     "tor-hsservice/experimental",
-    "ctor-keystore",
+    "ctor-keystore", "onion-service-cli-extra",
 ]
 metrics = [
     "dep:metrics-exporter-prometheus",

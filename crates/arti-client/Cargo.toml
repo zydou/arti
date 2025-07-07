@@ -56,7 +56,7 @@ full = [
     "tor-hsservice?/full",
     "tor-memquota/full",
     "tor-config-path/full",
-    "tor-protover/full",
+    "tor-protover/full", "tor-key-forge/full",
 ] # "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
 #   * Features that are experimental or unstable
 #   * Features that are testing-only
@@ -100,7 +100,8 @@ accel-sha1-asm = ["tor-llcrypto/with-sha1-asm", "__is_nonadditive"]
 accel-openssl = ["tor-llcrypto/with-openssl", "__is_nonadditive"]
 
 onion-service-client = ["tor-hsclient", "tor-hscrypto"]
-onion-service-cli-extra = ["tor-keymgr/onion-service-cli-extra"]
+
+onion-service-cli-extra = ["tor-keymgr/onion-service-cli-extra", "__is_experimental"]
 onion-service-service = ["tor-hsservice", "tor-hscrypto", "tor-persist/state-dir", "keymgr"]
 keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr"]
 vanguards = ["tor-guardmgr/vanguards", "tor-circmgr/vanguards"]
@@ -129,6 +130,7 @@ experimental = [
     "tor-hsservice/experimental",
     "tor-keymgr/experimental",
     "restricted-discovery",
+    "onion-service-cli-extra",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
