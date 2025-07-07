@@ -116,7 +116,8 @@ which are documented below.
 - Removed the `once_cell` dependency from various crates. ([!3051])
 - In `tor-netdir`, we now log any unexpected or invalid network parameters.
   ([!3043])
-- Replaced a runtime assertion with a compile-time check. ([!3068])
+- Replaced a runtime key length check with a compile-time check
+  in `tor-proto`. ([!3068])
 - Updated the `RttEstimator` logic to set all initial estimates to `None` instead of
   `0`, and to report a minimum/EWMA RTT of `u32::MAX` if there are no measurements.
   ([#2049], [!3074])
