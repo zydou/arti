@@ -217,7 +217,7 @@ where
             .and_then(|()| bdm.mgr.lock_only().running.is_empty().then_some(()))
     })
     .await;
-    bdm.set_bridges(&[bridge.clone()]);
+    bdm.set_bridges(std::slice::from_ref(bridge));
 }
 
 fn bad_bridge(i: usize) -> BridgeKey {
@@ -242,7 +242,7 @@ fn success() -> Result<(), anyhow::Error> {
 
         let hold = mock.mstate.lock().await;
 
-        bdm.set_bridges(&[bridge.clone()]);
+        bdm.set_bridges(std::slice::from_ref(&bridge));
         bdm.check_consistency(Some([&bridge]));
 
         drop(hold);
@@ -398,7 +398,7 @@ fn cache() -> Result<(), anyhow::Error> {
 
         eprintln!("----- test that a downloaded descriptor goes into the cache -----");
 
-        bdm.set_bridges(&[bridge.clone()]);
+        bdm.set_bridges(std::slice::from_ref(&bridge));
         stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
 
         mock.expect_download_calls(1).await;
@@ -481,7 +481,7 @@ fn dormant() -> Result<(), anyhow::Error> {
 
         eprintln!("----- become dormant, but request a bridge -----");
         bdm.set_dormancy(Dormant);
-        bdm.set_bridges(&[bridge.clone()]);
+        bdm.set_bridges(std::slice::from_ref(&bridge));
 
         // Drive all tasks until we are idle
         runtime.progress_until_stalled().await;
