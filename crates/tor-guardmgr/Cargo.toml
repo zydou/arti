@@ -70,11 +70,11 @@ humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.14.0"
 num_enum = "0.7"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.3" }
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.9.1"
-safelog = { path = "../safelog", version = "0.4.5" }
+safelog = { path = "../safelog", version = "0.4.7" }
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
@@ -97,7 +97,7 @@ tracing = "0.1.36"
 
 [dev-dependencies]
 float_eq = "1.0.0"
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.3" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.10.0" }
 serde_json = "1.0.50"
 tempfile = "3"
 toml = "0.8.8"

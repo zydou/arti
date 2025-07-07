@@ -35,10 +35,10 @@ base16ct = { version = "0.2", features = ["alloc"] }
 cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.3" }
-fslock-guard = { path = "../fslock-guard", version = "0.2.3", optional = true }
+fs-mistrust = { path = "../fs-mistrust", version = "0.10.0" }
+fslock-guard = { path = "../fslock-guard", version = "0.2.4", optional = true }
 rand = { version = "0.9.1" }
-safelog = { path = "../safelog", version = "0.4.5" }
+safelog = { path = "../safelog", version = "0.4.7" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 subtle = "2.6"

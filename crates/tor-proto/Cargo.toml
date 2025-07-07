@@ -78,7 +78,7 @@ amplify = { version = "4", default-features = false, features = ["derive"] }
 asynchronous-codec = "0.7.0"
 bitvec = "1.0.1"
 bytes = "1"
-caret = { path = "../caret", version = "0.5.0" }
+caret = { path = "../caret", version = "0.5.3" }
 cfg-if = "1.0.0"
 cipher = { version = "0.4.1", features = ["zeroize"] }
 coarsetime = "0.1.20"
@@ -93,14 +93,14 @@ futures-util = "0.3.31"
 hkdf = "0.12.0"
 hmac = "0.12.0"
 itertools = "0.14.0"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.3" }
 pin-project = "1"
 polyval = { version = "0.6", optional = true }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.9.1"
 rand_core = "0.9.3"
-safelog = { path = "../safelog", version = "0.4.5" }
-slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
+safelog = { path = "../safelog", version = "0.4.7" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.5" }
 smallvec = "1.10"
 static_assertions = "1"
 subtle = "2"

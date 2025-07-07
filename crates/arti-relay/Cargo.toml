@@ -35,9 +35,9 @@ clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 directories = "6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.3", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.10.0", features = ["serde"] }
 rand = "0.9.1"
-safelog = { path = "../safelog", version = "0.4.5" }
+safelog = { path = "../safelog", version = "0.4.7" }
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"

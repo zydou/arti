@@ -153,7 +153,7 @@ cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive-deftly = { version = "~1.1.0", features = ["full", "beta"], optional = true }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
-fs-mistrust = { path = "../fs-mistrust", version = "0.9.3" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.10.0" }
 futures = "0.3.14"
 hickory-proto = { version = "0.25.2", optional = true }
 humantime = "2"
@@ -170,7 +170,7 @@ rustls-crate = { package = "rustls", version = "0.23.5", optional = true, defaul
     "logging",
     "ring",
 ] }
-safelog = { path = "../safelog", version = "0.4.5" }
+safelog = { path = "../safelog", version = "0.4.7" }
 secmem-proc = { version = "0.3.4", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "2"
@@ -208,7 +208,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 regex = { version = "1", default-features = false, features = ["std"] }
 serde_json = "1.0.50"
 tempfile = "3"
-test-temp-dir = { version = "0.3.3", path = "../test-temp-dir" }
+test-temp-dir = { version = "0.3.5", path = "../test-temp-dir" }
 tor-async-utils = { version = "0.31.0", path = "../tor-async-utils" }
 tor-config = { path = "../tor-config", version = "0.31.0", features = ["testing"] }
 tor-memquota = { version = "0.31.0", path = "../tor-memquota", default-features = false, features = ["testing"] }

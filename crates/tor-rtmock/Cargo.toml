@@ -21,10 +21,10 @@ educe = "0.4.22"
 futures = "0.3.14"
 humantime = "2"
 itertools = "0.14.0"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.3" }
 pin-project = "1"
 priority-queue = "2.0.3"
-slotmap-careful = { path = "../slotmap-careful", version = "0.2.2" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.5" }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
 tor-error = { version = "0.31.0", path = "../tor-error", features = ["tracing"] }
