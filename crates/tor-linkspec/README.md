@@ -41,7 +41,7 @@ TODO: Possibly the link specifiers and the `*Target` traits belong in different 
 ## Compile-time features
 
 * `pt-client` -- Build with enhanced data types to support pluggable
-   transports.
+  transports.
 
 * `full` -- Build with all the features above.
 
