@@ -120,6 +120,7 @@ macro_rules! implement_opaque_runtime {
     }
 
     // This boilerplate will fail unless $t implements Runtime.
+    #[allow(unused)]
     const _ : () = {
         fn assert_runtime<R: $crate::Runtime>() {}
         fn check() {

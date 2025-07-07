@@ -155,6 +155,7 @@ define_derive_deftly! {
  )
 
    // TODO this wants to be assert_impl but it fails at generics
+   #[allow(unused)]
    const _: fn() = || {
        fn x(_: impl Runtime) { }
        fn check_impl_runtime<$tgens>(t: $ttype) { x(t) }
