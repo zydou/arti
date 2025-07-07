@@ -424,6 +424,11 @@ pub struct CircParameters {
     ///
     /// If we would try to send more relay cells than this from a single hop,
     /// we close the circuit with [`ExcessOutboundCells`](Error::ExcessOutboundCells).
+    /// It is the circuit-user's responsibility to make sure that this does not happen.
+    ///
+    /// This setting is used to ensure that we do not violate a limit
+    /// imposed by `n_incoming_cells_permitted`
+    /// on the other side of a circuit.
     ///
     /// If this value is None, then there is no limit to the number of outbound cells.
     ///
