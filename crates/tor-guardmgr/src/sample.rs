@@ -1140,7 +1140,7 @@ mod test {
         // Pick a guard and mark it as confirmed.
         let id1 = guards.sample[0].clone();
         guards.record_success(&id1, &params, None, t2);
-        assert_eq!(&guards.confirmed, &[id1.clone()]);
+        assert_eq!(&guards.confirmed, std::slice::from_ref(&id1));
 
         // Encode the guards, then decode them.
         let state: GuardSample = (&guards).into();
@@ -1185,7 +1185,7 @@ mod test {
         // Pick a guard and mark it as confirmed.
         let id3 = guards.sample[3].clone();
         guards.record_success(&id3, &params, None, t2);
-        assert_eq!(&guards.confirmed, &[id3.clone()]);
+        assert_eq!(&guards.confirmed, std::slice::from_ref(&id3));
         let id1 = guards.sample[1].clone();
         guards.record_success(&id1, &params, None, t3);
         assert_eq!(&guards.confirmed, &[id3.clone(), id1.clone()]);

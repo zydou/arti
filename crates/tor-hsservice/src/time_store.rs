@@ -161,7 +161,10 @@ define_derive_deftly! {
             s.parse().map_err(|e| E::custom(e))
         }
         fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, concat!("string representing ", stringify!($tname)))
+            #[allow(clippy::useless_concat)] // False positive
+            {
+                write!(f, concat!("string representing ", stringify!($tname)))
+            }
         }
     }
 }

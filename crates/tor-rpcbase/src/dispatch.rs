@@ -312,7 +312,7 @@ pub struct InvokerEnt {
     ///
     /// Always present.
     #[doc(hidden)]
-    pub invoker: &'static (dyn Invocable),
+    pub invoker: &'static dyn Invocable,
 
     /// The same function as `invoker`, but only if that function implements
     /// `RpcInvocable`
@@ -320,7 +320,7 @@ pub struct InvokerEnt {
     /// This will be `None` if this is a "special" method--that is, one whose inputs and outputs are not serializable,
     /// and which is therefore not invocable directly from an RPC connection.
     #[doc(hidden)]
-    pub rpc_invoker: Option<&'static (dyn RpcInvocable)>,
+    pub rpc_invoker: Option<&'static dyn RpcInvocable>,
 
     // These fields are used to make sure that we aren't installing different
     // functions for the same (Object, Method) pair.
