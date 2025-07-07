@@ -112,7 +112,6 @@ which are documented below.
   ([#1647], [!3037])
 - Upgraded to `hickory-proto` version 0.25.2. ([#1962], [!3038])
 - Upgraded to `rusqlite` version 0.36.0. ([!3041])
-- Arti processes now log to stderr instead of stdout. ([#2024], [!3020])
 - Removed the `once_cell` dependency from various crates. ([!3051])
 - In `tor-netdir`, we now log any unexpected or invalid network parameters.
   ([!3043])
