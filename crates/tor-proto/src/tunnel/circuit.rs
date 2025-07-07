@@ -552,7 +552,7 @@ impl ClientCirc {
     /// Panics if there is no last hop.  (This should be impossible outside of
     /// the tor-proto crate, but within the crate it's possible to have a
     /// circuit with no hops.)
-    pub fn last_hop(&self) -> Result<Option<OwnedChanTarget>> {
+    pub fn last_hop_info(&self) -> Result<Option<OwnedChanTarget>> {
         let path = self.path_ref()?;
         Ok(path
             .hops()
