@@ -20,6 +20,8 @@ pub use nickname::Nickname;
 #[cfg(not(feature = "dangerous-expose-struct-fields"))]
 pub(crate) use nickname::Nickname;
 
+pub use fingerprint::Fingerprint;
+
 /// Describes a value that van be decoded from a bunch of bytes.
 ///
 /// Used for decoding the objects between BEGIN and END tags.
@@ -397,14 +399,26 @@ mod fingerprint {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
-    /// A hex-encoded fingerprint with spaces in it.
-    pub(crate) struct SpFingerprint(RsaIdentity);
+    /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
+    ///
+    /// Netdoc parsing adapter for [`RsaIdentity`]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[allow(clippy::exhaustive_structs)]
+    pub(crate) struct SpFingerprint(pub RsaIdentity);
 
     /// A hex-encoded fingerprint with no spaces.
-    pub(crate) struct Fingerprint(RsaIdentity);
+    ///
+    /// Netdoc parsing adapter for [`RsaIdentity`]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Fingerprint(pub RsaIdentity);
 
     /// A "long identity" in the format used for Family members.
-    pub(crate) struct LongIdent(RsaIdentity);
+    ///
+    /// Netdoc parsing adapter for [`RsaIdentity`]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[allow(clippy::exhaustive_structs)]
+    pub(crate) struct LongIdent(pub RsaIdentity);
 
     impl From<SpFingerprint> for RsaIdentity {
         fn from(f: SpFingerprint) -> RsaIdentity {
