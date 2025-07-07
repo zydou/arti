@@ -38,8 +38,8 @@ async fn launch_one_hop_dir_circ<R: Runtime>(
         let circuit = arti_client.circmgr().deref();
         let one_hop_circ = circuit.get_or_launch_dir_specific(&relay).await;
         match one_hop_circ {
-            Err(e) => println!("[-] Unable to launch one-hop circuit: {}", e),
-            Ok(_) => println!("[+] Successful one-hop circuit to: {:?}", fp),
+            Err(e) => println!("[-] Unable to launch one-hop circuit: {e}"),
+            Ok(_) => println!("[+] Successful one-hop circuit to: {fp:?}"),
         };
     } else {
         println!("Could not find a relay suitable for a directory request.");

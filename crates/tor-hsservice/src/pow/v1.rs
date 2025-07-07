@@ -308,6 +308,7 @@ impl<R: Runtime> PowManager<R> {
     /// This also pokes the publisher when needed to cause rotated seeds to be published.
     ///
     /// Returns the next time this function should be called again.
+    #[allow(clippy::cognitive_complexity)]
     async fn rotate_seeds_if_expiring(&self) -> Option<SystemTime> {
         let mut expired_verifiers = vec![];
         let mut new_verifiers = vec![];
