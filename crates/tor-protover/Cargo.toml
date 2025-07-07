@@ -1,6 +1,6 @@
 [package]
 name = "tor-protover"
-version = "0.31.0"
+version = "0.32.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.83"
@@ -12,11 +12,11 @@ categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-caret = { path = "../caret", version = "0.5.0" }
+caret = { path = "../caret", version = "0.5.3" }
 paste = "1"
 serde_with = { version = "3.0.0", optional = true }
 thiserror = "2"
-tor-bytes = { path = "../tor-bytes", version = "0.31.0", optional = true }
+tor-bytes = { path = "../tor-bytes", version = "0.32.0", optional = true }
 
 [features]
 default = []

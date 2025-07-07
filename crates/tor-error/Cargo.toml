@@ -1,6 +1,6 @@
 [package]
 name = "tor-error"
-version = "0.31.0"
+version = "0.32.0"
 authors = ["Ian Jackson <iwj@torproject.org>"]
 edition = "2021"
 rust-version = "1.83"
@@ -30,7 +30,7 @@ backtrace = []
 derive_more = { version = "2.0.1", features = ["full"] }
 futures = { version = "0.3", optional = true }
 paste = "1"
-retry-error = { path = "../retry-error", version = "0.6.1" } # WRONG should be 0.4.3
+retry-error = { path = "../retry-error", version = "0.6.5" } # WRONG should be 0.4.3
 static_assertions = { version = "1", optional = true }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
