@@ -49,13 +49,6 @@ export SOURCE_DATE_EPOCH="0"
 cp -a "$here" /arti
 cd /arti
 
-## FIXME: This is a workaround for:
-## https://github.com/eira-fransham/crunchy/pull/17
-##
-## Version 0.2.3 of "crunchy" has a bug that breaks cross-compilation
-## with Windows.
-$CARGO update -p crunchy --precise 0.2.2
-
 cargo_build () {
 	$CARGO build --locked "$@"
 }
