@@ -21,7 +21,7 @@ echo "  \"options\": \"$*\","
 
 cargo build --locked --profile=release-small "$@"
 
-cp ./target/release/arti "$TMPDIR"
+cp ./target/release-small/arti "$TMPDIR"
 cd "$TMPDIR"
 
 gzip -9 -k arti
