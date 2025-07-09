@@ -340,7 +340,7 @@ impl<P: ReadPrecision> Buffer<P> {
     ///    and will not be used (except if there are bugs)
     ///
     /// Using this and `into_parts` to obtain a `Buffer`
-    /// with a different the read precision (different `P` type parameter)
+    /// with a different read precision (different `P` type parameter)
     /// can result in malfunctions.
     pub fn from_parts(buf: Box<[u8]>, filled: usize) -> Self {
         Buffer {
