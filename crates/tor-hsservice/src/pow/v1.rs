@@ -265,7 +265,7 @@ impl<R: Runtime> PowManager<R> {
     ///
     /// If a key is not available for this TP, returns None.
     ///
-    /// This takes individual agruments instead of `&self` to avoid getting into any trouble with
+    /// This takes individual arguments instead of `&self` to avoid getting into any trouble with
     /// locking.
     fn make_verifier(
         keymgr: &Arc<KeyMgr>,
@@ -585,7 +585,7 @@ impl Eq for RendRequestOrdByEffort {}
 ///
 /// This is not particularly optimized — queueing and dequeuing use a [`Mutex`], so there may be
 /// some contention there. It's possible there may be some fancy lockless (or more optimized)
-/// priorty queue that we could use, but we should properly benchmark things before trying to make
+/// priority queue that we could use, but we should properly benchmark things before trying to make
 /// a optimization like that.
 #[derive(Clone)]
 pub(crate) struct RendRequestReceiver(Arc<Mutex<RendRequestReceiverInner>>);

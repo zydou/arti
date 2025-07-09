@@ -330,7 +330,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// **Not** allowed within [`blocking_io`](Blocking::blocking_io).
     ///
     /// Otherwise it may malfunction or panic.
-    /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
+    /// (`tor_rtmock::MockExecutor`'s implementation will usually detect violations.)
     fn reenter_block_on<F>(&self, future: F) -> F::Output
     where
         F: Future,
@@ -377,7 +377,7 @@ pub trait Blocking: Clone + Send + Sync + 'static {
     /// a task or future being polled by this `Runtime`.
     ///
     /// Otherwise it may malfunction or panic.
-    /// (`tor_rtmock::MockExecutor`'s implemnetation will usually detect violations.)
+    /// (`tor_rtmock::MockExecutor`'s implementation will usually detect violations.)
     ///
     /// ### Fallback (provided) implementation
     ///

@@ -82,7 +82,7 @@ define_derive_deftly! {
             handle
         }
 
-        /// Implemnetation of `Drop::drop`, split out for testability.
+        /// Implementation of `Drop::drop`, split out for testability.
         ///
         /// Calls `drop_status`, and replaces `self.status` with `S::Disarmed`,
         /// so that `self` can be actually dropped (if we didn't panic).

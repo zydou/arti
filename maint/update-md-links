@@ -14,7 +14,7 @@
 
 # ALGORITHM
 #
-# Look for annotations in the file telling us how to wirk.
+# Look for annotations in the file telling us how to work.
 #
 # Split the file up into sections (divided by the specified heading level).
 #

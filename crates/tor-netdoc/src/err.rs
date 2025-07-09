@@ -280,7 +280,7 @@ pub enum NetdocErrorKind {
     #[display("Empty line")]
     EmptyLine,
     /// The document began with a deprecated unicode BOM marker.
-    #[display("unexpecteed byte-order marker")]
+    #[display("unexpected byte-order marker")]
     BomMarkerFound,
     /// The document contained an internal NUL byte
     #[display("unexpected NUL")]

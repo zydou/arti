@@ -244,7 +244,7 @@ impl<R: Runtime> VanguardMgr<R> {
     /// Returns an error if vanguards are disabled.
     ///
     /// Returns a [`NoSuitableRelay`](VanguardMgrError::NoSuitableRelay) error
-    /// if none of our vanguards satisfy the `layer` and `neighbor_exlusion` requirements.
+    /// if none of our vanguards satisfy the `layer` and `neighbor_exclusion` requirements.
     ///
     /// Returns a [`BootstrapRequired`](VanguardMgrError::BootstrapRequired) error
     /// if called before the vanguard manager has finished bootstrapping,

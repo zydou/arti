@@ -42,7 +42,7 @@
 #
 # The file (the value) may also be empty, in which case it will be ignored.
 # (This is to allow you to preserve the variable properties,
-# while remooving the actual data.)
+# while removing the actual data.)
 #
 # `v1` is a fixed string, to allow future evolution of this protocol.
 # Everything on a line after a # is a comment and is ignored.

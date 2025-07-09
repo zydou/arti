@@ -906,7 +906,7 @@ pub(crate) struct CircHistory {
 }
 
 impl CircHistory {
-    /// If we hae seen enough, return the fraction of circuits that have
+    /// If we have seen enough, return the fraction of circuits that have
     /// "died under mysterious circumstances".
     fn indeterminate_ratio(&self) -> Option<f64> {
         // TODO: This should probably not be hardwired

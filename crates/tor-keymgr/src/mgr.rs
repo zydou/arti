@@ -1577,7 +1577,7 @@ mod tests {
 
         let arti_pat = KeyPathPattern::Arti("*".to_string());
         let matching = mgr.list_matching(&arti_pat).unwrap();
-        // assert the unrecognized key has been filterd out
+        // assert the unrecognized key has been filtered out
         assert_eq!(matching.len(), 1);
         assert_eq!(
             matching.first().unwrap().key_path(),

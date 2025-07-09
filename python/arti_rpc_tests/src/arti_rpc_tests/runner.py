@@ -102,7 +102,7 @@ class TestCase:
 
         Returns True on success and False on failure.
 
-        May raise FatalEception if test execution should stop entirely.
+        May raise FatalException if test execution should stop entirely.
         """
         try:
             print(self.name, "...", flush=True, end="")
