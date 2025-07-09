@@ -21,7 +21,7 @@ additional_provided["equix"] = [
     ),
 ]
 
-# PreferredRuntime has a somewhat more complexe rule for existing
+# PreferredRuntime has a somewhat more complex rule for existing
 additional_provided["tor-rtcompat"] = [
     ("PreferredRuntime", 'feature = "native-tls"'),
     ("PreferredRuntime", 'feature = "native-tls"'),

@@ -254,7 +254,7 @@ impl ClaimedQty {
         Ok(())
     }
 
-    /// When the participant indicates a release, enrol the amount in our bookkeping scheme
+    /// When the participant indicates a release, enrol the amount in our bookkeeping scheme
     ///
     /// Handles the quantity argument to [`Participation::release`].
     ///

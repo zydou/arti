@@ -131,7 +131,7 @@ incoming cell according to the conflux protocol (sequence number, switch, ...).
 
 ## What Remains
 
-- Unclear how we can re-open a new leg if one collapes? We would need the
+- Unclear how we can re-open a new leg if one collapses? We would need the
   circmgr to notice that somehow or make the reactor inform that manager? Note
   that in C-tor, we don't have resumption so if one leg dies, we don't attempt
   to re-create a new one.

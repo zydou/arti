@@ -126,7 +126,7 @@ release?" above.
    to remind me where I need to start again.
 
    The script `maint/changelog-syntax-fiddle`
-   can be helpful to write the cross-refernces more easily.
+   can be helpful to write the cross-references more easily.
 
    See below for our current [changelog style guide](#changelog-style).
 

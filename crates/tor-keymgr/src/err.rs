@@ -138,7 +138,7 @@ pub struct UnrecognizedEntryError {
     // [`MalformedServiceKeyError::NotAKey`](crate::keystore::ctor::err::MalformedServiceKeyError)
     // * [`Keystore::list`](crate::Keystore) returns
     // `StdResult<Vec<StdResult<(KeyPath, KeystoreItemType), UnrecognizedEntryError>>, KeystoreError>`,
-    // `KeystoreError` presents itself twice at 2 different levels, there is abiguity
+    // `KeystoreError` presents itself twice at 2 different levels, there is ambiguity
     #[source]
     error: Arc<dyn KeystoreError>,
 }

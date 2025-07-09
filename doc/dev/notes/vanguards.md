@@ -112,7 +112,7 @@ and must be stored to disk.
 
 In vanguards-lite, these pools are not persistent.
 
-### Loosened path restirctions
+### Loosened path restrictions
 
 When building a circuit stem,
 we no longer apply certain restrictions to the circuits we build.

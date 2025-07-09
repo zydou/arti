@@ -340,7 +340,7 @@ impl<P: ReadPrecision> Buffer<P> {
     ///    and will not be used (except if there are bugs)
     ///
     /// Using this and `into_parts` to obtain a `Buffer`
-    /// with a differetn the read precision (different `P` type parameter)
+    /// with a different read precision (different `P` type parameter)
     /// can result in malfunctions.
     pub fn from_parts(buf: Box<[u8]>, filled: usize) -> Self {
         Buffer {
@@ -385,7 +385,7 @@ impl<P: ReadPrecision> Buffer<P> {
     ///
     /// (It doesn't make sense to call this with `len == 0`.
     /// If the `0` came from a read call, this indicates EOF -
-    /// but that might not be an error if the protocol implemnetation doesn't need more data.
+    /// but that might not be an error if the protocol implementation doesn't need more data.
     /// [`RecvStep::note_received`] handles this properly.)
     ///
     /// # Panics

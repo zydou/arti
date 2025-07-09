@@ -217,7 +217,7 @@ impl From<&NetParameters> for NetParamsExtract {
         // In practice, however, the type conversion is needed
         // because consensus params are i32s.
         //
-        // See the `NetParamaters::kist_tcp_notsent_lowat docs for more details.
+        // See the `NetParameters::kist_tcp_notsent_lowat` docs for more details.
         let tcp_notsent_lowat = u32::from(p.kist_tcp_notsent_lowat);
         let kist = KistParams::new(kist_enabled, tcp_notsent_lowat);
 

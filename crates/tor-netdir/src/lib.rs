@@ -490,7 +490,7 @@ pub(crate) struct HsDirs<D> {
     /// secondary rings will be active at a time.  We have two here in order
     /// to conform with a more flexible regime in proposal 342.
     //
-    // TODO: hs clients never need this; so I've made it not-present for thm.
+    // TODO: hs clients never need this; so I've made it not-present for them.
     // But does that risk too much with respect to side channels?
     //
     // TODO: Perhaps we should refactor this so that it is clear that these

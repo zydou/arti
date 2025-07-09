@@ -197,7 +197,7 @@ mod tests {
     }
 
     /// This macro checks if the passed encoded key can be successfully parsed or not. For the
-    /// encoded<1> keys that are sucessfully parsed and decoded<2>, the decoded<2> keys are
+    /// encoded<1> keys that are successfully parsed and decoded<2>, the decoded<2> keys are
     /// re-encoded<3>, and these re-encoded<3> keys are re-decoded<4>. Then, it asserts that:
     ///
     /// * Encoded<1> and re-encoded<3> keys are the same.

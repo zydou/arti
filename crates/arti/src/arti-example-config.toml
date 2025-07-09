@@ -102,7 +102,7 @@
 # Usually only used when providing Tor Hidden Services (Onion Services).
 #
 # WARNING: exposing these metrics publicly is dangerous, and must be avoided.
-# Currently only plaintest HTTP is supported, either on a localhost IPv4 port,
+# Currently only plaintext HTTP is supported, either on a localhost IPv4 port,
 # or on a single other IPv4 or IPv6 address and port.
 # There is no access control beyond that implied by listening only on localhost.
 #

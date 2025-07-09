@@ -26,7 +26,7 @@ use tor_units::{
 /// Upper limit for channel padding timeouts
 ///
 /// This is just a safety catch which might help prevent integer overflow,
-/// and also might prevent a client getting permantently stuck in a state
+/// and also might prevent a client getting permanently stuck in a state
 /// where it ought to send padding but never does.
 ///
 /// The actual value is stolen from C Tor as per

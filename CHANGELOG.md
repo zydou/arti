@@ -3459,7 +3459,7 @@ for the `arti-client` crate and each of the `tor-*` crates below it.
 Instead, we will _assume_
 that every release of these crates breaks API compatibility
 with the one before, and update our semantic versioning accordingly.
-(We will continue not to make gratuitous API compatiblity breaks
+(We will continue not to make gratuitous API compatibility breaks
 on purpose.)
 
 Previously, our efforts to track
@@ -3998,7 +3998,7 @@ See `doc/OnionService.md` for instructions and caveats.
   ([!1931], [!1934])
 - `tor-persist` has `StateDirectory` for handling persistent state
   relating to particular instances of a facility (used for hidden
-  serivces).
+  services).
   ([!1853], [#1205], [!1913], [#1163], [!1935])
 
 ### Documentation and examples
@@ -4197,7 +4197,7 @@ for actual use.
 - Fix a bug that would occur when trying to create an onion service
   descriptor for a time period that had not yet begun. ([#1155],
   [!1828])
-- Always log the onion sevice's `.onion` address, when starting with
+- Always log the onion service's `.onion` address, when starting with
   `log_sensitive_information` enabled. ([!1830])
 - Ensure that no extra features beyond `onion-service-service` are
   needed in `arti` to enable onion service support. ([49ece08bafc115ce])
@@ -4216,7 +4216,7 @@ for actual use.
 ### Other major features
 
 - Arti now supports the [`ntor_v3`] circuit extension handshake, which
-  enables clients to send circuit paramaters to the relays on their paths.
+  enables clients to send circuit parameters to the relays on their paths.
   ([#1084], [!1766])
 
 ### Documentation
@@ -7444,7 +7444,7 @@ below.
 - We no longer include a dependency on [`cargo-husky`]: If you want to
   have [git hooks] in your local repository, you'll need to install your
   own. (See [CONTRIBUTING.md] for instructions.) ([!494])
-- Our shell scripts are more uniform in their behaiour. ([!533])
+- Our shell scripts are more uniform in their behaviour. ([!533])
 
 ### Documentation and Examples
 

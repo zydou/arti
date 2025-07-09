@@ -18,9 +18,9 @@ use crate::RendRequest;
 pub(crate) struct NewPowManager<R> {
     /// The PoW manager.
     pub(crate) pow_manager: Arc<PowManager<R>>,
-    /// Sender for rendevous requests.
+    /// Sender for rendezvous requests.
     pub(crate) rend_req_tx: mpsc::Sender<RendRequest>,
-    /// Receiver for rendevous requests.
+    /// Receiver for rendezvous requests.
     pub(crate) rend_req_rx: Pin<Box<dyn Stream<Item = RendRequest> + Send + Sync>>,
     /// Receiver used for the publisher to hear when it needs to republish for a TP because of a
     /// seed update.

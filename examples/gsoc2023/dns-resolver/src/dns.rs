@@ -1,4 +1,4 @@
-//! Houses the DNS-specifc code, including the structs that we pack the bytes
+//! Houses the DNS-specific code, including the structs that we pack the bytes
 //! into and suitable traits and implementations to convert to and from bytes
 //! and structs
 //!

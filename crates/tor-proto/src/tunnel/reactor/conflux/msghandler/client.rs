@@ -310,7 +310,7 @@ impl ClientConfluxMsgHandler {
 
         // TODO(#2031): from c-tor:
         //
-        // We have to make sure that the switch command is truely
+        // We have to make sure that the switch command is truly
         // incrementing the sequence number, or else it becomes
         // a side channel that can be spammed for traffic analysis.
 

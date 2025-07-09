@@ -259,7 +259,7 @@ TODO: Do this for compression, I doubt it will be much different though ...
 
 Below is some Rust-like pseudo code demonstrating it.
 It follows a locking hierarchy where none of the locks (db and cache) may be
-held simultanously.
+held simultaneously.
 ```rust
 // (1)
 let sha256 = db.transaction().query("SELECT content_sha256 FROM table WHERE column_name = column_value");
@@ -269,7 +269,7 @@ let content = if let Some(content) = cache.read().get(sha256).map(Arc::clone) {
 	content
 } else {
 	// Read from db and insert into cache.
-	// `db` and `cache` are not hold simultanously but only for each operation.
+	// `db` and `cache` are not hold simultaneously but only for each operation.
 	let content = Arc::new(db.transaction().query(format!("SELECT content FROM table WHERE content_sha256 = {sha256}")));
 	// We have to use entry here in order to avoid duplicate cache writes in the
 	// case of a parallel cache miss.

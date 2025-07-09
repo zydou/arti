@@ -20,7 +20,7 @@ use rand_core::RngCore;
 /// Wrap a [`RngCore`] implementation for fast `u8` and `u32` output.
 ///
 /// This maintains small queues for each data type: up to one `u32` and up to
-/// 7 bytes. The queueing behavior matches convenions required by HashX:
+/// 7 bytes. The queueing behavior matches conventions required by HashX:
 /// The underlying `u64` values are always generated lazily, and component
 /// values are extracted in big endian order.
 #[derive(Debug)]

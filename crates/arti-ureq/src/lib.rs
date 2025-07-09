@@ -165,7 +165,7 @@ pub struct Connector<R: Runtime> {
     #[educe(Debug(ignore))]
     client: TorClient<R>,
 
-    /// Selected [`ureq::tls::TlsProvider`]. Possibile options are `Rustls` or `NativeTls`. The default is `Rustls`.
+    /// Selected [`ureq::tls::TlsProvider`]. Possible options are `Rustls` or `NativeTls`. The default is `Rustls`.
     tls_provider: UreqTlsProvider,
 }
 
@@ -681,7 +681,7 @@ mod arti_ureq_test {
     // complex to use the `==` operator or (Partial)Eq. So we compare the types of the individual properties instead.
     fn assert_equal_types<T>(_: &T, _: &T) {}
 
-    // Helper function to check if the enviroment variable ARTI_TEST_LIVE_NETWORK is set to 1.
+    // Helper function to check if the environment variable ARTI_TEST_LIVE_NETWORK is set to 1.
     // We only want to run tests using the live network when the user explicitly wants to.
     fn test_live_network() -> bool {
         let run_test = std::env::var(ARTI_TEST_LIVE_NETWORK).is_ok_and(|v| v == "1");
@@ -692,7 +692,7 @@ mod arti_ureq_test {
         run_test
     }
 
-    // Helper function to check if the enviroment variable ARTI_TESTING_ON_LOCAL is set to 1.
+    // Helper function to check if the environment variable ARTI_TESTING_ON_LOCAL is set to 1.
     // Some tests, especially those that create default `Connector` instances, or test the `ConnectorBuilder`,
     // are not reliable when run on CI.  We don't know why that is.  It's probably a bug.  TODO fix the tests!
     fn testing_on_local() -> bool {

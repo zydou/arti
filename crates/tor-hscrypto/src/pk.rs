@@ -178,7 +178,7 @@ impl FromStr for HsId {
         // ecosystem libraries for base32 expect.  All this allocation and copying is
         // still probably less work than the SHA3 for the checksum.
         // However, we are going to use this function to *detect* and filter .onion
-        // addresses, so it should have a fast path to reject thm.
+        // addresses, so it should have a fast path to reject them.
         let mut s = s.to_owned();
         s.make_ascii_uppercase();
 
