@@ -979,7 +979,7 @@ mod tests {
             _item_type: &KeystoreItemType,
         ) -> Result<Option<ErasedKey>> {
             Err(Error::Keystore(Arc::new(
-                KeystoreListMockError::MethodNotSuppored,
+                KeystoreListMockError::MethodNotSupported,
             )))
         }
 
@@ -1002,7 +1002,7 @@ mod tests {
 
         fn insert(&self, _key: &dyn EncodableItem, _key_spec: &dyn KeySpecifier) -> Result<()> {
             Err(Error::Keystore(Arc::new(
-                KeystoreListMockError::MethodNotSuppored,
+                KeystoreListMockError::MethodNotSupported,
             )))
         }
 
@@ -1012,7 +1012,7 @@ mod tests {
             _item_type: &KeystoreItemType,
         ) -> Result<Option<()>> {
             Err(Error::Keystore(Arc::new(
-                KeystoreListMockError::MethodNotSuppored,
+                KeystoreListMockError::MethodNotSupported,
             )))
         }
 
@@ -1022,14 +1022,14 @@ mod tests {
             _item_type: &KeystoreItemType,
         ) -> Result<bool> {
             Err(Error::Keystore(Arc::new(
-                KeystoreListMockError::MethodNotSuppored,
+                KeystoreListMockError::MethodNotSupported,
             )))
         }
     }
 
     #[derive(thiserror::Error, Debug, Clone, derive_more::Display)]
     enum KeystoreListMockError {
-        MethodNotSuppored,
+        MethodNotSupported,
     }
 
     impl KeystoreError for KeystoreListMockError {}
