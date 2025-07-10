@@ -456,7 +456,18 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             .into());
         }
 
-        let params = onion_circparams_from_netparams(netdir.params())?;
+        let mut params = onion_circparams_from_netparams(netdir.params())?;
+
+        // If this is a HsDir circuit, establish a limit on the number of incoming cells from
+        // the last hop.
+        params.n_incoming_cells_permitted = match kind {
+            HsCircKind::ClientHsDir => Some(netdir.params().hsdir_dl_max_reply_cells.into()),
+            HsCircKind::SvcHsDir => Some(netdir.params().hsdir_ul_max_reply_cells.into()),
+            HsCircKind::SvcIntro
+            | HsCircKind::SvcRend
+            | HsCircKind::ClientIntro
+            | HsCircKind::ClientRend => None,
+        };
         self.extend_circ(circ, params, target).await
     }
 

@@ -77,6 +77,7 @@ use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
 use tor_config_path::{CfgPath, CfgPathResolver};
+use tor_dirclient::SourceInfo;
 use tor_netdir::{DirEvent, NetDir};
 
 use crate::config::restricted_discovery::{
@@ -320,6 +321,9 @@ pub(crate) trait MockableClientCirc: Send + Sync {
     /// Start a new stream to the last relay in the circuit, using
     /// a BEGIN_DIR cell.
     async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error>;
+
+    /// Try to get a SourceInfo for this circuit, for using it in a directory request.
+    fn source_info(&self) -> tor_proto::Result<Option<SourceInfo>>;
 }
 
 #[async_trait]
@@ -328,6 +332,10 @@ impl MockableClientCirc for ClientCirc {
 
     async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error> {
         ClientCirc::begin_dir_stream(self).await
+    }
+
+    fn source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
+        SourceInfo::from_circuit(self)
     }
 }
 
@@ -541,6 +549,19 @@ pub enum UploadError {
     Bug(#[from] tor_error::Bug),
 }
 define_asref_dyn_std_error!(UploadError);
+
+impl UploadError {
+    /// Return true if this error is one that we should report as a suspicious event,
+    /// along with the dirserver, and description of the relevant document.
+    pub(crate) fn should_report_as_suspicious(&self) -> bool {
+        match self {
+            UploadError::Request(e) => e.error.should_report_as_suspicious_if_anon(),
+            UploadError::Circuit(_) => false, // TODO prop360
+            UploadError::Stream(_) => false,  // TODO prop360
+            UploadError::Bug(_) => false,
+        }
+    }
+}
 
 impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Create a new `Reactor`.
@@ -1474,6 +1495,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             Fatal(#[from] FatalError),
         }
 
+        let max_hsdesc_len: usize = netdir
+            .params()
+            .hsdir_max_desc_size
+            .try_into()
+            .expect("Unable to convert positive int32 to usize!?");
+
         let upload_results = futures::stream::iter(hs_dirs)
             .map(|relay_ids| {
                 let netdir = netdir.clone();
@@ -1572,6 +1599,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 &mut rng,
                                 &mut key_rng,
                                 imm.runtime.wallclock(),
+                                max_hsdesc_len,
                             )?
                         };
 
@@ -1711,13 +1739,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 OwnedCircTarget::from_circ_target(hsdir),
             )
             .await?;
-
+        let source: Option<SourceInfo> = circuit
+            .source_info()
+            .map_err(into_internal!("Couldn't get SourceInfo for circuit"))?;
         let mut stream = circuit
             .begin_dir_stream()
             .await
             .map_err(UploadError::Stream)?;
 
-        let _response: String = send_request(&imm.runtime, &request, &mut stream, None)
+        let _response: String = send_request(&imm.runtime, &request, &mut stream, source)
             .await
             .map_err(|dir_error| -> UploadError {
                 match dir_error {
@@ -1765,8 +1795,25 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             imm.runtime.clone(),
         );
 
-        let fallible_op =
-            || Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm));
+        let fallible_op = || async {
+            let r = Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await;
+
+            if let Err(e) = &r {
+                if e.should_report_as_suspicious() {
+                    // Note that not every protocol violation is suspicious:
+                    // we only warn on the protocol violations that look like attempts
+                    // to do a traffic tagging attack via hsdir inflation.
+                    // (See proposal 360.)
+                    warn_report!(
+                        &e.clone(),
+                        "Suspicious error while uploading descriptor to {}/{}",
+                        ed_id,
+                        rsa_id
+                    );
+                }
+            }
+            r
+        };
 
         let outcome: Result<(), BackoffError<UploadError>> = runner.run(fallible_op).await;
         match outcome {

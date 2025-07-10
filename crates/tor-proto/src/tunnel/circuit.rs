@@ -408,6 +408,33 @@ pub struct CircParameters {
     pub extend_by_ed25519_id: bool,
     /// Congestion control parameters for this circuit.
     pub ccontrol: CongestionControlParams,
+
+    /// Maximum number of permitted incoming relay cells for each hop.
+    ///
+    /// If we would receive more relay cells than this from a single hop,
+    /// we close the circuit with [`ExcessInboundCells`](Error::ExcessInboundCells).
+    ///
+    /// If this value is None, then there is no limit to the number of inbound cells.
+    ///
+    /// Known limitation: If this value if `u32::MAX`,
+    /// then a limit of `u32::MAX - 1` is enforced.
+    pub n_incoming_cells_permitted: Option<u32>,
+
+    /// Maximum number of permitted outgoing relay cells for each hop.
+    ///
+    /// If we would try to send more relay cells than this from a single hop,
+    /// we close the circuit with [`ExcessOutboundCells`](Error::ExcessOutboundCells).
+    /// It is the circuit-user's responsibility to make sure that this does not happen.
+    ///
+    /// This setting is used to ensure that we do not violate a limit
+    /// imposed by `n_incoming_cells_permitted`
+    /// on the other side of a circuit.
+    ///
+    /// If this value is None, then there is no limit to the number of outbound cells.
+    ///
+    /// Known limitation: If this value if `u32::MAX`,
+    /// then a limit of `u32::MAX - 1` is enforced.
+    pub n_outgoing_cells_permitted: Option<u32>,
 }
 
 /// The settings we use for single hop of a circuit.
@@ -425,6 +452,12 @@ pub struct CircParameters {
 pub(super) struct HopSettings {
     /// The negotiated congestion control settings for this circuit.
     pub(super) ccontrol: CongestionControlParams,
+
+    /// Maximum number of permitted incoming relay cells for this hop.
+    pub(super) n_incoming_cells_permitted: Option<u32>,
+
+    /// Maximum number of permitted outgoing relay cells for this hop.
+    pub(super) n_outgoing_cells_permitted: Option<u32>,
 }
 
 impl HopSettings {
@@ -444,6 +477,8 @@ impl HopSettings {
     ) -> Result<Self> {
         let mut settings = Self {
             ccontrol: params.ccontrol.clone(),
+            n_incoming_cells_permitted: params.n_incoming_cells_permitted,
+            n_outgoing_cells_permitted: params.n_outgoing_cells_permitted,
         };
 
         match settings.ccontrol.alg() {
@@ -477,6 +512,8 @@ impl std::default::Default for CircParameters {
         Self {
             extend_by_ed25519_id: true,
             ccontrol: crate::congestion::test_utils::params::build_cc_fixed_params(),
+            n_incoming_cells_permitted: None,
+            n_outgoing_cells_permitted: None,
         }
     }
 }
@@ -487,6 +524,8 @@ impl CircParameters {
         Self {
             extend_by_ed25519_id,
             ccontrol,
+            n_incoming_cells_permitted: None,
+            n_outgoing_cells_permitted: None,
         }
     }
 }
@@ -505,6 +544,27 @@ impl ClientCirc {
             .first_hop(self.unique_id)
             .map_err(|_| Error::CircuitClosed)?
             .expect("called first_hop on an un-constructed circuit"))
+    }
+
+    /// Return a description of the last hop of the circuit.
+    ///
+    /// Return None if the last hop is virtual.
+    ///
+    /// See caveats on [`ClientCirc::last_hop_num()`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no last hop.  (This should be impossible outside of
+    /// the tor-proto crate, but within the crate it's possible to have a
+    /// circuit with no hops.)
+    pub fn last_hop_info(&self) -> Result<Option<OwnedChanTarget>> {
+        let path = self.path_ref()?;
+        Ok(path
+            .hops()
+            .last()
+            .expect("Called last_hop an an un-constructed circuit")
+            .as_chan_target()
+            .map(OwnedChanTarget::from_chan_target))
     }
 
     /// Return the [`HopNum`] of the last hop of this circuit.

@@ -508,6 +508,16 @@ pub struct NetParameters {
     pub hs_intro_num_extra_intropoints: BoundedInt32<0, 128> = (2)
         from "hs_intro_num_extra",
 
+    /// Largest number of allowable relay cells received
+    /// in reply to an hsdir download attempt.
+    pub hsdir_dl_max_reply_cells: BoundedInt32<2, 2304> = (110)
+        from "hsdir_dl_max_reply_cells",
+
+    /// Largest number of allowable relay cells received
+    /// in reply to an hsdir upload attempt.
+    pub hsdir_ul_max_reply_cells: BoundedInt32<2, 1024> = (8)
+        from "hsdir_ul_max_reply_cells",
+
     /// The duration of a time period, as used in the onion service directory
     /// protocol.
     ///

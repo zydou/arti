@@ -285,6 +285,9 @@ pub enum NetdocErrorKind {
     /// The document contained an internal NUL byte
     #[display("unexpected NUL")]
     NulFound,
+    /// An item contained extra spaces at a place where they are not allowed.
+    #[display("Extraneous spaces")]
+    ExtraneousSpace,
 }
 
 /// The underlying source for an [`Error`](struct@Error).

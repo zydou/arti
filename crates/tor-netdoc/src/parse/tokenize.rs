@@ -466,12 +466,7 @@ impl<'a, K: Keyword> Item<'a, K> {
     /// Return the position at the end of the last argument.  (This will
     /// point to a newline.)
     fn last_arg_end_pos(&self) -> Pos {
-        let args = self.args_as_vec();
-        if let Some(last_arg) = args.last() {
-            Pos::at_end_of(last_arg)
-        } else {
-            Pos::at_end_of(self.kwd_str)
-        }
+        Pos::at_end_of(self.args)
     }
     /// Return the position of the end of this object. (This will point to a
     /// newline.)
@@ -485,6 +480,15 @@ impl<'a, K: Keyword> Item<'a, K> {
     /// immediately after the end of this item.
     pub(crate) fn offset_after(&self, s: &str) -> Option<usize> {
         self.end_pos().offset_within(s).map(|nl_pos| nl_pos + 1)
+    }
+
+    /// Return the text of this item, if it originated within `str`,
+    /// from the start of its keyword up to and including its final newline.
+    #[allow(dead_code)] // unused when hsdesc not enabled.
+    pub(crate) fn text_within<'b>(&self, s: &'b str) -> Option<&'b str> {
+        let start = self.pos().offset_within(s)?;
+        let end = self.end_pos().offset_within(s)?;
+        s.get(start..=end)
     }
 }
 
@@ -971,6 +975,52 @@ truncated line";
     }
 
     #[test]
+    fn test_leading_space_forbidden() {
+        // We need to make sure that items with a leading space aren't accepted:
+        // the spec forbids it, and it can provide a vector for inflating the size
+        // of downloaded hsdescs (see prop360).
+
+        // Try a simple item with a space at the front.
+        let s = "    guava space\n";
+        let r: NetDocReader<'_, Fruit> = NetDocReader::new(s).unwrap();
+        let toks: Vec<_> = r.collect();
+
+        // No space allowed at the start of a line.
+        assert_eq!(
+            toks[0].as_ref().err().unwrap(),
+            &EK::BadKeyword.at_pos(Pos::from_line(1, 1))
+        );
+
+        // Try an item with an object, inserting space at the start of each ine in turn.
+        let s = "cherry
+-----BEGIN WHATEVER-----
+8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S
+-----END WHATEVER-----
+";
+
+        let orig_lines = s
+            .split_terminator('\n')
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        assert_eq!(orig_lines.len(), 4);
+        let expected_kinds = [
+            EK::BadKeyword,
+            EK::BadKeyword,
+            EK::BadObjectBase64,
+            EK::BadObjectBase64,
+        ];
+        for pos in 0..orig_lines.len() {
+            let mut lines = orig_lines.clone();
+            lines[pos] = format!(" {}", lines[pos]);
+            let joined = format!("{}\n", lines.join("\n"));
+
+            let r: NetDocReader<'_, Fruit> = NetDocReader::new(&joined).unwrap();
+            let toks: Result<Vec<_>> = r.collect();
+            assert_eq!(toks.unwrap_err().netdoc_error_kind(), expected_kinds[pos]);
+        }
+    }
+
+    #[test]
     fn test_validate_strings() {
         use validate_utf_8_rules as v;
         assert_eq!(v(""), Ok(""));
@@ -996,5 +1046,34 @@ truncated line";
             let nul_pos = e.pos().offset_within(s).unwrap();
             assert_eq!(s.as_bytes()[nul_pos], 0);
         }
+    }
+
+    fn single_fruit(s: &str) -> Item<'_, Fruit> {
+        NetDocReader::<Fruit>::new(s)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+    }
+
+    #[test]
+    fn end_of_item() {
+        let s = "guava friends 123   \n";
+        let item = single_fruit(s);
+        assert_eq!(
+            item.end_pos().within(s),
+            Pos::from_byte(s.find('\n').unwrap()).within(s)
+        );
+
+        let s = "cherry
+-----BEGIN WHATEVER-----
+8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S
+-----END WHATEVER-----\n";
+        let item = single_fruit(s);
+        dbg!(&item);
+        assert_eq!(
+            item.end_pos().within(s),
+            Pos::from_byte(s.rfind('\n').unwrap()).within(s)
+        );
     }
 }

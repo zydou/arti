@@ -1,18 +1,21 @@
 //! Implement parsing for the outer document of an onion service descriptor.
 
+use itertools::Itertools as _;
 use std::sync::LazyLock;
 use tor_cert::Ed25519Cert;
 use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
+use tor_error::internal;
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::ed25519::{self, Ed25519Identity, ValidatableEd25519Signature};
 use tor_units::IntegerMinutes;
 
+use crate::parse::tokenize::Item;
 use crate::parse::{keyword::Keyword, parser::SectionRules, tokenize::NetDocReader};
 use crate::types::misc::{UnvalidatedEdCert, B64};
-use crate::{Pos, Result};
+use crate::{NetdocErrorKind as EK, Pos, Result};
 
 use super::desc_enc;
 
@@ -115,6 +118,26 @@ decl_keyword! {
     }
 }
 
+/// Check whether there are any extraneous spaces used for the encoding of `sig` within `within_string`.
+/// Return an error if there are.
+///
+/// This check helps to prevent some length extension attacks.
+fn validate_signature_item(item: &Item<'_, HsOuterKwd>, within_string: &str) -> Result<()> {
+    let s = item
+        .text_within(within_string)
+        .ok_or_else(|| internal!("Signature item not from within expected string!?"))?;
+
+    let is_hspace = |b| b == b' ' || b == b'\t';
+
+    for (a, b) in s.bytes().tuple_windows() {
+        if is_hspace(a) && is_hspace(b) {
+            return Err(EK::ExtraneousSpace.at_pos(item.pos()));
+        }
+    }
+
+    Ok(())
+}
+
 /// Rules about how keywords appear in the outer document of an onion service
 /// descriptor.
 static HS_OUTER_RULES: LazyLock<SectionRules<HsOuterKwd>> = LazyLock::new(|| {
@@ -171,6 +194,7 @@ impl HsDescOuter {
                     .with_msg(last_item.kwd_str().to_string())
                     .at_pos(last_item.pos()));
             }
+            validate_signature_item(last_item, s)?;
             let start_idx = first_item
                 .pos()
                 .offset_within(s)
@@ -327,5 +351,19 @@ mod test {
             .starts_with("desc-auth-type"));
 
         Ok(())
+    }
+
+    #[test]
+    fn invalidate_signature_items() {
+        for s in &[
+            "signature  CtiubqLBP1MCviR9SxAW9brjMKSguQFE/vHku3kE4Xo\n",
+            "signature CtiubqLBP1MCviR9SxAW9brjMKSguQFE/vHku3kE4Xo  \n",
+        ] {
+            let mut reader = NetDocReader::<HsOuterKwd>::new(s).unwrap();
+            let item = reader.next().unwrap().unwrap();
+            let res = validate_signature_item(&item, s);
+            let err = res.unwrap_err();
+            assert!(err.netdoc_error_kind() == EK::ExtraneousSpace);
+        }
     }
 }

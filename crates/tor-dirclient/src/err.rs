@@ -69,6 +69,10 @@ pub enum RequestError {
     #[error("response too long; gave up after {0} bytes")]
     ResponseTooLong(usize),
 
+    /// Received too many bytes in our headers.
+    #[error("headers too long; gave up after {0} bytes")]
+    HeadersTooLong(usize),
+
     /// Data received was not UTF-8 encoded.
     #[error("Couldn't decode data as UTF-8.")]
     Utf8Encoding(#[from] std::string::FromUtf8Error),
@@ -181,6 +185,7 @@ impl HasKind for RequestError {
             E::DirTimeout => EK::TorNetworkTimeout,
             E::TruncatedHeaders => EK::TorProtocolViolation,
             E::ResponseTooLong(_) => EK::TorProtocolViolation,
+            E::HeadersTooLong(_) => EK::TorProtocolViolation,
             E::Utf8Encoding(_) => EK::TorProtocolViolation,
             // TODO: it would be good to get more information out of the IoError
             // in this case, but that would require a bunch of gnarly
@@ -210,6 +215,46 @@ impl HasKind for Error {
             E::CircMgr(e) => e.kind(),
             E::RequestFailed(e) => e.kind(),
             E::Bug(e) => e.kind(),
+        }
+    }
+}
+
+#[cfg(any(feature = "hs-client", feature = "hs-service"))]
+impl Error {
+    /// Return true if this error is one that we should report as a suspicious event,
+    /// along with the dirserver and description of the relevant document,
+    /// if the request was made anonymously.
+    pub fn should_report_as_suspicious_if_anon(&self) -> bool {
+        use Error as E;
+        match self {
+            E::CircMgr(_) => false,
+            E::RequestFailed(e) => e.error.should_report_as_suspicious_if_anon(),
+            E::Bug(_) => false,
+        }
+    }
+}
+#[cfg(any(feature = "hs-client", feature = "hs-service"))]
+impl RequestError {
+    /// Return true if this error is one that we should report as a suspicious event,
+    /// along with the dirserver and description of the relevant document,
+    /// if the request was made anonymously.
+    pub fn should_report_as_suspicious_if_anon(&self) -> bool {
+        use tor_proto::Error as PE;
+        match self {
+            RequestError::ResponseTooLong(_) => true,
+            RequestError::HeadersTooLong(_) => true,
+            RequestError::Proto(PE::ExcessInboundCells) => true,
+            RequestError::Proto(_) => false,
+            RequestError::DirTimeout => false,
+            RequestError::TruncatedHeaders => false,
+            RequestError::Utf8Encoding(_) => false,
+            RequestError::IoError(_) => false,
+            RequestError::HttparseError(_) => false,
+            RequestError::HttpError(_) => false,
+            RequestError::ContentEncoding(_) => false,
+            RequestError::TooMuchClockSkew => false,
+            RequestError::EmptyRequest => false,
+            RequestError::HttpStatus(_, _) => false,
         }
     }
 }
