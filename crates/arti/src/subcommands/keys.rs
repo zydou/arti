@@ -6,8 +6,7 @@ use anyhow::Result;
 
 use arti_client::{InertTorClient, TorClient, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand};
-use tor_key_forge::KeystoreItemType;
-use tor_keymgr::{KeyMgr, KeyPath, KeystoreEntryResult, KeystoreId, UnrecognizedEntryError};
+use tor_keymgr::{KeyMgr, KeystoreEntry, KeystoreEntryResult, KeystoreId, UnrecognizedEntryError};
 use tor_rtcompat::Runtime;
 
 /// Length of a line, used for formatting
@@ -25,6 +24,11 @@ pub(crate) enum KeysSubcommands {
 #[derive(Subcommand, Debug, Clone)]
 pub(crate) enum KeysSubcommand {
     /// List keys and certificates.
+    ///
+    /// Note: The output fields "Location" and "Keystore ID" represent,
+    /// respectively, the raw identifier of an entry (e.g. <ARTI_PATH>.<ENTRY_TYPE>
+    /// for `ArtiNativeKeystore`), and the identifier of the keystore that
+    /// contains the entry.
     List(ListArgs),
 
     /// List keystores.
@@ -60,20 +64,23 @@ pub(crate) fn run<R: Runtime>(
 }
 
 /// Print information about a keystore entry.
-fn display_entry(path: &KeyPath, ty: &KeystoreItemType, keymgr: &KeyMgr) {
-    match keymgr.describe(path) {
-        Ok(entry) => {
-            println!(" Role: {}", entry.role());
-            println!(" Summary: {}", entry.summary());
-            println!(" KeystoreItemType: {:?}", ty);
-            let extra_info = entry.extra_info();
+fn display_entry(entry: &KeystoreEntry, keymgr: &KeyMgr) {
+    let raw_entry = entry.raw_entry();
+    match keymgr.describe(entry.key_path()) {
+        Ok(e) => {
+            println!(" Keystore ID: {}", entry.keystore_id());
+            println!(" Role: {}", e.role());
+            println!(" Summary: {}", e.summary());
+            println!(" KeystoreItemType: {:?}", entry.key_type());
+            println!(" Location: {}", raw_entry.raw_id());
+            let extra_info = e.extra_info();
             println!(" Extra info:");
             for (key, value) in extra_info {
                 println!(" - {key}: {value}");
             }
         }
-        Err(err) => {
-            println!(" {}", err);
+        Err(_) => {
+            println!(" Unrecognized path {}", raw_entry.raw_id());
         }
     }
     println!("\n {}\n", "-".repeat(LINE_LEN));
@@ -81,10 +88,12 @@ fn display_entry(path: &KeyPath, ty: &KeystoreItemType, keymgr: &KeyMgr) {
 
 /// Print information about an unrecognized keystore entry.
 fn display_unrecognized_entry(entry: &UnrecognizedEntryError) {
+    let raw_entry = entry.entry();
     println!(" Unrecognized entry");
     #[allow(clippy::single_match)]
-    match entry.entry() {
-        tor_keymgr::UnrecognizedEntryId::Path(p) => {
+    match raw_entry.raw_id() {
+        tor_keymgr::RawEntryId::Path(p) => {
+            println!(" Keystore ID: {}", raw_entry.keystore_id());
             println!(" Location: {}", p.to_string_lossy());
             println!(" Error: {}", entry.error());
         }
@@ -108,22 +117,11 @@ fn run_list_keys(args: &ListArgs, client: &InertTorClient) -> Result<()> {
     match &args.keystore_id {
         Some(s) => {
             let id = KeystoreId::from_str(s)?;
-            let entries = keymgr.list_by_id(&id)?.into_iter().map(|res| match res {
-                Ok((path, ty)) => Ok((path, ty, &id)),
-                Err(unrecognized_entry) => Err(unrecognized_entry),
-            });
             let empty_err_msg = format!("Currently there are no entries in the keystore {}.", s);
-            display_keystore_entries(entries, keymgr, &empty_err_msg);
+            display_keystore_entries(keymgr.list_by_id(&id)?, keymgr, &empty_err_msg);
         }
         None => {
-            let entries = keymgr.list()?.into_iter().map(|res| match res {
-                Ok(entry) => Ok((
-                    entry.key_path().to_owned(),
-                    entry.key_type().to_owned(),
-                    entry.keystore_id(),
-                )),
-                Err(unrecognized_entry) => Err(unrecognized_entry),
-            });
+            let entries = keymgr.list()?;
             display_keystore_entries(
                 entries,
                 keymgr,
@@ -154,23 +152,19 @@ fn run_list_keystores(client: &InertTorClient) -> Result<()> {
 }
 
 /// Helper function of `run_list_keys`, reduces cognitive complexity.
-fn display_keystore_entries<'a>(
-    entries: impl std::iter::ExactSizeIterator<
-        Item = KeystoreEntryResult<(KeyPath, KeystoreItemType, &'a KeystoreId)>,
-    >,
+fn display_keystore_entries(
+    entries: Vec<KeystoreEntryResult<KeystoreEntry>>,
     keymgr: &KeyMgr,
     empty_err_msg: &str,
 ) {
-    if entries.len() == 0 {
-        println!("{}", empty_err_msg);
-        return;
+    if entries.is_empty() {
+        println!("{empty_err_msg}");
     }
-    println!(" ===== Keytore entries =====\n\n");
+    println!(" ===== Keystore entries =====\n\n");
     for entry in entries {
         match entry {
-            Ok((path, ty, keystore_id)) => {
-                println!(" Keystore ID: {}", keystore_id.as_ref());
-                display_entry(&path, &ty, keymgr);
+            Ok(entry) => {
+                display_entry(&entry, keymgr);
             }
             Err(entry) => {
                 display_unrecognized_entry(&entry);

@@ -1,11 +1,24 @@
-List keys and certificates
+List keys and certificates.
+
+Note: The output fields "Location" and "Keystore ID" represent, respectively, the raw identifier of an entry (e.g. <ARTI_PATH>.<ENTRY_TYPE> for `ArtiNativeKeystore`), and the identifier of the keystore that contains the entry.
 
 Usage: arti keys list [OPTIONS]
 
 Options:
-  -c, --config <FILE>                 Specify which config file(s) to read. Defaults to [File("[..]"), Dir("[..]")]
-  -k, --keystore-id <KEYSTORE_ID>     Identifier of the keystore. If omitted, keys and certificates from all the keystores will be returned
-  -o <KEY=VALUE>                      Override config file parameters, using TOML-like syntax.
-  -l, --log-level <LEVEL>             Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error').
-      --disable-fs-permission-checks  Don't check permissions on the files we use.
-  -h, --help                          Print help
+  -c, --config <FILE>
+          Specify which config file(s) to read. Defaults to [File("[..]"), Dir("[..]")]
+
+  -k, --keystore-id <KEYSTORE_ID>
+          Identifier of the keystore. If omitted, keys and certificates from all the keystores will be returned
+
+  -o <KEY=VALUE>
+          Override config file parameters, using TOML-like syntax.
+
+  -l, --log-level <LEVEL>
+          Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error').
+
+      --disable-fs-permission-checks
+          Don't check permissions on the files we use.
+
+  -h, --help
+          Print help (see a summary with '-h')

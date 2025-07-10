@@ -12,9 +12,10 @@ use crate::keystore::ctor::err::{CTorKeystoreError, MalformedClientKeyError};
 use crate::keystore::ctor::CTorKeystore;
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
+use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    CTorPath, KeyPath, KeystoreEntryResult, KeystoreId, Result, UnrecognizedEntryError,
-    UnrecognizedEntryId,
+    CTorPath, KeyPath, KeystoreEntry, KeystoreEntryResult, KeystoreId, Result,
+    UnrecognizedEntryError,
 };
 
 use fs_mistrust::Mistrust;
@@ -261,6 +262,11 @@ impl Keystore for CTorClientKeystore {
             .map(|k: curve25519::StaticKeypair| Box::new(k) as ErasedKey))
     }
 
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn raw_entry_id(&self, raw_id: &str) -> Result<RawEntryId> {
+        Ok(RawEntryId::Path(PathBuf::from(raw_id.to_string())))
+    }
+
     fn insert(&self, _key: &dyn EncodableItem, _key_spec: &dyn KeySpecifier) -> Result<()> {
         Err(CTorKeystoreError::NotSupported { action: "insert" }.into())
     }
@@ -273,21 +279,37 @@ impl Keystore for CTorClientKeystore {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
-    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn remove_unchecked(&self, _entry_id: &RawEntryId) -> Result<()> {
+        Err(CTorKeystoreError::NotSupported {
+            action: "remove_unchecked",
+        }
+        .into())
+    }
+
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
         use CTorKeystoreError::*;
 
         let keys = self
             .list_keys()?
             .filter_map(|entry| match entry {
-                Ok((hsid, _)) => Some(Ok((
-                    CTorPath::ClientHsDescEncKey(hsid).into(),
-                    KeyType::X25519StaticKeypair.into(),
-                ))),
+                Ok((hsid, _)) => {
+                    let key_path: KeyPath = CTorPath::ClientHsDescEncKey(hsid).into();
+                    let key_type: KeystoreItemType = KeyType::X25519StaticKeypair.into();
+                    let raw_id = RawEntryId::Path(key_path.ctor()?.to_string().into());
+                    Some(Ok(KeystoreEntry::new(
+                        key_path,
+                        key_type,
+                        self.id(),
+                        raw_id,
+                    )))
+                }
                 Err(e) => match e {
-                    MalformedKey { ref path, err: _ } => Some(Err(UnrecognizedEntryError::new(
-                        UnrecognizedEntryId::Path(path.clone()),
-                        Arc::new(e),
-                    ))),
+                    MalformedKey { ref path, err: _ } => {
+                        let raw_id = RawEntryId::Path(path.clone());
+                        let entry = RawKeystoreEntry::new(raw_id, self.id().clone()).into();
+                        Some(Err(UnrecognizedEntryError::new(entry, Arc::new(e))))
+                    }
                     // `InvalidKeystoreItemType` variant is filtered out because it can't
                     // be returned by [`CTorClientKeystore::list_keys`].
                     InvalidKeystoreItemType { .. } => None,
@@ -411,8 +433,7 @@ mod tests {
 
         assert_eq!(keys.len(), 2);
         assert!(keys.iter().all(|entry| {
-            let (_, key_type) = entry.as_ref().unwrap();
-            *key_type == KeyType::X25519StaticKeypair.into()
+            entry.as_ref().unwrap().key_type() == &KeyType::X25519StaticKeypair.into()
         }));
     }
 

@@ -7,16 +7,17 @@ pub(crate) mod err;
 pub(crate) mod ssh;
 
 use std::io::{self};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
+use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result,
-    UnknownKeyTypeError, UnrecognizedEntryError, UnrecognizedEntryId,
+    arti_path, ArtiPath, ArtiPathUnavailableError, KeystoreEntry, KeystoreId, Result,
+    UnknownKeyTypeError, UnrecognizedEntryError,
 };
 use certs::UnparsedCert;
 use err::ArtiNativeKeystoreError;
@@ -205,6 +206,11 @@ impl Keystore for ArtiNativeKeystore {
         }
     }
 
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn raw_entry_id(&self, raw_id: &str) -> Result<RawEntryId> {
+        Ok(RawEntryId::Path(PathBuf::from(raw_id.to_string())))
+    }
+
     fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> Result<()> {
         let keystore_item = key.as_keystore_item()?;
         let item_type = keystore_item.item_type()?;
@@ -269,7 +275,26 @@ impl Keystore for ArtiNativeKeystore {
         }
     }
 
-    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn remove_unchecked(&self, raw_id: &RawEntryId) -> Result<()> {
+        match raw_id {
+            RawEntryId::Path(path) => {
+                self.keystore_dir.remove_file(path).map_err(|e| {
+                    ArtiNativeKeystoreError::Filesystem(FilesystemError::FsMistrust {
+                        action: FilesystemAction::Remove,
+                        path: path.clone(),
+                        err: e.into(),
+                    })
+                })?;
+            }
+            _other => {
+                return Err(ArtiNativeKeystoreError::UnsupportedRawEntry(raw_id.clone()).into());
+            }
+        }
+        Ok(())
+    }
+
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
         WalkDir::new(self.keystore_dir.as_path())
             .into_iter()
             .map(|entry| {
@@ -325,7 +350,8 @@ impl Keystore for ArtiNativeKeystore {
                         path: path.into(),
                         err,
                     };
-                    let entry = UnrecognizedEntryId::Path(path.into());
+                    let raw_id = RawEntryId::Path(path.into());
+                    let entry = RawKeystoreEntry::new(raw_id, self.id().clone()).into();
                     Some(Err(UnrecognizedEntryError::new(entry, Arc::new(error))))
                 };
 
@@ -350,7 +376,15 @@ impl Keystore for ArtiNativeKeystore {
                     .collect::<Vec<_>>()
                     .join(&arti_path::PATH_SEP.to_string());
                 let opt = match ArtiPath::new(slugs) {
-                    Ok(path) => Some(Ok((path.into(), item_type))),
+                    Ok(arti_path) => {
+                        let raw_id = RawEntryId::Path(path.to_owned());
+                        Some(Ok(KeystoreEntry::new(
+                            arti_path.into(),
+                            item_type,
+                            self.id(),
+                            raw_id,
+                        )))
+                    }
                     Err(e) => {
                         unrecognized_entry_err(path, err::MalformedPathError::InvalidArtiPath(e))
                     }
@@ -383,6 +417,7 @@ mod tests {
     use crate::test_utils::TEST_SPECIFIER_PATH;
     use crate::test_utils::{assert_found, TestSpecifier};
     use crate::KeyPath;
+    use crate::UnrecognizedEntry;
     use std::cmp::Ordering;
     use std::fs;
     use std::path::PathBuf;
@@ -451,8 +486,8 @@ mod tests {
             let mut sorted_list = $list
                 .iter()
                 .filter_map(|entry| {
-                    if let Ok((path, _)) = entry {
-                        Some(path.clone())
+                    if let Ok(entry) = entry {
+                        Some(entry.key_path().clone())
                     } else {
                         None
                     }
@@ -750,17 +785,76 @@ mod tests {
             let Err(entry) = e else {
                 return None;
             };
-            #[allow(irrefutable_let_patterns)]
-            let UnrecognizedEntryId::Path(path) = entry.entry() else {
-                return None;
-            };
-            Some(path)
+            Some(entry.entry())
         });
-        assert_eq!(
-            unrecognized_entries.next().unwrap(),
-            Path::new(TEST_SPECIFIER_PATH)
-        );
+        let expected_entry = UnrecognizedEntry::from(RawKeystoreEntry::new(
+            RawEntryId::Path(PathBuf::from(TEST_SPECIFIER_PATH)),
+            key_store.id().clone(),
+        ));
+        assert_eq!(unrecognized_entries.next().unwrap(), &expected_entry);
         assert!(unrecognized_entries.next().is_none());
+    }
+
+    #[cfg(feature = "onion-service-cli-extra")]
+    #[test]
+    fn remove_unchecked() {
+        // Initialize the key store
+        let (key_store, keystore_dir) = init_keystore(true);
+
+        // Insert key with invalid ArtiPath
+        let _ = fs::File::create(keystore_dir.path().join(TEST_SPECIFIER_PATH)).unwrap();
+
+        // Keystore contains a valid entry and an unrecognized one
+        let entries = key_store.list().unwrap();
+
+        // Remove valid entry
+        let vaild_spcifier = entries
+            .iter()
+            .find_map(|res| {
+                let Ok(entry) = res else {
+                    return None;
+                };
+                match entry.key_path() {
+                    KeyPath::Arti(a) => {
+                        let mut path_str = a.to_string();
+                        path_str.push('.');
+                        path_str.push_str(&entry.key_type().arti_extension());
+                        let raw_id = RawEntryId::Path(PathBuf::from(&path_str));
+                        Some(RawKeystoreEntry::new(raw_id, key_store.id().to_owned()))
+                    }
+                    _ => {
+                        panic!("Unexpected KeyPath variant encountered")
+                    }
+                }
+            })
+            .unwrap();
+        key_store.remove_unchecked(vaild_spcifier.raw_id()).unwrap();
+        let entries = key_store.list().unwrap();
+        // Assert no valid entries are encountered
+        assert!(
+            entries.iter().all(|res| res.is_err()),
+            "the only valid entry should've been removed!"
+        );
+
+        // Remove unrecognized entry
+        let unrecognized_raw = entries
+            .iter()
+            .find_map(|res| match res {
+                Ok(_) => None,
+                Err(e) => Some(e.entry()),
+            })
+            .unwrap();
+        key_store
+            .remove_unchecked(unrecognized_raw.raw_id())
+            .unwrap();
+        let entries = key_store.list().unwrap();
+        // Assert the last entry (unrecognized) has been removed
+        assert_eq!(entries.len(), 0);
+
+        // Try to remove a non existing entry
+        let _ = key_store
+            .remove_unchecked(unrecognized_raw.raw_id())
+            .unwrap_err();
     }
 
     #[test]

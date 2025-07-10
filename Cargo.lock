@@ -6335,6 +6335,7 @@ dependencies = [
  "tor-llcrypto",
  "tor-persist",
  "tracing",
+ "visibility",
  "walkdir",
  "zeroize",
 ]

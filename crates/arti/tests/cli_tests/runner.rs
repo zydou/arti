@@ -47,6 +47,17 @@ fn cli_tests() {
         }
     }
 
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-cli-extra")] {
+            t.case("tests/testcases/keys-raw/*.toml");
+            t.case("tests/testcases/keys-raw/*.md");
+        } else {
+            // This is not yet implemented, see #1487
+            t.skip("tests/testcases/keys-raw-feature-missing/*.toml");
+            t.skip("tests/testcases/keys-raw-feature-missing/*.md");
+        }
+    }
+
     t.case("README.md");
 
     // Run the tests.

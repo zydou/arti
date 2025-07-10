@@ -10,7 +10,8 @@ use tor_error::internal;
 use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
-use crate::{ArtiPath, Error, KeyPath, KeySpecifier, Keystore, KeystoreId, Result};
+use crate::raw::RawEntryId;
+use crate::{ArtiPath, Error, KeySpecifier, Keystore, KeystoreEntry, KeystoreId, Result};
 
 use super::KeystoreEntryResult;
 
@@ -91,6 +92,14 @@ impl Keystore for ArtiEphemeralKeystore {
         }
     }
 
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn raw_entry_id(&self, _raw_id: &str) -> Result<RawEntryId> {
+        Err(ArtiEphemeralKeystoreError::NotSupported {
+            action: "raw_entry_id",
+        }
+        .into())
+    }
+
     fn insert(&self, key: &dyn EncodableItem, key_spec: &dyn KeySpecifier) -> StdResult<(), Error> {
         let arti_path = key_spec
             .arti_path()
@@ -128,11 +137,28 @@ impl Keystore for ArtiEphemeralKeystore {
         }
     }
 
-    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn remove_unchecked(&self, _entry_id: &RawEntryId) -> Result<()> {
+        // TODO: further discussion is needed for this implementation
+        Err(ArtiEphemeralKeystoreError::NotSupported {
+            action: "remove_uncheked",
+        }
+        .into())
+    }
+
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
         Ok(key_dictionary
             .keys()
-            .map(|(arti_path, item_type)| Ok((arti_path.clone().into(), item_type.clone())))
+            .map(|(arti_path, item_type)| {
+                let raw_id = RawEntryId::Ephemeral((arti_path.clone(), item_type.clone()));
+                Ok(KeystoreEntry::new(
+                    arti_path.clone().into(),
+                    item_type.clone(),
+                    self.id(),
+                    raw_id,
+                ))
+            })
             .collect())
     }
 }

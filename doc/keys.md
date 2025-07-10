@@ -1,6 +1,6 @@
 # `arti keys`
 
-`arti keys` is a command line utility for listing and displaying keystores and their content. In the
+`arti keys` is a command line utility for managing keystores and their content. In the
 future, we will extend `arti keys` with additional functionality, for example multiple formatting
 options for the output.
 
@@ -35,16 +35,23 @@ By default the command displays the content of all the keystores. If the
 flag `-k` (`--keystore-id`) is provided, only the content of the specified
 keystore will be displayed.
 
-This command displays three possible types of entry:
+This command provides a way of listing both recognized and unrecognized entries.
 
 - Recognized: keys that present a valid path.
 - Unrecognized: keys that are in a valid location but do not present a
 valid filename.
 - Unrecognized paths: filesystem objects that should not be in the state directory.
 
+Some of the information displayed by `keys list` can be used as input for other
+commands. For instance: "Location", the "augmented `ArtiPath`" (of the form
+`<ARTI_PATH>.<ENTRY_TYPE>`) of the entry; and "Kystore ID", the identifier,
+of the keystore. These can be used together with `arti keys-raw remove-by-path`.
+
 Example usage:
 
-With `-k`:
+<details>
+<summary>With `-k`:</summary>
+
 ```ignore
 $ arti -c keys.toml keys list -k arti
  ===== Keystore entries =====
@@ -54,14 +61,14 @@ $ arti -c keys.toml keys list -k arti
  Role: ks_hsc_desc_enc
  Summary: Descriptor decryption key
  KeystoreItemType: X25519StaticKeypair
+ Location: client/mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad/ks_hsc_desc_enc.x25519_private
  Extra info:
  - hs_id: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
 
  --------------------------------------------------------------------------------
 
- Unrecognized entry
- Location: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
- Error: Key has invalid path: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
+ Keystore ID: arti
+ Unrecognized path: herba-spontanea/ks_hs_id.ed25519_expanded_private
 
  --------------------------------------------------------------------------------
 
@@ -69,20 +76,26 @@ $ arti -c keys.toml keys list -k arti
  Role: ks_hs_id
  Summary: Long-term identity keypair
  KeystoreItemType: Ed25519ExpandedKeypair
+ Location: hss/allium-cepa/ks_hs_id.ed25519_expanded_private
  Extra info:
  - nickname: allium-cepa
 
  --------------------------------------------------------------------------------
 
+ Unrecognized entry
  Keystore ID: arti
- Unrecognized path: herba-spontanea/ks_hs_id
+ Location: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
+ Error: Key has invalid path: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
 
  --------------------------------------------------------------------------------
 
 
 ```
+</details>
 
-Default behavior:
+<details>
+<summary>Default behavior</summary>
+
 ```ignore
 $ arti -c keys.toml keys list
  ===== Keystore entries =====
@@ -92,14 +105,14 @@ $ arti -c keys.toml keys list
  Role: ks_hsc_desc_enc
  Summary: Descriptor decryption key
  KeystoreItemType: X25519StaticKeypair
+ Location: client/mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad/ks_hsc_desc_enc.x25519_private
  Extra info:
  - hs_id: mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
 
  --------------------------------------------------------------------------------
 
- Unrecognized entry
- Location: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
- Error: Key has invalid path: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
+ Keystore ID: arti
+ Unrecognized path: herba-spontanea/ks_hs_id.ed25519_expanded_private
 
  --------------------------------------------------------------------------------
 
@@ -107,15 +120,19 @@ $ arti -c keys.toml keys list
  Role: ks_hs_id
  Summary: Long-term identity keypair
  KeystoreItemType: Ed25519ExpandedKeypair
+ Location: hss/allium-cepa/ks_hs_id.ed25519_expanded_private
  Extra info:
  - nickname: allium-cepa
 
  --------------------------------------------------------------------------------
 
+ Unrecognized entry
  Keystore ID: arti
- Unrecognized path: herba-spontanea/ks_hs_id
+ Location: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
+ Error: Key has invalid path: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
 
  --------------------------------------------------------------------------------
 
 
 ```
+</details>

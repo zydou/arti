@@ -120,7 +120,7 @@ use tracing::{error, info, warn};
 #[cfg(any(
     feature = "hsc",
     feature = "onion-service-service",
-    feature = "onion-service-cli-extra"
+    feature = "onion-service-cli-extra",
 ))]
 use clap::Subcommand as _;
 
@@ -302,6 +302,7 @@ where
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-cli-extra")] {
             let clap_app = subcommands::keys::KeysSubcommands::augment_subcommands(clap_app);
+            let clap_app = subcommands::raw::RawSubcommands::augment_subcommands(clap_app);
         }
     }
 
@@ -395,11 +396,13 @@ where
         return subcommands::proxy::run(runtime, proxy_matches, cfg_sources, config, client_config);
     }
 
-    // Check for the optional "keys" subcommand.
+    // Check for the optional "keys" and "keys-raw" subcommand.
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-cli-extra")] {
             if let Some(keys_matches) = matches.subcommand_matches("keys") {
                 return subcommands::keys::run(runtime, keys_matches, &client_config);
+            } else if let Some(raw_matches) = matches.subcommand_matches("keys-raw") {
+                return subcommands::raw::run(runtime, raw_matches, &client_config);
             }
         }
     }

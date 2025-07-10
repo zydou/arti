@@ -1,0 +1,14 @@
+Remove keystore entry by path
+
+Usage: arti keys-raw remove-by-path [OPTIONS] <PATH>
+
+Arguments:
+  <PATH>  The relative path of the keystore entry to remove
+
+Options:
+  -c, --config <FILE>                 Specify which config file(s) to read. Defaults to [File("[..]"), Dir("[..]")]
+  -k, --keystore-id <KEYSTORE_ID>     Identifier of the keystore to remove the entry from. If omitted, the primary store will be used ("arti") [default: arti]
+  -o <KEY=VALUE>                      Override config file parameters, using TOML-like syntax.
+  -l, --log-level <LEVEL>             Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error').
+      --disable-fs-permission-checks  Don't check permissions on the files we use.
+  -h, --help                          Print help (see more with '--help')
