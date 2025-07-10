@@ -922,8 +922,9 @@ impl AsyncRead for DataReader {
                 DataReaderState::Open(mut imp) => {
                     // There may be data to read already.
                     let n_copied = imp.extract_bytes(buf);
-                    if n_copied != 0 {
-                        // We read data into the buffer.  Tell the caller.
+                    if n_copied != 0 || buf.is_empty() {
+                        // We read data into the buffer, or the buffer was 0-len to begin with.
+                        // Tell the caller.
                         self.state = Some(DataReaderState::Open(imp));
                         return Poll::Ready(Ok(n_copied));
                     }
