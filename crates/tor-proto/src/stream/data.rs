@@ -254,7 +254,7 @@ impl DataWriter {
     ) -> Self {
         /// Converts a `rate` into a `RateLimitedWriterConfig`.
         fn rate_to_config(rate: StreamRateLimit) -> RateLimitedWriterConfig {
-            let rate = rate.get_bytes_per_sec();
+            let rate = rate.bytes_per_sec();
             RateLimitedWriterConfig {
                 rate,        // bytes per second
                 burst: rate, // bytes

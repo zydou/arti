@@ -209,7 +209,7 @@ impl StreamRateLimit {
     }
 
     /// The rate in bytes/s.
-    pub(crate) const fn get_bytes_per_sec(&self) -> u64 {
+    pub(crate) const fn bytes_per_sec(&self) -> u64 {
         self.rate
     }
 }
