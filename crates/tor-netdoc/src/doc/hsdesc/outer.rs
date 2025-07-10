@@ -362,8 +362,8 @@ mod test {
             let mut reader = NetDocReader::<HsOuterKwd>::new(s).unwrap();
             let item = reader.next().unwrap().unwrap();
             let res = validate_signature_item(&item, s);
-            assert!(dbg!(&res).is_err());
-            assert!(res.err().unwrap().netdoc_error_kind() == EK::ExtraneousSpace);
+            let err = res.unwrap_err();
+            assert!(err.netdoc_error_kind() == EK::ExtraneousSpace);
         }
     }
 }

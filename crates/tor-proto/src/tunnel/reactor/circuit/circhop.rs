@@ -600,7 +600,7 @@ fn try_decrement_cell_limit(val: &mut Option<NonZeroU32>) -> StdResult<(), ()> {
             if z == 1 {
                 Err(())
             } else {
-                *x = (z - 1).try_into().expect("Logic error");
+                *x = (z - 1).try_into().expect("NonZeroU32 was zero?!");
                 Ok(())
             }
         }
