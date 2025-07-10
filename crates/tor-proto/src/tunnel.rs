@@ -145,6 +145,7 @@ pub(crate) struct StreamTarget {
     /// how many bytes we can pack in a DATA message.
     relay_cell_format: RelayCellFormat,
     /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
+    // TODO(arti#2068): we should consider making this an `Option`
     rate_limit_stream: watch::Receiver<StreamRateLimit>,
     /// Channel to send cells down.
     tx: StreamMpscSender<AnyRelayMsg>,

@@ -603,6 +603,7 @@ pub(crate) struct StreamReqInfo {
     #[deftly(has_memory_cost(indirect_size = "size_of::<AnyRelayMsg>()"))] // estimate
     pub(crate) msg_tx: StreamMpscSender<AnyRelayMsg>,
     /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
+    // TODO(arti#2068): we should consider making this an `Option`
     // the `watch::Sender` owns the indirect data
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) rate_limit_stream: watch::Receiver<StreamRateLimit>,
