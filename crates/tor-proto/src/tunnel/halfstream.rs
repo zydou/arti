@@ -52,17 +52,23 @@ impl HalfStream {
         use StreamStatus::*;
 
         // We handle SENDME/XON/XOFF separately, and don't give it to the checker.
-        if msg.cmd() == RelayCmd::SENDME {
-            self.send_flow_control.put_for_incoming_sendme(msg)?;
-            return Ok(Open);
-        }
-        if msg.cmd() == RelayCmd::XON {
-            self.send_flow_control.handle_incoming_xon(msg)?;
-            return Ok(Open);
-        }
-        if msg.cmd() == RelayCmd::XOFF {
-            self.send_flow_control.handle_incoming_xoff(msg)?;
-            return Ok(Open);
+        //
+        // TODO: this logic is the same as `CircHop::deliver_msg_to_stream`; we should refactor this
+        // if possible
+        match msg.cmd() {
+            RelayCmd::SENDME => {
+                self.send_flow_control.put_for_incoming_sendme(msg)?;
+                return Ok(Open);
+            }
+            RelayCmd::XON => {
+                self.send_flow_control.handle_incoming_xon(msg)?;
+                return Ok(Open);
+            }
+            RelayCmd::XOFF => {
+                self.send_flow_control.handle_incoming_xoff(msg)?;
+                return Ok(Open);
+            }
+            _ => {}
         }
 
         if cmd_counts_towards_windows(msg.cmd()) {

@@ -507,17 +507,23 @@ impl CircHop {
 
         // We need to handle SENDME/XON/XOFF messages here, not in the stream's recv() method, or
         // else we'd never notice them if the stream isn't reading.
-        if msg.cmd() == RelayCmd::SENDME {
-            ent.put_for_incoming_sendme(msg)?;
-            return Ok(false);
-        }
-        if msg.cmd() == RelayCmd::XON {
-            ent.handle_incoming_xon(msg)?;
-            return Ok(false);
-        }
-        if msg.cmd() == RelayCmd::XOFF {
-            ent.handle_incoming_xoff(msg)?;
-            return Ok(false);
+        //
+        // TODO: this logic is the same as `HalfStream::handle_msg`; we should refactor this if
+        // possible
+        match msg.cmd() {
+            RelayCmd::SENDME => {
+                ent.put_for_incoming_sendme(msg)?;
+                return Ok(false);
+            }
+            RelayCmd::XON => {
+                ent.handle_incoming_xon(msg)?;
+                return Ok(false);
+            }
+            RelayCmd::XOFF => {
+                ent.handle_incoming_xoff(msg)?;
+                return Ok(false);
+            }
+            _ => {}
         }
 
         let message_closes_stream = ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
