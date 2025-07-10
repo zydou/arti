@@ -5,7 +5,7 @@
 
 use crate::congestion::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
-use crate::{Error, Result};
+use crate::Result;
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
 /// Type to track state of half-closed streams.
@@ -49,15 +49,26 @@ impl HalfStream {
     /// END cells to this method.
     /// no ends here.
     pub(super) fn handle_msg(&mut self, msg: UnparsedRelayMsg) -> Result<StreamStatus> {
-        use tor_cell::relaycell::msg::Sendme;
         use StreamStatus::*;
-        if msg.cmd() == RelayCmd::SENDME {
-            // We handle SENDME separately, and don't give it to the checker.
-            let _ = msg
-                .decode::<Sendme>()
-                .map_err(|e| Error::from_bytes_err(e, "SENDME on half-closed stream"))?;
-            self.send_flow_control.put_for_incoming_sendme()?;
-            return Ok(Open);
+
+        // We handle SENDME/XON/XOFF separately, and don't give it to the checker.
+        //
+        // TODO: this logic is the same as `CircHop::deliver_msg_to_stream`; we should refactor this
+        // if possible
+        match msg.cmd() {
+            RelayCmd::SENDME => {
+                self.send_flow_control.put_for_incoming_sendme(msg)?;
+                return Ok(Open);
+            }
+            RelayCmd::XON => {
+                self.send_flow_control.handle_incoming_xon(msg)?;
+                return Ok(Open);
+            }
+            RelayCmd::XOFF => {
+                self.send_flow_control.handle_incoming_xoff(msg)?;
+                return Ok(Open);
+            }
+            _ => {}
         }
 
         if cmd_counts_towards_windows(msg.cmd()) {

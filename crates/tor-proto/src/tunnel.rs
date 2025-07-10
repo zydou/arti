@@ -18,11 +18,13 @@ use std::sync::Arc;
 
 use crate::circuit::UniqId;
 use crate::crypto::cell::HopNum;
+use crate::stream::StreamRateLimit;
 use crate::{Error, Result};
 use circuit::ClientCirc;
 use circuit::{handshake, StreamMpscSender};
 use reactor::CtrlMsg;
 
+use postage::watch;
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayCellFormat, StreamId};
@@ -142,6 +144,9 @@ pub(crate) struct StreamTarget {
     /// This is mostly irrelevant, except when deciding
     /// how many bytes we can pack in a DATA message.
     relay_cell_format: RelayCellFormat,
+    /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
+    // TODO(arti#2068): we should consider making this an `Option`
+    rate_limit_stream: watch::Receiver<StreamRateLimit>,
     /// Channel to send cells down.
     tx: StreamMpscSender<AnyRelayMsg>,
     /// Reference to the circuit that this stream is on.
@@ -253,5 +258,10 @@ impl StreamTarget {
     /// Return the kind of relay cell in use on this `StreamTarget`.
     pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
         self.relay_cell_format
+    }
+
+    /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
+    pub(crate) fn rate_limit_stream(&self) -> &watch::Receiver<StreamRateLimit> {
+        &self.rate_limit_stream
     }
 }

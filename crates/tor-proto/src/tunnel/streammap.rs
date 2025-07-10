@@ -61,17 +61,31 @@ impl OpenStreamEnt {
 
     /// Handle an incoming sendme.
     ///
-    /// On success, return the number of cells left in the window.
-    ///
     /// On failure, return an error: the caller should close the stream or
     /// circuit with a protocol error.
-    pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<()> {
-        self.flow_ctrl.put_for_incoming_sendme()?;
+    pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.flow_ctrl.put_for_incoming_sendme(msg)?;
         // Wake the stream if it was blocked on flow control.
         if let Some(waker) = self.flow_ctrl_waker.take() {
             waker.wake();
         }
         Ok(())
+    }
+
+    /// Handle an incoming XON message.
+    ///
+    /// On failure, return an error: the caller should close the stream or
+    /// circuit with a protocol error.
+    pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.flow_ctrl.handle_incoming_xon(msg)
+    }
+
+    /// Handle an incoming XOFF message.
+    ///
+    /// On failure, return an error: the caller should close the stream or
+    /// circuit with a protocol error.
+    pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.flow_ctrl.handle_incoming_xoff(msg)
     }
 
     /// Take capacity to send `msg`. If there's insufficient capacity, returns

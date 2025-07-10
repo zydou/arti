@@ -53,7 +53,7 @@ use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
-    StreamReceiver,
+    StreamRateLimit, StreamReceiver,
 };
 use crate::tunnel::circuit::celltypes::*;
 use crate::tunnel::reactor::CtrlCmd;
@@ -65,6 +65,7 @@ use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
 use path::HopDetail;
+use postage::watch;
 use tor_cell::{
     chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -830,6 +831,7 @@ impl ClientCirc {
                 hop,
                 receiver,
                 msg_tx,
+                rate_limit_stream,
                 memquota,
                 relay_cell_format,
             } = req_ctx;
@@ -852,6 +854,7 @@ impl ClientCirc {
                 hop: allowed_hop_loc,
                 stream_id,
                 relay_cell_format,
+                rate_limit_stream,
             };
 
             let reader = StreamReceiver {
@@ -1052,12 +1055,15 @@ impl ClientCirc {
         let (msg_tx, msg_rx) =
             MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(time_prov, memquota.as_raw_account())?;
 
+        let (rate_limit_tx, rate_limit_rx) = watch::channel_with(StreamRateLimit::MAX);
+
         self.control
             .unbounded_send(CtrlMsg::BeginStream {
                 hop,
                 message: begin_msg,
                 sender,
                 rx: msg_rx,
+                rate_limit_notifier: rate_limit_tx,
                 done: tx,
                 cmd_checker,
             })
@@ -1071,6 +1077,7 @@ impl ClientCirc {
             hop,
             stream_id,
             relay_cell_format,
+            rate_limit_stream: rate_limit_rx,
         };
 
         let stream_receiver = StreamReceiver {

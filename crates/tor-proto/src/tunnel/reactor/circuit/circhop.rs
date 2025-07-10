@@ -6,7 +6,7 @@ use crate::circuit::HopSettings;
 use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
-use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamRateLimit, StreamSendFlowControl, StreamStatus};
 use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
@@ -16,9 +16,10 @@ use crate::{Error, Result};
 
 use futures::stream::FuturesUnordered;
 use futures::Stream;
+use postage::watch;
 use safelog::sensitive as sv;
 use tor_cell::chancell::BoxedCellBody;
-use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
     RelayMsg, StreamId, UnparsedRelayMsg,
@@ -267,9 +268,10 @@ impl CircHop {
         message: AnyRelayMsg,
         sender: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_send_flow_ctrl();
+        let flow_ctrl = self.build_send_flow_ctrl(rate_limit_updater)?;
         let r =
             self.map
                 .lock()
@@ -391,6 +393,7 @@ impl CircHop {
         &self,
         sink: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
         stream_id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
@@ -398,7 +401,7 @@ impl CircHop {
         hop_map.add_ent_with_id(
             sink,
             rx,
-            self.build_send_flow_ctrl(),
+            self.build_send_flow_ctrl(rate_limit_updater)?,
             stream_id,
             cmd_checker,
         )?;
@@ -496,12 +499,25 @@ impl CircHop {
     }
 
     /// Builds the (sending) flow control handler for a new stream.
-    fn build_send_flow_ctrl(&self) -> StreamSendFlowControl {
+    // TODO: remove the `Result` once we remove the "flowctl-cc" feature
+    #[cfg_attr(feature = "flowctl-cc", expect(clippy::unnecessary_wraps))]
+    fn build_send_flow_ctrl(
+        &self,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
+    ) -> Result<StreamSendFlowControl> {
         if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            StreamSendFlowControl::new_window_based(window)
+            Ok(StreamSendFlowControl::new_window_based(window))
         } else {
-            StreamSendFlowControl::new_xon_xoff_based()
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "flowctl-cc")] {
+                    Ok(StreamSendFlowControl::new_xon_xoff_based(rate_limit_updater))
+                } else {
+                    Err(internal!(
+                        "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",
+                    ).into())
+                }
+            }
         }
     }
 
@@ -517,17 +533,25 @@ impl CircHop {
 
         // The stream for this message exists, and is open.
 
-        if msg.cmd() == RelayCmd::SENDME {
-            let _sendme = msg
-                .decode::<Sendme>()
-                .map_err(|e| Error::from_bytes_err(e, "Sendme message on stream"))?
-                .into_msg();
-
-            // We need to handle sendmes here, not in the stream's
-            // recv() method, or else we'd never notice them if the
-            // stream isn't reading.
-            ent.put_for_incoming_sendme()?;
-            return Ok(false);
+        // We need to handle SENDME/XON/XOFF messages here, not in the stream's recv() method, or
+        // else we'd never notice them if the stream isn't reading.
+        //
+        // TODO: this logic is the same as `HalfStream::handle_msg`; we should refactor this if
+        // possible
+        match msg.cmd() {
+            RelayCmd::SENDME => {
+                ent.put_for_incoming_sendme(msg)?;
+                return Ok(false);
+            }
+            RelayCmd::XON => {
+                ent.handle_incoming_xon(msg)?;
+                return Ok(false);
+            }
+            RelayCmd::XOFF => {
+                ent.handle_incoming_xoff(msg)?;
+                return Ok(false);
+            }
+            _ => {}
         }
 
         let message_closes_stream = ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;

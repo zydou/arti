@@ -24,7 +24,7 @@ pub(super) mod syncview;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
-use crate::stream::AnyCmdChecker;
+use crate::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
 use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
@@ -37,6 +37,7 @@ use crate::{Error, Result};
 use circuit::{Circuit, CircuitCmd};
 use conflux::ConfluxSet;
 use control::ControlHandler;
+use postage::watch;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::mem::size_of;
@@ -601,6 +602,11 @@ pub(crate) struct StreamReqInfo {
     /// A channel for sending messages to be sent on this stream.
     #[deftly(has_memory_cost(indirect_size = "size_of::<AnyRelayMsg>()"))] // estimate
     pub(crate) msg_tx: StreamMpscSender<AnyRelayMsg>,
+    /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
+    // TODO(arti#2068): we should consider making this an `Option`
+    // the `watch::Sender` owns the indirect data
+    #[deftly(has_memory_cost(indirect_size = "0"))]
+    pub(crate) rate_limit_stream: watch::Receiver<StreamRateLimit>,
     /// The memory quota account to be used for this stream
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate (it contains an Arc)
     pub(crate) memquota: StreamAccount,

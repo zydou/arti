@@ -7,9 +7,11 @@ use tor_cell::relaycell::msg::EndReason;
 use tor_cell::relaycell::{RelayCellFormat, RelayCmd};
 
 use futures::io::{AsyncRead, AsyncWrite};
+use futures::stream::StreamExt;
 use futures::task::{Context, Poll};
 use futures::{Future, Stream};
 use pin_project::pin_project;
+use postage::watch;
 
 #[cfg(feature = "tokio")]
 use tokio_crate::io::ReadBuf;
@@ -34,7 +36,7 @@ use educe::Educe;
 use crate::tunnel::circuit::ClientCirc;
 
 use crate::memquota::StreamAccount;
-use crate::stream::StreamReceiver;
+use crate::stream::{StreamRateLimit, StreamReceiver};
 use crate::tunnel::StreamTarget;
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
 use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
@@ -47,10 +49,13 @@ use super::AnyCmdChecker;
 
 /// A stream of [`RateLimitedWriterConfig`] used to update a [`DynamicRateLimitedWriter`].
 ///
-/// This is not implemented yet, so it's just an `Empty` stream.
+/// Unfortunately we need to store the result of a [`StreamExt::map`] and [`StreamExt::fuse`] in
+/// [`DataWriter`], which leaves us with this ugly type.
 /// We use a type alias to make `DataWriter` a little nicer.
-// TODO(arti#534): use a proper stream
-type RateConfigStream = futures::stream::Empty<RateLimitedWriterConfig>;
+type RateConfigStream = futures::stream::Map<
+    futures::stream::Fuse<watch::Receiver<StreamRateLimit>>,
+    fn(StreamRateLimit) -> RateLimitedWriterConfig,
+>;
 
 /// An anonymized stream over the Tor network.
 ///
@@ -240,6 +245,56 @@ pub struct DataWriter {
     writer: DynamicRateLimitedWriter<DataWriterInner, RateConfigStream, DynTimeProvider>,
 }
 
+impl DataWriter {
+    /// Create a new rate-limited [`DataWriter`] from a [`DataWriterInner`].
+    fn new(
+        inner: DataWriterInner,
+        rate_limit_updates: watch::Receiver<StreamRateLimit>,
+        time_provider: DynTimeProvider,
+    ) -> Self {
+        /// Converts a `rate` into a `RateLimitedWriterConfig`.
+        fn rate_to_config(rate: StreamRateLimit) -> RateLimitedWriterConfig {
+            let rate = rate.bytes_per_sec();
+            RateLimitedWriterConfig {
+                rate,        // bytes per second
+                burst: rate, // bytes
+                // This number is chosen arbitrarily, but the idea is that we want to balance
+                // between throughput and latency. Assume the user tries to write a large buffer
+                // (~600 bytes). If we set this too small (for example 1), we'll be waking up
+                // frequently and writing a small number of bytes each time to the
+                // `DataWriterInner`, even if this isn't enough bytes to send a cell. If we set this
+                // too large (for example 510), we'll be waking up infrequently to write a larger
+                // number of bytes each time. So even if the `DataWriterInner` has almost a full
+                // cell's worth of data queued (for example 490) and only needs 509-490=19 more
+                // bytes before a cell can be sent, it will block until the rate limiter allows 510
+                // more bytes.
+                //
+                // TODO(arti#2028): Is there an optimal value here?
+                wake_when_bytes_available: NonZero::new(200).expect("200 != 0"), // bytes
+            }
+        }
+
+        // get the current rate from the `watch::Receiver`, which we'll use as the initial rate
+        let initial_rate: StreamRateLimit = *rate_limit_updates.borrow();
+
+        // map the rate update stream to the type required by `DynamicRateLimitedWriter`
+        let rate_limit_updates = rate_limit_updates.fuse().map(rate_to_config as fn(_) -> _);
+
+        // build the rate limiter
+        let writer = RateLimitedWriter::new(inner, &rate_to_config(initial_rate), time_provider);
+        let writer = DynamicRateLimitedWriter::new(writer, rate_limit_updates);
+
+        Self { writer }
+    }
+
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
+    #[cfg(feature = "stream-ctrl")]
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(self.writer.inner().client_stream_ctrl())
+    }
+}
+
 impl AsyncWrite for DataWriter {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -270,15 +325,6 @@ impl TokioAsyncWrite for DataWriter {
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.compat_write()), cx)
-    }
-}
-
-impl DataWriter {
-    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
-    /// interact with this stream without holding the stream itself.
-    #[cfg(feature = "stream-ctrl")]
-    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
-        Some(self.writer.inner().client_stream_ctrl())
     }
 }
 
@@ -447,6 +493,7 @@ impl DataStream {
     ) -> Self {
         let relay_cell_format = target.relay_cell_format();
         let out_buf_len = Data::max_body_len(relay_cell_format);
+        let rate_limit_stream = target.rate_limit_stream().clone();
 
         #[cfg(feature = "stream-ctrl")]
         let status = {
@@ -491,33 +538,9 @@ impl DataStream {
         };
 
         let time_provider = DynTimeProvider::new(time_provider);
-        let config = RateLimitedWriterConfig {
-            rate: u64::MAX,  // bytes per second
-            burst: u64::MAX, // bytes
-            // This number is chosen arbitrarily, but the idea is that we want to balance between
-            // throughput and latency. Assume the user tries to write a large buffer (~600 bytes).
-            // If we set this too small (for example 1), we'll be waking up frequently and writing a
-            // small number of bytes each time to the `DataWriterInner`, even if this isn't enough
-            // bytes to send a cell. If we set this too large (for example 510), we'll be waking up
-            // infrequently to write a larger number of bytes each time. So even if the
-            // `DataWriterInner` has almost a full cell's worth of data queued (for example 490) and
-            // only needs 509-490=19 more bytes before a cell can be sent, it will block until the
-            // rate limiter allows 510 more bytes.
-            //
-            // TODO(arti#2028): Is there an optimal value here?
-            wake_when_bytes_available: NonZero::new(200).expect("200 != 0"), // bytes
-        };
-
-        // TODO(arti#534): Need to be able to update this stream dynamically in response to flow
-        // control events. For now we just provide an empty stream.
-        let config_updates = futures::stream::empty();
-
-        let w = RateLimitedWriter::new(w, &config, time_provider);
-        let w = DynamicRateLimitedWriter::new(w, config_updates);
-        let w = DataWriter { writer: w };
 
         DataStream {
-            w,
+            w: DataWriter::new(w, rate_limit_stream, time_provider),
             r,
             #[cfg(feature = "stream-ctrl")]
             ctrl,
