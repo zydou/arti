@@ -70,8 +70,7 @@ use super::circuit::{MutableState, TunnelMutableState};
 #[cfg(feature = "conflux")]
 use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
 
-pub(super) use control::CtrlCmd;
-pub(super) use control::CtrlMsg;
+pub(super) use control::{CtrlCmd, CtrlMsg, FlowCtrlMsg};
 
 /// The type of a oneshot channel used to inform reactor of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;

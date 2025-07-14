@@ -22,7 +22,7 @@ use crate::stream::StreamRateLimit;
 use crate::{Error, Result};
 use circuit::ClientCirc;
 use circuit::{handshake, StreamMpscSender};
-use reactor::CtrlMsg;
+use reactor::{CtrlMsg, FlowCtrlMsg};
 
 use postage::watch;
 use tor_async_utils::SinkCloseChannel as _;
@@ -242,7 +242,8 @@ impl StreamTarget {
     pub(crate) fn send_sendme(&mut self) -> Result<()> {
         self.circ
             .control
-            .unbounded_send(CtrlMsg::SendSendme {
+            .unbounded_send(CtrlMsg::FlowCtrlUpdate {
+                msg: FlowCtrlMsg::Sendme,
                 stream_id: self.stream_id,
                 hop: self.hop,
             })
