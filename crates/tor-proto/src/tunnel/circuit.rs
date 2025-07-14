@@ -3390,7 +3390,7 @@ pub(crate) mod test {
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     struct ConfluxStreamState {
-        /// The data received so far on this stream.
+        /// The data received so far on this stream (at the exit).
         data_recvd: Vec<u8>,
         /// The total amount of data we expect to receive on this stream.
         expected_data_len: usize,
