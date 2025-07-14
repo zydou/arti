@@ -6,7 +6,7 @@ use crate::circuit::HopSettings;
 use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
-use crate::stream::{AnyCmdChecker, StreamRateLimit, StreamSendFlowControl, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamRateLimit, StreamStatus};
 use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
@@ -271,7 +271,7 @@ impl CircHop {
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_send_flow_ctrl(rate_limit_updater)?;
+        let flow_ctrl = self.build_flow_ctrl(rate_limit_updater)?;
         let r =
             self.map
                 .lock()
@@ -401,7 +401,7 @@ impl CircHop {
         hop_map.add_ent_with_id(
             sink,
             rx,
-            self.build_send_flow_ctrl(rate_limit_updater)?,
+            self.build_flow_ctrl(rate_limit_updater)?,
             stream_id,
             cmd_checker,
         )?;
@@ -498,20 +498,20 @@ impl CircHop {
         Ok(None)
     }
 
-    /// Builds the (sending) flow control handler for a new stream.
+    /// Builds the reactor's flow control handler for a new stream.
     // TODO: remove the `Result` once we remove the "flowctl-cc" feature
     #[cfg_attr(feature = "flowctl-cc", expect(clippy::unnecessary_wraps))]
-    fn build_send_flow_ctrl(
+    fn build_flow_ctrl(
         &self,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
-    ) -> Result<StreamSendFlowControl> {
+    ) -> Result<StreamFlowControl> {
         if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            Ok(StreamSendFlowControl::new_window_based(window))
+            Ok(StreamFlowControl::new_window_based(window))
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    Ok(StreamSendFlowControl::new_xon_xoff_based(rate_limit_updater))
+                    Ok(StreamFlowControl::new_xon_xoff_based(rate_limit_updater))
                 } else {
                     Err(internal!(
                         "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",

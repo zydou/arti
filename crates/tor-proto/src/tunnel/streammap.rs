@@ -1,7 +1,7 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
 use crate::congestion::sendme;
-use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
+use crate::stream::{AnyCmdChecker, StreamFlowControl};
 use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::tunnel::halfstream::HalfStream;
 use crate::tunnel::reactor::circuit::RECV_WINDOW_INIT;
@@ -41,7 +41,7 @@ pub(super) struct OpenStreamEnt {
     /// Flow control for this stream.
     // Non-pub because we need to proxy `put_for_incoming_sendme` to ensure
     // `flow_ctrl_waker` is woken.
-    flow_ctrl: StreamSendFlowControl,
+    flow_ctrl: StreamFlowControl,
     /// Stream for cells that should be sent down this stream.
     // Not directly exposed. This should only be polled via
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
@@ -285,7 +285,7 @@ impl StreamMap {
         &mut self,
         sink: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        flow_ctrl: StreamSendFlowControl,
+        flow_ctrl: StreamFlowControl,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
         let mut stream_ent = OpenStreamEntStream {
@@ -325,7 +325,7 @@ impl StreamMap {
         &mut self,
         sink: StreamMpscSender<UnparsedRelayMsg>,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        flow_ctrl: StreamSendFlowControl,
+        flow_ctrl: StreamFlowControl,
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
@@ -556,7 +556,7 @@ mod test {
             let id = map.add_ent(
                 sink,
                 rx,
-                StreamSendFlowControl::new_window_based(StreamSendWindow::new(500)),
+                StreamFlowControl::new_window_based(StreamSendWindow::new(500)),
                 DataCmdChecker::new_any(),
             )?;
             let expect_id: StreamId = next_id;
