@@ -64,7 +64,6 @@ pub(crate) enum RelayCryptLayerProtocol {
     HsV3(RelayCellFormat),
     /// The counter galois onion cell encryption protocol.
     #[cfg(feature = "counter-galois-onion")]
-    #[allow(unused)] // XXXX
     Cgo,
 }
 
