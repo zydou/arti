@@ -8,7 +8,7 @@ use std::{
     collections::{BinaryHeap, HashMap},
     sync::{Arc, Mutex, RwLock},
     task::Waker,
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use arrayvec::ArrayVec;
@@ -520,13 +520,15 @@ impl<R: Runtime> PowManager<R> {
     }
 }
 
-/// Wrapper around [`RendRequest`] that implements [`std::cmp::Ord`] to sort by [`Effort`].
+/// Wrapper around [`RendRequest`] that implements [`std::cmp::Ord`] to sort by [`Effort`] and time.
 #[derive(Debug)]
 struct RendRequestOrdByEffort {
     /// The underlying request.
     request: RendRequest,
     /// The proof-of-work options, if given.
     pow: Option<ProofOfWorkV1>,
+    /// When this request was received, used for ordreing if the effort values are the same.
+    recv_time: Instant,
 }
 
 impl RendRequestOrdByEffort {
@@ -542,7 +544,11 @@ impl RendRequestOrdByEffort {
             None | Some(_) => None,
         };
 
-        Ok(Self { request, pow })
+        Ok(Self {
+            request,
+            pow,
+            recv_time: Instant::now(),
+        })
     }
 }
 
@@ -553,7 +559,11 @@ impl Ord for RendRequestOrdByEffort {
             .pow
             .as_ref()
             .map_or(Effort::zero(), |pow| pow.effort());
-        self_effort.cmp(&other_effort)
+        match self_effort.cmp(&other_effort) {
+            // Flip ordering, since we want the oldest ones to be handled first.
+            std::cmp::Ordering::Equal => other.recv_time.cmp(&self.recv_time),
+            not_equal => not_equal,
+        }
     }
 }
 
@@ -570,7 +580,7 @@ impl PartialEq for RendRequestOrdByEffort {
             .pow
             .as_ref()
             .map_or(Effort::zero(), |pow| pow.effort());
-        self_effort == other_effort
+        self_effort == other_effort && self.recv_time == other.recv_time
     }
 }
 
