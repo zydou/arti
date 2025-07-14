@@ -339,17 +339,20 @@ impl Circuit {
 
         use crate::tunnel::circuit::test::DummyCrypto;
 
-        let protocol = crate::circuit::handshake::RelayCryptLayerProtocol::Tor1(format);
+        assert!(matches!(format, RelayCellFormat::V0));
+        let _ = format; // TODO-CGO: remove this once we have CGO+hs implemented.
+
         let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
         let binding = None;
 
         let settings = HopSettings::from_params_and_caps(
+            // This is for testing only, so we'll assume full negotiation took place.
+            crate::circuit::HopNegotiationType::Full,
             params,
             &[named::FLOWCTRL_CC].into_iter().collect::<Protocols>(),
         )
-        .expect("Can't construct HopSettings")
-        .with_default_protocol(protocol);
+        .expect("Can't construct HopSettings");
         self.add_hop(dummy_peer_id, fwd, rev, binding, &settings)
             .expect("could not add hop to circuit");
         let _ = done.send(Ok(()));
