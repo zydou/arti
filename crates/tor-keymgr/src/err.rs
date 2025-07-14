@@ -1,6 +1,5 @@
 //! An error type for the `tor-keymgr` crate.
 
-use tor_basic_utils::PathExt;
 use tor_error::HasKind;
 
 use dyn_clone::DynClone;
@@ -8,9 +7,10 @@ use tor_persist::slug::BadSlug;
 
 use std::error::Error as StdError;
 use std::fmt;
-use std::path::PathBuf;
+use std::ops::Deref;
 use std::sync::Arc;
 
+use crate::raw::RawKeystoreEntry;
 use crate::KeyPathError;
 
 /// An Error type for this crate.
@@ -123,10 +123,10 @@ pub struct UnknownKeyTypeError {
 
 /// An unrecognized keystore entry.
 #[derive(Clone, Debug, amplify::Getters, thiserror::Error)]
-#[error("Unrecognized keystore entry {}", entry)]
+#[error("Unrecognized keystore entry")]
 pub struct UnrecognizedEntryError {
     /// An identifier of the entry that caused the error.
-    entry: UnrecognizedEntryId,
+    entry: UnrecognizedEntry,
     /// The underlying error that occurred.
     // TODO: This should be an `Error` specific for the situation.
     //
@@ -144,27 +144,23 @@ pub struct UnrecognizedEntryError {
 }
 
 impl UnrecognizedEntryError {
-    /// Create a new instance of `KeystoreListError` given an `UnrecognizedEntryId`
+    /// Create a new instance of `KeystoreListError` given an `UnrecognizedEntry`
     /// and an `Arc<dyn KeystoreError>`.
-    pub fn new(entry: UnrecognizedEntryId, error: Arc<dyn KeystoreError>) -> Self {
+    pub(crate) fn new(entry: UnrecognizedEntry, error: Arc<dyn KeystoreError>) -> Self {
         Self { entry, error }
     }
 }
 
-/// The identifier of an unrecognized key inside a [`Keystore`](crate::Keystore).
-///
-/// The exact type of the identifier depends on the backing storage of the keystore
-/// (for example, an on-disk keystore will identify its entries by [`Path`](UnrecognizedEntryId::Path)).
-#[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, derive_more::Display)]
-pub enum UnrecognizedEntryId {
-    /// An entry identified by path inside an on-disk keystore.
-    // NOTE: this will only be used by on-disk keystores like
-    // [`ArtiNativeKeystore`](crate::ArtiNativeKeystore)
-    #[display("{}", _0.display_lossy())]
-    Path(PathBuf),
-    // TODO: when/if we add support for non on-disk keystores,
-    // new variants will be added
+/// The opaque identifier of an unrecognized key inside a [`Keystore`](crate::Keystore).
+#[derive(Debug, Clone, PartialEq, derive_more::From, derive_more::Into)]
+pub struct UnrecognizedEntry(RawKeystoreEntry);
+
+#[cfg(feature = "onion-service-cli-extra")]
+impl Deref for UnrecognizedEntry {
+    type Target = RawKeystoreEntry;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[cfg(test)]

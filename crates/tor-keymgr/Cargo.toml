@@ -79,6 +79,7 @@ tor-key-forge = { path = "../tor-key-forge", version = "0.32.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.32.0", features = ["keymgr"] }
 tor-persist = { path = "../tor-persist", version = "0.32.0" }
 tracing = "0.1.36"
+visibility = { version = "0.1.0" }
 walkdir = { version = "2" }
 zeroize = "1"
 

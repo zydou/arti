@@ -1,6 +1,7 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
 use crate::keystore::fs_utils::FilesystemError;
+use crate::raw::RawEntryId;
 use crate::{ArtiPathSyntaxError, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 use tor_key_forge::{CertType, KeyType, SshKeyAlgorithm};
@@ -30,7 +31,7 @@ pub(crate) enum ArtiNativeKeystoreError {
     #[error("{0}")]
     UnknownKeyType(#[from] UnknownKeyTypeError),
 
-    /// Failed to parse an OpenSSH key
+    /// Failed to parse an OpenSSH key.
     #[error("Failed to parse OpenSSH with type {key_type:?}")]
     SshKeyParse {
         /// The path of the malformed key.
@@ -53,7 +54,7 @@ pub(crate) enum ArtiNativeKeystoreError {
         found_key_algo: SshKeyAlgorithm,
     },
 
-    /// Failed to parse an OpenSSH key
+    /// Failed to parse an OpenSSH key.
     #[error("Failed to parse cert with type {cert_type:?}")]
     CertParse {
         /// The path of the malformed key.
@@ -64,6 +65,10 @@ pub(crate) enum ArtiNativeKeystoreError {
         #[source]
         err: tor_bytes::Error,
     },
+
+    /// Encountered a non-path `RawEntryId` variant.
+    #[error("Raw entry {:?} not supported in an Arti keystore", _0)]
+    UnsupportedRawEntry(RawEntryId),
 
     /// An internal error.
     #[error("Internal error")]
@@ -104,6 +109,7 @@ impl HasKind for ArtiNativeKeystoreError {
             KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } | KE::CertParse { .. } => {
                 ErrorKind::KeystoreCorrupted
             }
+            KE::UnsupportedRawEntry { .. } => ErrorKind::BadApiUsage,
             KE::Bug(e) => e.kind(),
         }
     }

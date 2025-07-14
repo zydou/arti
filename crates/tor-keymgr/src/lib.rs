@@ -54,6 +54,7 @@ mod arti_path;
 pub mod config;
 mod err;
 mod key_specifier;
+pub(crate) mod raw;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
@@ -68,7 +69,7 @@ mod dummy;
 pub use arti_path::{ArtiPath, DENOTATOR_SEP};
 pub use err::{
     ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError, UnknownKeyTypeError,
-    UnrecognizedEntryError, UnrecognizedEntryId,
+    UnrecognizedEntry, UnrecognizedEntryError,
 };
 pub use key_specifier::{
     ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorServicePath,
@@ -76,6 +77,9 @@ pub use key_specifier::{
     KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeySpecifierComponent,
     KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
+#[cfg(feature = "onion-service-cli-extra")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onion-service-cli-extra")))]
+pub use raw::{RawEntryId, RawKeystoreEntry};
 
 #[cfg(feature = "keymgr")]
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]

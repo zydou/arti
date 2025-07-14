@@ -1,0 +1,3 @@
+bin.name = "arti"
+args = "keys-raw remove-by-path -h"
+status.code = 0

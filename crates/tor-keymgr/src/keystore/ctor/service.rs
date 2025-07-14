@@ -6,9 +6,10 @@ use crate::keystore::ctor::err::{CTorKeystoreError, MalformedServiceKeyError};
 use crate::keystore::ctor::CTorKeystore;
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore, KeystoreId};
+use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    CTorPath, CTorServicePath, KeyPath, KeystoreEntryResult, Result, UnrecognizedEntryError,
-    UnrecognizedEntryId,
+    CTorPath, CTorServicePath, KeyPath, KeystoreEntry, KeystoreEntryResult, Result,
+    UnrecognizedEntryError,
 };
 
 use fs_mistrust::Mistrust;
@@ -21,6 +22,8 @@ use tor_persist::hsnickname::HsNickname;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
+#[allow(unused_imports)]
+use std::str::FromStr;
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -190,6 +193,11 @@ impl Keystore for CTorServiceKeystore {
         Ok(Some(parsed_key))
     }
 
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn raw_entry_id(&self, raw_id: &str) -> Result<RawEntryId> {
+        Ok(RawEntryId::Path(PathBuf::from(raw_id.to_string())))
+    }
+
     fn insert(&self, _key: &dyn EncodableItem, _key_spec: &dyn KeySpecifier) -> Result<()> {
         Err(CTorKeystoreError::NotSupported { action: "insert" }.into())
     }
@@ -202,7 +210,15 @@ impl Keystore for CTorServiceKeystore {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
-    fn list(&self) -> Result<Vec<KeystoreEntryResult<(KeyPath, KeystoreItemType)>>> {
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn remove_unchecked(&self, _entry_id: &RawEntryId) -> Result<()> {
+        Err(CTorKeystoreError::NotSupported {
+            action: "remove_unchecked",
+        }
+        .into())
+    }
+
+    fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>> {
         use crate::CTorServicePath::*;
 
         // This keystore can contain at most 2 keys (the public and private
@@ -294,21 +310,28 @@ impl Keystore for CTorServiceKeystore {
                     valid_rel_paths
                         .iter()
                         .find_map(|(ctor_path, key_type, rel_path)| {
-                            (path == rel_path.rel_path_unchecked()).then_some((ctor_path, key_type))
+                            (path == rel_path.rel_path_unchecked())
+                                .then_some((ctor_path, key_type, rel_path))
                         });
 
                 let res = match maybe_path {
-                    Some((ctor_path, key_type)) => Ok((
+                    Some((ctor_path, key_type, rel_path)) => Ok(KeystoreEntry::new(
                         KeyPath::CTor(ctor_path.clone()),
                         KeystoreItemType::Key(key_type.clone()),
+                        self.id(),
+                        RawEntryId::Path(rel_path.rel_path_unchecked().to_owned()),
                     )),
-                    None => Err(UnrecognizedEntryError::new(
-                        UnrecognizedEntryId::Path(path.into()),
-                        Arc::new(CTorKeystoreError::MalformedKey {
-                            path: path.into(),
-                            err: MalformedServiceKeyError::NotAKey.into(),
-                        }),
-                    )),
+                    None => {
+                        let raw_id = RawEntryId::Path(path.into());
+                        let entry = RawKeystoreEntry::new(raw_id, self.id().clone()).into();
+                        Err(UnrecognizedEntryError::new(
+                            entry,
+                            Arc::new(CTorKeystoreError::MalformedKey {
+                                path: path.into(),
+                                err: MalformedServiceKeyError::NotAKey.into(),
+                            }),
+                        ))
+                    }
                 };
 
                 Ok(Some(res))
@@ -400,7 +423,6 @@ mod tests {
 
     use super::*;
     use std::fs;
-    use std::str::FromStr as _;
     use tempfile::{tempdir, TempDir};
 
     use crate::test_utils::{assert_found, DummyKey, TestCTorSpecifier};
@@ -543,15 +565,15 @@ mod tests {
         assert_eq!(keys.len(), 3);
 
         assert!(keys.iter().any(|entry| {
-            if let Ok((_, key_type)) = entry.as_ref() {
-                return *key_type == KeyType::Ed25519ExpandedKeypair.into();
+            if let Ok(e) = entry.as_ref() {
+                return e.key_type() == &KeyType::Ed25519ExpandedKeypair.into();
             }
             false
         }));
 
         assert!(keys.iter().any(|entry| {
-            if let Ok((_, key_type)) = entry.as_ref() {
-                return *key_type == KeyType::Ed25519PublicKey.into();
+            if let Ok(e) = entry.as_ref() {
+                return e.key_type() == &KeyType::Ed25519PublicKey.into();
             }
             false
         }));
