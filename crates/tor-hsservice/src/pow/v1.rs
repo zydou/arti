@@ -86,7 +86,7 @@ struct State<R, Q> {
     /// The [`RendRequestReceiver`], which contains the queue of [`RendRequest`]s.
     ///
     /// We need a reference to this in order to tell it when to update the suggested_effort value.
-    rend_request_rx: RendRequestReceiver<Q>,
+    rend_request_rx: RendRequestReceiver<R, Q>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -212,7 +212,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
         let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
         let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
-        let rend_req_rx = RendRequestReceiver::new(suggested_effort.clone());
+        let rend_req_rx = RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
 
         let state = State {
             seeds,
@@ -256,7 +256,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
     async fn main_loop_task(self: Arc<Self>) {
         let runtime = self.0.write().expect("Lock poisoned").runtime.clone();
 
-        let mut last_suggested_effort_update = Instant::now();
+        let mut last_suggested_effort_update = runtime.now();
         let mut last_published_suggested_effort: u32 = (*self
             .0
             .read()
@@ -270,14 +270,14 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             let next_update_time = self.rotate_seeds_if_expiring().await;
 
             // Update the suggested effort, if needed
-            if Instant::now() - last_suggested_effort_update >= HS_UPDATE_PERIOD {
+            if runtime.now() - last_suggested_effort_update >= HS_UPDATE_PERIOD {
                 let (tps_to_update, mut publisher_update_tx) = {
                     let mut tps_to_update = vec![];
 
                     let inner = self.0.read().expect("Lock poisoned");
 
                     inner.rend_request_rx.update_suggested_effort();
-                    last_suggested_effort_update = Instant::now();
+                    last_suggested_effort_update = runtime.now();
                     let new_suggested_effort: u32 =
                         (*inner.suggested_effort.read().expect("Lock poisoned")).into();
 
@@ -300,7 +300,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             }
 
             let suggested_effort_update_delay =
-                HS_UPDATE_PERIOD - (Instant::now() - last_suggested_effort_update);
+                HS_UPDATE_PERIOD - (runtime.now() - last_suggested_effort_update);
 
             // A new TimePeriod that we don't know about (and thus that isn't in next_update_time)
             // might get added at any point. Making sure that our maximum delay is the minimum
@@ -689,21 +689,24 @@ impl<Q: MockableRendRequest> Eq for RendRequestOrdByEffort<Q> {}
 /// some contention there. It's possible there may be some fancy lockless (or more optimized)
 /// priority queue that we could use, but we should properly benchmark things before trying to make
 /// a optimization like that.
-pub(crate) struct RendRequestReceiver<Q>(Arc<Mutex<RendRequestReceiverInner<Q>>>);
+pub(crate) struct RendRequestReceiver<R, Q>(Arc<Mutex<RendRequestReceiverInner<R, Q>>>);
 
-impl<Q> Clone for RendRequestReceiver<Q> {
+impl<R, Q> Clone for RendRequestReceiver<R, Q> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
 /// Inner implementation for [`RendRequestReceiver`].
-struct RendRequestReceiverInner<Q> {
+struct RendRequestReceiverInner<R, Q> {
     /// Internal priority queue of requests.
     queue: BTreeSet<RendRequestOrdByEffort<Q>>,
 
     /// Waker to inform async readers when there is a new message on the queue.
     waker: Option<Waker>,
+
+    /// Runtime, used to get current time in a testable way.
+    runtime: R,
 
     /// When the current update period started.
     update_period_start: Instant,
@@ -727,24 +730,26 @@ struct RendRequestReceiverInner<Q> {
     suggested_effort: Arc<RwLock<Effort>>,
 }
 
-impl<Q: MockableRendRequest + Send + 'static> RendRequestReceiver<Q> {
+impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R, Q> {
     /// Create a new [`RendRequestReceiver`].
-    fn new(suggested_effort: Arc<RwLock<Effort>>) -> Self {
+    fn new(runtime: R, suggested_effort: Arc<RwLock<Effort>>) -> Self {
+        let now = runtime.now();
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
             waker: None,
-            update_period_start: Instant::now(),
+            runtime,
+            update_period_start: now,
             num_enqueued_gte_suggested: 0,
             num_dequeued: 0,
             idle_time: Duration::new(0, 0),
-            last_transition: Instant::now(),
+            last_transition: now,
             total_effort: 0,
             suggested_effort,
         })))
     }
 
     /// Start helper thread to accept and validate [`RendRequest`]s.
-    fn start_accept_thread<R: Runtime, P: MockablePowManager + Send + Sync + 'static>(
+    fn start_accept_thread<P: MockablePowManager + Send + Sync + 'static>(
         &self,
         runtime: R,
         pow_manager: Arc<P>,
@@ -766,11 +771,12 @@ impl<Q: MockableRendRequest + Send + 'static> RendRequestReceiver<Q> {
         let mut inner = self.0.lock().expect("Lock poisened");
 
         if inner.num_dequeued != 0 {
-            let update_period_duration = Instant::now() - inner.update_period_start;
+            let update_period_duration = inner.runtime.now() - inner.update_period_start;
             let avg_request_duration = update_period_duration / inner.num_dequeued as u32;
             if inner.queue.is_empty() {
+                let now = inner.runtime.now();
                 let last_transition = inner.last_transition;
-                inner.idle_time += Instant::now() - last_transition;
+                inner.idle_time += now - last_transition;
             }
             let adjusted_idle_time = Duration::saturating_sub(
                 inner.idle_time,
@@ -809,7 +815,7 @@ impl<Q: MockableRendRequest + Send + 'static> RendRequestReceiver<Q> {
             drop(suggested_effort);
         }
 
-        let now = Instant::now();
+        let now = inner.runtime.now();
 
         inner.update_period_start = now;
         inner.num_enqueued_gte_suggested = 0;
@@ -822,7 +828,7 @@ impl<Q: MockableRendRequest + Send + 'static> RendRequestReceiver<Q> {
     /// Loop to accept message from the wrapped [`mpsc::Receiver`], validate PoW sovles, and
     /// enqueue onto the priority queue.
     #[allow(clippy::cognitive_complexity)]
-    fn accept_loop<R: Runtime, P: MockablePowManager>(
+    fn accept_loop<P: MockablePowManager>(
         self,
         runtime: &R,
         pow_manager: &Arc<P>,
@@ -849,7 +855,7 @@ impl<Q: MockableRendRequest + Send + 'static> RendRequestReceiver<Q> {
 
             let mut inner = self.0.lock().expect("Lock poisened");
             if inner.queue.is_empty() {
-                let now = Instant::now();
+                let now = runtime.now();
                 let last_transition = inner.last_transition;
                 inner.idle_time += now - last_transition;
                 inner.last_transition = now;
@@ -881,7 +887,7 @@ impl<Q: MockableRendRequest + Send + 'static> RendRequestReceiver<Q> {
     }
 }
 
-impl<Q: MockableRendRequest> Stream for RendRequestReceiver<Q> {
+impl<R: Runtime, Q: MockableRendRequest> Stream for RendRequestReceiver<R, Q> {
     type Item = Q;
 
     fn poll_next(
@@ -893,7 +899,7 @@ impl<Q: MockableRendRequest> Stream for RendRequestReceiver<Q> {
             Some(item) => {
                 inner.num_dequeued += 1;
                 if inner.queue.is_empty() {
-                    inner.last_transition = Instant::now();
+                    inner.last_transition = inner.runtime.now();
                 }
                 std::task::Poll::Ready(Some(item.request))
             }
@@ -902,5 +908,222 @@ impl<Q: MockableRendRequest> Stream for RendRequestReceiver<Q> {
                 std::task::Poll::Pending
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use futures::FutureExt;
+    use tor_hscrypto::pow::v1::{Nonce, SolutionByteArray};
+    use tor_rtmock::MockRuntime;
+
+    struct MockPowManager;
+
+    #[derive(Debug)]
+    struct MockRendRequest {
+        id: usize,
+        pow: Option<ProofOfWork>,
+    }
+
+    impl MockablePowManager for MockPowManager {
+        fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError> {
+            // For testing, treat all zeros as the only valid solve. Error is chosen arbitrarily.
+            if solve.solution() == &[0; 16] {
+                Ok(())
+            } else {
+                Err(PowSolveError::InvalidSeedHead)
+            }
+        }
+    }
+
+    impl MockableRendRequest for MockRendRequest {
+        fn proof_of_work(&self) -> Result<Option<&ProofOfWork>, rend_handshake::IntroRequestError> {
+            Ok(self.pow.as_ref())
+        }
+    }
+
+    fn make_req(id: usize, effort: u32) -> MockRendRequest {
+        MockRendRequest {
+            id,
+            pow: Some(ProofOfWork::V1(ProofOfWorkV1::new(
+                Nonce::from([0; 16]),
+                Effort::from(effort),
+                SeedHead::from([0; 4]),
+                SolutionByteArray::from([0; 16]),
+            ))),
+        }
+    }
+
+    fn make_req_invalid(id: usize, effort: u32) -> MockRendRequest {
+        MockRendRequest {
+            id,
+            pow: Some(ProofOfWork::V1(ProofOfWorkV1::new(
+                Nonce::from([0; 16]),
+                Effort::from(effort),
+                SeedHead::from([0; 4]),
+                SolutionByteArray::from([1; 16]),
+            ))),
+        }
+    }
+
+    #[test]
+    fn test_basic_pow_ordering() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let pow_manager = Arc::new(MockPowManager);
+            let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
+            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
+                RendRequestReceiver::new(runtime.clone(), suggested_effort);
+            let (mut tx, rx) = mpsc::channel(32);
+            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+
+            // Request with no PoW
+            let r0 = MockRendRequest { id: 0, pow: None };
+            tx.send(r0).await.unwrap();
+            assert_eq!(receiver.next().await.unwrap().id, 0);
+
+            // Request with PoW
+            tx.send(make_req(1, 0)).await.unwrap();
+            assert_eq!(receiver.next().await.unwrap().id, 1);
+
+            // Request with effort is before request with zero effort
+            tx.send(make_req(2, 0)).await.unwrap();
+            tx.send(make_req(3, 16)).await.unwrap();
+            runtime.advance_until_stalled().await;
+            assert_eq!(receiver.next().await.unwrap().id, 3);
+            assert_eq!(receiver.next().await.unwrap().id, 2);
+
+            // Invalid solves are dropped
+            tx.send(make_req_invalid(4, 32)).await.unwrap();
+            tx.send(make_req(5, 16)).await.unwrap();
+            runtime.advance_until_stalled().await;
+            assert_eq!(receiver.next().await.unwrap().id, 5);
+            assert!(receiver.next().now_or_never().is_none());
+        });
+    }
+
+    #[test]
+    fn test_suggested_effort_increase() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let pow_manager = Arc::new(MockPowManager);
+            let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
+            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
+                RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
+            let (mut tx, rx) = mpsc::channel(1024);
+            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+
+            // Get through all the requests in plenty of time, no increase
+
+            for n in 0..128 {
+                tx.send(make_req(n, 0)).await.unwrap();
+            }
+
+            runtime.advance_until_stalled().await;
+            runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
+
+            for _ in 0..128 {
+                receiver.next().await.unwrap();
+            }
+
+            runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
+            receiver.update_suggested_effort();
+
+            assert_eq!(suggested_effort.read().unwrap().clone(), Effort::zero());
+
+            // Requests left in the queue with zero suggested effort, suggested effort should
+            // increase
+
+            for n in 0..128 {
+                tx.send(make_req(n, 0)).await.unwrap();
+            }
+
+            runtime.advance_until_stalled().await;
+            runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
+
+            for _ in 0..64 {
+                receiver.next().await.unwrap();
+            }
+
+            runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
+            receiver.update_suggested_effort();
+
+            let mut new_suggested_effort = *suggested_effort.read().unwrap();
+            assert!(new_suggested_effort > Effort::zero());
+
+            // We keep on being behind, effort should increase again.
+
+            for n in 0..64 {
+                tx.send(make_req(n, new_suggested_effort.into()))
+                    .await
+                    .unwrap();
+            }
+            runtime.advance_until_stalled().await;
+
+            receiver.next().await.unwrap();
+            runtime.advance_by(HS_UPDATE_PERIOD).await;
+            receiver.update_suggested_effort();
+
+            let mut old_suggested_effort = new_suggested_effort;
+            new_suggested_effort = *suggested_effort.read().unwrap();
+            assert!(new_suggested_effort > old_suggested_effort);
+
+            // We catch up now, effort should start dropping, but not be zero immediately.
+
+            for n in 0..32 {
+                tx.send(make_req(n, new_suggested_effort.into()))
+                    .await
+                    .unwrap();
+            }
+
+            runtime.advance_until_stalled().await;
+
+            runtime.advance_by(HS_UPDATE_PERIOD / 16 * 15).await;
+
+            while receiver.next().now_or_never().is_some() {
+                // Keep going...
+            }
+
+            runtime.advance_by(HS_UPDATE_PERIOD / 16).await;
+            receiver.update_suggested_effort();
+
+            old_suggested_effort = new_suggested_effort;
+            new_suggested_effort = *suggested_effort.read().unwrap();
+            assert!(new_suggested_effort < old_suggested_effort);
+            assert!(new_suggested_effort > Effort::zero());
+
+            // Effort will drop to zero eventually
+
+            let mut num_loops = 0;
+            loop {
+                tx.send(make_req(0, new_suggested_effort.into()))
+                    .await
+                    .unwrap();
+                runtime.advance_until_stalled().await;
+                runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
+
+                while receiver.next().now_or_never().is_some() {
+                    // Keep going...
+                }
+
+                runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
+                receiver.update_suggested_effort();
+
+                old_suggested_effort = new_suggested_effort;
+                new_suggested_effort = *suggested_effort.read().unwrap();
+
+                assert!(new_suggested_effort < old_suggested_effort);
+
+                if new_suggested_effort == Effort::zero() {
+                    break;
+                }
+
+                num_loops += 1;
+
+                if num_loops > 5 {
+                    panic!("Took too long for suggested effort to fall!");
+                }
+            }
+        });
     }
 }
