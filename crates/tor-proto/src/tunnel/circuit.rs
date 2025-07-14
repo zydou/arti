@@ -509,7 +509,7 @@ impl HopSettings {
         // Negotiate CGO if it is supported, if CC is also supported,
         // and if CGO is available on this relay.
         #[cfg(all(feature = "flowctl-cc", feature = "counter-galois-onion"))]
-        if !settings.ccontrol.alg().requires_stream_level_sendmes()
+        if settings.ccontrol.alg().compatible_with_cgo()
             && caps.supports_named_subver(named::RELAY_NEGOTIATE_SUBPROTO)
             && caps.supports_named_subver(named::RELAY_CRYPT_CGO)
         {

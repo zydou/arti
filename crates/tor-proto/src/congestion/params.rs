@@ -99,12 +99,16 @@ pub enum Algorithm {
 }
 
 impl Algorithm {
-    /// Return true if this algorithm requires the use of (legacy) stream-level SENDME messages
+    /// Return true if this algorithm can be used along with CGO.
+    ///
+    /// CGO requires the V1 relay cell format, where every relay command
+    /// implies either the presence or absence of a StreamID.
+    /// But that format is not compatible with (legacy) stream-level SENDME messages
     /// for flow control.
-    pub(crate) fn requires_stream_level_sendmes(&self) -> bool {
+    pub(crate) fn compatible_with_cgo(&self) -> bool {
         match self {
-            Algorithm::FixedWindow(_) => true,
-            Algorithm::Vegas(_) => false,
+            Algorithm::FixedWindow(_) => false,
+            Algorithm::Vegas(_) => true,
         }
     }
 }
