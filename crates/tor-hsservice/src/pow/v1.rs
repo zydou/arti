@@ -40,11 +40,14 @@ use crate::{
 
 use super::NewPowManager;
 
-/// This is responsible for rotating Proof-of-Work seeds and doing verification of PoW solves.
-pub(crate) struct PowManager<R>(RwLock<State<R>>);
+/// Proof-of-Work manager type alias for production, using concrete [`RendRequest`].
+pub(crate) type PowManager<R> = PowManagerGeneric<R, RendRequest>;
 
-/// Internal state for [`PowManager`].
-struct State<R> {
+/// This is responsible for rotating Proof-of-Work seeds and doing verification of PoW solves.
+pub(crate) struct PowManagerGeneric<R, Q>(RwLock<State<R, Q>>);
+
+/// Internal state for [`PowManagerGeneric`].
+struct State<R, Q> {
     /// The [`Seed`]s for a given [`TimePeriod`]
     ///
     /// The [`ArrayVec`] contains the current and previous seed, and the [`SystemTime`] is when the
@@ -67,7 +70,7 @@ struct State<R> {
 
     /// Current suggested effort that we publish in the pow-params line.
     ///
-    /// This is only read by the PowManager, and is written to by the [`RendRequestReceiver`].
+    /// This is only read by the PowManagerGeneric, and is written to by the [`RendRequestReceiver`].
     suggested_effort: Arc<RwLock<Effort>>,
 
     /// Runtime
@@ -83,7 +86,7 @@ struct State<R> {
     /// The [`RendRequestReceiver`], which contains the queue of [`RendRequest`]s.
     ///
     /// We need a reference to this in order to tell it when to update the suggested_effort value.
-    rend_request_rx: RendRequestReceiver<RendRequest>, // TODO: make generic
+    rend_request_rx: RendRequestReceiver<Q>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -115,7 +118,7 @@ pub(crate) enum PowSolveError {
     InvalidSolve(tor_hscrypto::pow::Error),
 }
 
-/// On-disk record of [`PowManager`] state.
+/// On-disk record of [`PowManagerGeneric`] state.
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct PowManagerStateRecord {
     /// Seeds for each time period.
@@ -128,7 +131,7 @@ pub(crate) struct PowManagerStateRecord {
     // TODO POW: suggested_effort / etc should be serialized
 }
 
-impl<R: Runtime> State<R> {
+impl<R: Runtime, Q> State<R, Q> {
     /// Make a [`PowManagerStateRecord`] for this state.
     pub(crate) fn to_record(&self) -> PowManagerStateRecord {
         PowManagerStateRecord {
@@ -188,8 +191,8 @@ pub(crate) enum InternalPowError {
     CreateIptError(CreateIptError),
 }
 
-impl<R: Runtime> PowManager<R> {
-    /// Create a new [`PowManager`].
+impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q> {
+    /// Create a new [`PowManagerGeneric`].
     #[allow(clippy::new_ret_no_self)]
     pub(crate) fn new(
         runtime: R,
@@ -223,7 +226,7 @@ impl<R: Runtime> PowManager<R> {
             storage_handle,
             rend_request_rx: rend_req_rx.clone(),
         };
-        let pow_manager = Arc::new(PowManager(RwLock::new(state)));
+        let pow_manager = Arc::new(PowManagerGeneric(RwLock::new(state)));
 
         rend_req_rx.start_accept_thread(runtime, pow_manager.clone(), rend_req_rx_channel);
 
@@ -476,7 +479,7 @@ impl<R: Runtime> PowManager<R> {
     /// Get [`PowParams`] for a given [`TimePeriod`].
     ///
     /// If we don't have any [`Seed`]s for the requested period, generate them. This is the only
-    /// way that [`PowManager`] learns about new [`TimePeriod`]s.
+    /// way that [`PowManagerGeneric`] learns about new [`TimePeriod`]s.
     pub(crate) fn get_pow_params(
         self: &Arc<Self>,
         time_period: TimePeriod,
@@ -720,7 +723,7 @@ struct RendRequestReceiverInner<Q> {
 
     /// Most recent published suggested effort value.
     ///
-    /// We write to this, which is then published in the pow-params line by [`PowManager`].
+    /// We write to this, which is then published in the pow-params line by [`PowManagerGeneric`].
     suggested_effort: Arc<RwLock<Effort>>,
 }
 
