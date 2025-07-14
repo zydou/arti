@@ -83,7 +83,7 @@ struct State<R> {
     /// The [`RendRequestReceiver`], which contains the queue of [`RendRequest`]s.
     ///
     /// We need a reference to this in order to tell it when to update the suggested_effort value.
-    rend_request_rx: RendRequestReceiver,
+    rend_request_rx: RendRequestReceiver<RendRequest>, // TODO: make generic
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -599,26 +599,36 @@ impl<R: Runtime> MockablePowManager for PowManager<R> {
     }
 }
 
+/// Trait to allow mocking RendRequest in tests.
+pub(crate) trait MockableRendRequest {
+    /// Get the proof-of-work extension associated with this request.
+    fn proof_of_work(&self) -> Result<Option<&ProofOfWork>, rend_handshake::IntroRequestError>;
+}
+
+impl MockableRendRequest for RendRequest {
+    fn proof_of_work(&self) -> Result<Option<&ProofOfWork>, rend_handshake::IntroRequestError> {
+        Ok(self
+            .intro_request()?
+            .intro_payload()
+            .proof_of_work_extension())
+    }
+}
+
 /// Wrapper around [`RendRequest`] that implements [`std::cmp::Ord`] to sort by [`Effort`] and time.
 #[derive(Debug)]
-struct RendRequestOrdByEffort {
+struct RendRequestOrdByEffort<Q> {
     /// The underlying request.
-    request: RendRequest,
+    request: Q,
     /// The proof-of-work options, if given.
     pow: Option<ProofOfWorkV1>,
     /// When this request was received, used for ordreing if the effort values are the same.
     recv_time: Instant,
 }
 
-impl RendRequestOrdByEffort {
+impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
     /// Create a new [`RendRequestOrdByEffort`].
-    fn new(request: RendRequest) -> Result<Self, rend_handshake::IntroRequestError> {
-        let pow = match request
-            .intro_request()?
-            .intro_payload()
-            .proof_of_work_extension()
-            .cloned()
-        {
+    fn new(request: Q) -> Result<Self, rend_handshake::IntroRequestError> {
+        let pow = match request.proof_of_work()?.cloned() {
             Some(ProofOfWork::V1(pow)) => Some(pow),
             None | Some(_) => None,
         };
@@ -631,7 +641,7 @@ impl RendRequestOrdByEffort {
     }
 }
 
-impl Ord for RendRequestOrdByEffort {
+impl<Q: MockableRendRequest> Ord for RendRequestOrdByEffort<Q> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
         let other_effort = other
@@ -646,13 +656,13 @@ impl Ord for RendRequestOrdByEffort {
     }
 }
 
-impl PartialOrd for RendRequestOrdByEffort {
+impl<Q: MockableRendRequest> PartialOrd for RendRequestOrdByEffort<Q> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for RendRequestOrdByEffort {
+impl<Q: MockableRendRequest> PartialEq for RendRequestOrdByEffort<Q> {
     fn eq(&self, other: &Self) -> bool {
         let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
         let other_effort = other
@@ -663,7 +673,7 @@ impl PartialEq for RendRequestOrdByEffort {
     }
 }
 
-impl Eq for RendRequestOrdByEffort {}
+impl<Q: MockableRendRequest> Eq for RendRequestOrdByEffort<Q> {}
 
 /// Implements [`Stream`] for incoming [`RendRequest`]s, using a priority queue system to dequeue
 /// high-[`Effort`] requests first.
@@ -676,13 +686,18 @@ impl Eq for RendRequestOrdByEffort {}
 /// some contention there. It's possible there may be some fancy lockless (or more optimized)
 /// priority queue that we could use, but we should properly benchmark things before trying to make
 /// a optimization like that.
-#[derive(Clone)]
-pub(crate) struct RendRequestReceiver(Arc<Mutex<RendRequestReceiverInner>>);
+pub(crate) struct RendRequestReceiver<Q>(Arc<Mutex<RendRequestReceiverInner<Q>>>);
+
+impl<Q> Clone for RendRequestReceiver<Q> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 
 /// Inner implementation for [`RendRequestReceiver`].
-struct RendRequestReceiverInner {
+struct RendRequestReceiverInner<Q> {
     /// Internal priority queue of requests.
-    queue: BTreeSet<RendRequestOrdByEffort>,
+    queue: BTreeSet<RendRequestOrdByEffort<Q>>,
 
     /// Waker to inform async readers when there is a new message on the queue.
     waker: Option<Waker>,
@@ -709,7 +724,7 @@ struct RendRequestReceiverInner {
     suggested_effort: Arc<RwLock<Effort>>,
 }
 
-impl RendRequestReceiver {
+impl<Q: MockableRendRequest + Send + 'static> RendRequestReceiver<Q> {
     /// Create a new [`RendRequestReceiver`].
     fn new(suggested_effort: Arc<RwLock<Effort>>) -> Self {
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
@@ -730,7 +745,7 @@ impl RendRequestReceiver {
         &self,
         runtime: R,
         pow_manager: Arc<P>,
-        inner_receiver: mpsc::Receiver<RendRequest>,
+        inner_receiver: mpsc::Receiver<Q>,
     ) {
         let receiver_clone = self.clone();
         // spawn_blocking executes immediately, but some of our abstractions make clippy not
@@ -808,7 +823,7 @@ impl RendRequestReceiver {
         self,
         runtime: &R,
         pow_manager: &Arc<P>,
-        mut receiver: mpsc::Receiver<RendRequest>,
+        mut receiver: mpsc::Receiver<Q>,
     ) {
         loop {
             let rend_request = runtime
@@ -863,8 +878,8 @@ impl RendRequestReceiver {
     }
 }
 
-impl Stream for RendRequestReceiver {
-    type Item = RendRequest;
+impl<Q: MockableRendRequest> Stream for RendRequestReceiver<Q> {
+    type Item = Q;
 
     fn poll_next(
         self: std::pin::Pin<&mut Self>,
