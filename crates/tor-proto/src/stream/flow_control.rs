@@ -1,12 +1,21 @@
 //! Code for implementing flow control (stream-level).
 
 use postage::watch;
-use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::flow_ctrl::{
+    FlowCtrlVersion, UnrecognizedVersionError, Xoff, Xon, XonKbpsEwma,
+};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use crate::congestion::sendme;
 use crate::{Error, Result};
+
+/// The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
+// TODO(arti#534): We want to get the value from the consensus. The value in the consensus is the
+// number of relay cells, not number of bytes. But do we really want to use the number of relays
+// cells rather than bytes?
+#[cfg(feature = "flowctl-cc")]
+const CC_XOFF_CLIENT: usize = 250_000;
 
 /// Private internals of [`StreamFlowControl`].
 #[derive(Debug)]
@@ -40,7 +49,10 @@ impl StreamFlowControl {
     #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff_based(rate_limit_updater: watch::Sender<StreamRateLimit>) -> Self {
         Self {
-            e: StreamFlowControlEnum::XonXoffBased(XonXoffControl { rate_limit_updater }),
+            e: StreamFlowControlEnum::XonXoffBased(XonXoffControl {
+                rate_limit_updater,
+                last_sent_xon_xoff: None,
+            }),
         }
     }
 
@@ -178,6 +190,44 @@ impl StreamFlowControl {
             }
         }
     }
+
+    /// Check if we should send an XOFF message.
+    ///
+    /// If we should, then returns the XOFF message that should be sent.
+    /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
+    pub(crate) fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
+        match &mut self.e {
+            StreamFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
+                "XOFF messages cannot be sent with window flow control".into(),
+            )),
+            #[cfg(feature = "flowctl-cc")]
+            StreamFlowControlEnum::XonXoffBased(control) => {
+                // if the last XON/XOFF we sent was an XOFF, no need to send another
+                if matches!(control.last_sent_xon_xoff, Some(LastSentXonXoff::Xoff)) {
+                    return Ok(None);
+                }
+
+                if buffer_len <= CC_XOFF_CLIENT {
+                    return Ok(None);
+                }
+
+                // either we have never sent an XOFF or XON, or we last sent an XON
+
+                // remember that we last sent an XOFF
+                control.last_sent_xon_xoff = Some(LastSentXonXoff::Xoff);
+
+                // hopefully a future rust allows us to make this less verbose
+                const FLOW_CTRL_VER: FlowCtrlVersion = match FlowCtrlVersion::new(0) {
+                    Ok(x) => x,
+                    Err(UnrecognizedVersionError { .. }) => {
+                        panic!("0 is an unrecognized flow control version?!");
+                    }
+                };
+
+                Ok(Some(Xoff::new(FLOW_CTRL_VER)))
+            }
+        }
+    }
 }
 
 /// Control state for XON/XOFF flow control.
@@ -186,6 +236,19 @@ struct XonXoffControl {
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
+    /// The last rate limit we sent.
+    last_sent_xon_xoff: Option<LastSentXonXoff>,
+}
+
+/// The last XON/XOFF message that we sent.
+#[derive(Debug)]
+enum LastSentXonXoff {
+    /// XON message with a rate.
+    // TODO(arti#534): we'll use this when we implement sending XON
+    #[expect(dead_code)]
+    Xon(XonKbpsEwma),
+    /// XOFF message.
+    Xoff,
 }
 
 /// A newtype wrapper for a tor stream rate limit that makes the units explicit.

@@ -301,8 +301,6 @@ impl CongestionControl {
 
     /// Return true iff the underlying algorithm uses stream level XON/XOFFs.
     /// At the moment, only Vegas uses it.
-    // XXX: use this
-    #[expect(dead_code)]
     pub(crate) fn uses_xon_xoff(&self) -> bool {
         self.algorithm.uses_xon_xoff()
     }

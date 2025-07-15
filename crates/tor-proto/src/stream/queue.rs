@@ -93,8 +93,6 @@ impl StreamQueueSender {
     ///
     /// As messages can be dequeued at any time, the return value may be larger than the actual
     /// number of bytes queued for this stream.
-    // XXX: we'll use this later
-    #[expect(dead_code)]
     pub(crate) fn approx_stream_bytes(&self) -> usize {
         *self.counter.lock().expect("poisoned")
     }

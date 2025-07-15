@@ -20,6 +20,7 @@ use futures::Stream;
 use postage::watch;
 use safelog::sensitive as sv;
 use tor_cell::chancell::BoxedCellBody;
+use tor_cell::relaycell::flow_ctrl::Xoff;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
@@ -323,6 +324,25 @@ impl CircHop {
             return Ok(Some(cell));
         }
         Ok(None)
+    }
+
+    /// Check if we should send an XOFF message.
+    ///
+    /// If we should, then returns the XOFF message that should be sent.
+    pub(super) fn maybe_send_xoff(&mut self, id: StreamId) -> Result<Option<Xoff>> {
+        // the call below will return an error if XON/XOFF aren't supported,
+        // so we check for support here
+        if !self.ccontrol.uses_xon_xoff() {
+            return Ok(None);
+        }
+
+        let mut map = self.map.lock().expect("lock poisoned");
+        let Some(StreamEntMut::Open(ent)) = map.get_mut(id) else {
+            // stream went away
+            return Ok(None);
+        };
+
+        ent.maybe_send_xoff()
     }
 
     /// Return the format that is used for relay cells sent to this hop.

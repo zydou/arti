@@ -672,11 +672,15 @@ impl Circuit {
             conflux.inc_last_seq_delivered(&msg);
         }
 
+        // Returns the original message if it's an an incoming stream request
+        // that we need to handle.
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         let res = hop.handle_msg(cell_counts_toward_windows, streamid, msg)?;
 
+        // If it was an incoming stream request, we don't need to worry about
+        // sending an XOFF as there's no stream data within this message.
         if let Some(msg) = res {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "hs-service")] {
@@ -685,6 +689,17 @@ impl Circuit {
                     return Err(internal!("incoming stream not rejected, but hs-service feature is disabled?!").into());
                 }
             }
+        }
+
+        // We may want to send an XOFF if the incoming buffer is too large.
+        if let Some(cell) = hop.maybe_send_xoff(streamid)? {
+            let cell = AnyRelayMsgOuter::new(Some(streamid), cell.into());
+            let cell = SendRelayCell {
+                hop: hopnum,
+                early: false,
+                cell,
+            };
+            return Ok(Some(CircuitCmd::Send(cell)));
         }
 
         Ok(None)
