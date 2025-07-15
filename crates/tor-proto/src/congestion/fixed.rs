@@ -44,6 +44,10 @@ impl CongestionControlAlgorithm for FixedWindow {
         true
     }
 
+    fn uses_xon_xoff(&self) -> bool {
+        false
+    }
+
     fn is_next_cell_sendme(&self) -> bool {
         self.sendwindow.should_record_tag()
     }
