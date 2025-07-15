@@ -62,7 +62,7 @@ impl DownloadScheduleBuilder {
         let mut bld = self.clone();
         bld.attempts.get_or_insert(3);
         bld.initial_delay
-            .get_or_insert_with(|| (Duration::new(1, 0)));
+            .get_or_insert_with(|| Duration::new(1, 0));
         bld.parallelism.get_or_insert(4);
         bld.build()
     }
