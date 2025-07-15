@@ -331,7 +331,9 @@ impl Circuit {
         fwd_lasthop: bool,
         rev_lasthop: bool,
         dummy_peer_id: path::HopDetail,
-        // TODO: Take HopSettings instead of CircParams. XXXX
+        // TODO-CGO: Take HopSettings instead of CircParams.
+        // (Do this after we've got the virtual-hop refactorings done for
+        // virtual extending.)
         params: &crate::circuit::CircParameters,
         done: ReactorResultChannel<()>,
     ) {
