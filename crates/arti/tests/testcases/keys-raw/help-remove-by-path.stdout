@@ -1,9 +1,9 @@
-Remove keystore entry by path
+Remove keystore entry by raw ID
 
-Usage: arti keys-raw remove-by-path [OPTIONS] <PATH>
+Usage: arti keys-raw remove-by-id [OPTIONS] <RAW_ENTRY_ID>
 
 Arguments:
-  <PATH>  The relative path of the keystore entry to remove
+  <RAW_ENTRY_ID>  The raw ID of the keystore entry to remove
 
 Options:
   -c, --config <FILE>                 Specify which config file(s) to read. Defaults to [File("[..]"), Dir("[..]")]

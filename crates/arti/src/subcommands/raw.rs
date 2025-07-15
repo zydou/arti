@@ -19,18 +19,18 @@ pub(crate) enum RawSubcommands {
 
 #[derive(Subcommand, Debug, Clone)]
 pub(crate) enum RawSubcommand {
-    /// Remove keystore entry by path.
-    RemoveByPath(RemoveByPathArgs),
+    /// Remove keystore entry by raw ID.
+    RemoveById(RemoveByIdArgs),
 }
 
-/// The arguments of the [`RemoveByPath`](RawSubcommand::RemoveByPath) subcommand.
+/// The arguments of the [`RemoveById`](RawSubcommand::RemoveById) subcommand.
 #[derive(Debug, Clone, Args)]
-pub(crate) struct RemoveByPathArgs {
-    /// The relative path of the keystore entry to remove.
+pub(crate) struct RemoveByIdArgs {
+    /// The raw ID of the keystore entry to remove.
     ///
-    /// The path of an entry can be obtained from the field "Location" of the output
-    /// of `arti keys list`.
-    path: String,
+    /// The raw ID of an entry can be obtained from the field "Location" of the
+    /// output of `arti keys list`.
+    raw_entry_id: String,
 
     /// Identifier of the keystore to remove the entry from.
     /// If omitted, the primary store will be used ("arti").
@@ -51,15 +51,15 @@ pub(crate) fn run<R: Runtime>(
         .create_inert()?;
 
     match subcommand {
-        RawSubcommand::RemoveByPath(args) => run_raw_remove(&args, &client),
+        RawSubcommand::RemoveById(args) => run_raw_remove(&args, &client),
     }
 }
 
-/// Run `key raw-remove-by-path` subcommand.
-fn run_raw_remove(args: &RemoveByPathArgs, client: &InertTorClient) -> Result<()> {
+/// Run `key raw-remove-by-id` subcommand.
+fn run_raw_remove(args: &RemoveByIdArgs, client: &InertTorClient) -> Result<()> {
     let keymgr = client.keymgr()?;
     let keystore_id = KeystoreId::from_str(&args.keystore_id)?;
-    keymgr.remove_unchecked(&args.path, &keystore_id)?;
+    keymgr.remove_unchecked(&args.raw_entry_id, &keystore_id)?;
 
     Ok(())
 }

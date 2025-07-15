@@ -43,9 +43,9 @@ valid filename.
 - Unrecognized paths: filesystem objects that should not be in the state directory.
 
 Some of the information displayed by `keys list` can be used as input for other
-commands. For instance: "Location", the "augmented `ArtiPath`" (of the form
-`<ARTI_PATH>.<ENTRY_TYPE>`) of the entry; and "Kystore ID", the identifier,
-of the keystore. These can be used together with `arti keys-raw remove-by-path`.
+commands. For instance: "Location", is the raw identifier of the entry; and
+"Keystore ID", the identifier, of the keystore. These can be used together
+with `arti keys-raw remove-by-id`.
 
 Example usage:
 
