@@ -864,7 +864,13 @@ impl ClientCirc {
                 ended: false,
             };
 
-            IncomingStream::new(circ.time_provider.clone(), req, target, reader, memquota)
+            let components = StreamComponents {
+                stream_receiver: reader,
+                target,
+                memquota,
+            };
+
+            IncomingStream::new(circ.time_provider.clone(), req, components)
         }))
     }
 
@@ -1041,7 +1047,7 @@ impl ClientCirc {
         self: &Arc<ClientCirc>,
         begin_msg: AnyRelayMsg,
         cmd_checker: AnyCmdChecker,
-    ) -> Result<(StreamReceiver, StreamTarget, StreamAccount)> {
+    ) -> Result<StreamComponents> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
         let hop = TargetHop::LastHop;
@@ -1087,7 +1093,13 @@ impl ClientCirc {
             ended: false,
         };
 
-        Ok((stream_receiver, target, memquota))
+        let components = StreamComponents {
+            stream_receiver,
+            target,
+            memquota,
+        };
+
+        Ok(components)
     }
 
     /// Start a DataStream (anonymized connection) to the given
@@ -1097,9 +1109,16 @@ impl ClientCirc {
         msg: AnyRelayMsg,
         optimistic: bool,
     ) -> Result<DataStream> {
-        let (stream_receiver, target, memquota) = self
+        let components = self
             .begin_stream_impl(msg, DataCmdChecker::new_any())
             .await?;
+
+        let StreamComponents {
+            stream_receiver,
+            target,
+            memquota,
+        } = components;
+
         let mut stream = DataStream::new(
             self.time_provider.clone(),
             stream_receiver,
@@ -1195,9 +1214,16 @@ impl ClientCirc {
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
     async fn try_resolve(self: &Arc<ClientCirc>, msg: Resolve) -> Result<Resolved> {
-        let (stream_receiver, _target, memquota) = self
+        let components = self
             .begin_stream_impl(msg.into(), ResolveCmdChecker::new_any())
             .await?;
+
+        let StreamComponents {
+            stream_receiver,
+            target: _,
+            memquota,
+        } = components;
+
         let mut resolve_stream = ResolveStream::new(stream_receiver, memquota);
         resolve_stream.read_msg().await
     }
@@ -1485,6 +1511,23 @@ impl PendingClientCirc {
 
         Ok(self.circ)
     }
+}
+
+/// A collection of components that can be combined to implement a Tor stream,
+/// or anything that requires a stream ID.
+///
+/// Not all components may be needed, depending on the purpose of the "stream".
+/// For example we build `RELAY_RESOLVE` requests like we do data streams,
+/// but they won't use the `StreamTarget` as they don't need to send additional
+/// messages.
+#[derive(Debug)]
+pub(crate) struct StreamComponents {
+    /// A [`Stream`](futures::Stream) of incoming relay messages for this Tor stream.
+    pub(crate) stream_receiver: StreamReceiver,
+    /// A handle that can communicate messages to the circuit reactor for this stream.
+    pub(crate) target: StreamTarget,
+    /// The memquota [account](tor_memquota::Account) to use for data on this stream.
+    pub(crate) memquota: StreamAccount,
 }
 
 /// Convert a [`ResolvedVal`] into a Result, based on whether or not
