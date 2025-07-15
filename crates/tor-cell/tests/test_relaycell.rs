@@ -62,7 +62,12 @@ fn cell(version: RelayCellFormat, body: &str, id: Option<StreamId>, msg: AnyRela
     // check the accessors for `UnparsedRelayMsg`
     assert_eq!(unparsed.cmd(), decoded.cmd());
     assert_eq!(unparsed.stream_id(), decoded.stream_id());
-    assert_eq!(usize::from(unparsed.data_len()), encoded_msg.len());
+    if unparsed.cmd() == RelayCmd::DATA {
+        assert_eq!(unparsed.data_len().map(usize::from), Ok(encoded_msg.len()));
+    } else {
+        // if not a DATA cell, then there are no data bytes
+        assert_eq!(unparsed.data_len(), Ok(0));
+    }
 
     let decoded_from_partial = unparsed.decode::<AnyRelayMsg>().unwrap();
     assert_eq!(decoded_from_partial.stream_id(), decoded.stream_id());
@@ -129,7 +134,12 @@ fn test_cells_v0() {
     let c = UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, m).unwrap();
     assert_eq!(c.cmd(), RelayCmd::from(2));
     assert_eq!(c.stream_id(), StreamId::new(0x9999));
-    assert_eq!(c.data_len(), 0x01f2);
+    assert_eq!(c.data_len(), Ok(0x01f2));
+
+    // check `data_len()` with a cell that has an invalid length.
+    let m = decode("02 0000 9999 12345678 04f2 6e6565642d746f2d6b6e6f77 00000000");
+    let c = UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, m).unwrap();
+    assert!(c.data_len().is_err());
 }
 
 #[test]
@@ -167,7 +177,13 @@ fn test_valid_cells_v1() {
     let c = UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V1, m).unwrap();
     assert_eq!(c.cmd(), RelayCmd::from(2));
     assert_eq!(c.stream_id(), StreamId::new(0x3230));
-    assert_eq!(c.data_len(), 0x000c);
+    assert_eq!(c.data_len(), Ok(0x000c));
+
+    // Check `data_len()` with a cell that has an invalid length.
+    let m =
+        decode("00000000000000000000000000000000 02 050c 3230 6e6565642d746f2d6b6e6f77 00000000");
+    let c = UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V1, m).unwrap();
+    assert!(c.data_len().is_err());
 }
 
 #[test]
