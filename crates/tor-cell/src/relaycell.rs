@@ -17,7 +17,6 @@ use rand::{CryptoRng, Rng};
 pub mod conflux;
 pub mod extend;
 mod extlist;
-#[cfg(feature = "flowctl-cc")]
 pub mod flow_ctrl;
 #[cfg(feature = "hs")]
 pub mod hs;

@@ -17,7 +17,6 @@ conflux = ["__is_experimental"]
 
 experimental = [
     "experimental-udp",
-    "flowctl-cc",
     "hs",
     "hs-pow-full",
     "conflux",
@@ -25,8 +24,6 @@ experimental = [
 ]
 # Enable experimental UDP support.
 experimental-udp = ["__is_experimental"]
-
-flowctl-cc = ["__is_experimental"]
 
 # "hs" = (all) hidden service support, either client or server
 hs = ["tor-hscrypto", "__is_experimental"]

@@ -1,7 +1,6 @@
 //! Code for implementing flow control (stream-level).
 
 use postage::watch;
-#[cfg(feature = "flowctl-cc")]
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
