@@ -10,7 +10,7 @@ use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 use tracing::debug;
 
 use crate::congestion::sendme;
-use crate::tunnel::circuit::StreamMpscReceiver;
+use crate::stream::queue::StreamQueueReceiver;
 use crate::tunnel::StreamTarget;
 use crate::{Error, Result};
 
@@ -41,7 +41,7 @@ pub struct StreamReceiver {
     pub(crate) target: StreamTarget,
     /// Channel to receive stream messages from the reactor.
     #[pin]
-    pub(crate) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
+    pub(crate) receiver: StreamQueueReceiver,
     /// Congestion control receive window for this stream.
     ///
     /// Having this here means we're only going to update it when the end consumer of this stream

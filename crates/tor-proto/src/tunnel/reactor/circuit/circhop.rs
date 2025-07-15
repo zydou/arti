@@ -6,8 +6,9 @@ use crate::circuit::HopSettings;
 use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
+use crate::stream::queue::StreamQueueSender;
 use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamRateLimit, StreamStatus};
-use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::tunnel::circuit::StreamMpscReceiver;
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
@@ -266,7 +267,7 @@ impl CircHop {
     pub(crate) fn begin_stream(
         &mut self,
         message: AnyRelayMsg,
-        sender: StreamMpscSender<UnparsedRelayMsg>,
+        sender: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         cmd_checker: AnyCmdChecker,
@@ -391,7 +392,7 @@ impl CircHop {
     #[cfg(feature = "hs-service")]
     pub(super) fn add_ent_with_id(
         &self,
-        sink: StreamMpscSender<UnparsedRelayMsg>,
+        sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         stream_id: StreamId,

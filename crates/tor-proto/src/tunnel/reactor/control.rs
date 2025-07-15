@@ -9,6 +9,7 @@ use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
+use crate::stream::queue::StreamQueueSender;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
@@ -22,7 +23,7 @@ use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
 use postage::watch;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
 use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
@@ -40,7 +41,7 @@ use super::{Circuit, ConfluxLinkResultChannel};
 use oneshot_fused_workaround as oneshot;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
-use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::tunnel::circuit::StreamMpscReceiver;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;
@@ -110,7 +111,7 @@ pub(crate) enum CtrlMsg {
         /// SENDME cells once we've read enough out of the other end. If it *does* block, we
         /// can assume someone is trying to send us more cells than they should, and abort
         /// the stream.
-        sender: StreamMpscSender<UnparsedRelayMsg>,
+        sender: StreamQueueSender,
         /// A channel to receive messages to send on this stream from.
         rx: StreamMpscReceiver<AnyRelayMsg>,
         /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.

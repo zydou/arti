@@ -24,6 +24,7 @@ pub(super) mod syncview;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
+use crate::stream::queue::StreamQueueReceiver;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
 use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
@@ -56,7 +57,7 @@ use std::sync::Arc;
 
 use crate::channel::Channel;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
-use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::tunnel::circuit::StreamMpscSender;
 use derive_deftly::Deftly;
 use derive_more::From;
 use tor_cell::chancell::CircId;
@@ -597,7 +598,7 @@ pub(crate) struct StreamReqInfo {
     pub(crate) relay_cell_format: RelayCellFormat,
     /// A channel for receiving messages from this stream.
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate
-    pub(crate) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
+    pub(crate) receiver: StreamQueueReceiver,
     /// A channel for sending messages to be sent on this stream.
     #[deftly(has_memory_cost(indirect_size = "size_of::<AnyRelayMsg>()"))] // estimate
     pub(crate) msg_tx: StreamMpscSender<AnyRelayMsg>,

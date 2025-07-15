@@ -51,6 +51,7 @@ use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
+use crate::stream::queue::stream_queue;
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamRateLimit, StreamReceiver,
@@ -1055,8 +1056,8 @@ impl ClientCirc {
         let time_prov = self.time_provider.clone();
 
         let memquota = StreamAccount::new(self.mq_account())?;
-        let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
-            .new_mq(time_prov.clone(), memquota.as_raw_account())?;
+        let (sender, receiver) = stream_queue(STREAM_READER_BUFFER, &memquota, &time_prov)?;
+
         let (tx, rx) = oneshot::channel();
         let (msg_tx, msg_rx) =
             MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(time_prov, memquota.as_raw_account())?;

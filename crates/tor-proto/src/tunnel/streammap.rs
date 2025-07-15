@@ -1,8 +1,9 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
 use crate::congestion::sendme;
+use crate::stream::queue::StreamQueueSender;
 use crate::stream::{AnyCmdChecker, StreamFlowControl};
-use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::tunnel::circuit::StreamMpscReceiver;
 use crate::tunnel::halfstream::HalfStream;
 use crate::tunnel::reactor::circuit::RECV_WINDOW_INIT;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
@@ -32,7 +33,7 @@ use tracing::debug;
 #[pin_project]
 pub(super) struct OpenStreamEnt {
     /// Sink to send relay cells tagged for this stream into.
-    pub(super) sink: StreamMpscSender<UnparsedRelayMsg>,
+    pub(super) sink: StreamQueueSender,
     /// Number of cells dropped due to the stream disappearing before we can
     /// transform this into an `EndSent`.
     pub(super) dropped: u16,
@@ -283,7 +284,7 @@ impl StreamMap {
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
-        sink: StreamMpscSender<UnparsedRelayMsg>,
+        sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         flow_ctrl: StreamFlowControl,
         cmd_checker: AnyCmdChecker,
@@ -323,7 +324,7 @@ impl StreamMap {
     #[cfg(feature = "hs-service")]
     pub(super) fn add_ent_with_id(
         &mut self,
-        sink: StreamMpscSender<UnparsedRelayMsg>,
+        sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         flow_ctrl: StreamFlowControl,
         id: StreamId,
@@ -528,6 +529,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::stream::queue::fake_stream_queue;
     use crate::tunnel::circuit::test::fake_mpsc;
     use crate::{congestion::sendme::StreamSendWindow, stream::DataCmdChecker};
 
@@ -551,7 +553,7 @@ mod test {
 
         // Try add_ent
         for n in 1..=128 {
-            let (sink, _) = fake_mpsc(128);
+            let (sink, _) = fake_stream_queue(128);
             let (_, rx) = fake_mpsc(2);
             let id = map.add_ent(
                 sink,

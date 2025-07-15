@@ -17,6 +17,7 @@ mod flow_control;
 #[cfg(feature = "hs-service")]
 mod incoming;
 mod params;
+pub(crate) mod queue;
 mod raw;
 mod resolve;
 
