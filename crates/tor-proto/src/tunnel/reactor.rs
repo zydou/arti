@@ -546,7 +546,7 @@ struct ConfluxHeapEntry {
 #[cfg(feature = "conflux")]
 impl Ord for ConfluxHeapEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.msg.cmp(&other.msg).reverse()
+        self.msg.cmp(&other.msg)
     }
 }
 
