@@ -1,9 +1,7 @@
 //! Code for implementing flow control (stream-level).
 
 use postage::watch;
-use tor_cell::relaycell::flow_ctrl::{
-    FlowCtrlVersion, UnrecognizedVersionError, Xoff, Xon, XonKbpsEwma,
-};
+use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -216,15 +214,7 @@ impl StreamFlowControl {
                 // remember that we last sent an XOFF
                 control.last_sent_xon_xoff = Some(LastSentXonXoff::Xoff);
 
-                // hopefully a future rust allows us to make this less verbose
-                const FLOW_CTRL_VER: FlowCtrlVersion = match FlowCtrlVersion::new(0) {
-                    Ok(x) => x,
-                    Err(UnrecognizedVersionError { .. }) => {
-                        panic!("0 is an unrecognized flow control version?!");
-                    }
-                };
-
-                Ok(Some(Xoff::new(FLOW_CTRL_VER)))
+                Ok(Some(Xoff::new(FlowCtrlVersion::V0)))
             }
         }
     }

@@ -104,6 +104,9 @@ impl Body for Xoff {
 pub struct FlowCtrlVersion(u8);
 
 impl FlowCtrlVersion {
+    /// Version 0, which is currently the only known version.
+    pub const V0: Self = Self(0);
+
     /// If `version` is a recognized XON/XOFF version, returns a new [`FlowCtrlVersion`].
     pub const fn new(version: u8) -> Result<Self, UnrecognizedVersionError> {
         if version != 0 {
