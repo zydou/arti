@@ -3470,7 +3470,12 @@ pub(crate) mod test {
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     struct ConfluxExitState<I: Iterator<Item = Option<Duration>>> {
-        /// The runtime.
+        /// The runtime, shared by the test client and mock exit tasks.
+        ///
+        /// The mutex prevents the client and mock exit tasks from calling
+        /// functions like [`MockRuntime::advance_until_stalled`]
+        /// or [`MockRuntime::progress_until_stalled]` concurrently,
+        /// as this is not supported by the mock runtime.
         runtime: Arc<AsyncMutex<MockRuntime>>,
         /// The client view of the tunnel.
         tunnel: Arc<ClientCirc>,
