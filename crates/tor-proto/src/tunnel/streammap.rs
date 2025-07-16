@@ -11,7 +11,7 @@ use crate::{Error, Result};
 use pin_project::pin_project;
 use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
-use tor_cell::relaycell::flow_ctrl::Xoff;
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -88,6 +88,15 @@ impl OpenStreamEnt {
         // This isn't really an issue in practice since *most* of the bytes will be queued in the
         // `StreamQueueSender`, the XOFF threshold is very large, and we don't need to be exact.
         self.sink.approx_stream_bytes()
+    }
+
+    /// Check if we should send an XON message.
+    ///
+    /// If we should, then returns the XON message that should be sent.
+    /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
+    pub(crate) fn maybe_send_xon(&mut self, rate: XonKbpsEwma) -> Result<Option<Xon>> {
+        self.flow_ctrl
+            .maybe_send_xon(rate, self.approx_stream_bytes_buffered())
     }
 
     /// Check if we should send an XOFF message.

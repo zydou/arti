@@ -20,7 +20,7 @@ use futures::Stream;
 use postage::watch;
 use safelog::sensitive as sv;
 use tor_cell::chancell::BoxedCellBody;
-use tor_cell::relaycell::flow_ctrl::Xoff;
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
@@ -324,6 +324,29 @@ impl CircHop {
             return Ok(Some(cell));
         }
         Ok(None)
+    }
+
+    /// Check if we should send an XON message.
+    ///
+    /// If we should, then returns the XON message that should be sent.
+    pub(crate) fn maybe_send_xon(
+        &mut self,
+        rate: XonKbpsEwma,
+        id: StreamId,
+    ) -> Result<Option<Xon>> {
+        // the call below will return an error if XON/XOFF aren't supported,
+        // so we check for support here
+        if !self.ccontrol.uses_xon_xoff() {
+            return Ok(None);
+        }
+
+        let mut map = self.map.lock().expect("lock poisoned");
+        let Some(StreamEntMut::Open(ent)) = map.get_mut(id) else {
+            // stream went away
+            return Ok(None);
+        };
+
+        ent.maybe_send_xon(rate)
     }
 
     /// Check if we should send an XOFF message.

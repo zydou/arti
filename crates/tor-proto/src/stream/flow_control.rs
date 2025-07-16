@@ -189,6 +189,38 @@ impl StreamFlowControl {
         }
     }
 
+    /// Check if we should send an XON message.
+    ///
+    /// If we should, then returns the XON message that should be sent.
+    /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
+    pub(crate) fn maybe_send_xon(
+        &mut self,
+        rate: XonKbpsEwma,
+        buffer_len: usize,
+    ) -> Result<Option<Xon>> {
+        match &mut self.e {
+            StreamFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
+                "XON messages cannot be sent with window flow control".into(),
+            )),
+            #[cfg(feature = "flowctl-cc")]
+            StreamFlowControlEnum::XonXoffBased(control) => {
+                if buffer_len > CC_XOFF_CLIENT {
+                    // we can't send an XON, and we should have already sent an XOFF when the queue first
+                    // exceeded the limit (see `maybe_send_xoff()`)
+                    debug_assert!(matches!(
+                        control.last_sent_xon_xoff,
+                        Some(LastSentXonXoff::Xoff),
+                    ));
+                    return Ok(None);
+                }
+
+                control.last_sent_xon_xoff = Some(LastSentXonXoff::Xon(rate));
+
+                Ok(Some(Xon::new(FlowCtrlVersion::V0, rate)))
+            }
+        }
+    }
+
     /// Check if we should send an XOFF message.
     ///
     /// If we should, then returns the XOFF message that should be sent.
@@ -234,7 +266,8 @@ struct XonXoffControl {
 #[derive(Debug)]
 enum LastSentXonXoff {
     /// XON message with a rate.
-    // TODO(arti#534): we'll use this when we implement sending XON
+    // TODO: I'm expecting that we'll want the `XonKbpsEwma` in the future.
+    // If that doesn't end up being the case, then we should remove it.
     #[expect(dead_code)]
     Xon(XonKbpsEwma),
     /// XOFF message.

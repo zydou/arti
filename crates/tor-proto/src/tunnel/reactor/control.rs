@@ -22,6 +22,7 @@ use crate::Result;
 use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
 use postage::watch;
 use tor_cell::chancell::msg::HandshakeType;
+use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
@@ -299,6 +300,8 @@ pub(crate) enum CtrlCmd {
 pub(crate) enum FlowCtrlMsg {
     /// Send a SENDME message on this stream.
     Sendme,
+    /// Send an XON message on this stream with the given rate.
+    Xon(XonKbpsEwma),
 }
 
 /// A control message handler object. Keep a reference to the Reactor tying its lifetime to it.
@@ -556,6 +559,11 @@ impl<'a> ControlHandler<'a> {
                             done: None,
                         }))
                     }
+                    FlowCtrlMsg::Xon(rate) => Ok(Some(RunOnceCmdInner::MaybeSendXon {
+                        rate,
+                        hop,
+                        stream_id,
+                    })),
                 }
             }
             // TODO(conflux): this should specify which leg to send the msg on
