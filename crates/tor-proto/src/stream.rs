@@ -17,6 +17,7 @@ mod flow_control;
 #[cfg(feature = "hs-service")]
 mod incoming;
 mod params;
+pub(crate) mod queue;
 mod raw;
 mod resolve;
 
@@ -42,4 +43,4 @@ pub use tor_cell::relaycell::msg::IpVersionPreference;
 #[cfg_attr(docsrs, doc(cfg(feature = "stream-ctrl")))]
 pub use {ctrl::ClientStreamCtrl, data::ClientDataStreamCtrl};
 
-pub(crate) use flow_control::{StreamRateLimit, StreamSendFlowControl};
+pub(crate) use flow_control::{StreamFlowControl, StreamRateLimit};

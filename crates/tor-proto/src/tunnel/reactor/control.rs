@@ -9,6 +9,7 @@ use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
+use crate::stream::queue::StreamQueueSender;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
@@ -22,7 +23,7 @@ use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
 use postage::watch;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
 use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
@@ -40,7 +41,7 @@ use super::{Circuit, ConfluxLinkResultChannel};
 use oneshot_fused_workaround as oneshot;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
-use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::tunnel::circuit::StreamMpscReceiver;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;
@@ -110,7 +111,7 @@ pub(crate) enum CtrlMsg {
         /// SENDME cells once we've read enough out of the other end. If it *does* block, we
         /// can assume someone is trying to send us more cells than they should, and abort
         /// the stream.
-        sender: StreamMpscSender<UnparsedRelayMsg>,
+        sender: StreamQueueSender,
         /// A channel to receive messages to send on this stream from.
         rx: StreamMpscReceiver<AnyRelayMsg>,
         /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
@@ -164,11 +165,16 @@ pub(crate) enum CtrlMsg {
         /// and the handler installed.
         sender: oneshot::Sender<Result<()>>,
     },
-    /// Send a SENDME cell (used to ask for more data to be sent) on the given stream.
-    SendSendme {
-        /// The stream ID to send a SENDME for.
+    /// Inform the reactor that there's a flow control update for a given stream.
+    ///
+    /// The reactor will decide how to handle this update depending on the type of flow control and
+    /// the current state of the stream.
+    FlowCtrlUpdate {
+        /// The type of flow control update, and any associated metadata.
+        msg: FlowCtrlMsg,
+        /// The stream ID that the update is for.
         stream_id: StreamId,
-        /// The hop number the stream is on.
+        /// The hop that the stream is on.
         hop: HopLocation,
     },
     /// Get the clock skew claimed by the first hop of the circuit.
@@ -286,6 +292,13 @@ pub(crate) enum CtrlCmd {
         /// or an error if the reactor's tunnel is multi-path.
         answer: oneshot::Sender<StdResult<Circuit, Bug>>,
     },
+}
+
+/// A flow control update message.
+#[derive(Debug)]
+pub(crate) enum FlowCtrlMsg {
+    /// Send a SENDME message on this stream.
+    Sendme,
 }
 
 /// A control message handler object. Keep a reference to the Reactor tying its lifetime to it.
@@ -482,60 +495,68 @@ impl<'a> ControlHandler<'a> {
                 reason: streammap::TerminateReason::ExplicitEnd,
                 done: Some(done),
             })),
-            // TODO(#1860): remove stream-level sendme support
-            CtrlMsg::SendSendme { stream_id, hop } => {
-                let (leg_id, hop_num) = match self.reactor.resolve_hop_location(hop) {
-                    Ok(x) => x,
-                    Err(NoJoinPointError) => {
-                        // A stream tried to send a stream-level SENDME message to the join point of
-                        // a tunnel that has never had a join point. Currently in arti, only a
-                        // `StreamTarget` asks us to send a stream-level SENDME, and this tunnel
-                        // originally created the `StreamTarget` to begin with. So this is a
-                        // legitimate bug somewhere in the tunnel code.
-                        let err = internal!(
-                            "Could not send a stream-level SENDME to a join point on a tunnel without a join point",
-                        );
-                        // TODO: Rather than calling `warn_report` here, we should call
-                        // `trace_report!` from `Reactor::run_once()`. Since this is an internal
-                        // error, `trace_report!` should log it at "warn" level.
-                        warn_report!(err, "Tunnel reactor error");
-                        return Err(err.into());
-                    }
-                };
+            CtrlMsg::FlowCtrlUpdate {
+                msg,
+                stream_id,
+                hop,
+            } => {
+                match msg {
+                    FlowCtrlMsg::Sendme => {
+                        let (leg_id, hop_num) = match self.reactor.resolve_hop_location(hop) {
+                            Ok(x) => x,
+                            Err(NoJoinPointError) => {
+                                // A stream tried to send a stream-level SENDME message to the join point of
+                                // a tunnel that has never had a join point. Currently in arti, only a
+                                // `StreamTarget` asks us to send a stream-level SENDME, and this tunnel
+                                // originally created the `StreamTarget` to begin with. So this is a
+                                // legitimate bug somewhere in the tunnel code.
+                                let err = internal!(
+                                    "Could not send a stream-level SENDME to a join point on a tunnel without a join point",
+                                );
+                                // TODO: Rather than calling `warn_report` here, we should call
+                                // `trace_report!` from `Reactor::run_once()`. Since this is an internal
+                                // error, `trace_report!` should log it at "warn" level.
+                                warn_report!(err, "Tunnel reactor error");
+                                return Err(err.into());
+                            }
+                        };
 
-                // Congestion control decides if we can send stream level SENDMEs or not.
-                let sendme_required = match self.reactor.uses_stream_sendme(leg_id, hop_num) {
-                    Some(x) => x,
-                    None => {
-                        // The leg/hop has disappeared. This is fine since the stream may have ended
-                        // and been cleaned up while this `CtrlMsg::SendSendme` message was queued.
-                        // It is possible that is a bug and this is an incorrect leg/hop number, but
-                        // it's not currently possible to differentiate between an incorrect leg/hop
-                        // number and a circuit hop that has been closed.
-                        debug!("Could not send a stream-level SENDME on a hop that does not exist. Ignoring.");
-                        return Ok(None);
-                    }
-                };
+                        // Congestion control decides if we can send stream level SENDMEs or not.
+                        let sendme_required = match self.reactor.uses_stream_sendme(leg_id, hop_num)
+                        {
+                            Some(x) => x,
+                            None => {
+                                // The leg/hop has disappeared. This is fine since the stream may have ended
+                                // and been cleaned up while this `CtrlMsg::SendSendme` message was queued.
+                                // It is possible that is a bug and this is an incorrect leg/hop number, but
+                                // it's not currently possible to differentiate between an incorrect leg/hop
+                                // number and a circuit hop that has been closed.
+                                debug!("Could not send a stream-level SENDME on a hop that does not exist. Ignoring.");
+                                return Ok(None);
+                            }
+                        };
 
-                if !sendme_required {
-                    // Nothing to do, so discard the SENDME.
-                    return Ok(None);
+                        if !sendme_required {
+                            // Nothing to do, so discard the SENDME.
+                            return Ok(None);
+                        }
+
+                        let sendme = Sendme::new_empty();
+                        let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
+
+                        let cell = SendRelayCell {
+                            hop: hop_num,
+                            early: false,
+                            cell,
+                        };
+
+                        Ok(Some(RunOnceCmdInner::Send {
+                            leg: leg_id,
+                            cell,
+                            done: None,
+                        }))
+                    }
                 }
-
-                let sendme = Sendme::new_empty();
-                let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
-
-                let cell = SendRelayCell {
-                    hop: hop_num,
-                    early: false,
-                    cell,
-                };
-
-                Ok(Some(RunOnceCmdInner::Send {
-                    leg: leg_id,
-                    cell,
-                    done: None,
-                }))
             }
             // TODO(conflux): this should specify which leg to send the msg on
             // (currently we send it down the primary leg).

@@ -46,6 +46,8 @@ use tor_rtcompat::{DynTimeProvider, SleepProvider};
 pub(crate) trait CongestionControlAlgorithm: Send + std::fmt::Debug {
     /// Return true iff this algorithm uses stream level SENDMEs.
     fn uses_stream_sendme(&self) -> bool;
+    /// Return true iff this algorithm uses stream level XON/XOFFs.
+    fn uses_xon_xoff(&self) -> bool;
     /// Return true iff the next cell is expected to be a SENDME.
     fn is_next_cell_sendme(&self) -> bool;
     /// Return true iff a cell can be sent on the wire according to the congestion control
@@ -295,6 +297,12 @@ impl CongestionControl {
     /// At the moment, only FixedWindow uses it. It has been eliminated with Vegas.
     pub(crate) fn uses_stream_sendme(&self) -> bool {
         self.algorithm.uses_stream_sendme()
+    }
+
+    /// Return true iff the underlying algorithm uses stream level XON/XOFFs.
+    /// At the moment, only Vegas uses it.
+    pub(crate) fn uses_xon_xoff(&self) -> bool {
+        self.algorithm.uses_xon_xoff()
     }
 
     /// Return true iff a DATA cell is allowed to be sent based on the congestion control state.

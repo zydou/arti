@@ -4,7 +4,7 @@
 //! we might still receive some cells.
 
 use crate::congestion::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
-use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamStatus};
 use crate::Result;
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
@@ -18,9 +18,10 @@ use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 /// see <https://gitlab.torproject.org/tpo/core/tor/-/issues/25573>.
 #[derive(Debug)]
 pub(super) struct HalfStream {
-    /// Send flow control for this stream. Used to detect whether we get too
-    /// many SENDME cells.
-    send_flow_control: StreamSendFlowControl,
+    /// Flow control for this stream.
+    ///
+    /// Used to process incoming flow control messages (SENDME, XON, etc).
+    flow_control: StreamFlowControl,
     /// Receive window for this stream. Used to detect whether we get too
     /// many data cells.
     recvw: StreamRecvWindow,
@@ -31,12 +32,12 @@ pub(super) struct HalfStream {
 impl HalfStream {
     /// Create a new half-closed stream.
     pub(super) fn new(
-        send_flow_control: StreamSendFlowControl,
+        flow_control: StreamFlowControl,
         recvw: StreamRecvWindow,
         cmd_checker: AnyCmdChecker,
     ) -> Self {
         HalfStream {
-            send_flow_control,
+            flow_control,
             recvw,
             cmd_checker,
         }
@@ -57,15 +58,15 @@ impl HalfStream {
         // if possible
         match msg.cmd() {
             RelayCmd::SENDME => {
-                self.send_flow_control.put_for_incoming_sendme(msg)?;
+                self.flow_control.put_for_incoming_sendme(msg)?;
                 return Ok(Open);
             }
             RelayCmd::XON => {
-                self.send_flow_control.handle_incoming_xon(msg)?;
+                self.flow_control.handle_incoming_xon(msg)?;
                 return Ok(Open);
             }
             RelayCmd::XOFF => {
-                self.send_flow_control.handle_incoming_xoff(msg)?;
+                self.flow_control.handle_incoming_xoff(msg)?;
                 return Ok(Open);
             }
             _ => {}
@@ -130,7 +131,7 @@ mod test {
         let sendw = StreamSendWindow::new(450);
 
         let mut hs = HalfStream::new(
-            StreamSendFlowControl::new_window_based(sendw),
+            StreamFlowControl::new_window_based(sendw),
             StreamRecvWindow::new(20),
             DataCmdChecker::new_any(),
         );
@@ -153,7 +154,7 @@ mod test {
 
     fn hs_new() -> HalfStream {
         HalfStream::new(
-            StreamSendFlowControl::new_window_based(StreamSendWindow::new(20)),
+            StreamFlowControl::new_window_based(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             DataCmdChecker::new_any(),
         )
@@ -210,7 +211,7 @@ mod test {
                 .unwrap();
         }
         let mut hs = HalfStream::new(
-            StreamSendFlowControl::new_window_based(StreamSendWindow::new(20)),
+            StreamFlowControl::new_window_based(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             cmd_checker,
         );

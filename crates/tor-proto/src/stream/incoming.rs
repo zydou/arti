@@ -2,11 +2,9 @@
 
 use bitvec::prelude::*;
 
-use super::{AnyCmdChecker, DataStream, StreamReceiver, StreamStatus};
-use crate::circuit::ClientCircSyncView;
-use crate::memquota::StreamAccount;
+use super::{AnyCmdChecker, DataStream, StreamStatus};
+use crate::circuit::{ClientCircSyncView, StreamComponents};
 use crate::tunnel::reactor::CloseStreamBehavior;
-use crate::tunnel::StreamTarget;
 use crate::{Error, Result};
 use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;
@@ -31,12 +29,8 @@ pub struct IncomingStream {
     time_provider: DynTimeProvider,
     /// The message that the client sent us to begin the stream.
     request: IncomingStreamRequest,
-    /// The information that we'll use to wire up the stream, if it is accepted.
-    stream: StreamTarget,
-    /// The underlying `StreamReceiver`.
-    receiver: StreamReceiver,
-    /// The memory quota account that should be used for this stream's data
-    memquota: StreamAccount,
+    /// Stream components used to assemble the [`DataStream`].
+    components: StreamComponents,
 }
 
 impl IncomingStream {
@@ -44,16 +38,12 @@ impl IncomingStream {
     pub(crate) fn new(
         time_provider: DynTimeProvider,
         request: IncomingStreamRequest,
-        stream: StreamTarget,
-        receiver: StreamReceiver,
-        memquota: StreamAccount,
+        components: StreamComponents,
     ) -> Self {
         Self {
             time_provider,
             request,
-            stream,
-            receiver,
-            memquota,
+            components,
         }
     }
 
@@ -68,18 +58,21 @@ impl IncomingStream {
         let Self {
             time_provider,
             request,
-            mut stream,
-            receiver,
-            memquota,
+            components:
+                StreamComponents {
+                    mut target,
+                    stream_receiver,
+                    memquota,
+                },
         } = self;
 
         match request {
             IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
-                stream.send(message.into()).await?;
+                target.send(message.into()).await?;
                 Ok(DataStream::new_connected(
                     time_provider,
-                    receiver,
-                    stream,
+                    stream_receiver,
+                    target,
                     memquota,
                 ))
             }
@@ -103,7 +96,7 @@ impl IncomingStream {
         &mut self,
         message: CloseStreamBehavior,
     ) -> Result<oneshot::Receiver<Result<()>>> {
-        self.stream.close_pending(message)
+        self.components.target.close_pending(message)
     }
 
     /// Ignore this request without replying to the client.

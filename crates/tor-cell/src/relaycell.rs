@@ -17,7 +17,6 @@ use rand::{CryptoRng, Rng};
 pub mod conflux;
 pub mod extend;
 mod extlist;
-#[cfg(feature = "flowctl-cc")]
 pub mod flow_ctrl;
 #[cfg(feature = "hs")]
 pub mod hs;
@@ -445,6 +444,12 @@ const LENGTH_OFFSET_V0: usize = 1 + 2 + 2 + 4; // command, recognized, stream_id
 /// Position of the payload data length within the V1 cell body.
 const LENGTH_OFFSET_V1: usize = 16 + 1; // tag, command.
 
+/// The maximum length of a V0 cell message body.
+const BODY_MAX_LEN_V0: u16 = 509;
+
+/// The maximum length of a V1 cell message body.
+const BODY_MAX_LEN_V1: u16 = 509;
+
 impl UnparsedRelayMsg {
     /// Wrap a BoxedCellBody as an UnparsedRelayMsg.
     ///
@@ -510,18 +515,38 @@ impl UnparsedRelayMsg {
             }
         }
     }
-    /// Return the "length" field of the cell.
+    /// Return the "length" field of a data cell, or 0 if not a data cell.
     ///
     /// This is the size of the cell data (the "data" field), not the size of the cell.
-    /// No bounds checking or validation is performed.
-    pub fn data_len(&self) -> u16 {
+    ///
+    /// If the field value is invalid (for example >509 for V0 cells), an error will be returned.
+    pub fn data_len(&self) -> Result<u16> {
+        if self.cmd() != RelayCmd::DATA {
+            return Ok(0);
+        }
+
         let bytes: [u8; 2] = match &self.internal {
             UnparsedRelayMsgInternal::V0(body) => &body[LENGTH_OFFSET_V0..LENGTH_OFFSET_V0 + 2],
             UnparsedRelayMsgInternal::V1(body) => &body[LENGTH_OFFSET_V1..LENGTH_OFFSET_V1 + 2],
         }
         .try_into()
         .expect("two-byte slice was not two bytes long!?");
-        u16::from_be_bytes(bytes)
+
+        let len = u16::from_be_bytes(bytes);
+
+        let max = match &self.internal {
+            UnparsedRelayMsgInternal::V0(_body) => BODY_MAX_LEN_V0,
+            UnparsedRelayMsgInternal::V1(_body) => BODY_MAX_LEN_V1,
+        };
+
+        if len > max {
+            // TODO: This error value isn't quite right as it has the error message "object length
+            // too large to represent as usize", which isn't what we're checking here.
+            // But it wouldn't make sense to add a different but similar variant to `Error`.
+            return Err(Error::BadLengthValue);
+        }
+
+        Ok(len)
     }
     /// Decode this unparsed cell into a given cell type.
     pub fn decode<M: RelayMsg>(self) -> Result<RelayMsgOuter<M>> {
@@ -645,7 +670,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         /// The position of the body a relay cell.
         const BODY_POS: usize = 11;
 
-        let body = BodyWrapper(Box::new([0_u8; 509]));
+        let body = BodyWrapper(Box::new([0_u8; BODY_MAX_LEN_V0 as usize]));
 
         let mut w = crate::slicewriter::SliceWriter::new(body);
         w.write_u8(self.msg.cmd().into());
@@ -683,7 +708,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         const LEN_POS_V1: usize = 16 + 1; // Skipping tag, command.
 
         let cmd = self.msg.cmd();
-        let body = BodyWrapper(Box::new([0_u8; 509]));
+        let body = BodyWrapper(Box::new([0_u8; BODY_MAX_LEN_V1 as usize]));
         let mut w = crate::slicewriter::SliceWriter::new(body);
         w.advance(16); // Tag: 16 bytes
         w.write_u8(cmd.get()); // Command: 1 byte.

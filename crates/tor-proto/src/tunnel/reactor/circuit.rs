@@ -18,14 +18,13 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
+use crate::stream::queue::{stream_queue, StreamQueueSender};
 use crate::stream::{AnyCmdChecker, StreamRateLimit, StreamStatus};
 use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
 use crate::tunnel::circuit::unique_id::UniqId;
-use crate::tunnel::circuit::{
-    CircuitRxReceiver, MutableState, StreamMpscReceiver, StreamMpscSender,
-};
+use crate::tunnel::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::tunnel::handshake::RelayCryptLayerProtocol;
 use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::streammap;
@@ -673,11 +672,15 @@ impl Circuit {
             conflux.inc_last_seq_delivered(&msg);
         }
 
+        // Returns the original message if it's an an incoming stream request
+        // that we need to handle.
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         let res = hop.handle_msg(cell_counts_toward_windows, streamid, msg)?;
 
+        // If it was an incoming stream request, we don't need to worry about
+        // sending an XOFF as there's no stream data within this message.
         if let Some(msg) = res {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "hs-service")] {
@@ -686,6 +689,17 @@ impl Circuit {
                     return Err(internal!("incoming stream not rejected, but hs-service feature is disabled?!").into());
                 }
             }
+        }
+
+        // We may want to send an XOFF if the incoming buffer is too large.
+        if let Some(cell) = hop.maybe_send_xoff(streamid)? {
+            let cell = AnyRelayMsgOuter::new(Some(streamid), cell.into());
+            let cell = SendRelayCell {
+                hop: hopnum,
+                early: false,
+                cell,
+            };
+            return Ok(Some(CircuitCmd::Send(cell)));
         }
 
         Ok(None)
@@ -850,10 +864,12 @@ impl Circuit {
 
         let memquota = StreamAccount::new(&self.memquota)?;
 
-        let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER).new_mq(
-            self.chan_sender.as_inner().time_provider().clone(),
-            memquota.as_raw_account(),
+        let (sender, receiver) = stream_queue(
+            STREAM_READER_BUFFER,
+            &memquota,
+            self.chan_sender.as_inner().time_provider(),
         )?;
+
         let (msg_tx, msg_rx) = MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(
             self.chan_sender.as_inner().time_provider().clone(),
             memquota.as_raw_account(),
@@ -1355,7 +1371,7 @@ impl Circuit {
         &mut self,
         hop_num: HopNum,
         message: AnyRelayMsg,
-        sender: StreamMpscSender<UnparsedRelayMsg>,
+        sender: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_notifier: watch::Sender<StreamRateLimit>,
         cmd_checker: AnyCmdChecker,

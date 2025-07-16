@@ -54,7 +54,7 @@ experimental = [
     "counter-galois-onion",
 ]
 conflux = ["tor-cell/conflux", "__is_experimental"]
-flowctl-cc = ["tor-cell/flowctl-cc", "__is_experimental"]
+flowctl-cc = ["__is_experimental"]
 
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]

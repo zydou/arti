@@ -6,8 +6,9 @@ use crate::circuit::HopSettings;
 use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
-use crate::stream::{AnyCmdChecker, StreamRateLimit, StreamSendFlowControl, StreamStatus};
-use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::stream::queue::StreamQueueSender;
+use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamRateLimit, StreamStatus};
+use crate::tunnel::circuit::StreamMpscReceiver;
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
@@ -19,6 +20,7 @@ use futures::Stream;
 use postage::watch;
 use safelog::sensitive as sv;
 use tor_cell::chancell::BoxedCellBody;
+use tor_cell::relaycell::flow_ctrl::Xoff;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
@@ -266,12 +268,12 @@ impl CircHop {
     pub(crate) fn begin_stream(
         &mut self,
         message: AnyRelayMsg,
-        sender: StreamMpscSender<UnparsedRelayMsg>,
+        sender: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_send_flow_ctrl(rate_limit_updater)?;
+        let flow_ctrl = self.build_flow_ctrl(rate_limit_updater)?;
         let r =
             self.map
                 .lock()
@@ -322,6 +324,25 @@ impl CircHop {
             return Ok(Some(cell));
         }
         Ok(None)
+    }
+
+    /// Check if we should send an XOFF message.
+    ///
+    /// If we should, then returns the XOFF message that should be sent.
+    pub(super) fn maybe_send_xoff(&mut self, id: StreamId) -> Result<Option<Xoff>> {
+        // the call below will return an error if XON/XOFF aren't supported,
+        // so we check for support here
+        if !self.ccontrol.uses_xon_xoff() {
+            return Ok(None);
+        }
+
+        let mut map = self.map.lock().expect("lock poisoned");
+        let Some(StreamEntMut::Open(ent)) = map.get_mut(id) else {
+            // stream went away
+            return Ok(None);
+        };
+
+        ent.maybe_send_xoff()
     }
 
     /// Return the format that is used for relay cells sent to this hop.
@@ -391,7 +412,7 @@ impl CircHop {
     #[cfg(feature = "hs-service")]
     pub(super) fn add_ent_with_id(
         &self,
-        sink: StreamMpscSender<UnparsedRelayMsg>,
+        sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         stream_id: StreamId,
@@ -401,7 +422,7 @@ impl CircHop {
         hop_map.add_ent_with_id(
             sink,
             rx,
-            self.build_send_flow_ctrl(rate_limit_updater)?,
+            self.build_flow_ctrl(rate_limit_updater)?,
             stream_id,
             cmd_checker,
         )?;
@@ -498,20 +519,20 @@ impl CircHop {
         Ok(None)
     }
 
-    /// Builds the (sending) flow control handler for a new stream.
+    /// Builds the reactor's flow control handler for a new stream.
     // TODO: remove the `Result` once we remove the "flowctl-cc" feature
     #[cfg_attr(feature = "flowctl-cc", expect(clippy::unnecessary_wraps))]
-    fn build_send_flow_ctrl(
+    fn build_flow_ctrl(
         &self,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
-    ) -> Result<StreamSendFlowControl> {
+    ) -> Result<StreamFlowControl> {
         if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            Ok(StreamSendFlowControl::new_window_based(window))
+            Ok(StreamFlowControl::new_window_based(window))
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    Ok(StreamSendFlowControl::new_xon_xoff_based(rate_limit_updater))
+                    Ok(StreamFlowControl::new_xon_xoff_based(rate_limit_updater))
                 } else {
                     Err(internal!(
                         "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",

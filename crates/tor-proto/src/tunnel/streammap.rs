@@ -1,8 +1,9 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
 use crate::congestion::sendme;
-use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
-use crate::tunnel::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::stream::queue::StreamQueueSender;
+use crate::stream::{AnyCmdChecker, StreamFlowControl};
+use crate::tunnel::circuit::StreamMpscReceiver;
 use crate::tunnel::halfstream::HalfStream;
 use crate::tunnel::reactor::circuit::RECV_WINDOW_INIT;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
@@ -10,6 +11,7 @@ use crate::{Error, Result};
 use pin_project::pin_project;
 use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
+use tor_cell::relaycell::flow_ctrl::Xoff;
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -32,7 +34,7 @@ use tracing::debug;
 #[pin_project]
 pub(super) struct OpenStreamEnt {
     /// Sink to send relay cells tagged for this stream into.
-    pub(super) sink: StreamMpscSender<UnparsedRelayMsg>,
+    pub(super) sink: StreamQueueSender,
     /// Number of cells dropped due to the stream disappearing before we can
     /// transform this into an `EndSent`.
     pub(super) dropped: u16,
@@ -41,7 +43,7 @@ pub(super) struct OpenStreamEnt {
     /// Flow control for this stream.
     // Non-pub because we need to proxy `put_for_incoming_sendme` to ensure
     // `flow_ctrl_waker` is woken.
-    flow_ctrl: StreamSendFlowControl,
+    flow_ctrl: StreamFlowControl,
     /// Stream for cells that should be sent down this stream.
     // Not directly exposed. This should only be polled via
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
@@ -70,6 +72,26 @@ impl OpenStreamEnt {
             waker.wake();
         }
         Ok(())
+    }
+
+    /// Check if we should send an XOFF message.
+    ///
+    /// If we should, then returns the XOFF message that should be sent.
+    /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
+    pub(super) fn maybe_send_xoff(&mut self) -> Result<Option<Xoff>> {
+        // NOTE: Here we want to know the total number of buffered incoming stream data bytes. We
+        // have access to the `StreamQueueSender` and can get how many bytes are buffered in that
+        // queue.
+        // But this isn't always the total number of buffered bytes since some bytes might be
+        // buffered outside of this queue.
+        // For example `DataReaderImpl` stores some stream bytes in its `pending` buffer, and we
+        // have no way to access that from here in the reactor. So it's impossible to know the total
+        // number of incoming stream data bytes that are buffered.
+        //
+        // This isn't really an issue in practice since *most* of the bytes will be queued in the
+        // `StreamQueueSender`, the XOFF threshold is very large, and we don't need to be exact.
+        self.flow_ctrl
+            .maybe_send_xoff(self.sink.approx_stream_bytes())
     }
 
     /// Handle an incoming XON message.
@@ -283,9 +305,9 @@ impl StreamMap {
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
-        sink: StreamMpscSender<UnparsedRelayMsg>,
+        sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        flow_ctrl: StreamSendFlowControl,
+        flow_ctrl: StreamFlowControl,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
         let mut stream_ent = OpenStreamEntStream {
@@ -323,9 +345,9 @@ impl StreamMap {
     #[cfg(feature = "hs-service")]
     pub(super) fn add_ent_with_id(
         &mut self,
-        sink: StreamMpscSender<UnparsedRelayMsg>,
+        sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        flow_ctrl: StreamSendFlowControl,
+        flow_ctrl: StreamFlowControl,
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
@@ -528,6 +550,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::stream::queue::fake_stream_queue;
     use crate::tunnel::circuit::test::fake_mpsc;
     use crate::{congestion::sendme::StreamSendWindow, stream::DataCmdChecker};
 
@@ -551,12 +574,12 @@ mod test {
 
         // Try add_ent
         for n in 1..=128 {
-            let (sink, _) = fake_mpsc(128);
+            let (sink, _) = fake_stream_queue(128);
             let (_, rx) = fake_mpsc(2);
             let id = map.add_ent(
                 sink,
                 rx,
-                StreamSendFlowControl::new_window_based(StreamSendWindow::new(500)),
+                StreamFlowControl::new_window_based(StreamSendWindow::new(500)),
                 DataCmdChecker::new_any(),
             )?;
             let expect_id: StreamId = next_id;

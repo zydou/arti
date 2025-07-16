@@ -895,6 +895,9 @@ impl DataReader {
 // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3076#note_3218210
 #[derive(Educe)]
 #[educe(Debug)]
+// We allow this since it's expected that streams will spend most of their time in the `Open` state,
+// and will be cleaned up shortly after closing.
+#[allow(clippy::large_enum_variant)]
 enum DataReaderState {
     /// In this state we have received an end cell or an error.
     Closed,

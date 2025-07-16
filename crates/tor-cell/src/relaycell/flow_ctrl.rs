@@ -47,7 +47,7 @@ impl Body for Xon {
     fn decode_from_reader(r: &mut Reader<'_>) -> tor_bytes::Result<Self> {
         let version = r.take_u8()?;
 
-        let version = match version.try_into() {
+        let version = match FlowCtrlVersion::new(version) {
             Ok(x) => x,
             Err(UnrecognizedVersionError) => {
                 return Err(Error::InvalidMessage("Unrecognized XON version.".into()));
@@ -82,7 +82,7 @@ impl Body for Xoff {
     fn decode_from_reader(r: &mut Reader<'_>) -> tor_bytes::Result<Self> {
         let version = r.take_u8()?;
 
-        let version = match version.try_into() {
+        let version = match FlowCtrlVersion::new(version) {
             Ok(x) => x,
             Err(UnrecognizedVersionError) => {
                 return Err(Error::InvalidMessage("Unrecognized XOFF version.".into()));
@@ -103,15 +103,25 @@ impl Body for Xoff {
 #[derive_deftly(HasMemoryCost)]
 pub struct FlowCtrlVersion(u8);
 
+impl FlowCtrlVersion {
+    /// Version 0, which is currently the only known version.
+    pub const V0: Self = Self(0);
+
+    /// If `version` is a recognized XON/XOFF version, returns a new [`FlowCtrlVersion`].
+    pub const fn new(version: u8) -> Result<Self, UnrecognizedVersionError> {
+        if version != 0 {
+            return Err(UnrecognizedVersionError);
+        }
+
+        Ok(Self(version))
+    }
+}
+
 impl TryFrom<u8> for FlowCtrlVersion {
     type Error = UnrecognizedVersionError;
 
     fn try_from(x: u8) -> Result<Self, Self::Error> {
-        if x != 0 {
-            return Err(UnrecognizedVersionError);
-        }
-
-        Ok(Self(x))
+        Self::new(x)
     }
 }
 
