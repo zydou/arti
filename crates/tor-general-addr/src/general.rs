@@ -178,7 +178,7 @@ impl std::str::FromStr for SocketAddr {
     type Err = AddrParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with(|c: char| (c.is_ascii_digit() || c == '[')) {
+        if s.starts_with(|c: char| c.is_ascii_digit() || c == '[') {
             // This looks like an inet address, and cannot be a qualified address.
             Ok(s.parse::<net::SocketAddr>()?.into())
         } else if let Some((schema, remainder)) = s.split_once(':') {

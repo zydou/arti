@@ -61,8 +61,7 @@ impl DownloadScheduleBuilder {
     pub(crate) fn build_retry_microdescs(&self) -> Result<DownloadSchedule, ConfigBuildError> {
         let mut bld = self.clone();
         bld.attempts.get_or_insert(3);
-        bld.initial_delay
-            .get_or_insert_with(|| (Duration::new(1, 0)));
+        bld.initial_delay.get_or_insert_with(|| Duration::new(1, 0));
         bld.parallelism.get_or_insert(4);
         bld.build()
     }

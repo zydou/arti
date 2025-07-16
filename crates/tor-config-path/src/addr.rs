@@ -123,7 +123,7 @@ impl FromStr for CfgAddr {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // NOTE: This logic is mostly duplicated from <FromStr for general::SocketAddr>;
         // I don't see an easy way to deduplicate it.
-        if s.starts_with(|c: char| (c.is_ascii_digit() || c == '[')) {
+        if s.starts_with(|c: char| c.is_ascii_digit() || c == '[') {
             // This looks like an inet address, and cannot be a qualified address.
             Ok(s.parse::<net::SocketAddr>()?.into())
         } else if let Some((schema, remainder)) = s.split_once(':') {
