@@ -3820,6 +3820,23 @@ pub(crate) mod test {
         }
     }
 
+    // In this test, a `ConfluxTestEndpoint::Client` task creates a multipath tunnel
+    // with 2 legs, opens a stream and sends 300 DATA cells on it.
+    //
+    // The test spawns two `ConfluxTestEndpoint::Relay` tasks (one for each leg),
+    // which mock the behavior of an exit. The two relay tasks introduce
+    // artificial delays before each SENDME sent to the client,
+    // in order to trigger it to switch its sending leg predictably.
+    //
+    // The mock exit does not send any data on the stream.
+    //
+    // This test checks that the client sends SWITCH cells at the right time,
+    // and that all the data it sent over the stream arrived at the exit.
+    //
+    // Note, however, that it doesn't check that the client sends the data in
+    // the right order. For simplicity, the test concatenates the data received
+    // on both legs, sorts it, and then compares it against the of the data sent
+    // by the client (TODO: improve this)
     #[traced_test]
     #[test]
     #[cfg(feature = "conflux")]
@@ -3990,6 +4007,16 @@ pub(crate) mod test {
         });
     }
 
+    // In this test, a `ConfluxTestEndpoint::Client` task creates a multipath tunnel
+    // with 2 legs, opens a stream and reads from the stream until the stream is closed.
+    //
+    // The test spawns two `ConfluxTestEndpoint::Relay` tasks (one for each leg),
+    // which mock the behavior of an exit. The two tasks send DATA and SWITCH
+    // cells on the two circuit "legs" such that some cells arrive out of order.
+    // This forces the client to buffer some cells, and then reorder them when
+    // the missing cells finally arrive.
+    //
+    // The client does not send any data on the stream.
     #[cfg(feature = "conflux")]
     async fn run_multipath_exit_to_client_test(
         rt: MockRuntime,
