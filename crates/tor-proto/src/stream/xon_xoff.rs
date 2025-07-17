@@ -9,6 +9,7 @@ use std::task::{Context, Poll};
 
 use futures::{AsyncRead, Stream};
 use pin_project::pin_project;
+use tor_basic_utils::assert_val_impl_trait;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 
 use crate::stream::DrainRateRequest;
@@ -73,8 +74,10 @@ impl<R: AsyncRead + BufferIsEmpty> AsyncRead for XonXoffReader<R> {
 
         // ensure that `drain_rate_request_stream` is a `FusedStream`,
         // which means that we don't need to worry about calling `poll_next()` repeatedly
-        fn ensure_fused<S: futures::stream::FusedStream>(_s: &S) {}
-        ensure_fused(&self_.ctrl.drain_rate_request_stream);
+        assert_val_impl_trait!(
+            self_.ctrl.drain_rate_request_stream,
+            futures::stream::FusedStream,
+        );
 
         // check if the circuit reactor has requested a drain rate update
         if let Poll::Ready(Some(())) = self_
