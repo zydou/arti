@@ -71,7 +71,7 @@ struct State<R, Q> {
     /// Current suggested effort that we publish in the pow-params line.
     ///
     /// This is only read by the PowManagerGeneric, and is written to by the [`RendRequestReceiver`].
-    suggested_effort: Arc<RwLock<Effort>>,
+    suggested_effort: Arc<Mutex<Effort>>,
 
     /// Runtime
     runtime: R,
@@ -210,7 +210,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let (publisher_update_tx, publisher_update_rx) =
             crate::mpsc_channel_no_memquota(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
-        let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
+        let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
         let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
         let rend_req_rx = RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
 
@@ -262,7 +262,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             .read()
             .expect("Lock poisoned")
             .suggested_effort
-            .read()
+            .lock()
             .expect("Lock poisoned"))
         .into();
 
@@ -279,7 +279,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                     inner.rend_request_rx.update_suggested_effort();
                     last_suggested_effort_update = runtime.now();
                     let new_suggested_effort: u32 =
-                        (*inner.suggested_effort.read().expect("Lock poisoned")).into();
+                        (*inner.suggested_effort.lock().expect("Lock poisoned")).into();
 
                     let percent_change =
                         f64::from(new_suggested_effort - last_published_suggested_effort)
@@ -490,7 +490,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 .seeds
                 .get(&time_period)
                 .and_then(|x| Some((x.seeds.last()?.clone(), x.next_expiration_time)));
-            let suggested_effort = *state.suggested_effort.read().expect("Lock poisoned");
+            let suggested_effort = *state.suggested_effort.lock().expect("Lock poisoned");
             (seed, suggested_effort)
         };
 
@@ -727,12 +727,12 @@ struct RendRequestReceiverInner<R, Q> {
     /// Most recent published suggested effort value.
     ///
     /// We write to this, which is then published in the pow-params line by [`PowManagerGeneric`].
-    suggested_effort: Arc<RwLock<Effort>>,
+    suggested_effort: Arc<Mutex<Effort>>,
 }
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R, Q> {
     /// Create a new [`RendRequestReceiver`].
-    fn new(runtime: R, suggested_effort: Arc<RwLock<Effort>>) -> Self {
+    fn new(runtime: R, suggested_effort: Arc<Mutex<Effort>>) -> Self {
         let now = runtime.now();
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
@@ -787,7 +787,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 adjusted_idle_time.as_millis() as f64 / update_period_duration.as_millis() as f64;
             let busy_fraction = 1.0 - idle_fraction;
 
-            let mut suggested_effort = inner.suggested_effort.write().expect("Lock poisened");
+            let mut suggested_effort = inner.suggested_effort.lock().expect("Lock poisened");
             let suggseted_effort_inner: u32 = (*suggested_effort).into();
 
             if busy_fraction == 0.0 {
@@ -861,7 +861,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 inner.last_transition = now;
             }
             if let Some(ref request_pow) = rend_request.pow {
-                if request_pow.effort() >= *inner.suggested_effort.read().expect("Lock poisened") {
+                if request_pow.effort() >= *inner.suggested_effort.lock().expect("Lock poisened") {
                     inner.num_enqueued_gte_suggested += 1;
                     let effort: u32 = request_pow.effort().into();
                     if let Some(total_effort) = inner.total_effort.checked_add(effort.into()) {
@@ -972,7 +972,7 @@ mod test {
     fn test_basic_pow_ordering() {
         MockRuntime::test_with_various(|runtime| async move {
             let pow_manager = Arc::new(MockPowManager);
-            let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
+            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
             let mut receiver: RendRequestReceiver<_, MockRendRequest> =
                 RendRequestReceiver::new(runtime.clone(), suggested_effort);
             let (mut tx, rx) = mpsc::channel(32);
@@ -1007,7 +1007,7 @@ mod test {
     fn test_suggested_effort_increase() {
         MockRuntime::test_with_various(|runtime| async move {
             let pow_manager = Arc::new(MockPowManager);
-            let suggested_effort = Arc::new(RwLock::new(Effort::zero()));
+            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
             let mut receiver: RendRequestReceiver<_, MockRendRequest> =
                 RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
             let (mut tx, rx) = mpsc::channel(1024);
@@ -1029,7 +1029,7 @@ mod test {
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
             receiver.update_suggested_effort();
 
-            assert_eq!(suggested_effort.read().unwrap().clone(), Effort::zero());
+            assert_eq!(suggested_effort.lock().unwrap().clone(), Effort::zero());
 
             // Requests left in the queue with zero suggested effort, suggested effort should
             // increase
@@ -1048,7 +1048,7 @@ mod test {
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
             receiver.update_suggested_effort();
 
-            let mut new_suggested_effort = *suggested_effort.read().unwrap();
+            let mut new_suggested_effort = *suggested_effort.lock().unwrap();
             assert!(new_suggested_effort > Effort::zero());
 
             // We keep on being behind, effort should increase again.
@@ -1065,7 +1065,7 @@ mod test {
             receiver.update_suggested_effort();
 
             let mut old_suggested_effort = new_suggested_effort;
-            new_suggested_effort = *suggested_effort.read().unwrap();
+            new_suggested_effort = *suggested_effort.lock().unwrap();
             assert!(new_suggested_effort > old_suggested_effort);
 
             // We catch up now, effort should start dropping, but not be zero immediately.
@@ -1088,7 +1088,7 @@ mod test {
             receiver.update_suggested_effort();
 
             old_suggested_effort = new_suggested_effort;
-            new_suggested_effort = *suggested_effort.read().unwrap();
+            new_suggested_effort = *suggested_effort.lock().unwrap();
             assert!(new_suggested_effort < old_suggested_effort);
             assert!(new_suggested_effort > Effort::zero());
 
@@ -1110,7 +1110,7 @@ mod test {
                 receiver.update_suggested_effort();
 
                 old_suggested_effort = new_suggested_effort;
-                new_suggested_effort = *suggested_effort.read().unwrap();
+                new_suggested_effort = *suggested_effort.lock().unwrap();
 
                 assert!(new_suggested_effort < old_suggested_effort);
 
