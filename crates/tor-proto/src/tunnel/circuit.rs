@@ -1474,7 +1474,7 @@ pub(crate) mod test {
         hops: Vec<path::HopDetail>,
         next_msg_from: HopNum,
         params: CircParameters,
-    ) -> (Arc<ClientTunnel>, CircuitRxSender) {
+    ) -> (ClientTunnel, CircuitRxSender) {
         let circid = CircId::new(128).unwrap();
         let (_created_send, created_recv) = oneshot::channel();
         let (circmsg_send, circmsg_recv) = fake_mpsc(64);
@@ -1518,7 +1518,7 @@ pub(crate) mod test {
                 .unwrap();
             rx.await.unwrap().unwrap();
         }
-        (Arc::new(circ.into_tunnel().unwrap()), circmsg_send)
+        (circ.into_tunnel().unwrap(), circmsg_send)
     }
 
     // Helper: set up a 3-hop circuit with no encryption, where the
@@ -1540,7 +1540,7 @@ pub(crate) mod test {
         .collect();
 
         let unique_id = UniqId::new(23, 17);
-        newtunnel_ext(
+        let (tunnel, circmsg_send) = newtunnel_ext(
             rt,
             unique_id,
             chan,
@@ -1548,7 +1548,9 @@ pub(crate) mod test {
             2.into(),
             CircParameters::default(),
         )
-        .await
+        .await;
+
+        (Arc::new(tunnel), circmsg_send)
     }
 
     /// Create `n` distinct [`path::HopDetail`]s,
@@ -2635,7 +2637,7 @@ pub(crate) mod test {
         };
 
         let (chan1, rx1, chan_sink1) = working_fake_channel(rt);
-        let (tunnel1, sink1) = newtunnel_ext(
+        let (mut tunnel1, sink1) = newtunnel_ext(
             rt,
             UniqId::new(1, 3),
             chan1,
@@ -2689,8 +2691,14 @@ pub(crate) mod test {
             unique_id: tunnel2.unique_id(),
         };
 
+        // TODO(conflux): nothing currently sets this,
+        // so we need to manually set it.
+        //
+        // Instead of doing this, we should have a ClientCirc
+        // API that sends CtrlMsg::Link circuits and sets this to true
+        tunnel1.circ.is_multi_path = true;
         TestTunnelCtx {
-            tunnel: tunnel1,
+            tunnel: Arc::new(tunnel1),
             circs: vec![circ_ctx1, circ_ctx2],
             conflux_link_rx,
         }
