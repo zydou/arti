@@ -13,8 +13,6 @@ use tor_proto::{
     stream::{DataStream, StreamParameters},
     ClockSkew, TargetHop,
 };
-#[cfg(feature = "send-control-msg")]
-use tor_proto::{Conversation, MsgHandler};
 
 use crate::{Error, Result};
 
@@ -101,9 +99,9 @@ define_derive_deftly! {
         #[cfg_attr(feature = "send-control-msg", cfg(feature = "send-control-msg"))]
         pub async fn start_conversation(&self,
             msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
-            reply_handler: impl MsgHandler + Send + 'static,
+            reply_handler: impl tor_proto::MsgHandler + Send + 'static,
             hop: TargetHop
-        ) -> Result<Conversation<'_>> {
+        ) -> Result<tor_proto::Conversation<'_>> {
             self.tunnel_ref().start_conversation(msg, reply_handler, hop).await
                 .map_err(|error| Error::Protocol {
                     action: "start conversation",
