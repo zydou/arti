@@ -20,6 +20,7 @@ mod params;
 pub(crate) mod queue;
 mod raw;
 mod resolve;
+pub(crate) mod xon_xoff;
 
 pub(crate) use cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 pub use data::{DataReader, DataStream, DataWriter};
@@ -43,4 +44,4 @@ pub use tor_cell::relaycell::msg::IpVersionPreference;
 #[cfg_attr(docsrs, doc(cfg(feature = "stream-ctrl")))]
 pub use {ctrl::ClientStreamCtrl, data::ClientDataStreamCtrl};
 
-pub(crate) use flow_control::{StreamFlowControl, StreamRateLimit};
+pub(crate) use flow_control::{DrainRateRequest, StreamFlowControl, StreamRateLimit};

@@ -6,6 +6,7 @@ use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use crate::congestion::sendme;
+use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
 /// The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
@@ -45,10 +46,14 @@ impl StreamFlowControl {
 
     /// Returns a new xon/xoff-based [`StreamFlowControl`].
     #[cfg(feature = "flowctl-cc")]
-    pub(crate) fn new_xon_xoff_based(rate_limit_updater: watch::Sender<StreamRateLimit>) -> Self {
+    pub(crate) fn new_xon_xoff_based(
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
+    ) -> Self {
         Self {
             e: StreamFlowControlEnum::XonXoffBased(XonXoffControl {
                 rate_limit_updater,
+                drain_rate_requester,
                 last_sent_xon_xoff: None,
             }),
         }
@@ -189,6 +194,41 @@ impl StreamFlowControl {
         }
     }
 
+    /// Check if we should send an XON message.
+    ///
+    /// If we should, then returns the XON message that should be sent.
+    /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
+    pub(crate) fn maybe_send_xon(
+        &mut self,
+        rate: XonKbpsEwma,
+        buffer_len: usize,
+    ) -> Result<Option<Xon>> {
+        match &mut self.e {
+            StreamFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
+                "XON messages cannot be sent with window flow control".into(),
+            )),
+            #[cfg(feature = "flowctl-cc")]
+            StreamFlowControlEnum::XonXoffBased(control) => {
+                if buffer_len > CC_XOFF_CLIENT {
+                    // we can't send an XON, and we should have already sent an XOFF when the queue first
+                    // exceeded the limit (see `maybe_send_xoff()`)
+                    debug_assert!(matches!(
+                        control.last_sent_xon_xoff,
+                        Some(LastSentXonXoff::Xoff),
+                    ));
+
+                    // inform the stream reader that we need a new drain rate
+                    control.drain_rate_requester.notify();
+                    return Ok(None);
+                }
+
+                control.last_sent_xon_xoff = Some(LastSentXonXoff::Xon(rate));
+
+                Ok(Some(Xon::new(FlowCtrlVersion::V0, rate)))
+            }
+        }
+    }
+
     /// Check if we should send an XOFF message.
     ///
     /// If we should, then returns the XOFF message that should be sent.
@@ -214,6 +254,9 @@ impl StreamFlowControl {
                 // remember that we last sent an XOFF
                 control.last_sent_xon_xoff = Some(LastSentXonXoff::Xoff);
 
+                // inform the stream reader that we need a new drain rate
+                control.drain_rate_requester.notify();
+
                 Ok(Some(Xoff::new(FlowCtrlVersion::V0)))
             }
         }
@@ -226,6 +269,9 @@ struct XonXoffControl {
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
+    /// How we communicate requests for new drain rate updates to the
+    /// [`XonXoffReader`](crate::stream::xon_xoff::XonXoffReader).
+    drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
     last_sent_xon_xoff: Option<LastSentXonXoff>,
 }
@@ -234,7 +280,8 @@ struct XonXoffControl {
 #[derive(Debug)]
 enum LastSentXonXoff {
     /// XON message with a rate.
-    // TODO(arti#534): we'll use this when we implement sending XON
+    // TODO: I'm expecting that we'll want the `XonKbpsEwma` in the future.
+    // If that doesn't end up being the case, then we should remove it.
     #[expect(dead_code)]
     Xon(XonKbpsEwma),
     /// XOFF message.
@@ -271,3 +318,8 @@ impl std::fmt::Display for StreamRateLimit {
         write!(f, "{} bytes/s", self.rate)
     }
 }
+
+/// A marker type for a [`NotifySender`] indicating that notifications are for new drain rate
+/// requests.
+#[derive(Debug)]
+pub(crate) struct DrainRateRequest;

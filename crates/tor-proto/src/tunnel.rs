@@ -26,6 +26,7 @@ use reactor::{CtrlMsg, FlowCtrlMsg};
 
 use postage::watch;
 use tor_async_utils::SinkCloseChannel as _;
+use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayCellFormat, StreamId};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -244,6 +245,28 @@ impl StreamTarget {
             .control
             .unbounded_send(CtrlMsg::FlowCtrlUpdate {
                 msg: FlowCtrlMsg::Sendme,
+                stream_id: self.stream_id,
+                hop: self.hop,
+            })
+            .map_err(|_| Error::CircuitClosed)
+    }
+
+    /// Inform the circuit reactor that there has been a change in the drain rate for this stream.
+    ///
+    /// Typically the circuit reactor would send this new rate in an XON message to the other end of
+    /// the stream.
+    /// But it may decide not to, and may discard this update.
+    /// For example the stream may have a large amount of buffered data, and the reactor may not
+    /// want to send an XON while the buffer is large.
+    ///
+    /// This sends a message to inform the circuit reactor of the new drain rate,
+    /// but it does not block or wait for a response from the reactor.
+    /// An error is only returned if we are unable to send the update.
+    pub(crate) fn drain_rate_update(&mut self, rate: XonKbpsEwma) -> Result<()> {
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::FlowCtrlUpdate {
+                msg: FlowCtrlMsg::Xon(rate),
                 stream_id: self.stream_id,
                 hop: self.hop,
             })

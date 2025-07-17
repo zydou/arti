@@ -4,8 +4,9 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::stream::Stream;
+use futures::Stream;
 use pin_project::pin_project;
+use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 use tracing::debug;
 
@@ -96,6 +97,41 @@ impl StreamReceiver {
     /// Shut down this stream.
     pub fn protocol_error(&mut self) {
         self.target.protocol_error();
+    }
+
+    /// Is the stream currently empty?
+    ///
+    /// This method is inherently subject to race conditions. More data may arrive even before this
+    /// method returns, so a result of `true` might have been outdated before the method even
+    /// returned.
+    ///
+    /// This takes a `&mut` so that we can peek the stream.
+    ///
+    /// We provide an `is_empty` method rather than implementing [`UnobtrusivePeekableStream`]
+    /// directly since `UnobtrusivePeekableStream` allows you to mutate the peeked item, which could
+    /// break any accounting we do here in `StreamReceiver` (like stream sendme accounting). Also
+    /// the stream types are incompatible (the inner receiver returns items of `UnparsedRelayMsg`,
+    /// but this [`StreamReceiver`] returns items of `Result<UnparsedRelayMsg>`).
+    pub(crate) fn is_empty(&mut self) -> bool {
+        // The `StreamQueueReceiver` gives us two ways of checking if the queue is empty:
+        // `unobtrusive_peek().is_none()` and `approx_stream_bytes() == 0`. The peek seems like a
+        // better approach, so we do that here.
+        // TODO(arti#534): Should reconsider using `unobtrusive_peek()`. What we really want to know
+        // is if there is more stream data in the queue. But peeking only tells us if there are more
+        // messages. There could be more messages, but none of them data messages.
+        let peek_is_none = Pin::new(&mut self.receiver).unobtrusive_peek().is_none();
+
+        // if the peek says that the stream is empty, assert that `approx_stream_bytes()` shows 0
+        // bytes
+        #[cfg(debug_assertions)]
+        if peek_is_none {
+            assert_eq!(self.receiver.approx_stream_bytes(), 0);
+        } else {
+            // if the peek is not empty it doesn't mean that approx_stream_bytes() != 0,
+            // since there may be messages that contain no stream data
+        }
+
+        peek_is_none
     }
 }
 

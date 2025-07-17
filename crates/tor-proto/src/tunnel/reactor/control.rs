@@ -10,18 +10,20 @@ use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::queue::StreamQueueSender;
-use crate::stream::{AnyCmdChecker, StreamRateLimit};
+use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
 use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
 use crate::tunnel::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
+use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 use crate::Result;
 #[cfg(test)]
 use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
 use postage::watch;
 use tor_cell::chancell::msg::HandshakeType;
+use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
 use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
@@ -116,6 +118,8 @@ pub(crate) enum CtrlMsg {
         rx: StreamMpscReceiver<AnyRelayMsg>,
         /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
         rate_limit_notifier: watch::Sender<StreamRateLimit>,
+        /// Notifies the stream reader when it should send a new drain rate.
+        drain_rate_requester: NotifySender<DrainRateRequest>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
@@ -299,6 +303,8 @@ pub(crate) enum CtrlCmd {
 pub(crate) enum FlowCtrlMsg {
     /// Send a SENDME message on this stream.
     Sendme,
+    /// Send an XON message on this stream with the given rate.
+    Xon(XonKbpsEwma),
 }
 
 /// A control message handler object. Keep a reference to the Reactor tying its lifetime to it.
@@ -434,6 +440,7 @@ impl<'a> ControlHandler<'a> {
                 sender,
                 rx,
                 rate_limit_notifier,
+                drain_rate_requester,
                 done,
                 cmd_checker,
             } => {
@@ -473,6 +480,7 @@ impl<'a> ControlHandler<'a> {
                     sender,
                     rx,
                     rate_limit_notifier,
+                    drain_rate_requester,
                     cmd_checker,
                 )?;
                 Ok(Some(RunOnceCmdInner::BeginStream {
@@ -556,6 +564,11 @@ impl<'a> ControlHandler<'a> {
                             done: None,
                         }))
                     }
+                    FlowCtrlMsg::Xon(rate) => Ok(Some(RunOnceCmdInner::MaybeSendXon {
+                        rate,
+                        hop,
+                        stream_id,
+                    })),
                 }
             }
             // TODO(conflux): this should specify which leg to send the msg on

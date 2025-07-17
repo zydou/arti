@@ -36,6 +36,7 @@ use educe::Educe;
 use crate::tunnel::circuit::ClientCirc;
 
 use crate::memquota::StreamAccount;
+use crate::stream::xon_xoff::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
 use crate::stream::{StreamRateLimit, StreamReceiver};
 use crate::tunnel::StreamTarget;
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
@@ -197,7 +198,7 @@ struct DataWriterInner {
     /// The memory quota account that should be used for this stream's data
     ///
     /// Exists to keep the account alive
-    // If we liked, we could make this conditional; see DataReader.memquota
+    // If we liked, we could make this conditional; see DataReaderInner.memquota
     _memquota: StreamAccount,
 
     /// A control object that can be used to monitor and control this stream
@@ -345,6 +346,61 @@ impl TokioAsyncWrite for DataWriter {
 // `tor-proto` need to be reflected above.
 #[derive(Debug)]
 pub struct DataReader {
+    /// The [`DataReaderInner`] with a wrapper to support XON/XOFF flow control.
+    reader: XonXoffReader<DataReaderInner>,
+}
+
+impl DataReader {
+    /// Create a new [`DataReader`].
+    fn new(reader: DataReaderInner, xon_xoff_reader_ctrl: XonXoffReaderCtrl) -> Self {
+        Self {
+            reader: XonXoffReader::new(xon_xoff_reader_ctrl, reader),
+        }
+    }
+
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
+    #[cfg(feature = "stream-ctrl")]
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        Some(self.reader.inner().client_stream_ctrl())
+    }
+}
+
+impl AsyncRead for DataReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<IoResult<usize>> {
+        AsyncRead::poll_read(Pin::new(&mut self.reader), cx, buf)
+    }
+
+    fn poll_read_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [std::io::IoSliceMut<'_>],
+    ) -> Poll<IoResult<usize>> {
+        AsyncRead::poll_read_vectored(Pin::new(&mut self.reader), cx, bufs)
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl TokioAsyncRead for DataReader {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<IoResult<()>> {
+        TokioAsyncRead::poll_read(Pin::new(&mut self.compat()), cx, buf)
+    }
+}
+
+/// The inner reader for [`DataReader`].
+///
+/// This type is responsible for taking stream messages and extracting the stream data from them.
+/// Flow control logic is implemented in [`DataReader`] to avoid making this type more complex.
+#[derive(Debug)]
+pub(crate) struct DataReaderInner {
     /// Internal state for this reader.
     ///
     /// This is stored in an Option so that we can mutate it in
@@ -363,6 +419,26 @@ pub struct DataReader {
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
     ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+}
+
+impl BufferIsEmpty for DataReaderInner {
+    /// The result will become stale,
+    /// so is most accurate immediately after a [`poll_read`](AsyncRead::poll_read).
+    fn is_empty(mut self: Pin<&mut Self>) -> bool {
+        match self
+            .state
+            .as_mut()
+            .expect("forgot to put `DataReaderState` back")
+        {
+            DataReaderState::Open(imp) => {
+                // check if the partial cell in `pending` is empty,
+                // and if the message stream is empty
+                imp.pending[imp.offset..].is_empty() && imp.s.is_empty()
+            }
+            // closed, so any data should have been discarded
+            DataReaderState::Closed => true,
+        }
+    }
 }
 
 /// Shared status flags for tracking the status of as `DataStream`.
@@ -461,10 +537,18 @@ impl DataStream {
     pub(crate) fn new<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
         receiver: StreamReceiver,
+        xon_xoff_reader_ctrl: XonXoffReaderCtrl,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(time_provider, receiver, target, false, memquota)
+        Self::new_inner(
+            time_provider,
+            receiver,
+            xon_xoff_reader_ctrl,
+            target,
+            false,
+            memquota,
+        )
     }
 
     /// Wrap raw stream receiver and target parts as a connected DataStream.
@@ -477,16 +561,25 @@ impl DataStream {
     pub(crate) fn new_connected<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
         receiver: StreamReceiver,
+        xon_xoff_reader_ctrl: XonXoffReaderCtrl,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(time_provider, receiver, target, true, memquota)
+        Self::new_inner(
+            time_provider,
+            receiver,
+            xon_xoff_reader_ctrl,
+            target,
+            true,
+            memquota,
+        )
     }
 
     /// The shared implementation of the `new*()` functions.
     fn new_inner<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
         receiver: StreamReceiver,
+        xon_xoff_reader_ctrl: XonXoffReaderCtrl,
         target: StreamTarget,
         connected: bool,
         memquota: StreamAccount,
@@ -510,7 +603,7 @@ impl DataStream {
             status: status.clone(),
             _memquota: memquota.clone(),
         });
-        let r = DataReader {
+        let r = DataReaderInner {
             state: Some(DataReaderState::Open(DataReaderImpl {
                 s: receiver,
                 pending: Vec::new(),
@@ -541,7 +634,7 @@ impl DataStream {
 
         DataStream {
             w: DataWriter::new(w, rate_limit_stream, time_provider),
-            r,
+            r: DataReader::new(r, xon_xoff_reader_ctrl),
             #[cfg(feature = "stream-ctrl")]
             ctrl,
         }
@@ -558,7 +651,13 @@ impl DataStream {
     /// Does nothing if this stream is already connected.
     pub async fn wait_for_connection(&mut self) -> Result<()> {
         // We must put state back before returning
-        let state = self.r.state.take().expect("Missing state in DataReader");
+        let state = self
+            .r
+            .reader
+            .inner_mut()
+            .state
+            .take()
+            .expect("Missing state in DataReaderInner");
 
         if let DataReaderState::Open(mut imp) = state {
             let result = if imp.connected {
@@ -567,7 +666,7 @@ impl DataStream {
                 // This succeeds if the cell is CONNECTED, and fails otherwise.
                 std::future::poll_fn(|cx| Pin::new(&mut imp).read_cell(cx)).await
             };
-            self.r.state = Some(match result {
+            self.r.reader.inner_mut().state = Some(match result {
                 Err(_) => DataReaderState::Closed,
                 Ok(_) => DataReaderState::Open(imp),
             });
@@ -880,16 +979,16 @@ impl DataWriterImpl {
     }
 }
 
-impl DataReader {
+impl DataReaderInner {
     /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
     /// interact with this stream without holding the stream itself.
     #[cfg(feature = "stream-ctrl")]
-    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
-        Some(&self.ctrl)
+    pub(crate) fn client_stream_ctrl(&self) -> &Arc<ClientDataStreamCtrl> {
+        &self.ctrl
     }
 }
 
-/// An enumeration for the state of a [`DataReader`].
+/// An enumeration for the state of a [`DataReaderInner`].
 // TODO: We don't need to implement the state in this way anymore now that we've removed the saved
 // future. There are a few ways we could simplify this. See:
 // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3076#note_3218210
@@ -933,7 +1032,7 @@ struct DataReaderImpl {
     status: Arc<Mutex<DataStreamStatus>>,
 }
 
-impl AsyncRead for DataReader {
+impl AsyncRead for DataReaderInner {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -941,7 +1040,7 @@ impl AsyncRead for DataReader {
     ) -> Poll<IoResult<usize>> {
         // We're pulling the state object out of the reader.  We MUST
         // put it back before this function returns.
-        let mut state = self.state.take().expect("Missing state in DataReader");
+        let mut state = self.state.take().expect("Missing state in DataReaderInner");
 
         loop {
             let mut imp = match state {
@@ -998,7 +1097,7 @@ impl AsyncRead for DataReader {
 }
 
 #[cfg(feature = "tokio")]
-impl TokioAsyncRead for DataReader {
+impl TokioAsyncRead for DataReaderInner {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

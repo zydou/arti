@@ -606,6 +606,25 @@ pub fn flatten<T, E>(x: Result<Result<T, E>, E>) -> Result<T, E> {
 
 // ----------------------------------------------------------------------
 
+/// Asserts that the type of the expression implements the given trait.
+///
+/// Example:
+///
+/// ```
+/// # use tor_basic_utils::assert_val_impl_trait;
+/// let x: u32 = 0;
+/// assert_val_impl_trait!(x, Clone);
+/// ```
+#[macro_export]
+macro_rules! assert_val_impl_trait {
+    ($check:expr, $trait:path $(,)?) => {{
+        fn ensure_trait<T: $trait>(_s: &T) {}
+        ensure_trait(&$check);
+    }};
+}
+
+// ----------------------------------------------------------------------
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

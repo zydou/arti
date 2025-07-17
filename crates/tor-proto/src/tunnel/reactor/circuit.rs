@@ -19,7 +19,7 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::queue::{stream_queue, StreamQueueSender};
-use crate::stream::{AnyCmdChecker, StreamRateLimit, StreamStatus};
+use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
 use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
@@ -30,6 +30,7 @@ use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::streammap;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
+use crate::util::notify::NotifySender;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{ClockSkew, Error, Result};
@@ -877,8 +878,21 @@ impl Circuit {
 
         let (rate_limit_tx, rate_limit_rx) = watch::channel_with(StreamRateLimit::MAX);
 
+        // A channel for the reactor to request a new drain rate from the reader.
+        // Typically this notification will be sent after an XOFF is sent so that the reader can
+        // send us a new drain rate when the stream data queue becomes empty.
+        let mut drain_rate_request_tx = NotifySender::new_typed();
+        let drain_rate_request_rx = drain_rate_request_tx.subscribe();
+
         let cmd_checker = DataCmdChecker::new_connected();
-        hop.add_ent_with_id(sender, msg_rx, rate_limit_tx, stream_id, cmd_checker)?;
+        hop.add_ent_with_id(
+            sender,
+            msg_rx,
+            rate_limit_tx,
+            drain_rate_request_tx,
+            stream_id,
+            cmd_checker,
+        )?;
 
         let outcome = Pin::new(&mut handler.incoming_sender).try_send(StreamReqInfo {
             req,
@@ -887,6 +901,7 @@ impl Circuit {
             msg_tx,
             receiver,
             rate_limit_stream: rate_limit_rx,
+            drain_rate_request_stream: drain_rate_request_rx,
             memquota,
             relay_cell_format,
         });
@@ -1367,6 +1382,8 @@ impl Circuit {
     }
 
     /// Begin a stream with the provided hop in this circuit.
+    // TODO: see if there's a way that we can clean this up
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn begin_stream(
         &mut self,
         hop_num: HopNum,
@@ -1374,6 +1391,7 @@ impl Circuit {
         sender: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_notifier: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
         cmd_checker: AnyCmdChecker,
     ) -> StdResult<Result<(SendRelayCell, StreamId)>, Bug> {
         let Some(hop) = self.hop_mut(hop_num) else {
@@ -1383,7 +1401,14 @@ impl Circuit {
             ));
         };
 
-        Ok(hop.begin_stream(message, sender, rx, rate_limit_notifier, cmd_checker))
+        Ok(hop.begin_stream(
+            message,
+            sender,
+            rx,
+            rate_limit_notifier,
+            drain_rate_requester,
+            cmd_checker,
+        ))
     }
 
     /// Close the specified stream

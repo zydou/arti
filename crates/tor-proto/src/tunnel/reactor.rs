@@ -27,12 +27,13 @@ use crate::memquota::{CircuitAccount, StreamAccount};
 use crate::stream::queue::StreamQueueReceiver;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
-use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
+use crate::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
 use crate::tunnel::{streammap, HopLocation, TargetHop, TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
+use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use circuit::{Circuit, CircuitCmd};
@@ -42,9 +43,10 @@ use postage::watch;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::mem::size_of;
+use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
+use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
 use tor_rtcompat::DynTimeProvider;
 
 use futures::channel::mpsc;
@@ -64,7 +66,7 @@ use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
-use tracing::{info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
 
@@ -211,6 +213,15 @@ enum RunOnceCmdInner {
         leg: UniqId,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
+    },
+    /// Consider sending an XON message with the given `rate`.
+    MaybeSendXon {
+        /// The drain rate to advertise in the XON message.
+        rate: XonKbpsEwma,
+        /// The ID of the stream to send the message on.
+        stream_id: StreamId,
+        /// The location of the hop on the tunnel.
+        hop: HopLocation,
     },
     /// Close the specified stream.
     CloseStream {
@@ -607,6 +618,10 @@ pub(crate) struct StreamReqInfo {
     // the `watch::Sender` owns the indirect data
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) rate_limit_stream: watch::Receiver<StreamRateLimit>,
+    /// A [`Stream`](futures::Stream) that provides notifications when a new drain rate is
+    /// requested.
+    #[deftly(has_memory_cost(indirect_size = "0"))]
+    pub(crate) drain_rate_request_stream: NotifyReceiver<DrainRateRequest>,
     /// The memory quota account to be used for this stream
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate (it contains an Arc)
     pub(crate) memquota: StreamAccount,
@@ -973,6 +988,64 @@ impl Reactor {
                     // don't care if the sender goes away
                     let _ = done.send(res);
                 }
+            }
+            RunOnceCmdInner::MaybeSendXon {
+                rate,
+                stream_id,
+                hop,
+            } => {
+                let (leg_id, hop_num) = match self.resolve_hop_location(hop) {
+                    Ok(x) => x,
+                    Err(NoJoinPointError) => {
+                        // A stream tried to send an XON message message to the join point of
+                        // a tunnel that has never had a join point. Currently in arti, only a
+                        // `StreamTarget` asks us to send an XON message, and this tunnel
+                        // originally created the `StreamTarget` to begin with. So this is a
+                        // legitimate bug somewhere in the tunnel code.
+                        let err = internal!(
+                            "Could not send an XON message to a join point on a tunnel without a join point",
+                        );
+                        // TODO: Rather than calling `warn_report` here, we should call
+                        // `trace_report!` from `Reactor::run_once()`. Since this is an internal
+                        // error, `trace_report!` should log it at "warn" level.
+                        warn_report!(err, "Tunnel reactor error");
+                        return Err(err.into());
+                    }
+                };
+
+                let Some(leg) = self.circuits.leg_mut(leg_id) else {
+                    // The leg has disappeared. This is fine since the stream may have ended and
+                    // been cleaned up while this `CtrlMsg::MaybeSendXon` message was queued.
+                    // It is possible that is a bug and this is an incorrect leg number, but
+                    // it's not currently possible to differentiate between an incorrect leg
+                    // number and a tunnel leg that has been closed.
+                    debug!("Could not send an XON message on a leg that does not exist. Ignoring.");
+                    return Ok(());
+                };
+
+                let Some(hop) = leg.hop_mut(hop_num) else {
+                    // The hop has disappeared. This is fine since the circuit may have been
+                    // been truncated while the `CtrlMsg::MaybeSendXon` message was queued.
+                    // It is possible that is a bug and this is an incorrect hop number, but
+                    // it's not currently possible to differentiate between an incorrect hop
+                    // number and a circuit hop that has been removed.
+                    debug!("Could not send an XON message on a hop that does not exist. Ignoring.");
+                    return Ok(());
+                };
+
+                let Some(msg) = hop.maybe_send_xon(rate, stream_id)? else {
+                    // Nothing to do.
+                    return Ok(());
+                };
+
+                let cell = AnyRelayMsgOuter::new(Some(stream_id), msg.into());
+                let cell = SendRelayCell {
+                    hop: hop_num,
+                    early: false,
+                    cell,
+                };
+
+                leg.send_relay_cell(cell).await?;
             }
             RunOnceCmdInner::HandleSendMe { leg, hop, sendme } => {
                 let leg = self
