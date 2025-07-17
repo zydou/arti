@@ -3388,8 +3388,7 @@ pub(crate) mod test {
                             runtime.lock().await.advance_until_stalled().await;
                             let (tx, rx) = oneshot::channel();
                             tunnel
-                                .as_single_circ()
-                                .unwrap()
+                                .circ
                                 .command
                                 .unbounded_send(CtrlCmd::QuerySendWindow {
                                     hop: 2.into(),
@@ -3977,7 +3976,7 @@ pub(crate) mod test {
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
                     (
-                        tunnel.as_single_circ().unwrap().unique_id(),
+                        tunnel.circ.unique_id(),
                         EXPECTED_HOP.into(),
                     )
                         .into(),
