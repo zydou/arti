@@ -631,11 +631,18 @@ struct RendRequestOrdByEffort<Q> {
     pow: Option<ProofOfWorkV1>,
     /// When this request was received, used for ordreing if the effort values are the same.
     recv_time: Instant,
+    /// Unique number for this request, which is used for ordering among requests with the same
+    /// timestamp.
+    ///
+    /// This is intended to be monotonically increasing, although it may overflow. Overflows are
+    /// not handled in any special way, given that they are a edge case of an edge case, and
+    /// ordering among requests that came in at the same instant is not important.
+    request_num: u64,
 }
 
 impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
     /// Create a new [`RendRequestOrdByEffort`].
-    fn new(request: Q) -> Result<Self, rend_handshake::IntroRequestError> {
+    fn new(request: Q, request_num: u64) -> Result<Self, rend_handshake::IntroRequestError> {
         let pow = match request.proof_of_work()?.cloned() {
             Some(ProofOfWork::V1(pow)) => Some(pow),
             None | Some(_) => None,
@@ -645,6 +652,7 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
             request,
             pow,
             recv_time: Instant::now(),
+            request_num,
         })
     }
 }
@@ -657,8 +665,15 @@ impl<Q: MockableRendRequest> Ord for RendRequestOrdByEffort<Q> {
             .as_ref()
             .map_or(Effort::zero(), |pow| pow.effort());
         match self_effort.cmp(&other_effort) {
-            // Flip ordering, since we want the oldest ones to be handled first.
-            std::cmp::Ordering::Equal => other.recv_time.cmp(&self.recv_time),
+            std::cmp::Ordering::Equal => {
+                // Flip ordering, since we want the oldest ones to be handled first.
+                match other.recv_time.cmp(&self.recv_time) {
+                    // Use request_num as a final tiebreaker, also flipping ordering (since
+                    // lower-numbered requests should be older and thus come first)
+                    std::cmp::Ordering::Equal => other.request_num.cmp(&self.request_num),
+                    not_equal => not_equal,
+                }
+            }
             not_equal => not_equal,
         }
     }
@@ -852,17 +867,21 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         pow_manager: &Arc<P>,
         mut receiver: mpsc::Receiver<Q>,
     ) {
+        let mut request_num = 0;
+
         loop {
             let rend_request = runtime
                 .reenter_block_on(receiver.next())
                 .expect("Other side of RendRequest queue hung up");
-            let rend_request = match RendRequestOrdByEffort::new(rend_request) {
+            let rend_request = match RendRequestOrdByEffort::new(rend_request, request_num) {
                 Ok(rend_request) => rend_request,
                 Err(err) => {
                     tracing::trace!(?err, "Error processing RendRequest");
                     continue;
                 }
             };
+
+            request_num = request_num.wrapping_add(1);
 
             if let Some(ref pow) = rend_request.pow {
                 if let Err(err) = pow_manager.check_solve(pow) {
