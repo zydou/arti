@@ -112,8 +112,6 @@ impl StreamReceiver {
     /// break any accounting we do here in `StreamReceiver` (like stream sendme accounting). Also
     /// the stream types are incompatible (the inner receiver returns items of `UnparsedRelayMsg`,
     /// but this [`StreamReceiver`] returns items of `Result<UnparsedRelayMsg>`).
-    // XXX: we'll use this later
-    #[expect(dead_code)]
     pub(crate) fn is_empty(&mut self) -> bool {
         // The `StreamQueueReceiver` gives us two ways of checking if the queue is empty:
         // `unobtrusive_peek().is_none()` and `approx_stream_bytes() == 0`. The peek seems like a

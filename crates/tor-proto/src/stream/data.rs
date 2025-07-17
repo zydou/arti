@@ -36,7 +36,7 @@ use educe::Educe;
 use crate::tunnel::circuit::ClientCirc;
 
 use crate::memquota::StreamAccount;
-use crate::stream::xon_xoff::XonXoffReaderCtrl;
+use crate::stream::xon_xoff::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
 use crate::stream::{StreamRateLimit, StreamReceiver};
 use crate::tunnel::StreamTarget;
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
@@ -329,6 +329,60 @@ impl TokioAsyncWrite for DataWriter {
     }
 }
 
+/// XXX: Will copy comment from `DataReader`.
+#[derive(Debug)]
+// XXX: this will become `DataReader`
+#[expect(unreachable_pub)]
+pub struct DataReaderNew {
+    /// The inner [`DataReader`] with a wrapper to support XON/XOFF flow control.
+    reader: XonXoffReader<DataReader>,
+}
+
+impl DataReaderNew {
+    /// Create a new [`DataReaderNew`].
+    fn new(reader: DataReader, xon_xoff_reader_ctrl: XonXoffReaderCtrl) -> Self {
+        Self {
+            reader: XonXoffReader::new(xon_xoff_reader_ctrl, reader),
+        }
+    }
+
+    /// Return a [`ClientDataStreamCtrl`] object that can be used to monitor and
+    /// interact with this stream without holding the stream itself.
+    #[cfg(feature = "stream-ctrl")]
+    pub fn client_stream_ctrl(&self) -> Option<&Arc<ClientDataStreamCtrl>> {
+        self.reader.inner().client_stream_ctrl()
+    }
+}
+
+impl AsyncRead for DataReaderNew {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<IoResult<usize>> {
+        AsyncRead::poll_read(Pin::new(&mut self.reader), cx, buf)
+    }
+
+    fn poll_read_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [std::io::IoSliceMut<'_>],
+    ) -> Poll<IoResult<usize>> {
+        AsyncRead::poll_read_vectored(Pin::new(&mut self.reader), cx, bufs)
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl TokioAsyncRead for DataReaderNew {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<IoResult<()>> {
+        TokioAsyncRead::poll_read(Pin::new(&mut self.compat()), cx, buf)
+    }
+}
+
 /// The read half of a [`DataStream`], implementing [`futures::io::AsyncRead`].
 ///
 /// See the [`DataStream`] docs for more information.
@@ -364,6 +418,26 @@ pub struct DataReader {
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
     ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+}
+
+impl BufferIsEmpty for DataReader {
+    /// The result will become stale,
+    /// so is most accurate immediately after a [`poll_read`](AsyncRead::poll_read).
+    fn is_empty(mut self: Pin<&mut Self>) -> bool {
+        match self
+            .state
+            .as_mut()
+            .expect("forgot to put `DataReaderState` back")
+        {
+            DataReaderState::Open(imp) => {
+                // check if the partial cell in `pending` is empty,
+                // and if the message stream is empty
+                imp.pending[imp.offset..].is_empty() && imp.s.is_empty()
+            }
+            // closed, so any data should have been discarded
+            DataReaderState::Closed => true,
+        }
+    }
 }
 
 /// Shared status flags for tracking the status of as `DataStream`.

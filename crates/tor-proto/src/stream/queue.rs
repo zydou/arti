@@ -103,8 +103,6 @@ impl StreamQueueReceiver {
     ///
     /// As messages can be enqueued at any time, the return value may be smaller than the actual
     /// number of bytes queued for this stream.
-    // TODO(arti#534): we'll use this when we implement sending XON
-    #[expect(dead_code)]
     pub(crate) fn approx_stream_bytes(&self) -> usize {
         *self.counter.lock().expect("poisoned")
     }
