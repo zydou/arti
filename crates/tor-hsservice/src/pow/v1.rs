@@ -787,8 +787,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 avg_request_duration * inner.queue.len().try_into().expect("Queue too large."),
             );
             // TODO: use as_millis_f64 when stable
-            let idle_fraction =
-                adjusted_idle_time.as_millis() as f64 / update_period_duration.as_millis() as f64;
+            let idle_fraction = f64::from_u128(adjusted_idle_time.as_millis())
+                .expect("Conversion error")
+                / f64::from_u128(update_period_duration.as_millis()).expect("Conversion error");
             let busy_fraction = 1.0 - idle_fraction;
 
             let mut suggested_effort = inner.suggested_effort.lock().expect("Lock poisoned");
@@ -796,22 +797,32 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
             if busy_fraction == 0.0 {
                 let new_suggested_effort =
-                    f64::from(suggseted_effort_inner) * decay_adjustment_fraction;
-                *suggested_effort = Effort::from(new_suggested_effort as u32);
+                    u32::from_f64(f64::from(suggseted_effort_inner) * decay_adjustment_fraction)
+                        .expect("Conversion error");
+                *suggested_effort = Effort::from(new_suggested_effort);
             } else {
-                let theoretical_num_dequeued = inner.num_dequeued as f64 * (1.0 / busy_fraction);
+                let theoretical_num_dequeued =
+                    f64::from(inner.num_dequeued) * (1.0 / busy_fraction);
+                let num_enqueued_gte_suggested_f64 =
+                    f64::from_usize(inner.num_enqueued_gte_suggested).expect("Conversion error");
 
-                if inner.num_enqueued_gte_suggested as f64 >= theoretical_num_dequeued {
-                    let effort_per_dequeued = inner.total_effort as f64 / inner.num_dequeued as f64;
+                if num_enqueued_gte_suggested_f64 >= theoretical_num_dequeued {
+                    let effort_per_dequeued = u32::from_f64(
+                        f64::from_u64(inner.total_effort).expect("Conversion error")
+                            / f64::from(inner.num_dequeued),
+                    )
+                    .expect("Conversion error");
                     *suggested_effort = Effort::from(std::cmp::max(
-                        effort_per_dequeued as u32,
+                        effort_per_dequeued,
                         suggseted_effort_inner + 1,
                     ));
                 } else {
-                    let decay = inner.num_enqueued_gte_suggested as f64 / theoretical_num_dequeued;
+                    let decay = num_enqueued_gte_suggested_f64 / theoretical_num_dequeued;
                     let adjusted_decay = decay + ((1.0 - decay) * decay_adjustment_fraction);
-                    let new_suggested_effort = f64::from(suggseted_effort_inner) * adjusted_decay;
-                    *suggested_effort = Effort::from(new_suggested_effort as u32);
+                    let new_suggested_effort =
+                        u32::from_f64(f64::from(suggseted_effort_inner) * adjusted_decay)
+                            .expect("Conversion error");
+                    *suggested_effort = Effort::from(new_suggested_effort);
                 }
             }
 
