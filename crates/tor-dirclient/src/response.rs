@@ -160,7 +160,9 @@ impl SourceInfo {
     ///
     /// Return an error if the tunnel is closed;
     /// return `Ok(None)` if the circuit's last hop is virtual.
-    pub fn from_tunnel(tunnel: impl AsRef<tor_proto::ClientTunnel>) -> tor_proto::Result<Option<Self>> {
+    pub fn from_tunnel(
+        tunnel: impl AsRef<tor_proto::ClientTunnel>,
+    ) -> tor_proto::Result<Option<Self>> {
         let tunnel = tunnel.as_ref();
         match tunnel.last_hop_info()? {
             None => Ok(None),
