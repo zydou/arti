@@ -718,7 +718,7 @@ struct RendRequestReceiverInner<R, Q> {
     /// Amount of time during the current update period that we spent with no requests in the
     /// queue.
     idle_time: Duration,
-    /// Time that the queue last went from having items in it to not having items in it, or vise
+    /// Time that the queue last went from having items in it to not having items in it, or vice
     /// versa. This is used to update idle_time.
     last_transition: Instant,
     /// Sum of all effort values that were validated and enqueued during the current update period.
@@ -768,7 +768,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
     fn update_suggested_effort(&self) {
         const CONFIG_DECAY_ADJUSTMENT: usize = 0; // TODO POW: Get from config
 
-        let mut inner = self.0.lock().expect("Lock poisened");
+        let mut inner = self.0.lock().expect("Lock poisoned");
 
         if inner.num_dequeued != 0 {
             let update_period_duration = inner.runtime.now() - inner.update_period_start;
@@ -787,7 +787,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 adjusted_idle_time.as_millis() as f64 / update_period_duration.as_millis() as f64;
             let busy_fraction = 1.0 - idle_fraction;
 
-            let mut suggested_effort = inner.suggested_effort.lock().expect("Lock poisened");
+            let mut suggested_effort = inner.suggested_effort.lock().expect("Lock poisoned");
             let suggseted_effort_inner: u32 = (*suggested_effort).into();
 
             if busy_fraction == 0.0 {
@@ -853,7 +853,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 }
             }
 
-            let mut inner = self.0.lock().expect("Lock poisened");
+            let mut inner = self.0.lock().expect("Lock poisoned");
             if inner.queue.is_empty() {
                 let now = runtime.now();
                 let last_transition = inner.last_transition;
@@ -861,7 +861,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 inner.last_transition = now;
             }
             if let Some(ref request_pow) = rend_request.pow {
-                if request_pow.effort() >= *inner.suggested_effort.lock().expect("Lock poisened") {
+                if request_pow.effort() >= *inner.suggested_effort.lock().expect("Lock poisoned") {
                     inner.num_enqueued_gte_suggested += 1;
                     let effort: u32 = request_pow.effort().into();
                     if let Some(total_effort) = inner.total_effort.checked_add(effort.into()) {
@@ -894,7 +894,7 @@ impl<R: Runtime, Q: MockableRendRequest> Stream for RendRequestReceiver<R, Q> {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let mut inner = self.get_mut().0.lock().expect("Lock poisened");
+        let mut inner = self.get_mut().0.lock().expect("Lock poisoned");
         match inner.queue.pop_last() {
             Some(item) => {
                 inner.num_dequeued += 1;
