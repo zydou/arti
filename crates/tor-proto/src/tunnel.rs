@@ -280,7 +280,9 @@ impl ClientTunnel {
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
         // TODO(#2002): support onion service conflux
-        let circ = self.as_single_circ()?;
+        let circ = self.as_single_circ().map_err(tor_error::into_internal!(
+            "Cannot allow stream requests on a multi-path tunnel"
+        ))?;
 
         let time_prov = circ.time_provider.clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);

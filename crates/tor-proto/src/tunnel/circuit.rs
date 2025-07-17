@@ -3991,10 +3991,11 @@ pub(crate) mod test {
                 .map(|_| ())
                 .unwrap_err();
 
-            let err_src = err.source().unwrap();
-            assert!(err_src
-                .to_string()
-                .contains("Cannot allow stream requests on tunnel with 2 legs"));
+            let err_src = err.source().unwrap().to_string();
+            assert!(
+                err_src.contains("Cannot allow stream requests on a multi-path tunnel"),
+                "{err_src}"
+            );
         });
     }
 }
