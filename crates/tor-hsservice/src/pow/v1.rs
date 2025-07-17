@@ -780,7 +780,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             }
             let adjusted_idle_time = Duration::saturating_sub(
                 inner.idle_time,
-                avg_request_duration * inner.queue.len() as u32,
+                avg_request_duration * inner.queue.len().try_into().expect("Queue too large."),
             );
             // TODO: use as_millis_f64 when stable
             let idle_fraction =
