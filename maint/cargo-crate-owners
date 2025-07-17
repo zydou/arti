@@ -182,7 +182,7 @@ while read <&3 n_packages packages_file; do
     echo >&4
 done
 
-if [ "x$override_expiry" != x ]; then
+if [ "$override_expiry" != "" ]; then
     cat <<END
 NB, used MAINT_CARGO_CRATE_OWNERS_UNTIL, expiry $override_expiry:
 Pretended owners added to $override_changed crates.
