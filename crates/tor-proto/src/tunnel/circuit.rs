@@ -3975,11 +3975,7 @@ pub(crate) mod test {
             let err = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    (
-                        tunnel.circ.unique_id(),
-                        EXPECTED_HOP.into(),
-                    )
-                        .into(),
+                    (tunnel.circ.unique_id(), EXPECTED_HOP.into()).into(),
                     AllowAllStreamsFilter,
                 )
                 .await
