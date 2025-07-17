@@ -714,7 +714,7 @@ struct RendRequestReceiverInner<R, Q> {
     /// greater than or equal to the suggested effort.
     num_enqueued_gte_suggested: usize,
     /// Number of requests that were dequeued during the current update period.
-    num_dequeued: usize,
+    num_dequeued: u32,
     /// Amount of time during the current update period that we spent with no requests in the
     /// queue.
     idle_time: Duration,
@@ -772,7 +772,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
         if inner.num_dequeued != 0 {
             let update_period_duration = inner.runtime.now() - inner.update_period_start;
-            let avg_request_duration = update_period_duration / inner.num_dequeued as u32;
+            let avg_request_duration = update_period_duration / inner.num_dequeued;
             if inner.queue.is_empty() {
                 let now = inner.runtime.now();
                 let last_transition = inner.last_transition;
