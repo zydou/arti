@@ -33,8 +33,6 @@ pub(crate) struct XonXoffReader<R> {
     pending_drain_rate_update: bool,
 }
 
-// XXX: we'll use these methods later when we add this to the `DataReader`
-#[expect(dead_code)]
 impl<R> XonXoffReader<R> {
     /// Create a new [`XonXoffReader`].
     ///
