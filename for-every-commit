@@ -130,7 +130,7 @@ done
 # If you try to unshallow a repo that's already complete, you get
 # an error!  Hence this.  Not all versions of git-rev-parse
 # understand this option; we err on the side of trying the unshallow.
-if [ "x$(git rev-parse --is-shallow-repository)" != xfalse ]; then
+if [ "$(git rev-parse --is-shallow-repository)" != false ]; then
     # TODO really we want something like the converse of
     #  git fetch --shallow-exclude
     # but it doesn't seem to exist.
