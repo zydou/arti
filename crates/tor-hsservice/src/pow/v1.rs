@@ -793,11 +793,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             let busy_fraction = 1.0 - idle_fraction;
 
             let mut suggested_effort = inner.suggested_effort.lock().expect("Lock poisoned");
-            let suggseted_effort_inner: u32 = (*suggested_effort).into();
+            let suggested_effort_inner: u32 = (*suggested_effort).into();
 
             if busy_fraction == 0.0 {
                 let new_suggested_effort =
-                    u32::from_f64(f64::from(suggseted_effort_inner) * decay_adjustment_fraction)
+                    u32::from_f64(f64::from(suggested_effort_inner) * decay_adjustment_fraction)
                         .expect("Conversion error");
                 *suggested_effort = Effort::from(new_suggested_effort);
             } else {
@@ -814,13 +814,13 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                     .expect("Conversion error");
                     *suggested_effort = Effort::from(std::cmp::max(
                         effort_per_dequeued,
-                        suggseted_effort_inner + 1,
+                        suggested_effort_inner + 1,
                     ));
                 } else {
                     let decay = num_enqueued_gte_suggested_f64 / theoretical_num_dequeued;
                     let adjusted_decay = decay + ((1.0 - decay) * decay_adjustment_fraction);
                     let new_suggested_effort =
-                        u32::from_f64(f64::from(suggseted_effort_inner) * adjusted_decay)
+                        u32::from_f64(f64::from(suggested_effort_inner) * adjusted_decay)
                             .expect("Conversion error");
                     *suggested_effort = Effort::from(new_suggested_effort);
                 }
