@@ -15,6 +15,7 @@ use arrayvec::ArrayVec;
 use futures::task::SpawnExt;
 use futures::{channel::mpsc, Stream};
 use futures::{SinkExt, StreamExt};
+use num_traits::FromPrimitive;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tor_basic_utils::RngExt as _;
@@ -767,6 +768,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
     /// Update the suggested effort value, as per the algorithm in prop362
     fn update_suggested_effort(&self) {
         const CONFIG_DECAY_ADJUSTMENT: usize = 0; // TODO POW: Get from config
+        let decay_adjustment_fraction = f64::from_usize(CONFIG_DECAY_ADJUSTMENT)
+            .expect("Error converting decay adjustment")
+            / 100.0;
 
         let mut inner = self.0.lock().expect("Lock poisoned");
 
@@ -792,7 +796,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
             if busy_fraction == 0.0 {
                 let new_suggested_effort =
-                    f64::from(suggseted_effort_inner) * (CONFIG_DECAY_ADJUSTMENT as f64 / 100.0);
+                    f64::from(suggseted_effort_inner) * decay_adjustment_fraction;
                 *suggested_effort = Effort::from(new_suggested_effort as u32);
             } else {
                 let theoretical_num_dequeued = inner.num_dequeued as f64 * (1.0 / busy_fraction);
@@ -805,8 +809,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                     ));
                 } else {
                     let decay = inner.num_enqueued_gte_suggested as f64 / theoretical_num_dequeued;
-                    let adjusted_decay =
-                        decay + ((1.0 - decay) * (CONFIG_DECAY_ADJUSTMENT as f64 / 100.0));
+                    let adjusted_decay = decay + ((1.0 - decay) * decay_adjustment_fraction);
                     let new_suggested_effort = f64::from(suggseted_effort_inner) * adjusted_decay;
                     *suggested_effort = Effort::from(new_suggested_effort as u32);
                 }
