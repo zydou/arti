@@ -45,7 +45,7 @@ check_equal () {
     local b="$2"
     local a_what="$3"
     local b_what="$4"
-    if [ "x$a" != "x$b" ]; then
+    if [ "$a" != "$b" ]; then
 	problem "mismatch: $a_what ($a) != $b_what ($b)"
     fi
 }

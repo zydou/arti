@@ -14,7 +14,7 @@ fail () {
 }
 
 tmp_trap_exit_setup () {
-    if [ "x$MAINT_DDLETE_CREATE_TMP" != x ]; then
+    if [ "$MAINT_DDLETE_CREATE_TMP" != "" ]; then
 	rm -rf -- "$MAINT_DDLETE_CREATE_TMP"
 	mkdir -- "$MAINT_DDLETE_CREATE_TMP"
 	tmp="$MAINT_DDLETE_CREATE_TMP"
