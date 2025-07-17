@@ -150,6 +150,10 @@ const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 1024;
 const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
 
 /// When the suggested effort has changed by less than this much, we don't republish it.
+///
+/// Specified as "15 percent" in https://spec.torproject.org/hspow-spec/common-protocol.html
+///
+/// However, we may want to make this configurable in the future.
 const SUGGESTED_EFFORT_DEADZONE: f64 = 0.15;
 
 /// How soon before a seed's expiration time we should rotate it and publish a new seed.
