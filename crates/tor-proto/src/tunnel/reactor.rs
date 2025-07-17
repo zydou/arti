@@ -27,12 +27,13 @@ use crate::memquota::{CircuitAccount, StreamAccount};
 use crate::stream::queue::StreamQueueReceiver;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
-use crate::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
+use crate::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::CircuitRxReceiver;
 use crate::tunnel::{streammap, HopLocation, TargetHop, TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
+use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use circuit::{Circuit, CircuitCmd};
@@ -617,6 +618,10 @@ pub(crate) struct StreamReqInfo {
     // the `watch::Sender` owns the indirect data
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) rate_limit_stream: watch::Receiver<StreamRateLimit>,
+    /// A [`Stream`](futures::Stream) that provides notifications when a new drain rate is
+    /// requested.
+    #[deftly(has_memory_cost(indirect_size = "0"))]
+    pub(crate) drain_rate_request_stream: NotifyReceiver<DrainRateRequest>,
     /// The memory quota account to be used for this stream
     #[deftly(has_memory_cost(indirect_size = "0"))] // estimate (it contains an Arc)
     pub(crate) memquota: StreamAccount,

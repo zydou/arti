@@ -262,8 +262,6 @@ impl StreamTarget {
     /// This sends a message to inform the circuit reactor of the new drain rate,
     /// but it does not block or wait for a response from the reactor.
     /// An error is only returned if we are unable to send the update.
-    // XXX: we will use this later
-    #[expect(dead_code)]
     pub(crate) fn drain_rate_update(&mut self, rate: XonKbpsEwma) -> Result<()> {
         self.circ
             .control

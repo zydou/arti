@@ -7,12 +7,15 @@ use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::HopNum;
 use crate::stream::queue::StreamQueueSender;
-use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamRateLimit, StreamStatus};
+use crate::stream::{
+    AnyCmdChecker, DrainRateRequest, StreamFlowControl, StreamRateLimit, StreamStatus,
+};
 use crate::tunnel::circuit::StreamMpscReceiver;
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
 use crate::tunnel::TunnelScopedCircId;
+use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
 use futures::stream::FuturesUnordered;
@@ -271,9 +274,10 @@ impl CircHop {
         sender: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_flow_ctrl(rate_limit_updater)?;
+        let flow_ctrl = self.build_flow_ctrl(rate_limit_updater, drain_rate_requester)?;
         let r =
             self.map
                 .lock()
@@ -438,6 +442,7 @@ impl CircHop {
         sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
         stream_id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
@@ -445,7 +450,7 @@ impl CircHop {
         hop_map.add_ent_with_id(
             sink,
             rx,
-            self.build_flow_ctrl(rate_limit_updater)?,
+            self.build_flow_ctrl(rate_limit_updater, drain_rate_requester)?,
             stream_id,
             cmd_checker,
         )?;
@@ -548,6 +553,7 @@ impl CircHop {
     fn build_flow_ctrl(
         &self,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Result<StreamFlowControl> {
         if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
@@ -555,7 +561,7 @@ impl CircHop {
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    Ok(StreamFlowControl::new_xon_xoff_based(rate_limit_updater))
+                    Ok(StreamFlowControl::new_xon_xoff_based(rate_limit_updater, drain_rate_requester))
                 } else {
                     Err(internal!(
                         "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",

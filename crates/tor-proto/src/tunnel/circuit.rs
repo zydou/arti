@@ -52,6 +52,7 @@ use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::queue::stream_queue;
+use crate::stream::xon_xoff::XonXoffReaderCtrl;
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamRateLimit, StreamReceiver,
@@ -62,6 +63,7 @@ use crate::tunnel::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
 use crate::tunnel::{StreamTarget, TargetHop};
+use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
@@ -833,6 +835,7 @@ impl ClientCirc {
                 receiver,
                 msg_tx,
                 rate_limit_stream,
+                drain_rate_request_stream,
                 memquota,
                 relay_cell_format,
             } = req_ctx;
@@ -858,6 +861,10 @@ impl ClientCirc {
                 rate_limit_stream,
             };
 
+            // can be used to build a reader that supports XON/XOFF flow control
+            let xon_xoff_reader_ctrl =
+                XonXoffReaderCtrl::new(drain_rate_request_stream, target.clone());
+
             let reader = StreamReceiver {
                 target: target.clone(),
                 receiver,
@@ -869,6 +876,7 @@ impl ClientCirc {
                 stream_receiver: reader,
                 target,
                 memquota,
+                xon_xoff_reader_ctrl,
             };
 
             IncomingStream::new(circ.time_provider.clone(), req, components)
@@ -1064,6 +1072,12 @@ impl ClientCirc {
 
         let (rate_limit_tx, rate_limit_rx) = watch::channel_with(StreamRateLimit::MAX);
 
+        // A channel for the reactor to request a new drain rate from the reader.
+        // Typically this notification will be sent after an XOFF is sent so that the reader can
+        // send us a new drain rate when the stream data queue becomes empty.
+        let mut drain_rate_request_tx = NotifySender::new_typed();
+        let drain_rate_request_rx = drain_rate_request_tx.subscribe();
+
         self.control
             .unbounded_send(CtrlMsg::BeginStream {
                 hop,
@@ -1071,6 +1085,7 @@ impl ClientCirc {
                 sender,
                 rx: msg_rx,
                 rate_limit_notifier: rate_limit_tx,
+                drain_rate_requester: drain_rate_request_tx,
                 done: tx,
                 cmd_checker,
             })
@@ -1087,6 +1102,9 @@ impl ClientCirc {
             rate_limit_stream: rate_limit_rx,
         };
 
+        // can be used to build a reader that supports XON/XOFF flow control
+        let xon_xoff_reader_ctrl = XonXoffReaderCtrl::new(drain_rate_request_rx, target.clone());
+
         let stream_receiver = StreamReceiver {
             target: target.clone(),
             receiver,
@@ -1098,6 +1116,7 @@ impl ClientCirc {
             stream_receiver,
             target,
             memquota,
+            xon_xoff_reader_ctrl,
         };
 
         Ok(components)
@@ -1118,11 +1137,13 @@ impl ClientCirc {
             stream_receiver,
             target,
             memquota,
+            xon_xoff_reader_ctrl,
         } = components;
 
         let mut stream = DataStream::new(
             self.time_provider.clone(),
             stream_receiver,
+            xon_xoff_reader_ctrl,
             target,
             memquota,
         );
@@ -1223,6 +1244,7 @@ impl ClientCirc {
             stream_receiver,
             target: _,
             memquota,
+            xon_xoff_reader_ctrl: _,
         } = components;
 
         let mut resolve_stream = ResolveStream::new(stream_receiver, memquota);
@@ -1529,6 +1551,8 @@ pub(crate) struct StreamComponents {
     pub(crate) target: StreamTarget,
     /// The memquota [account](tor_memquota::Account) to use for data on this stream.
     pub(crate) memquota: StreamAccount,
+    /// The control information needed to add XON/XOFF flow control to the stream.
+    pub(crate) xon_xoff_reader_ctrl: XonXoffReaderCtrl,
 }
 
 /// Convert a [`ResolvedVal`] into a Result, based on whether or not

@@ -10,12 +10,13 @@ use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::queue::StreamQueueSender;
-use crate::stream::{AnyCmdChecker, StreamRateLimit};
+use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
 use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
 use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
 use crate::tunnel::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::tunnel::{streammap, HopLocation, TargetHop};
+use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 use crate::Result;
 #[cfg(test)]
@@ -117,6 +118,8 @@ pub(crate) enum CtrlMsg {
         rx: StreamMpscReceiver<AnyRelayMsg>,
         /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
         rate_limit_notifier: watch::Sender<StreamRateLimit>,
+        /// Notifies the stream reader when it should send a new drain rate.
+        drain_rate_requester: NotifySender<DrainRateRequest>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<(StreamId, HopLocation, RelayCellFormat)>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
@@ -437,6 +440,7 @@ impl<'a> ControlHandler<'a> {
                 sender,
                 rx,
                 rate_limit_notifier,
+                drain_rate_requester,
                 done,
                 cmd_checker,
             } => {
@@ -476,6 +480,7 @@ impl<'a> ControlHandler<'a> {
                     sender,
                     rx,
                     rate_limit_notifier,
+                    drain_rate_requester,
                     cmd_checker,
                 )?;
                 Ok(Some(RunOnceCmdInner::BeginStream {

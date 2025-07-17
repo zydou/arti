@@ -6,6 +6,7 @@ use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use crate::congestion::sendme;
+use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
 /// The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
@@ -45,10 +46,14 @@ impl StreamFlowControl {
 
     /// Returns a new xon/xoff-based [`StreamFlowControl`].
     #[cfg(feature = "flowctl-cc")]
-    pub(crate) fn new_xon_xoff_based(rate_limit_updater: watch::Sender<StreamRateLimit>) -> Self {
+    pub(crate) fn new_xon_xoff_based(
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
+    ) -> Self {
         Self {
             e: StreamFlowControlEnum::XonXoffBased(XonXoffControl {
                 rate_limit_updater,
+                drain_rate_requester,
                 last_sent_xon_xoff: None,
             }),
         }
@@ -211,6 +216,9 @@ impl StreamFlowControl {
                         control.last_sent_xon_xoff,
                         Some(LastSentXonXoff::Xoff),
                     ));
+
+                    // inform the stream reader that we need a new drain rate
+                    control.drain_rate_requester.notify();
                     return Ok(None);
                 }
 
@@ -246,6 +254,9 @@ impl StreamFlowControl {
                 // remember that we last sent an XOFF
                 control.last_sent_xon_xoff = Some(LastSentXonXoff::Xoff);
 
+                // inform the stream reader that we need a new drain rate
+                control.drain_rate_requester.notify();
+
                 Ok(Some(Xoff::new(FlowCtrlVersion::V0)))
             }
         }
@@ -258,6 +269,9 @@ struct XonXoffControl {
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
+    /// How we communicate requests for new drain rate updates to the
+    /// [`XonXoffReader`](crate::stream::xon_xoff::XonXoffReader).
+    drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
     last_sent_xon_xoff: Option<LastSentXonXoff>,
 }
@@ -304,3 +318,8 @@ impl std::fmt::Display for StreamRateLimit {
         write!(f, "{} bytes/s", self.rate)
     }
 }
+
+/// A marker type for a [`NotifySender`] indicating that notifications are for new drain rate
+/// requests.
+#[derive(Debug)]
+pub(crate) struct DrainRateRequest;

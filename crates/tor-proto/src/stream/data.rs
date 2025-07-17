@@ -36,6 +36,7 @@ use educe::Educe;
 use crate::tunnel::circuit::ClientCirc;
 
 use crate::memquota::StreamAccount;
+use crate::stream::xon_xoff::XonXoffReaderCtrl;
 use crate::stream::{StreamRateLimit, StreamReceiver};
 use crate::tunnel::StreamTarget;
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
@@ -461,10 +462,18 @@ impl DataStream {
     pub(crate) fn new<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
         receiver: StreamReceiver,
+        xon_xoff_reader_ctrl: XonXoffReaderCtrl,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(time_provider, receiver, target, false, memquota)
+        Self::new_inner(
+            time_provider,
+            receiver,
+            xon_xoff_reader_ctrl,
+            target,
+            false,
+            memquota,
+        )
     }
 
     /// Wrap raw stream receiver and target parts as a connected DataStream.
@@ -477,16 +486,26 @@ impl DataStream {
     pub(crate) fn new_connected<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
         receiver: StreamReceiver,
+        xon_xoff_reader_ctrl: XonXoffReaderCtrl,
         target: StreamTarget,
         memquota: StreamAccount,
     ) -> Self {
-        Self::new_inner(time_provider, receiver, target, true, memquota)
+        Self::new_inner(
+            time_provider,
+            receiver,
+            xon_xoff_reader_ctrl,
+            target,
+            true,
+            memquota,
+        )
     }
 
     /// The shared implementation of the `new*()` functions.
     fn new_inner<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
         receiver: StreamReceiver,
+        // XXX: we'll use this later to add XON/XOFF support to the `DataReader`
+        _xon_xoff_reader_ctrl: XonXoffReaderCtrl,
         target: StreamTarget,
         connected: bool,
         memquota: StreamAccount,

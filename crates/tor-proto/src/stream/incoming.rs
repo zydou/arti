@@ -62,6 +62,7 @@ impl IncomingStream {
                 StreamComponents {
                     mut target,
                     stream_receiver,
+                    xon_xoff_reader_ctrl,
                     memquota,
                 },
         } = self;
@@ -72,6 +73,7 @@ impl IncomingStream {
                 Ok(DataStream::new_connected(
                     time_provider,
                     stream_receiver,
+                    xon_xoff_reader_ctrl,
                     target,
                     memquota,
                 ))
