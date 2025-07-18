@@ -43,6 +43,7 @@ pub trait MsgHandler {
 }
 
 /// Wrapper for `MsgHandler` to implement `MetaCellHandler`
+#[cfg_attr(feature = "send-control-msg", visibility::make(pub))]
 pub(crate) struct UserMsgHandler<T> {
     /// From which hop to we expect to get messages?
     hop: HopLocation,
