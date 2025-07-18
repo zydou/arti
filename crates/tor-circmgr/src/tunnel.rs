@@ -96,7 +96,8 @@ define_derive_deftly! {
         /// Start an ad-hoc protocol exchange to the specified hop on this tunnel.
         ///
         /// See [ClientTunnel::start_conversation()] documentation for more details.
-        #[cfg_attr(feature = "send-control-msg", cfg(feature = "send-control-msg"))]
+        #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
+        #[cfg(feature = "send-control-msg")]
         pub async fn start_conversation(&self,
             msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
             reply_handler: impl tor_proto::MsgHandler + Send + 'static,

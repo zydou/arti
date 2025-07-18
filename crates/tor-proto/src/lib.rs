@@ -73,7 +73,8 @@ pub use tunnel::{circuit, ClientTunnel, HopLocation, TargetHop};
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub use {
-    crate::tunnel::msghandler::MsgHandler, crate::tunnel::reactor::MetaCellDisposition,
+    crate::tunnel::msghandler::{MsgHandler, UserMsgHandler},
+    crate::tunnel::reactor::MetaCellDisposition,
     crate::tunnel::Conversation,
 };
 
