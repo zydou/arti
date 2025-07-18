@@ -484,6 +484,7 @@ impl ServiceOnionServiceDataTunnel {
     }
 }
 
+#[cfg(feature = "hs-service")]
 impl ServiceOnionServiceIntroTunnel {
     /// Return the cryptographic material used to prove knowledge of a shared
     /// secret with with `hop`.
