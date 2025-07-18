@@ -50,7 +50,7 @@ use {
 };
 
 #[cfg(feature = "send-control-msg")]
-use msghandler::UserMsgHandler;
+use msghandler::{MsgHandler, UserMsgHandler};
 
 /// The unique identifier of a tunnel.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
@@ -114,7 +114,7 @@ pub struct Conversation<'r>(&'r ClientTunnel);
 impl Conversation<'_> {
     /// Send a protocol message as part of an ad-hoc exchange
     ///
-    /// Responses are handled by the `MsgHandler` set up
+    /// Responses are handled by the `UserMsgHandler` set up
     /// when the `Conversation` was created.
     pub async fn send_message(&self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
         self.send_internal(Some(msg), None).await
@@ -588,7 +588,7 @@ impl ClientTunnel {
     ///
     ///  0. Create an inter-task channel you'll use to receive
     ///     the outcome of your conversation,
-    ///     and bundle it into a [`MsgHandler`].
+    ///     and bundle it into a [`UserMsgHandler`].
     ///
     ///  1. Call `start_conversation`.
     ///     This will install a your handler, for incoming messages,
@@ -602,11 +602,11 @@ impl ClientTunnel {
     ///     possibly multiple times, from time to time,
     ///     to send further desired messages to the peer.
     ///
-    ///  3. In your [`MsgHandler`], process the incoming messages.
+    ///  3. In your [`UserMsgHandler`], process the incoming messages.
     ///     You may respond by
     ///     sending additional messages
     ///     When the protocol exchange is finished,
-    ///     `MsgHandler::handle_msg` should return
+    ///     `UserMsgHandler::handle_msg` should return
     ///     [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
     ///
     /// If you don't need the `Conversation` to send followup messages,
@@ -636,7 +636,7 @@ impl ClientTunnel {
     /// After the conversation has finished, the tunnel may be extended.
     /// Or, `start_conversation` may be called again;
     /// but, in that case there will be a gap between the two conversations,
-    /// during which no `MsgHandler` is installed,
+    /// during which no `UserMsgHandler` is installed,
     /// and unexpected incoming messages would close the tunnel.
     ///
     /// If these restrictions are violated, the tunnel will be closed with an error.
@@ -644,7 +644,7 @@ impl ClientTunnel {
     /// ## Precise definition of the lifetime of a conversation
     ///
     /// A conversation is in progress from entry to `start_conversation`,
-    /// until entry to the body of the [`MsgHandler::handle_msg`]
+    /// until entry to the body of the [`UserMsgHandler::handle_msg`]
     /// call which returns [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
     /// (*Entry* since `handle_msg` is synchronously embedded
     /// into the incoming message processing.)
@@ -660,7 +660,7 @@ impl ClientTunnel {
     pub async fn start_conversation(
         &self,
         msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
-        reply_handler: impl crate::MsgHandler + Send + 'static,
+        reply_handler: impl MsgHandler + Send + 'static,
         hop: TargetHop,
     ) -> Result<Conversation<'_>> {
         // We need to resolve the TargetHop into a precise HopLocation so our msg handler can match
