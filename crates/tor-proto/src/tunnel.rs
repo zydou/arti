@@ -11,7 +11,6 @@ mod streammap;
 use derive_deftly::Deftly;
 use derive_more::Display;
 use futures::SinkExt as _;
-use msghandler::UserMsgHandler;
 use oneshot_fused_workaround as oneshot;
 use std::net::IpAddr;
 use std::pin::Pin;
@@ -49,6 +48,9 @@ use {
     crate::stream::{IncomingCmdChecker, IncomingStream},
     crate::tunnel::reactor::StreamReqInfo,
 };
+
+#[cfg(feature = "send-control-msg")]
+use msghandler::UserMsgHandler;
 
 /// The unique identifier of a tunnel.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display)]
