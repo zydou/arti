@@ -9,12 +9,15 @@ use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::internal;
 use tor_linkspec::{CircTarget, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::{
-    circuit::{handshake, CircParameters, CircuitBinding, ClientCirc, Path, UniqId},
+    circuit::{CircParameters, CircuitBinding, ClientCirc, Path, UniqId},
     stream::{DataStream, StreamParameters},
     ClockSkew, TargetHop,
 };
 
 use crate::{Error, Result};
+
+#[cfg(feature = "hs-common")]
+use tor_proto::circuit::handshake;
 
 // The tunnel base methods. This MUST be derived on all tunnel types.
 define_derive_deftly! {
@@ -310,6 +313,7 @@ define_derive_deftly! {
         // state, or some kind of a type state pattern.
         //
         // TODO hs: possibly we should take a set of Protovers, and not just `Params`.
+        #[cfg(feature = "hs-common")]
         pub async fn extend_virtual(
             &self,
             protocol: handshake::RelayProtocol,
@@ -460,6 +464,7 @@ impl ServiceOnionServiceDataTunnel {
     //
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
+    #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         &self,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
