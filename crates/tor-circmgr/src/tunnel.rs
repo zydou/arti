@@ -84,6 +84,7 @@ define_derive_deftly! {
         }
 
         /// Send raw message.
+        #[cfg(feature = "send-control-msg")]
         pub async fn send_raw_msg(&self, msg: AnyRelayMsg, hop: TargetHop) -> Result<()> {
             self.tunnel_ref()
                 .send_raw_msg(msg, hop)
