@@ -217,16 +217,21 @@ impl TunnelMutableState {
         debug_assert!(state.is_some());
     }
 
-    /// Return a [`Path`] object describing all the hops in the specified circuit.
-    ///
-    /// See [`MutableState::path`].
-    fn path_ref(&self, unique_id: UniqId) -> Result<Arc<Path>> {
+    /// Return a [`Path`] object describing all the circuits in this tunnel.
+    fn all_paths(&self) -> Vec<Arc<Path>> {
         let lock = self.0.lock().expect("lock poisoned");
-        let mutable = lock
-            .get(&unique_id)
-            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
+        lock.values().map(|mutable| mutable.path()).collect()
+    }
 
-        Ok(mutable.path())
+    /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
+    ///
+    /// Returns an error if the tunnel has more than one tunnel.
+    fn single_path(&self) -> Result<Arc<Path>> {
+        use itertools::Itertools as _;
+
+        self.all_paths().into_iter().exactly_one().map_err(|_| {
+            bad_api_usage!("requested the single path of a multi-path tunnel?!").into()
+        })
     }
 
     /// Return a description of the first hop of this circuit.
@@ -606,11 +611,9 @@ impl ClientCirc {
             .expect("called first_hop on an un-constructed circuit"))
     }
 
-    /// Return a description of the last hop of the circuit.
+    /// Return a description of the last hop of the tunnel.
     ///
     /// Return None if the last hop is virtual.
-    ///
-    /// See caveats on [`ClientCirc::last_hop_num()`].
     ///
     /// # Panics
     ///
@@ -618,7 +621,10 @@ impl ClientCirc {
     /// the tor-proto crate, but within the crate it's possible to have a
     /// circuit with no hops.)
     pub fn last_hop_info(&self) -> Result<Option<OwnedChanTarget>> {
-        let path = self.path_ref()?;
+        let all_paths = self.all_paths();
+        let path = all_paths.first().ok_or_else(|| {
+            tor_error::bad_api_usage!("Called last_hop_info an an un-constructed tunnel")
+        })?;
         Ok(path
             .hops()
             .last()
@@ -655,14 +661,19 @@ impl ClientCirc {
         Ok((self.unique_id, hop_num).into())
     }
 
-    /// Return a [`Path`] object describing all the hops in this circuit.
+    /// Return a list of [`Path`] objects describing all the circuits in this tunnel.
     ///
-    /// Note that this `Path` is not automatically updated if the circuit is
-    /// extended.
-    pub fn path_ref(&self) -> Result<Arc<Path>> {
-        self.mutable
-            .path_ref(self.unique_id)
-            .map_err(|_| Error::CircuitClosed)
+    /// Note that these `Path`s are not automatically updated if the underlying
+    /// circuits are extended.
+    pub fn all_paths(&self) -> Vec<Arc<Path>> {
+        self.mutable.all_paths()
+    }
+
+    /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
+    ///
+    /// Returns an error if the tunnel has more than one tunnel.
+    pub fn single_path(&self) -> Result<Arc<Path>> {
+        self.mutable.single_path()
     }
 
     /// Get the clock skew claimed by the first hop of the circuit.
@@ -1640,7 +1651,7 @@ pub(crate) mod test {
 
         // Do the path accessors report a reasonable outcome?
         {
-            let path = circ.path_ref().unwrap();
+            let path = circ.single_path().unwrap();
             let path = path
                 .all_hops()
                 .filter_map(|hop| match hop {
@@ -1656,7 +1667,7 @@ pub(crate) mod test {
             assert_ne!(path[0].ed_identity(), example_target().ed_identity());
         }
         {
-            let path = circ.path_ref().unwrap();
+            let path = circ.single_path().unwrap();
             assert_eq!(path.n_hops(), 4);
             use tor_linkspec::HasRelayIds;
             assert_eq!(

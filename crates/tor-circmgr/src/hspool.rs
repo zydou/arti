@@ -464,7 +464,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             return Err(internal!("wanted a GUARDED circuit, but got NAIVE?!").into());
         }
 
-        let path = circ.path_ref().map_err(|error| Error::Protocol {
+        let path = circ.single_path().map_err(|error| Error::Protocol {
             action: "launching a client rend circuit",
             peer: None, // Either party could be to blame.
             unique_id: Some(circ.unique_id()),
@@ -777,12 +777,15 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = crate::build::onion_circparams_from_netparams(netdir.params())?;
-                let circ_path = circuit.circ.path_ref().map_err(|error| Error::Protocol {
-                    action: "extending full vanguards circuit",
-                    peer: None, // Either party could be to blame.
-                    unique_id: Some(circuit.unique_id()),
-                    error,
-                })?;
+                let circ_path = circuit
+                    .circ
+                    .single_path()
+                    .map_err(|error| Error::Protocol {
+                        action: "extending full vanguards circuit",
+                        peer: None, // Either party could be to blame.
+                        unique_id: Some(circuit.unique_id()),
+                        error,
+                    })?;
 
                 // A NAIVE circuit is a 3-hop circuit.
                 debug_assert_eq!(circ_path.hops().len(), 3);
@@ -883,7 +886,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         if let Some(target) = target {
             let take_n = 2;
             if let Some(hop) = tunnel
-                .path_ref()
+                .single_path()
                 .map_err(|error| Error::Protocol {
                     action: "validating circuit compatibility with target",
                     peer: None, // Either party could be to blame.
@@ -993,7 +996,7 @@ where
     T: CircTarget + std::marker::Sync,
 {
     if let Some(target) = avoid_target {
-        let Ok(circ_path) = circ.circ.path_ref() else {
+        let Ok(circ_path) = circ.circ.single_path() else {
             // Circuit is unusable, so we can't use it.
             return false;
         };
@@ -1046,7 +1049,7 @@ where
         return false;
     }
 
-    let Ok(path) = circ.path_ref() else {
+    let Ok(path) = circ.single_path() else {
         // Circuit is unusable, so we can't use it.
         return false;
     };

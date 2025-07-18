@@ -49,7 +49,7 @@ impl AbstractTunnel for FakeCirc {
         true
     }
 
-    fn path_ref(&self) -> tor_proto::Result<Arc<Path>> {
+    fn single_path(&self) -> tor_proto::Result<Arc<Path>> {
         todo!()
     }
 

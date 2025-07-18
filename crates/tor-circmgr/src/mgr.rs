@@ -94,13 +94,10 @@ pub(crate) trait AbstractTunnel: Debug {
     /// Reasons a tunnel might be unusable include being closed.
     fn usable(&self) -> bool;
 
-    /// Return a [`Path`] object describing all the hops in this tunnel.
+    /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
     ///
-    /// Returns an error if the tunnel is closed.
-    ///
-    /// Note that this `Path` is not automatically updated if the tunnel is
-    /// extended.
-    fn path_ref(&self) -> tor_proto::Result<Arc<Path>>;
+    /// Returns an error if the tunnel has more than one tunnel.
+    fn single_path(&self) -> tor_proto::Result<Arc<Path>>;
 
     /// Return the number of hops in this tunnel.
     ///

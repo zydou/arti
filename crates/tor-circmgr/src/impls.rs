@@ -10,7 +10,7 @@ use educe::Educe;
 use futures::future::OptionFuture;
 use std::sync::Arc;
 use tor_basic_utils::skip_fmt;
-use tor_error::internal;
+use tor_error::{bad_api_usage, internal};
 #[cfg(feature = "vanguards")]
 use tor_guardmgr::vanguards::VanguardMgr;
 use tor_linkspec::CircTarget;
@@ -30,8 +30,12 @@ impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
         !self.is_closing()
     }
 
-    fn path_ref(&self) -> tor_proto::Result<Arc<Path>> {
-        self.path_ref()
+    fn single_path(&self) -> tor_proto::Result<Arc<Path>> {
+        use itertools::Itertools as _;
+
+        self.all_paths().into_iter().exactly_one().map_err(|_| {
+            bad_api_usage!("requested the single path of a multi-path tunnel?!").into()
+        })
     }
 
     fn n_hops(&self) -> tor_proto::Result<usize> {

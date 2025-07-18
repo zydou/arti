@@ -9,7 +9,7 @@ use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::internal;
 use tor_linkspec::{CircTarget, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::{
-    circuit::{CircParameters, CircuitBinding, ClientCirc, Path, UniqId},
+    circuit::{CircParameters, CircuitBinding, ClientCirc, UniqId},
     stream::{DataStream, StreamParameters},
     ClockSkew, TargetHop,
 };
@@ -156,17 +156,6 @@ define_derive_deftly! {
                 .map_err(|error| Error::Protocol {
                     action: "extend tunnel",
                     peer: Some(target.to_owned().to_logged()),
-                    error,
-                    unique_id: Some(self.tunnel.unique_id()),
-                })
-        }
-
-        /// Return a Path object describing all the hops in this circuit.
-        pub async fn path_ref(&self) -> Result<Arc<Path>> {
-            self.tunnel_ref().path_ref()
-                .map_err(|error| Error::Protocol {
-                    action: "path ref",
-                    peer: None,
                     error,
                     unique_id: Some(self.tunnel.unique_id()),
                 })

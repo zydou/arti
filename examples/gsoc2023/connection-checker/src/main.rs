@@ -101,9 +101,12 @@ async fn build_circuit(tor_client: &TorClient<PreferredRuntime>, remote: &str) -
                 .ok_or_else(|| Error::msg("failed to get client stream ctrl?!"))?
                 .tunnel()
                 .ok_or_else(|| Error::msg("failed to get client circuit?!"))?;
-            let circ = tunnel.path_ref()?;
-            for node in circ.iter() {
-                println!("Node: {node}");
+            let paths = tunnel.all_paths();
+            for (i, circ) in paths.into_iter().enumerate() {
+                println!("Circ {i}:");
+                for node in circ.iter() {
+                    println!("\tNode: {node}");
+                }
             }
             Ok(())
         }

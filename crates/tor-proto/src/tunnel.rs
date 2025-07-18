@@ -222,9 +222,10 @@ impl ClientTunnel {
         self.as_single_circ()?.n_hops()
     }
 
-    /// Return a [`Path`] object describing all the hops in this circuit.
-    pub fn path_ref(&self) -> Result<Arc<Path>> {
-        self.circ.path_ref()
+    /// Return the [`Path`] objects describing all the hops
+    /// of all the circuits in this tunnel.
+    pub fn all_paths(&self) -> Vec<Arc<Path>> {
+        self.circ.all_paths()
     }
 
     /// Return a process-unique identifier for this tunnel.
