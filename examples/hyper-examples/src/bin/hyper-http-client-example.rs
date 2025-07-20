@@ -48,26 +48,9 @@ async fn main() -> Result<()> {
     eprintln!("[+] Making request to: {}", url);
 
     if https {
-        // Get root_certs required for TLS.
-        // Because we use `rustls` we manually load Mozilla's CA roots, this because
-        // due to `rustls` we don't have access to the system's CA store.
-        let mut root_cert_store = tokio_rustls::rustls::RootCertStore::empty();
-        root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        let config = tokio_rustls::rustls::ClientConfig::builder()
-            .with_root_certificates(root_cert_store)
-            .with_no_client_auth();
-
-        // Use `tokio_rustls` connector to create a TLS connection.
-        // In this example we prefer `rustls` for easier portability. You can alternatively use
-        // `native-tls` if you prefer.
-        let connector = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config));
-        let server_name = host
-            .to_string()
-            .try_into()
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Bad DNS name"))?;
-
-        let stream = connector.connect(server_name, stream).await?;
-
+        let cx = tokio_native_tls::native_tls::TlsConnector::builder().build()?;
+        let cx = tokio_native_tls::TlsConnector::from(cx);
+        let stream = cx.connect(host, stream).await?;
         make_request(host, stream).await
     } else {
         make_request(host, stream).await
@@ -97,7 +80,6 @@ async fn make_request(
         .await?;
 
     eprintln!("[+] Response status: {}", resp.status());
-
     while let Some(frame) = resp.body_mut().frame().await {
         let bytes = frame?.into_data().unwrap();
         eprintln!("[+] Response body:\n\n{}", std::str::from_utf8(&bytes)?);
