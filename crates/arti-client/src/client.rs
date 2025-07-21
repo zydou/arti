@@ -1406,6 +1406,28 @@ impl<R: Runtime> TorClient<R> {
     ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
         let mut stream_parameters = prefs.stream_parameters();
+        // This macro helps prevent code duplication in the match below.
+        //
+        // Ideally, the match should resolve to a tuple consisting of the
+        // tunnel, and the address, port and stream params,
+        // but that's not currently possible because
+        // the Exit and Hs branches use different tunnel types.
+        //
+        // TODO: replace with an async closure (when our MSRV allows it),
+        // or with a more elegant approach.
+        macro_rules! begin_stream {
+            ($tunnel:expr, $addr:expr, $port:expr, $stream_params:expr) => {{
+                let fut = $tunnel.begin_stream($addr, $port, $stream_params);
+                self.runtime
+                    .timeout(self.timeoutcfg.get().connect_timeout, fut)
+                    .await
+                    .map_err(|_| ErrorDetail::ExitTimeout)?
+                    .map_err(|cause| ErrorDetail::StreamFailed {
+                        cause,
+                        kind: "data",
+                    })
+            }};
+        }
 
         let stream = match addr.into_stream_instructions(&self.addrcfg.get(), prefs)? {
             StreamInstructions::Exit {
@@ -1418,19 +1440,7 @@ impl<R: Runtime> TorClient<R> {
                     .await
                     .map_err(wrap_err)?;
                 debug!("Got a circuit for {}:{}", sensitive(&addr), port);
-                let fut = tunnel.begin_stream(&addr, port, Some(stream_parameters));
-                // XXX: Duplicating code from the below onion service case. Problem is that the
-                // future returned by begin_stream is an opaque type until we await on it. For
-                // this, we need to run the timeout here on both and return the DataStream object.
-                // I'm sure there is a fix to avoid this.
-                self.runtime
-                    .timeout(self.timeoutcfg.get().connect_timeout, fut)
-                    .await
-                    .map_err(|_| ErrorDetail::ExitTimeout)?
-                    .map_err(|cause| ErrorDetail::StreamFailed {
-                        cause,
-                        kind: "data",
-                    })?
+                begin_stream!(tunnel, &addr, port, Some(stream_parameters))
             }
 
             #[cfg(not(feature = "onion-service-client"))]
@@ -1490,19 +1500,12 @@ impl<R: Runtime> TorClient<R> {
                     .suppress_hostname()
                     .suppress_begin_flags()
                     .optimistic(false);
-                let fut = tunnel.begin_stream(&hostname, port, Some(stream_parameters));
-                self.runtime
-                    .timeout(self.timeoutcfg.get().connect_timeout, fut)
-                    .await
-                    .map_err(|_| ErrorDetail::ExitTimeout)?
-                    .map_err(|cause| ErrorDetail::StreamFailed {
-                        cause,
-                        kind: "data",
-                    })?
+
+                begin_stream!(tunnel, &hostname, port, Some(stream_parameters))
             }
         };
 
-        Ok(stream)
+        Ok(stream?)
     }
 
     /// Sets the default preferences for future connections made with this client.
