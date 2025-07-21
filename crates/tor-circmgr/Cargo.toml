@@ -64,7 +64,7 @@ geoip = [
 experimental-api = ["visibility", "__is_experimental"]
 send-control-msg = ["tor-proto/send-control-msg"]
 hs-client = ["hs-common"]
-hs-service = ["hs-common"]
+hs-service = ["hs-common", "tor-proto/hs-service"]
 hs-common = []
 __is_experimental = []
 
