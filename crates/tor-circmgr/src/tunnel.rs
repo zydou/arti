@@ -99,7 +99,8 @@ define_derive_deftly! {
 
         /// Start an ad-hoc protocol exchange to the specified hop on this tunnel.
         ///
-        /// See [ClientTunnel::start_conversation()] documentation for more details.
+        /// See [`ClientTunnel::start_conversation`](tor_proto::ClientTunnel::start_conversation)
+        /// documentation for more details.
         #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
         #[cfg(feature = "send-control-msg")]
         pub async fn start_conversation(&self,
@@ -424,7 +425,7 @@ impl ClientDirTunnel {
 
     /// Get the clock skew claimed by the first hop of the circuit.
     ///
-    /// See [`Channel::clock_skew()`].
+    /// See [`Channel::clock_skew()`](tor_proto::channel::Channel::clock_skew).
     pub async fn first_hop_clock_skew(&self) -> Result<ClockSkew> {
         // TODO(conflux): Is this CircCanceled error right?
         self.circuit()?

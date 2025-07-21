@@ -100,7 +100,7 @@ impl TunnelScopedCircId {
 
 /// Handle to use during an ongoing protocol exchange with a circuit's last hop
 ///
-/// This is obtained from [`ClientCirc::start_conversation`],
+/// This is obtained from [`ClientTunnel::start_conversation`],
 /// and used to send messages to the last hop relay.
 //
 // TODO(conflux): this should use ClientTunnel, and it should be moved into
@@ -565,7 +565,7 @@ impl ClientTunnel {
     /// a reply.
     ///
     /// (If you want to handle one or more possible replies, see
-    /// [`ClientCirc::start_conversation`].)
+    /// [`ClientTunnel::start_conversation`].)
     // TODO(conflux): Change this to use the ReactorHandle for the control commands.
     #[cfg(feature = "send-control-msg")]
     pub async fn send_raw_msg(
@@ -608,7 +608,7 @@ impl ClientTunnel {
     ///     sending additional messages
     ///     When the protocol exchange is finished,
     ///     `UserMsgHandler::handle_msg` should return
-    ///     [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
+    ///     [`ConversationFinished`](reactor::MetaCellDisposition::ConversationFinished).
     ///
     /// If you don't need the `Conversation` to send followup messages,
     /// you may simply drop it,
@@ -618,7 +618,7 @@ impl ClientTunnel {
     /// until it returns `ConversationFinished`.
     ///
     /// (If you don't want to accept any replies at all, it may be
-    /// simpler to use [`ClientCirc::send_raw_msg`].)
+    /// simpler to use [`ClientTunnel::send_raw_msg`].)
     ///
     /// Note that it is quite possible to use this function to violate the tor
     /// protocol; most users of this API will not need to call it.  It is used
@@ -645,8 +645,8 @@ impl ClientTunnel {
     /// ## Precise definition of the lifetime of a conversation
     ///
     /// A conversation is in progress from entry to `start_conversation`,
-    /// until entry to the body of the [`UserMsgHandler::handle_msg`]
-    /// call which returns [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
+    /// until entry to the body of the [`UserMsgHandler::handle_msg`](MsgHandler::handle_msg)
+    /// call which returns [`ConversationFinished`](reactor::MetaCellDisposition::ConversationFinished).
     /// (*Entry* since `handle_msg` is synchronously embedded
     /// into the incoming message processing.)
     /// So you may start a new conversation as soon as you have the final response
@@ -854,7 +854,7 @@ impl StreamTarget {
     ///
     /// Note that in many cases, the actual contents of an END message can leak unwanted
     /// information. Please consider carefully before sending anything but an
-    /// [`End::new_misc()`](tor_cell::relaycell::msg::End::new_misc) message over a `ClientCirc`.
+    /// [`End::new_misc()`](tor_cell::relaycell::msg::End::new_misc) message over a `ClientTunnel`.
     /// (For onion services, we send [`DONE`](tor_cell::relaycell::msg::EndReason::DONE) )
     ///
     /// In addition to sending the END message, this function also ensures

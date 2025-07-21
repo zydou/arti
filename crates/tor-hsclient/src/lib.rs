@@ -87,7 +87,7 @@ use state::{Config, MockableConnectorData, Services};
 /// and potentially different circuit isolation.
 ///
 /// The principal entrypoint is
-/// [`get_or_launch_connection()`](HsClientConnector::get_or_launch_connection).
+/// [`get_or_launch_tunnel()`](HsClientConnector::get_or_launch_tunnel).
 ///
 /// This object is handle-like: it is fairly cheap to clone,
 ///  and contains `Arc`s internally.

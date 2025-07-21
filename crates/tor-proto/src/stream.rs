@@ -3,7 +3,7 @@
 //! A stream is an anonymized conversation; multiple streams can be
 //! multiplexed over a single circuit.
 //!
-//! To create a stream, use [crate::tunnel::circuit::ClientCirc::begin_stream].
+//! To create a stream, use [crate::tunnel::ClientTunnel::begin_stream].
 //!
 //! # Limitations
 //!

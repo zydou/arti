@@ -10,12 +10,12 @@
 //! separate set of keys with each hop.
 //!
 //! To build a circuit, first create a [crate::channel::Channel], then
-//! call its [crate::channel::Channel::new_circ] method.  This yields
+//! call its [crate::channel::Channel::new_tunnel] method.  This yields
 //! a [PendingClientTunnel] object that won't become live until you call
 //! one of the methods
 //! (typically [`PendingClientTunnel::create_firsthop`])
 //! that extends it to its first hop.  After you've
-//! done that, you can call [`ClientTunnel::extend`] on the tunnel to
+//! done that, you can call [`ClientCirc::extend`] on the tunnel to
 //! build it into a multi-hop tunnel.  Finally, you can use
 //! [ClientTunnel::begin_stream] to get a Stream object that can be used
 //! for anonymized data.
@@ -104,7 +104,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 ///
 /// # Circuit life cycle
 ///
-/// `ClientCirc`s are created in an initially unusable state using [`Channel::new_circ`],
+/// `ClientCirc`s are created in an initially unusable state using [`Channel::new_tunnel`],
 /// which returns a [`PendingClientTunnel`].  To get a real (one-hop) tunnel from
 /// one of these, you invoke one of its `create_firsthop` methods (typically
 /// [`create_firsthop_fast()`](PendingClientTunnel::create_firsthop_fast) or
@@ -121,7 +121,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 ///    2. Some hop on the circuit sends a `DESTROY` message to tear down the
 ///       circuit.
 ///    3. The circuit's channel is closed.
-///    4. Someone calls [`ClientCirc::terminate`] on the circuit.
+///    4. Someone calls [`ClientTunnel::terminate`] on the tunnel owning the circuit.
 ///    5. The last reference to the `ClientCirc` is dropped. (Note that every stream
 ///       on a `ClientCirc` keeps a reference to it, which will in turn keep the
 ///       circuit from closing until all those streams have gone away.)
@@ -915,7 +915,7 @@ impl ClientCirc {
 }
 
 impl PendingClientTunnel {
-    /// Instantiate a new circuit object: used from Channel::new_circ().
+    /// Instantiate a new circuit object: used from Channel::new_tunnel().
     ///
     /// Does not send a CREATE* cell on its own.
     ///

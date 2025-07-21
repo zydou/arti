@@ -493,7 +493,8 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         }
     }
 
-    /// Internal implementation for [`HsCircPool::get_or_launch_specific`].
+    /// Helper for the [`HsCircPool`] functions that launch rendezvous,
+    /// introduction, or directory circuits.
     pub(crate) async fn get_or_launch_specific<T>(
         &self,
         netdir: &NetDir,

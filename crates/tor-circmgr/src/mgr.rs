@@ -304,7 +304,7 @@ impl ExpirationInfo {
     }
 }
 
-/// An entry for an open tunnel held by an `AbstractCircMgr`.
+/// An entry for an open tunnel held by an `AbstractTunnelMgr`.
 #[derive(Debug, Clone)]
 pub(crate) struct OpenEntry<T> {
     /// The supported usage for this tunnel.
@@ -383,9 +383,9 @@ impl<T: AbstractTunnel> OpenEntry<T> {
 /// A result type whose "Ok" value is the Id for a tunnel from B.
 type PendResult<B, R> = Result<<<B as AbstractTunnelBuilder<R>>::Tunnel as AbstractTunnel>::Id>;
 
-/// An in-progress tunnel request tracked by an `AbstractCircMgr`.
+/// An in-progress tunnel request tracked by an `AbstractTunnelMgr`.
 ///
-/// (In addition to tracking tunnels, `AbstractCircMgr` tracks
+/// (In addition to tracking tunnels, `AbstractTunnelMgr` tracks
 /// _requests_ for tunnels.  The manager uses these entries if it
 /// finds that some tunnel created _after_ a request first launched
 /// might meet the request's requirements.)
@@ -405,7 +405,7 @@ impl<B: AbstractTunnelBuilder<R>, R: Runtime> PendingRequest<B, R> {
 }
 
 /// An entry for an under-construction in-progress tunnel tracked by
-/// an `AbstractCircMgr`.
+/// an `AbstractTunnelMgr`.
 #[derive(Debug)]
 struct PendingEntry<B: AbstractTunnelBuilder<R>, R: Runtime> {
     /// Specification that this tunnel will support, if every pending
@@ -474,7 +474,7 @@ impl<B: AbstractTunnelBuilder<R>, R: Runtime> PendingEntry<B, R> {
 /// tunnel and constructing it.
 #[derive(Debug)]
 struct TunnelBuildPlan<B: AbstractTunnelBuilder<R>, R: Runtime> {
-    /// The Plan object returned by [`AbstractCircBuilder::plan_tunnel`].
+    /// The Plan object returned by [`AbstractTunnelBuilder::plan_tunnel`].
     plan: B::Plan,
     /// A sender to notify any pending requests when this tunnel is done.
     sender: oneshot::Sender<PendResult<B, R>>,
@@ -482,12 +482,12 @@ struct TunnelBuildPlan<B: AbstractTunnelBuilder<R>, R: Runtime> {
     pending: Arc<PendingEntry<B, R>>,
 }
 
-/// The inner state of an [`AbstractCircMgr`].
+/// The inner state of an [`AbstractTunnelMgr`].
 struct TunnelList<B: AbstractTunnelBuilder<R>, R: Runtime> {
     /// A map from tunnel ID to [`OpenEntry`] values for all managed
     /// open tunnels.
     ///
-    /// A tunnel is added here from [`AbstractCircMgr::do_launch`] when we find
+    /// A tunnel is added here from [`AbstractTunnelMgr::do_launch`] when we find
     /// that it completes successfully, and has not been cancelled.
     /// When we decide that such a tunnel should no longer be handed out for
     /// any new requests, we "retire" the tunnel by removing it from this map.
@@ -509,10 +509,10 @@ struct TunnelList<B: AbstractTunnelBuilder<R>, R: Runtime> {
     ///    that it has not been cancelled. (Removing an entry from this set marks
     ///    it as cancelled.)
     ///
-    /// An entry is added here in [`AbstractCircMgr::prepare_action`] when we
+    /// An entry is added here in [`AbstractTunnelMgr::prepare_action`] when we
     /// decide that a tunnel needs to be launched.
     ///
-    /// Later, in [`AbstractCircMgr::do_launch`], once the tunnel has finished
+    /// Later, in [`AbstractTunnelMgr::do_launch`], once the tunnel has finished
     /// (or failed), we remove the entry (by pointer identity).
     /// If we cannot find the entry, we conclude that the request has been
     /// _cancelled_, and so we discard any tunnel that was created.
@@ -752,7 +752,7 @@ enum Action<B: AbstractTunnelBuilder<R>, R: Runtime> {
 }
 
 impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> {
-    /// Construct a new AbstractCircMgr.
+    /// Construct a new AbstractTunnelMgr.
     pub(crate) fn new(builder: B, runtime: R, circuit_timing: CircuitTiming) -> Self {
         let circs = sync::Mutex::new(TunnelList::new());
         let dflt_params = tor_netdir::params::NetParameters::default();
@@ -788,7 +788,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     /// creating that circuit if necessary, and restricting it
     /// under the assumption that it will be used for that spec.
     ///
-    /// This is the primary entry point for AbstractCircMgr.
+    /// This is the primary entry point for AbstractTunnelMgr.
     #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor?
     pub(crate) async fn get_or_launch(
         self: &Arc<Self>,
@@ -1188,7 +1188,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
     /// Given a directory and usage, compute the necessary objects to
     /// build a tunnel: A [`PendingEntry`] to keep track of the in-process
-    /// tunnel, and a [`CircBuildPlan`] that we'll give to the thread
+    /// tunnel, and a [`TunnelBuildPlan`] that we'll give to the thread
     /// that will build the tunnel.
     ///
     /// The caller should probably add the resulting `PendingEntry` to

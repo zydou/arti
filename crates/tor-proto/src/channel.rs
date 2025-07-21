@@ -29,7 +29,7 @@
 //!
 //! One you have a running channel, you can create circuits on it with
 //! its [Channel::new_tunnel] method.  See
-//! [crate::tunnel::circuit::PendingClientCirc] for information on how to
+//! [crate::tunnel::circuit::PendingClientTunnel] for information on how to
 //! proceed from there.
 //!
 //! # Design
@@ -673,7 +673,7 @@ impl Channel {
     ///
     /// To use the results of this method, call Reactor::run() in a
     /// new task, then use the methods of
-    /// [crate::tunnel::circuit::PendingClientCirc] to build the circuit.
+    /// [crate::tunnel::circuit::PendingClientTunnel] to build the circuit.
     pub async fn new_tunnel(
         self: &Arc<Self>,
     ) -> Result<(PendingClientTunnel, tunnel::reactor::Reactor)> {
