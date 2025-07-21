@@ -55,8 +55,8 @@ impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
         target: &T,
         params: CircParameters,
     ) -> tor_proto::Result<()> {
-        // Use 'Self::' name to avoid invoking _this_ method.
-        Self::extend(self, target, params).await
+        let circ = self.as_single_circ()?;
+        circ.extend(target, params).await
     }
 }
 
