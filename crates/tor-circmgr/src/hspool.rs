@@ -228,7 +228,7 @@ impl<R: Runtime> HsCircPool<R> {
         target: T,
     ) -> Result<ClientOnionServiceDirTunnel>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         let tunnel = self
             .0
@@ -246,7 +246,7 @@ impl<R: Runtime> HsCircPool<R> {
         target: T,
     ) -> Result<ClientOnionServiceIntroTunnel>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         let tunnel = self
             .0
@@ -264,7 +264,7 @@ impl<R: Runtime> HsCircPool<R> {
         target: T,
     ) -> Result<ServiceOnionServiceDirTunnel>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         let tunnel = self
             .0
@@ -282,7 +282,7 @@ impl<R: Runtime> HsCircPool<R> {
         target: T,
     ) -> Result<ServiceOnionServiceIntroTunnel>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         let tunnel = self
             .0
@@ -300,7 +300,7 @@ impl<R: Runtime> HsCircPool<R> {
         target: T,
     ) -> Result<ServiceOnionServiceDataTunnel>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         let tunnel = self
             .0
@@ -502,7 +502,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         target: T,
     ) -> Result<B::Tunnel>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         if kind == HsCircKind::ClientRend {
             return Err(bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into());
@@ -558,7 +558,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         target: T,
     ) -> Result<B::Tunnel>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         let protocol_err = |error| Error::Protocol {
             action: "extending to chosen HS hop",
@@ -620,7 +620,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     where
         // TODO #504: It would be better if this were a type that had to include
         // family info.
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         let stem_kind = kind.stem_kind();
         let vanguard_mode = self.vanguard_mode();
@@ -731,7 +731,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         circ_kind: HsCircKind,
     ) -> Result<HsCircStem<B::Tunnel>>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         match self.vanguard_mode() {
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -769,7 +769,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         circ_kind: HsCircKind,
     ) -> Result<HsCircStem<B::Tunnel>>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         use crate::path::hspath::hs_stem_terminal_hop_usage;
         use tor_relay_selection::RelaySelector;
@@ -839,7 +839,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         kind: HsCircStemKind,
     ) -> Result<()>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         Self::ensure_circuit_can_extend_to_target(circ, target)?;
         self.ensure_circuit_length_valid(circ, kind)?;
@@ -882,7 +882,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     ///   * relays won't let you extend the circuit to their previous hop
     fn ensure_circuit_can_extend_to_target<T>(tunnel: &B::Tunnel, target: Option<&T>) -> Result<()>
     where
-        T: CircTarget + std::marker::Sync,
+        T: CircTarget + Sync,
     {
         if let Some(target) = target {
             let take_n = 2;
@@ -994,7 +994,7 @@ fn vanguards_circuit_compatible_with_target<C: AbstractTunnel, T>(
     avoid_target: Option<&T>,
 ) -> bool
 where
-    T: CircTarget + std::marker::Sync,
+    T: CircTarget + Sync,
 {
     if let Some(target) = avoid_target {
         let Ok(circ_path) = circ.circ.single_path() else {

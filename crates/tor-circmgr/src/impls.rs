@@ -50,7 +50,7 @@ impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
         self.unique_id()
     }
 
-    async fn extend<T: CircTarget + std::marker::Sync>(
+    async fn extend<T: CircTarget + Sync>(
         &self,
         target: &T,
         params: CircParameters,
