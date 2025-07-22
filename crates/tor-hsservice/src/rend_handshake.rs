@@ -15,7 +15,6 @@ use tor_proto::{
         hs_ntor::{self, HsNtorHkdfKeyGenerator},
     },
     stream::{IncomingStream, IncomingStreamRequestFilter},
-    TargetHop,
 };
 
 /// An error produced while trying to process an introduction request we have
@@ -351,6 +350,10 @@ impl IntroRequest {
         // We won't need the netdir any longer; stop holding the reference.
         drop(netdir);
 
+        let last_real_hop = tunnel
+            .last_hop()
+            .map_err(into_internal!("Circuit with no final hop"))?;
+
         // Add a virtual hop.
         tunnel
             .extend_virtual(
@@ -376,7 +379,7 @@ impl IntroRequest {
 
         // Send the RENDEZVOUS1 message.
         tunnel
-            .send_raw_msg(self.rend1_msg.into(), TargetHop::LastHop)
+            .send_raw_msg(self.rend1_msg.into(), last_real_hop)
             .await
             .map_err(E::SendRendezvous)?;
 
