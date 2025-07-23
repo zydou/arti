@@ -549,9 +549,12 @@ impl HopSettings {
             HopNegotiationType::Full => {
                 cfg_if! {
                     if #[cfg(all(feature = "flowctl-cc", feature = "counter-galois-onion"))] {
-                        if ccontrol.alg().compatible_with_cgo()
+                        #[allow(clippy::overly_complex_bool_expr)]
+                        if  ccontrol.alg().compatible_with_cgo()
                             && caps.supports_named_subver(named::RELAY_NEGOTIATE_SUBPROTO)
                             && caps.supports_named_subver(named::RELAY_CRYPT_CGO)
+                            && false // TODO CGO REMOVE once we are ready to enable CGO.
+                            // (We aren't enabling it yet because CC is not yet negotiable.)
                         {
                             RelayCryptLayerProtocol::Cgo
                         } else {
@@ -574,6 +577,13 @@ impl HopSettings {
 
     /// Return the negotiated relay crypto protocol.
     pub(super) fn relay_crypt_protocol(&self) -> RelayCryptLayerProtocol {
+        // TODO CGO: Remove this once we are ready to enable CGO.
+        // (We aren't enabling it yet because CC is not yet negotiable.)
+        #[cfg(feature = "counter-galois-onion")]
+        assert!(
+            !matches!(self.relay_crypt_protocol, RelayCryptLayerProtocol::Cgo),
+            "Somehow negotiated CGO, but CGO is not yet supported!!"
+        );
         self.relay_crypt_protocol
     }
 }
