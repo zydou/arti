@@ -658,7 +658,7 @@ impl KeyMgr {
     fn find_keystore(&self, id: &KeystoreId) -> Result<&BoxedKeystore> {
         self.all_stores()
             .find(|keystore| keystore.id() == id)
-            .ok_or_else(|| bad_api_usage!("could not find keystore with ID {id}").into())
+            .ok_or_else(|| crate::Error::KeystoreNotFound(id.clone()))
     }
 
     /// Get the signing key of the certificate described by `spec`.
