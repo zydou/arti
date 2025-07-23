@@ -11,7 +11,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::raw::RawKeystoreEntry;
-use crate::KeyPathError;
+use crate::{KeyPathError, KeystoreId};
 
 /// An Error type for this crate.
 #[derive(thiserror::Error, Debug, Clone)]
@@ -44,6 +44,12 @@ pub enum Error {
     #[error("{0}")]
     InvalidCert(#[from] tor_key_forge::InvalidCertError),
 
+    /// An error returned when the [`KeyMgr`](crate::KeyMgr) is unable to
+    /// find a [`Keystore`](crate::Keystore) matching a given [`KeystoreId`]
+    /// in either its `primary_store` field or the `secondary_stores` collection.
+    #[error("Keystore {0} not found")]
+    KeystoreNotFound(KeystoreId),
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -64,6 +70,7 @@ impl HasKind for Error {
             E::Keystore(e) => e.kind(),
             E::Corruption(_) => EK::KeystoreCorrupted,
             E::KeyAlreadyExists => EK::BadApiUsage, // TODO: not strictly right
+            E::KeystoreNotFound(_) => EK::BadApiUsage, // TODO: not strictly right
             E::KeyForge(_) => EK::BadApiUsage,
             E::InvalidCert(_) => EK::BadApiUsage, // TODO: not strictly right
             E::Bug(e) => e.kind(),
