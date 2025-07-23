@@ -47,6 +47,7 @@ pub(super) mod path;
 pub(crate) mod unique_id;
 
 use crate::channel::Channel;
+use crate::circuit::handshake::RelayCryptLayerProtocol;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
@@ -66,9 +67,11 @@ use crate::tunnel::{StreamTarget, TargetHop};
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 use crate::{Error, ResolveError, Result};
+use cfg_if::cfg_if;
 use educe::Educe;
 use path::HopDetail;
 use postage::watch;
+use tor_cell::relaycell::{self, RelayCellFormat};
 use tor_cell::{
     chancell::CircId,
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -441,6 +444,30 @@ pub struct CircParameters {
     pub n_outgoing_cells_permitted: Option<u32>,
 }
 
+/// Type of negotiation that we'll be performing as we establish a hop.
+///
+/// Determines what flavor of extensions we can send and receive, which in turn
+/// limits the hop settings we can negotiate.
+///
+// TODO-CGO: This is likely to be refactored when we finally add support for
+// HsV3+CGO, which will require refactoring
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(super) enum HopNegotiationType {
+    /// We're using a handshake in which extension-based negotiation cannot occur.
+    None,
+    /// We're using the HsV3-ntor handshake, in which the client can send extensions,
+    /// but the server cannot.
+    ///
+    /// As a special case, the default relay encryption protocol is the hsv3
+    /// variant of Tor1.
+    //
+    // We would call this "HalfDuplex" or something, but we do not expect to add
+    // any more handshakes of this type.
+    HsV3,
+    /// We're using a handshake in which both client and relay can send extensions.
+    Full,
+}
+
 /// The settings we use for single hop of a circuit.
 ///
 /// Unlike [`CircParameters`], this type is crate-internal.
@@ -454,7 +481,7 @@ pub struct CircParameters {
 // part of the circuit creation handshake.
 #[derive(Clone, Debug)]
 pub(super) struct HopSettings {
-    /// The negotiated congestion control settings for this circuit.
+    /// The negotiated congestion control settings for this hop .
     pub(super) ccontrol: CongestionControlParams,
 
     /// Maximum number of permitted incoming relay cells for this hop.
@@ -462,6 +489,9 @@ pub(super) struct HopSettings {
 
     /// Maximum number of permitted outgoing relay cells for this hop.
     pub(super) n_outgoing_cells_permitted: Option<u32>,
+
+    /// The relay cell encryption algorithm and cell format for this hop.
+    relay_crypt_protocol: RelayCryptLayerProtocol,
 }
 
 impl HopSettings {
@@ -476,37 +506,85 @@ impl HopSettings {
     /// the circuit negotiation process will modify it.
     #[allow(clippy::unnecessary_wraps)] // likely to become fallible in the future.
     pub(super) fn from_params_and_caps(
+        hoptype: HopNegotiationType,
         params: &CircParameters,
         caps: &tor_protover::Protocols,
     ) -> Result<Self> {
-        let mut settings = Self {
-            ccontrol: params.ccontrol.clone(),
-            n_incoming_cells_permitted: params.n_incoming_cells_permitted,
-            n_outgoing_cells_permitted: params.n_outgoing_cells_permitted,
-        };
-
-        match settings.ccontrol.alg() {
+        let mut ccontrol = params.ccontrol.clone();
+        match ccontrol.alg() {
             crate::ccparams::Algorithm::FixedWindow(_) => {}
             crate::ccparams::Algorithm::Vegas(_) => {
                 // If the target doesn't support FLOWCTRL_CC, we can't use Vegas.
                 if !caps.supports_named_subver(named::FLOWCTRL_CC) {
-                    settings.ccontrol.use_fallback_alg();
+                    ccontrol.use_fallback_alg();
                 }
             }
+        };
+        if hoptype == HopNegotiationType::None {
+            ccontrol.use_fallback_alg();
+        } else if hoptype == HopNegotiationType::HsV3 {
+            // TODO #2037, TODO-CGO: We need a way to send congestion control extensions
+            // in this case too.  But since we aren't sending them, we
+            // should use the fallback algorithm.
+            ccontrol.use_fallback_alg();
         }
+        let ccontrol = ccontrol; // drop mut
 
-        Ok(settings)
+        // Negotiate CGO if it is supported, if CC is also supported,
+        // and if CGO is available on this relay.
+        let relay_crypt_protocol = match hoptype {
+            HopNegotiationType::None => RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0),
+            HopNegotiationType::HsV3 => {
+                // TODO-CGO: Support CGO when available.
+                cfg_if! {
+                    if #[cfg(feature = "hs-common")] {
+                        RelayCryptLayerProtocol::HsV3(RelayCellFormat::V0)
+                    } else {
+                        return Err(
+                            internal!("Unexpectedly tried to negotiate HsV3 without support!").into(),
+                        );
+                    }
+                }
+            }
+            HopNegotiationType::Full => {
+                cfg_if! {
+                    if #[cfg(all(feature = "flowctl-cc", feature = "counter-galois-onion"))] {
+                        #[allow(clippy::overly_complex_bool_expr)]
+                        if  ccontrol.alg().compatible_with_cgo()
+                            && caps.supports_named_subver(named::RELAY_NEGOTIATE_SUBPROTO)
+                            && caps.supports_named_subver(named::RELAY_CRYPT_CGO)
+                            && false // TODO CGO REMOVE once we are ready to enable CGO.
+                            // (We aren't enabling it yet because CC is not yet negotiable.)
+                        {
+                            RelayCryptLayerProtocol::Cgo
+                        } else {
+                            RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0)
+                        }
+                    } else {
+                        RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0)
+                    }
+                }
+            }
+        };
+
+        Ok(Self {
+            ccontrol,
+            relay_crypt_protocol,
+            n_incoming_cells_permitted: params.n_incoming_cells_permitted,
+            n_outgoing_cells_permitted: params.n_outgoing_cells_permitted,
+        })
     }
 
-    /// Return a new `HopSettings` based on this one,
-    /// representing the settings that we should use
-    /// if circuit negotiation will be impossible.
-    ///
-    /// (Circuit negotiation is impossible when using the legacy ntor protocol,
-    /// and when using CRATE_FAST.  It is currently unsupported with virtual hops.)
-    pub(super) fn without_negotiation(mut self) -> Self {
-        self.ccontrol.use_fallback_alg();
-        self
+    /// Return the negotiated relay crypto protocol.
+    pub(super) fn relay_crypt_protocol(&self) -> RelayCryptLayerProtocol {
+        // TODO CGO: Remove this once we are ready to enable CGO.
+        // (We aren't enabling it yet because CC is not yet negotiable.)
+        #[cfg(feature = "counter-galois-onion")]
+        assert!(
+            !matches!(self.relay_crypt_protocol, RelayCryptLayerProtocol::Cgo),
+            "Somehow negotiated CGO, but CGO is not yet supported!!"
+        );
+        self.relay_crypt_protocol
     }
 }
 
@@ -725,7 +803,7 @@ impl ClientCirc {
     #[cfg(feature = "send-control-msg")]
     pub async fn start_conversation(
         &self,
-        msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
+        msg: Option<relaycell::msg::AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
         hop: TargetHop,
     ) -> Result<Conversation<'_>> {
@@ -750,7 +828,7 @@ impl ClientCirc {
     #[cfg(feature = "send-control-msg")]
     pub async fn send_raw_msg(
         &self,
-        msg: tor_cell::relaycell::msg::AnyRelayMsg,
+        msg: relaycell::msg::AnyRelayMsg,
         hop: TargetHop,
     ) -> Result<()> {
         let (sender, receiver) = oneshot::channel();
@@ -784,7 +862,7 @@ impl ClientCirc {
     #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         self: &Arc<ClientCirc>,
-        allow_commands: &[tor_cell::relaycell::RelayCmd],
+        allow_commands: &[relaycell::RelayCmd],
         hop: TargetHop,
         filter: impl crate::stream::IncomingStreamRequestFilter,
     ) -> Result<impl futures::Stream<Item = IncomingStream>> {
@@ -932,8 +1010,11 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
-        let settings =
-            HopSettings::from_params_and_caps(&params, target.protovers())?.without_negotiation();
+        let settings = HopSettings::from_params_and_caps(
+            HopNegotiationType::None,
+            &params,
+            target.protovers(),
+        )?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
                 peer_id,
@@ -971,7 +1052,11 @@ impl ClientCirc {
         let (tx, rx) = oneshot::channel();
 
         let peer_id = OwnedChanTarget::from_chan_target(target);
-        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings = HopSettings::from_params_and_caps(
+            HopNegotiationType::Full,
+            &params,
+            target.protovers(),
+        )?;
         self.control
             .unbounded_send(CtrlMsg::ExtendNtorV3 {
                 peer_id,
@@ -1021,18 +1106,18 @@ impl ClientCirc {
     ) -> Result<()> {
         use self::handshake::BoxedClientLayer;
 
+        // TODO CGO: Possibly refactor this match into a separate method when we revisit this.
+        let negotiation_type = match protocol {
+            handshake::RelayProtocol::HsV3 => HopNegotiationType::HsV3,
+        };
         let protocol = handshake::RelayCryptLayerProtocol::from(protocol);
-        let relay_cell_format = protocol.relay_cell_format();
 
         let BoxedClientLayer { fwd, back, binding } =
             protocol.construct_client_layers(role, seed)?;
 
-        let settings = HopSettings::from_params_and_caps(params, capabilities)?
-            // TODO #2037: We _should_ support negotiation here; see #2037.
-            .without_negotiation();
+        let settings = HopSettings::from_params_and_caps(negotiation_type, params, capabilities)?;
         let (tx, rx) = oneshot::channel();
         let message = CtrlCmd::ExtendVirtual {
-            relay_cell_format,
             cell_crypto: (fwd, back, binding),
             settings,
             done: tx,
@@ -1328,7 +1413,7 @@ impl Conversation<'_> {
     ///
     /// Responses are handled by the `MsgHandler` set up
     /// when the `Conversation` was created.
-    pub async fn send_message(&self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
+    pub async fn send_message(&self, msg: relaycell::msg::AnyRelayMsg) -> Result<()> {
         self.send_internal(Some(msg), None).await
     }
 
@@ -1337,10 +1422,10 @@ impl Conversation<'_> {
     /// The guts of `start_conversation` and `Conversation::send_msg`
     pub(crate) async fn send_internal(
         &self,
-        msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,
+        msg: Option<relaycell::msg::AnyRelayMsg>,
         handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
     ) -> Result<()> {
-        let msg = msg.map(|msg| tor_cell::relaycell::AnyRelayMsgOuter::new(None, msg));
+        let msg = msg.map(|msg| relaycell::AnyRelayMsgOuter::new(None, msg));
         let (sender, receiver) = oneshot::channel();
 
         let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
@@ -1412,8 +1497,7 @@ impl PendingClientCirc {
         // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
         let protocols = tor_protover::Protocols::new();
         let settings =
-            HopSettings::from_params_and_caps(&params, &protocols)?.without_negotiation();
-
+            HopSettings::from_params_and_caps(HopNegotiationType::None, &params, &protocols)?;
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
@@ -1466,8 +1550,11 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
-        let settings =
-            HopSettings::from_params_and_caps(&params, target.protovers())?.without_negotiation();
+        let settings = HopSettings::from_params_and_caps(
+            HopNegotiationType::None,
+            &params,
+            target.protovers(),
+        )?;
 
         self.circ
             .control
@@ -1510,7 +1597,11 @@ impl PendingClientCirc {
     where
         Tg: tor_linkspec::CircTarget,
     {
-        let settings = HopSettings::from_params_and_caps(&params, target.protovers())?;
+        let settings = HopSettings::from_params_and_caps(
+            HopNegotiationType::Full,
+            &params,
+            target.protovers(),
+        )?;
         let (tx, rx) = oneshot::channel();
 
         self.circ

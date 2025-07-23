@@ -15,6 +15,8 @@ use tor_cell::relaycell::RelayCellFormat;
 use tor_error::internal;
 
 use crate::crypto::binding::CircuitBinding;
+#[cfg(feature = "counter-galois-onion")]
+use crate::crypto::cell::CgoRelayCrypto;
 #[cfg(feature = "hs-common")]
 use crate::crypto::cell::Tor1Hsv3RelayCrypto;
 use crate::crypto::cell::{
@@ -60,6 +62,9 @@ pub(crate) enum RelayCryptLayerProtocol {
     /// - <https://spec.torproject.org/rend-spec/introduction-protocol.html#INTRO-HANDSHAKE-REQS>
     #[cfg(feature = "hs-common")]
     HsV3(RelayCellFormat),
+    /// The counter galois onion cell encryption protocol.
+    #[cfg(feature = "counter-galois-onion")]
+    Cgo,
 }
 
 #[cfg(feature = "hs-common")]
@@ -114,6 +119,8 @@ impl RelayCryptLayerProtocol {
             HsV3(V0) => construct::<Tor1Hsv3RelayCrypto, _, _, _, _>(keygen, role),
             #[cfg(feature = "hs-common")]
             HsV3(_) => Err(internal!("protocol not implemented").into()),
+            #[cfg(feature = "counter-galois-onion")]
+            Cgo => construct::<CgoRelayCrypto, _, _, _, _>(keygen, role),
         }
     }
 
@@ -123,6 +130,8 @@ impl RelayCryptLayerProtocol {
             RelayCryptLayerProtocol::Tor1(v) => *v,
             #[cfg(feature = "hs-common")]
             RelayCryptLayerProtocol::HsV3(v) => *v,
+            #[cfg(feature = "counter-galois-onion")]
+            RelayCryptLayerProtocol::Cgo => RelayCellFormat::V1,
         }
     }
 }

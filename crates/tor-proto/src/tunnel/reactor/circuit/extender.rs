@@ -16,7 +16,7 @@ use std::borrow::Borrow;
 use std::marker::PhantomData;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{Extend2, Extended2};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, UnparsedRelayMsg};
+use tor_cell::relaycell::{AnyRelayMsgOuter, UnparsedRelayMsg};
 use tor_error::internal;
 
 use crate::crypto::handshake::ntor::NtorClient;
@@ -47,8 +47,6 @@ where
     unique_id: TunnelScopedCircId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
     expected_hop: HopNum,
-    /// The relay cell format we intend to use for this hop.
-    relay_cell_format: RelayCellFormat,
     /// A oneshot channel that we should inform when we are done with this extend operation.
     operation_finished: Option<oneshot::Sender<Result<()>>>,
     /// `PhantomData` used to make the other type parameters required for a circuit extension
@@ -78,7 +76,6 @@ where
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::blocks_in_conditions)]
     pub(crate) fn begin(
-        relay_cell_format: RelayCellFormat,
         peer_id: OwnedChanTarget,
         handshake_id: HandshakeType,
         key: &H::KeyType,
@@ -120,7 +117,6 @@ where
                 expected_hop: hop,
                 operation_finished: None,
                 phantom: Default::default(),
-                relay_cell_format,
             };
 
             Ok::<(CircuitExtender<_, _, _, _>, SendRelayCell), Error>((extender, cell))
@@ -176,7 +172,6 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back, binding) = layer.split_client_layer();
         circ.add_hop(
-            self.relay_cell_format,
             path::HopDetail::Relay(self.peer_id.clone()),
             Box::new(layer_fwd),
             Box::new(layer_back),

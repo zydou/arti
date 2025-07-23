@@ -242,7 +242,6 @@ impl CircHop {
     pub(super) fn new(
         unique_id: TunnelScopedCircId,
         hop_num: HopNum,
-        relay_format: RelayCellFormat,
         settings: &HopSettings,
     ) -> Self {
         /// Convert a limit from the form used in a HopSettings to that used here.
@@ -254,6 +253,7 @@ impl CircHop {
                 .try_into()
                 .expect("Adding one left it as zero?")
         }
+        let relay_format = settings.relay_crypt_protocol().relay_cell_format();
         CircHop {
             unique_id,
             hop_num,
