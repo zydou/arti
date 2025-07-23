@@ -151,7 +151,7 @@ const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
 
 /// When the suggested effort has changed by less than this much, we don't republish it.
 ///
-/// Specified as "15 percent" in https://spec.torproject.org/hspow-spec/common-protocol.html
+/// Specified as "15 percent" in <https://spec.torproject.org/hspow-spec/common-protocol.html>
 ///
 /// However, we may want to make this configurable in the future.
 const SUGGESTED_EFFORT_DEADZONE: f64 = 0.15;
