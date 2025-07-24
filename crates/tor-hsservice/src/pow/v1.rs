@@ -124,7 +124,7 @@ pub(crate) enum PowSolveError {
 }
 
 /// On-disk record of [`PowManagerGeneric`] state.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct PowManagerStateRecord {
     /// Seeds for each time period.
     ///
@@ -133,7 +133,11 @@ pub(crate) struct PowManagerStateRecord {
     /// that, so we instead store it as a list of tuples, and convert it to/from the map when
     /// saving/loading.
     seeds: Vec<(TimePeriod, SeedsForTimePeriod)>,
-    // TODO POW: suggested_effort / etc should be serialized
+
+    /// Most recently published suggested_effort value.
+    #[serde(default)]
+    suggested_effort: Effort,
+    // TODO POW: Consider whether we should persist other values from RendRequestReceiver.
 }
 
 impl<R: Runtime, Q> State<R, Q> {
@@ -141,6 +145,7 @@ impl<R: Runtime, Q> State<R, Q> {
     pub(crate) fn to_record(&self) -> PowManagerStateRecord {
         PowManagerStateRecord {
             seeds: self.seeds.clone().into_iter().collect(),
+            suggested_effort: *self.suggested_effort.lock().expect("Lock poisoned"),
         }
     }
 }
@@ -211,16 +216,19 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         storage_handle: StorageHandle<PowManagerStateRecord>,
         netdir_provider: Arc<dyn NetDirProvider>,
     ) -> Result<NewPowManager<R>, StartupError> {
-        let on_disk_state = storage_handle.load().map_err(StartupError::LoadState)?;
-        let seeds = on_disk_state.map_or(vec![], |on_disk_state| on_disk_state.seeds);
-        let seeds = seeds.into_iter().collect();
+        let on_disk_state = storage_handle
+            .load()
+            .map_err(StartupError::LoadState)?
+            .unwrap_or(PowManagerStateRecord::default());
+
+        let seeds = on_disk_state.seeds.into_iter().collect();
+        let suggested_effort = Arc::new(Mutex::new(on_disk_state.suggested_effort));
 
         // This queue is extremely small, and we only make one of it per onion service, so it's
         // fine to not use memquota tracking.
         let (publisher_update_tx, publisher_update_rx) =
             crate::mpsc_channel_no_memquota(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
-        let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
         let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
         let rend_req_rx = RendRequestReceiver::new(
             runtime.clone(),
