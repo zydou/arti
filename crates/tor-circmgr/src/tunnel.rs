@@ -346,7 +346,6 @@ pub struct ClientDirTunnel {
 /// A client onion service single path data tunnel.
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DataTunnel, OnionServiceDataTunnel, SinglePathTunnel)]
-#[cfg(feature = "hs-client")]
 pub struct ClientOnionServiceDataTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -355,7 +354,6 @@ pub struct ClientOnionServiceDataTunnel {
 /// A client onion service directory tunnel (to an HSDir). This is always single path.
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DirTunnel, SinglePathTunnel)]
-#[cfg(feature = "hs-client")]
 pub struct ClientOnionServiceDirTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -364,7 +362,6 @@ pub struct ClientOnionServiceDirTunnel {
 /// A client onion service introduction tunnel. This is always single path.
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, SinglePathTunnel)]
-#[cfg(feature = "hs-client")]
 pub struct ClientOnionServiceIntroTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -373,7 +370,6 @@ pub struct ClientOnionServiceIntroTunnel {
 /// A service onion service single path data tunnel.
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DataTunnel, OnionServiceDataTunnel, SinglePathTunnel)]
-#[cfg(feature = "hs-service")]
 pub struct ServiceOnionServiceDataTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -382,7 +378,6 @@ pub struct ServiceOnionServiceDataTunnel {
 /// A service onion service directory tunnel (to an HSDir). This is always single path.
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DirTunnel, SinglePathTunnel)]
-#[cfg(feature = "hs-service")]
 pub struct ServiceOnionServiceDirTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -391,7 +386,6 @@ pub struct ServiceOnionServiceDirTunnel {
 /// A service onion service introduction tunnel. This is always single path.
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, SinglePathTunnel)]
-#[cfg(feature = "hs-service")]
 pub struct ServiceOnionServiceIntroTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -408,7 +402,6 @@ pub struct ClientMultiPathDataTunnel {
 /// A client multi path onion service data tunnel (Conflux, Rendeszvous).
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DataTunnel, MultiPathTunnel)]
-#[cfg(feature = "hs-client")]
 pub struct ClientMultiPathOnionServiceDataTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -417,7 +410,6 @@ pub struct ClientMultiPathOnionServiceDataTunnel {
 /// A service multi path onion service data tunnel (Conflux, Rendeszvous).
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DataTunnel, MultiPathTunnel)]
-#[cfg(feature = "hs-service")]
 pub struct ServiceMultiPathOnionServiceDataTunnel {
     /// The protocol level tunnel.
     tunnel: Arc<tor_proto::ClientTunnel>,
@@ -443,7 +435,6 @@ impl ClientDirTunnel {
     }
 }
 
-#[cfg(feature = "hs-service")]
 impl ServiceOnionServiceDataTunnel {
     /// Tell this tunnel to begin allowing the final hop of the tunnel to try
     /// to create new Tor streams, and to return those pending requests in an
@@ -464,6 +455,7 @@ impl ServiceOnionServiceDataTunnel {
     //
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
+    #[cfg(feature = "hs-service")]
     pub async fn allow_stream_requests(
         &self,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
