@@ -500,6 +500,7 @@ mod test {
                 pow_nonce_dir,
                 keymgr.clone(),
                 pow_manager_storage_handle,
+                netdir_provider.clone(),
             )
             .unwrap();
             let mut status_rx = status_tx.subscribe();

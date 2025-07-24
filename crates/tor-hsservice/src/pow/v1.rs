@@ -27,6 +27,7 @@ use tor_hscrypto::{
     time::TimePeriod,
 };
 use tor_keymgr::KeyMgr;
+use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_netdoc::doc::hsdesc::pow::{v1::PowParamsV1, PowParams};
 use tor_persist::{
     hsnickname::HsNickname,
@@ -88,6 +89,9 @@ struct State<R, Q> {
     ///
     /// We need a reference to this in order to tell it when to update the suggested_effort value.
     rend_request_rx: RendRequestReceiver<R, Q>,
+
+    /// [`NetDirProvider`], used for getting consensus parameters for configuration values.
+    netdir_provider: Arc<dyn NetDirProvider>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -205,6 +209,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         instance_dir: InstanceRawSubdir,
         keymgr: Arc<KeyMgr>,
         storage_handle: StorageHandle<PowManagerStateRecord>,
+        netdir_provider: Arc<dyn NetDirProvider>,
     ) -> Result<NewPowManager<R>, StartupError> {
         let on_disk_state = storage_handle.load().map_err(StartupError::LoadState)?;
         let seeds = on_disk_state.map_or(vec![], |on_disk_state| on_disk_state.seeds);
@@ -217,7 +222,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
         let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
         let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
-        let rend_req_rx = RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
+        let rend_req_rx = RendRequestReceiver::new(
+            runtime.clone(),
+            suggested_effort.clone(),
+            netdir_provider.clone(),
+        );
 
         let state = State {
             seeds,
@@ -230,6 +239,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             runtime: runtime.clone(),
             storage_handle,
             rend_request_rx: rend_req_rx.clone(),
+            netdir_provider,
         };
         let pow_manager = Arc::new(PowManagerGeneric(RwLock::new(state)));
 
@@ -271,6 +281,19 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             .expect("Lock poisoned"))
         .into();
 
+        let netdir_provider = self
+            .0
+            .read()
+            .expect("Lock poisoned")
+            .netdir_provider
+            .clone();
+        let net_params = netdir_provider
+            .wait_for_netdir(tor_netdir::Timeliness::Timely)
+            .await
+            .expect("No netdir")
+            .params()
+            .clone();
+
         loop {
             let next_update_time = self.rotate_seeds_if_expiring().await;
 
@@ -281,7 +304,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
                     let inner = self.0.read().expect("Lock poisoned");
 
-                    inner.rend_request_rx.update_suggested_effort();
+                    inner.rend_request_rx.update_suggested_effort(&net_params);
                     last_suggested_effort_update = runtime.now();
                     let new_suggested_effort: u32 =
                         (*inner.suggested_effort.lock().expect("Lock poisoned")).into();
@@ -642,9 +665,24 @@ struct RendRequestOrdByEffort<Q> {
 
 impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
     /// Create a new [`RendRequestOrdByEffort`].
-    fn new(request: Q, request_num: u64) -> Result<Self, rend_handshake::IntroRequestError> {
+    fn new(
+        request: Q,
+        max_effort: Effort,
+        request_num: u64,
+    ) -> Result<Self, rend_handshake::IntroRequestError> {
         let pow = match request.proof_of_work()?.cloned() {
-            Some(ProofOfWork::V1(pow)) => Some(pow),
+            Some(ProofOfWork::V1(pow)) => {
+                if pow.effort() > max_effort {
+                    Some(ProofOfWorkV1::new(
+                        pow.nonce().clone(),
+                        max_effort,
+                        pow.seed_head(),
+                        *pow.solution(),
+                    ))
+                } else {
+                    Some(pow)
+                }
+            }
             None | Some(_) => None,
         };
 
@@ -728,6 +766,9 @@ struct RendRequestReceiverInner<R, Q> {
     /// Runtime, used to get current time in a testable way.
     runtime: R,
 
+    /// [`NetDirProvider`], for getting configuration values in consensus parameters.
+    netdir_provider: Arc<dyn NetDirProvider>,
+
     /// When the current update period started.
     update_period_start: Instant,
     /// Number of requests that were enqueued during the current update period, and had an effort
@@ -752,12 +793,17 @@ struct RendRequestReceiverInner<R, Q> {
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R, Q> {
     /// Create a new [`RendRequestReceiver`].
-    fn new(runtime: R, suggested_effort: Arc<Mutex<Effort>>) -> Self {
+    fn new(
+        runtime: R,
+        suggested_effort: Arc<Mutex<Effort>>,
+        netdir_provider: Arc<dyn NetDirProvider>,
+    ) -> Self {
         let now = runtime.now();
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
             waker: None,
             runtime,
+            netdir_provider,
             update_period_start: now,
             num_enqueued_gte_suggested: 0,
             num_dequeued: 0,
@@ -785,13 +831,10 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
     }
 
     /// Update the suggested effort value, as per the algorithm in prop362
-    fn update_suggested_effort(&self) {
-        const CONFIG_DECAY_ADJUSTMENT: usize = 0; // TODO POW: Get from config
-        let decay_adjustment_fraction = f64::from_usize(CONFIG_DECAY_ADJUSTMENT)
-            .expect("Error converting decay adjustment")
-            / 100.0;
-
+    fn update_suggested_effort(&self, net_params: &NetParameters) {
         let mut inner = self.0.lock().expect("Lock poisoned");
+
+        let decay_adjustment_fraction = net_params.hs_pow_v1_default_decay_adjustment.as_fraction();
 
         if inner.num_dequeued != 0 {
             let update_period_duration = inner.runtime.now() - inner.update_period_start;
@@ -869,17 +912,35 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
     ) {
         let mut request_num = 0;
 
+        let netdir_provider = self
+            .0
+            .lock()
+            .expect("Lock poisoned")
+            .netdir_provider
+            .clone();
+        let net_params = runtime
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
+            .expect("No netdir")
+            .params()
+            .clone();
+
+        let max_effort = Effort::from(
+            <i32 as TryInto<u32>>::try_into(net_params.hs_pow_v1_max_effort.get())
+                .expect("Bounded i32 not in range of u32?!"),
+        );
+
         loop {
             let rend_request = runtime
                 .reenter_block_on(receiver.next())
                 .expect("Other side of RendRequest queue hung up");
-            let rend_request = match RendRequestOrdByEffort::new(rend_request, request_num) {
-                Ok(rend_request) => rend_request,
-                Err(err) => {
-                    tracing::trace!(?err, "Error processing RendRequest");
-                    continue;
-                }
-            };
+            let rend_request =
+                match RendRequestOrdByEffort::new(rend_request, max_effort, request_num) {
+                    Ok(rend_request) => rend_request,
+                    Err(err) => {
+                        tracing::trace!(?err, "Error processing RendRequest");
+                        continue;
+                    }
+                };
 
             request_num = request_num.wrapping_add(1);
 
@@ -954,6 +1015,7 @@ mod test {
     use super::*;
     use futures::FutureExt;
     use tor_hscrypto::pow::v1::{Nonce, SolutionByteArray};
+    use tor_netdir::{testnet, testprovider::TestNetDirProvider};
     use tor_rtmock::MockRuntime;
 
     struct MockPowManager;
@@ -1010,8 +1072,11 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let pow_manager = Arc::new(MockPowManager);
             let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
+            let netdir_provider = Arc::new(TestNetDirProvider::new());
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            netdir_provider.set_netdir(netdir);
             let mut receiver: RendRequestReceiver<_, MockRendRequest> =
-                RendRequestReceiver::new(runtime.clone(), suggested_effort);
+                RendRequestReceiver::new(runtime.clone(), suggested_effort, netdir_provider);
             let (mut tx, rx) = mpsc::channel(32);
             receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
 
@@ -1045,8 +1110,15 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let pow_manager = Arc::new(MockPowManager);
             let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
-            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
-                RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
+            let net_params = NetParameters::default();
+            let netdir_provider = Arc::new(TestNetDirProvider::new());
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            netdir_provider.set_netdir(netdir);
+            let mut receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
+                runtime.clone(),
+                suggested_effort.clone(),
+                netdir_provider,
+            );
             let (mut tx, rx) = mpsc::channel(1024);
             receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
 
@@ -1064,7 +1136,7 @@ mod test {
             }
 
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             assert_eq!(suggested_effort.lock().unwrap().clone(), Effort::zero());
 
@@ -1083,7 +1155,7 @@ mod test {
             }
 
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             let mut new_suggested_effort = *suggested_effort.lock().unwrap();
             assert!(new_suggested_effort > Effort::zero());
@@ -1099,7 +1171,7 @@ mod test {
 
             receiver.next().await.unwrap();
             runtime.advance_by(HS_UPDATE_PERIOD).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             let mut old_suggested_effort = new_suggested_effort;
             new_suggested_effort = *suggested_effort.lock().unwrap();
@@ -1122,7 +1194,7 @@ mod test {
             }
 
             runtime.advance_by(HS_UPDATE_PERIOD / 16).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             old_suggested_effort = new_suggested_effort;
             new_suggested_effort = *suggested_effort.lock().unwrap();
@@ -1144,7 +1216,7 @@ mod test {
                 }
 
                 runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
-                receiver.update_suggested_effort();
+                receiver.update_suggested_effort(&net_params);
 
                 old_suggested_effort = new_suggested_effort;
                 new_suggested_effort = *suggested_effort.lock().unwrap();
