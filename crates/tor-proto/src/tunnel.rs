@@ -428,8 +428,7 @@ impl ClientTunnel {
         };
 
         // can be used to build a reader that supports XON/XOFF flow control
-        let xon_xoff_reader_ctrl =
-            XonXoffReaderCtrl::new(drain_rate_request_rx, target.clone());
+        let xon_xoff_reader_ctrl = XonXoffReaderCtrl::new(drain_rate_request_rx, target.clone());
 
         let stream_receiver = StreamReceiver {
             target: target.clone(),
