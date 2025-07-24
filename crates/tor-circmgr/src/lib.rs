@@ -98,13 +98,25 @@ pub use err::Error;
 pub use isolation::IsolationToken;
 use tor_guardmgr::fallback::FallbackList;
 pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
+// TODO: gate the new tunnel types behind an experimental feature flag?
+pub use tunnel::{ClientDataTunnel, ClientDirTunnel, ClientMultiPathDataTunnel};
+
+// TODO: gate the new tunnel types behind an experimental feature flag?
+#[cfg(feature = "hs-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-client")))]
 pub use tunnel::{
-    ClientDataTunnel, ClientDirTunnel, ClientMultiPathDataTunnel,
     ClientMultiPathOnionServiceDataTunnel, ClientOnionServiceDataTunnel,
     ClientOnionServiceDirTunnel, ClientOnionServiceIntroTunnel,
+};
+
+// TODO: gate the new tunnel types behind an experimental feature flag?
+#[cfg(feature = "hs-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
+pub use tunnel::{
     ServiceMultiPathOnionServiceDataTunnel, ServiceOnionServiceDataTunnel,
     ServiceOnionServiceDirTunnel, ServiceOnionServiceIntroTunnel,
 };
+
 pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
