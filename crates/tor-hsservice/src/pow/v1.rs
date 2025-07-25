@@ -151,9 +151,10 @@ impl<R: Runtime, Q> State<R, Q> {
 }
 
 /// Maximum depth of the queue of [`RendRequest`]s.
-// TODO POW: Pick a better number, based on available memory or something like that.
 // TODO POW: Allow this to be changed in onion service config.
-const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 1024;
+// Each request should take a few KB, so a queue of this depth should only take up ~32MB in the
+// worst case.
+const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 8192;
 
 /// How frequently the suggested effort should be recalculated.
 const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
