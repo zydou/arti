@@ -1086,6 +1086,22 @@ impl ConfluxSet {
         let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::Acquire);
         seq_recv == last_seq_delivered + 1
     }
+
+    /// Remove the circuit leg with the specified `UniqId` from this conflux set.
+    ///
+    /// Unlike [`ConfluxSet::remove`], this function does not check
+    /// if the removal of the leg ought to trigger a reactor shutdown.
+    ///
+    /// Returns an error if the leg doesn't exit in the conflux set.
+    fn remove_unchecked(&mut self, circ_id: UniqId) -> Result<Circuit, Bug> {
+        let idx = self
+            .legs
+            .iter()
+            .position(|circ| circ.unique_id() == circ_id)
+            .ok_or_else(|| internal!("leg {circ_id:?} not found in conflux set"))?;
+
+        Ok(self.legs.remove(idx))
+    }
 }
 
 /// Get the index of the specified element in `iterator`.
