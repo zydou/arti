@@ -273,9 +273,7 @@ impl ConfluxSet {
     ///
     /// [2.4.3. Closing circuits]: https://spec.torproject.org/proposals/329-traffic-splitting.html#243-closing-circuits
     pub(super) fn remove(&mut self, leg: UniqId) -> Result<Circuit, ReactorError> {
-        let idx = element_idx(self.legs.iter(), leg)
-            .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
-        let circ: Circuit = self.legs.remove(idx);
+        let circ = self.remove_unchecked(leg)?;
 
         tracing::trace!(
             circ_id = %circ.unique_id(),
@@ -1111,14 +1109,6 @@ impl ConfluxSet {
 
         Ok(self.legs.remove(idx))
     }
-}
-
-/// Get the index of the specified element in `iterator`.
-fn element_idx<'a>(
-    mut iterator: impl Iterator<Item = &'a Circuit>,
-    circ_id: UniqId,
-) -> Option<usize> {
-    iterator.position(|circ| circ.unique_id() == circ_id)
 }
 
 /// An error returned when a method is expecting a single-leg conflux circuit,
