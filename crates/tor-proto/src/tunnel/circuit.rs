@@ -3511,8 +3511,6 @@ pub(crate) mod test {
         });
     }
 
-    // TODO(conflux): add a test for SWITCH handling
-
     /// Run a conflux test endpoint.
     #[cfg(feature = "conflux")]
     #[derive(Debug)]
