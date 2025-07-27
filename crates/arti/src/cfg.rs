@@ -1261,37 +1261,23 @@ example config file {which:?}, uncommented={uncommented:?}
 
         let result = file.resolve_return_results::<(TorClientConfig, ArtiConfig)>();
 
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "memquota")] {
-                let result = result.unwrap();
+        let result = result.unwrap();
 
-                // Test that the example config doesn't have any unrecognised keys
-                assert_eq!(result.unrecognized, []);
-                assert_eq!(result.deprecated, []);
+        // Test that the example config doesn't have any unrecognised keys
+        assert_eq!(result.unrecognized, []);
+        assert_eq!(result.deprecated, []);
 
-                let inner: &tor_memquota::testing::ConfigInner =
-                    result.value.0.system_memory().inner().unwrap();
+        let inner: &tor_memquota::testing::ConfigInner =
+            result.value.0.system_memory().inner().unwrap();
 
-                // Test that the example low_water is the default
-                // value for the example max.
-                let defaulted_low = tor_memquota::Config::builder()
-                    .max(*inner.max)
-                    .build()
-                    .unwrap();
-                let inner_defaulted_low = defaulted_low.inner().unwrap();
-                assert_eq!(inner, inner_defaulted_low);
-            } else if #[cfg(arti_features_precise)] {
-                // Test that requesting memory quota tracking generates a config error
-                // if support is compiled out.
-                let m = result.unwrap_err().report().to_string();
-                assert!(m.contains("cargo feature `memquota` disabled"), "{m:?}");
-            } else {
-                // The `tor-memquota/memquota` feature is enabled by default in tor-memquota,
-                // but the corresponding `memquota` feature is but not enabled here in `arti`.
-                // so cargo --workspace enables it in a way we can't tell.  See arti/build.rs.
-                println!("not testing memquota config, cannot figure out if it's enabled");
-            }
-        }
+        // Test that the example low_water is the default
+        // value for the example max.
+        let defaulted_low = tor_memquota::Config::builder()
+            .max(*inner.max)
+            .build()
+            .unwrap();
+        let inner_defaulted_low = defaulted_low.inner().unwrap();
+        assert_eq!(inner, inner_defaulted_low);
     }
 
     #[test]

@@ -11,5 +11,9 @@ fn main() {
     //
     // (We don't want this to be a normal cargo feature because then it would be enabled
     // with --workspace --all-features, defeating the point.)
+    //
+    // NOTE: This was previously used by memquota which was behind a feature flag. Now that we
+    // always build arti with support for memquota, this is unused. But leaving it in place for now
+    // anyways in case we want it again in the future.
     println!(r#"cargo:rustc-check-cfg=cfg(arti_features_precise)"#);
 }
