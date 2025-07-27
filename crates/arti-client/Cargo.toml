@@ -19,7 +19,6 @@ default = ["tokio", "native-tls", "compression"]
 full = [
     "anyhow",
     "keymgr",
-    "memquota",
     "onion-service-client",
     "onion-service-service",
     "vanguards",
@@ -66,7 +65,10 @@ full = [
 
 async-std = ["tor-rtcompat/async-std"]
 bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
-memquota = ["tor-memquota/memquota"]
+# the "memquota" feature is now a no-op as the functionality is always-enabled,
+# but the feature is kept for backwards compatibility
+# https://gitlab.torproject.org/tpo/core/arti/-/issues/2030
+memquota = []
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = [
