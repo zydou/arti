@@ -587,7 +587,6 @@ pub struct NetParameters {
     ///
     /// See
     /// <https://spec.torproject.org/proposals/362-update-pow-control-loop.html>
-    // TODO POW: Use this value.
     pub hs_pow_v1_service_intro_timeout: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (300)
         from "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds",
 

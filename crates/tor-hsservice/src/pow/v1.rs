@@ -823,6 +823,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         })))
     }
 
+    // spawn_blocking executes immediately, but some of our abstractions make clippy not
+    // realize this.
+    #[allow(clippy::let_underscore_future)]
     /// Start helper thread to accept and validate [`RendRequest`]s.
     fn start_accept_thread<P: MockablePowManager + Send + Sync + 'static>(
         &self,
@@ -831,11 +834,14 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         inner_receiver: mpsc::Receiver<Q>,
     ) {
         let receiver_clone = self.clone();
-        // spawn_blocking executes immediately, but some of our abstractions make clippy not
-        // realize this.
-        #[allow(clippy::let_underscore_future)]
+        let runtime_clone = runtime.clone();
         let _ = runtime.clone().spawn_blocking(move || {
-            receiver_clone.accept_loop(&runtime, &pow_manager, inner_receiver);
+            receiver_clone.accept_loop(&runtime_clone, &pow_manager, inner_receiver);
+        });
+
+        let receiver_clone = self.clone();
+        let _ = runtime.clone().spawn_blocking(move || {
+            receiver_clone.expire_old_requests_loop(&runtime);
         });
     }
 
@@ -992,6 +998,41 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             }
         }
     }
+
+    /// Loop to check for messages that are older than our timeout and remove them from the queue.
+    fn expire_old_requests_loop(self, runtime: &R) {
+        let netdir_provider = self
+            .0
+            .lock()
+            .expect("Lock poisoned")
+            .netdir_provider
+            .clone();
+        let net_params = runtime
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
+            .expect("No netdir")
+            .params()
+            .clone();
+
+        let max_age: Duration = net_params
+            .hs_pow_v1_service_intro_timeout
+            .try_into()
+            .expect(
+                "Couldn't convert HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds to Duration",
+            );
+
+        loop {
+            // There's a tradeoff between running this too often (waste of resources, could cause
+            // contention) and too infrequently (requests that should be timed out aren't).
+            // Dividing the max age by four seems reasonable, since the error will be at most 25%,
+            // and this will only run every 75 seconds with default values, but it is arbitrary.
+            runtime.reenter_block_on(runtime.sleep(max_age / 4));
+
+            tracing::trace!("Expiring timed out RendRequests");
+            let mut inner = self.0.lock().expect("Lock poisoned");
+            let now = runtime.now();
+            inner.queue.retain(|r| now - r.recv_time < max_age);
+        }
+    }
 }
 
 impl<R: Runtime, Q: MockableRendRequest> Stream for RendRequestReceiver<R, Q> {
@@ -1025,6 +1066,7 @@ mod test {
     use futures::FutureExt;
     use tor_hscrypto::pow::v1::{Nonce, SolutionByteArray};
     use tor_netdir::{testnet, testprovider::TestNetDirProvider};
+    use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockRuntime;
 
     struct MockPowManager;
@@ -1101,14 +1143,14 @@ mod test {
             // Request with effort is before request with zero effort
             tx.send(make_req(2, 0)).await.unwrap();
             tx.send(make_req(3, 16)).await.unwrap();
-            runtime.advance_until_stalled().await;
+            runtime.advance_until(runtime.now()).await;
             assert_eq!(receiver.next().await.unwrap().id, 3);
             assert_eq!(receiver.next().await.unwrap().id, 2);
 
             // Invalid solves are dropped
             tx.send(make_req_invalid(4, 32)).await.unwrap();
             tx.send(make_req(5, 16)).await.unwrap();
-            runtime.advance_until_stalled().await;
+            runtime.advance_until(runtime.now()).await;
             assert_eq!(receiver.next().await.unwrap().id, 5);
             assert!(receiver.next().now_or_never().is_none());
         });
@@ -1119,9 +1161,19 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let pow_manager = Arc::new(MockPowManager);
             let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
-            let net_params = NetParameters::default();
             let netdir_provider = Arc::new(TestNetDirProvider::new());
-            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let netdir = testnet::construct_custom_netdir_with_params(
+                testnet::simple_net_func,
+                [(
+                    "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds",
+                    60000,
+                )],
+                None,
+            )
+            .unwrap()
+            .unwrap_if_sufficient()
+            .unwrap();
+            let net_params = netdir.params().clone();
             netdir_provider.set_netdir(netdir);
             let mut receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
                 runtime.clone(),
@@ -1137,7 +1189,7 @@ mod test {
                 tx.send(make_req(n, 0)).await.unwrap();
             }
 
-            runtime.advance_until_stalled().await;
+            runtime.advance_until(runtime.now()).await;
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
             for _ in 0..128 {
@@ -1156,7 +1208,7 @@ mod test {
                 tx.send(make_req(n, 0)).await.unwrap();
             }
 
-            runtime.advance_until_stalled().await;
+            runtime.advance_until(runtime.now()).await;
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
             for _ in 0..64 {
@@ -1176,7 +1228,7 @@ mod test {
                     .await
                     .unwrap();
             }
-            runtime.advance_until_stalled().await;
+            runtime.advance_until(runtime.now()).await;
 
             receiver.next().await.unwrap();
             runtime.advance_by(HS_UPDATE_PERIOD).await;
@@ -1194,7 +1246,7 @@ mod test {
                     .unwrap();
             }
 
-            runtime.advance_until_stalled().await;
+            runtime.advance_until(runtime.now()).await;
 
             runtime.advance_by(HS_UPDATE_PERIOD / 16 * 15).await;
 
@@ -1217,7 +1269,7 @@ mod test {
                 tx.send(make_req(0, new_suggested_effort.into()))
                     .await
                     .unwrap();
-                runtime.advance_until_stalled().await;
+                runtime.advance_until(runtime.now()).await;
                 runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
                 while receiver.next().now_or_never().is_some() {
@@ -1242,6 +1294,35 @@ mod test {
                     panic!("Took too long for suggested effort to fall!");
                 }
             }
+        });
+    }
+
+    #[test]
+    fn test_rendrequest_timeout() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let pow_manager = Arc::new(MockPowManager);
+            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
+            let net_params = NetParameters::default();
+            let netdir_provider = Arc::new(TestNetDirProvider::new());
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            netdir_provider.set_netdir(netdir);
+            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
+                RendRequestReceiver::new(runtime.clone(), suggested_effort, netdir_provider);
+            let (mut tx, rx) = mpsc::channel(32);
+            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+
+            let r0 = MockRendRequest { id: 0, pow: None };
+            tx.send(r0).await.unwrap();
+            runtime.advance_until(runtime.now()).await;
+
+            let max_age: Duration = net_params
+                .hs_pow_v1_service_intro_timeout
+                .try_into()
+                .unwrap();
+            runtime.advance_by(max_age * 2).await;
+
+            // Waited too long, request has been dropped
+            assert!(receiver.next().now_or_never().is_none());
         });
     }
 }
