@@ -10,6 +10,8 @@ use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
 use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
+use itertools::structs::ExactlyOneError;
+use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 use tor_rtcompat::SleepProviderExt as _;
 use tracing::{info, trace, warn};
@@ -17,7 +19,7 @@ use tracing::{info, trace, warn};
 use tor_async_utils::SinkPrepareExt as _;
 use tor_basic_utils::flatten;
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd};
-use tor_error::{bad_api_usage, internal, into_bad_api_usage, Bug};
+use tor_error::{bad_api_usage, internal, Bug};
 use tor_linkspec::HasRelayIds as _;
 
 use crate::circuit::path::HopDetail;
@@ -180,10 +182,17 @@ impl ConfluxSet {
     /// or if called before any circuit legs are available.
     ///
     /// Calling this function will empty the [`ConfluxSet`].
-    pub(super) fn take_single_leg(&mut self) -> Result<Circuit, NotSingleLegError> {
-        let primary_index =
-            element_idx(self.legs.iter(), self.primary_id).ok_or(NotSingleError::None)?;
-        Ok(self.legs.remove(primary_index))
+    pub(super) fn take_single_leg(&mut self) -> Result<Circuit, Bug> {
+        let circ = self
+            .legs
+            .iter()
+            .exactly_one()
+            .map_err(NotSingleLegError::from)?;
+        let circ_id = circ.unique_id();
+
+        debug_assert!(circ_id == self.primary_id);
+
+        self.remove_unchecked(circ_id)
     }
 
     /// Return a reference to the only leg of this conflux set,
@@ -192,7 +201,7 @@ impl ConfluxSet {
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
     pub(super) fn single_leg(&self) -> Result<&Circuit, NotSingleLegError> {
-        Ok(get_single(self.legs.iter())?)
+        Ok(self.legs.iter().exactly_one()?)
     }
 
     /// Return a mutable reference to the only leg of this conflux set,
@@ -201,7 +210,7 @@ impl ConfluxSet {
     /// Returns an error if there is more than one leg in the set,
     /// or if called before any circuit legs are available.
     pub(super) fn single_leg_mut(&mut self) -> Result<&mut Circuit, NotSingleLegError> {
-        Ok(get_single(self.legs.iter_mut())?)
+        Ok(self.legs.iter_mut().exactly_one()?)
     }
 
     /// Return the primary leg of this conflux set.
@@ -264,9 +273,7 @@ impl ConfluxSet {
     ///
     /// [2.4.3. Closing circuits]: https://spec.torproject.org/proposals/329-traffic-splitting.html#243-closing-circuits
     pub(super) fn remove(&mut self, leg: UniqId) -> Result<Circuit, ReactorError> {
-        let idx = element_idx(self.legs.iter(), leg)
-            .ok_or_else(|| bad_api_usage!("leg {leg:?} not found in conflux set"))?;
-        let circ: Circuit = self.legs.remove(idx);
+        let circ = self.remove_unchecked(leg)?;
 
         tracing::trace!(
             circ_id = %circ.unique_id(),
@@ -1086,78 +1093,52 @@ impl ConfluxSet {
         let last_seq_delivered = self.last_seq_delivered.load(atomic::Ordering::Acquire);
         seq_recv == last_seq_delivered + 1
     }
-}
 
-/// Get the index of the specified element in `iterator`.
-fn element_idx<'a>(
-    mut iterator: impl Iterator<Item = &'a Circuit>,
-    circ_id: UniqId,
-) -> Option<usize> {
-    iterator.position(|circ| circ.unique_id() == circ_id)
-}
+    /// Remove the circuit leg with the specified `UniqId` from this conflux set.
+    ///
+    /// Unlike [`ConfluxSet::remove`], this function does not check
+    /// if the removal of the leg ought to trigger a reactor shutdown.
+    ///
+    /// Returns an error if the leg doesn't exit in the conflux set.
+    fn remove_unchecked(&mut self, circ_id: UniqId) -> Result<Circuit, Bug> {
+        let idx = self
+            .legs
+            .iter()
+            .position(|circ| circ.unique_id() == circ_id)
+            .ok_or_else(|| internal!("leg {circ_id:?} not found in conflux set"))?;
 
-// TODO: replace this with Itertools::exactly_one()?
-//
-/// Get the only item from an iterator.
-///
-/// Returns an error if the iterator is empty or has more than one item.
-fn get_single<T>(mut iterator: impl Iterator<Item = T>) -> Result<T, NotSingleError> {
-    let Some(rv) = iterator.next() else {
-        return Err(NotSingleError::None);
-    };
-    if iterator.next().is_some() {
-        return Err(NotSingleError::Multiple);
+        Ok(self.legs.remove(idx))
     }
-    Ok(rv)
-}
-
-/// An error returned from [`get_single`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
-pub(super) enum NotSingleError {
-    /// The iterator had no items.
-    #[error("the iterator had no items")]
-    None,
-    /// The iterator had more than one item.
-    #[error("the iterator had more than one item")]
-    Multiple,
 }
 
 /// An error returned when a method is expecting a single-leg conflux circuit,
 /// but it is not single-leg.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
-pub(super) enum NotSingleLegError {
-    /// Conflux set has no legs.
-    #[error("the conflux set has no legs")]
-    EmptyConfluxSet,
-    /// Conflux set is multi-path.
-    #[error("the conflux set is multi-path")]
-    IsMultipath,
-}
+#[derive(Clone, Debug, derive_more::Display, thiserror::Error)]
+pub(super) struct NotSingleLegError(#[source] Bug);
 
 impl From<NotSingleLegError> for Bug {
     fn from(e: NotSingleLegError) -> Self {
-        into_bad_api_usage!("not a single leg conflux set")(e)
+        e.0
     }
 }
 
 impl From<NotSingleLegError> for crate::Error {
     fn from(e: NotSingleLegError) -> Self {
-        Self::from(Bug::from(e))
+        Self::from(e.0)
     }
 }
 
 impl From<NotSingleLegError> for ReactorError {
     fn from(e: NotSingleLegError) -> Self {
-        Self::from(Bug::from(e))
+        Self::from(e.0)
     }
 }
 
-impl From<NotSingleError> for NotSingleLegError {
-    fn from(e: NotSingleError) -> Self {
-        match e {
-            NotSingleError::None => Self::EmptyConfluxSet,
-            NotSingleError::Multiple => Self::IsMultipath,
-        }
+impl<I: Iterator> From<ExactlyOneError<I>> for NotSingleLegError {
+    fn from(e: ExactlyOneError<I>) -> Self {
+        // TODO: cannot wrap the ExactlyOneError with into_bad_api_usage
+        // because it's not Send + Sync
+        Self(bad_api_usage!("not a single leg conflux set ({e})"))
     }
 }
 

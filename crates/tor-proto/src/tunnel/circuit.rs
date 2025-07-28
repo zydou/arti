@@ -3511,7 +3511,52 @@ pub(crate) mod test {
         });
     }
 
-    // TODO(conflux): add a test for SWITCH handling
+    // This test ensures CtrlMsg::ShutdownAndReturnCircuit returns an
+    // error when called on a multi-path tunnel
+    #[traced_test]
+    #[test]
+    #[cfg(feature = "conflux")]
+    fn shutdown_and_return_circ_multipath() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let TestTunnelCtx {
+                tunnel,
+                circs,
+                conflux_link_rx: _,
+            } = setup_good_conflux_tunnel(&rt).await;
+
+            rt.progress_until_stalled().await;
+
+            let (answer_tx, answer_rx) = oneshot::channel();
+            tunnel
+                .command
+                .unbounded_send(CtrlCmd::ShutdownAndReturnCircuit { answer: answer_tx })
+                .unwrap();
+
+            // map explicitly returns () for clarity
+            #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
+            let err = answer_rx
+                .await
+                .unwrap()
+                .map(|_| {
+                    // Map to () so we can call unwrap
+                    // (Circuit doesn't impl debug)
+                    ()
+                })
+                .unwrap_err();
+
+            const MSG: &str = "not a single leg conflux set (got at least 2 elements when exactly one was expected)";
+            assert!(err.to_string().contains(MSG), "{err}");
+
+            // The tunnel reactor should be shutting down,
+            // regardless of the error
+            rt.progress_until_stalled().await;
+            assert!(tunnel.is_closing());
+
+            // Keep circs alive, to prevent the reactor
+            // from shutting down prematurely
+            drop(circs);
+        });
+    }
 
     /// Run a conflux test endpoint.
     #[cfg(feature = "conflux")]
