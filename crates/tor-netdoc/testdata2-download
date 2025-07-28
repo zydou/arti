@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+#
+# usage:
+#   crates/tor-netdoc/testdata2/DOWNLOAD \
+#       https://gitlab.torproject.org/tpo/core/arti/-/jobs/1060037/artifacts/download
+#
+# The URL is the "download artifacts archive link"
+# for an integration-chutney-shadow job.
+#
+# Note!  It is quite possible that this will break if the structure of
+# the shadow tests in CI changes.  If that happens, you need to adjust this
+# script and/or test code that uses this test data.
+#
+# (We could run this script in CI, detecting this situation, but then
+# if adjustments are needed they would be blocking for improvements to
+# the integration tests.  And then we'd want to rerun cargo tests in CI etc.
+# It seems better to defer any such rework/adjustment until the test data
+# needs to be refreshed for other reasons.)
+
+set -euo pipefail
+
+case "$#.$1" in
+1.[^-]*) ;;
+*) echo >&2 'bad usage'; exit 8 ;;
+esac
+
+url="$1"; shift
+
+out=crates/tor-netdoc/testdata2
+
+#----- download zipfile and cd into the one node we are interested in -----
+
+rm -rf tmp
+mkdir tmp
+cd tmp
+
+wget -O ci.zip "$url"
+
+unzip -q ci.zip nodes.\*
+
+cd nodes.* # will give "too many arguments" if there were several
+cd 000a
+
+rm -rf -- *.log diff-cache
+
+#----- manual adjustments -----
+
+cat >README <<END
+All files in this directory are automatically maintained.
+
+Downloaded and massaged by $0
+From CI data at "$url"
+END
+
+# v3-status-votes is the votes concatenaed, etc.
+
+split-file () {
+    local f=$1
+    local headline=$2
+    
+    perl -wpe '
+        BEGIN { $seq = 0; }
+	if (m{^'"$headline"' }) {
+	    open STDOUT, ">", "$ARGV--".(++$seq) or die $!;
+	}
+    ' "$f"
+}
+
+split-file v3-status-votes network-status-version
+split-file cached-certs dir-key-certificate-version
+
+#----- install -----
+
+chmod -R a+r,u+w .
+
+rm -rf ../../../"$out"
+mkdir ../../../"$out"
+mv -- * ../../../"$out"
+
+cd ../../..
+rm -rf tmp
+
+echo "Updated $out.  Don't forget to git add."

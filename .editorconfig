@@ -21,6 +21,14 @@ trim_trailing_whitespace = unset
 indent_style = unset
 indent_size = unset
 
+[crates/tor-netdoc/testdata2/**/*]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+
 [crates/arti/tests/testcases/**/local/state/*]
 charset = unset
 end_of_line = unset

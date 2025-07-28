@@ -1,0 +1,6 @@
+Consider using data in ../testdata2 instead!
+
+The files here were manually provided, having been obtained from
+various places.  We are generally trying to move towards test data
+that is obtained in a more structured way from formal CI runs, but
+that transition is far from complete.
