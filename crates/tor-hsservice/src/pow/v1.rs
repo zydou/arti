@@ -1115,15 +1115,17 @@ mod test {
         }
     }
 
-    fn make_req(id: usize, effort: u32) -> MockRendRequest {
+    fn make_req(id: usize, effort: Option<u32>) -> MockRendRequest {
         MockRendRequest {
             id,
-            pow: Some(ProofOfWork::V1(ProofOfWorkV1::new(
-                Nonce::from([0; 16]),
-                Effort::from(effort),
-                SeedHead::from([0; 4]),
-                SolutionByteArray::from([0; 16]),
-            ))),
+            pow: effort.map(|e| {
+                ProofOfWork::V1(ProofOfWorkV1::new(
+                    Nonce::from([0; 16]),
+                    Effort::from(e),
+                    SeedHead::from([0; 4]),
+                    SolutionByteArray::from([0; 16]),
+                ))
+            }),
         }
     }
 
@@ -1139,38 +1141,59 @@ mod test {
         }
     }
 
+    fn make_test_receiver(
+        runtime: &MockRuntime,
+        netdir_params: Vec<(String, i32)>,
+    ) -> (
+        RendRequestReceiver<MockRuntime, MockRendRequest>,
+        mpsc::Sender<MockRendRequest>,
+        Arc<Mutex<Effort>>,
+        NetParameters,
+    ) {
+        let pow_manager = Arc::new(MockPowManager);
+        let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
+        let netdir = testnet::construct_custom_netdir_with_params(
+            testnet::simple_net_func,
+            netdir_params,
+            None,
+        )
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+        let net_params = netdir.params().clone();
+        let netdir_provider: Arc<TestNetDirProvider> = Arc::new(netdir.into());
+        let receiver: RendRequestReceiver<_, MockRendRequest> =
+            RendRequestReceiver::new(runtime.clone(), suggested_effort.clone(), netdir_provider);
+        let (tx, rx) = mpsc::channel(32);
+        receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+
+        (receiver, tx, suggested_effort, net_params)
+    }
+
     #[test]
     fn test_basic_pow_ordering() {
         MockRuntime::test_with_various(|runtime| async move {
-            let pow_manager = Arc::new(MockPowManager);
-            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
-            let netdir_provider = Arc::new(TestNetDirProvider::new());
-            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
-            netdir_provider.set_netdir(netdir);
-            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
-                RendRequestReceiver::new(runtime.clone(), suggested_effort, netdir_provider);
-            let (mut tx, rx) = mpsc::channel(32);
-            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+            let (mut receiver, mut tx, _suggested_effort, _net_params) =
+                make_test_receiver(&runtime, vec![]);
 
             // Request with no PoW
-            let r0 = MockRendRequest { id: 0, pow: None };
-            tx.send(r0).await.unwrap();
+            tx.send(make_req(0, None)).await.unwrap();
             assert_eq!(receiver.next().await.unwrap().id, 0);
 
             // Request with PoW
-            tx.send(make_req(1, 0)).await.unwrap();
+            tx.send(make_req(1, Some(0))).await.unwrap();
             assert_eq!(receiver.next().await.unwrap().id, 1);
 
             // Request with effort is before request with zero effort
-            tx.send(make_req(2, 0)).await.unwrap();
-            tx.send(make_req(3, 16)).await.unwrap();
+            tx.send(make_req(2, Some(0))).await.unwrap();
+            tx.send(make_req(3, Some(16))).await.unwrap();
             runtime.advance_until(runtime.now()).await;
             assert_eq!(receiver.next().await.unwrap().id, 3);
             assert_eq!(receiver.next().await.unwrap().id, 2);
 
             // Invalid solves are dropped
             tx.send(make_req_invalid(4, 32)).await.unwrap();
-            tx.send(make_req(5, 16)).await.unwrap();
+            tx.send(make_req(5, Some(16))).await.unwrap();
             runtime.advance_until(runtime.now()).await;
             assert_eq!(receiver.next().await.unwrap().id, 5);
             assert!(receiver.next().now_or_never().is_none());
@@ -1180,34 +1203,18 @@ mod test {
     #[test]
     fn test_suggested_effort_increase() {
         MockRuntime::test_with_various(|runtime| async move {
-            let pow_manager = Arc::new(MockPowManager);
-            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
-            let netdir_provider = Arc::new(TestNetDirProvider::new());
-            let netdir = testnet::construct_custom_netdir_with_params(
-                testnet::simple_net_func,
-                [(
-                    "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds",
+            let (mut receiver, mut tx, suggested_effort, net_params) = make_test_receiver(
+                &runtime,
+                vec![(
+                    "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds".to_string(),
                     60000,
                 )],
-                None,
-            )
-            .unwrap()
-            .unwrap_if_sufficient()
-            .unwrap();
-            let net_params = netdir.params().clone();
-            netdir_provider.set_netdir(netdir);
-            let mut receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
-                runtime.clone(),
-                suggested_effort.clone(),
-                netdir_provider,
             );
-            let (mut tx, rx) = mpsc::channel(1024);
-            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
 
             // Get through all the requests in plenty of time, no increase
 
             for n in 0..128 {
-                tx.send(make_req(n, 0)).await.unwrap();
+                tx.send(make_req(n, Some(0))).await.unwrap();
             }
 
             runtime.advance_until(runtime.now()).await;
@@ -1226,7 +1233,7 @@ mod test {
             // increase
 
             for n in 0..128 {
-                tx.send(make_req(n, 0)).await.unwrap();
+                tx.send(make_req(n, Some(0))).await.unwrap();
             }
 
             runtime.advance_until(runtime.now()).await;
@@ -1245,7 +1252,7 @@ mod test {
             // We keep on being behind, effort should increase again.
 
             for n in 0..64 {
-                tx.send(make_req(n, new_suggested_effort.into()))
+                tx.send(make_req(n, Some(new_suggested_effort.into())))
                     .await
                     .unwrap();
             }
@@ -1262,7 +1269,7 @@ mod test {
             // We catch up now, effort should start dropping, but not be zero immediately.
 
             for n in 0..32 {
-                tx.send(make_req(n, new_suggested_effort.into()))
+                tx.send(make_req(n, Some(new_suggested_effort.into())))
                     .await
                     .unwrap();
             }
@@ -1287,7 +1294,7 @@ mod test {
 
             let mut num_loops = 0;
             loop {
-                tx.send(make_req(0, new_suggested_effort.into()))
+                tx.send(make_req(0, Some(new_suggested_effort.into())))
                     .await
                     .unwrap();
                 runtime.advance_until(runtime.now()).await;
@@ -1321,16 +1328,8 @@ mod test {
     #[test]
     fn test_rendrequest_timeout() {
         MockRuntime::test_with_various(|runtime| async move {
-            let pow_manager = Arc::new(MockPowManager);
-            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
-            let net_params = NetParameters::default();
-            let netdir_provider = Arc::new(TestNetDirProvider::new());
-            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
-            netdir_provider.set_netdir(netdir);
-            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
-                RendRequestReceiver::new(runtime.clone(), suggested_effort, netdir_provider);
-            let (mut tx, rx) = mpsc::channel(32);
-            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+            let (mut receiver, mut tx, _suggested_effort, net_params) =
+                make_test_receiver(&runtime, vec![]);
 
             let r0 = MockRendRequest { id: 0, pow: None };
             tx.send(r0).await.unwrap();
