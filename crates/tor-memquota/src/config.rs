@@ -21,13 +21,16 @@ define_derive_deftly! {
 
     impl ConfigBuilder {
       $(
-        ${when approx_equal($ftype, { Option::<Qty> })}
+        ${when approx_equal($ftype, { Option::<ExplicitOrAuto<Qty>> })}
 
         ${fattrs doc}
         ///
         /// (Setter method.)
-        pub fn $fname(&mut self, value: usize) -> &mut Self {
-            self.$fname = Some(Qty(value));
+        // We use `value: impl Into<ExplicitOrAuto<usize>>` to avoid breaking users who used the
+        // previous `value: usize`. But this isn't 100% foolproof, for example if a user used
+        // `$fname(foo.into())`, which will fail type inference.
+        pub fn $fname(&mut self, value: impl Into<ExplicitOrAuto<usize>>) -> &mut Self {
+            self.$fname = Some(value.into().map(Qty));
             self
         }
       )
@@ -54,17 +57,26 @@ pub struct Config(pub(crate) IfEnabled<ConfigInner>);
 pub struct ConfigBuilder {
     /// Maximum memory usage tolerated before reclamation starts
     ///
-    /// Setting this to `usize::MAX` disables the memory quota
-    /// (and that's the default).
+    /// Setting this to `usize::MAX` disables the memory quota.
+    ///
+    /// The default is "auto",
+    /// which uses a value derived from the total system memory.
+    /// It should not be assumed that the value used for "auto"
+    /// will remain stable across different versions of this library.
     ///
     /// Note that this is not a hard limit.
     /// See Approximate in [the overview](crate).
-    max: Option<Qty>,
+    max: Option<ExplicitOrAuto<Qty>>,
 
     /// Reclamation will stop when memory use is reduced to below this value
     ///
-    /// Default is 75% of the maximum.
-    low_water: Option<Qty>,
+    /// Default is "auto", which uses 75% of the maximum.
+    /// It should not be assumed that the value used for "auto"
+    /// will remain stable across different versions of this library.
+    ///
+    /// If set to an explicit value,
+    /// then `max` must be set to an explicit value as well.
+    low_water: Option<ExplicitOrAuto<Qty>>,
 }
 
 /// Configuration, if enabled
@@ -77,7 +89,7 @@ pub struct ConfigBuilder {
 pub(crate) struct ConfigInner {
     /// Maximum memory usage
     ///
-    /// Guaranteed not to be `MAX`, since we're anbled
+    /// Guaranteed not to be `MAX`, since we're enabled
     pub max: Qty,
 
     /// Low water
@@ -98,8 +110,9 @@ impl Config {
     ///
     /// Ad-hoc accessor for testing purposes.
     /// (ideally we'd use `visibility` to make fields `pub`, but that doesn't work.)
-    #[cfg(feature = "testing")]
-    pub fn inner(&self) -> Option<&ConfigInner> {
+    #[cfg(any(test, feature = "testing"))]
+    #[cfg_attr(feature = "testing", visibility::make(pub))]
+    fn inner(&self) -> Option<&ConfigInner> {
         self.0.as_ref().into_enabled()
     }
 }
@@ -107,13 +120,20 @@ impl Config {
 impl ConfigBuilder {
     /// Builds a new `Config` from a builder
     ///
-    /// Returns an error unless at least `max` has been specified,
-    /// or if the fields values are invalid or inconsistent.
+    /// Returns an error if the fields values are invalid or inconsistent.
     pub fn build(&self) -> Result<Config, ConfigBuildError> {
-        let max = self.max.unwrap_or(Qty::MAX);
+        let max = match self.max {
+            Some(ExplicitOrAuto::Explicit(x)) => x,
+            Some(ExplicitOrAuto::Auto) | None => Qty::MAX,
+        };
+
+        let low_water = match self.low_water {
+            Some(ExplicitOrAuto::Explicit(x)) => Some(x),
+            Some(ExplicitOrAuto::Auto) | None => None,
+        };
 
         if max == Qty::MAX {
-            if self.low_water.is_some() {
+            if low_water.is_some() {
                 return Err(ConfigBuildError::Inconsistent {
                     fields: vec!["max".into(), "low_water".into()],
                     problem: "low_water supplied, but max omitted".into(),
@@ -129,7 +149,7 @@ impl ConfigBuilder {
                 problem: "cargo feature `memquota` disabled (in tor-memquota crate)".into(),
             })?;
 
-        let low_water = self.low_water.unwrap_or_else(
+        let low_water = low_water.unwrap_or_else(
             //
             || Qty((*max as f32 * 0.75) as _),
         );
@@ -231,5 +251,25 @@ mod test {
             json! {{ "max": "8 MiB", "low_water": "8 MiB" }},
             "inconsistent: low_water / max",
         );
+
+        // check that the builder works as expected
+        #[cfg(feature = "memquota")]
+        {
+            let mut b = Config::builder();
+            b.max(ExplicitOrAuto::Explicit(100_000_000));
+            if let Some(inner) = b.build().unwrap().inner() {
+                assert_eq!(inner.max, Qty(100_000_000));
+            }
+
+            let mut b = Config::builder();
+            b.max(100_000_000);
+            if let Some(inner) = b.build().unwrap().inner() {
+                assert_eq!(inner.max, Qty(100_000_000));
+            }
+
+            let mut b = ConfigBuilder::default();
+            b.max(ExplicitOrAuto::Auto);
+            b.build().unwrap();
+        }
     }
 }
