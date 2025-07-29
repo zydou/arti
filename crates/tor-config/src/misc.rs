@@ -286,6 +286,9 @@ impl_not_auto_value_for_types!(
     bool
 );
 
+use tor_basic_utils::ByteQty;
+impl_not_auto_value!(ByteQty);
+
 // TODO implement `NotAutoValue` for other types too
 
 /// Padding enablement - rough amount of padding requested
