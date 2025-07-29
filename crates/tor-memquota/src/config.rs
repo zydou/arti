@@ -224,6 +224,10 @@ mod test {
             "low_water supplied, but max omitted",
         );
         chk_err(
+            json! {{ "max": usize::MAX.to_string(), "low_water": "4 MiB" }},
+            "low_water supplied, but max omitted",
+        );
+        chk_err(
             json! {{ "max": "8 MiB", "low_water": "8 MiB" }},
             "inconsistent: low_water / max",
         );
