@@ -1,5 +1,9 @@
 //! Configuration (private module)
 
+use std::sync::LazyLock;
+
+use sysinfo::{MemoryRefreshKind, System};
+
 use crate::internal_prelude::*;
 
 /// We want to support at least this many participants with a cache each
@@ -122,24 +126,34 @@ impl ConfigBuilder {
     ///
     /// Returns an error if the fields values are invalid or inconsistent.
     pub fn build(&self) -> Result<Config, ConfigBuildError> {
-        let max = match self.max {
-            Some(ExplicitOrAuto::Explicit(x)) => x,
-            Some(ExplicitOrAuto::Auto) | None => Qty::MAX,
-        };
+        // both options default to "auto"
+        let max = self.max.unwrap_or(ExplicitOrAuto::Auto);
+        let low_water = self.low_water.unwrap_or(ExplicitOrAuto::Auto);
 
-        let low_water = match self.low_water {
-            Some(ExplicitOrAuto::Explicit(x)) => Some(x),
-            Some(ExplicitOrAuto::Auto) | None => None,
-        };
-
-        if max == Qty::MAX {
-            if low_water.is_some() {
+        // `MAX` indicates "disabled".
+        // TODO: Should we add a new "enabled" config option instead of using a sentinel value?
+        // But this would be a breaking change. Or maybe we should always enable the memquota
+        // machinery even if the user chooses an unreasonably large value, and not give users a way
+        // to disable it.
+        if max == ExplicitOrAuto::Explicit(Qty::MAX) {
+            // If it should be disabled, but the user provided an explicit value for `low_water`.
+            if matches!(low_water, ExplicitOrAuto::Explicit(_)) {
                 return Err(ConfigBuildError::Inconsistent {
                     fields: vec!["max".into(), "low_water".into()],
-                    problem: "low_water supplied, but max omitted".into(),
+                    problem: "low_water supplied, but max indicates that we should disable the memory quota".into(),
                 });
             };
             return Ok(Config(IfEnabled::Noop));
+        }
+
+        // We don't want the user to set "auto" for `max`, but an explicit value for `low_water`.
+        // Otherwise this config is prone to breaking since a `max` of "auto" may change as system
+        // memory is removed (either physically or if running in a VM/container).
+        if matches!(max, ExplicitOrAuto::Auto) && matches!(low_water, ExplicitOrAuto::Explicit(_)) {
+            return Err(ConfigBuildError::Inconsistent {
+                fields: vec!["max".into(), "low_water".into()],
+                problem: "max is \"auto\", but low_water is set to an explicit quantity".into(),
+            });
         }
 
         let enabled = EnabledToken::new_if_compiled_in()
@@ -149,10 +163,61 @@ impl ConfigBuilder {
                 problem: "cargo feature `memquota` disabled (in tor-memquota crate)".into(),
             })?;
 
-        let low_water = low_water.unwrap_or_else(
-            //
-            || Qty((*max as f32 * 0.75) as _),
-        );
+        // The general logic is taken from c-tor (see `compute_real_max_mem_in_queues`).
+        // NOTE: Relays have an additional lower bound for explicitly given values (64 MiB),
+        // but we have no way of knowing whether we are a relay or not here.
+        let max = match max {
+            ExplicitOrAuto::Explicit(x) => x,
+            ExplicitOrAuto::Auto => 'auto: {
+                const MIB: usize = 1024 * 1024;
+                const GIB: usize = 1024 * 1024 * 1024;
+
+                let Some(mem) = total_available_memory() else {
+                    // Can't get the total available memory,
+                    // so we return a max depending on whether the architecture is 32-bit or 64-bit.
+                    break 'auto Qty({
+                        cfg_if::cfg_if! {
+                            if #[cfg(target_pointer_width = "64")] {
+                                8 * GIB
+                            } else {
+                                1 * GIB
+                            }
+                        }
+                    });
+                };
+
+                let mem = if mem >= 8 * GIB {
+                    // From c-tor:
+                    //
+                    // > The idea behind this value is that the amount of RAM is more than enough
+                    // > for a single relay and should allow the relay operator to run two relays
+                    // > if they have additional bandwidth available.
+                    (mem as f64 * 0.40) as usize
+                } else {
+                    (mem as f64 * 0.75) as usize
+                };
+
+                // The (min, max) range to clamp `mem` to.
+                let clamp = {
+                    cfg_if::cfg_if! {
+                        if #[cfg(target_pointer_width = "64")] {
+                            (256 * MIB, 8 * GIB)
+                        } else {
+                            (256 * MIB, 2 * GIB)
+                        }
+                    }
+                };
+
+                let mem = mem.clamp(clamp.0, clamp.1);
+
+                Qty(mem)
+            }
+        };
+
+        let low_water = match low_water {
+            ExplicitOrAuto::Explicit(x) => x,
+            ExplicitOrAuto::Auto => Qty((*max as f32 * 0.75) as _),
+        };
 
         let config = ConfigInner { max, low_water };
 
@@ -180,6 +245,74 @@ impl ConfigBuilder {
     }
 }
 
+/// The total available memory in bytes.
+///
+/// This is generally the amount of system RAM,
+/// but we may also take into account other OS-specific limits such as cgroups.
+///
+/// Returns `None` if we were unable to get the total available memory.
+/// But see internal comments for details.
+fn total_available_memory() -> Option<usize> {
+    // The sysinfo crate says we should use only one `System` per application.
+    // But we're a library, so it's probably best to just make this global and reuse it.
+    // In reality getting the system memory probably shouldn't require persistent state,
+    // but since the internals of the sysinfo crate are opaque to us,
+    // we'll just follow their documentation and cache the `System`.
+    //
+    // NOTE: The sysinfo crate in practice gets more information than we ask for.
+    // For example `System::new()` will always query the `_SC_PAGESIZE` and `_SC_CLK_TCK`
+    // on Linux even though we only refresh the memory info below
+    // (see https://github.com/GuillaumeGomez/sysinfo/blob/fc31b411eea7b9983176399dc5be162786dec95b/src/unix/linux/system.rs#L152).
+    // This means that miri will fail to run on tests that build the config, even if the config uses
+    // explicit values.
+    static SYSTEM: LazyLock<Mutex<System>> = LazyLock::new(|| Mutex::new(System::new()));
+    let mut system = SYSTEM.lock().unwrap_or_else(|mut e| {
+        // The sysinfo crate has some internal panics which would poison this mutex.
+        // But we can easily reset it, rather than panicking ourselves if it's poisoned.
+        **e.get_mut() = System::new();
+        SYSTEM.clear_poison();
+        e.into_inner()
+    });
+
+    system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
+
+    // It might be possible for 32-bit systems to return >usize::MAX due to PAE (I haven't looked
+    // into this), so we just saturate the value and don't consider this an error.
+    let mem = to_usize_saturating(system.total_memory());
+
+    // The sysinfo crate doesn't report errors, so the best we can do is guess that a value of 0
+    // implies that it was unable to get the total memory.
+    //
+    // We also need to return early to prevent a panic below.
+    if mem == 0 {
+        return None;
+    }
+
+    // Note: The docs for the sysinfo crate say:
+    //
+    // > You need to have run refresh_memory at least once before calling this method.
+    //
+    // But as implemented, it also panics if `sys.mem_total == 0` (for example if the refresh
+    // silently failed).
+    let Some(cgroups) = system.cgroup_limits() else {
+        // There is no cgroup (or we're a non-Linux platform).
+        return Some(mem);
+    };
+
+    // The `cgroup_limits()` surprisingly doesn't actually return the unaltered cgroups limits.
+    // It also adjusts them depending on the total memory.
+    // Since this is all undocumented, we'll also do the same calculation here.
+    let mem = std::cmp::min(mem, to_usize_saturating(cgroups.total_memory));
+
+    Some(mem)
+}
+
+/// Convert a `u64` to a `usize`, saturating if the value would overflow.
+fn to_usize_saturating(x: u64) -> usize {
+    // this will be optimized to a no-op on 64-bit systems
+    x.try_into().unwrap_or(usize::MAX)
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -200,6 +333,9 @@ mod test {
     use serde_json::json;
 
     #[test]
+    // A value of "auto" depends on the system memory,
+    // which typically results in libc calls or syscall that aren't supported by miri.
+    #[cfg_attr(miri, ignore)]
     fn configs() {
         let chk_ok_raw = |j, c| {
             let b: ConfigBuilder = serde_json::from_value(j).unwrap();
@@ -235,22 +371,43 @@ mod test {
             chk_err(j, "UNSUPPORTED");
         };
 
+        let chk_builds = |j| {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "memquota")] {
+                    let b: ConfigBuilder = serde_json::from_value(j).unwrap();
+                    b.build().unwrap();
+                } else {
+                    chk_err(j, "UNSUPPORTED");
+                }
+            }
+        };
+
         chk_ok(json! {{ "max": "8 MiB" }}, 8, 6);
+        chk_ok(json! {{ "max": "8 MiB", "low_water": "auto" }}, 8, 6);
         chk_ok(json! {{ "max": "8 MiB", "low_water": "4 MiB" }}, 8, 4);
-        chk_ok_raw(json! {{ }}, Config(IfEnabled::Noop));
+
+        // We don't know what the exact values will be since they are derived from the system
+        // memory.
+        chk_builds(json! {{ }});
+        chk_builds(json! {{ "max": "auto" }});
+        chk_builds(json! {{ "low_water": "auto" }});
+        chk_builds(json! {{ "max": "auto", "low_water": "auto" }});
 
         chk_err(
             json! {{ "low_water": "4 MiB" }},
-            "low_water supplied, but max omitted",
-        );
-        chk_err(
-            json! {{ "max": usize::MAX.to_string(), "low_water": "4 MiB" }},
-            "low_water supplied, but max omitted",
+            "max is \"auto\", but low_water is set to an explicit quantity",
         );
         chk_err(
             json! {{ "max": "8 MiB", "low_water": "8 MiB" }},
             "inconsistent: low_water / max",
         );
+
+        // `usize::MAX` is a special value.
+        chk_err(
+            json! {{ "max": usize::MAX.to_string(), "low_water": "8 MiB" }},
+            "low_water supplied, but max indicates that we should disable the memory quota",
+        );
+        chk_builds(json! {{ "max": (usize::MAX - 1).to_string(), "low_water": "8 MiB" }});
 
         // check that the builder works as expected
         #[cfg(feature = "memquota")]
