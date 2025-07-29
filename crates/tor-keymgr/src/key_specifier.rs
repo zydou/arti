@@ -7,6 +7,7 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use derive_more::From;
+use safelog::DisplayRedacted as _;
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
@@ -337,7 +338,9 @@ pub enum CTorPath {
     ///
     /// We can't statically know exactly *which* entry has the key for this `HsId`
     /// (we'd need to read and parse each file from `ClientOnionAuthDir` to find out).
-    #[display("ClientHsDescEncKey({})", _0)]
+    //
+    // TODO: Perhaps we should redact this sometimes.
+    #[display("ClientHsDescEncKey({})", _0.display_unredacted())]
     ClientHsDescEncKey(HsId),
     /// A service key path.
     #[display("{path}")]
@@ -560,7 +563,7 @@ impl KeySpecifierComponent for HsId {
         // We can't implement KeySpecifierComponentViaDisplayFromStr for HsId,
         // because its Display impl contains the `.onion` suffix, and Slugs can't
         // contain `.`.
-        let hsid = self.to_string();
+        let hsid = self.display_unredacted().to_string();
         let hsid_slug = hsid
             .strip_suffix(HSID_ONION_SUFFIX)
             .ok_or_else(|| internal!("HsId Display impl missing .onion suffix?!"))?;
@@ -590,7 +593,7 @@ impl KeySpecifierComponent for HsId {
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(self, f)
+        Display::fmt(&self.display_redacted(), f)
     }
 }
 

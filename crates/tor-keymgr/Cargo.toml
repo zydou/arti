@@ -65,6 +65,7 @@ humantime = "2"
 inventory = "0.3.13"
 itertools = "0.14.0"
 rand = "0.9.1"
+safelog = { path = "../safelog", version = "0.4.7" }
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }

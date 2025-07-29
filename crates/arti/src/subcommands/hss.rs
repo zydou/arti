@@ -12,6 +12,7 @@ use {
 use anyhow::anyhow;
 use arti_client::{InertTorClient, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
+use safelog::DisplayRedacted;
 use tor_hsservice::{HsId, HsNickname, OnionService};
 use tor_rtcompat::Runtime;
 
@@ -168,7 +169,7 @@ fn display_onion_address(nickname: &HsNickname, hsid: Option<HsId>) -> Result<()
     // TODO: instead of the printlns here, we should have a formatter type that
     // decides how to display the output
     if let Some(onion) = hsid {
-        println!("{onion}");
+        println!("{}", onion.display_unredacted());
     } else {
         return Err(anyhow!(
             "Service {nickname} does not exist, or does not have an K_hsid yet"

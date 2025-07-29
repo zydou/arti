@@ -475,6 +475,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use super::*;
     use serial_test::serial;
     use static_assertions::{assert_impl_all, assert_not_impl_any};

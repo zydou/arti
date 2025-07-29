@@ -25,7 +25,7 @@ use tor_proto::circuit::handshake::hs_ntor;
 use tracing::{debug, trace};
 
 use retry_error::RetryError;
-use safelog::Sensitive;
+use safelog::{DispRedacted, Sensitive};
 use tor_cell::relaycell::hs::{
     AuthKeyType, EstablishRendezvous, IntroduceAck, RendezvousEstablished,
 };
@@ -194,7 +194,7 @@ struct Context<'c, R: Runtime, M: MocksForConnect<R>> {
     /// Secret keys to use
     secret_keys: HsClientSecretKeys,
     /// HS ID
-    hsid: HsId,
+    hsid: DispRedacted<HsId>,
     /// Blinded HS ID
     hs_blind_id: HsBlindId,
     /// The subcredential to use during this time period
@@ -381,7 +381,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         Ok(Context {
             netdir,
             config,
-            hsid,
+            hsid: DispRedacted(hsid),
             hs_blind_id,
             subcredential,
             circpool,

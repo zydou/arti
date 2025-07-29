@@ -1435,6 +1435,8 @@ impl<R: Runtime> TorClient<R> {
                 hostname,
                 port,
             } => {
+                use safelog::DisplayRedacted as _;
+
                 self.wait_for_bootstrap().await?;
                 let netdir = self.netdir(Timeliness::Timely, "connect to a hidden service")?;
 
@@ -1447,7 +1449,10 @@ impl<R: Runtime> TorClient<R> {
                         keymgr.get::<HsClientDescEncKeypair>(&desc_enc_key_spec)?;
 
                     if let Some(ks_hsc_desc_enc) = ks_hsc_desc_enc {
-                        debug!("Found descriptor decryption key for {hsid}");
+                        debug!(
+                            "Found descriptor decryption key for {}",
+                            hsid.display_redacted()
+                        );
                         hs_client_secret_keys_builder.ks_hsc_desc_enc(ks_hsc_desc_enc);
                     }
                 };
@@ -1465,10 +1470,7 @@ impl<R: Runtime> TorClient<R> {
                         self.isolation(prefs),
                     )
                     .await
-                    .map_err(|cause| ErrorDetail::ObtainHsCircuit {
-                        cause,
-                        hsid: hsid.into(),
-                    })?;
+                    .map_err(|cause| ErrorDetail::ObtainHsCircuit { cause, hsid })?;
                 // On connections to onion services, we have to suppress
                 // everything except the port from the BEGIN message.  We also
                 // disable optimistic data.
