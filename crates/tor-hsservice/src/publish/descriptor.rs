@@ -140,7 +140,9 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
             let pow_params = pow_manager.get_pow_params(period);
             match pow_params {
                 Ok(ref pow_params) => {
-                    desc = desc.pow_params(Some(pow_params));
+                    if config.enable_pow {
+                        desc = desc.pow_params(Some(pow_params));
+                    }
                 },
                 Err(err) => {
                     warn!(?err, "Couldn't get PoW params");

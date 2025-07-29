@@ -501,6 +501,7 @@ mod test {
                 pow_manager_storage_handle,
                 netdir_provider.clone(),
                 status_tx.clone().into(),
+                config_rx.clone(),
             )
             .unwrap();
             let mut status_rx = status_tx.subscribe();

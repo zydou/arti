@@ -303,6 +303,7 @@ impl OnionService {
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
+        let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
         let pow_manager_storage_handle = state_handle
             .storage_handle("pow_manager")
@@ -323,10 +324,10 @@ impl OnionService {
             pow_manager_storage_handle,
             netdir_provider.clone(),
             status_tx.clone().into(),
+            config_rx.clone(),
         )?;
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
-        let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 
         let (ipt_mgr_view, publisher_view) =
             crate::ipt_set::ipts_channel(&runtime, iptpub_storage_handle)?;
