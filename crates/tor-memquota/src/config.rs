@@ -169,55 +169,7 @@ impl ConfigBuilder {
         // but we have no way of knowing whether we are a relay or not here.
         let max = match max {
             ExplicitOrAuto::Explicit(x) => x,
-            ExplicitOrAuto::Auto => 'auto: {
-                const MIB: usize = 1024 * 1024;
-                const GIB: usize = 1024 * 1024 * 1024;
-
-                let mem = match total_available_memory() {
-                    Ok(x) => x,
-                    Err(e) => {
-                        warn!("Unable to get the total available memory. Using a constant max instead: {e}");
-
-                        // Can't get the total available memory,
-                        // so we return a max depending on whether the architecture is 32-bit or 64-bit.
-                        break 'auto Qty({
-                            cfg_if::cfg_if! {
-                                if #[cfg(target_pointer_width = "64")] {
-                                    8 * GIB
-                                } else {
-                                    1 * GIB
-                                }
-                            }
-                        });
-                    }
-                };
-
-                let mem = if mem >= 8 * GIB {
-                    // From c-tor:
-                    //
-                    // > The idea behind this value is that the amount of RAM is more than enough
-                    // > for a single relay and should allow the relay operator to run two relays
-                    // > if they have additional bandwidth available.
-                    (mem as f64 * 0.40) as usize
-                } else {
-                    (mem as f64 * 0.75) as usize
-                };
-
-                // The (min, max) range to clamp `mem` to.
-                let clamp = {
-                    cfg_if::cfg_if! {
-                        if #[cfg(target_pointer_width = "64")] {
-                            (256 * MIB, 8 * GIB)
-                        } else {
-                            (256 * MIB, 2 * GIB)
-                        }
-                    }
-                };
-
-                let mem = mem.clamp(clamp.0, clamp.1);
-
-                Qty(mem)
-            }
+            ExplicitOrAuto::Auto => compute_max_from_total_system_mem(total_available_memory()),
         };
 
         let low_water = match low_water {
@@ -249,6 +201,60 @@ impl ConfigBuilder {
 
         Ok(Config(IfEnabled::Enabled(config, enabled)))
     }
+}
+
+/// Determine a max given the system's total available memory.
+///
+/// This is used when `max` is configured as "auto".
+/// It takes a `Result` so that we can handle the case where the total memory isn't available.
+fn compute_max_from_total_system_mem(mem: Result<usize, MemQueryError>) -> Qty {
+    const MIB: usize = 1024 * 1024;
+    const GIB: usize = 1024 * 1024 * 1024;
+
+    let mem = match mem {
+        Ok(x) => x,
+        Err(e) => {
+            warn!("Unable to get the total available memory. Using a constant max instead: {e}");
+
+            // Can't get the total available memory,
+            // so we return a max depending on whether the architecture is 32-bit or 64-bit.
+            return Qty({
+                cfg_if::cfg_if! {
+                    if #[cfg(target_pointer_width = "64")] {
+                        8 * GIB
+                    } else {
+                        1 * GIB
+                    }
+                }
+            });
+        }
+    };
+
+    let mem = if mem >= 8 * GIB {
+        // From c-tor:
+        //
+        // > The idea behind this value is that the amount of RAM is more than enough
+        // > for a single relay and should allow the relay operator to run two relays
+        // > if they have additional bandwidth available.
+        (mem as f64 * 0.40) as usize
+    } else {
+        (mem as f64 * 0.75) as usize
+    };
+
+    // The (min, max) range to clamp `mem` to.
+    let clamp = {
+        cfg_if::cfg_if! {
+            if #[cfg(target_pointer_width = "64")] {
+                (256 * MIB, 8 * GIB)
+            } else {
+                (256 * MIB, 2 * GIB)
+            }
+        }
+    };
+
+    let mem = mem.clamp(clamp.0, clamp.1);
+
+    Qty(mem)
 }
 
 /// The total available memory in bytes.
@@ -442,5 +448,62 @@ mod test {
             b.max(ExplicitOrAuto::Auto);
             b.build().unwrap();
         }
+    }
+
+    /// Test the logic that computes the `max` when configured as "auto".
+    #[test]
+    // We do some `1 * X` operations below for readability.
+    #[allow(clippy::identity_op)]
+    fn auto_max() {
+        #[allow(unused)]
+        fn check_helper(val: Qty, expected_32: Qty, expected_64: Qty) {
+            assert_eq!(val, {
+                cfg_if::cfg_if! {
+                    if #[cfg(target_pointer_width = "64")] {
+                        expected_64
+                    } else if #[cfg(target_pointer_width = "32")] {
+                        expected_32
+                    } else {
+                        panic!("Unsupported architecture :(");
+                    }
+                }
+            });
+        }
+
+        check_helper(
+            compute_max_from_total_system_mem(Err(MemQueryError::Unavailable)),
+            /* 32-bit */ Qty(1 * 1024 * 1024 * 1024),
+            /* 64-bit */ Qty(8 * 1024 * 1024 * 1024),
+        );
+        check_helper(
+            compute_max_from_total_system_mem(Ok(8 * 1024 * 1024 * 1024)),
+            /* 32-bit */ Qty(2 * 1024 * 1024 * 1024),
+            /* 64-bit */ Qty(3435973836),
+        );
+        check_helper(
+            compute_max_from_total_system_mem(Ok(7 * 1024 * 1024 * 1024)),
+            /* 32-bit */ Qty(2 * 1024 * 1024 * 1024),
+            /* 64-bit */ Qty(5637144576),
+        );
+        check_helper(
+            compute_max_from_total_system_mem(Ok(1 * 1024 * 1024 * 1024)),
+            /* 32-bit */ Qty(805306368),
+            /* 64-bit */ Qty(805306368),
+        );
+        check_helper(
+            compute_max_from_total_system_mem(Ok(7 * 1024)),
+            /* 32-bit */ Qty(256 * 1024 * 1024),
+            /* 64-bit */ Qty(256 * 1024 * 1024),
+        );
+        check_helper(
+            compute_max_from_total_system_mem(Ok(0)),
+            /* 32-bit */ Qty(256 * 1024 * 1024),
+            /* 64-bit */ Qty(256 * 1024 * 1024),
+        );
+        check_helper(
+            compute_max_from_total_system_mem(Ok(usize::MAX)),
+            /* 32-bit */ Qty(2 * 1024 * 1024 * 1024),
+            /* 64-bit */ Qty(8 * 1024 * 1024 * 1024),
+        );
     }
 }
