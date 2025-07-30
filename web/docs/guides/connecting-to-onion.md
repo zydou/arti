@@ -9,6 +9,6 @@ Arti supports connecting to [Tor Hidden Services](https://tb-manual.torproject.o
 You can attempt to make a connection to a `.onion` service by running the command:
 
 ```bash
-curl --socks5-hostname localhost:9150 https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ | head | cat -v
+curl --socks5-hostname localhost:9150 http://2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion | head | cat -v
 ```
 
