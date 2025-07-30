@@ -30,7 +30,7 @@ Arti is not yet ready for production use, but it is ready for testing and experi
 - [Protocol support and compatibility](/guides/compatibility)
 - [Capability and limitations](/guides/capability-limitations)
 
-### On censorship with Arti
+### On censorship circumvention with Arti
 - [Using Arti with bridges](/censorship/bridges)
 - [Pluggable transports](/censorship/pluggable-transports)
 
