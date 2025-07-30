@@ -177,6 +177,7 @@ define_derive_deftly! {
 }
 
 // Methods for a multi path tunnel.
+#[cfg(feature = "conflux")]
 define_derive_deftly! {
     MultiPathTunnel for struct:
 
@@ -392,6 +393,7 @@ pub struct ServiceOnionServiceIntroTunnel {
 }
 
 /// A client multi path data tunnel (Conflux).
+#[cfg(feature = "conflux")]
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DataTunnel, DnsTunnel, MultiPathTunnel)]
 pub struct ClientMultiPathDataTunnel {
@@ -400,6 +402,7 @@ pub struct ClientMultiPathDataTunnel {
 }
 
 /// A client multi path onion service data tunnel (Conflux, Rendeszvous).
+#[cfg(feature = "conflux")]
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DataTunnel, MultiPathTunnel)]
 pub struct ClientMultiPathOnionServiceDataTunnel {
@@ -408,6 +411,7 @@ pub struct ClientMultiPathOnionServiceDataTunnel {
 }
 
 /// A service multi path onion service data tunnel (Conflux, Rendeszvous).
+#[cfg(feature = "conflux")]
 #[derive(Debug, Deftly)]
 #[derive_deftly(BaseTunnel, DataTunnel, MultiPathTunnel)]
 pub struct ServiceMultiPathOnionServiceDataTunnel {

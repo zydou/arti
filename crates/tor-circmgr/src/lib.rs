@@ -99,11 +99,15 @@ pub use isolation::IsolationToken;
 use tor_guardmgr::fallback::FallbackList;
 pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
 pub use tunnel::{
-    ClientDataTunnel, ClientDirTunnel, ClientMultiPathDataTunnel,
-    ClientMultiPathOnionServiceDataTunnel, ClientOnionServiceDataTunnel,
-    ClientOnionServiceDirTunnel, ClientOnionServiceIntroTunnel,
-    ServiceMultiPathOnionServiceDataTunnel, ServiceOnionServiceDataTunnel,
-    ServiceOnionServiceDirTunnel, ServiceOnionServiceIntroTunnel,
+    ClientDataTunnel, ClientDirTunnel, ClientOnionServiceDataTunnel, ClientOnionServiceDirTunnel,
+    ClientOnionServiceIntroTunnel, ServiceOnionServiceDataTunnel, ServiceOnionServiceDirTunnel,
+    ServiceOnionServiceIntroTunnel,
+};
+#[cfg(feature = "conflux")]
+#[cfg_attr(docsrs, doc(cfg(feature = "conflux")))]
+pub use tunnel::{
+    ClientMultiPathDataTunnel, ClientMultiPathOnionServiceDataTunnel,
+    ServiceMultiPathOnionServiceDataTunnel,
 };
 pub use usage::{TargetPort, TargetPorts};
 

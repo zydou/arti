@@ -5891,7 +5891,7 @@ dependencies = [
  "async-trait",
  "bounded-vec-deque",
  "cfg-if",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "downcast-rs",
