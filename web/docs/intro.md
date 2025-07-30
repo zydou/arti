@@ -9,10 +9,8 @@ id: getting-started
 
 [Arti](https://gitlab.torproject.org/tpo/core/arti) is a complete rewrite of the [C Tor](https://gitlab.torproject.org/tpo/core/tor) codebase, and it is currently under active development. It is written in Rust, and it is designed to be modular, reusable, and easy to audit.
 
-:::warning
-This is our brand new website for Arti. We will be spending the next couple of
-days going over the entire page to make sure that everything is up-to-date. If
-you are interested in the old Arti website, please have a look
+:::info
+If you are interested in the old Arti website, please have a look
 [here](https://tpo.pages.torproject.net/core/arti/old).
 :::
 
