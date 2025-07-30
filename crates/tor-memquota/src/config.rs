@@ -3,6 +3,7 @@
 use std::sync::LazyLock;
 
 use sysinfo::{MemoryRefreshKind, System};
+use tracing::warn;
 
 use crate::internal_prelude::*;
 
@@ -172,18 +173,23 @@ impl ConfigBuilder {
                 const MIB: usize = 1024 * 1024;
                 const GIB: usize = 1024 * 1024 * 1024;
 
-                let Some(mem) = total_available_memory() else {
-                    // Can't get the total available memory,
-                    // so we return a max depending on whether the architecture is 32-bit or 64-bit.
-                    break 'auto Qty({
-                        cfg_if::cfg_if! {
-                            if #[cfg(target_pointer_width = "64")] {
-                                8 * GIB
-                            } else {
-                                1 * GIB
+                let mem = match total_available_memory() {
+                    Ok(x) => x,
+                    Err(e) => {
+                        warn!("Unable to get the total available memory. Using a constant max instead: {e}");
+
+                        // Can't get the total available memory,
+                        // so we return a max depending on whether the architecture is 32-bit or 64-bit.
+                        break 'auto Qty({
+                            cfg_if::cfg_if! {
+                                if #[cfg(target_pointer_width = "64")] {
+                                    8 * GIB
+                                } else {
+                                    1 * GIB
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 };
 
                 let mem = if mem >= 8 * GIB {
@@ -252,7 +258,7 @@ impl ConfigBuilder {
 ///
 /// Returns `None` if we were unable to get the total available memory.
 /// But see internal comments for details.
-fn total_available_memory() -> Option<usize> {
+fn total_available_memory() -> Result<usize, MemQueryError> {
     // The sysinfo crate says we should use only one `System` per application.
     // But we're a library, so it's probably best to just make this global and reuse it.
     // In reality getting the system memory probably shouldn't require persistent state,
@@ -285,7 +291,7 @@ fn total_available_memory() -> Option<usize> {
     //
     // We also need to return early to prevent a panic below.
     if mem == 0 {
-        return None;
+        return Err(MemQueryError::Unavailable);
     }
 
     // Note: The docs for the sysinfo crate say:
@@ -296,7 +302,7 @@ fn total_available_memory() -> Option<usize> {
     // silently failed).
     let Some(cgroups) = system.cgroup_limits() else {
         // There is no cgroup (or we're a non-Linux platform).
-        return Some(mem);
+        return Ok(mem);
     };
 
     // The `cgroup_limits()` surprisingly doesn't actually return the unaltered cgroups limits.
@@ -304,7 +310,15 @@ fn total_available_memory() -> Option<usize> {
     // Since this is all undocumented, we'll also do the same calculation here.
     let mem = std::cmp::min(mem, to_usize_saturating(cgroups.total_memory));
 
-    Some(mem)
+    Ok(mem)
+}
+
+/// An error when we are unable to obtain the system's total available memory.
+#[derive(Clone, Debug, thiserror::Error)]
+enum MemQueryError {
+    /// The total available memory is unavailable.
+    #[error("total available memory is unavailable")]
+    Unavailable,
 }
 
 /// Convert a `u64` to a `usize`, saturating if the value would overflow.
