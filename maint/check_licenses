@@ -25,6 +25,7 @@ RECOGNIZED_LICENSES=(
     Unicode-3.0
     Unlicense
     Zlib
+    "BSD-3-Clause AND MIT"
     "MIT AND BSD-3-Clause"
     "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
     "MIT AND (MIT OR Apache-2.0)"
@@ -33,6 +34,7 @@ RECOGNIZED_LICENSES=(
     "Apache-2.0) OR MIT AND (MIT"
     # Used by unicode-ident
     "(MIT OR Apache-2.0) AND Unicode-3.0"
+    "(Apache-2.0 OR MIT) AND Unicode-3.0"
     # Used by ring >= v0.17.10
     "Apache-2.0 AND ISC"
     # Used by aws-lc-rs
