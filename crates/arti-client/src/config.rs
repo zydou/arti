@@ -20,7 +20,7 @@ pub use tor_config::list_builder::{MultilineListBuilder, MultilineListBuilderErr
 pub use tor_config::mistrust::BuilderExt as _;
 pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 pub use tor_config::{BoolOrAuto, ConfigError};
-pub use tor_config::{ConfigBuildError, ConfigurationSource, Reconfigure};
+pub use tor_config::{ConfigBuildError, ConfigurationSource, ConfigurationSources, Reconfigure};
 pub use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 pub use tor_linkspec::{ChannelMethod, HasChanMethod, PtTransportName, TransportId};
 
