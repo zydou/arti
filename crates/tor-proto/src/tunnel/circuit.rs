@@ -3015,6 +3015,7 @@ pub(crate) mod test {
 
             let (answer_tx, answer_rx) = oneshot::channel();
             tunnel
+                .circ
                 .command
                 .unbounded_send(CtrlCmd::ShutdownAndReturnCircuit { answer: answer_tx })
                 .unwrap();
@@ -3037,7 +3038,7 @@ pub(crate) mod test {
             // The tunnel reactor should be shutting down,
             // regardless of the error
             rt.progress_until_stalled().await;
-            assert!(tunnel.is_closing());
+            assert!(tunnel.is_closed());
 
             // Keep circs alive, to prevent the reactor
             // from shutting down prematurely
