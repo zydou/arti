@@ -25,6 +25,7 @@ RECOGNIZED_LICENSES=(
     Unicode-3.0
     Unlicense
     Zlib
+    "BSD-3-Clause AND MIT"
     "MIT AND BSD-3-Clause"
     "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
     "MIT AND (MIT OR Apache-2.0)"
@@ -33,6 +34,7 @@ RECOGNIZED_LICENSES=(
     "Apache-2.0) OR MIT AND (MIT"
     # Used by unicode-ident
     "(MIT OR Apache-2.0) AND Unicode-3.0"
+    "(Apache-2.0 OR MIT) AND Unicode-3.0"
     # Used by ring >= v0.17.10
     "Apache-2.0 AND ISC"
     # Used by aws-lc-rs
@@ -81,12 +83,12 @@ MPL_20_OK=(
     dynasmrt
 )
 
-# List of packages allowed to use the LGPL-3.0-only license.
+# List of packages allowed to use the LGPL-3.0-only or LGPL-3.0 license.
 #
 # We aren't including LGPL code in the general Arti dependency tree, this is
 # just meant to be a limited whitelist which allows some of our own crates
 # we are developing under the LGPL.
-LGPL_30_ONLY_OK=(
+LGPL_30_OK=(
     equix
     hashx
 )
@@ -140,9 +142,9 @@ for line in $output; do
 	continue
     fi
 
-    if test "$licenses" = "LGPL-3.0-only"; then
-	if ! containsElement "$package" "${LGPL_30_ONLY_OK[@]}"; then
-	    echo "$package uses LGPL-3.0-only but has not been allow-listed."
+    if test "$licenses" = "LGPL-3.0-only" || test "$licenses" = "LGPL-3.0"; then
+	if ! containsElement "$package" "${LGPL_30_OK[@]}"; then
+	    echo "$package uses LGPL-3.0 but has not been allow-listed."
 	    problems=1
 	fi
 	continue
