@@ -389,7 +389,12 @@ impl ClientTunnel {
         let time_prov = self.circ.time_provider.clone();
 
         let memquota = StreamAccount::new(self.circ.mq_account())?;
-        let (sender, receiver) = stream_queue(STREAM_READER_BUFFER, &memquota, &time_prov)?;
+        let (sender, receiver) = stream_queue(
+            #[cfg(not(feature = "flowctl-cc"))]
+            STREAM_READER_BUFFER,
+            &memquota,
+            &time_prov,
+        )?;
         let (tx, rx) = oneshot::channel();
         let (msg_tx, msg_rx) =
             MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(time_prov, memquota.as_raw_account())?;

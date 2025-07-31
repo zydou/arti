@@ -876,6 +876,7 @@ impl Circuit {
         let memquota = StreamAccount::new(&self.memquota)?;
 
         let (sender, receiver) = stream_queue(
+            #[cfg(not(feature = "flowctl-cc"))]
             STREAM_READER_BUFFER,
             &memquota,
             self.chan_sender.as_inner().time_provider(),
