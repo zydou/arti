@@ -359,7 +359,7 @@ pub(crate) enum ReplayError {
 /// Error occured while opening replay log.
 #[derive(thiserror::Error, Clone, Debug)]
 #[error("unable to open replay log: {file:?}")]
-pub(crate) struct OpenReplayLogError {
+pub struct OpenReplayLogError {
     /// What filesystem object we tried to do it to
     pub(crate) file: PathBuf,
     /// What happened

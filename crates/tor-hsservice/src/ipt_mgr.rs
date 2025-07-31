@@ -290,7 +290,7 @@ enum ChooseIptError {
 /// An error that happened while trying to crate an IPT (at a selected relay)
 ///
 /// Used only within the IPT manager.
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub(crate) enum CreateIptError {
     /// Fatal error
     #[error("fatal error")]

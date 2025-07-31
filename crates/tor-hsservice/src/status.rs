@@ -10,6 +10,10 @@ pub struct OnionServiceStatus {
 
     /// The current high-level state for the descriptor publisher.
     publisher: ComponentStatus,
+
+    /// The current high-level state for the PoW manager.
+    #[cfg(feature = "hs-pow-full")]
+    pow_manager: ComponentStatus,
     // TODO (#1194): Add key expiration
     //
     // NOTE: Do _not_ add general metrics (like failure/success rates , number
@@ -191,7 +195,11 @@ pub enum Problem {
 
     /// We failed to establish one or more introduction points.
     Ipt(Vec<IptError>),
+
+    /// Error in the PowManager subsystem
     // TODO: add variants for other transient errors?
+    #[cfg(feature = "hs-pow-full")]
+    Pow(crate::pow::v1::InternalPowError),
 }
 
 impl OnionServiceStatus {
@@ -200,6 +208,8 @@ impl OnionServiceStatus {
         Self {
             ipt_mgr: ComponentStatus::new_shutdown(),
             publisher: ComponentStatus::new_shutdown(),
+            #[cfg(feature = "hs-pow-full")]
+            pow_manager: ComponentStatus::new_shutdown(),
         }
     }
 
@@ -210,29 +220,52 @@ impl OnionServiceStatus {
     pub fn state(&self) -> State {
         use State::*;
 
-        match (self.ipt_mgr.state, self.publisher.state) {
-            (Shutdown, _) | (_, Shutdown) => Shutdown,
-            (Bootstrapping, _) | (_, Bootstrapping) => Bootstrapping,
-            (Running, Running) => Running,
-            (Recovering, _) | (_, Recovering) => Recovering,
-            (Broken, _) | (_, Broken) => Broken,
-            (DegradedUnreachable, _) | (_, DegradedUnreachable) => DegradedUnreachable,
-            (DegradedReachable, Running)
-            | (Running, DegradedReachable)
-            | (DegradedReachable, DegradedReachable) => DegradedReachable,
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "hs-pow-full")] {
+                let pow_manager_state = self.pow_manager.state;
+            } else {
+                // This is slightly janky, but should give correct results.
+                let pow_manager_state = Running;
+            }
+        }
+
+        match (self.ipt_mgr.state, self.publisher.state, pow_manager_state) {
+            (Shutdown, _, _) | (_, Shutdown, _) => Shutdown,
+            (Bootstrapping, _, _) | (_, Bootstrapping, _) => Bootstrapping,
+            (Running, Running, Running) => Running,
+            (Recovering, _, _) | (_, Recovering, _) | (_, _, Recovering) => Recovering,
+            (Broken, _, _) | (_, Broken, _) => Broken,
+            (DegradedUnreachable, _, _) | (_, DegradedUnreachable, _) => DegradedUnreachable,
+            (DegradedReachable, Running, _)
+            | (Running, DegradedReachable, _)
+            | (DegradedReachable, DegradedReachable, _)
+            | (Running, Running, _) => DegradedReachable,
         }
     }
 
     /// Return the most severe current problem
     pub fn current_problem(&self) -> Option<&Problem> {
-        match (&self.ipt_mgr.latest_error, &self.publisher.latest_error) {
-            (None, None) => None,
-            (Some(e), Some(_)) => {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "hs-pow-full")] {
+                let pow_manager_error = &self.pow_manager.latest_error;
+            } else {
+                let pow_manager_error = &None;
+            }
+        }
+
+        match (
+            &self.ipt_mgr.latest_error,
+            &self.publisher.latest_error,
+            pow_manager_error,
+        ) {
+            (None, None, None) => None,
+            (Some(e), Some(_), _) => {
                 // For now, assume IPT manager errors are always more severe
                 // TODO: decide which error is the more severe (or return both)
                 Some(e)
             }
-            (_, Some(e)) | (Some(e), _) => Some(e),
+            (_, Some(e), _) | (Some(e), _, _) => Some(e),
+            (_, _, Some(e)) => Some(e),
         }
     }
 
@@ -288,7 +321,13 @@ pub(crate) struct IptMgrStatusSender(StatusSender);
 #[derive(Clone, derive_more::From)]
 pub(crate) struct PublisherStatusSender(StatusSender);
 
-/// A helper for implementing [`PublisherStatusSender`] and [`IptMgrStatusSender`].
+/// A handle that can be used by the [`Publisher`]
+/// to update the [`OnionServiceStatus`].
+#[derive(Clone, derive_more::From)]
+#[cfg(feature = "hs-pow-full")]
+pub(crate) struct PowManagerStatusSender(StatusSender);
+
+/// A helper for implementing [`PublisherStatusSender`], [`IptMgrStatusSender`], etc.
 ///
 /// TODO: this macro is a bit repetitive, it would be nice if we could reduce duplication even
 /// further (and auto-generate a `note_<state>` function for every `State` variant).
@@ -338,6 +377,8 @@ macro_rules! impl_status_sender {
 
 impl_status_sender!(IptMgrStatusSender, ipt_mgr);
 impl_status_sender!(PublisherStatusSender, publisher);
+#[cfg(feature = "hs-pow-full")]
+impl_status_sender!(PowManagerStatusSender, pow_manager);
 
 impl StatusSender {
     /// Create a new StatusSender with a given initial status.

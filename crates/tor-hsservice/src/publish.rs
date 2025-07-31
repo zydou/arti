@@ -463,7 +463,7 @@ mod test {
         keymgr: Arc<KeyMgr>,
         pv: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        status_tx: PublisherStatusSender,
+        status_tx: StatusSender,
         netdir: NetDir,
         reactor_event: impl FnOnce(),
         poll_read_responses: I,
@@ -501,6 +501,7 @@ mod test {
                 keymgr.clone(),
                 pow_manager_storage_handle,
                 netdir_provider.clone(),
+                status_tx.clone().into(),
             )
             .unwrap();
             let mut status_rx = status_tx.subscribe();
@@ -511,7 +512,7 @@ mod test {
                 circpool,
                 pv,
                 config_rx,
-                status_tx,
+                status_tx.into(),
                 keymgr,
                 Arc::new(CfgPathResolver::default()),
                 pow_manager,
@@ -631,7 +632,7 @@ mod test {
         // If any of the uploads fail, they will be retried. Note that the upload failure will
         // affect _each_ hsdir, so the expected number of uploads is a multiple of hsdir_count.
         let expected_upload_count = hsdir_count * multiplier;
-        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         run_test(
             runtime.clone(),

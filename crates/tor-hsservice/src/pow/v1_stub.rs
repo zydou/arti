@@ -14,7 +14,7 @@ use tor_persist::{
 };
 use tor_rtcompat::Runtime;
 
-use crate::{RendRequest, StartupError};
+use crate::{RendRequest, StartupError, status::StatusSender};
 
 use super::NewPowManager;
 
@@ -38,6 +38,7 @@ impl<R: Runtime> PowManager<R> {
         _keymgr: Arc<KeyMgr>,
         _storage_handle: StorageHandle<PowManagerStateRecord>,
         _netdir_provider: Arc<dyn NetDirProvider>,
+        _status_tx: StatusSender,
     ) -> Result<NewPowManager<R>, StartupError> {
         let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
         let (publisher_update_tx, publisher_update_rx) = mpsc::channel(1);

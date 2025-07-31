@@ -38,6 +38,7 @@ use tor_rtcompat::Runtime;
 use crate::{
     BlindIdPublicKeySpecifier, RendRequest, ReplayError, StartupError, rend_handshake,
     replay::{OpenReplayLogError, PowNonceReplayLog},
+    status::{PowManagerStatusSender, Problem, State as PowManagerState},
 };
 
 use super::NewPowManager;
@@ -92,6 +93,9 @@ struct State<R, Q> {
 
     /// [`NetDirProvider`], used for getting consensus parameters for configuration values.
     netdir_provider: Arc<dyn NetDirProvider>,
+
+    /// Sender for reporting back onion service status.
+    status_tx: PowManagerStatusSender,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -200,10 +204,10 @@ const _: () = assert!(
 /// 32 is likely way larger than we need but the messages are tiny so we might as well.
 const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)] // We want to show fields in Debug even if we don't use them.
 /// Internal error within the PoW subsystem.
-pub(crate) enum InternalPowError {
+pub enum InternalPowError {
     /// We don't have a key that is needed.
     MissingKey,
     /// Error in the underlying storage layer.
@@ -224,6 +228,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         keymgr: Arc<KeyMgr>,
         storage_handle: StorageHandle<PowManagerStateRecord>,
         netdir_provider: Arc<dyn NetDirProvider>,
+        status_tx: PowManagerStatusSender,
     ) -> Result<NewPowManager<R>, StartupError> {
         let on_disk_state = storage_handle
             .load()
@@ -243,6 +248,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             runtime.clone(),
             suggested_effort.clone(),
             netdir_provider.clone(),
+            status_tx.clone(),
         );
 
         let state = State {
@@ -257,6 +263,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             storage_handle,
             rend_request_rx: rend_req_rx.clone(),
             netdir_provider,
+            status_tx,
         };
         let pow_manager = Arc::new(PowManagerGeneric(RwLock::new(state)));
 
@@ -281,13 +288,23 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 spawning: "pow manager",
                 cause: cause.into(),
             })?;
+
+        self.0
+            .write()
+            .expect("Lock poisoned")
+            .status_tx
+            .send(PowManagerState::Running, None);
         Ok(())
     }
 
     /// Run [`Self::main_loop_task`], reporting any errors.
     async fn main_loop_error_wrapper(self: Arc<Self>) {
         if let Err(err) = self.clone().main_loop_task().await {
-            tracing::warn!(?err, "PoW main loop error!");
+            self.0
+                .write()
+                .expect("Lock poisoned")
+                .status_tx
+                .send(PowManagerState::DegradedReachable, Some(Problem::Pow(err)));
         }
     }
 
@@ -802,6 +819,9 @@ struct RendRequestReceiverInner<R, Q> {
     ///
     /// We write to this, which is then published in the pow-params line by [`PowManagerGeneric`].
     suggested_effort: Arc<Mutex<Effort>>,
+
+    /// Sender for reporting back onion service status.
+    status_tx: PowManagerStatusSender,
 }
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R, Q> {
@@ -810,6 +830,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         runtime: R,
         suggested_effort: Arc<Mutex<Effort>>,
         netdir_provider: Arc<dyn NetDirProvider>,
+        status_tx: PowManagerStatusSender,
     ) -> Self {
         let now = runtime.now();
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
@@ -824,6 +845,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             last_transition: now,
             total_effort: 0,
             suggested_effort,
+            status_tx,
         })))
     }
 
@@ -837,20 +859,34 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         pow_manager: Arc<P>,
         inner_receiver: mpsc::Receiver<Q>,
     ) {
-        let receiver_clone = self.clone();
+        let receiver = self.clone();
         let runtime_clone = runtime.clone();
         let _ = runtime.clone().spawn_blocking(move || {
             if let Err(err) =
-                receiver_clone.accept_loop(&runtime_clone, &pow_manager, inner_receiver)
+                receiver
+                    .clone()
+                    .accept_loop(&runtime_clone, &pow_manager, inner_receiver)
             {
                 tracing::warn!(?err, "PoW accept loop error!");
+                receiver
+                    .0
+                    .lock()
+                    .expect("Lock poisoned")
+                    .status_tx
+                    .send_broken(Problem::Pow(err));
             }
         });
 
-        let receiver_clone = self.clone();
+        let receiver = self.clone();
         let _ = runtime.clone().spawn_blocking(move || {
-            if let Err(err) = receiver_clone.expire_old_requests_loop(&runtime) {
+            if let Err(err) = receiver.clone().expire_old_requests_loop(&runtime) {
                 tracing::warn!(?err, "PoW request expiration loop error!");
+                receiver
+                    .0
+                    .lock()
+                    .expect("Lock poisoned")
+                    .status_tx
+                    .send(PowManagerState::DegradedReachable, Some(Problem::Pow(err)));
             }
         });
     }
@@ -957,9 +993,17 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         let max_effort = Effort::from(max_effort);
 
         loop {
-            let rend_request = runtime
-                .reenter_block_on(receiver.next())
-                .expect("Other side of RendRequest queue hung up");
+            let rend_request = if let Some(rend_request) = runtime.reenter_block_on(receiver.next())
+            {
+                rend_request
+            } else {
+                self.0
+                    .lock()
+                    .expect("Lock poisoned")
+                    .status_tx
+                    .send_shutdown();
+                return Ok(());
+            };
             let rend_request =
                 match RendRequestOrdByEffort::new(rend_request, max_effort, request_num) {
                     Ok(rend_request) => rend_request,
@@ -1082,6 +1126,8 @@ impl<R: Runtime, Q: MockableRendRequest> Stream for RendRequestReceiver<R, Q> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    use crate::status::{OnionServiceStatus, StatusSender};
+
     use super::*;
     use futures::FutureExt;
     use tor_hscrypto::pow::v1::{Nonce, SolutionByteArray};
@@ -1160,8 +1206,13 @@ mod test {
         .unwrap();
         let net_params = netdir.params().clone();
         let netdir_provider: Arc<TestNetDirProvider> = Arc::new(netdir.into());
-        let receiver: RendRequestReceiver<_, MockRendRequest> =
-            RendRequestReceiver::new(runtime.clone(), suggested_effort.clone(), netdir_provider);
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
+        let receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
+            runtime.clone(),
+            suggested_effort.clone(),
+            netdir_provider,
+            status_tx,
+        );
         let (tx, rx) = mpsc::channel(32);
         receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
 

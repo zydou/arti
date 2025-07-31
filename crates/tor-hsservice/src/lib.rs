@@ -302,6 +302,8 @@ impl OnionService {
             .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
+
         let pow_manager_storage_handle = state_handle
             .storage_handle("pow_manager")
             .map_err(StartupError::StateDirectoryInaccessible)?;
@@ -320,6 +322,7 @@ impl OnionService {
             keymgr.clone(),
             pow_manager_storage_handle,
             netdir_provider.clone(),
+            status_tx.clone().into(),
         )?;
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
@@ -327,8 +330,6 @@ impl OnionService {
 
         let (ipt_mgr_view, publisher_view) =
             crate::ipt_set::ipts_channel(&runtime, iptpub_storage_handle)?;
-
-        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         let ipt_mgr = IptManager::new(
             runtime.clone(),
