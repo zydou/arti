@@ -154,6 +154,12 @@ impl<R: Runtime, Q> State<R, Q> {
 // TODO POW: Allow this to be changed in onion service config.
 // Each request should take a few KB, so a queue of this depth should only take up ~32MB in the
 // worst case.
+//
+// The "a few KB" measurement was done by using the get_size crate to
+// measure the size of the RendRequest object, but due to limitations in
+// that crate (and in my willingness to go implement ways of checking the
+// size of external types), it might be somewhat off. The ~32MB value is
+// based on the idea that each RendRequest is 4KB.
 const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 8192;
 
 /// How frequently the suggested effort should be recalculated.
