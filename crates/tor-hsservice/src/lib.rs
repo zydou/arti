@@ -590,14 +590,14 @@ fn maybe_generate_hsid(
     if generated {
         info!(
             "Generated a new identity for service {nickname}: {}",
-            sensitive(hsid)
+            hsid.display_redacted()
         );
     } else {
         // TODO: We may want to downgrade this to trace once we have a CLI
         // for extracting it.
         info!(
             "Using existing identity for service {nickname}: {}",
-            sensitive(hsid)
+            hsid.display_redacted()
         );
     }
 

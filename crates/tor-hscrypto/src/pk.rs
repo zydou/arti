@@ -9,6 +9,7 @@ use std::str::FromStr;
 
 use digest::Digest;
 use itertools::{chain, Itertools};
+use safelog::DisplayRedacted;
 use thiserror::Error;
 use tor_basic_utils::{impl_debug_hex, StrExt as _};
 use tor_key_forge::ToEncodableKey;
@@ -37,23 +38,6 @@ define_bytes! {
 /// smaller.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct HsId([u8; 32]);
-}
-
-impl fmt::LowerHex for HsId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HsId(0x")?;
-        for v in self.0.as_ref() {
-            write!(f, "{:02x}", v)?;
-        }
-        write!(f, ")")?;
-        Ok(())
-    }
-}
-
-impl Debug for HsId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HsId({})", self)
-    }
 }
 
 define_pk_keypair! {
@@ -126,8 +110,8 @@ const HSID_ONION_VERSION: u8 = 0x03;
 /// The fixed string `.onion`
 pub const HSID_ONION_SUFFIX: &str = ".onion";
 
-impl Display for HsId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl safelog::DisplayRedacted for HsId {
+    fn fmt_unredacted(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         // rend-spec-v3 s.6 [ONIONADDRESS]
         let checksum = self.onion_checksum();
         let binary = chain!(self.0.as_ref(), &checksum, &[HSID_ONION_VERSION],)
@@ -137,14 +121,12 @@ impl Display for HsId {
         b32.make_ascii_lowercase();
         write!(f, "{}{}", b32, HSID_ONION_SUFFIX)
     }
-}
 
-impl safelog::Redactable for HsId {
     // We here display some of the end.  We don't want to display the
     // *start* because vanity domains, which would perhaps suffer from
     // reduced deniability.
-    fn display_redacted(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let unredacted = self.to_string();
+    fn fmt_redacted(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let unredacted = self.display_unredacted().to_string();
         /// Length of the base32 data part of the address
         const DATA: usize = 56;
         assert_eq!(unredacted.len(), DATA + HSID_ONION_SUFFIX.len());
@@ -160,6 +142,18 @@ impl safelog::Redactable for HsId {
         write!(f, "???{}", &unredacted[DATA - 3..])
     }
 }
+
+impl safelog::DebugRedacted for HsId {
+    fn fmt_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HsId({})", self.display_redacted())
+    }
+
+    fn fmt_unredacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HsId({})", self.display_unredacted())
+    }
+}
+
+safelog::derive_redacted_debug!(HsId);
 
 impl FromStr for HsId {
     type Err = HsIdParseError;
@@ -768,7 +762,6 @@ mod test {
 
     use hex_literal::hex;
     use itertools::izip;
-    use safelog::Redactable;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
 
@@ -787,7 +780,7 @@ mod test {
         let onion = format!("{}.onion", b32);
 
         assert_eq!(onion.parse::<HsId>().unwrap(), hsid);
-        assert_eq!(hsid.to_string(), onion);
+        assert_eq!(hsid.display_unredacted().to_string(), onion);
 
         let weird_case: String = izip!(onion.chars(), [false, true].iter().cloned().cycle(),)
             .map(|(c, swap)| if swap { c.to_ascii_uppercase() } else { c })
@@ -812,10 +805,11 @@ mod test {
         chk_err!(edited(53, b'X'), PE::WrongChecksum);
         chk_err!(&format!("www.{}", &onion), PE::HsIdContainsSubdomain);
 
-        assert_eq!(format!("{:x}", &hsid), format!("HsId(0x{})", hex));
-        assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));
+        safelog::with_safe_logging_suppressed(|| {
+            assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));
+        });
 
-        assert_eq!(format!("{}", hsid.redacted()), "???sid.onion");
+        assert_eq!(format!("{}", hsid.display_redacted()), "???sid.onion");
     }
 
     #[test]

@@ -6,6 +6,7 @@ use crate::{Result, TorClient};
 use anyhow::{anyhow, Context};
 use arti_client::{HsClientDescEncKey, HsId, InertTorClient, KeystoreSelector, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
+use safelog::DisplayRedacted;
 use tor_rtcompat::Runtime;
 
 use std::fs::OpenOptions;
@@ -246,7 +247,10 @@ fn write_public_key(mut f: impl io::Write, key: &HsClientDescEncKey) -> io::Resu
 /// Run the `hsc rotate-key` subcommand.
 fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -> Result<()> {
     let addr = get_onion_address(&args.common)?;
-    let msg = format!("rotate client restricted discovery key for {}?", addr);
+    let msg = format!(
+        "rotate client restricted discovery key for {}?",
+        addr.display_unredacted()
+    );
     if !args.common.batch && !prompt(&msg)? {
         return Ok(());
     }
@@ -259,7 +263,10 @@ fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -
 /// Run the `hsc remove-key` subcommand.
 fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -> Result<()> {
     let addr = get_onion_address(&args.common)?;
-    let msg = format!("remove client restricted discovery key for {}?", addr);
+    let msg = format!(
+        "remove client restricted discovery key for {}?",
+        addr.display_unredacted()
+    );
     if !args.common.batch && !prompt(&msg)? {
         return Ok(());
     }

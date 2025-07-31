@@ -10,7 +10,7 @@ use hyper_util::rt::TokioIo;
 use tokio_util::sync::CancellationToken;
 
 use arti_client::{TorClient, TorClientConfig};
-use safelog::sensitive;
+use safelog::{sensitive, DisplayRedacted};
 use tor_cell::relaycell::msg::Connected;
 use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_hsservice::StreamRequest;
@@ -78,7 +78,7 @@ async fn main() {
     }
     eprintln!(
         "ready to serve connections via {}",
-        service.onion_address().unwrap()
+        service.onion_address().unwrap().display_unredacted()
     );
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)

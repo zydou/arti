@@ -6319,6 +6319,7 @@ dependencies = [
  "itertools 0.14.0",
  "paste",
  "rand 0.9.1",
+ "safelog",
  "serde",
  "serde_json",
  "signature",
