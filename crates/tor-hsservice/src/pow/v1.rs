@@ -940,10 +940,12 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .params()
             .clone();
 
-        let max_effort = Effort::from(
-            <i32 as TryInto<u32>>::try_into(net_params.hs_pow_v1_max_effort.get())
-                .expect("Bounded i32 not in range of u32?!"),
-        );
+        let max_effort: u32 = net_params
+            .hs_pow_v1_max_effort
+            .get()
+            .try_into()
+            .expect("Bounded i32 not in range of u32?!");
+        let max_effort = Effort::from(max_effort);
 
         loop {
             let rend_request = runtime
