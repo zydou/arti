@@ -12,8 +12,8 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use futures::task::SpawnExt;
 use futures::{channel::mpsc, Stream};
+use futures::{task::SpawnExt, FutureExt};
 use futures::{SinkExt, StreamExt};
 use num_traits::FromPrimitive;
 use rand::{CryptoRng, RngCore};
@@ -27,7 +27,7 @@ use tor_hscrypto::{
     time::TimePeriod,
 };
 use tor_keymgr::KeyMgr;
-use tor_netdir::{params::NetParameters, NetDirProvider};
+use tor_netdir::{params::NetParameters, NetDirProvider, NetdirProviderShutdown};
 use tor_netdoc::doc::hsdesc::pow::{v1::PowParamsV1, PowParams};
 use tor_persist::{
     hsnickname::HsNickname,
@@ -204,6 +204,8 @@ pub(crate) enum InternalPowError {
     StorageError,
     /// Error from the ReplayLog.
     CreateIptError(CreateIptError),
+    /// NetDirProvider has shut down
+    NetdirProviderShutdown(NetdirProviderShutdown),
 }
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q> {
@@ -268,7 +270,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let runtime = pow_manager.0.read().expect("Lock poisoned").runtime.clone();
 
         runtime
-            .spawn(pow_manager.main_loop_task())
+            .spawn(
+                pow_manager
+                    .main_loop_task()
+                    .map(|r| r.expect("PoW main loop error")),
+            )
             .map_err(|cause| StartupError::Spawn {
                 spawning: "pow manager",
                 cause: cause.into(),
@@ -277,7 +283,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
     }
 
     /// Main loop for rotating seeds.
-    async fn main_loop_task(self: Arc<Self>) {
+    async fn main_loop_task(self: Arc<Self>) -> Result<(), InternalPowError> {
         let runtime = self.0.write().expect("Lock poisoned").runtime.clone();
 
         let mut last_suggested_effort_update = runtime.now();
@@ -299,7 +305,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let net_params = netdir_provider
             .wait_for_netdir(tor_netdir::Timeliness::Timely)
             .await
-            .expect("No netdir")
+            .map_err(InternalPowError::NetdirProviderShutdown)?
             .params()
             .clone();
 
