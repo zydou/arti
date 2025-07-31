@@ -1036,11 +1036,17 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             );
 
         loop {
-            // There's a tradeoff between running this too often (waste of resources, could cause
-            // contention) and too infrequently (requests that should be timed out aren't).
-            // Dividing the max age by four seems reasonable, since the error will be at most 25%,
-            // and this will only run every 75 seconds with default values, but it is arbitrary.
-            runtime.reenter_block_on(runtime.sleep(max_age / 4));
+            let inner = self.0.lock().expect("Lock poisoned");
+            // Wake up when the oldest request will reach the expiration age, or, if there are no
+            // items currently in the queue, wait for the maximum age.
+            let wait_time = inner
+                .queue
+                .first()
+                .map(|r| max_age - (runtime.now() - r.recv_time))
+                .unwrap_or(max_age);
+            drop(inner);
+
+            runtime.reenter_block_on(runtime.sleep(wait_time));
 
             tracing::trace!("Expiring timed out RendRequests");
             let mut inner = self.0.lock().expect("Lock poisoned");
