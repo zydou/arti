@@ -242,6 +242,24 @@ impl<T: NotAutoValue> ExplicitOrAuto<T> {
             ExplicitOrAuto::Explicit(v) => Some(v),
         }
     }
+
+    /// Maps an `ExplicitOrAuto<T>` to an `ExplicitOrAuto<U>` by applying a function to a contained
+    /// value.
+    pub fn map<U: NotAutoValue>(self, f: impl FnOnce(T) -> U) -> ExplicitOrAuto<U> {
+        match self {
+            Self::Auto => ExplicitOrAuto::Auto,
+            Self::Explicit(x) => ExplicitOrAuto::Explicit(f(x)),
+        }
+    }
+}
+
+impl<T> From<T> for ExplicitOrAuto<T>
+where
+    T: NotAutoValue,
+{
+    fn from(x: T) -> Self {
+        Self::Explicit(x)
+    }
 }
 
 /// A marker trait for types that do not serialize to the same value as [`ExplicitOrAuto::Auto`].
@@ -267,6 +285,9 @@ impl_not_auto_value_for_types!(
     char
     bool
 );
+
+use tor_basic_utils::ByteQty;
+impl_not_auto_value!(ByteQty);
 
 // TODO implement `NotAutoValue` for other types too
 

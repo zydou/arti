@@ -568,7 +568,7 @@ impl MemoryQuotaTracker {
         let for_task = Arc::downgrade(&tracker);
         runtime.spawn(reclaim::task(for_task, reclaim_rx, enabled))?;
 
-        info!(%max, %low_water, "memory quota tracking initialised");
+        info!(%max, %low_water, "Memory quota tracking initialised");
 
         Ok(tracker)
     }
