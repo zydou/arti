@@ -16,7 +16,13 @@ fn cli_tests() {
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
-            t.case("tests/testcases/hss/*.toml");
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "onion-service-cli-extra")] {
+                    t.case("tests/testcases/hss-extra/*.toml");
+                } else {
+                    t.case("tests/testcases/hss/*.toml");
+                }
+            }
             t.case("tests/testcases/hss/*.md");
         } else {
             // This is not yet implemented, see #1487

@@ -1,5 +1,6 @@
 //! The `hsc` subcommand.
 
+use crate::subcommands::prompt;
 use crate::{Result, TorClient};
 
 use anyhow::{anyhow, Context};
@@ -246,7 +247,7 @@ fn write_public_key(mut f: impl io::Write, key: &HsClientDescEncKey) -> io::Resu
 fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -> Result<()> {
     let addr = get_onion_address(&args.common)?;
     let msg = format!("rotate client restricted discovery key for {}?", addr);
-    if !prompt(&msg, &args.common)? {
+    if !args.common.batch && !prompt(&msg)? {
         return Ok(());
     }
 
@@ -259,52 +260,13 @@ fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -
 fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -> Result<()> {
     let addr = get_onion_address(&args.common)?;
     let msg = format!("remove client restricted discovery key for {}?", addr);
-    if !prompt(&msg, &args.common)? {
+    if !args.common.batch && !prompt(&msg)? {
         return Ok(());
     }
 
     let _key = client.remove_service_discovery_key(KeystoreSelector::default(), addr)?;
 
     Ok(())
-}
-
-/// Prompt the user to confirm by typing yes or no.
-///
-/// Loops until the user confirms or declines,
-/// returning true if they confirmed.
-///
-/// If `args.batch` is `true` no confirmation will be asked.
-fn prompt(msg: &str, args: &CommonArgs) -> Result<bool> {
-    if args.batch {
-        return Ok(true);
-    }
-
-    /// The accept message.
-    const YES: &str = "YES";
-    /// The decline message.
-    const NO: &str = "no";
-
-    let mut proceed = String::new();
-
-    print!("{} (type {YES} or {NO}): ", msg);
-    io::stdout().flush().map_err(|e| anyhow!(e))?;
-    loop {
-        io::stdin()
-            .read_line(&mut proceed)
-            .map_err(|e| anyhow!(e))?;
-
-        if proceed.trim_end() == YES {
-            return Ok(true);
-        }
-
-        match proceed.trim_end().to_lowercase().as_str() {
-            NO | "n" => return Ok(false),
-            _ => {
-                proceed.clear();
-                continue;
-            }
-        }
-    }
 }
 
 /// Prompt the user for an onion address.

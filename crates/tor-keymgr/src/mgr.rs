@@ -230,6 +230,21 @@ impl KeyMgr {
         }
     }
 
+    /// Read a key from one of the key stores specified, and try to deserialize it as `K::Key`.
+    ///
+    /// Returns `Ok(None)` if none of the key stores have the requested key.
+    ///
+    /// Returns an error if the specified keystore does not exist.
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn get_from<K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        keystore_id: &KeystoreId,
+    ) -> Result<Option<K>> {
+        let store = std::iter::once(self.find_keystore(keystore_id)?);
+        self.get_from_store(key_spec, &K::Key::item_type(), store)
+    }
+
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
     ///
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
@@ -1370,6 +1385,52 @@ mod tests {
             Some(&KeystoreId::from_str("keystore1").unwrap())
         );
         assert_eq!(key.meta.is_generated(), false);
+    }
+
+    #[test]
+    #[cfg(feature = "onion-service-cli-extra")]
+    fn get_from() {
+        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
+
+        builder
+            .secondary_stores()
+            .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+
+        let mgr = builder.build().unwrap();
+
+        let keystore1_id = KeystoreId::from_str("keystore1").unwrap();
+        let keystore2_id = KeystoreId::from_str("keystore2").unwrap();
+        let key_id_1 = "mantis shrimp";
+        let key_id_2 = "tardigrade";
+
+        // Insert a key into Keystore1
+        let _ = mgr
+            .insert(
+                TestItem::new(key_id_1),
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&keystore1_id),
+                true,
+            )
+            .unwrap();
+
+        // Insert a key into Keystore2
+        let _ = mgr
+            .insert(
+                TestItem::new(key_id_2),
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&keystore2_id),
+                true,
+            )
+            .unwrap();
+
+        // Retrieve key
+        let key = mgr
+            .get_from::<TestItem>(&TestKeySpecifier1, &keystore2_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(key.meta.item_id(), key_id_2);
+        assert_eq!(key.meta.retrieved_from(), Some(&keystore2_id));
     }
 
     #[test]

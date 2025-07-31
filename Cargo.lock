@@ -245,6 +245,7 @@ dependencies = [
  "tor-config",
  "tor-config-path",
  "tor-error",
+ "tor-hscrypto",
  "tor-hsrproxy",
  "tor-hsservice",
  "tor-key-forge",
