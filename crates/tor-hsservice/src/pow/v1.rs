@@ -843,12 +843,18 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         let receiver_clone = self.clone();
         let runtime_clone = runtime.clone();
         let _ = runtime.clone().spawn_blocking(move || {
-            receiver_clone.accept_loop(&runtime_clone, &pow_manager, inner_receiver);
+            if let Err(err) =
+                receiver_clone.accept_loop(&runtime_clone, &pow_manager, inner_receiver)
+            {
+                tracing::warn!(?err, "PoW accept loop error!");
+            }
         });
 
         let receiver_clone = self.clone();
         let _ = runtime.clone().spawn_blocking(move || {
-            receiver_clone.expire_old_requests_loop(&runtime);
+            if let Err(err) = receiver_clone.expire_old_requests_loop(&runtime) {
+                tracing::warn!(?err, "PoW request expiration loop error!");
+            }
         });
     }
 
@@ -931,7 +937,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         runtime: &R,
         pow_manager: &Arc<P>,
         mut receiver: mpsc::Receiver<Q>,
-    ) {
+    ) -> Result<(), InternalPowError> {
         let mut request_num = 0;
 
         let netdir_provider = self
@@ -942,7 +948,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .clone();
         let net_params = runtime
             .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .expect("No netdir")
+            .map_err(InternalPowError::NetdirProviderShutdown)?
             .params()
             .clone();
 
@@ -1009,7 +1015,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
     }
 
     /// Loop to check for messages that are older than our timeout and remove them from the queue.
-    fn expire_old_requests_loop(self, runtime: &R) {
+    fn expire_old_requests_loop(self, runtime: &R) -> Result<(), InternalPowError> {
         let netdir_provider = self
             .0
             .lock()
@@ -1018,7 +1024,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .clone();
         let net_params = runtime
             .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .expect("No netdir")
+            .map_err(InternalPowError::NetdirProviderShutdown)?
             .params()
             .clone();
 
