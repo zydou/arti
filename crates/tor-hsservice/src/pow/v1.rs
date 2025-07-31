@@ -36,8 +36,8 @@ use tor_persist::{
 use tor_rtcompat::Runtime;
 
 use crate::{
-    BlindIdPublicKeySpecifier, CreateIptError, RendRequest, ReplayError, StartupError,
-    rend_handshake, replay::PowNonceReplayLog,
+    BlindIdPublicKeySpecifier, RendRequest, ReplayError, StartupError, rend_handshake,
+    replay::{OpenReplayLogError, PowNonceReplayLog},
 };
 
 use super::NewPowManager;
@@ -209,7 +209,7 @@ pub(crate) enum InternalPowError {
     /// Error in the underlying storage layer.
     StorageError,
     /// Error from the ReplayLog.
-    CreateIptError(CreateIptError),
+    OpenReplayLog(OpenReplayLogError),
     /// NetDirProvider has shut down
     NetdirProviderShutdown(NetdirProviderShutdown),
 }
@@ -580,7 +580,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
                 let replay_log = Mutex::new(
                     PowNonceReplayLog::new_logged(&state.instance_dir, &seed)
-                        .map_err(InternalPowError::CreateIptError)?,
+                        .map_err(InternalPowError::OpenReplayLog)?,
                 );
                 state.verifiers.insert(seed.head(), (verifier, replay_log));
 
