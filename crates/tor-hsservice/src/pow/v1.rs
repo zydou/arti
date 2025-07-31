@@ -688,12 +688,7 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
         let pow = match request.proof_of_work()?.cloned() {
             Some(ProofOfWork::V1(pow)) => {
                 if pow.effort() > max_effort {
-                    Some(ProofOfWorkV1::new(
-                        pow.nonce().clone(),
-                        max_effort,
-                        pow.seed_head(),
-                        *pow.solution(),
-                    ))
+                    Some(pow.cap_effort(max_effort))
                 } else {
                     Some(pow)
                 }
