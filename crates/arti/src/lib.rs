@@ -411,7 +411,7 @@ where
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
             if let Some(hss_matches) = matches.subcommand_matches("hss") {
-                return subcommands::hss::run(hss_matches, &config, &client_config);
+                return subcommands::hss::run(runtime, hss_matches, &config, &client_config);
             }
         }
     }
