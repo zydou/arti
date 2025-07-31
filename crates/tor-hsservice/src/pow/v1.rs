@@ -1087,7 +1087,6 @@ mod test {
     use futures::FutureExt;
     use tor_hscrypto::pow::v1::{Nonce, SolutionByteArray};
     use tor_netdir::{testnet, testprovider::TestNetDirProvider};
-    use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockRuntime;
 
     struct MockPowManager;
@@ -1187,14 +1186,14 @@ mod test {
             // Request with effort is before request with zero effort
             tx.send(make_req(2, Some(0))).await.unwrap();
             tx.send(make_req(3, Some(16))).await.unwrap();
-            runtime.advance_until(runtime.now()).await;
+            runtime.progress_until_stalled().await;
             assert_eq!(receiver.next().await.unwrap().id, 3);
             assert_eq!(receiver.next().await.unwrap().id, 2);
 
             // Invalid solves are dropped
             tx.send(make_req_invalid(4, 32)).await.unwrap();
             tx.send(make_req(5, Some(16))).await.unwrap();
-            runtime.advance_until(runtime.now()).await;
+            runtime.progress_until_stalled().await;
             assert_eq!(receiver.next().await.unwrap().id, 5);
             assert!(receiver.next().now_or_never().is_none());
         });
@@ -1217,7 +1216,6 @@ mod test {
                 tx.send(make_req(n, Some(0))).await.unwrap();
             }
 
-            runtime.advance_until(runtime.now()).await;
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
             for _ in 0..128 {
@@ -1236,7 +1234,6 @@ mod test {
                 tx.send(make_req(n, Some(0))).await.unwrap();
             }
 
-            runtime.advance_until(runtime.now()).await;
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
             for _ in 0..64 {
@@ -1256,7 +1253,6 @@ mod test {
                     .await
                     .unwrap();
             }
-            runtime.advance_until(runtime.now()).await;
 
             receiver.next().await.unwrap();
             runtime.advance_by(HS_UPDATE_PERIOD).await;
@@ -1273,8 +1269,6 @@ mod test {
                     .await
                     .unwrap();
             }
-
-            runtime.advance_until(runtime.now()).await;
 
             runtime.advance_by(HS_UPDATE_PERIOD / 16 * 15).await;
 
@@ -1297,7 +1291,6 @@ mod test {
                 tx.send(make_req(0, Some(new_suggested_effort.into())))
                     .await
                     .unwrap();
-                runtime.advance_until(runtime.now()).await;
                 runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
                 while receiver.next().now_or_never().is_some() {
@@ -1333,7 +1326,6 @@ mod test {
 
             let r0 = MockRendRequest { id: 0, pow: None };
             tx.send(r0).await.unwrap();
-            runtime.advance_until(runtime.now()).await;
 
             let max_age: Duration = net_params
                 .hs_pow_v1_service_intro_timeout
