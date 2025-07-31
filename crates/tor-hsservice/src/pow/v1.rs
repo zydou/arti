@@ -1195,7 +1195,7 @@ mod test {
             tx.send(make_req(5, Some(16))).await.unwrap();
             runtime.progress_until_stalled().await;
             assert_eq!(receiver.next().await.unwrap().id, 5);
-            assert!(receiver.next().now_or_never().is_none());
+            assert_eq!(receiver.0.lock().unwrap().queue.len(), 0);
         });
     }
 
@@ -1321,7 +1321,7 @@ mod test {
     #[test]
     fn test_rendrequest_timeout() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (mut receiver, mut tx, _suggested_effort, net_params) =
+            let (receiver, mut tx, _suggested_effort, net_params) =
                 make_test_receiver(&runtime, vec![]);
 
             let r0 = MockRendRequest { id: 0, pow: None };
@@ -1334,7 +1334,7 @@ mod test {
             runtime.advance_by(max_age * 2).await;
 
             // Waited too long, request has been dropped
-            assert!(receiver.next().now_or_never().is_none());
+            assert_eq!(receiver.0.lock().unwrap().queue.len(), 0);
         });
     }
 }
