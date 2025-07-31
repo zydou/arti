@@ -398,15 +398,7 @@ impl StatusSender {
     }
 }
 
-#[cfg(all(test, not(feature = "hs-pow-full")))]
-impl PublisherStatusSender {
-    /// Return a new OnionServiceStatusStream to return events from this StatusSender.
-    pub(crate) fn subscribe(&self) -> OnionServiceStatusStream {
-        self.0.subscribe()
-    }
-}
-
-#[cfg(all(test, not(feature = "hs-pow-full")))]
+#[cfg(test)]
 impl OnionServiceStatus {
     /// Return the current high-level state of the publisher`.
     pub(crate) fn publisher_status(&self) -> ComponentStatus {
@@ -414,7 +406,7 @@ impl OnionServiceStatus {
     }
 }
 
-#[cfg(all(test, not(feature = "hs-pow-full")))]
+#[cfg(test)]
 impl ComponentStatus {
     /// The current `State` of this component.
     pub(crate) fn state(&self) -> State {

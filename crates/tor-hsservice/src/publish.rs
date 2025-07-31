@@ -145,8 +145,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     }
 }
 
-// TODO POW: Enable this test for hs-pow-full once the MockExecutor supports this
-#[cfg(all(test, not(feature = "hs-pow-full")))]
+#[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
