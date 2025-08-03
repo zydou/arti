@@ -20,6 +20,7 @@ mod net {
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
+    #[cfg(unix)]
     use tor_general_addr::unix;
 
     /// Implement NetStreamProvider-related functionality for a single address type.

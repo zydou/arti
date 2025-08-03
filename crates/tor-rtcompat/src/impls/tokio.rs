@@ -7,6 +7,7 @@
 pub(crate) mod net {
     use crate::{impls, traits};
     use async_trait::async_trait;
+    #[cfg(unix)]
     use tor_general_addr::unix;
 
     pub(crate) use tokio_crate::net::{
@@ -203,6 +204,7 @@ use async_trait::async_trait;
 use futures::Future;
 use std::io::Result as IoResult;
 use std::time::Duration;
+#[cfg(unix)]
 use tor_general_addr::unix;
 
 impl SleepProvider for TokioRuntimeHandle {
