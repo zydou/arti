@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     // Launch onion service.
     eprintln!("[+] Launching onion service...");
     let svc_cfg = OnionServiceConfigBuilder::default()
-        .nickname("test".parse().unwrap())
+        .nickname("allium-ampeloprasum".parse().unwrap())
         .build()
         .unwrap();
     let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
