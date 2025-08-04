@@ -225,8 +225,31 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             .map_err(StartupError::LoadState)?
             .unwrap_or(PowManagerStateRecord::default());
 
-        let seeds = on_disk_state.seeds.into_iter().collect();
+        let seeds: HashMap<TimePeriod, SeedsForTimePeriod> =
+            on_disk_state.seeds.into_iter().collect();
         let suggested_effort = Arc::new(Mutex::new(on_disk_state.suggested_effort));
+
+        let mut verifiers = HashMap::new();
+        for (tp, seeds_for_tp) in seeds.clone().into_iter() {
+            for seed in seeds_for_tp.seeds {
+                let verifier =
+                    match Self::make_verifier(&keymgr, nickname.clone(), tp, seed.clone()) {
+                        Some(verifier) => verifier,
+                        None => {
+                            tracing::warn!("Couldn't construct verifier (key not available?)");
+                            continue;
+                        }
+                    };
+                let replay_log = match PowNonceReplayLog::new_logged(&instance_dir, &seed) {
+                    Ok(replay_log) => replay_log,
+                    Err(err) => {
+                        tracing::warn!(?err, "Error constructing replay log");
+                        continue;
+                    }
+                };
+                verifiers.insert(seed.head(), (verifier, Mutex::new(replay_log)));
+            }
+        }
 
         // This queue is extremely small, and we only make one of it per onion service, so it's
         // fine to not use memquota tracking.
@@ -248,7 +271,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             instance_dir,
             keymgr,
             publisher_update_tx,
-            verifiers: HashMap::new(),
+            verifiers,
             suggested_effort: suggested_effort.clone(),
             runtime: runtime.clone(),
             storage_handle,
