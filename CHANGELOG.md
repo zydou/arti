@@ -3,10 +3,10 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-
-# Arti 9.9.9 — 55 Octember 20XX
+# Arti TODO 9.9.9 — 55 Octember TODO-RELEASE-BLOCKER
 
 <!--
+TODO-RELEASE-BLOCKER
 Here is a blurb describing the release. It summarizes the major points,
 especially the ones that the user needs to know about.
 
@@ -75,6 +75,8 @@ but please do so judiciously.
 
 ### Acknowledgments
 
+TODO-RELEASE-BLOCKER
+
 Thanks to everybody who's contributed to this release, including
 <!-- (output of ./maint/thanks goes here) -->.
 Also welcome to Alyssa P Hacker as she joins the team!
@@ -85,6 +87,7 @@ and our [other sponsors]
 for funding the development of Arti!
 
 <!-- links go here -->
+
 
 
 # Arti 1.4.5 — 7 July 2025
