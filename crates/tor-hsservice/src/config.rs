@@ -99,16 +99,6 @@ pub struct OnionServiceConfig {
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// Disable the compiled backend for proof-of-work.
     // // disable_pow_compilation: bool,
-
-    // TODO POW: C tor has this, but I don't know if we want it.
-    //
-    // TODO POW: It's possible that we want this to relate, somehow, to our
-    // rate_limit_at_intro settings.
-    //
-    // /// A rate-limit on dispatching requests from the request queue when
-    // /// our proof-of-work defense is enabled.
-    // pow_queue_rate: TokenBucketConfig,
-    // ...
 }
 
 derive_deftly_adhoc! {
