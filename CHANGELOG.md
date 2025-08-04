@@ -46,7 +46,7 @@ but please do so judiciously.
   #2046
   !3070
 - Fix spurious 0-length buffer read in `DataReader`.
-  Impact: some client programs can experience truncated streams, losing data.
+  This bug caused some client programs to experience truncated streams, losing data.
   !3080
   #2053
 
@@ -96,7 +96,7 @@ but please do so judiciously.
 #### CGO (Counter Galois Onion - improved crpytography)
 
 - Implementation of CGO negotiation and use, in `tor-proto`.
-  Not presently enabled by default.
+  Not yet usable.
   [Proposal 359]
   !3069
   #1947
@@ -125,7 +125,7 @@ but please do so judiciously.
 - Re-export `ConfigurationSources` from the `arti_client` crate.
   !3044
 - `safelog`: New `DisplayRedacted`/`DebugRedacted` APIs
-  to help avoid accidentally redacting, or accidentally corrupting,
+  to help avoid accidentally redacting, corrupting, or exposing,
   hidden service identities (`.onion` names).
   !3107
   !3071
