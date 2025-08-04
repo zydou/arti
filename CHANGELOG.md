@@ -3,7 +3,9 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti TODO 9.9.9 — 55 Octember TODO-RELEASE-BLOCKER
+# Arti 1.4.6 — 4 August 2025
+
+TODO-RELEASE-BLOCKER up to date until 4a096515bef7d3014fc25c5bbf0452ef6a58e928
 
 <!--
 TODO-RELEASE-BLOCKER
@@ -20,58 +22,135 @@ but please do so judiciously.
 
 ### Breaking changes
 
-<!-- Breaking changes to `arti` or `arti-client` -->
+#### Developer-facing
+
+- `tor_memquota::ConfigBuilder::max()` and `ConfigBuilder::low_water()`
+  now take a `impl Into<ExplicitOrAuto<usize>>` instead of a `usize`.
+  This should generally be backwards compatible, but may cause type inference errors.
+  (These types are effectively part of the public API of `arti-client`.)
+  !3110
 
 ### Security fixes
 
-### Network updates
-
-<!-- Changes to the list of directory authorities, or to their identity keys,
-     go here.
-
-     Changes to the list of fallbacks can go in "cleanups, minor features,
-     etc" below
--->
+- Replace the Hidden Service (.onion service) Proof of Work control loop.
+  Improves denial of service resistance.
+  [Proposal 362]
+  !3093
+  No TROVE.
 
 ### Major bugfixes
 
+- Limit hidden service descriptor size inflation.
+  [Proposal 360]
+  torspec!411
+  #2046
+  !3070
+- Fix spurious 0-length buffer read in `DataReader`.
+  Impact: some client programs can experience truncated streams, losing data.
+  !3080
+  #2053
+
 ### Major features
 
-<!-- This section only for features that don't appear under a specific area -->
-<!-- of development. -->
-
-### Deprecated functionality
+- New `arti hss ctor-migrate` command line invocation
+  for migrating a hidden serivce (`.onion` service) identity key
+  from C Tor to an Arti keystore.
+  !3102
+- Enable the memquota (memory use control) system by default.
+  (Part of congestion control work.)
+  !3110
+  #2030
 
 ### Breaking changes in lower-level crates
 
-### Onion service development
-### Relay development
-### RPC development
-### (Other area of development)
+- `tor-cell`: `UnparsedRelayMsg::data_len()` now returns a `Result`.
+  !3094
+- `tor-hscrypto`: `HsID` no longer implements `LowerHex` or `Display`.
+  !3107
+- `tor-keymgr`: `UnrecognizedEntryError::new` no longer exposed;
+  `UnrecognizedEntryId` renamed to `UnrecognizedEntry`;
+  `KeyMgr::list()` and `Keystore::list()` return types changed.
+  !3059
 
-<!-- These sections are for areas where there is enough development going on -->
-<!-- that it makes sense to group development by type.  Once a particular area -->
-<!-- of development is settled, it makes sense to omit its section, -->
-<!-- and put its changes into a less area-specific section.  -->
+### Development progress
+
+#### Conflux
+
+- Add tests for client-side SWITCH handling
+  !3091
+- Preparatory work for replacing the `tor-proto` circuit reactor:
+  Add a `ConfluxSet::remove_unchecked` method.
+  !3105
+  #1803
+
+#### Congestion control
+
+- Code for handling XON/XOFF messages in `tor-proto` and `tor-cell`.
+  !3054
+  !3094
+  !3099
+- `tor-cell`: Exposed flow-control related types.
+  (Previously these were behind the experimental 'flowctl-cc' feature,
+  which is removed in this release.)
+
+#### CGO (Counter Galois Onion - improved crpytography)
+
+- Implementation of CGO negotiation and use, in `tor-proto`.
+  Not presently enabled by default.
+  [Proposal 359]
+  !3069
+  #1947
+  #1945
 
 ### Testing
 
-<!-- This section is for new test cases, and updates to existing tests. -->
-<!-- But!  Tests added for work done in this same release shouldn't go here.
-     Those don't normally need be described separately.
-     If there are separate MRs/tickets for them,
-     list them alongside the MRs/tickets for the feature/bugfix. -->
-
-### Documentation
-
-### Infrastructure
-
-<!-- This section is for changes in our infrastructure, including
-     CI, scripting, and so forth. -->
+- Update shadow, mostly to get reproducibility fixes.
+  !3092
+  [shadow#3610](https://github.com/shadow/shadow/issues/3610)
+- Pin `cargo-licence` to 0.7.0, and update our allows to match its output.
+  !3108
+  #2083
+  !3111
 
 ### Cleanups, minor features, and bugfixes
 
+#### User-facing
 
+- Provide `arti keys-raw remove-by-id` command line function.
+  !3059
+  !3095
+
+#### Developer-facing
+
+- Re-export `ConfigurationSources` from the `arti_client` crate.
+  !3044
+- `safelog`: New `DisplayRedacted`/`DebugRedacted` APIs
+  to help avoid accidentally redacting, or accidentally corrupting,
+  hidden service identities (`.onion` names).
+  !3107
+  !3071
+  #2012
+  #2066
+- Fix documentation for macros in `tor_hscrypto::pk`.
+  #2050
+  !3104
+- Many typo fixes.
+  !3090
+  !3089
+
+#### Internal and administrative
+
+- Introduce a new internal error type `KeystoreNotConfigured`,
+  for improved clarity and less confusion in keystore error handling.
+  !3103
+- Update an internal TODO about `NonZero`.
+  !3067
+  [rust-lang/rust#142966](https://github.com/rust-lang/rust/issues/142966)
+- Remove some unnecessary parens in the code.
+  !3096
+- Update dependencies. 
+  !3073
+  !3117
 
 ### Acknowledgments
 
