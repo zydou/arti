@@ -24,6 +24,7 @@ hs-pow-full = [
     "tor-netdoc/hs-pow-full",
     "tor-cell/hs-pow-full",
     "arrayvec",
+    "equix",
     "num-traits",
     "tor-checkable",
     "__is_experimental",
@@ -81,6 +82,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.22"
+equix = { path = "../equix", version = "0.2.5", optional = true }
 fs-mistrust = { path = "../fs-mistrust", version = "0.10.0", features = ["serde"] }
 futures = "0.3.14"
 growable-bloom-filter = "2.0.1"

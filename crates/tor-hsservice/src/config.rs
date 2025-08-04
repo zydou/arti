@@ -94,10 +94,10 @@ pub struct OnionServiceConfig {
     // #[builder(default)]
     // #[deftly(publisher_view)]
     // pub(crate) anonymity: crate::Anonymity,
-
-    // TODO POW: The POW items are disabled for now, since they aren't implemented.
-    // /// Disable the compiled backend for proof-of-work.
-    // // disable_pow_compilation: bool,
+    /// Whether to use the compiled backend for proof-of-work.
+    // TODO: Consider making this a global option instead?
+    #[builder(default = "false")]
+    disable_pow_compilation: bool,
 }
 
 derive_deftly_adhoc! {
@@ -238,6 +238,10 @@ impl OnionServiceConfig {
             // until the queue is smaller than the new size, but if will not trim the existing
             // queue.
             pow_rend_queue_depth: simply_update,
+
+            // This is a little too much effort to allow to by dynamically changeable for what it's
+            // worth.
+            disable_pow_compilation: unchangeable,
         }
 
         Ok(other)

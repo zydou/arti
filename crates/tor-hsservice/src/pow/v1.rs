@@ -12,6 +12,7 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
+use equix::EquiXBuilder;
 use futures::task::SpawnExt;
 use futures::{SinkExt, StreamExt};
 use futures::{Stream, channel::mpsc};
@@ -23,7 +24,9 @@ use tor_cell::relaycell::hs::pow::{ProofOfWork, v1::ProofOfWorkV1};
 use tor_checkable::timed::TimerangeBound;
 use tor_hscrypto::{
     pk::HsBlindIdKey,
-    pow::v1::{Effort, Instance, Seed, SeedHead, Solution, SolutionErrorV1, Verifier},
+    pow::v1::{
+        Effort, Instance, RuntimeOption, Seed, SeedHead, Solution, SolutionErrorV1, Verifier,
+    },
     time::TimePeriod,
 };
 use tor_keymgr::KeyMgr;
@@ -97,6 +100,9 @@ struct State<R, Q> {
 
     /// Sender for reporting back onion service status.
     status_tx: PowManagerStatusSender,
+
+    /// Receiver for the current configuration.
+    config_rx: postage::watch::Receiver<Arc<OnionServiceConfig>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -238,14 +244,19 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let mut verifiers = HashMap::new();
         for (tp, seeds_for_tp) in seeds.clone().into_iter() {
             for seed in seeds_for_tp.seeds {
-                let verifier =
-                    match Self::make_verifier(&keymgr, nickname.clone(), tp, seed.clone()) {
-                        Some(verifier) => verifier,
-                        None => {
-                            tracing::warn!("Couldn't construct verifier (key not available?)");
-                            continue;
-                        }
-                    };
+                let verifier = match Self::make_verifier(
+                    &keymgr,
+                    nickname.clone(),
+                    tp,
+                    seed.clone(),
+                    &config_rx.borrow(),
+                ) {
+                    Some(verifier) => verifier,
+                    None => {
+                        tracing::warn!("Couldn't construct verifier (key not available?)");
+                        continue;
+                    }
+                };
                 let replay_log = match PowNonceReplayLog::new_logged(&instance_dir, &seed) {
                     Ok(replay_log) => replay_log,
                     Err(err) => {
@@ -269,7 +280,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             suggested_effort.clone(),
             netdir_provider.clone(),
             status_tx.clone(),
-            config_rx,
+            config_rx.clone(),
         );
 
         let state = State {
@@ -285,6 +296,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             rend_request_rx: rend_req_rx.clone(),
             netdir_provider,
             status_tx,
+            config_rx,
         };
         let pow_manager = Arc::new(PowManagerGeneric(RwLock::new(state)));
 
@@ -431,6 +443,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         nickname: HsNickname,
         time_period: TimePeriod,
         seed: Seed,
+        config: &OnionServiceConfig,
     ) -> Option<Verifier> {
         let blind_id_spec = BlindIdPublicKeySpecifier::new(nickname, time_period);
         let blind_id_key = match keymgr.get::<HsBlindIdKey>(&blind_id_spec) {
@@ -441,7 +454,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             }
         };
         let instance = Instance::new(blind_id_key?.id(), seed);
-        Some(Verifier::new(instance))
+        let mut equix = EquiXBuilder::default();
+        if *config.disable_pow_compilation() {
+            equix.runtime(RuntimeOption::InterpretOnly);
+        }
+        Some(Verifier::new_with_equix(instance, equix))
     }
 
     /// Calculate a time when we want to rotate a seed, slightly before it expires, in order to
@@ -479,6 +496,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let mut publisher_update_tx = {
             let mut state = self.0.write().expect("Lock poisoned");
 
+            let config = state.config_rx.borrow().clone();
             let keymgr = state.keymgr.clone();
             let nickname = state.nickname.clone();
 
@@ -499,6 +517,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                         nickname.clone(),
                         *time_period,
                         seed.clone(),
+                        &config,
                     ) {
                         Some(verifier) => verifier,
                         None => {
@@ -614,6 +633,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                     state.nickname.clone(),
                     time_period,
                     seed.clone(),
+                    &state.config_rx.borrow(),
                 )
                 .ok_or(InternalPowError::MissingKey)?;
 

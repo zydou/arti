@@ -6303,6 +6303,7 @@ dependencies = [
  "derive_more",
  "digest",
  "educe",
+ "equix",
  "fs-mistrust",
  "futures",
  "growable-bloom-filter",

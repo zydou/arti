@@ -27,6 +27,11 @@ impl Verifier {
         }
     }
 
+    /// Construct a new [`Verifier`], explicitly taking a [`EquiXBuilder`].
+    pub fn new_with_equix(instance: Instance, equix: EquiXBuilder) -> Self {
+        Self { instance, equix }
+    }
+
     /// Select the HashX runtime to use for this verifier.
     ///
     /// By default, uses [`RuntimeOption::TryCompile`]
