@@ -142,7 +142,13 @@ pub(crate) struct PowManagerStateRecord {
     /// Most recently published suggested_effort value.
     #[serde(default)]
     suggested_effort: Effort,
-    // TODO POW: Consider whether we should persist other values from RendRequestReceiver.
+    // We don't persist any per-period state. While it might be sort of nice to, it's complex to
+    // decide when to write the state out to disk. The disadvantage to not storing it is that when
+    // we restart the process, we may be up to 5 minutes slower to update the suggested effort to a
+    // new value, which isn't particularly bad. The only case it would be bad is if a attacker has
+    // a way to cause the Arti process to restart (in which case they could do that just before the
+    // update period to pin the suggested effort value at a specific value), but if they have that,
+    // they have a much more valuable attack (including as a DoS vector) than just a PoW bypass.
 }
 
 impl<R: Runtime, Q> State<R, Q> {
