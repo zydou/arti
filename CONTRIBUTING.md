@@ -9,6 +9,18 @@ Make sure to familiarize yourself with our
 The new-account process on our gitlab instance is moderated, to reduce
 spam and abuse.  (*Insert instructions for anonymous usage here*)
 
+**NOTE 2025-08-04:**
+Unfortunately we are unable to accept code contributions from new contributors
+through the GitLab process described below.
+We are working on an alternative and hope to have it ready soon.
+You can track the status at [this GitLab issue][tpo-team-405].
+You can continue reporting issues through GitLab,
+and if you have a small patch which is unlikely to require additional revisions,
+we can accept patches attached to [GitLab issues][gitlab-issues].
+
+[tpo-team-405]: https://gitlab.torproject.org/tpo/team/-/issues/405
+[gitlab-issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues
+
 ## Licensing notice
 
 Unless you explicitly state otherwise, any contribution intentionally
