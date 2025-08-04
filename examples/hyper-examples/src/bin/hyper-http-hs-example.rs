@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures::StreamExt;
@@ -89,7 +90,7 @@ async fn main() -> Result<()> {
     let status_stream = service.status_events();
     let mut binding =
         status_stream.filter(|status| futures::future::ready(status.state().is_fully_reachable()));
-    match tokio::time::timeout(tokio::time::Duration::from_secs(timeout_seconds), binding.next()).await {
+    match tokio::time::timeout(Duration::from_secs(timeout_seconds), binding.next()).await {
         Ok(Some(_)) => eprintln!("[+] Onion service is fully reachable."),
         Ok(None) => eprintln!("[-] Status stream ended unexpectedly."),
         Err(_) => eprintln!("[-] Timeout waiting for service to become reachable. You can still attempt to visit the service."),
