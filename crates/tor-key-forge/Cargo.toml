@@ -25,7 +25,7 @@ __is_nonadditive = []
 __is_experimental = []
 
 [dependencies]
-derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
 paste = "1"

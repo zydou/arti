@@ -30,7 +30,7 @@ full = [
 amplify = { version = "4", default-features = false, features = ["derive"] }
 arbitrary = { version = "1.0.1", optional = true, features = ["derive"] }
 caret = { path = "../caret", version = "0.5.3" }
-derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 educe = "0.4.22"
 safelog = { path = "../safelog", version = "0.4.7" }
 subtle = "2"

@@ -212,7 +212,7 @@ dependencies = [
  "async-signal",
  "cfg-if",
  "clap",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "fs-mistrust",
@@ -294,7 +294,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "cfg-if",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "dyn-clone",
@@ -419,7 +419,7 @@ dependencies = [
  "asynchronous-codec",
  "base64ct",
  "bytes",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "erased-serde",
  "futures",
@@ -1626,11 +1626,11 @@ dependencies = [
 
 [[package]]
 name = "derive-deftly"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a55a256deae70e0772adfd583c57c1403c6ddbd1d1f1f84f64e94acaecc25eeb"
+checksum = "957bb73a3a9c0bbcac67e129b81954661b3cfcb9e28873d8441f91b54852e77a"
 dependencies = [
- "derive-deftly-macros 1.1.0",
+ "derive-deftly-macros 1.2.0",
  "heck",
 ]
 
@@ -1654,9 +1654,9 @@ dependencies = [
 
 [[package]]
 name = "derive-deftly-macros"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47cf90c375e516cf601a57727744bdf7a547680a470a2e8a6580a12288cf0630"
+checksum = "9ea41269bd490d251b9eca50ccb43117e641cc68b129849757c15ece88fe0574"
 dependencies = [
  "heck",
  "indexmap 2.10.0",
@@ -5735,7 +5735,7 @@ checksum = "fcc842091f2def52017664b53082ecbbeb5c7731092bad69d2c63050401dfd64"
 name = "tor-async-utils"
 version = "0.32.0"
 dependencies = [
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "educe",
  "futures",
  "futures-await-test",
@@ -5775,7 +5775,7 @@ name = "tor-bytes"
 version = "0.32.0"
 dependencies = [
  "bytes",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "digest",
  "educe",
  "getrandom 0.3.3",
@@ -5795,7 +5795,7 @@ dependencies = [
  "bitflags 2.9.1",
  "bytes",
  "caret",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "educe",
  "hex",
@@ -5941,7 +5941,7 @@ version = "0.32.0"
 dependencies = [
  "amplify",
  "cfg-if",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "educe",
  "either",
@@ -6143,7 +6143,7 @@ version = "0.32.0"
 dependencies = [
  "amplify",
  "base64ct",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "dyn-clone",
@@ -6189,7 +6189,7 @@ name = "tor-hsclient"
 version = "0.32.0"
 dependencies = [
  "async-trait",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "educe",
  "either",
@@ -6240,7 +6240,7 @@ dependencies = [
  "blake2",
  "cipher",
  "data-encoding",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "digest",
  "equix",
@@ -6270,7 +6270,7 @@ dependencies = [
 name = "tor-hsrproxy"
 version = "0.32.0"
 dependencies = [
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "futures",
  "itertools 0.14.0",
@@ -6305,7 +6305,7 @@ dependencies = [
  "async-trait",
  "base64ct",
  "cfg-if",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "digest",
@@ -6369,7 +6369,7 @@ dependencies = [
 name = "tor-key-forge"
 version = "0.32.0"
 dependencies = [
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "downcast-rs",
  "paste",
@@ -6393,7 +6393,7 @@ dependencies = [
  "arrayvec",
  "cfg-if",
  "data-encoding",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "downcast-rs",
@@ -6436,7 +6436,7 @@ dependencies = [
  "base64ct",
  "by_address",
  "caret",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "hex",
@@ -6466,7 +6466,7 @@ dependencies = [
  "ctr",
  "curve25519-dalek",
  "der-parser",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "digest",
  "ed25519-dalek",
@@ -6517,7 +6517,7 @@ name = "tor-memquota"
 version = "0.32.0"
 dependencies = [
  "cfg-if",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "dyn-clone",
  "educe",
@@ -6635,7 +6635,7 @@ version = "0.32.0"
 dependencies = [
  "amplify",
  "anyhow",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "filetime",
  "fs-mistrust",
@@ -6677,7 +6677,7 @@ dependencies = [
  "criterion",
  "criterion-cycles-per-byte",
  "ctr",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "digest",
@@ -6776,7 +6776,7 @@ dependencies = [
 name = "tor-relay-crypto"
 version = "0.32.0"
 dependencies = [
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "humantime",
  "tor-cert",
@@ -6835,7 +6835,7 @@ name = "tor-rpcbase"
 version = "0.32.0"
 dependencies = [
  "assert-impl",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "downcast-rs",
  "erased-serde",
@@ -6894,7 +6894,7 @@ dependencies = [
  "amplify",
  "assert_matches",
  "async-trait",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "educe",
  "futures",
@@ -6925,7 +6925,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "caret",
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "educe",
  "hex-literal",
  "safelog",
@@ -6939,7 +6939,7 @@ dependencies = [
 name = "tor-units"
 version = "0.32.0"
 dependencies = [
- "derive-deftly 1.1.0",
+ "derive-deftly 1.2.0",
  "derive_more",
  "float-cmp",
  "serde",
