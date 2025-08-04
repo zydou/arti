@@ -459,9 +459,6 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let mut expired_tps = vec![];
 
         let mut publisher_update_tx = {
-            // TODO POW: get rng from the right place...
-            let mut rng = rand::rng();
-
             let mut state = self.0.write().expect("Lock poisoned");
 
             let keymgr = state.keymgr.clone();
@@ -472,6 +469,12 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 update_times.push(rotation_time);
 
                 if rotation_time <= SystemTime::now() {
+                    // This does not allow for easy testing, but because we're in a async function, it's
+                    // non-trivial to pass in a Rng from the outside world. If we end up writing tests that
+                    // require that, we can take a function to generate a Rng, but for now, just using the
+                    // thread rng is fine.
+                    let mut rng = rand::rng();
+
                     let seed = Seed::new(&mut rng, None);
                     let verifier = match Self::make_verifier(
                         &keymgr,
@@ -552,9 +555,10 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
     ///
     /// If we don't have any [`Seed`]s for the requested period, generate them. This is the only
     /// way that [`PowManagerGeneric`] learns about new [`TimePeriod`]s.
-    pub(crate) fn get_pow_params(
+    pub(crate) fn get_pow_params<Rng: RngCore + CryptoRng>(
         self: &Arc<Self>,
         time_period: TimePeriod,
+        rng: &mut Rng,
     ) -> Result<PowParams, InternalPowError> {
         let (seed_and_expiration, suggested_effort) = {
             let state = self.0.read().expect("Lock poisoned");
@@ -571,11 +575,8 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             None => {
                 // We don't have a seed for this time period, so we need to generate one.
 
-                // TODO POW: get rng from the right place...
-                let mut rng = rand::rng();
-
-                let seed = Seed::new(&mut rng, None);
-                let next_expiration_time = Self::make_next_expiration_time(&mut rng);
+                let seed = Seed::new(rng, None);
+                let next_expiration_time = Self::make_next_expiration_time(rng);
 
                 let mut seeds = ArrayVec::new();
                 seeds.push(seed.clone());

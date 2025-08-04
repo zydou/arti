@@ -137,7 +137,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "hs-pow-full")] {
-            let pow_params = pow_manager.get_pow_params(period);
+            let pow_params = pow_manager.get_pow_params(period, &mut rand::rng());
             match pow_params {
                 Ok(ref pow_params) => {
                     if config.enable_pow {
