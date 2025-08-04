@@ -87,6 +87,7 @@ vanguards = ["arti-client/vanguards"]
 hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
+flowctl-cc = ["arti-client/flowctl-cc", "__is_experimental"]
 
 rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "derive-deftly"]
 
@@ -124,7 +125,9 @@ experimental = [
     "restricted-discovery",
     "hsc",
     "tor-hsservice/experimental",
-    "ctor-keystore", "onion-service-cli-extra",
+    "ctor-keystore",
+    "onion-service-cli-extra",
+    "flowctl-cc",
 ]
 metrics = [
     "dep:metrics-exporter-prometheus",
