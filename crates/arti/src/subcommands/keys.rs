@@ -6,7 +6,11 @@ use anyhow::Result;
 
 use arti_client::{InertTorClient, TorClient, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand};
-use tor_keymgr::{KeyMgr, KeystoreEntry, KeystoreEntryResult, KeystoreId, UnrecognizedEntryError};
+use safelog::DisplayRedacted;
+use tor_keymgr::{
+    CTorPath, KeyMgr, KeyPath, KeystoreEntry, KeystoreEntryResult, KeystoreId,
+    UnrecognizedEntryError,
+};
 use tor_rtcompat::Runtime;
 
 /// Length of a line, used for formatting
@@ -65,24 +69,17 @@ pub(crate) fn run<R: Runtime>(
 
 /// Print information about a keystore entry.
 fn display_entry(entry: &KeystoreEntry, keymgr: &KeyMgr) {
-    let raw_entry = entry.raw_entry();
-    match keymgr.describe(entry.key_path()) {
-        Ok(e) => {
-            println!(" Keystore ID: {}", entry.keystore_id());
-            println!(" Role: {}", e.role());
-            println!(" Summary: {}", e.summary());
-            println!(" KeystoreItemType: {:?}", entry.key_type());
-            println!(" Location: {}", raw_entry.raw_id());
-            let extra_info = e.extra_info();
-            println!(" Extra info:");
-            for (key, value) in extra_info {
-                println!(" - {key}: {value}");
-            }
-        }
-        Err(_) => {
-            println!(" Unrecognized path {}", raw_entry.raw_id());
+    match entry.key_path() {
+        KeyPath::Arti(_) => display_arti_entry(entry, keymgr),
+        KeyPath::CTor(path) => display_ctor_entry(entry, path),
+        unrecognized => {
+            eprintln!(
+                "WARNING: unexpected `tor_keymgr::KeyPath` variant encountered: {:?}",
+                unrecognized
+            );
         }
     }
+
     println!("\n {}\n", "-".repeat(LINE_LEN));
 }
 
@@ -171,4 +168,54 @@ fn display_keystore_entries(
             }
         }
     }
+}
+
+/// Displays an Arti native keystore entry.
+fn display_arti_entry(entry: &KeystoreEntry, keymgr: &KeyMgr) {
+    let raw_entry = entry.raw_entry();
+    match keymgr.describe(entry.key_path()) {
+        Ok(e) => {
+            println!(" Keystore ID: {}", entry.keystore_id());
+            println!(" Role: {}", e.role());
+            println!(" Summary: {}", e.summary());
+            println!(" KeystoreItemType: {:?}", entry.key_type());
+            println!(" Location: {}", raw_entry.raw_id());
+            let extra_info = e.extra_info();
+            println!(" Extra info:");
+            for (key, value) in extra_info {
+                println!(" - {key}: {value}");
+            }
+        }
+        Err(_) => {
+            println!(" Unrecognized path {}", raw_entry.raw_id());
+        }
+    }
+}
+
+/// Displays a CTor keystore entry.
+///
+/// This function outputs the details of a CTor keystore entry, distinguishing
+/// between client and service keys based on [`CTorPath`].
+fn display_ctor_entry(entry: &KeystoreEntry, path: &CTorPath) {
+    let raw_entry = entry.raw_entry();
+    match path {
+        CTorPath::ClientHsDescEncKey(id) => {
+            println!(" CTor client key");
+            println!(" Hidden service ID: {}", id.display_unredacted());
+        }
+        CTorPath::Service { nickname, path: _ } => {
+            println!(" CTor service key");
+            println!(" Hidden service nickname: {}", nickname);
+        }
+        unrecognized => {
+            eprintln!(
+                "WARNING: unexpected `tor_keymgr::CTorPath` variant encountered: {:?}",
+                unrecognized
+            );
+            return;
+        }
+    }
+    println!(" Keystore ID: {}", entry.keystore_id());
+    println!(" KeystoreItemType: {:?}", entry.key_type());
+    println!(" Location: {}", raw_entry.raw_id());
 }
