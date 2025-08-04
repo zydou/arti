@@ -37,14 +37,15 @@ but please do so judiciously.
   [Proposal 362]
   !3093
   No TROVE.
-
-### Major bugfixes
-
 - Limit hidden service descriptor size inflation.
   [Proposal 360]
   torspec!411
   #2046
   !3070
+  No TROVE.
+
+### Major bugfixes
+
 - Fix spurious 0-length buffer read in `DataReader`.
   This bug caused some client programs to experience truncated streams, losing data.
   !3080
