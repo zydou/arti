@@ -1,6 +1,6 @@
 # arti
 
-A minimal command line program for connecting to the Tor network
+A minimal command-line program for connecting to the Tor network.
 
 (If you want a more general Tor client library interface, use
 [`arti_client`].)
@@ -50,7 +50,7 @@ and also
 [in the Arti repository](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti/src/arti-example-config.toml)).
 That example config file documents the configuration options.
 
-More detailed information about for the individual fields is available in the documentation
+More detailed information about the individual fields is available in the documentation
 for the Rust APIs [`ApplicationConfigBuilder`] and
 [`TorClientConfigBuilder`](arti_client::config::TorClientConfigBuilder).
 
@@ -76,7 +76,7 @@ Tor Browser and instruct it to use that SOCKS port.
 $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 ./start-tor-browser.desktop
 ```
 
-#### OS X
+#### MacOS
 
 ```text
 $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 /path/to/Tor\ Browser/Contents/MacOS/firefox
@@ -99,7 +99,7 @@ and `Start in` set to:
 (You may need to adjust the actual path to wherever you have put your Tor
 Browser.)
 
-The resulting Tor Browser should be using arti.  Note that onion services
+The resulting Tor Browser should be using arti. Note that onion services
 and bridges won't work (Arti doesn't support them yet), and neither will
 any feature depending on Tor's control-port protocol. Features not depending
 on the control-port such as the "New circuit for this site" button should
@@ -109,8 +109,8 @@ work.
 
 ### Additive features
 
-* `tokio` (default): Use the tokio runtime library as our backend.
-* `async-std`: Use the async-std runtime library as our backend. This
+* `tokio` (default) -- Use the tokio runtime library as our backend.
+* `async-std` -- Use the async-std runtime library as our backend. This
   feature has no effect unless building with `--no-default-features` to
   disable tokio.
 * `native-tls` -- Build with support for the `native_tls` TLS backend.
@@ -133,7 +133,7 @@ work.
 * `pt-client` (default) -- Build with support for pluggable transports.
 * `vanguards` (default) -- Build with support for [Vanguards](https://spec.torproject.org/vanguards-spec/).
 
-* `default-runtime` (default): Use a default async runtime and TLS provider.
+* `default-runtime` (default) -- Use a default async runtime and TLS provider.
   Convenience alias for `tokio` and `native-tls`.
 
 * `full` -- Build with all features above, along with all stable additive
@@ -184,7 +184,7 @@ implementation with another.
   support. Restricted discovery support will become non-experimental
   once [#1795] is closed.
 * `onion-service-cli-extra` -- build with additional key and state management
-  command line functionalities.
+  command-line functionalities.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make
@@ -213,7 +213,7 @@ a more complete list of missing features.
 
 ## Library for building command-line client
 
-This library crate contains code useful for making a command line program
+This library crate contains code useful for making a command-line program
 similar to `arti`. The API should not be considered stable.
 
 License: MIT OR Apache-2.0
