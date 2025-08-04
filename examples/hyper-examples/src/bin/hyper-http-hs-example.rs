@@ -77,7 +77,10 @@ async fn main() -> Result<()> {
     let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
     eprintln!(
         "[+] Onion address: {}",
-        service.onion_address().expect("Onion address not found").display_unredacted()
+        service
+            .onion_address()
+            .expect("Onion address not found")
+            .display_unredacted()
     );
 
     // `is_fully_reachable` might remain false even if the service is reachable in practice;
