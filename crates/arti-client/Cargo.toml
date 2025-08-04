@@ -24,6 +24,7 @@ full = [
     "vanguards",
     "tokio",
     "async-std",
+    "memquota",
     "native-tls",
     "compression",
     "bridge-client",

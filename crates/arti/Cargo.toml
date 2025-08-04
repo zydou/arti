@@ -28,6 +28,7 @@ default = [
 
 full = [
     "default-runtime",
+    "memquota",
     "onion-service-client",
     "onion-service-service",
     "vanguards",
@@ -58,7 +59,7 @@ full = [
     "tor-rpc-connect?/full",
     "signal-hook",
     "signal-hook-async-std",
-    "dialoguer", "tor-key-forge/full", "tor-keymgr/full",
+    "dialoguer", "tor-key-forge/full", "tor-keymgr/full", "tor-hscrypto?/full",
 ]
 
 async-std = [
