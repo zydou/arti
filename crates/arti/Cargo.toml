@@ -28,6 +28,7 @@ default = [
 
 full = [
     "default-runtime",
+    "memquota",
     "onion-service-client",
     "onion-service-service",
     "vanguards",
