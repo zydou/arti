@@ -271,6 +271,17 @@ impl OnionService {
 
         let nickname = config.nickname.clone();
 
+        // TODO (#2082): when allowing enable_pow to be toggled at runtime, we will need to check
+        // this on enable_pow state change as well.
+        cfg_if::cfg_if! {
+            if #[cfg(not(feature = "hs-pow-full"))] {
+                if config.enable_pow {
+                    let nickname = nickname.to_string();
+                    warn!(nickname, "enable_pow set to true, but arti was not built with hs-pow-full feature! PoW will not be used.");
+                }
+            }
+        }
+
         // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
         // offline
         //let offline_hsid = config.offline_hsid;
