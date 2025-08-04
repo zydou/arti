@@ -16,7 +16,7 @@ use either::Either::{self, *};
 use postage::stream::Stream as _;
 use tracing::{debug, error, trace};
 
-use safelog::sensitive as sv;
+use safelog::DisplayRedacted as _;
 use tor_basic_utils::define_accessor_trait;
 use tor_circmgr::isolation::Isolation;
 use tor_error::{debug_report, error_report, internal, Bug, ErrorReport as _};
@@ -474,13 +474,17 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
             match (got_error, stored) {
                 (Ok::<(), ConnError>(()), Ok::<(), Bug>(())) => {}
                 (Err(got_error), Ok(())) => {
-                    debug_report!(got_error, "HS connection failure for {}", sv(hsid));
+                    debug_report!(
+                        got_error,
+                        "HS connection failure for {}",
+                        hsid.display_redacted()
+                    );
                 }
                 (Ok(()), Err(bug)) => {
                     error_report!(
                         bug,
                         "internal error storing built HS circuit for {}",
-                        sv(hsid)
+                        hsid.display_redacted()
                     );
                 }
                 (Err(got_error), Err(bug)) => {
@@ -488,7 +492,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                     // manually.
                     error!(
                         "internal error storing HS connection error for {}: {}; {}",
-                        sv(hsid),
+                        hsid.display_redacted(),
                         got_error.report(),
                         bug.report(),
                     );
@@ -609,7 +613,7 @@ impl<D: MockableConnectorData> Services<D> {
                 ServiceState::Dummy => {
                     error!(
                         "bug: found dummy data during HS housekeeping, for {}",
-                        sv(hsid)
+                        hsid.display_redacted()
                     );
                     false
                 }
@@ -683,7 +687,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
                                 last_used,
                                 circuit_expiry_task,
                             } => {
-                                debug!("HS connection expires: {hsid}");
+                                debug!("HS connection expires: {hsid:?}");
                                 drop(circuit);
                                 drop(circuit_expiry_task); // that's us
                                 *state = ServiceState::Closed { data, last_used };

@@ -225,7 +225,6 @@ match tor_client.connect(("example.com", 80)).await {
 * `compression` (default) -- Build support for downloading compressed
   documents. Requires a C compiler.
 * `bridge-client` -- Build with support for bridges.
-* `memquota` -- Build with support for memory use tracking and limiting.
 * `onion-service-client` -- Build with support for connecting to onion
   services. Note that this is not yet as secure as C-Tor and shouldn't be used
   for security-sensitive purposes.
@@ -288,5 +287,13 @@ implementation with another.
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit: if you want `cargo update` to _only_ make safe
 changes, then you cannot enable these features.
+
+### Deprecated features
+
+These features are either not recommended, or are no-op features.
+They are included for backwards compatibility.
+
+* `memquota` -- Memory quota tracking is now always supported,
+  regardless of if this feature is enabled.
 
 License: MIT OR Apache-2.0

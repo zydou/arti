@@ -21,7 +21,8 @@ fluid_let!(
 );
 
 /// Returns true if we are displaying sensitive values, false otherwise.
-pub(crate) fn unsafe_logging_enabled() -> bool {
+#[doc(hidden)]
+pub fn unsafe_logging_enabled() -> bool {
     LOGGING_STATE.load(Ordering::Relaxed) < 0
         || SAFE_LOGGING_SUPPRESSED_IN_THREAD.get(|v| v == Some(&true))
 }

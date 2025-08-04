@@ -9,7 +9,7 @@ use hyper_util::server;
 use tower::Service;
 
 use arti_client::{TorClient, TorClientConfig};
-use safelog::sensitive;
+use safelog::{sensitive, DisplayRedacted as _};
 use tor_cell::relaycell::msg::Connected;
 use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_hsservice::StreamRequest;
@@ -43,7 +43,7 @@ async fn main() {
         .unwrap();
 
     let (service, request_stream) = client.launch_onion_service(svc_cfg).unwrap();
-    println!("{}", service.onion_address().unwrap());
+    println!("{}", service.onion_address().unwrap().display_unredacted());
 
     // Wait until the service is believed to be fully reachable.
     eprintln!("waiting for service to become fully reachable");

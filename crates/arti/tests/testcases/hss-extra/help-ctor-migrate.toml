@@ -1,0 +1,3 @@
+bin.name = "arti"
+args = "hss ctor-migrate --help"
+status.code = 0

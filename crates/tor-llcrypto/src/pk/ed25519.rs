@@ -38,7 +38,7 @@ pub struct Keypair(pub(crate) ed25519_dalek::SigningKey);
 
 /// An Ed25519 public key.
 ///
-/// See [`ed25519_dalek::SigningKey`] for more information.
+/// See [`ed25519_dalek::VerifyingKey`] for more information.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PublicKey(pub(crate) ed25519_dalek::VerifyingKey);
 

@@ -121,7 +121,6 @@ work.
   DNS queries over the Tor network.
 * `harden` (default) -- Build with support for hardening the Arti process by
   disabling debugger attachment and other local memory-inspection vectors.
-* `memquota` -- Build with support for memory use tracking and limiting.
 * `compression` (default) -- Build support for downloading compressed
   documents. Requires a C compiler.
 * `bridge-client` (default) -- Build with support for bridges.
@@ -190,6 +189,16 @@ implementation with another.
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make
 correct changes, then you cannot enable these features.
+
+### Deprecated features
+
+These features are either not recommended, or are no-op features.
+They are included for backwards compatibility.
+Note that these features will still be enabled if you build with the
+`--all-features` cargo flag.
+
+* `memquota` -- Memory quota tracking is now always supported,
+  regardless of if this feature is enabled.
 
 [#1795]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1795
 

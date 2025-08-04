@@ -1,0 +1,28 @@
+Migrate the identity key of a specified hidden service from a CTor-compatible keystore to the native Arti keystore.
+
+If the service with the specified nickname already has some keys in the Arti keystore, they will be deleted as part of the migration, its identity key being replaced with the identity key obtained from the C Tor keystore.
+
+Authorized restricted discovery keys (authorized_clients) will not be migrated as part of this process.
+
+Important: This tool should only be used when no other process is accessing either keystore.
+
+Usage: arti hss --nickname <NICKNAME> ctor-migrate [OPTIONS]
+
+Options:
+  -b, --batch
+          With this flag active no prompt will be shown and no confirmation will be asked
+
+  -c, --config <FILE>
+          Specify which config file(s) to read. Defaults to [File("[..]"), Dir("[..]")]
+
+  -o <KEY=VALUE>
+          Override config file parameters, using TOML-like syntax.
+
+  -l, --log-level <LEVEL>
+          Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error').
+
+      --disable-fs-permission-checks
+          Don't check permissions on the files we use.
+
+  -h, --help
+          Print help (see a summary with '-h')

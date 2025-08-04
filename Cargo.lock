@@ -245,6 +245,7 @@ dependencies = [
  "tor-config",
  "tor-config-path",
  "tor-error",
+ "tor-hscrypto",
  "tor-hsrproxy",
  "tor-hsservice",
  "tor-key-forge",
@@ -3451,6 +3452,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e0826a989adedc2a244799e823aece04662b66609d96af8dff7ac6df9a8925d"
 
 [[package]]
+name = "ntapi"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8a3895c6391c39d7fe7ebc444a87eb2991b2a0bc718fdabd071eec617fc68e4"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3583,6 +3593,25 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "objc2-core-foundation"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c10c2894a6fed806ade6027bcd50662746363a9589d3ec9d9bef30a4e4bc166"
+dependencies = [
+ "bitflags 2.9.1",
+]
+
+[[package]]
+name = "objc2-io-kit"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71c1c64d6120e51cd86033f67176b1cb66780c2efe34dec55176f77befd93c0a"
+dependencies = [
+ "libc",
+ "objc2-core-foundation",
 ]
 
 [[package]]
@@ -5347,6 +5376,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sysinfo"
+version = "0.36.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "252800745060e7b9ffb7b2badbd8b31cfa4aa2e61af879d0a3bf2a317c20217d"
+dependencies = [
+ "libc",
+ "memchr",
+ "ntapi",
+ "objc2-core-foundation",
+ "objc2-io-kit",
+ "windows",
+]
+
+[[package]]
 name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6221,6 +6264,7 @@ dependencies = [
  "itertools 0.14.0",
  "k12",
  "libc",
+ "num-traits",
  "once_cell",
  "oneshot-fused-workaround",
  "postage",
@@ -6307,6 +6351,7 @@ dependencies = [
  "itertools 0.14.0",
  "paste",
  "rand 0.9.1",
+ "safelog",
  "serde",
  "serde_json",
  "signature",
@@ -6417,6 +6462,7 @@ dependencies = [
 name = "tor-memquota"
 version = "0.32.0"
 dependencies = [
+ "cfg-if",
  "derive-deftly 1.1.0",
  "derive_more",
  "dyn-clone",
@@ -6431,6 +6477,7 @@ dependencies = [
  "serde_json",
  "slotmap-careful",
  "static_assertions",
+ "sysinfo",
  "thiserror 2.0.12",
  "tor-async-utils",
  "tor-basic-utils",

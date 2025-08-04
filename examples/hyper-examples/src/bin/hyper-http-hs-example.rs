@@ -10,7 +10,7 @@ use hyper_util::rt::TokioIo;
 use tokio_util::sync::CancellationToken;
 
 use arti_client::{TorClient, TorClientConfig};
-use safelog::sensitive;
+use safelog::{sensitive, DisplayRedacted};
 use tor_cell::relaycell::msg::Connected;
 use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_hsservice::StreamRequest;
@@ -76,7 +76,7 @@ async fn main() -> Result<()> {
     let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
     eprintln!(
         "[+] Onion address: {}",
-        service.onion_address().expect("Onion address not found")
+        service.onion_address().expect("Onion address not found").display_unredacted()
     );
 
     // `is_fully_reachable` might remain false even if the service is reachable in practice;

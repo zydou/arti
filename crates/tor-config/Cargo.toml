@@ -65,6 +65,7 @@ void = "1"
 serde_json = "1.0.50"
 tempfile = "3"
 test-temp-dir = { version = "0.3.5", path = "../test-temp-dir" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0", features = ["serde"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0", features = ["tokio", "native-tls"] }
 tracing-test = "0.2.4"
 

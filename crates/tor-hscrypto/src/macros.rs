@@ -17,7 +17,7 @@ macro_rules! define_pk_keypair {
             #[derive(Clone,Debug,derive_more::From,derive_more::Deref,derive_more::Into,derive_more::AsRef)]
             pub struct $pk ($pkt);
 
-            #[doc = concat!("The private counterpart of a [`", stringify!($pk), "Key'].")]
+            #[doc = concat!("The private counterpart of a [`", stringify!($pk), "`].")]
             $(#[$sk_meta])*
             #[derive(derive_more::From, derive_more::Into, derive_more::AsRef)]
             pub struct $sk ($skt);

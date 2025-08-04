@@ -166,7 +166,7 @@ rust-checks:
     - rustup show
     - rustup component add rustfmt
     - ./maint/common/via-cargo-install-in-ci cargo-sort
-    - ./maint/common/via-cargo-install-in-ci cargo-license
+    - ./maint/common/via-cargo-install-in-ci cargo-license --version 0.7.0
     - cargo fmt -- --check
     - ./maint/check_licenses
     - ./maint/cargo_sort
