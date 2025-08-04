@@ -60,6 +60,20 @@ pub struct OnionServiceConfig {
     #[deftly(publisher_view)]
     pub(crate) enable_pow: bool,
 
+    /// The maximum number of entries allowed in the rendezvous request queue when PoW is enabled.
+    ///
+    /// If you are seeing dropped requests, have a bursty traffic pattern, and have some memory to
+    /// spare, you may want to increase this.
+    ///
+    /// Each request will take a few KB, the default queue is expected to take 32MB at most.
+    // The "a few KB" measurement was done by using the get_size crate to
+    // measure the size of the RendRequest object, but due to limitations in
+    // that crate (and in my willingness to go implement ways of checking the
+    // size of external types), it might be somewhat off. The ~32MB value is
+    // based on the idea that each RendRequest is 4KB.
+    #[builder(default = "8192")]
+    pub(crate) pow_rend_queue_depth: usize,
+
     /// Configure restricted discovery mode.
     ///
     /// When this is enabled, we encrypt our list of introduction point and keys
@@ -229,6 +243,12 @@ impl OnionServiceConfig {
 
             // TODO (#2082): allow changing enable_pow while the client is running
             enable_pow: unchangeable,
+
+            // Do note that if the depth of the queue is decreased at runtime to a value smaller
+            // than the number of items in the queue, that will prevent new requests from coming in
+            // until the queue is smaller than the new size, but if will not trim the existing
+            // queue.
+            pow_rend_queue_depth: simply_update,
         }
 
         Ok(other)

@@ -155,18 +155,6 @@ impl<R: Runtime, Q> State<R, Q> {
     }
 }
 
-/// Maximum depth of the queue of [`RendRequest`]s.
-// TODO POW: Allow this to be changed in onion service config.
-// Each request should take a few KB, so a queue of this depth should only take up ~32MB in the
-// worst case.
-//
-// The "a few KB" measurement was done by using the get_size crate to
-// measure the size of the RendRequest object, but due to limitations in
-// that crate (and in my willingness to go implement ways of checking the
-// size of external types), it might be somewhat off. The ~32MB value is
-// based on the idea that each RendRequest is 4KB.
-const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 8192;
-
 /// How frequently the suggested effort should be recalculated.
 const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
 
@@ -1063,7 +1051,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                         }
                     }
                 }
-                if inner.queue.len() >= REND_REQUEST_QUEUE_MAX_DEPTH {
+                if inner.queue.len() >= config_rx.borrow().pow_rend_queue_depth {
                     let dropped_request = inner.queue.pop_first();
                     tracing::debug!(
                         dropped_effort = ?dropped_request.map(|x| x.pow.map(|x| x.effort())),
@@ -1227,15 +1215,17 @@ mod test {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn make_test_receiver(
         runtime: &MockRuntime,
         netdir_params: Vec<(String, i32)>,
-        enable_pow: bool,
+        config: Option<OnionServiceConfig>,
     ) -> (
         RendRequestReceiver<MockRuntime, MockRendRequest>,
         mpsc::Sender<MockRendRequest>,
         Arc<Mutex<Effort>>,
         NetParameters,
+        postage::watch::Sender<Arc<OnionServiceConfig>>,
     ) {
         let pow_manager = Arc::new(MockPowManager);
         let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
@@ -1250,12 +1240,14 @@ mod test {
         let net_params = netdir.params().clone();
         let netdir_provider: Arc<TestNetDirProvider> = Arc::new(netdir.into());
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
-        let (_, config_rx) = postage::watch::channel_with(Arc::new(
-            OnionServiceConfigBuilder::default()
-                .nickname(HsNickname::new("test-hs".to_string()).unwrap())
-                .enable_pow(enable_pow)
-                .build()
-                .unwrap(),
+        let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(
+            config.unwrap_or(
+                OnionServiceConfigBuilder::default()
+                    .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                    .enable_pow(true)
+                    .build()
+                    .unwrap(),
+            ),
         ));
         let receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
             runtime.clone(),
@@ -1267,14 +1259,14 @@ mod test {
         let (tx, rx) = mpsc::channel(32);
         receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
 
-        (receiver, tx, suggested_effort, net_params)
+        (receiver, tx, suggested_effort, net_params, config_tx)
     }
 
     #[test]
     fn test_basic_pow_ordering() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (mut receiver, mut tx, _suggested_effort, _net_params) =
-                make_test_receiver(&runtime, vec![], true);
+            let (mut receiver, mut tx, _suggested_effort, _net_params, _config_tx) =
+                make_test_receiver(&runtime, vec![], None);
 
             // Request with no PoW
             tx.send(make_req(0, None)).await.unwrap();
@@ -1303,14 +1295,15 @@ mod test {
     #[test]
     fn test_suggested_effort_increase() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (mut receiver, mut tx, suggested_effort, net_params) = make_test_receiver(
-                &runtime,
-                vec![(
-                    "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds".to_string(),
-                    60000,
-                )],
-                true,
-            );
+            let (mut receiver, mut tx, suggested_effort, net_params, _config_tx) =
+                make_test_receiver(
+                    &runtime,
+                    vec![(
+                        "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds".to_string(),
+                        60000,
+                    )],
+                    None,
+                );
 
             // Get through all the requests in plenty of time, no increase
 
@@ -1423,8 +1416,8 @@ mod test {
     #[test]
     fn test_rendrequest_timeout() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (receiver, mut tx, _suggested_effort, net_params) =
-                make_test_receiver(&runtime, vec![], true);
+            let (receiver, mut tx, _suggested_effort, net_params, _config_tx) =
+                make_test_receiver(&runtime, vec![], None);
 
             let r0 = MockRendRequest { id: 0, pow: None };
             tx.send(r0).await.unwrap();
@@ -1443,8 +1436,18 @@ mod test {
     #[test]
     fn test_pow_disabled() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (mut receiver, mut tx, _suggested_effort, _net_params) =
-                make_test_receiver(&runtime, vec![], false);
+            let (mut receiver, mut tx, _suggested_effort, _net_params, _config_tx) =
+                make_test_receiver(
+                    &runtime,
+                    vec![],
+                    Some(
+                        OnionServiceConfigBuilder::default()
+                            .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                            .enable_pow(false)
+                            .build()
+                            .unwrap(),
+                    ),
+                );
 
             // Request with no PoW
             tx.send(make_req(0, None)).await.unwrap();
@@ -1459,6 +1462,59 @@ mod test {
             assert_eq!(receiver.next().await.unwrap().id, 1);
             assert_eq!(receiver.next().await.unwrap().id, 2);
             assert_eq!(receiver.next().await.unwrap().id, 3);
+        });
+    }
+
+    #[test]
+    fn test_rend_queue_max_depth() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let (mut receiver, mut tx, _suggested_effort, _net_params, mut config_tx) =
+                make_test_receiver(
+                    &runtime,
+                    vec![],
+                    Some(
+                        OnionServiceConfigBuilder::default()
+                            .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                            .enable_pow(true)
+                            .pow_rend_queue_depth(2)
+                            .build()
+                            .unwrap(),
+                    ),
+                );
+
+            tx.send(make_req(0, None)).await.unwrap();
+            tx.send(make_req(1, None)).await.unwrap();
+            tx.send(make_req(2, None)).await.unwrap();
+
+            runtime.progress_until_stalled().await;
+
+            assert!(receiver.next().await.is_some());
+            assert!(receiver.next().await.is_some());
+            assert_eq!(receiver.0.lock().unwrap().queue.len(), 0);
+
+            // Check that increasing queue size at runtime works...
+
+            config_tx
+                .send(Arc::new(
+                    OnionServiceConfigBuilder::default()
+                        .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                        .enable_pow(true)
+                        .pow_rend_queue_depth(8)
+                        .build()
+                        .unwrap(),
+                ))
+                .await
+                .unwrap();
+
+            tx.send(make_req(0, None)).await.unwrap();
+            tx.send(make_req(1, None)).await.unwrap();
+            tx.send(make_req(2, None)).await.unwrap();
+
+            runtime.progress_until_stalled().await;
+
+            assert!(receiver.next().await.is_some());
+            assert!(receiver.next().await.is_some());
+            assert!(receiver.next().await.is_some());
         });
     }
 }

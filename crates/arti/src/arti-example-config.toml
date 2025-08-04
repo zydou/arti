@@ -543,6 +543,13 @@
 #
 #    enable_pow = false
 
+# The maximum number of entries allowed in the rendezvous request queue when PoW is enabled.
+#
+# If you are seeing dropped requests, have a bursty traffic pattern, and have some memory to
+# spare, you may want to increase this.
+#
+#    pow_rend_queue_depth = 8192
+
 #    [onion_services."allium-cepa".restricted_discovery]
 # Whether to enable restricted discovery mode.
 #
