@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 bytes = "1"
-derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 digest = { version = "0.10.0", features = ["subtle", "mac"] }
 educe = "0.4.22"
 safelog = { path = "../safelog", version = "0.4.7" }

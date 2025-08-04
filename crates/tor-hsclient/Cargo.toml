@@ -55,7 +55,7 @@ experimental = ["keymgr", "hs-pow-full"]
 
 [dependencies]
 async-trait = "0.1.54"
-derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
 educe = "0.4.22"
 either = "1"
