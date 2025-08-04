@@ -259,6 +259,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
         let rend_req_rx = RendRequestReceiver::new(
             runtime.clone(),
+            nickname.clone(),
             suggested_effort.clone(),
             netdir_provider.clone(),
             status_tx.clone(),
@@ -817,6 +818,9 @@ struct RendRequestReceiverInner<R, Q> {
     /// Runtime, used to get current time in a testable way.
     runtime: R,
 
+    /// Nickname, use when reporting metrics.
+    nickname: HsNickname,
+
     /// [`NetDirProvider`], for getting configuration values in consensus parameters.
     netdir_provider: Arc<dyn NetDirProvider>,
 
@@ -852,6 +856,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
     /// Create a new [`RendRequestReceiver`].
     fn new(
         runtime: R,
+        nickname: HsNickname,
         suggested_effort: Arc<Mutex<Effort>>,
         netdir_provider: Arc<dyn NetDirProvider>,
         status_tx: PowManagerStatusSender,
@@ -863,6 +868,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             queue_pow_disabled: VecDeque::new(),
             waker: None,
             runtime,
+            nickname,
             netdir_provider,
             config_rx,
             update_period_start: now,
@@ -1021,6 +1027,18 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
         let config_rx = self.0.lock().expect("Lock poisoned").config_rx.clone();
 
+        let nickname = self.0.lock().expect("Lock poisoned").nickname.to_string();
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "metrics")] {
+                let counter_rendrequest_error_total = metrics::counter!("arti_hss_pow_rendrequest_error_total", "nickname" => nickname.clone());
+                let counter_rendrequest_verification_failure = metrics::counter!("arti_hss_pow_rendrequest_verification_failure_total", "nickname" => nickname.clone());
+                let counter_rend_queue_overflow = metrics::counter!("arti_hss_pow_rend_queue_overflow_total", "nickname" => nickname.clone());
+                let counter_rendrequest_enqueued = metrics::counter!("arti_hss_pow_rendrequest_enqueued_total", "nickname" => nickname.clone());
+                let histogram_rendrequest_effort = metrics::histogram!("arti_hss_pow_rendrequest_effort_hist", "nickname" => nickname.clone());
+            }
+        }
+
         loop {
             let rend_request = if let Some(rend_request) = runtime.reenter_block_on(receiver.next())
             {
@@ -1035,10 +1053,27 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             };
 
             if config_rx.borrow().enable_pow {
+                #[cfg(feature = "metrics")]
+                {
+                    // For metrics purposes, we treat a request with no PoW and a request with zero
+                    // effort as the same thing.
+                    if let Ok(pow) = rend_request.proof_of_work() {
+                        let effort = pow
+                            .and_then(|pow| match pow {
+                                ProofOfWork::V1(pow) => Some(pow.effort().into()),
+                                _ => None,
+                            })
+                            .unwrap_or(0);
+
+                        histogram_rendrequest_effort.record(effort);
+                    };
+                }
                 let rend_request =
                     match RendRequestOrdByEffort::new(rend_request, max_effort, request_num) {
                         Ok(rend_request) => rend_request,
                         Err(err) => {
+                            #[cfg(feature = "metrics")]
+                            counter_rendrequest_error_total.increment(1);
                             tracing::trace!(?err, "Error processing RendRequest");
                             continue;
                         }
@@ -1049,6 +1084,8 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 if let Some(ref pow) = rend_request.pow {
                     if let Err(err) = pow_manager.check_solve(pow) {
                         tracing::debug!(?err, "PoW verification failed");
+                        #[cfg(feature = "metrics")]
+                        counter_rendrequest_verification_failure.increment(1);
                         continue;
                     }
                 }
@@ -1076,12 +1113,16 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 }
                 if inner.queue.len() >= config_rx.borrow().pow_rend_queue_depth {
                     let dropped_request = inner.queue.pop_first();
+                    #[cfg(feature = "metrics")]
+                    counter_rend_queue_overflow.increment(1);
                     tracing::debug!(
                         dropped_effort = ?dropped_request.map(|x| x.pow.map(|x| x.effort())),
                         "RendRequest queue full, dropping request."
                     );
                 }
                 inner.queue.insert(rend_request);
+                #[cfg(feature = "metrics")]
+                counter_rendrequest_enqueued.increment(1);
                 if let Some(waker) = &inner.waker {
                     waker.wake_by_ref();
                 }
@@ -1091,6 +1132,8 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 // bookkeeping code can be the same in both cases.
                 let mut inner = self.0.lock().expect("Lock poisoned");
                 inner.queue_pow_disabled.push_back(rend_request);
+                #[cfg(feature = "metrics")]
+                counter_rendrequest_enqueued.increment(1);
                 if let Some(waker) = &inner.waker {
                     waker.wake_by_ref();
                 }
@@ -1119,6 +1162,10 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 "Couldn't convert HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds to Duration",
             );
 
+        let nickname = self.0.lock().expect("Lock poisoned").nickname.to_string();
+        #[cfg(feature = "metrics")]
+        let counter_rendrequest_expired = metrics::counter!("arti_hss_pow_rendrequest_expired_total", "nickname" => nickname.clone());
+
         loop {
             let inner = self.0.lock().expect("Lock poisoned");
             // Wake up when the oldest request will reach the expiration age, or, if there are no
@@ -1134,10 +1181,15 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
             runtime.reenter_block_on(runtime.sleep(wait_time));
 
-            tracing::trace!("Expiring timed out RendRequests");
             let mut inner = self.0.lock().expect("Lock poisoned");
             let now = runtime.now();
+            let prev_len = inner.queue.len();
             inner.queue.retain(|r| now - r.recv_time < max_age);
+            let dropped = prev_len - inner.queue.len();
+            tracing::trace!(dropped, "Expired timed out RendRequests");
+            #[cfg(feature = "metrics")]
+            counter_rendrequest_expired
+                .increment(dropped.try_into().expect("u64 overflowed usize!"));
         }
     }
 }
@@ -1263,10 +1315,11 @@ mod test {
         let net_params = netdir.params().clone();
         let netdir_provider: Arc<TestNetDirProvider> = Arc::new(netdir.into());
         let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
+        let nickname = HsNickname::new("test-hs".to_string()).unwrap();
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(
             config.unwrap_or(
                 OnionServiceConfigBuilder::default()
-                    .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                    .nickname(nickname.clone())
                     .enable_pow(true)
                     .build()
                     .unwrap(),
@@ -1274,6 +1327,7 @@ mod test {
         ));
         let receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
             runtime.clone(),
+            nickname.clone(),
             suggested_effort.clone(),
             netdir_provider,
             status_tx,

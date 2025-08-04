@@ -6311,6 +6311,7 @@ dependencies = [
  "itertools 0.14.0",
  "k12",
  "libc",
+ "metrics",
  "num-traits",
  "once_cell",
  "oneshot-fused-workaround",
