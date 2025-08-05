@@ -304,6 +304,8 @@ before you continue!
 
 ## The actual release itself.
 
+0. [ ] Recheck for *Blocker* [issues] and [merge requests].
+
 1. [ ] Run `maint/cargo-publish`.
 
    Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
