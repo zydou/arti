@@ -53,7 +53,7 @@ but please do so judiciously.
 
 ### Major features
 
-- New `arti hss ctor-migrate` command line invocation
+- New experimental `arti hss ctor-migrate` command line invocation
   for migrating a hidden serivce (`.onion` service) identity key
   from C Tor to an Arti keystore.
   !3102
@@ -117,7 +117,7 @@ but please do so judiciously.
 
 #### User-facing
 
-- Provide `arti keys-raw remove-by-id` command line function.
+- Provide experimental `arti keys-raw remove-by-id` command line function.
   !3059
   !3095
 
