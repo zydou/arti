@@ -297,8 +297,9 @@ before you continue!
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
 
-4. [  ] Run `maint/update-release-date` to make sure
-   that Arti has an accurate sense of when its version was bumped.
+4. [ ] Run `maint/update-release-date`
+
+   This makes sure that Arti has an accurate sense of when its version was bumped.
 
 ## The actual release itself.
 
