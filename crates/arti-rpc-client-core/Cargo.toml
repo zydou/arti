@@ -39,7 +39,7 @@ void = "1"
 [dev-dependencies]
 rand = "0.9.1"
 rand_chacha = "0.9"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
 
 [features]
 full = [

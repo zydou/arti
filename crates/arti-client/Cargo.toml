@@ -177,7 +177,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "2"
 time = { version = "0.3.20", features = ["parsing", "macros"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.33.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.33.0" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.33.0" }
 tor-config = { path = "../tor-config", version = "0.33.0" }

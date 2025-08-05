@@ -109,7 +109,7 @@ thiserror = "2"
 tokio-crate = { package = "tokio", version = "1.7", optional = true }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-async-utils = { path = "../tor-async-utils", version = "0.33.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.33.0" }
 tor-cell = { path = "../tor-cell", version = "0.33.0" }
 tor-cert = { path = "../tor-cert", version = "0.33.0" }

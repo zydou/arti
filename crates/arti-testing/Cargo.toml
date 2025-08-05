@@ -33,7 +33,7 @@ futures = "0.3.14"
 pin-project = "1"
 rand = "0.9.1"
 tokio = { version = "1.7", features = ["signal", "macros"] }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
 tor-config = { path = "../tor-config", version = "0.33.0" }
 tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.33.0", features = ["dirfilter"] }
 tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.33.0", features = [

@@ -5752,7 +5752,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.32.0"
+version = "0.33.0"
 dependencies = [
  "derive_more",
  "educe",

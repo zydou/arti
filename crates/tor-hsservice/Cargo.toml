@@ -100,7 +100,7 @@ serde_with = "3.0.0"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
 tor-async-utils = { path = "../tor-async-utils", version = "0.33.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
 tor-bytes = { version = "0.33.0", path = "../tor-bytes" }
 tor-cell = { version = "0.33.0", path = "../tor-cell", features = ["hs"] }
 tor-checkable = { version = "0.33.0", path = "../tor-checkable", optional = true }

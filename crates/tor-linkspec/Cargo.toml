@@ -44,7 +44,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.33.0" }
 tor-config = { path = "../tor-config", version = "0.33.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0", features = ["memquota-memcost"] }
