@@ -302,13 +302,13 @@ before you continue!
 
 ## The actual release itself.
 
-0. [ ] Recheck for *Blocker* [issues] and [merge requests].
+1. [ ] Recheck for *Blocker* [issues] and [merge requests].
 
-5. [ ] Make sure that CI passes, again.
+2. [ ] Make sure that CI passes, again.
 
-1. [ ] Run `maint/cargo-publish`.
+3. [ ] Run `maint/cargo-publish`.
 
-   Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
+   First, run `maint/cargo-publish --dry-run ${THIS_VERSION}`
    to see what it thinks.
 
    If all seems well, run it without the `--dry-run` option.
@@ -317,7 +317,7 @@ before you continue!
    after fixing the cause.
    It is supposed to be idempotent.
 
-2. [ ] Make the signed git tag `arti-v${THIS_VERSION}`
+4. [ ] Make the signed git tag `arti-v${THIS_VERSION}`
 
    To do this, run
    `maint/tag-arti-release ${THIS_VERSION}`
