@@ -51,7 +51,7 @@ while (<I>) {
     $#headings = $level + 1;
   }
 
-  if (m/ \[ \]\s/) {
+  if (m/ \[ +\]\s/) {
     m{^ *(?:\d+\.|\*|\-) +\[ \] (\S.*)$} or die 'tickybox on line with unexpected syntax';
     my $instruction = $1;
     foreach my $h (@headings) {
