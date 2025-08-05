@@ -151,10 +151,8 @@ occurring outside of the Arti mainline so has not landed in in 1.4.6.)
 
 ### Acknowledgments
 
-TODO-RELEASE-BLOCKER
-
 Thanks to everybody who's contributed to this release, including
-<!-- (output of ./maint/thanks goes here) -->.
+hashcatHitman, hjrgrn, nield, and tcyrus.
 Also welcome to Alyssa P Hacker as she joins the team!
 
 Also, our deep thanks to
