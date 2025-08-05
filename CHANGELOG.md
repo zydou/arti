@@ -174,14 +174,14 @@ for funding the development of Arti!
 [#2083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2083
 [Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [Conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
-[Proposal 324]: XXXX
-[Proposal 359]: XXXX
-[Proposal 360]: XXXX
-[Proposal 362]: XXXX
+[Proposal 324]: https://spec.torproject.org/proposals/324-rtt-congestion-control.html
+[Proposal 359]: https://spec.torproject.org/proposals/359-cgo-redux.html
+[Proposal 360]: https://spec.torproject.org/proposals/360-hsdesc-len-limit.html
+[Proposal 362]: https://spec.torproject.org/proposals/362-update-pow-control-loop.html
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [rust-lang/rust#142966]: https://github.com/rust-lang/rust/issues/142966
 [shadow#3610]: https://github.com/shadow/shadow/issues/3610
-[torspec!411]: XXXX
+[torspec!411]: https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/411
 
 
 
