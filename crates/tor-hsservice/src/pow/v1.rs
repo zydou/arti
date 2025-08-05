@@ -276,16 +276,19 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let runtime = pow_manager.0.read().expect("Lock poisoned").runtime.clone();
 
         runtime
-            .spawn(
-                pow_manager
-                    .main_loop_task()
-                    .map(|r| r.expect("PoW main loop error")),
-            )
+            .spawn(pow_manager.main_loop_error_wrapper())
             .map_err(|cause| StartupError::Spawn {
                 spawning: "pow manager",
                 cause: cause.into(),
             })?;
         Ok(())
+    }
+
+    /// Run [`Self::main_loop_task`], reporting any errors.
+    async fn main_loop_error_wrapper(self: Arc<Self>) {
+        if let Err(err) = self.clone().main_loop_task().await {
+            tracing::warn!(?err, "PoW main loop error!");
+        }
     }
 
     /// Main loop for rotating seeds.
