@@ -5,8 +5,6 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.4.6 — 4 August 2025
 
-TODO-RELEASE-BLOCKER up to date until 4a096515bef7d3014fc25c5bbf0452ef6a58e928
-
 <!--
 TODO-RELEASE-BLOCKER
 Here is a blurb describing the release. It summarizes the major points,
@@ -192,6 +190,11 @@ which are documented below.
 - The `once-cell` feature was removed from `fs-mistrust`.
 - In `tor-netdir`, the `FromInt32Saturating` trait has an extra `from_checked`
   function.
+- In `arti-ureq`, `PreferredRuntime`-using `ConnectorBuilder`
+  constructors are now associated functions on `ConnectorBuilder<PreferredRuntime>`
+  rather than (anomalously) `ConnectorBuilder<impl Runtime>`.
+  (The return types haven't changed.)
+  !3101
 
 ### Onion service development
 
