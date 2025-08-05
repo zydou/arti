@@ -585,27 +585,17 @@ fn circparameters_from_netparameters(
 pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
     let alg = match AlgorithmType::from(inp.cc_alg.get()) {
         #[cfg(feature = "flowctl-cc")]
-        AlgorithmType::VEGAS => {
-            // TODO(arti#88): We always use fixed window for now,
-            // even with the "flowctl-cc" feature enabled:
-            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2932#note_3191196
-            // We use `if false` so that the vegas cc code is still type checked.
-            if false {
-                build_cc_vegas(
-                    inp,
-                    (
-                        inp.cc_vegas_alpha_exit.into(),
-                        inp.cc_vegas_beta_exit.into(),
-                        inp.cc_vegas_delta_exit.into(),
-                        inp.cc_vegas_gamma_exit.into(),
-                        inp.cc_vegas_sscap_exit.into(),
-                    )
-                        .into(),
-                )
-            } else {
-                build_cc_fixedwindow(inp)
-            }
-        }
+        AlgorithmType::VEGAS => build_cc_vegas(
+            inp,
+            (
+                inp.cc_vegas_alpha_exit.into(),
+                inp.cc_vegas_beta_exit.into(),
+                inp.cc_vegas_delta_exit.into(),
+                inp.cc_vegas_gamma_exit.into(),
+                inp.cc_vegas_sscap_exit.into(),
+            )
+                .into(),
+        ),
         // Unrecognized, fallback to fixed window as in SENDME v0.
         _ => build_cc_fixedwindow(inp),
     };
@@ -618,25 +608,20 @@ pub fn onion_circparams_from_netparams(inp: &NetParameters) -> Result<CircParame
     let alg = match AlgorithmType::from(inp.cc_alg.get()) {
         #[cfg(feature = "flowctl-cc")]
         AlgorithmType::VEGAS => {
-            // TODO(arti#88): We always use fixed window for now,
-            // even with the "flowctl-cc" feature enabled:
-            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2932#note_3191196
-            // We use `if false` so that the vegas cc code is still type checked.
-            if false {
-                build_cc_vegas(
-                    inp,
-                    (
-                        inp.cc_vegas_alpha_onion.into(),
-                        inp.cc_vegas_beta_onion.into(),
-                        inp.cc_vegas_delta_onion.into(),
-                        inp.cc_vegas_gamma_onion.into(),
-                        inp.cc_vegas_sscap_onion.into(),
-                    )
-                        .into(),
+            // NOTE: At the time of writing, we don't yet support cc negotiation for onion services.
+            // See `HopSettings::onion_circparams_from_netparams()` where we use a fallback
+            // algorithm for HsV3 circuits instead, and see arti#2037.
+            build_cc_vegas(
+                inp,
+                (
+                    inp.cc_vegas_alpha_onion.into(),
+                    inp.cc_vegas_beta_onion.into(),
+                    inp.cc_vegas_delta_onion.into(),
+                    inp.cc_vegas_gamma_onion.into(),
+                    inp.cc_vegas_sscap_onion.into(),
                 )
-            } else {
-                build_cc_fixedwindow(inp)
-            }
+                    .into(),
+            )
         }
         // Unrecognized, fallback to fixed window as in SENDME v0.
         _ => build_cc_fixedwindow(inp),
