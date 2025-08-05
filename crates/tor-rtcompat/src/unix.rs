@@ -1,5 +1,6 @@
 //! Functionality for working with AF\_UNIX addresses.
 
+#[cfg(unix)]
 use tor_general_addr::unix;
 
 /// Helper: construct an unnamed SocketAddr.
@@ -30,6 +31,7 @@ impl From<UnsupportedAfUnixAddressType> for std::io::Error {
 
 #[cfg(test)]
 mod test {
+    #[cfg(unix)]
     use super::*;
 
     #[test]
