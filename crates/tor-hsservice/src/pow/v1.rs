@@ -1039,7 +1039,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             let wait_time = inner
                 .queue
                 .first()
-                .map(|r| max_age - (runtime.now() - r.recv_time))
+                .map(|r| {
+                    max_age.saturating_sub((runtime.now().saturating_duration_since(r.recv_time)))
+                })
                 .unwrap_or(max_age);
             drop(inner);
 
