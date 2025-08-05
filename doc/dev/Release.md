@@ -87,7 +87,18 @@ release" below.
 Note that you can do these steps _in parallel_ with "are we ready to
 release?" above.
 
-1. [ ] Consider dependency updates for breaking changes in our dependencies.
+1. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
+
+   Check for non-breaking changes to our dependencies.
+   A day or two before release, I try to run:
+   `cargo update`.
+   This will replace each of our dependencies in Cargo.lock
+   with the latest version.
+   (I recommend doing this a bit before the release
+   to make sure that we have time
+   to deal with any surprising breakage.)
+
+2. [ ] Consider dependency updates for breaking changes in our dependencies.
 
    Check for breaking changes to our dependencies.
    In the weeks between releases, I try to run:
@@ -113,17 +124,6 @@ release?" above.
    open an Arti ticket for it, with the label "Upgrade Blocker".
    If the reason you can't upgrade is a bug in the dependency,
    or _accidental_ MSRV breakage, file a bug upstream.
-
-2. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
-
-   Check for non-breaking changes to our dependencies.
-   A day or two before release, I try to run:
-   `cargo update`.
-   This will replace each of our dependencies in Cargo.lock
-   with the latest version.
-   (I recommend doing this a bit before the release
-   to make sure that we have time
-   to deal with any surprising breakage.)
 
 3. [ ] Write a changelog.
 
