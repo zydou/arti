@@ -133,7 +133,6 @@ occurring outside of the Arti mainline so has not landed in in 1.4.6.)
 
 Thanks to everybody who's contributed to this release, including
 hashcatHitman, hjrgrn, nield, and tcyrus.
-Also welcome to Alyssa P Hacker as she joins the team!
 
 Also, our deep thanks to
 the [Bureau of Democracy, Human Rights and Labor],
