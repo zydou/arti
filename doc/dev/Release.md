@@ -304,7 +304,7 @@ before you continue!
 
 1. [ ] Recheck for *Blocker* [issues] and [merge requests].
 
-2. [ ] Make sure that CI passes, again.
+2. [ ] Make sure that CI passes, again, on `main`.
 
 3. [ ] Run `maint/cargo-publish`.
 
