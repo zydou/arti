@@ -135,9 +135,54 @@ the [Bureau of Democracy, Human Rights and Labor],
 and our [other sponsors]
 for funding the development of Arti!
 
-
-[shadow#3610]: https://github.com/shadow/shadow/issues/3610
+[!3044]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3044
+[!3054]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3054
+[!3059]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3059
+[!3067]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3067
+[!3069]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3069
+[!3070]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3070
+[!3071]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3071
+[!3073]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3073
+[!3080]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3080
+[!3089]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3089
+[!3090]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3090
+[!3091]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3091
+[!3092]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3092
+[!3093]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3093
+[!3094]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3094
+[!3095]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3095
+[!3096]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3096
+[!3099]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3099
+[!3102]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3102
+[!3103]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3103
+[!3104]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3104
+[!3105]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3105
+[!3107]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3107
+[!3108]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3108
+[!3110]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3110
+[!3111]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3111
+[!3117]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3117
+[#1803]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1803
+[#1945]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1945
+[#1947]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1947
+[#2012]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2012
+[#2030]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2030
+[#2046]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2046
+[#2050]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2050
+[#2053]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2053
+[#2066]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2066
+[#2083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2083
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
+[Proposal 324]: XXXX
+[Proposal 359]: XXXX
+[Proposal 360]: XXXX
+[Proposal 362]: XXXX
+[other sponsors]: https://www.torproject.org/about/sponsors/
 [rust-lang/rust#142966]: https://github.com/rust-lang/rust/issues/142966
+[shadow#3610]: https://github.com/shadow/shadow/issues/3610
+[torspec!411]: XXXX
+
 
 
 # Arti 1.4.5 — 7 July 2025
