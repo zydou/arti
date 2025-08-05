@@ -300,11 +300,11 @@ before you continue!
 4. [  ] Run `maint/update-release-date` to make sure
    that Arti has an accurate sense of when its version was bumped.
 
-5. [ ] Make sure that CI passes, again.
-
 ## The actual release itself.
 
 0. [ ] Recheck for *Blocker* [issues] and [merge requests].
+
+5. [ ] Make sure that CI passes, again.
 
 1. [ ] Run `maint/cargo-publish`.
 
