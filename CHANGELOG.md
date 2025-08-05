@@ -30,14 +30,9 @@ occurring outside of the Arti mainline so has not landed in in 1.4.6.)
 
 - Replace the Hidden Service (.onion service) Proof of Work control loop.
   Improves denial of service resistance.
-  [Proposal 362]
-  ([!3093])
-  No TROVE.
+  ([Proposal 362], [!3093], no TROVE.)
 - Limit hidden service descriptor size inflation.
-  [Proposal 360]
-  torspec!411
-  ([#2046], [!3070])
-  No TROVE.
+  ([Proposal 360], [torspec!411], [#2046], [!3070], no TROVE.)
 
 ### Major bugfixes
 
@@ -88,14 +83,12 @@ occurring outside of the Arti mainline so has not landed in in 1.4.6.)
 
 - Implementation of CGO negotiation and use, in `tor-proto`.
   Not yet usable.
-  [Proposal 359]
-  ([!3069], [#1947], [#1945])
+  ([Proposal 359], [!3069], [#1947], [#1945])
 
 ### Testing
 
 - Update shadow, mostly to get reproducibility fixes.
-  ([!3092])
-  [shadow#3610](https://github.com/shadow/shadow/issues/3610)
+  ([!3092], [shadow#3610])
 - Pin `cargo-licence` to 0.7.0, and update our allows to match its output.
   ([!3108], [#2083], [!3111])
 
@@ -125,8 +118,7 @@ occurring outside of the Arti mainline so has not landed in in 1.4.6.)
   for improved clarity and less confusion in keystore error handling.
   ([!3103])
 - Update an internal TODO about `NonZero`.
-  ([!3067])
-  [rust-lang/rust#142966](https://github.com/rust-lang/rust/issues/142966)
+  ([!3067], [rust-lang/rust#142966])
 - Remove some unnecessary parens in the code.
   ([!3096])
 - Update dependencies.
@@ -143,8 +135,9 @@ the [Bureau of Democracy, Human Rights and Labor],
 and our [other sponsors]
 for funding the development of Arti!
 
-<!-- links go here -->
 
+[shadow#3610]: https://github.com/shadow/shadow/issues/3610
+[rust-lang/rust#142966]: https://github.com/rust-lang/rust/issues/142966
 
 
 # Arti 1.4.5 — 7 July 2025
