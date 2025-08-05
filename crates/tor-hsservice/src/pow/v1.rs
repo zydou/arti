@@ -695,13 +695,7 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
         request_num: u64,
     ) -> Result<Self, rend_handshake::IntroRequestError> {
         let pow = match request.proof_of_work()?.cloned() {
-            Some(ProofOfWork::V1(pow)) => {
-                if pow.effort() > max_effort {
-                    Some(pow.cap_effort(max_effort))
-                } else {
-                    Some(pow)
-                }
-            }
+            Some(ProofOfWork::V1(pow)) => Some(pow.cap_effort(max_effort)),
             None | Some(_) => None,
         };
 
