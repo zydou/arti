@@ -608,12 +608,22 @@ impl CircHop {
 
         if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
             if e.is_full() {
-                // If we get here, we either have a logic bug (!), or an attacker
-                // is sending us more cells than we asked for via congestion control.
-                return Err(Error::CircProto(format!(
-                    "Stream sink would block; received too many cells on stream ID {}",
-                    sv(streamid),
-                )));
+                cfg_if::cfg_if! {
+                    if #[cfg(not(feature = "flowctl-cc"))] {
+                        // If we get here, we either have a logic bug (!), or an attacker
+                        // is sending us more cells than we asked for via congestion control.
+                        return Err(Error::CircProto(format!(
+                            "Stream sink would block; received too many cells on stream ID {}",
+                            sv(streamid),
+                        )));
+                    } else {
+                        return Err(internal!(
+                            "Stream (ID {}) uses an unbounded queue, but apparently it's full?",
+                            sv(streamid),
+                        )
+                        .into());
+                    }
+                }
             }
             if e.is_disconnected() && cell_counts_toward_windows {
                 // the other side of the stream has gone away; remember

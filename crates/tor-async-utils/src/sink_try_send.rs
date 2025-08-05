@@ -211,6 +211,25 @@ impl<T> SinkTrySend<T> for mpsc::Sender<T> {
     }
 }
 
+// `UnboundedSender` doesn't have a `try_send()` method,
+// since `UnboundedSender` won't fail to send due to lack of space.
+// But it may fail to send if the receiver has gone away.
+// Regardless, we can still implement `SinkTrySend` and just use `unbounded_send()` instead,
+// which is like a less-fallible version of `try_send()`.
+impl<T> SinkTrySend<T> for mpsc::UnboundedSender<T> {
+    // Ideally we would just use [`mpsc::SendError`].
+    // But `mpsc::TrySendError` lacks an `into_parts` method that gives both `SendError` and `T`.
+    type Error = ErasedSinkTrySendError;
+
+    fn try_send_or_return(
+        self: Pin<&mut Self>,
+        item: T,
+    ) -> Result<(), (ErasedSinkTrySendError, T)> {
+        let self_: &mut Self = Pin::into_inner(self);
+        mpsc::UnboundedSender::unbounded_send(self_, item).map_err(handle_mpsc_error)
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

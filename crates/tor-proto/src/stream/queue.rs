@@ -20,19 +20,36 @@ use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
 use tor_async_utils::SinkTrySend;
 use tor_cell::relaycell::UnparsedRelayMsg;
-use tor_memquota::mq_queue::{self, ChannelSpec, MpscSpec};
+use tor_memquota::mq_queue::{self, ChannelSpec, MpscSpec, MpscUnboundedSpec};
 use tor_rtcompat::DynTimeProvider;
 
 use crate::memquota::{SpecificAccount, StreamAccount};
 
+// TODO(arti#534): remove these type aliases when we remove the "flowctl-cc" feature,
+// and just use `MpscUnboundedSpec` everywhere
+#[cfg(feature = "flowctl-cc")]
+/// Alias for the memquota mpsc spec.
+type Spec = MpscUnboundedSpec;
+#[cfg(not(feature = "flowctl-cc"))]
+/// Alias for the memquota mpsc spec.
+type Spec = MpscSpec;
+
 /// Create a new stream queue for incoming messages.
 pub(crate) fn stream_queue(
-    size: usize,
+    #[cfg(not(feature = "flowctl-cc"))] size: usize,
     memquota: &StreamAccount,
     time_prov: &DynTimeProvider,
 ) -> Result<(StreamQueueSender, StreamQueueReceiver), tor_memquota::Error> {
-    let (sender, receiver) =
-        MpscSpec::new(size).new_mq(time_prov.clone(), memquota.as_raw_account())?;
+    let (sender, receiver) = {
+        cfg_if::cfg_if! {
+            if #[cfg(not(feature = "flowctl-cc"))] {
+                MpscSpec::new(size).new_mq(time_prov.clone(), memquota.as_raw_account())?
+            } else {
+                MpscUnboundedSpec::new().new_mq(time_prov.clone(), memquota.as_raw_account())?
+            }
+        }
+    };
+
     let receiver = StreamUnobtrusivePeeker::new(receiver);
     let counter = Arc::new(Mutex::new(0));
     Ok((
@@ -47,13 +64,16 @@ pub(crate) fn stream_queue(
 /// For testing purposes, create a stream queue wth a no-op memquota account and a fake time
 /// provider.
 #[cfg(test)]
-pub(crate) fn fake_stream_queue(size: usize) -> (StreamQueueSender, StreamQueueReceiver) {
+pub(crate) fn fake_stream_queue(
+    #[cfg(not(feature = "flowctl-cc"))] size: usize,
+) -> (StreamQueueSender, StreamQueueReceiver) {
     // The fake Account doesn't care about the data ages, so this will do.
     //
     // This would be wrong to use generally in tests, where we might want to mock time,
     // since we end up, here with totally *different* mocked time.
     // But it's OK here, and saves passing a runtime parameter into this function.
     stream_queue(
+        #[cfg(not(feature = "flowctl-cc"))]
         size,
         &StreamAccount::new_noop(),
         &DynTimeProvider::new(tor_rtmock::MockRuntime::default()),
@@ -67,7 +87,7 @@ pub(crate) fn fake_stream_queue(size: usize) -> (StreamQueueSender, StreamQueueR
 pub(crate) struct StreamQueueSender {
     /// The inner sender.
     #[pin]
-    sender: mq_queue::Sender<UnparsedRelayMsg, MpscSpec>,
+    sender: mq_queue::Sender<UnparsedRelayMsg, Spec>,
     /// Number of bytes within the queue.
     counter: Arc<Mutex<usize>>,
 }
@@ -83,7 +103,7 @@ pub(crate) struct StreamQueueReceiver {
     // TODO(arti#534): the possible extra msg held by the `StreamUnobtrusivePeeker` isn't tracked by
     // memquota
     #[pin]
-    receiver: StreamUnobtrusivePeeker<mq_queue::Receiver<UnparsedRelayMsg, MpscSpec>>,
+    receiver: StreamUnobtrusivePeeker<mq_queue::Receiver<UnparsedRelayMsg, Spec>>,
     /// Number of bytes within the queue.
     counter: Arc<Mutex<usize>>,
 }
