@@ -6,7 +6,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 # Arti 1.4.6 — 4 August 2025
 
 Arti 1.4.6 continues development on xon-based ([Proposal 324]) flow
-control, [Conflux], and improved cryptography (CGO, [Proposal 359]).
+control, [Conflux], and improved cryptography (CGO,. ([Proposal 359])
 
 Arti 1.4.6 also contains two improvements to help resist two different
 kinds of denial-of-service attack, relating to Hidden Services, and
@@ -70,7 +70,7 @@ occurring outside of the Arti mainline so has not landed in in 1.4.6.)
 
 #### Conflux
 
-- Add tests for client-side SWITCH handling
+- Add tests for client-side SWITCH handling.
   ([!3091])
 - Preparatory work for replacing the `tor-proto` circuit reactor:
   Add a `ConfluxSet::remove_unchecked` method.
