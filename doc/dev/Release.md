@@ -329,10 +329,10 @@ before you continue!
    to set things right.
    I hope that nobody else has this problem.)
 
+## Post-release
+
 3. [ ] Tell `network-team` (via email and IRC) that the tree is open
    for new MRs to be merged!
-
-## Post-release
 
 1. [ ] Remove all of the semver.md files:
    `git rm crates/*/semver.md`.
