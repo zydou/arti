@@ -37,7 +37,7 @@ THIS_VERSION=1.1.6
 Before we can finally release, we need to check a few things
 to make sure we aren't going to break our users.
 
-1. Make sure CI is passing.
+1. [ ] Make sure CI is passing.
 
 2. After making sure that the pipeline as a whole has passed,
    look at every part of the pipeline that "passed with warnings".
@@ -45,7 +45,8 @@ to make sure we aren't going to break our users.
    If it's failing, is is it failing for the reasons we anticipated,
    or have new failures crept in?
 
-3. Look at the current list of exceptions in our automated tooling.
+3. [ ] Look at the current list of exceptions in our automated tooling.
+
    Are they still relevant?
    (There are exceptions in
    `cargo_audit`,
@@ -53,12 +54,14 @@ to make sure we aren't going to break our users.
    and
    `check_licenses`.)
 
-4. Do we have any open [issues] or [merge requests] tagged "Blocker"?
+4. [ ] Do we have any open [issues] or [merge requests] tagged "Blocker"?
 
 [issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Blocker
 [merge requests]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/?label_name[]=Blocker
 
-5. Does `maint/fixup-features` produce any results?
+5. [ ] Ensure `maint/fixup-features` is happy
+
+   Does `maint/fixup-features` produce any results?
    If so, fix them.
 
    Note: fixup-features should be run with the top-level Cargo.toml
@@ -84,7 +87,9 @@ release" below.
 Note that you can do these steps _in parallel_ with "are we ready to
 release?" above.
 
-1. Check for breaking changes to our dependencies.
+1. [ ] Consider dependency updates for breaking changes in our dependencies.
+
+   Check for breaking changes to our dependencies.
    In the weeks between releases, I try to run:
    `cargo upgrade --dry-run --compatible=ignore --incompatible=allow`.
    This will tell us if any of our dependencies
@@ -109,7 +114,9 @@ release?" above.
    If the reason you can't upgrade is a bug in the dependency,
    or _accidental_ MSRV breakage, file a bug upstream.
 
-2. Check for non-breaking changes to our dependencies.
+2. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
+
+   Check for non-breaking changes to our dependencies.
    A day or two before release, I try to run:
    `cargo update`.
    This will replace each of our dependencies in Cargo.lock
@@ -118,7 +125,7 @@ release?" above.
    to make sure that we have time
    to deal with any surprising breakage.)
 
-3. Write a changelog.
+3. [ ] Write a changelog.
 
    I start by copying the [changelog template](./ChangelogTemplate.md),
    and filling in the version and date.
@@ -141,7 +148,7 @@ release?" above.
 
    See below for our current [changelog style guide](#changelog-style).
 
-4. Finish the changelog.
+4. [ ] Finish the changelog.
 
    When the changelog is done, run
    `maint/update-md-links CHANGELOG.md`
@@ -162,7 +169,7 @@ release?" above.
 
    Add an acknowledgement for the current sponsor(s).
 
-5. Determine what semver/version update to do to each crate.
+5. [ ] Determine what semver/version update to do to each crate.
 
    We need to sort our crates into the following tiers.
     * Unstable (0.x) `tor-*` and `arti-*` crates.
@@ -219,20 +226,16 @@ Wait! Go back and make sure
 that you have done everything in the previous sections
 before you continue!
 
-0. Declare a merge freeze.
-
-   Tell `network-team`
-   (via email and IRC)
-   that the tree is now frozen,
+0. [ ] Tell `network-team` (via email and IRC) that the tree is now frozen,
    and no MRs should be merged.
 
-1. Finalize the changelog.
+1. [ ] Finalize the changelog.
 
    Make sure that the date is correct.
    Make sure that the acknowledgments and links are correct,
    if they might have gotten stale.
 
-2. Increase all appropriate version numbers.
+2. [ ] Increase all appropriate version numbers.
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
@@ -263,7 +266,9 @@ before you continue!
 		(cd crates/equix/bench && cargo update)
 ```
 
-3. Check for side effects from bumping versions!
+3. [ ] (Re)run `maint/semver-checks` (having addressed any expected problems)
+
+   Check for side effects from bumping versions!
 
    As of March 2024, you can skip this section
    for `tor-*` and `arti-*`, since:
@@ -292,14 +297,16 @@ before you continue!
    Run `maint/semver-checks` again:
    It should be quiet now that you bumped all the versions.
 
-4. Run `maint/update-release-date` to make sure
+4. [  ] Run `maint/update-release-date` to make sure
    that Arti has an accurate sense of when its version was bumped.
 
-5. Then make sure that CI passes, again.
+5. [ ] Make sure that CI passes, again.
 
 ## The actual release itself.
 
-1. Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
+1. [ ] Run `maint/cargo-publish`.
+
+   Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
    to see what it thinks.
 
    If all seems well, run it without the `--dry-run` option.
@@ -308,7 +315,7 @@ before you continue!
    after fixing the cause.
    It is supposed to be idempotent.
 
-2. We tag the repository with `arti-v${THIS_VERSION}`
+2. [ ] Make the signed git tag `arti-v${THIS_VERSION}`
 
    To do this, run
    `maint/tag-arti-release ${THIS_VERSION}`
@@ -320,14 +327,12 @@ before you continue!
    to set things right.
    I hope that nobody else has this problem.)
 
-3. Tell `network-team`
-   (via email and IRC)
-   that the tree is open
+3. [ ] Tell `network-team` (via email and IRC) that the tree is open
    for new MRs to be merged!
 
 ## Post-release
 
-1. Remove all of the semver.md files:
+1. [ ] Remove all of the semver.md files:
    `git rm crates/*/semver.md`.
 
    (Note that we do this _after_ the release,
@@ -335,9 +340,11 @@ before you continue!
    are present in the tagged commit,
    and easy to find for reference.)
 
-2. Write a blog post.
+2. [ ] Write a blog post.
 
-3. Did you create any new crates?
+3. [ ] If new crates published, add appropriate owners.
+
+   Did you create any new crates?
    If so, you need to make sure that they are owned (on crates.io)
    by the right set of developers.
    If you aren't sure, run `maint/cargo-crate-owners`.
