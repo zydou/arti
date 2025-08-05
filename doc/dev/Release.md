@@ -1,5 +1,16 @@
 # How to release Arti
 
+## Checklist
+
+* [ ] Create the checklist ticket
+
+Run `maint/release-prep-ticket-template` to generate a checklist.
+
+Paste it into a new ticket, perhaps using
+`maint/release-prep-ticket-template | xclip`.
+
+Set the "Blocker" label on that ticket and assign it to yourself.
+
 ## Tools and notation
 
 We're going to use the following.
