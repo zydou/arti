@@ -36,3 +36,8 @@ subprotocol versions from directory documents.  Eventually,
 protocols against the required list in the consensus.)
 
 License: MIT OR Apache-2.0
+
+[`arti-client`]: https://docs.rs/arti-client
+[`tor-netdoc`]: https://docs.rs/tor-netdoc/
+[`tor-proto`]: https://docs.rs/tor-proto/
+

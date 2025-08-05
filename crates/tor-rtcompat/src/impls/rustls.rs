@@ -129,7 +129,7 @@ fn ensure_provider_installed() {
 }
 
 impl RustlsProvider {
-    /// Construct a new [`RustlsProvider`.]
+    /// Construct a new [`RustlsProvider`].
     pub(crate) fn new() -> Self {
         ensure_provider_installed();
 

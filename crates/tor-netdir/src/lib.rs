@@ -148,7 +148,7 @@ impl ConsensusRelays for NetDir {
 /// Configuration for determining when two relays have addresses "too close" in
 /// the network.
 ///
-/// Used by [`Relay::low_level_details().in_same_subnet()`].
+/// Used by `Relay::low_level_details().in_same_subnet()`.
 #[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SubnetConfig {

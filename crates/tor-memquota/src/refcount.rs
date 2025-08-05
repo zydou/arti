@@ -140,7 +140,7 @@ fn inc_raw(c: &mut RawCount) -> Result<(), Overflow> {
 
 /// Decrement this refcount, but don't care about any [`Ref`]s
 ///
-/// Returns [`Some(Garbage(()))`] if the count reached zero
+/// Returns `Some(Garbage(()))` if the count reached zero.
 fn dec_raw(c: &mut RawCount) -> Option<Garbage<()>> {
     *c = c
         .checked_sub(1)

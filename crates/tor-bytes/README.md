@@ -50,3 +50,5 @@ Once you implement these traits, you can use Reader and Writer to
 handle your type, and other types that are built around it.
 
 License: MIT OR Apache-2.0
+
+[`tor-netdoc`]: https://docs.rs/tor-netdoc/
