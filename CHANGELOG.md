@@ -29,7 +29,7 @@ occurring outside of the Arti mainline so has not landed in in 1.4.6.)
   constructors are now associated functions on `ConnectorBuilder<PreferredRuntime>`
   rather than (anomalously) `ConnectorBuilder<impl Runtime>`.
   (The return types haven't changed.)
-  !3101
+  ([!3101])
 
 ### Security fixes
 
