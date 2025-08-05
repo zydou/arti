@@ -53,7 +53,7 @@ impl StreamParameters {
     /// Configure whether the stream should be opened "optimistically."
     ///
     /// By default, streams are not "optimistic". When you call
-    /// [`ClientCirc::begin_stream()`](crate::tunnel::circuit::ClientCirc::begin_stream),
+    /// [`ClientCirc::begin_stream()`](crate::tunnel::ClientTunnel::begin_stream),
     /// the function won't give you a stream until the exit node has
     /// confirmed that it has successfully opened a connection to your
     /// target address.  It's safer to wait in this way, but it is slower:

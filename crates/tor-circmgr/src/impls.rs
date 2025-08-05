@@ -1,24 +1,25 @@
 //! Implement traits from [`crate::mgr`] for the circuit types we use.
 
-use crate::build::CircuitBuilder;
+use crate::build::TunnelBuilder;
 use crate::mgr::{self, MockablePlan};
 use crate::path::OwnedPath;
-use crate::usage::{SupportedCircUsage, TargetCircUsage};
+use crate::usage::{SupportedTunnelUsage, TargetTunnelUsage};
 use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 use async_trait::async_trait;
 use educe::Educe;
 use futures::future::OptionFuture;
 use std::sync::Arc;
 use tor_basic_utils::skip_fmt;
-use tor_error::internal;
+use tor_error::{bad_api_usage, internal};
 #[cfg(feature = "vanguards")]
 use tor_guardmgr::vanguards::VanguardMgr;
 use tor_linkspec::CircTarget;
-use tor_proto::circuit::{CircParameters, ClientCirc, Path, UniqId};
+use tor_proto::circuit::{CircParameters, Path, UniqId};
+use tor_proto::ClientTunnel;
 use tor_rtcompat::Runtime;
 
 #[async_trait]
-impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
+impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
     type Id = tor_proto::circuit::UniqId;
 
     fn id(&self) -> Self::Id {
@@ -29,8 +30,12 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
         !self.is_closing()
     }
 
-    fn path_ref(&self) -> tor_proto::Result<Arc<Path>> {
-        self.path_ref()
+    fn single_path(&self) -> tor_proto::Result<Arc<Path>> {
+        use itertools::Itertools as _;
+
+        self.all_paths().into_iter().exactly_one().map_err(|_| {
+            bad_api_usage!("requested the single path of a multi-path tunnel?!").into()
+        })
     }
 
     fn n_hops(&self) -> tor_proto::Result<usize> {
@@ -38,20 +43,20 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
     }
 
     fn is_closing(&self) -> bool {
-        self.is_closing()
+        self.is_closed()
     }
 
     fn unique_id(&self) -> UniqId {
         self.unique_id()
     }
 
-    async fn extend<T: CircTarget + std::marker::Sync>(
+    async fn extend<T: CircTarget + Sync>(
         &self,
         target: &T,
         params: CircParameters,
     ) -> tor_proto::Result<()> {
-        // Use 'ClientCirc::' name to avoid invoking _this_ method.
-        ClientCirc::extend(self, target, params).await
+        let circ = self.as_single_circ()?;
+        circ.extend(target, params).await
     }
 }
 
@@ -61,7 +66,7 @@ impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
 #[educe(Debug)]
 pub(crate) struct Plan {
     /// The supported usage that the circuit will have when complete
-    final_spec: SupportedCircUsage,
+    final_spec: SupportedTunnelUsage,
     /// An owned copy of the path to build.
     // TODO: it would be nice if this weren't owned.
     path: OwnedPath,
@@ -80,15 +85,15 @@ pub(crate) struct Plan {
 impl MockablePlan for Plan {}
 
 #[async_trait]
-impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBuilder<R> {
-    type Circ = ClientCirc;
+impl<R: Runtime> crate::mgr::AbstractTunnelBuilder<R> for crate::build::TunnelBuilder<R> {
+    type Tunnel = ClientTunnel;
     type Plan = Plan;
 
-    fn plan_circuit(
+    fn plan_tunnel(
         &self,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(Plan, SupportedCircUsage)> {
+    ) -> Result<(Plan, SupportedTunnelUsage)> {
         let mut rng = rand::rng();
         let (path, final_spec, guard_status, guard_usable) = usage.build_path(
             &mut rng,
@@ -111,7 +116,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
         Ok((plan, final_spec))
     }
 
-    async fn build_circuit(&self, plan: Plan) -> Result<(SupportedCircUsage, Arc<ClientCirc>)> {
+    async fn build_tunnel(&self, plan: Plan) -> Result<(SupportedTunnelUsage, Self::Tunnel)> {
         use crate::build::GuardStatusHandle;
         use tor_guardmgr::GuardStatus;
         let Plan {
@@ -142,7 +147,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
             )
             .await
         {
-            Ok(circuit) => {
+            Ok(tunnel) => {
                 // Report success to the guard manager, so it knows that
                 // this guard is reachable.
                 guard_status.report(GuardStatus::Success);
@@ -153,12 +158,12 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
                 // in case some preferable guard won't meet our needs.
                 match guard_usable.await {
                     Some(Ok(true)) | None => (),
-                    Some(Ok(false)) => return Err(Error::GuardNotUsable(circuit.unique_id())),
+                    Some(Ok(false)) => return Err(Error::GuardNotUsable(tunnel.unique_id())),
                     Some(Err(_)) => {
                         return Err(internal!("Guard usability status cancelled").into());
                     }
                 }
-                Ok((final_spec, circuit))
+                Ok((final_spec, tunnel))
             }
             Err(e) => {
                 // The attempt failed; the builder should have set the
@@ -171,55 +176,55 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
         }
     }
 
-    fn launch_parallelism(&self, spec: &TargetCircUsage) -> usize {
+    fn launch_parallelism(&self, spec: &TargetTunnelUsage) -> usize {
         match spec {
-            TargetCircUsage::Dir => 3,
+            TargetTunnelUsage::Dir => 3,
             _ => 1,
         }
     }
 
-    fn select_parallelism(&self, spec: &TargetCircUsage) -> usize {
+    fn select_parallelism(&self, spec: &TargetTunnelUsage) -> usize {
         self.launch_parallelism(spec)
     }
 
     fn learning_timeouts(&self) -> bool {
-        CircuitBuilder::learning_timeouts(self)
+        TunnelBuilder::learning_timeouts(self)
     }
 
     fn save_state(&self) -> Result<bool> {
-        CircuitBuilder::save_state(self)
+        TunnelBuilder::save_state(self)
     }
 
     fn path_config(&self) -> Arc<PathConfig> {
-        CircuitBuilder::path_config(self)
+        TunnelBuilder::path_config(self)
     }
 
     fn set_path_config(&self, new_config: PathConfig) {
-        CircuitBuilder::set_path_config(self, new_config);
+        TunnelBuilder::set_path_config(self, new_config);
     }
 
     fn estimator(&self) -> &timeouts::Estimator {
-        CircuitBuilder::estimator(self)
+        TunnelBuilder::estimator(self)
     }
 
     #[cfg(feature = "vanguards")]
     fn vanguardmgr(&self) -> &Arc<VanguardMgr<R>> {
-        CircuitBuilder::vanguardmgr(self)
+        TunnelBuilder::vanguardmgr(self)
     }
 
     fn upgrade_to_owned_state(&self) -> Result<()> {
-        CircuitBuilder::upgrade_to_owned_state(self)
+        TunnelBuilder::upgrade_to_owned_state(self)
     }
 
     fn reload_state(&self) -> Result<()> {
-        CircuitBuilder::reload_state(self)
+        TunnelBuilder::reload_state(self)
     }
 
     fn guardmgr(&self) -> &tor_guardmgr::GuardMgr<R> {
-        CircuitBuilder::guardmgr(self)
+        TunnelBuilder::guardmgr(self)
     }
 
     fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters) {
-        CircuitBuilder::update_network_parameters(self, p);
+        TunnelBuilder::update_network_parameters(self, p);
     }
 }

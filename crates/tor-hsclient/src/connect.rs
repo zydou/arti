@@ -18,10 +18,14 @@ use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::hs::pow::ProofOfWork;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
 use tor_circmgr::build::onion_circparams_from_netparams;
+use tor_circmgr::{
+    ClientOnionServiceDataTunnel, ClientOnionServiceDirTunnel, ClientOnionServiceIntroTunnel,
+};
 use tor_dirclient::SourceInfo;
 use tor_error::{debug_report, warn_report, Bug};
 use tor_hscrypto::Subcredential;
 use tor_proto::circuit::handshake::hs_ntor;
+use tor_proto::TargetHop;
 use tracing::{debug, trace};
 
 use retry_error::RetryError;
@@ -31,7 +35,7 @@ use tor_cell::relaycell::hs::{
 };
 use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
-use tor_circmgr::hspool::{HsCircKind, HsCircPool};
+use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
 use tor_error::{internal, into_internal};
@@ -42,7 +46,8 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
-use tor_proto::circuit::{CircParameters, ClientCirc, MetaCellDisposition, MsgHandler};
+use tor_proto::circuit::CircParameters;
+use tor_proto::{MetaCellDisposition, MsgHandler};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
 use crate::pow::HsPowClient;
@@ -79,8 +84,8 @@ const HOPS: usize = 3;
 /// Given `R, M` where `M: MocksForConnect<M>`, expand to the mockable `ClientCirc`
 // This is quite annoying.  But the alternative is to write out `<... as // ...>`
 // each time, since otherwise the compile complains about ambiguous associated types.
-macro_rules! ClientCirc { { $R:ty, $M:ty } => {
-    <<$M as MocksForConnect<$R>>::HsCircPool as MockableCircPool<$R>>::ClientCirc
+macro_rules! DataTunnel{ { $R:ty, $M:ty } => {
+    <<$M as MocksForConnect<$R>>::HsCircPool as MockableCircPool<$R>>::DataTunnel
 } }
 
 /// Information about a hidden service, including our connection history
@@ -155,7 +160,7 @@ pub(crate) async fn connect<R: Runtime>(
     hsid: HsId,
     data: &mut Data,
     secret_keys: HsClientSecretKeys,
-) -> Result<Arc<ClientCirc>, ConnError> {
+) -> Result<ClientOnionServiceDataTunnel, ConnError> {
     Context::new(
         &connector.runtime,
         &*connector.circpool,
@@ -210,7 +215,7 @@ struct Rendezvous<'r, R: Runtime, M: MocksForConnect<R>> {
     /// RPT as a `Relay`
     rend_relay: Relay<'r>,
     /// Rendezvous circuit
-    rend_circ: Arc<ClientCirc!(R, M)>,
+    rend_tunnel: DataTunnel!(R, M),
     /// Rendezvous cookie
     rend_cookie: RendCookie,
 
@@ -397,7 +402,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ///
     /// This function handles all necessary retrying of fallible operations,
     /// (and, therefore, must also limit the total work done for a particular call).
-    async fn connect(&self, data: &mut Data) -> Result<Arc<ClientCirc!(R, M)>, ConnError> {
+    async fn connect(&self, data: &mut Data) -> Result<DataTunnel!(R, M), ConnError> {
         // This function must do the following, retrying as appropriate.
         //  - Look up the onion descriptor in the state.
         //  - Download the onion descriptor if one isn't there.
@@ -417,10 +422,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         mocks.test_got_desc(desc);
 
-        let circ = self.intro_rend_connect(desc, &mut data.ipts).await?;
-        mocks.test_got_circ(&circ);
+        let tunnel = self.intro_rend_connect(desc, &mut data.ipts).await?;
+        mocks.test_got_tunnel(&tunnel);
 
-        Ok(circ)
+        Ok(tunnel)
     }
 
     /// Ensure that `Data.desc` contains the HS descriptor
@@ -586,11 +591,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let circuit = self
             .circpool
-            .m_get_or_launch_specific(
-                &self.netdir,
-                HsCircKind::ClientHsDir,
-                OwnedCircTarget::from_circ_target(hsdir),
-            )
+            .m_get_or_launch_dir(&self.netdir, OwnedCircTarget::from_circ_target(hsdir))
             .await?;
         let source: Option<SourceInfo> = circuit
             .m_source_info()
@@ -598,7 +599,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let mut stream = circuit
             .m_begin_dir_stream()
             .await
-            .map_err(DescriptorErrorDetail::Stream)?;
+            .map_err(DescriptorErrorDetail::Circuit)?;
 
         let response = tor_dirclient::send_request(self.runtime, &request, &mut stream, source)
             .await
@@ -636,7 +637,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &self,
         desc: &HsDesc,
         data: &mut DataIpts,
-    ) -> Result<Arc<ClientCirc!(R, M)>, CE> {
+    ) -> Result<DataTunnel!(R, M), CE> {
         // Maximum number of rendezvous/introduction attempts we'll make
         let max_total_attempts = self
             .config
@@ -988,7 +989,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &'c self,
         using_rend_pt: &mut Option<RendPtIdentityForError>,
     ) -> Result<Rendezvous<'c, R, M>, FAE> {
-        let (rend_circ, rend_relay) = self
+        let (rend_tunnel, rend_relay) = self
             .circpool
             .m_get_or_launch_client_rend(&self.netdir)
             .await
@@ -1033,7 +1034,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend_pt.as_inner(),
         );
 
-        let handle_proto_error = |error| FAE::RendezvousEstablish {
+        let failed_map_err = |error| FAE::RendezvousEstablish {
             error,
             rend_pt: rend_pt.clone(),
         };
@@ -1042,14 +1043,27 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             rend2_tx,
         };
 
-        rend_circ
+        // TODO(conflux) This error handling is horrible. Problem is that this Mock system requires
+        // to send back a tor_circmgr::Error while our reply handler requires a tor_proto::Error.
+        // And unifying both is hard here considering it needs to be converted to yet another Error
+        // type "FAE" so we have to do these hoops and jumps.
+        rend_tunnel
             .m_start_conversation_last_hop(Some(message.into()), handler)
             .await
-            .map_err(handle_proto_error)?;
+            .map_err(|e| {
+                let proto_error = match e {
+                    tor_circmgr::Error::Protocol { error, .. } => error,
+                    _ => tor_proto::Error::CircuitClosed,
+                };
+                FAE::RendezvousEstablish {
+                    error: proto_error,
+                    rend_pt: rend_pt.clone(),
+                }
+            })?;
 
         // `start_conversation` returns as soon as the control message has been sent.
         // We need to obtain the RENDEZVOUS_ESTABLISHED message, which is "returned" via the oneshot.
-        let _: RendezvousEstablished = rend_established_rx.recv(handle_proto_error).await?;
+        let _: RendezvousEstablished = rend_established_rx.recv(failed_map_err).await?;
 
         debug!(
             "hs conn to {}: RPT {}: got RENDEZVOUS_ESTABLISHED",
@@ -1058,7 +1072,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         );
 
         Ok(Rendezvous {
-            rend_circ,
+            rend_tunnel,
             rend_cookie,
             rend_relay,
             rend2_rx,
@@ -1094,9 +1108,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         let intro_circ = self
             .circpool
-            .m_get_or_launch_specific(
+            .m_get_or_launch_intro(
                 &self.netdir,
-                HsCircKind::ClientIntro,
                 ipt.intro_target.clone(), // &OwnedCircTarget isn't CircTarget apparently
             )
             .await
@@ -1190,7 +1203,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     .deliver_expected_message(msg, MetaCellDisposition::ConversationFinished)
             }
         }
-        let handle_intro_proto_error = |error| FAE::IntroductionExchange { error, intro_index };
+        let failed_map_err = |error| FAE::IntroductionExchange { error, intro_index };
         let (intro_ack_tx, intro_ack_rx) = proto_oneshot::channel();
         let handler = Handler { intro_ack_tx };
 
@@ -1201,21 +1214,35 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
+        // TODO(conflux) This error handling is horrible. Problem is that this Mock system requires
+        // to send back a tor_circmgr::Error while our reply handler requires a tor_proto::Error.
+        // And unifying both is hard here considering it needs to be converted to yet another Error
+        // type "FAE" so we have to do these hoops and jumps.
         intro_circ
             .m_start_conversation_last_hop(Some(intro1_real.into()), handler)
             .await
-            .map_err(handle_intro_proto_error)?;
+            .map_err(|e| {
+                let proto_error = match e {
+                    tor_circmgr::Error::Protocol { error, .. } => error,
+                    _ => tor_proto::Error::CircuitClosed,
+                };
+                FAE::IntroductionExchange {
+                    error: proto_error,
+                    intro_index,
+                }
+            })?;
 
         // Status is checked by `.success()`, and we don't look at the extensions;
         // just discard the known-successful `IntroduceAck`
-        let _: IntroduceAck = intro_ack_rx
-            .recv(handle_intro_proto_error)
-            .await?
-            .success()
-            .map_err(|status| FAE::IntroductionFailed {
-                status,
-                intro_index,
-            })?;
+        let _: IntroduceAck =
+            intro_ack_rx
+                .recv(failed_map_err)
+                .await?
+                .success()
+                .map_err(|status| FAE::IntroductionFailed {
+                    status,
+                    intro_index,
+                })?;
 
         debug!(
             "hs conn to {}: RPT {} IPT {}: making introduction - success",
@@ -1252,12 +1279,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         ipt: &UsableIntroPt<'_>,
         rendezvous: Rendezvous<'c, R, M>,
         introduced: Introduced<R, M>,
-    ) -> Result<Arc<ClientCirc!(R, M)>, FAE> {
+    ) -> Result<DataTunnel!(R, M), FAE> {
         use tor_proto::circuit::handshake;
 
         let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
         let intro_index = ipt.intro_index;
-        let handle_proto_error = |error| FAE::RendezvousCompletionCircuitError {
+        let failed_map_err = |error| FAE::RendezvousCompletionCircuitError {
             error,
             intro_index,
             rend_pt: rend_pt.clone(),
@@ -1270,7 +1297,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
-        let rend2_msg: Rendezvous2 = rendezvous.rend2_rx.recv(handle_proto_error).await?;
+        let rend2_msg: Rendezvous2 = rendezvous.rend2_rx.recv(failed_map_err).await?;
 
         debug!(
             "hs conn to {}: RPT {} IPT {}: received RENDEZVOUS2",
@@ -1308,7 +1335,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let protocols = self.netdir.client_protocol_status().required_protocols();
 
         rendezvous
-            .rend_circ
+            .rend_tunnel
             .m_extend_virtual(
                 handshake::RelayProtocol::HsV3,
                 handshake::HandshakeRole::Initiator,
@@ -1328,7 +1355,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             intro_index,
         );
 
-        Ok(rendezvous.rend_circ)
+        Ok(rendezvous.rend_tunnel)
     }
 
     /// Helper to estimate a timeout for a complicated operation
@@ -1374,8 +1401,8 @@ trait MocksForConnect<R>: Clone {
 
     /// Tell tests we got this descriptor text
     fn test_got_desc(&self, _: &HsDesc) {}
-    /// Tell tests we got this circuit
-    fn test_got_circ(&self, _: &Arc<ClientCirc!(R, Self)>) {}
+    /// Tell tests we got this data tunnel.
+    fn test_got_tunnel(&self, _: &DataTunnel!(R, Self)) {}
     /// Tell tests we have obtained and sorted the intros like this
     fn test_got_ipts(&self, _: &[UsableIntroPt]) {}
 
@@ -1396,44 +1423,59 @@ trait MocksForConnect<R>: Clone {
 /// <https://github.com/rust-lang/rust/issues/111177>
 #[async_trait]
 trait MockableCircPool<R> {
-    /// Client circuit
-    type ClientCirc: MockableClientCirc;
-    async fn m_get_or_launch_specific(
+    /// Directory tunnel.
+    type DirTunnel: MockableClientDir;
+    /// Data tunnel.
+    type DataTunnel: MockableClientData;
+    /// Intro tunnel.
+    type IntroTunnel: MockableClientIntro;
+
+    async fn m_get_or_launch_dir(
         &self,
         netdir: &NetDir,
-        kind: HsCircKind,
         target: impl CircTarget + Send + Sync + 'async_trait,
-    ) -> tor_circmgr::Result<Arc<Self::ClientCirc>>;
+    ) -> tor_circmgr::Result<Self::DirTunnel>;
+
+    async fn m_get_or_launch_intro(
+        &self,
+        netdir: &NetDir,
+        target: impl CircTarget + Send + Sync + 'async_trait,
+    ) -> tor_circmgr::Result<Self::IntroTunnel>;
 
     /// Client circuit
     async fn m_get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> tor_circmgr::Result<(Arc<Self::ClientCirc>, Relay<'a>)>;
+    ) -> tor_circmgr::Result<(Self::DataTunnel, Relay<'a>)>;
 
     /// Estimate timeout
     fn m_estimate_timeout(&self, action: &TimeoutsAction) -> Duration;
 }
-/// Mock for `ClientCirc`
+
+/// Mock for onion service client directory tunnel.
 #[async_trait]
-trait MockableClientCirc: Debug {
+trait MockableClientDir: Debug {
     /// Client circuit
     type DirStream: AsyncRead + AsyncWrite + Send + Unpin;
-    async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream>;
+    async fn m_begin_dir_stream(&self) -> tor_circmgr::Result<Self::DirStream>;
 
+    /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
+    fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>>;
+}
+
+/// Mock for onion service client data tunnel.
+#[async_trait]
+trait MockableClientData: Debug {
+    /// Conversation
+    type Conversation<'r>
+    where
+        Self: 'r;
     /// Converse
     async fn m_start_conversation_last_hop(
         &self,
         msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-    ) -> tor_proto::Result<Self::Conversation<'_>>;
-    /// Conversation
-    type Conversation<'r>
-    where
-        Self: 'r;
-
-    /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
-    fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>>;
+    ) -> tor_circmgr::Result<Self::Conversation<'_>>;
 
     /// Add a virtual hop to the circuit.
     async fn m_extend_virtual(
@@ -1443,7 +1485,22 @@ trait MockableClientCirc: Debug {
         handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
         capabilities: &tor_protover::Protocols,
-    ) -> tor_proto::Result<()>;
+    ) -> tor_circmgr::Result<()>;
+}
+
+/// Mock for onion service client introduction tunnel.
+#[async_trait]
+trait MockableClientIntro: Debug {
+    /// Conversation
+    type Conversation<'r>
+    where
+        Self: 'r;
+    /// Converse
+    async fn m_start_conversation_last_hop(
+        &self,
+        msg: Option<AnyRelayMsg>,
+        reply_handler: impl MsgHandler + Send + 'static,
+    ) -> tor_circmgr::Result<Self::Conversation<'_>>;
 }
 
 impl<R: Runtime> MocksForConnect<R> for () {
@@ -1456,19 +1513,28 @@ impl<R: Runtime> MocksForConnect<R> for () {
 }
 #[async_trait]
 impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
-    type ClientCirc = ClientCirc;
-    async fn m_get_or_launch_specific(
+    type DirTunnel = ClientOnionServiceDirTunnel;
+    type DataTunnel = ClientOnionServiceDataTunnel;
+    type IntroTunnel = ClientOnionServiceIntroTunnel;
+
+    async fn m_get_or_launch_dir(
         &self,
         netdir: &NetDir,
-        kind: HsCircKind,
         target: impl CircTarget + Send + Sync + 'async_trait,
-    ) -> tor_circmgr::Result<Arc<ClientCirc>> {
-        HsCircPool::get_or_launch_specific(self, netdir, kind, target).await
+    ) -> tor_circmgr::Result<Self::DirTunnel> {
+        Ok(HsCircPool::get_or_launch_client_dir(self, netdir, target).await?)
+    }
+    async fn m_get_or_launch_intro(
+        &self,
+        netdir: &NetDir,
+        target: impl CircTarget + Send + Sync + 'async_trait,
+    ) -> tor_circmgr::Result<Self::IntroTunnel> {
+        Ok(HsCircPool::get_or_launch_client_intro(self, netdir, target).await?)
     }
     async fn m_get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> tor_circmgr::Result<(Arc<ClientCirc>, Relay<'a>)> {
+    ) -> tor_circmgr::Result<(Self::DataTunnel, Relay<'a>)> {
         HsCircPool::get_or_launch_client_rend(self, netdir).await
     }
     fn m_estimate_timeout(&self, action: &TimeoutsAction) -> Duration {
@@ -1476,21 +1542,30 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
     }
 }
 #[async_trait]
-impl MockableClientCirc for ClientCirc {
+impl MockableClientDir for ClientOnionServiceDirTunnel {
     /// Client circuit
     type DirStream = tor_proto::stream::DataStream;
-    async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
-        ClientCirc::begin_dir_stream(self).await
+    async fn m_begin_dir_stream(&self) -> tor_circmgr::Result<Self::DirStream> {
+        Self::begin_dir_stream(self).await
     }
+
+    /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
+    fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
+        SourceInfo::from_tunnel(self)
+    }
+}
+
+#[async_trait]
+impl MockableClientData for ClientOnionServiceDataTunnel {
+    type Conversation<'r> = tor_proto::Conversation<'r>;
+
     async fn m_start_conversation_last_hop(
         &self,
         msg: Option<AnyRelayMsg>,
         reply_handler: impl MsgHandler + Send + 'static,
-    ) -> tor_proto::Result<Self::Conversation<'_>> {
-        ClientCirc::start_conversation(self, msg, reply_handler, tor_proto::TargetHop::LastHop)
-            .await
+    ) -> tor_circmgr::Result<Self::Conversation<'_>> {
+        Self::start_conversation(self, msg, reply_handler, TargetHop::LastHop).await
     }
-    type Conversation<'r> = tor_proto::circuit::Conversation<'r>;
 
     async fn m_extend_virtual(
         &self,
@@ -1499,19 +1574,27 @@ impl MockableClientCirc for ClientCirc {
         handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
         capabilities: &tor_protover::Protocols,
-    ) -> tor_proto::Result<()> {
-        ClientCirc::extend_virtual(self, protocol, role, handshake, &params, capabilities).await
+    ) -> tor_circmgr::Result<()> {
+        Self::extend_virtual(self, protocol, role, handshake, params, capabilities).await
     }
+}
 
-    /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
-    fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
-        SourceInfo::from_circuit(self)
+#[async_trait]
+impl MockableClientIntro for ClientOnionServiceIntroTunnel {
+    type Conversation<'r> = tor_proto::Conversation<'r>;
+
+    async fn m_start_conversation_last_hop(
+        &self,
+        msg: Option<AnyRelayMsg>,
+        reply_handler: impl MsgHandler + Send + 'static,
+    ) -> tor_circmgr::Result<Self::Conversation<'_>> {
+        Self::start_conversation(self, msg, reply_handler, TargetHop::LastHop).await
     }
 }
 
 #[async_trait]
 impl MockableConnectorData for Data {
-    type ClientCirc = ClientCirc;
+    type DataTunnel = ClientOnionServiceDataTunnel;
     type MockGlobalState = ();
 
     async fn connect<R: Runtime>(
@@ -1521,12 +1604,12 @@ impl MockableConnectorData for Data {
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<Arc<Self::ClientCirc>, ConnError> {
+    ) -> Result<Self::DataTunnel, ConnError> {
         connect(connector, netdir, config, hsid, data, secret_keys).await
     }
 
-    fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
-        !circuit.is_closing()
+    fn tunnel_is_ok(tunnel: &Self::DataTunnel) -> bool {
+        !tunnel.is_closed()
     }
 }
 
@@ -1601,25 +1684,33 @@ mod test {
     #[allow(clippy::diverging_sub_expression)] // async_trait + todo!()
     #[async_trait]
     impl<R: Runtime> MockableCircPool<R> for Mocks<()> {
-        type ClientCirc = Mocks<()>;
-        async fn m_get_or_launch_specific(
+        type DataTunnel = Mocks<()>;
+        type DirTunnel = Mocks<()>;
+        type IntroTunnel = Mocks<()>;
+
+        async fn m_get_or_launch_dir(
             &self,
             _netdir: &NetDir,
-            kind: HsCircKind,
             target: impl CircTarget + Send + Sync + 'async_trait,
-        ) -> tor_circmgr::Result<Arc<Self::ClientCirc>> {
-            assert_eq!(kind, HsCircKind::ClientHsDir);
+        ) -> tor_circmgr::Result<Self::DirTunnel> {
             let target = OwnedCircTarget::from_circ_target(&target);
             self.mglobal.lock().unwrap().hsdirs_asked.push(target);
             // Adding the `Arc` here is a little ugly, but that's what we get
             // for using the same Mocks for everything.
-            Ok(Arc::new(self.clone()))
+            Ok(self.clone())
+        }
+        async fn m_get_or_launch_intro(
+            &self,
+            _netdir: &NetDir,
+            target: impl CircTarget + Send + Sync + 'async_trait,
+        ) -> tor_circmgr::Result<Self::IntroTunnel> {
+            todo!()
         }
         /// Client circuit
         async fn m_get_or_launch_client_rend<'a>(
             &self,
             netdir: &'a NetDir,
-        ) -> tor_circmgr::Result<(Arc<ClientCirc!(R, Self)>, Relay<'a>)> {
+        ) -> tor_circmgr::Result<(Self::DataTunnel, Relay<'a>)> {
             todo!()
         }
 
@@ -1629,10 +1720,9 @@ mod test {
     }
     #[allow(clippy::diverging_sub_expression)] // async_trait + todo!()
     #[async_trait]
-    impl MockableClientCirc for Mocks<()> {
+    impl MockableClientDir for Mocks<()> {
         type DirStream = JoinReadWrite<futures::io::Cursor<Box<[u8]>>, futures::io::Sink>;
-        type Conversation<'r> = &'r ();
-        async fn m_begin_dir_stream(self: Arc<Self>) -> tor_proto::Result<Self::DirStream> {
+        async fn m_begin_dir_stream(&self) -> tor_circmgr::Result<Self::DirStream> {
             let response = format!(
                 r#"HTTP/1.1 200 OK
 
@@ -1647,11 +1737,21 @@ mod test {
                 futures::io::sink(),
             ))
         }
+
+        fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
+            Ok(None)
+        }
+    }
+
+    #[allow(clippy::diverging_sub_expression)] // async_trait + todo!()
+    #[async_trait]
+    impl MockableClientData for Mocks<()> {
+        type Conversation<'r> = &'r ();
         async fn m_start_conversation_last_hop(
             &self,
             msg: Option<AnyRelayMsg>,
             reply_handler: impl MsgHandler + Send + 'static,
-        ) -> tor_proto::Result<Self::Conversation<'_>> {
+        ) -> tor_circmgr::Result<Self::Conversation<'_>> {
             todo!()
         }
 
@@ -1662,13 +1762,21 @@ mod test {
             handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
             params: CircParameters,
             capabilities: &tor_protover::Protocols,
-        ) -> tor_proto::Result<()> {
+        ) -> tor_circmgr::Result<()> {
             todo!()
         }
+    }
 
-        /// Get a tor_dirclient::SourceInfo for this circuit, if possible.
-        fn m_source_info(&self) -> tor_proto::Result<Option<SourceInfo>> {
-            Ok(None)
+    #[allow(clippy::diverging_sub_expression)] // async_trait + todo!()
+    #[async_trait]
+    impl MockableClientIntro for Mocks<()> {
+        type Conversation<'r> = &'r ();
+        async fn m_start_conversation_last_hop(
+            &self,
+            msg: Option<AnyRelayMsg>,
+            reply_handler: impl MsgHandler + Send + 'static,
+        ) -> tor_circmgr::Result<Self::Conversation<'_>> {
+            todo!()
         }
     }
 

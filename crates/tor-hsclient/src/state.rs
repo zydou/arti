@@ -181,7 +181,7 @@ enum ServiceState<D: MockableConnectorData> {
         data: D,
         /// The circuit
         #[educe(Debug(ignore))]
-        circuit: Arc<D::ClientCirc>,
+        tunnel: Arc<D::DataTunnel>,
         /// Last time we touched this, including reuse
         ///
         /// This is set when we created the circuit, and updated when we
@@ -305,7 +305,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
     table_index: TableIndex,
     rechecks: &mut impl Iterator,
     mut guard: MutexGuard<'_, Services<D>>,
-) -> Result<Either<Continuation, Arc<D::ClientCirc>>, ConnError> {
+) -> Result<Either<Continuation, Arc<D::DataTunnel>>, ConnError> {
     let blank_state = || ServiceState::blank(&connector.runtime);
 
     for _recheck in rechecks {
@@ -320,18 +320,18 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
         let (data, barrier_send) = match state {
             ServiceState::Open {
                 data: _,
-                circuit,
+                tunnel,
                 last_used,
                 circuit_expiry_task: _,
             } => {
                 let now = connector.runtime.now();
-                if !D::circuit_is_ok(circuit) {
+                if !D::tunnel_is_ok(tunnel) {
                     // Well that's no good, we need a fresh one, but keep the data
                     let data = match mem::replace(state, ServiceState::Dummy) {
                         ServiceState::Open {
                             data,
                             last_used: _,
-                            circuit: _,
+                            tunnel: _,
                             circuit_expiry_task: _,
                         } => data,
                         _ => panic!("state changed between matches"),
@@ -346,7 +346,7 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                 // No need to tell expiry task about revised expiry time;
                 // it will see the new last_used when it wakes up at the old expiry time.
 
-                return Ok::<_, ConnError>(Right(circuit.clone()));
+                return Ok::<_, ConnError>(Right(tunnel.clone()));
             }
             ServiceState::Working {
                 barrier_recv,
@@ -451,10 +451,10 @@ fn obtain_circuit_or_continuation_info<D: MockableConnectorData>(
                 };
 
                 match got {
-                    Ok((circuit, circuit_expiry_task)) => {
+                    Ok((tunnel, circuit_expiry_task)) => {
                         *state = ServiceState::Open {
                             data,
-                            circuit,
+                            tunnel: Arc::new(tunnel),
                             last_used,
                             circuit_expiry_task,
                         }
@@ -528,7 +528,7 @@ impl<D: MockableConnectorData> Services<D> {
         hs_id: HsId,
         isolation: Box<dyn Isolation>,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<Arc<D::ClientCirc>, ConnError> {
+    ) -> Result<Arc<D::DataTunnel>, ConnError> {
         let blank_state = || ServiceState::blank(&connector.runtime);
 
         let mut rechecks = 0..MAX_RECHECKS;
@@ -683,7 +683,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
                         match mem::replace(state, ServiceState::Dummy) {
                             ServiceState::Open {
                                 data,
-                                circuit,
+                                tunnel: circuit,
                                 last_used,
                                 circuit_expiry_task,
                             } => {
@@ -714,7 +714,7 @@ impl<D: MockableConnectorData> ServiceState<D> {
 #[async_trait]
 pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
     /// Client circuit
-    type ClientCirc: Sync + Send + 'static;
+    type DataTunnel: Sync + Send + 'static;
 
     /// Mock state
     type MockGlobalState: Clone + Sync + Send + 'static;
@@ -727,10 +727,10 @@ pub trait MockableConnectorData: Default + Debug + Send + Sync + 'static {
         hsid: HsId,
         data: &mut Self,
         secret_keys: HsClientSecretKeys,
-    ) -> Result<Arc<Self::ClientCirc>, ConnError>;
+    ) -> Result<Self::DataTunnel, ConnError>;
 
     /// Is circuit OK?  Ie, not `.is_closing()`.
-    fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool;
+    fn tunnel_is_ok(tunnel: &Self::DataTunnel) -> bool;
 }
 
 #[cfg(test)]
@@ -779,7 +779,7 @@ pub(crate) mod test {
 
     #[derive(Clone, Educe)]
     #[educe(Debug)]
-    struct MockCirc {
+    struct MockTunnel {
         #[educe(Debug(method = "debug_arc_mutex"))]
         ok: Arc<Mutex<bool>>,
         connect_called: usize,
@@ -796,22 +796,22 @@ pub(crate) mod test {
         Debug::fmt(&*guard, f)
     }
 
-    impl PartialEq for MockCirc {
-        fn eq(&self, other: &MockCirc) -> bool {
+    impl PartialEq for MockTunnel {
+        fn eq(&self, other: &MockTunnel) -> bool {
             Arc::ptr_eq(&self.ok, &other.ok)
         }
     }
 
-    impl MockCirc {
+    impl MockTunnel {
         fn new(connect_called: usize) -> Self {
             let ok = Arc::new(Mutex::new(true));
-            MockCirc { ok, connect_called }
+            MockTunnel { ok, connect_called }
         }
     }
 
     #[async_trait]
     impl MockableConnectorData for MockData {
-        type ClientCirc = MockCirc;
+        type DataTunnel = MockTunnel;
         type MockGlobalState = MockGlobalState;
 
         async fn connect<R: Runtime>(
@@ -821,11 +821,11 @@ pub(crate) mod test {
             _hsid: HsId,
             data: &mut MockData,
             _secret_keys: HsClientSecretKeys,
-        ) -> Result<Arc<Self::ClientCirc>, E> {
+        ) -> Result<Self::DataTunnel, E> {
             data.connect_called += 1;
             let make = {
                 let connect_called = data.connect_called;
-                move |()| Arc::new(MockCirc::new(connect_called))
+                move |()| MockTunnel::new(connect_called)
             };
             let mut give = connector.mock_for_state.give.clone();
             if let Ready(ret) = &*give.borrow() {
@@ -839,7 +839,7 @@ pub(crate) mod test {
             }
         }
 
-        fn circuit_is_ok(circuit: &Self::ClientCirc) -> bool {
+        fn tunnel_is_ok(circuit: &Self::DataTunnel) -> bool {
             *circuit.ok.lock().unwrap()
         }
     }
@@ -910,7 +910,7 @@ pub(crate) mod test {
         id: u8,
         secret_keys: &HsClientSecretKeys,
         isolation: Option<NarrowableIsolation>,
-    ) -> Result<Arc<MockCirc>, ConnError> {
+    ) -> Result<Arc<MockTunnel>, ConnError> {
         let netdir = tor_netdir::testnet::construct_netdir()
             .unwrap_if_sufficient()
             .unwrap();

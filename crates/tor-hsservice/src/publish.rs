@@ -193,7 +193,7 @@ mod test {
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
     use crate::pow::NewPowManager;
-    use crate::publish::reactor::MockableClientCirc;
+    use crate::publish::reactor::MockableDirTunnel;
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::test::create_storage_handles;
     use crate::HsNickname;
@@ -250,23 +250,20 @@ mod test {
     #[async_trait]
     impl<I: PollReadIter> Mockable for MockReactorState<I> {
         type Rng = TestingRng;
-        type ClientCirc = MockClientCirc<I>;
+        type Tunnel = MockClientCirc<I>;
 
         fn thread_rng(&self) -> Self::Rng {
             testing_rng()
         }
 
-        async fn get_or_launch_specific<T>(
+        async fn get_or_launch_hs_dir<T>(
             &self,
             _netdir: &tor_netdir::NetDir,
-            kind: HsCircKind,
             target: T,
-        ) -> Result<Arc<Self::ClientCirc>, tor_circmgr::Error>
+        ) -> Result<Self::Tunnel, tor_circmgr::Error>
         where
             T: tor_linkspec::CircTarget + Send + Sync,
         {
-            assert_eq!(kind, HsCircKind::SvcHsDir);
-
             // Look up the next poll_read value to return for this relay.
             let id = target.rsa_identity().unwrap();
             let mut map = self.responses_for_hsdir.lock().unwrap();
@@ -298,10 +295,10 @@ mod test {
     }
 
     #[async_trait]
-    impl<I: PollReadIter> MockableClientCirc for MockClientCirc<I> {
+    impl<I: PollReadIter> MockableDirTunnel for MockClientCirc<I> {
         type DataStream = MockDataStream<I>;
 
-        async fn begin_dir_stream(self: Arc<Self>) -> Result<Self::DataStream, tor_proto::Error> {
+        async fn begin_dir_stream(&self) -> Result<Self::DataStream, tor_circmgr::Error> {
             Ok(MockDataStream {
                 publish_count: Arc::clone(&self.publish_count),
                 // TODO: this will need to change when we start reusing circuits (currently,

@@ -7,7 +7,7 @@ use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
 };
-use tor_circmgr::build::onion_circparams_from_netparams;
+use tor_circmgr::{build::onion_circparams_from_netparams, ServiceOnionServiceDataTunnel};
 use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
 use tor_proto::{
     circuit::handshake::{
@@ -71,14 +71,14 @@ pub enum EstablishSessionError {
     RendCirc(#[source] RetryError<tor_circmgr::Error>),
     /// Encountered a failure while trying to add a virtual hop to the circuit.
     #[error("Could not add virtual hop to circuit")]
-    VirtualHop(#[source] tor_proto::Error),
+    VirtualHop(#[source] tor_circmgr::Error),
     /// We encountered an error while configuring the virtual hop to send us
     /// BEGIN messages.
     #[error("Could not configure circuit to allow BEGIN messages")]
-    AcceptBegins(#[source] tor_proto::Error),
+    AcceptBegins(#[source] tor_circmgr::Error),
     /// We encountered an error while sending the rendezvous1 message.
     #[error("Could not send RENDEZVOUS1 message")]
-    SendRendezvous(#[source] tor_proto::Error),
+    SendRendezvous(#[source] tor_circmgr::Error),
     /// The client sent us a rendezvous point with an impossible set of identities.
     ///
     /// (For example, it gave us `(Ed1, Rsa1)`, but in the network directory `Ed1` is
@@ -154,7 +154,7 @@ pub(crate) struct OpenSession {
     ///
     /// See `RendRequest::accept()` for more information on the life cycle of
     /// this circuit.
-    pub(crate) circuit: Arc<ClientCirc>,
+    pub(crate) tunnel: ServiceOnionServiceDataTunnel,
 }
 
 /// Dyn-safe trait to represent a `HsCircPool`.
@@ -166,9 +166,8 @@ pub(crate) trait RendCircConnector: Send + Sync {
     async fn get_or_launch_specific(
         &self,
         netdir: &tor_netdir::NetDir,
-        kind: HsCircKind,
         target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
-    ) -> tor_circmgr::Result<Arc<ClientCirc>>;
+    ) -> tor_circmgr::Result<ServiceOnionServiceDataTunnel>;
 }
 
 #[async_trait]
@@ -176,10 +175,9 @@ impl<R: Runtime> RendCircConnector for HsCircPool<R> {
     async fn get_or_launch_specific(
         &self,
         netdir: &tor_netdir::NetDir,
-        kind: HsCircKind,
         target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
-    ) -> tor_circmgr::Result<Arc<ClientCirc>> {
-        HsCircPool::get_or_launch_specific(self, netdir, kind, target).await
+    ) -> tor_circmgr::Result<ServiceOnionServiceDataTunnel> {
+        HsCircPool::get_or_launch_svc_rend(self, netdir, target).await
     }
 }
 
@@ -318,18 +316,18 @@ impl IntroRequest {
         };
 
         let max_n_attempts = netdir.params().hs_service_rendezvous_failures_max;
-        let mut circuit = None;
+        let mut tunnel = None;
         let mut retry_err: RetryError<tor_circmgr::Error> =
             RetryError::in_attempt_to("Establish a circuit to a rendezvous point");
 
         // Open circuit to rendezvous point.
         for _attempt in 1..=max_n_attempts.into() {
             match hs_pool
-                .get_or_launch_specific(&netdir, HsCircKind::SvcRend, rend_point.clone())
+                .get_or_launch_specific(&netdir, rend_point.clone())
                 .await
             {
-                Ok(circ) => {
-                    circuit = Some(circ);
+                Ok(t) => {
+                    tunnel = Some(t);
                     break;
                 }
                 Err(e) => {
@@ -340,7 +338,7 @@ impl IntroRequest {
                 }
             }
         }
-        let circuit = circuit.ok_or_else(|| E::RendCirc(retry_err))?;
+        let tunnel = tunnel.ok_or_else(|| E::RendCirc(retry_err))?;
 
         // We'll need parameters to extend the virtual hop.
         let params = onion_circparams_from_netparams(netdir.params())
@@ -352,42 +350,42 @@ impl IntroRequest {
         // We won't need the netdir any longer; stop holding the reference.
         drop(netdir);
 
-        let last_real_hop = circuit
+        let last_real_hop = tunnel
             .last_hop()
             .map_err(into_internal!("Circuit with no final hop"))?;
 
         // Add a virtual hop.
-        circuit
+        tunnel
             .extend_virtual(
                 handshake::RelayProtocol::HsV3,
                 handshake::HandshakeRole::Responder,
                 self.key_gen,
-                &params,
+                params,
                 &protocols,
             )
             .await
             .map_err(E::VirtualHop)?;
 
-        let virtual_hop = circuit
+        let virtual_hop = tunnel
             .last_hop()
             .map_err(into_internal!("Circuit with no virtual hop"))?;
 
         // Accept begins from that virtual hop
-        let stream_requests = circuit
+        let stream_requests = tunnel
             .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], virtual_hop, filter)
             .await
             .map_err(E::AcceptBegins)?
             .boxed();
 
         // Send the RENDEZVOUS1 message.
-        circuit
+        tunnel
             .send_raw_msg(self.rend1_msg.into(), last_real_hop)
             .await
             .map_err(E::SendRendezvous)?;
 
         Ok(OpenSession {
             stream_requests,
-            circuit,
+            tunnel,
         })
     }
 

@@ -10,14 +10,14 @@
 //! separate set of keys with each hop.
 //!
 //! To build a circuit, first create a [crate::channel::Channel], then
-//! call its [crate::channel::Channel::new_circ] method.  This yields
-//! a [PendingClientCirc] object that won't become live until you call
+//! call its [crate::channel::Channel::new_tunnel] method.  This yields
+//! a [PendingClientTunnel] object that won't become live until you call
 //! one of the methods
-//! (typically [`PendingClientCirc::create_firsthop`])
+//! (typically [`PendingClientTunnel::create_firsthop`])
 //! that extends it to its first hop.  After you've
-//! done that, you can call [`ClientCirc::extend`] on the circuit to
-//! build it into a multi-hop circuit.  Finally, you can use
-//! [ClientCirc::begin_stream] to get a Stream object that can be used
+//! done that, you can call [`ClientCirc::extend`] on the tunnel to
+//! build it into a multi-hop tunnel.  Finally, you can use
+//! [ClientTunnel::begin_stream] to get a Stream object that can be used
 //! for anonymized data.
 //!
 //! # Implementation
@@ -51,56 +51,34 @@ use crate::circuit::handshake::RelayCryptLayerProtocol;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
-use crate::memquota::{CircuitAccount, SpecificAccount as _};
-use crate::stream::queue::stream_queue;
-use crate::stream::xon_xoff::XonXoffReaderCtrl;
-use crate::stream::{
-    AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
-    StreamRateLimit, StreamReceiver,
-};
+use crate::memquota::CircuitAccount;
 use crate::tunnel::circuit::celltypes::*;
-use crate::tunnel::reactor::CtrlCmd;
-use crate::tunnel::reactor::{
-    CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
-};
-use crate::tunnel::{StreamTarget, TargetHop};
-use crate::util::notify::NotifySender;
+use crate::tunnel::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::util::skew::ClockSkew;
-use crate::{Error, ResolveError, Result};
+use crate::{Error, Result};
 use cfg_if::cfg_if;
 use educe::Educe;
 use path::HopDetail;
-use postage::watch;
-use tor_cell::relaycell::{self, RelayCellFormat};
-use tor_cell::{
-    chancell::CircId,
-    relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
-};
-
+use tor_cell::chancell::CircId;
+use tor_cell::relaycell::RelayCellFormat;
 use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
+use tor_rtcompat::DynTimeProvider;
 
 pub use crate::crypto::binding::CircuitBinding;
 pub use crate::memquota::StreamAccount;
 pub use crate::tunnel::circuit::unique_id::UniqId;
 
-#[cfg(feature = "hs-service")]
-use {
-    crate::stream::{IncomingCmdChecker, IncomingStream},
-    crate::tunnel::reactor::StreamReqInfo,
-};
+use super::{ClientTunnel, TargetHop};
 
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
-use crate::congestion::sendme::StreamRecvWindow;
-use crate::DynTimeProvider;
 use futures::FutureExt as _;
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
-use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
+use tor_memquota::mq_queue::{self, MpscSpec};
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 
@@ -109,13 +87,7 @@ pub use path::{Path, PathEntry};
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
-#[cfg(feature = "send-control-msg")]
-use {crate::tunnel::msghandler::UserMsgHandler, crate::tunnel::reactor::MetaCellHandler};
-
 pub use crate::tunnel::reactor::syncview::ClientCircSyncView;
-#[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub use {crate::tunnel::msghandler::MsgHandler, crate::tunnel::reactor::MetaCellDisposition};
 
 /// MPSC queue relating to a stream (either inbound or outbound), sender
 pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
@@ -132,11 +104,11 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 ///
 /// # Circuit life cycle
 ///
-/// `ClientCirc`s are created in an initially unusable state using [`Channel::new_circ`],
-/// which returns a [`PendingClientCirc`].  To get a real (one-hop) circuit from
+/// `ClientCirc`s are created in an initially unusable state using [`Channel::new_tunnel`],
+/// which returns a [`PendingClientTunnel`].  To get a real (one-hop) tunnel from
 /// one of these, you invoke one of its `create_firsthop` methods (typically
-/// [`create_firsthop_fast()`](PendingClientCirc::create_firsthop_fast) or
-/// [`create_firsthop()`](PendingClientCirc::create_firsthop)).
+/// [`create_firsthop_fast()`](PendingClientTunnel::create_firsthop_fast) or
+/// [`create_firsthop()`](PendingClientTunnel::create_firsthop)).
 /// Then, to add more hops to the circuit, you can call
 /// [`extend()`](ClientCirc::extend) on it.
 ///
@@ -149,7 +121,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 ///    2. Some hop on the circuit sends a `DESTROY` message to tear down the
 ///       circuit.
 ///    3. The circuit's channel is closed.
-///    4. Someone calls [`ClientCirc::terminate`] on the circuit.
+///    4. Someone calls [`ClientTunnel::terminate`] on the tunnel owning the circuit.
 ///    5. The last reference to the `ClientCirc` is dropped. (Note that every stream
 ///       on a `ClientCirc` keeps a reference to it, which will in turn keep the
 ///       circuit from closing until all those streams have gone away.)
@@ -172,7 +144,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 //
 pub struct ClientCirc {
     /// Mutable state shared with the `Reactor`.
-    mutable: Arc<TunnelMutableState>,
+    pub(super) mutable: Arc<TunnelMutableState>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -187,9 +159,19 @@ pub struct ClientCirc {
     #[cfg(test)]
     circid: CircId,
     /// Memory quota account
-    memquota: CircuitAccount,
+    pub(super) memquota: CircuitAccount,
     /// Time provider
-    time_provider: DynTimeProvider,
+    pub(super) time_provider: DynTimeProvider,
+    /// Indicate if this reactor is a multi path or not. This is flagged at the very first
+    /// LinkCircuit seen and never changed after.
+    ///
+    /// We can't just look at the number of legs because a multi path tunnel could have 1 leg only
+    /// because the other(s) have collapsed.
+    ///
+    /// This is very important because it allows to make a quick efficient safety check by the
+    /// circmgr higher level tunnel type without locking the mutable state or using the command
+    /// channel.
+    pub(super) is_multi_path: bool,
 }
 
 /// The mutable state of a tunnel, shared between [`ClientCirc`] and [`Reactor`].
@@ -235,16 +217,21 @@ impl TunnelMutableState {
         debug_assert!(state.is_some());
     }
 
-    /// Return a [`Path`] object describing all the hops in the specified circuit.
-    ///
-    /// See [`MutableState::path`].
-    fn path_ref(&self, unique_id: UniqId) -> Result<Arc<Path>> {
+    /// Return a [`Path`] object describing all the circuits in this tunnel.
+    fn all_paths(&self) -> Vec<Arc<Path>> {
         let lock = self.0.lock().expect("lock poisoned");
-        let mutable = lock
-            .get(&unique_id)
-            .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
+        lock.values().map(|mutable| mutable.path()).collect()
+    }
 
-        Ok(mutable.path())
+    /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
+    ///
+    /// Returns an error if the tunnel has more than one tunnel.
+    fn single_path(&self) -> Result<Arc<Path>> {
+        use itertools::Itertools as _;
+
+        self.all_paths().into_iter().exactly_one().map_err(|_| {
+            bad_api_usage!("requested the single path of a multi-path tunnel?!").into()
+        })
     }
 
     /// Return a description of the first hop of this circuit.
@@ -273,7 +260,7 @@ impl TunnelMutableState {
     /// Returns an error if a circuit with the specified [`UniqId`] doesn't exist.
     ///
     /// See [`MutableState::last_hop_num`].
-    fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
+    pub(super) fn last_hop_num(&self, unique_id: UniqId) -> Result<Option<HopNum>> {
         let lock = self.0.lock().expect("lock poisoned");
         let mutable = lock
             .get(&unique_id)
@@ -292,15 +279,6 @@ impl TunnelMutableState {
             .ok_or_else(|| bad_api_usage!("no circuit with unique ID {unique_id}"))?;
 
         Ok(mutable.n_hops())
-    }
-
-    /// Return the number of legs in this tunnel.
-    ///
-    /// TODO(conflux-fork): this can be removed once we modify `path_ref`
-    /// to return *all* the Paths in the tunnel.
-    fn n_legs(&self) -> usize {
-        let lock = self.0.lock().expect("lock poisoned");
-        lock.len()
     }
 }
 
@@ -388,12 +366,12 @@ pub(super) struct CircuitState {
 ///
 /// To use one of these, call `create_firsthop_fast()` or `create_firsthop()`
 /// to negotiate the cryptographic handshake with the first hop.
-pub struct PendingClientCirc {
+pub struct PendingClientTunnel {
     /// A oneshot receiver on which we'll receive a CREATED* cell,
     /// or a DESTROY cell.
     recvcreated: oneshot::Receiver<CreateResponse>,
     /// The ClientCirc object that we can expose on success.
-    circ: Arc<ClientCirc>,
+    circ: ClientCirc,
 }
 
 /// Description of the network's current rules for building circuits.
@@ -613,6 +591,11 @@ impl CircParameters {
 }
 
 impl ClientCirc {
+    /// Convert this `ClientCirc` into a single circuit [`ClientTunnel`].
+    pub fn into_tunnel(self) -> Result<ClientTunnel> {
+        self.try_into()
+    }
+
     /// Return a description of the first hop of this circuit.
     ///
     /// # Panics
@@ -628,11 +611,9 @@ impl ClientCirc {
             .expect("called first_hop on an un-constructed circuit"))
     }
 
-    /// Return a description of the last hop of the circuit.
+    /// Return a description of the last hop of the tunnel.
     ///
     /// Return None if the last hop is virtual.
-    ///
-    /// See caveats on [`ClientCirc::last_hop_num()`].
     ///
     /// # Panics
     ///
@@ -640,7 +621,10 @@ impl ClientCirc {
     /// the tor-proto crate, but within the crate it's possible to have a
     /// circuit with no hops.)
     pub fn last_hop_info(&self) -> Result<Option<OwnedChanTarget>> {
-        let path = self.path_ref()?;
+        let all_paths = self.all_paths();
+        let path = all_paths.first().ok_or_else(|| {
+            tor_error::bad_api_usage!("Called last_hop_info an an un-constructed tunnel")
+        })?;
         Ok(path
             .hops()
             .last()
@@ -677,14 +661,19 @@ impl ClientCirc {
         Ok((self.unique_id, hop_num).into())
     }
 
-    /// Return a [`Path`] object describing all the hops in this circuit.
+    /// Return a list of [`Path`] objects describing all the circuits in this tunnel.
     ///
-    /// Note that this `Path` is not automatically updated if the circuit is
-    /// extended.
-    pub fn path_ref(&self) -> Result<Arc<Path>> {
-        self.mutable
-            .path_ref(self.unique_id)
-            .map_err(|_| Error::CircuitClosed)
+    /// Note that these `Path`s are not automatically updated if the underlying
+    /// circuits are extended.
+    pub fn all_paths(&self) -> Vec<Arc<Path>> {
+        self.mutable.all_paths()
+    }
+
+    /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
+    ///
+    /// Returns an error if the tunnel has more than one tunnel.
+    pub fn single_path(&self) -> Result<Arc<Path>> {
+        self.mutable.single_path()
     }
 
     /// Get the clock skew claimed by the first hop of the circuit.
@@ -721,244 +710,6 @@ impl ClientCirc {
             .map_err(|_| Error::CircuitClosed)?;
 
         receiver.await.map_err(|_| Error::CircuitClosed)?
-    }
-
-    /// Start an ad-hoc protocol exchange to the specified hop on this circuit
-    ///
-    /// To use this:
-    ///
-    ///  0. Create an inter-task channel you'll use to receive
-    ///     the outcome of your conversation,
-    ///     and bundle it into a [`MsgHandler`].
-    ///
-    ///  1. Call `start_conversation`.
-    ///     This will install a your handler, for incoming messages,
-    ///     and send the outgoing message (if you provided one).
-    ///     After that, each message on the circuit
-    ///     that isn't handled by the core machinery
-    ///     is passed to your provided `reply_handler`.
-    ///
-    ///  2. Possibly call `send_msg` on the [`Conversation`],
-    ///     from the call site of `start_conversation`,
-    ///     possibly multiple times, from time to time,
-    ///     to send further desired messages to the peer.
-    ///
-    ///  3. In your [`MsgHandler`], process the incoming messages.
-    ///     You may respond by
-    ///     sending additional messages
-    ///     When the protocol exchange is finished,
-    ///     `MsgHandler::handle_msg` should return
-    ///     [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
-    ///
-    /// If you don't need the `Conversation` to send followup messages,
-    /// you may simply drop it,
-    /// and rely on the responses you get from your handler,
-    /// on the channel from step 0 above.
-    /// Your handler will remain installed and able to process incoming messages
-    /// until it returns `ConversationFinished`.
-    ///
-    /// (If you don't want to accept any replies at all, it may be
-    /// simpler to use [`ClientCirc::send_raw_msg`].)
-    ///
-    /// Note that it is quite possible to use this function to violate the tor
-    /// protocol; most users of this API will not need to call it.  It is used
-    /// to implement most of the onion service handshake.
-    ///
-    /// # Limitations
-    ///
-    /// Only one conversation may be active at any one time,
-    /// for any one circuit.
-    /// This generally means that this function should not be called
-    /// on a circuit which might be shared with anyone else.
-    ///
-    /// Likewise, it is forbidden to try to extend the circuit,
-    /// while the conversation is in progress.
-    ///
-    /// After the conversation has finished, the circuit may be extended.
-    /// Or, `start_conversation` may be called again;
-    /// but, in that case there will be a gap between the two conversations,
-    /// during which no `MsgHandler` is installed,
-    /// and unexpected incoming messages would close the circuit.
-    ///
-    /// If these restrictions are violated, the circuit will be closed with an error.
-    ///
-    /// ## Precise definition of the lifetime of a conversation
-    ///
-    /// A conversation is in progress from entry to `start_conversation`,
-    /// until entry to the body of the [`MsgHandler::handle_msg`]
-    /// call which returns [`ConversationFinished`](MetaCellDisposition::ConversationFinished).
-    /// (*Entry* since `handle_msg` is synchronously embedded
-    /// into the incoming message processing.)
-    /// So you may start a new conversation as soon as you have the final response
-    /// via your inter-task channel from (0) above.
-    ///
-    /// The lifetime relationship of the [`Conversation`],
-    /// vs the handler returning `ConversationFinished`
-    /// is not enforced by the type system.
-    // Doing so without still leaving plenty of scope for runtime errors doesn't seem possible,
-    // at least while allowing sending followup messages from outside the handler.
-    //
-    // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
-    //   tor-proto interface.
-    #[cfg(feature = "send-control-msg")]
-    pub async fn start_conversation(
-        &self,
-        msg: Option<relaycell::msg::AnyRelayMsg>,
-        reply_handler: impl MsgHandler + Send + 'static,
-        hop: TargetHop,
-    ) -> Result<Conversation<'_>> {
-        // We need to resolve the TargetHop into a precise HopLocation so our msg handler can match
-        // the right Leg/Hop with inbound cell.
-        let (sender, receiver) = oneshot::channel();
-        self.command
-            .unbounded_send(CtrlCmd::ResolveTargetHop { hop, done: sender })
-            .map_err(|_| Error::CircuitClosed)?;
-        let hop_location = receiver.await.map_err(|_| Error::CircuitClosed)??;
-        let handler = Box::new(UserMsgHandler::new(hop_location, reply_handler));
-        let conversation = Conversation(self);
-        conversation.send_internal(msg, Some(handler)).await?;
-        Ok(conversation)
-    }
-
-    /// Send an ad-hoc message to a given hop on the circuit, without expecting
-    /// a reply.
-    ///
-    /// (If you want to handle one or more possible replies, see
-    /// [`ClientCirc::start_conversation`].)
-    #[cfg(feature = "send-control-msg")]
-    pub async fn send_raw_msg(
-        &self,
-        msg: relaycell::msg::AnyRelayMsg,
-        hop: TargetHop,
-    ) -> Result<()> {
-        let (sender, receiver) = oneshot::channel();
-        let ctrl_msg = CtrlMsg::SendMsg { hop, msg, sender };
-        self.control
-            .unbounded_send(ctrl_msg)
-            .map_err(|_| Error::CircuitClosed)?;
-
-        receiver.await.map_err(|_| Error::CircuitClosed)?
-    }
-
-    /// Tell this circuit to begin allowing the final hop of the circuit to try
-    /// to create new Tor streams, and to return those pending requests in an
-    /// asynchronous stream.
-    ///
-    /// Ordinarily, these requests are rejected.
-    ///
-    /// There can only be one [`Stream`](futures::Stream) of this type created on a given circuit.
-    /// If a such a [`Stream`](futures::Stream) already exists, this method will return
-    /// an error.
-    ///
-    /// After this method has been called on a circuit, the circuit is expected
-    /// to receive requests of this type indefinitely, until it is finally closed.
-    /// If the `Stream` is dropped, the next request on this circuit will cause it to close.
-    ///
-    /// Only onion services (and eventually) exit relays should call this
-    /// method.
-    //
-    // TODO: Someday, we might want to allow a stream request handler to be
-    // un-registered.  However, nothing in the Tor protocol requires it.
-    #[cfg(feature = "hs-service")]
-    pub async fn allow_stream_requests(
-        self: &Arc<ClientCirc>,
-        allow_commands: &[relaycell::RelayCmd],
-        hop: TargetHop,
-        filter: impl crate::stream::IncomingStreamRequestFilter,
-    ) -> Result<impl futures::Stream<Item = IncomingStream>> {
-        use futures::stream::StreamExt;
-
-        /// The size of the channel receiving IncomingStreamRequestContexts.
-        const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
-
-        // TODO(#2002): support onion service conflux
-        let circ_count = self.mutable.n_legs();
-        if circ_count != 1 {
-            return Err(
-                internal!("Cannot allow stream requests on tunnel with {circ_count} legs",).into(),
-            );
-        }
-
-        let time_prov = self.time_provider.clone();
-        let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
-        let (incoming_sender, incoming_receiver) =
-            MpscSpec::new(INCOMING_BUFFER).new_mq(time_prov, self.memquota.as_raw_account())?;
-        let (tx, rx) = oneshot::channel();
-
-        self.command
-            .unbounded_send(CtrlCmd::AwaitStreamRequest {
-                cmd_checker,
-                incoming_sender,
-                hop,
-                done: tx,
-                filter: Box::new(filter),
-            })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        // Check whether the AwaitStreamRequest was processed successfully.
-        rx.await.map_err(|_| Error::CircuitClosed)??;
-
-        let allowed_hop_loc = match hop {
-            TargetHop::Hop(loc) => Some(loc),
-            _ => None,
-        }
-        .ok_or_else(|| bad_api_usage!("Expected TargetHop with HopLocation"))?;
-
-        let circ = Arc::clone(self);
-        Ok(incoming_receiver.map(move |req_ctx| {
-            let StreamReqInfo {
-                req,
-                stream_id,
-                hop,
-                receiver,
-                msg_tx,
-                rate_limit_stream,
-                drain_rate_request_stream,
-                memquota,
-                relay_cell_format,
-            } = req_ctx;
-
-            // We already enforce this in handle_incoming_stream_request; this
-            // assertion is just here to make sure that we don't ever
-            // accidentally remove or fail to enforce that check, since it is
-            // security-critical.
-            assert_eq!(allowed_hop_loc, hop);
-
-            // TODO(#2002): figure out what this is going to look like
-            // for onion services (perhaps we should forbid this function
-            // from being called on a multipath circuit?)
-            //
-            // See also:
-            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3002#note_3200937
-            let target = StreamTarget {
-                circ: Arc::clone(&circ),
-                tx: msg_tx,
-                hop: allowed_hop_loc,
-                stream_id,
-                relay_cell_format,
-                rate_limit_stream,
-            };
-
-            // can be used to build a reader that supports XON/XOFF flow control
-            let xon_xoff_reader_ctrl =
-                XonXoffReaderCtrl::new(drain_rate_request_stream, target.clone());
-
-            let reader = StreamReceiver {
-                target: target.clone(),
-                receiver,
-                recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
-                ended: false,
-            };
-
-            let components = StreamComponents {
-                stream_receiver: reader,
-                target,
-                memquota,
-                xon_xoff_reader_ctrl,
-            };
-
-            IncomingStream::new(circ.time_provider.clone(), req, components)
-        }))
     }
 
     /// Extend the circuit, via the most appropriate circuit extension handshake,
@@ -1130,237 +881,6 @@ impl ClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
-    /// Helper, used to begin a stream.
-    ///
-    /// This function allocates a stream ID, and sends the message
-    /// (like a BEGIN or RESOLVE), but doesn't wait for a response.
-    ///
-    /// The caller will typically want to see the first cell in response,
-    /// to see whether it is e.g. an END or a CONNECTED.
-    async fn begin_stream_impl(
-        self: &Arc<ClientCirc>,
-        begin_msg: AnyRelayMsg,
-        cmd_checker: AnyCmdChecker,
-    ) -> Result<StreamComponents> {
-        // TODO: Possibly this should take a hop, rather than just
-        // assuming it's the last hop.
-        let hop = TargetHop::LastHop;
-
-        let time_prov = self.time_provider.clone();
-
-        let memquota = StreamAccount::new(self.mq_account())?;
-        let (sender, receiver) = stream_queue(STREAM_READER_BUFFER, &memquota, &time_prov)?;
-
-        let (tx, rx) = oneshot::channel();
-        let (msg_tx, msg_rx) =
-            MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(time_prov, memquota.as_raw_account())?;
-
-        let (rate_limit_tx, rate_limit_rx) = watch::channel_with(StreamRateLimit::MAX);
-
-        // A channel for the reactor to request a new drain rate from the reader.
-        // Typically this notification will be sent after an XOFF is sent so that the reader can
-        // send us a new drain rate when the stream data queue becomes empty.
-        let mut drain_rate_request_tx = NotifySender::new_typed();
-        let drain_rate_request_rx = drain_rate_request_tx.subscribe();
-
-        self.control
-            .unbounded_send(CtrlMsg::BeginStream {
-                hop,
-                message: begin_msg,
-                sender,
-                rx: msg_rx,
-                rate_limit_notifier: rate_limit_tx,
-                drain_rate_requester: drain_rate_request_tx,
-                done: tx,
-                cmd_checker,
-            })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        let (stream_id, hop, relay_cell_format) = rx.await.map_err(|_| Error::CircuitClosed)??;
-
-        let target = StreamTarget {
-            circ: self.clone(),
-            tx: msg_tx,
-            hop,
-            stream_id,
-            relay_cell_format,
-            rate_limit_stream: rate_limit_rx,
-        };
-
-        // can be used to build a reader that supports XON/XOFF flow control
-        let xon_xoff_reader_ctrl = XonXoffReaderCtrl::new(drain_rate_request_rx, target.clone());
-
-        let stream_receiver = StreamReceiver {
-            target: target.clone(),
-            receiver,
-            recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
-            ended: false,
-        };
-
-        let components = StreamComponents {
-            stream_receiver,
-            target,
-            memquota,
-            xon_xoff_reader_ctrl,
-        };
-
-        Ok(components)
-    }
-
-    /// Start a DataStream (anonymized connection) to the given
-    /// address and port, using a BEGIN cell.
-    async fn begin_data_stream(
-        self: &Arc<ClientCirc>,
-        msg: AnyRelayMsg,
-        optimistic: bool,
-    ) -> Result<DataStream> {
-        let components = self
-            .begin_stream_impl(msg, DataCmdChecker::new_any())
-            .await?;
-
-        let StreamComponents {
-            stream_receiver,
-            target,
-            memquota,
-            xon_xoff_reader_ctrl,
-        } = components;
-
-        let mut stream = DataStream::new(
-            self.time_provider.clone(),
-            stream_receiver,
-            xon_xoff_reader_ctrl,
-            target,
-            memquota,
-        );
-        if !optimistic {
-            stream.wait_for_connection().await?;
-        }
-        Ok(stream)
-    }
-
-    /// Start a stream to the given address and port, using a BEGIN
-    /// cell.
-    ///
-    /// The use of a string for the address is intentional: you should let
-    /// the remote Tor relay do the hostname lookup for you.
-    pub async fn begin_stream(
-        self: &Arc<ClientCirc>,
-        target: &str,
-        port: u16,
-        parameters: Option<StreamParameters>,
-    ) -> Result<DataStream> {
-        let parameters = parameters.unwrap_or_default();
-        let begin_flags = parameters.begin_flags();
-        let optimistic = parameters.is_optimistic();
-        let target = if parameters.suppressing_hostname() {
-            ""
-        } else {
-            target
-        };
-        let beginmsg = Begin::new(target, port, begin_flags)
-            .map_err(|e| Error::from_cell_enc(e, "begin message"))?;
-        self.begin_data_stream(beginmsg.into(), optimistic).await
-    }
-
-    /// Start a new stream to the last relay in the circuit, using
-    /// a BEGIN_DIR cell.
-    pub async fn begin_dir_stream(self: Arc<ClientCirc>) -> Result<DataStream> {
-        // Note that we always open begindir connections optimistically.
-        // Since they are local to a relay that we've already authenticated
-        // with and built a circuit to, there should be no additional checks
-        // we need to perform to see whether the BEGINDIR will succeed.
-        self.begin_data_stream(AnyRelayMsg::BeginDir(Default::default()), true)
-            .await
-    }
-
-    /// Perform a DNS lookup, using a RESOLVE cell with the last relay
-    /// in this circuit.
-    ///
-    /// Note that this function does not check for timeouts; that's
-    /// the caller's responsibility.
-    pub async fn resolve(self: &Arc<ClientCirc>, hostname: &str) -> Result<Vec<IpAddr>> {
-        let resolve_msg = Resolve::new(hostname);
-
-        let resolved_msg = self.try_resolve(resolve_msg).await?;
-
-        resolved_msg
-            .into_answers()
-            .into_iter()
-            .filter_map(|(val, _)| match resolvedval_to_result(val) {
-                Ok(ResolvedVal::Ip(ip)) => Some(Ok(ip)),
-                Ok(_) => None,
-                Err(e) => Some(Err(e)),
-            })
-            .collect()
-    }
-
-    /// Perform a reverse DNS lookup, by sending a RESOLVE cell with
-    /// the last relay on this circuit.
-    ///
-    /// Note that this function does not check for timeouts; that's
-    /// the caller's responsibility.
-    pub async fn resolve_ptr(self: &Arc<ClientCirc>, addr: IpAddr) -> Result<Vec<String>> {
-        let resolve_ptr_msg = Resolve::new_reverse(&addr);
-
-        let resolved_msg = self.try_resolve(resolve_ptr_msg).await?;
-
-        resolved_msg
-            .into_answers()
-            .into_iter()
-            .filter_map(|(val, _)| match resolvedval_to_result(val) {
-                Ok(ResolvedVal::Hostname(v)) => Some(
-                    String::from_utf8(v)
-                        .map_err(|_| Error::StreamProto("Resolved Hostname was not utf-8".into())),
-                ),
-                Ok(_) => None,
-                Err(e) => Some(Err(e)),
-            })
-            .collect()
-    }
-
-    /// Helper: Send the resolve message, and read resolved message from
-    /// resolve stream.
-    async fn try_resolve(self: &Arc<ClientCirc>, msg: Resolve) -> Result<Resolved> {
-        let components = self
-            .begin_stream_impl(msg.into(), ResolveCmdChecker::new_any())
-            .await?;
-
-        let StreamComponents {
-            stream_receiver,
-            target: _,
-            memquota,
-            xon_xoff_reader_ctrl: _,
-        } = components;
-
-        let mut resolve_stream = ResolveStream::new(stream_receiver, memquota);
-        resolve_stream.read_msg().await
-    }
-
-    /// Shut down this circuit, along with all streams that are using it.
-    /// Happens asynchronously (i.e. the circuit won't necessarily be done shutting down
-    /// immediately after this function returns!).
-    ///
-    /// Note that other references to this circuit may exist.  If they
-    /// do, they will stop working after you call this function.
-    ///
-    /// It's not necessary to call this method if you're just done
-    /// with a circuit: the circuit should close on its own once nothing
-    /// is using it any more.
-    pub fn terminate(&self) {
-        let _ = self.command.unbounded_send(CtrlCmd::Shutdown);
-    }
-
-    /// Called when a circuit-level protocol error has occurred and the
-    /// circuit needs to shut down.
-    ///
-    /// This is a separate function because we may eventually want to have
-    /// it do more than just shut down.
-    ///
-    /// As with `terminate`, this function is asynchronous.
-    pub(crate) fn protocol_error(&self) {
-        self.terminate();
-    }
-
     /// Return true if this circuit is closed and therefore unusable.
     pub fn is_closing(&self) -> bool {
         self.control.is_closed()
@@ -1389,61 +909,13 @@ impl ClientCirc {
     ///
     /// TODO: Perhaps this should return some kind of status indication instead
     /// of just ()
-    #[cfg(feature = "experimental-api")]
     pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
         self.reactor_closed_rx.clone().map(|_| ())
     }
 }
 
-/// Handle to use during an ongoing protocol exchange with a circuit's last hop
-///
-/// This is obtained from [`ClientCirc::start_conversation`],
-/// and used to send messages to the last hop relay.
-//
-// TODO(conflux): this should use ClientTunnel, and it should be moved into
-// the tunnel module.
-#[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-pub struct Conversation<'r>(&'r ClientCirc);
-
-#[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
-impl Conversation<'_> {
-    /// Send a protocol message as part of an ad-hoc exchange
-    ///
-    /// Responses are handled by the `MsgHandler` set up
-    /// when the `Conversation` was created.
-    pub async fn send_message(&self, msg: relaycell::msg::AnyRelayMsg) -> Result<()> {
-        self.send_internal(Some(msg), None).await
-    }
-
-    /// Send a `SendMsgAndInstallHandler` to the reactor and wait for the outcome
-    ///
-    /// The guts of `start_conversation` and `Conversation::send_msg`
-    pub(crate) async fn send_internal(
-        &self,
-        msg: Option<relaycell::msg::AnyRelayMsg>,
-        handler: Option<Box<dyn MetaCellHandler + Send + 'static>>,
-    ) -> Result<()> {
-        let msg = msg.map(|msg| relaycell::AnyRelayMsgOuter::new(None, msg));
-        let (sender, receiver) = oneshot::channel();
-
-        let ctrl_msg = CtrlMsg::SendMsgAndInstallHandler {
-            msg,
-            handler,
-            sender,
-        };
-        self.0
-            .control
-            .unbounded_send(ctrl_msg)
-            .map_err(|_| Error::CircuitClosed)?;
-
-        receiver.await.map_err(|_| Error::CircuitClosed)?
-    }
-}
-
-impl PendingClientCirc {
-    /// Instantiate a new circuit object: used from Channel::new_circ().
+impl PendingClientTunnel {
+    /// Instantiate a new circuit object: used from Channel::new_tunnel().
     ///
     /// Does not send a CREATE* cell on its own.
     ///
@@ -1456,7 +928,7 @@ impl PendingClientCirc {
         unique_id: UniqId,
         runtime: DynTimeProvider,
         memquota: CircuitAccount,
-    ) -> (PendingClientCirc, crate::tunnel::reactor::Reactor) {
+    ) -> (PendingClientTunnel, crate::tunnel::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel, id, unique_id, input, runtime, memquota.clone());
@@ -1471,11 +943,12 @@ impl PendingClientCirc {
             circid: id,
             memquota,
             time_provider,
+            is_multi_path: false,
         };
 
-        let pending = PendingClientCirc {
+        let pending = PendingClientTunnel {
             recvcreated: createdreceiver,
-            circ: Arc::new(circuit),
+            circ: circuit,
         };
         (pending, reactor)
     }
@@ -1491,7 +964,7 @@ impl PendingClientCirc {
     /// There's no authentication in CRATE_FAST,
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
-    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<Arc<ClientCirc>> {
+    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<ClientTunnel> {
         // We no nothing about this relay, so we assume it supports no protocol capabilities at all.
         //
         // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
@@ -1511,7 +984,7 @@ impl PendingClientCirc {
 
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        Ok(self.circ)
+        self.circ.into_tunnel()
     }
 
     /// Use the most appropriate handshake to connect to the first hop of this circuit.
@@ -1522,7 +995,7 @@ impl PendingClientCirc {
         self,
         target: &Tg,
         params: CircParameters,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<ClientTunnel>
     where
         Tg: tor_linkspec::CircTarget,
     {
@@ -1545,7 +1018,7 @@ impl PendingClientCirc {
         self,
         target: &Tg,
         params: CircParameters,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<ClientTunnel>
     where
         Tg: tor_linkspec::CircTarget,
     {
@@ -1578,7 +1051,7 @@ impl PendingClientCirc {
 
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        Ok(self.circ)
+        self.circ.into_tunnel()
     }
 
     /// Use the ntor_v3 handshake to connect to the first hop of this circuit.
@@ -1593,7 +1066,7 @@ impl PendingClientCirc {
         self,
         target: &Tg,
         params: CircParameters,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<ClientTunnel>
     where
         Tg: tor_linkspec::CircTarget,
     {
@@ -1623,37 +1096,7 @@ impl PendingClientCirc {
 
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
-        Ok(self.circ)
-    }
-}
-
-/// A collection of components that can be combined to implement a Tor stream,
-/// or anything that requires a stream ID.
-///
-/// Not all components may be needed, depending on the purpose of the "stream".
-/// For example we build `RELAY_RESOLVE` requests like we do data streams,
-/// but they won't use the `StreamTarget` as they don't need to send additional
-/// messages.
-#[derive(Debug)]
-pub(crate) struct StreamComponents {
-    /// A [`Stream`](futures::Stream) of incoming relay messages for this Tor stream.
-    pub(crate) stream_receiver: StreamReceiver,
-    /// A handle that can communicate messages to the circuit reactor for this stream.
-    pub(crate) target: StreamTarget,
-    /// The memquota [account](tor_memquota::Account) to use for data on this stream.
-    pub(crate) memquota: StreamAccount,
-    /// The control information needed to add XON/XOFF flow control to the stream.
-    pub(crate) xon_xoff_reader_ctrl: XonXoffReaderCtrl,
-}
-
-/// Convert a [`ResolvedVal`] into a Result, based on whether or not
-/// it represents an error.
-fn resolvedval_to_result(val: ResolvedVal) -> Result<ResolvedVal> {
-    match val {
-        ResolvedVal::TransientError => Err(Error::ResolveError(ResolveError::Transient)),
-        ResolvedVal::NontransientError => Err(Error::ResolveError(ResolveError::Nontransient)),
-        ResolvedVal::Unrecognized(_, _) => Err(Error::ResolveError(ResolveError::Unrecognized)),
-        _ => Ok(val),
+        self.circ.into_tunnel()
     }
 }
 
@@ -1679,6 +1122,8 @@ pub(crate) mod test {
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
+    use crate::memquota::SpecificAccount as _;
+    use crate::stream::DataStream;
     #[cfg(feature = "hs-service")]
     use crate::stream::IncomingStreamRequestFilter;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
@@ -1696,7 +1141,8 @@ pub(crate) mod test {
     use tor_cell::relaycell::extend::{self as extend_ext, CircRequestExt, CircResponseExt};
     use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
-        msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
+        msg as relaymsg, msg::AnyRelayMsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd,
+        RelayMsg as _, StreamId,
     };
     use tor_linkspec::OwnedCircTarget;
     use tor_memquota::HasMemoryCost;
@@ -1717,7 +1163,7 @@ pub(crate) mod test {
         tor_rtmock::MockRuntime,
     };
 
-    impl PendingClientCirc {
+    impl PendingClientTunnel {
         /// Testing only: Extract the circuit ID for this pending circuit.
         pub(crate) fn peek_circid(&self) -> CircId {
             self.circ.circid
@@ -1728,6 +1174,21 @@ pub(crate) mod test {
         /// Testing only: Extract the circuit ID of this circuit.
         pub(crate) fn peek_circid(&self) -> CircId {
             self.circid
+        }
+    }
+
+    impl ClientTunnel {
+        pub(crate) async fn resolve_last_hop(&self) -> TargetHop {
+            let (sender, receiver) = oneshot::channel();
+            let _ =
+                self.as_single_circ()
+                    .unwrap()
+                    .command
+                    .unbounded_send(CtrlCmd::ResolveTargetHop {
+                        hop: TargetHop::LastHop,
+                        done: sender,
+                    });
+            TargetHop::Hop(receiver.await.unwrap().unwrap())
         }
     }
 
@@ -1820,7 +1281,7 @@ pub(crate) mod test {
         let (_circmsg_send, circmsg_recv) = fake_mpsc(64);
         let unique_id = UniqId::new(23, 17);
 
-        let (pending, reactor) = PendingClientCirc::new(
+        let (pending, reactor) = PendingClientTunnel::new(
             circid,
             chan,
             created_recv,
@@ -2017,19 +1478,19 @@ pub(crate) mod test {
 
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
-    async fn newcirc_ext<R: Runtime>(
+    async fn newtunnel_ext<R: Runtime>(
         rt: &R,
         unique_id: UniqId,
         chan: Arc<Channel>,
         hops: Vec<path::HopDetail>,
         next_msg_from: HopNum,
         params: CircParameters,
-    ) -> (Arc<ClientCirc>, CircuitRxSender) {
+    ) -> (ClientTunnel, CircuitRxSender) {
         let circid = CircId::new(128).unwrap();
         let (_created_send, created_recv) = oneshot::channel();
         let (circmsg_send, circmsg_recv) = fake_mpsc(64);
 
-        let (pending, reactor) = PendingClientCirc::new(
+        let (pending, reactor) = PendingClientTunnel::new(
             circid,
             chan,
             created_recv,
@@ -2043,8 +1504,7 @@ pub(crate) mod test {
             let _ignore = reactor.run().await;
         })
         .unwrap();
-
-        let PendingClientCirc {
+        let PendingClientTunnel {
             circ,
             recvcreated: _,
         } = pending;
@@ -2069,13 +1529,15 @@ pub(crate) mod test {
                 .unwrap();
             rx.await.unwrap().unwrap();
         }
-
-        (circ, circmsg_send)
+        (circ.into_tunnel().unwrap(), circmsg_send)
     }
 
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
-    async fn newcirc<R: Runtime>(rt: &R, chan: Arc<Channel>) -> (Arc<ClientCirc>, CircuitRxSender) {
+    async fn newtunnel<R: Runtime>(
+        rt: &R,
+        chan: Arc<Channel>,
+    ) -> (Arc<ClientTunnel>, CircuitRxSender) {
         let hops = std::iter::repeat_with(|| {
             let peer_id = tor_linkspec::OwnedChanTarget::builder()
                 .ed_identity([4; 32].into())
@@ -2089,7 +1551,7 @@ pub(crate) mod test {
         .collect();
 
         let unique_id = UniqId::new(23, 17);
-        newcirc_ext(
+        let (tunnel, circmsg_send) = newtunnel_ext(
             rt,
             unique_id,
             chan,
@@ -2097,7 +1559,9 @@ pub(crate) mod test {
             2.into(),
             CircParameters::default(),
         )
-        .await
+        .await;
+
+        (Arc::new(tunnel), circmsg_send)
     }
 
     /// Create `n` distinct [`path::HopDetail`]s,
@@ -2120,7 +1584,8 @@ pub(crate) mod test {
         use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
 
         let (chan, mut rx, _sink) = working_fake_channel(rt);
-        let (circ, mut sink) = newcirc(rt, chan).await;
+        let (tunnel, mut sink) = newtunnel(rt, chan).await;
+        let circ = Arc::new(tunnel.as_single_circ().unwrap());
         let circid = circ.peek_circid();
         let params = CircParameters::default();
 
@@ -2186,7 +1651,7 @@ pub(crate) mod test {
 
         // Do the path accessors report a reasonable outcome?
         {
-            let path = circ.path_ref().unwrap();
+            let path = circ.single_path().unwrap();
             let path = path
                 .all_hops()
                 .filter_map(|hop| match hop {
@@ -2202,7 +1667,7 @@ pub(crate) mod test {
             assert_ne!(path[0].ed_identity(), example_target().ed_identity());
         }
         {
-            let path = circ.path_ref().unwrap();
+            let path = circ.single_path().unwrap();
             assert_eq!(path.n_hops(), 4);
             use tor_linkspec::HasRelayIds;
             assert_eq!(
@@ -2251,7 +1716,7 @@ pub(crate) mod test {
         .collect();
 
         let unique_id = UniqId::new(23, 17);
-        let (circ, mut sink) = newcirc_ext(
+        let (tunnel, mut sink) = newtunnel_ext(
             rt,
             unique_id,
             chan,
@@ -2272,10 +1737,14 @@ pub(crate) mod test {
                 sink
             })
             .unwrap();
-        let outcome = circ.extend_ntor(&target, params).await;
+        let outcome = tunnel
+            .as_single_circ()
+            .unwrap()
+            .extend_ntor(&target, params)
+            .await;
         let _sink = sink_handle.await;
 
-        assert_eq!(circ.n_hops().unwrap(), 3);
+        assert_eq!(tunnel.n_hops().unwrap(), 3);
         assert!(outcome.is_err());
         outcome.unwrap_err()
     }
@@ -2346,13 +1815,14 @@ pub(crate) mod test {
     fn begindir() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut sink) = newcirc(&rt, chan).await;
+            let (tunnel, mut sink) = newtunnel(&rt, chan).await;
+            let circ = tunnel.as_single_circ().unwrap();
             let circid = circ.peek_circid();
 
             let begin_and_send_fut = async move {
                 // Here we'll say we've got a circuit, and we want to
                 // make a simple BEGINDIR request with it.
-                let mut stream = circ.begin_dir_stream().await.unwrap();
+                let mut stream = tunnel.begin_dir_stream().await.unwrap();
                 stream.write_all(b"HTTP/1.0 GET /\r\n").await.unwrap();
                 stream.flush().await.unwrap();
                 let mut buf = [0_u8; 1024];
@@ -2420,10 +1890,10 @@ pub(crate) mod test {
     fn close_stream_helper(by_drop: bool) {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut sink) = newcirc(&rt, chan).await;
+            let (tunnel, mut sink) = newtunnel(&rt, chan).await;
 
             let stream_fut = async move {
-                let stream = circ
+                let stream = tunnel
                     .begin_stream("www.example.com", 80, None)
                     .await
                     .unwrap();
@@ -2433,11 +1903,11 @@ pub(crate) mod test {
                     // Drop the writer and the reader, which should close the stream.
                     drop(r);
                     drop(w);
-                    (None, circ) // make sure to keep the circuit alive
+                    (None, tunnel) // make sure to keep the circuit alive
                 } else {
                     // Call close on the writer, while keeping the reader alive.
                     w.close().await.unwrap();
-                    (Some(r), circ)
+                    (Some(r), tunnel)
                 }
             };
             let handler_fut = async {
@@ -2494,7 +1964,7 @@ pub(crate) mod test {
         rt: &R,
         n_to_send: usize,
     ) -> (
-        Arc<ClientCirc>,
+        Arc<ClientTunnel>,
         DataStream,
         CircuitRxSender,
         Option<StreamId>,
@@ -2503,14 +1973,14 @@ pub(crate) mod test {
         Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
-        let (circ, mut sink) = newcirc(rt, chan).await;
-        let circid = circ.peek_circid();
+        let (tunnel, mut sink) = newtunnel(rt, chan).await;
+        let circid = tunnel.as_single_circ().unwrap().peek_circid();
 
         let begin_and_send_fut = {
-            let circ = circ.clone();
+            let tunnel = tunnel.clone();
             async move {
                 // Take our circuit and make a stream on it.
-                let mut stream = circ
+                let mut stream = tunnel
                     .begin_stream("www.example.com", 443, None)
                     .await
                     .unwrap();
@@ -2572,15 +2042,16 @@ pub(crate) mod test {
         let (stream, (sink, streamid, cells_received, rx)) =
             futures::join!(begin_and_send_fut, receive_fut);
 
-        (circ, stream, sink, streamid, cells_received, rx, sink2)
+        (tunnel, stream, sink, streamid, cells_received, rx, sink2)
     }
 
     #[traced_test]
     #[test]
     fn accept_valid_sendme() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
-            let (circ, _stream, mut sink, streamid, cells_received, _rx, _sink2) =
+            let (tunnel, _stream, mut sink, streamid, cells_received, _rx, _sink2) =
                 setup_incoming_sendme_case(&rt, 300 * 498 + 3).await;
+            let circ = tunnel.as_single_circ().unwrap();
 
             assert_eq!(cells_received, 301);
 
@@ -2590,7 +2061,7 @@ pub(crate) mod test {
                 circ.command
                     .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
-                        leg: circ.unique_id(),
+                        leg: tunnel.unique_id(),
                         done: tx,
                     })
                     .unwrap();
@@ -2639,7 +2110,7 @@ pub(crate) mod test {
                 circ.command
                     .unbounded_send(CtrlCmd::QuerySendWindow {
                         hop: 2.into(),
-                        leg: circ.unique_id(),
+                        leg: tunnel.unique_id(),
                         done: tx,
                     })
                     .unwrap();
@@ -2656,7 +2127,7 @@ pub(crate) mod test {
             // Same setup as accept_valid_sendme() test above but try giving
             // a sendme with the wrong tag.
 
-            let (circ, _stream, mut sink, _streamid, _cells_received, _rx, _sink2) =
+            let (tunnel, _stream, mut sink, _streamid, _cells_received, _rx, _sink2) =
                 setup_incoming_sendme_case(&rt, 300 * 498 + 3).await;
 
             let reply_with_sendme_fut = async move {
@@ -2672,7 +2143,7 @@ pub(crate) mod test {
 
             // Check whether the reactor dies as a result of receiving invalid data.
             rt.advance_until_stalled().await;
-            assert!(circ.is_closing());
+            assert!(tunnel.is_closed());
         });
     }
 
@@ -2697,7 +2168,7 @@ pub(crate) mod test {
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut sink) = newcirc(&rt, chan).await;
+            let (tunnel, mut sink) = newtunnel(&rt, chan).await;
 
             // Run clients in a single task, doing our own round-robin
             // scheduling of writes to the reactor. Conversely, if we were to
@@ -2707,7 +2178,7 @@ pub(crate) mod test {
             rt.spawn({
                 // Clone the circuit to keep it alive after writers have
                 // finished with it.
-                let circ = circ.clone();
+                let tunnel = tunnel.clone();
                 async move {
                     let mut clients = VecDeque::new();
                     struct Client {
@@ -2716,7 +2187,7 @@ pub(crate) mod test {
                     }
                     for _ in 0..N_STREAMS {
                         clients.push_back(Client {
-                            stream: circ
+                            stream: tunnel
                                 .begin_stream("www.example.com", 80, None)
                                 .await
                                 .unwrap(),
@@ -2834,21 +2305,21 @@ pub(crate) mod test {
     fn allow_stream_requests_twice() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, _rx, _sink) = working_fake_channel(&rt);
-            let (circ, _send) = newcirc(&rt, chan).await;
+            let (tunnel, _send) = newtunnel(&rt, chan).await;
 
-            let _incoming = circ
+            let _incoming = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop().unwrap(),
+                    tunnel.resolve_last_hop().await,
                     AllowAllStreamsFilter,
                 )
                 .await
                 .unwrap();
 
-            let incoming = circ
+            let incoming = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop().unwrap(),
+                    tunnel.resolve_last_hop().await,
                     AllowAllStreamsFilter,
                 )
                 .await;
@@ -2868,16 +2339,16 @@ pub(crate) mod test {
             const TEST_DATA: &[u8] = b"ping";
 
             let (chan, _rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut send) = newcirc(&rt, chan).await;
+            let (tunnel, mut send) = newtunnel(&rt, chan).await;
 
             let rfmt = RelayCellFormat::V0;
 
             // A helper channel for coordinating the "client"/"service" interaction
             let (tx, rx) = oneshot::channel();
-            let mut incoming = circ
+            let mut incoming = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop().unwrap(),
+                    tunnel.resolve_last_hop().await,
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2897,11 +2368,11 @@ pub(crate) mod test {
                 data_stream.read_exact(&mut buf).await.unwrap();
                 assert_eq!(&buf, TEST_DATA);
 
-                circ
+                tunnel
             };
 
             let simulate_client = async move {
-                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let begin = relaymsg::Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())
@@ -2939,6 +2410,7 @@ pub(crate) mod test {
     #[test]
     #[cfg(feature = "hs-service")]
     fn accept_stream_after_reject() {
+        use tor_cell::relaycell::msg::AnyRelayMsg;
         use tor_cell::relaycell::msg::BeginFlags;
         use tor_cell::relaycell::msg::EndReason;
 
@@ -2948,15 +2420,15 @@ pub(crate) mod test {
             let rfmt = RelayCellFormat::V0;
 
             let (chan, _rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut send) = newcirc(&rt, chan).await;
+            let (tunnel, mut send) = newtunnel(&rt, chan).await;
 
             // A helper channel for coordinating the "client"/"service" interaction
             let (mut tx, mut rx) = mpsc::channel(STREAM_COUNT);
 
-            let mut incoming = circ
+            let mut incoming = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    circ.last_hop().unwrap(),
+                    tunnel.resolve_last_hop().await,
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -2991,11 +2463,11 @@ pub(crate) mod test {
                     assert_eq!(&buf, TEST_DATA);
                 }
 
-                circ
+                tunnel
             };
 
             let simulate_client = async move {
-                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let begin = relaymsg::Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())
@@ -3041,13 +2513,18 @@ pub(crate) mod test {
             let rfmt = RelayCellFormat::V0;
 
             let (chan, _rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut send) = newcirc(&rt, chan).await;
+            let (tunnel, mut send) = newtunnel(&rt, chan).await;
 
             // Expect to receive incoming streams from hop EXPECTED_HOP
-            let mut incoming = circ
+            let mut incoming = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    (circ.unique_id(), EXPECTED_HOP.into()).into(),
+                    // Build the precise HopLocation with the underlying circuit.
+                    (
+                        tunnel.as_single_circ().unwrap().unique_id(),
+                        EXPECTED_HOP.into(),
+                    )
+                        .into(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -3057,11 +2534,11 @@ pub(crate) mod test {
                 // The originator of the cell is actually the last hop on the circuit, not hop 1,
                 // so we expect the reactor to shut down.
                 assert!(incoming.next().await.is_none());
-                circ
+                tunnel
             };
 
             let simulate_client = async move {
-                let begin = Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
+                let begin = relaymsg::Begin::new("localhost", 80, BeginFlags::IPV6_OKAY).unwrap();
                 let body: BoxedCellBody =
                     AnyRelayMsgOuter::new(StreamId::new(12), AnyRelayMsg::Begin(begin))
                         .encode(rfmt, &mut testing_rng())
@@ -3128,7 +2605,7 @@ pub(crate) mod test {
     #[derive(Debug)]
     #[cfg(feature = "conflux")]
     struct TestTunnelCtx {
-        tunnel: Arc<ClientCirc>,
+        tunnel: Arc<ClientTunnel>,
         circs: Vec<TestCircuitCtx>,
         conflux_link_rx: oneshot::Receiver<Result<ConfluxHandshakeResult>>,
     }
@@ -3171,7 +2648,7 @@ pub(crate) mod test {
         };
 
         let (chan1, rx1, chan_sink1) = working_fake_channel(rt);
-        let (circ1, sink1) = newcirc_ext(
+        let (mut tunnel1, sink1) = newtunnel_ext(
             rt,
             UniqId::new(1, 3),
             chan1,
@@ -3183,11 +2660,13 @@ pub(crate) mod test {
 
         let (chan2, rx2, chan_sink2) = working_fake_channel(rt);
 
-        let (circ2, sink2) =
-            newcirc_ext(rt, UniqId::new(2, 4), chan2, hops2, 2.into(), params).await;
+        let (tunnel2, sink2) =
+            newtunnel_ext(rt, UniqId::new(2, 4), chan2, hops2, 2.into(), params).await;
 
         let (answer_tx, answer_rx) = oneshot::channel();
-        circ2
+        tunnel2
+            .as_single_circ()
+            .unwrap()
             .command
             .unbounded_send(CtrlCmd::ShutdownAndReturnCircuit { answer: answer_tx })
             .unwrap();
@@ -3195,11 +2674,13 @@ pub(crate) mod test {
         let circuit = answer_rx.await.unwrap().unwrap();
         // The circuit should be shutting down its reactor
         rt.advance_until_stalled().await;
-        assert!(circ2.is_closing());
+        assert!(tunnel2.is_closed());
 
         let (conflux_link_tx, conflux_link_rx) = oneshot::channel();
         // Tell the first circuit to link with the second and form a multipath tunnel
-        circ1
+        tunnel1
+            .as_single_circ()
+            .unwrap()
             .control
             .unbounded_send(CtrlMsg::LinkCircuits {
                 circuits: vec![circuit],
@@ -3211,18 +2692,24 @@ pub(crate) mod test {
             chan_rx: rx1,
             chan_tx: chan_sink1,
             circ_tx: sink1,
-            unique_id: circ1.unique_id(),
+            unique_id: tunnel1.unique_id(),
         };
 
         let circ_ctx2 = TestCircuitCtx {
             chan_rx: rx2,
             chan_tx: chan_sink2,
             circ_tx: sink2,
-            unique_id: circ2.unique_id(),
+            unique_id: tunnel2.unique_id(),
         };
 
+        // TODO(conflux): nothing currently sets this,
+        // so we need to manually set it.
+        //
+        // Instead of doing this, we should have a ClientCirc
+        // API that sends CtrlMsg::Link circuits and sets this to true
+        tunnel1.circ.is_multi_path = true;
         TestTunnelCtx {
-            tunnel: circ1,
+            tunnel: Arc::new(tunnel1),
             circs: vec![circ_ctx1, circ_ctx2],
             conflux_link_rx,
         }
@@ -3256,7 +2743,7 @@ pub(crate) mod test {
     fn reject_conflux_linked_before_hs() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let (chan, mut _rx, _sink) = working_fake_channel(&rt);
-            let (circ, mut sink) = newcirc(&rt, chan).await;
+            let (tunnel, mut sink) = newtunnel(&rt, chan).await;
 
             let nonce = V1Nonce::new(&mut testing_rng());
             let payload = V1LinkPayload::new(nonce, V1DesiredUx::NO_OPINION);
@@ -3265,7 +2752,7 @@ pub(crate) mod test {
             sink.send(rmsg_to_ccmsg(None, linked)).await.unwrap();
 
             rt.advance_until_stalled().await;
-            assert!(circ.is_closing());
+            assert!(tunnel.is_closed());
         });
     }
 
@@ -3371,7 +2858,7 @@ pub(crate) mod test {
                     e => panic!("unexpected error: {e:?}"),
                 }
 
-                assert!(tunnel.is_closing());
+                assert!(tunnel.is_closed());
             }
         });
     }
@@ -3397,7 +2884,7 @@ pub(crate) mod test {
 
             for bad_cell in bad_cells {
                 let (chan, mut _rx, _sink) = working_fake_channel(&rt);
-                let (circ, mut sink) = newcirc(&rt, chan).await;
+                let (tunnel, mut sink) = newtunnel(&rt, chan).await;
 
                 sink.send(bad_cell).await.unwrap();
                 rt.advance_until_stalled().await;
@@ -3405,7 +2892,7 @@ pub(crate) mod test {
                 // Note: unfortunately we can't assert the circuit is
                 // closing for the reason, because the reactor just logs
                 // the error and then exits.
-                assert!(circ.is_closing());
+                assert!(tunnel.is_closed());
             }
         });
     }
@@ -3451,7 +2938,7 @@ pub(crate) mod test {
 
             // Receiving a LINKED cell on an already linked leg causes
             // the tunnel to be torn down
-            assert!(tunnel.is_closing());
+            assert!(tunnel.is_closed());
         });
     }
 
@@ -3506,7 +2993,7 @@ pub(crate) mod test {
 
                 // The tunnel should be shutting down
                 rt.advance_until_stalled().await;
-                assert!(tunnel.is_closing());
+                assert!(tunnel.is_closed());
             }
         });
     }
@@ -3528,6 +3015,7 @@ pub(crate) mod test {
 
             let (answer_tx, answer_rx) = oneshot::channel();
             tunnel
+                .circ
                 .command
                 .unbounded_send(CtrlCmd::ShutdownAndReturnCircuit { answer: answer_tx })
                 .unwrap();
@@ -3550,7 +3038,7 @@ pub(crate) mod test {
             // The tunnel reactor should be shutting down,
             // regardless of the error
             rt.progress_until_stalled().await;
-            assert!(tunnel.is_closing());
+            assert!(tunnel.is_closed());
 
             // Keep circs alive, to prevent the reactor
             // from shutting down prematurely
@@ -3569,7 +3057,7 @@ pub(crate) mod test {
             /// Channel for receiving the outcome of the conflux handshakes.
             conflux_link_rx: oneshot::Receiver<Result<ConfluxHandshakeResult>>,
             /// The tunnel reactor handle
-            tunnel: Arc<ClientCirc>,
+            tunnel: Arc<ClientTunnel>,
             /// Data to send on a stream.
             send_data: Vec<u8>,
             /// Data we expect to receive on a stream.
@@ -3584,7 +3072,7 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     enum ConfluxEndpointResult {
         Circuit {
-            tunnel: Arc<ClientCirc>,
+            tunnel: Arc<ClientTunnel>,
             stream: DataStream,
         },
         Relay {
@@ -3682,7 +3170,7 @@ pub(crate) mod test {
         /// as this is not supported by the mock runtime.
         runtime: Arc<AsyncMutex<MockRuntime>>,
         /// The client view of the tunnel.
-        tunnel: Arc<ClientCirc>,
+        tunnel: Arc<ClientTunnel>,
         /// The circuit test context.
         circ: TestCircuitCtx,
         /// The RTT delay to introduce just before each SENDME.
@@ -3920,6 +3408,7 @@ pub(crate) mod test {
                             runtime.lock().await.advance_until_stalled().await;
                             let (tx, rx) = oneshot::channel();
                             tunnel
+                                .circ
                                 .command
                                 .unbounded_send(CtrlCmd::QuerySendWindow {
                                     hop: 2.into(),
@@ -3979,7 +3468,7 @@ pub(crate) mod test {
 
     #[cfg(feature = "conflux")]
     async fn run_conflux_client(
-        tunnel: Arc<ClientCirc>,
+        tunnel: Arc<ClientTunnel>,
         conflux_link_rx: oneshot::Receiver<Result<ConfluxHandshakeResult>>,
         send_data: Vec<u8>,
         recv_data: Vec<u8>,
@@ -4506,7 +3995,7 @@ pub(crate) mod test {
             let err = tunnel
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
-                    (tunnel.unique_id(), EXPECTED_HOP.into()).into(),
+                    (tunnel.circ.unique_id(), EXPECTED_HOP.into()).into(),
                     AllowAllStreamsFilter,
                 )
                 .await
@@ -4514,10 +4003,11 @@ pub(crate) mod test {
                 .map(|_| ())
                 .unwrap_err();
 
-            let err_src = err.source().unwrap();
-            assert!(err_src
-                .to_string()
-                .contains("Cannot allow stream requests on tunnel with 2 legs"));
+            let err_src = err.source().unwrap().to_string();
+            assert!(
+                err_src.contains("Cannot allow stream requests on a multi-path tunnel"),
+                "{err_src}"
+            );
         });
     }
 }

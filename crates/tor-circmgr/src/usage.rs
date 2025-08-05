@@ -42,7 +42,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_guardmgr::vanguards::VanguardMgr;
 
 use crate::isolation::{IsolationHelper, StreamIsolation};
-use crate::mgr::{AbstractCirc, OpenEntry, RestrictionFailed};
+use crate::mgr::{AbstractTunnel, OpenEntry, RestrictionFailed};
 use crate::Result;
 
 pub use tor_relay_selection::TargetPort;
@@ -132,7 +132,7 @@ impl ExitPolicy {
 /// This type should stay internal to the circmgr crate for now: we'll probably
 /// want to refactor it a lot.
 #[derive(Clone, Debug)]
-pub(crate) enum TargetCircUsage {
+pub(crate) enum TargetTunnelUsage {
     /// Use for BEGINDIR-based non-anonymous directory connections
     Dir,
     /// Use to exit to one or more ports.
@@ -200,7 +200,7 @@ pub(crate) enum TargetCircUsage {
 /// This type should stay internal to the circmgr crate for now: we'll probably
 /// want to refactor it a lot.
 #[derive(Clone, Debug)]
-pub(crate) enum SupportedCircUsage {
+pub(crate) enum SupportedTunnelUsage {
     /// Usable for BEGINDIR-based non-anonymous directory connections
     Dir,
     /// Usable to exit to a set of ports.
@@ -230,7 +230,7 @@ pub(crate) enum SupportedCircUsage {
     DirSpecificTarget(OwnedChanTarget),
 }
 
-impl TargetCircUsage {
+impl TargetTunnelUsage {
     /// Construct path for a given circuit purpose; return it and the
     /// usage that it _actually_ supports.
     pub(crate) fn build_path<'a, R: Rng, RT: Runtime>(
@@ -243,16 +243,16 @@ impl TargetCircUsage {
         now: SystemTime,
     ) -> Result<(
         TorPath<'a>,
-        SupportedCircUsage,
+        SupportedTunnelUsage,
         Option<GuardMonitor>,
         Option<GuardUsable>,
     )> {
         match self {
-            TargetCircUsage::Dir => {
+            TargetTunnelUsage::Dir => {
                 let (path, mon, usable) = DirPathBuilder::new().pick_path(guards)?;
-                Ok((path, SupportedCircUsage::Dir, Some(mon), Some(usable)))
+                Ok((path, SupportedTunnelUsage::Dir, Some(mon), Some(usable)))
             }
-            TargetCircUsage::Preemptive {
+            TargetTunnelUsage::Preemptive {
                 port,
                 require_stability,
                 ..
@@ -271,7 +271,7 @@ impl TargetCircUsage {
                 let all_relays_stable = path.appears_stable();
                 Ok((
                     path,
-                    SupportedCircUsage::Exit {
+                    SupportedTunnelUsage::Exit {
                         policy,
                         isolation: None,
                         country_code,
@@ -281,7 +281,7 @@ impl TargetCircUsage {
                     Some(usable),
                 ))
             }
-            TargetCircUsage::Exit {
+            TargetTunnelUsage::Exit {
                 ports: p,
                 isolation,
                 country_code,
@@ -319,7 +319,7 @@ impl TargetCircUsage {
                 let resulting_cc = *country_code; // avoid unused var warning
                 Ok((
                     path,
-                    SupportedCircUsage::Exit {
+                    SupportedTunnelUsage::Exit {
                         policy,
                         isolation: Some(isolation.clone()),
                         country_code: resulting_cc,
@@ -329,7 +329,7 @@ impl TargetCircUsage {
                     Some(usable),
                 ))
             }
-            TargetCircUsage::TimeoutTesting => {
+            TargetTunnelUsage::TimeoutTesting => {
                 let (path, mon, usable) = ExitPathBuilder::for_timeout_testing()
                     .require_stability(false)
                     .pick_path(rng, netdir, guards, config, now)?;
@@ -339,25 +339,25 @@ impl TargetCircUsage {
                 #[cfg(not(feature = "geoip"))]
                 let country_code = None;
                 let usage = match policy {
-                    Some(policy) if policy.allows_some_port() => SupportedCircUsage::Exit {
+                    Some(policy) if policy.allows_some_port() => SupportedTunnelUsage::Exit {
                         policy,
                         isolation: None,
                         country_code,
                         all_relays_stable: path.appears_stable(),
                     },
-                    _ => SupportedCircUsage::NoUsage,
+                    _ => SupportedTunnelUsage::NoUsage,
                 };
 
                 Ok((path, usage, Some(mon), Some(usable)))
             }
             #[cfg(feature = "specific-relay")]
-            TargetCircUsage::DirSpecificTarget(target) => {
+            TargetTunnelUsage::DirSpecificTarget(target) => {
                 let path = TorPath::new_one_hop_owned(target);
-                let usage = SupportedCircUsage::DirSpecificTarget(target.clone());
+                let usage = SupportedTunnelUsage::DirSpecificTarget(target.clone());
                 Ok((path, usage, None, None))
             }
             #[cfg(feature = "hs-common")]
-            TargetCircUsage::HsCircBase {
+            TargetTunnelUsage::HsCircBase {
                 compatible_with_target,
                 stem_kind,
                 circ_kind,
@@ -373,7 +373,7 @@ impl TargetCircUsage {
                             .pick_path::<_, RT>(rng, netdir, guards, config, now)?;
                     }
                 };
-                let usage = SupportedCircUsage::HsOnly;
+                let usage = SupportedTunnelUsage::HsOnly;
                 Ok((path, usage, Some(mon), Some(usable)))
             }
         }
@@ -383,7 +383,7 @@ impl TargetCircUsage {
     /// use in tests.
     #[cfg(test)]
     pub(crate) fn new_from_ipv4_ports(ports: &[u16]) -> Self {
-        TargetCircUsage::Exit {
+        TargetTunnelUsage::Exit {
             ports: ports.iter().map(|p| TargetPort::ipv4(*p)).collect(),
             isolation: StreamIsolation::no_isolation(),
             country_code: None,
@@ -402,15 +402,15 @@ fn owned_targets_equivalent(a: &OwnedChanTarget, b: &OwnedChanTarget) -> bool {
     a.same_relay_ids(b) && a.chan_method() == b.chan_method()
 }
 
-impl SupportedCircUsage {
+impl SupportedTunnelUsage {
     /// Return true if this spec permits the usage described by `other`.
     ///
     /// If this function returns `true`, then it is okay to use a circuit
     /// with this spec for the target usage described by `other`.
-    pub(crate) fn supports(&self, target: &TargetCircUsage) -> bool {
-        use SupportedCircUsage::*;
+    pub(crate) fn supports(&self, target: &TargetTunnelUsage) -> bool {
+        use SupportedTunnelUsage::*;
         match (self, target) {
-            (Dir, TargetCircUsage::Dir) => true,
+            (Dir, TargetTunnelUsage::Dir) => true,
             (
                 Exit {
                     policy: p1,
@@ -418,7 +418,7 @@ impl SupportedCircUsage {
                     country_code: cc1,
                     all_relays_stable,
                 },
-                TargetCircUsage::Exit {
+                TargetTunnelUsage::Exit {
                     ports: p2,
                     isolation: i2,
                     country_code: cc2,
@@ -441,7 +441,7 @@ impl SupportedCircUsage {
                     all_relays_stable,
                     ..
                 },
-                TargetCircUsage::Preemptive {
+                TargetTunnelUsage::Preemptive {
                     port,
                     require_stability,
                     ..
@@ -465,9 +465,9 @@ impl SupportedCircUsage {
                     true
                 }
             }
-            (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => true,
+            (Exit { .. } | NoUsage, TargetTunnelUsage::TimeoutTesting) => true,
             #[cfg(feature = "specific-relay")]
-            (DirSpecificTarget(a), TargetCircUsage::DirSpecificTarget(b)) => {
+            (DirSpecificTarget(a), TargetTunnelUsage::DirSpecificTarget(b)) => {
                 owned_targets_equivalent(a, b)
             }
             (_, _) => false,
@@ -482,21 +482,21 @@ impl SupportedCircUsage {
     /// will support `usage`.
     pub(crate) fn restrict_mut(
         &mut self,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
     ) -> std::result::Result<(), RestrictionFailed> {
-        use SupportedCircUsage::*;
+        use SupportedTunnelUsage::*;
         match (self, usage) {
-            (Dir, TargetCircUsage::Dir) => Ok(()),
+            (Dir, TargetTunnelUsage::Dir) => Ok(()),
             // This usage is only used to create circuits preemptively, and doesn't actually
             // correspond to any streams; accordingly, we don't need to modify the circuit's
             // acceptable usage at all.
-            (Exit { .. }, TargetCircUsage::Preemptive { .. }) => Ok(()),
+            (Exit { .. }, TargetTunnelUsage::Preemptive { .. }) => Ok(()),
             (
                 Exit {
                     isolation: ref mut isol1,
                     ..
                 },
-                TargetCircUsage::Exit { isolation: i2, .. },
+                TargetTunnelUsage::Exit { isolation: i2, .. },
             ) => {
                 if let Some(i1) = isol1 {
                     if let Some(new_isolation) = i1.join_same_type(i2) {
@@ -513,9 +513,9 @@ impl SupportedCircUsage {
                     Ok(())
                 }
             }
-            (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => Ok(()),
+            (Exit { .. } | NoUsage, TargetTunnelUsage::TimeoutTesting) => Ok(()),
             #[cfg(feature = "specific-relay")]
-            (DirSpecificTarget(a), TargetCircUsage::DirSpecificTarget(b))
+            (DirSpecificTarget(a), TargetTunnelUsage::DirSpecificTarget(b))
                 if owned_targets_equivalent(a, b) =>
             {
                 Ok(())
@@ -525,20 +525,20 @@ impl SupportedCircUsage {
     }
 
     /// Find all open circuits in `list` whose specifications permit `usage`.
-    pub(crate) fn find_supported<'a, 'b, C: AbstractCirc>(
+    pub(crate) fn find_supported<'a, 'b, C: AbstractTunnel>(
         list: impl Iterator<Item = &'b mut OpenEntry<C>>,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
     ) -> Vec<&'b mut OpenEntry<C>> {
         /// Returns all circuits in `list` for which `circuit.spec.supports(usage)` returns `true`.
-        fn find_supported_internal<'a, 'b, C: AbstractCirc>(
+        fn find_supported_internal<'a, 'b, C: AbstractTunnel>(
             list: impl Iterator<Item = &'b mut OpenEntry<C>>,
-            usage: &TargetCircUsage,
+            usage: &TargetTunnelUsage,
         ) -> Vec<&'b mut OpenEntry<C>> {
             list.filter(|circ| circ.supports(usage)).collect()
         }
 
         match usage {
-            TargetCircUsage::Preemptive { circs, .. } => {
+            TargetTunnelUsage::Preemptive { circs, .. } => {
                 let supported = find_supported_internal(list, usage);
                 // We need to have at least two circuits that support `port` in order
                 // to reuse them; otherwise, we must create a new circuit, so
@@ -561,7 +561,7 @@ impl SupportedCircUsage {
     /// How the circuit will be used, for use by the channel
     pub(crate) fn channel_usage(&self) -> ChannelUsage {
         use ChannelUsage as CU;
-        use SupportedCircUsage as SCU;
+        use SupportedTunnelUsage as SCU;
         match self {
             SCU::Dir => CU::Dir,
             #[cfg(feature = "specific-relay")]
@@ -587,9 +587,9 @@ pub(crate) mod test {
     use tor_netdir::testnet;
     use tor_persist::TestingStateMgr;
 
-    impl IsolationTokenEq for TargetCircUsage {
+    impl IsolationTokenEq for TargetTunnelUsage {
         fn isol_eq(&self, other: &Self) -> bool {
-            use TargetCircUsage::*;
+            use TargetTunnelUsage::*;
             match (self, other) {
                 (Dir, Dir) => true,
                 (
@@ -624,9 +624,9 @@ pub(crate) mod test {
         }
     }
 
-    impl IsolationTokenEq for SupportedCircUsage {
+    impl IsolationTokenEq for SupportedTunnelUsage {
         fn isol_eq(&self, other: &Self) -> bool {
-            use SupportedCircUsage::*;
+            use SupportedTunnelUsage::*;
             match (self, other) {
                 (Dir, Dir) => true,
                 (
@@ -726,60 +726,60 @@ pub(crate) mod test {
             .build()
             .unwrap();
 
-        let supp_dir = SupportedCircUsage::Dir;
-        let targ_dir = TargetCircUsage::Dir;
-        let supp_exit = SupportedCircUsage::Exit {
+        let supp_dir = SupportedTunnelUsage::Dir;
+        let targ_dir = TargetTunnelUsage::Dir;
+        let supp_exit = SupportedTunnelUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation.clone()),
             country_code: None,
             all_relays_stable: true,
         };
-        let supp_exit_iso2 = SupportedCircUsage::Exit {
+        let supp_exit_iso2 = SupportedTunnelUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation2.clone()),
             country_code: None,
             all_relays_stable: true,
         };
-        let supp_exit_no_iso = SupportedCircUsage::Exit {
+        let supp_exit_no_iso = SupportedTunnelUsage::Exit {
             policy,
             isolation: None,
             country_code: None,
             all_relays_stable: true,
         };
-        let supp_none = SupportedCircUsage::NoUsage;
+        let supp_none = SupportedTunnelUsage::NoUsage;
 
-        let targ_80_v4 = TargetCircUsage::Exit {
+        let targ_80_v4 = TargetTunnelUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation.clone(),
             country_code: None,
             require_stability: false,
         };
-        let targ_80_v4_iso2 = TargetCircUsage::Exit {
+        let targ_80_v4_iso2 = TargetTunnelUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation2,
             country_code: None,
             require_stability: false,
         };
-        let targ_80_23_v4 = TargetCircUsage::Exit {
+        let targ_80_23_v4 = TargetTunnelUsage::Exit {
             ports: vec![TargetPort::ipv4(80), TargetPort::ipv4(23)],
             isolation: isolation.clone(),
             country_code: None,
             require_stability: false,
         };
 
-        let targ_80_23_mixed = TargetCircUsage::Exit {
+        let targ_80_23_mixed = TargetTunnelUsage::Exit {
             ports: vec![TargetPort::ipv4(80), TargetPort::ipv6(23)],
             isolation: isolation.clone(),
             country_code: None,
             require_stability: false,
         };
-        let targ_999_v6 = TargetCircUsage::Exit {
+        let targ_999_v6 = TargetTunnelUsage::Exit {
             ports: vec![TargetPort::ipv6(999)],
             isolation,
             country_code: None,
             require_stability: false,
         };
-        let targ_testing = TargetCircUsage::TimeoutTesting;
+        let targ_testing = TargetTunnelUsage::TimeoutTesting;
 
         assert!(supp_dir.supports(&targ_dir));
         assert!(!supp_dir.supports(&targ_80_v4));
@@ -822,40 +822,40 @@ pub(crate) mod test {
             .build()
             .unwrap();
 
-        let supp_dir = SupportedCircUsage::Dir;
-        let targ_dir = TargetCircUsage::Dir;
-        let supp_exit = SupportedCircUsage::Exit {
+        let supp_dir = SupportedTunnelUsage::Dir;
+        let targ_dir = TargetTunnelUsage::Dir;
+        let supp_exit = SupportedTunnelUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation.clone()),
             country_code: None,
             all_relays_stable: true,
         };
-        let supp_exit_iso2 = SupportedCircUsage::Exit {
+        let supp_exit_iso2 = SupportedTunnelUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation2.clone()),
             country_code: None,
             all_relays_stable: true,
         };
-        let supp_exit_no_iso = SupportedCircUsage::Exit {
+        let supp_exit_no_iso = SupportedTunnelUsage::Exit {
             policy,
             isolation: None,
             country_code: None,
             all_relays_stable: true,
         };
-        let supp_none = SupportedCircUsage::NoUsage;
-        let targ_exit = TargetCircUsage::Exit {
+        let supp_none = SupportedTunnelUsage::NoUsage;
+        let targ_exit = TargetTunnelUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation,
             country_code: None,
             require_stability: false,
         };
-        let targ_exit_iso2 = TargetCircUsage::Exit {
+        let targ_exit_iso2 = TargetTunnelUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation2,
             country_code: None,
             require_stability: false,
         };
-        let targ_testing = TargetCircUsage::TimeoutTesting;
+        let targ_testing = TargetTunnelUsage::TimeoutTesting;
 
         // not allowed, do nothing
         let mut supp_dir_c = supp_dir.clone();
@@ -933,7 +933,7 @@ pub(crate) mod test {
                 VanguardMgr::new(&Default::default(), rt.clone(), statemgr, false).unwrap();
 
             // First, a one-hop directory circuit
-            let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
+            let (p_dir, u_dir, _, _) = TargetTunnelUsage::Dir
                 .build_path(
                     &mut rng,
                     di,
@@ -944,7 +944,7 @@ pub(crate) mod test {
                     now,
                 )
                 .unwrap();
-            assert!(matches!(u_dir, SupportedCircUsage::Dir));
+            assert!(matches!(u_dir, SupportedTunnelUsage::Dir));
             assert_eq!(p_dir.len(), 1);
 
             // Now an exit circuit, to port 995.
@@ -954,7 +954,7 @@ pub(crate) mod test {
                 .build()
                 .unwrap();
 
-            let exit_usage = TargetCircUsage::Exit {
+            let exit_usage = TargetTunnelUsage::Exit {
                 ports: vec![TargetPort::ipv4(995)],
                 isolation: isolation.clone(),
                 country_code: None,
@@ -973,7 +973,7 @@ pub(crate) mod test {
                 .unwrap();
             assert!(matches!(
                 u_exit,
-                SupportedCircUsage::Exit {
+                SupportedTunnelUsage::Exit {
                     isolation: ref iso,
                     ..
                 } if iso.isol_eq(&Some(isolation))
@@ -982,7 +982,7 @@ pub(crate) mod test {
             assert_eq!(p_exit.len(), 3);
 
             // Now try testing circuits.
-            let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
+            let (path, usage, _, _) = TargetTunnelUsage::TimeoutTesting
                 .build_path(
                     &mut rng,
                     di,
@@ -1008,7 +1008,7 @@ pub(crate) mod test {
             assert!(last_relay.low_level_details().policies_allow_some_port());
             assert_isoleq!(
                 usage,
-                SupportedCircUsage::Exit {
+                SupportedTunnelUsage::Exit {
                     policy,
                     isolation: None,
                     country_code: None,
@@ -1043,7 +1043,7 @@ pub(crate) mod test {
             let vanguards =
                 VanguardMgr::new(&Default::default(), rt.clone(), statemgr, false).unwrap();
 
-            let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
+            let (path, usage, _, _) = TargetTunnelUsage::TimeoutTesting
                 .build_path(
                     &mut rng,
                     di,
@@ -1055,7 +1055,7 @@ pub(crate) mod test {
                 )
                 .unwrap();
             assert_eq!(path.len(), 3);
-            assert_isoleq!(usage, SupportedCircUsage::NoUsage);
+            assert_isoleq!(usage, SupportedTunnelUsage::NoUsage);
         });
     }
 

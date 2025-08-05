@@ -211,7 +211,7 @@ enum ErrorDetail {
 
         /// The error that occurred.
         #[source]
-        cause:  tor_proto::Error
+        cause: tor_circmgr::Error
     },
 
     /// An error while interfacing with the persistent data layer.

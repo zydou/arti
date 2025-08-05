@@ -1,4 +1,4 @@
-use crate::usage::{SupportedCircUsage, TargetCircUsage};
+use crate::usage::{SupportedTunnelUsage, TargetTunnelUsage};
 use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 
 #[cfg(feature = "vanguards")]
@@ -19,7 +19,7 @@ use crate::{StreamIsolation, TargetPorts};
 use std::sync::atomic::{self, AtomicUsize};
 use tracing::trace;
 
-use super::mgr::{AbstractCirc, AbstractCircBuilder, MockablePlan};
+use super::mgr::{AbstractTunnel, AbstractTunnelBuilder, MockablePlan};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Copy)]
 pub(crate) struct FakeId {
@@ -40,7 +40,7 @@ pub(crate) struct FakeCirc {
 }
 
 #[async_trait]
-impl AbstractCirc for FakeCirc {
+impl AbstractTunnel for FakeCirc {
     type Id = FakeId;
     fn id(&self) -> FakeId {
         self.id
@@ -49,7 +49,7 @@ impl AbstractCirc for FakeCirc {
         true
     }
 
-    fn path_ref(&self) -> tor_proto::Result<Arc<Path>> {
+    fn single_path(&self) -> tor_proto::Result<Arc<Path>> {
         todo!()
     }
 
@@ -65,7 +65,7 @@ impl AbstractCirc for FakeCirc {
         todo!()
     }
 
-    async fn extend<T: CircTarget + std::marker::Sync>(
+    async fn extend<T: CircTarget + Sync>(
         &self,
         _target: &T,
         _params: CircParameters,
@@ -76,7 +76,7 @@ impl AbstractCirc for FakeCirc {
 
 #[derive(Debug, Clone)]
 pub(crate) struct FakePlan {
-    spec: SupportedCircUsage,
+    spec: SupportedTunnelUsage,
     op: FakeOp,
 }
 
@@ -85,7 +85,7 @@ pub(crate) struct FakeBuilder<RT: Runtime> {
     guardmgr: GuardMgr<RT>,
     #[cfg(feature = "vanguards")]
     vanguardmgr: Arc<VanguardMgr<RT>>,
-    pub(crate) script: sync::Mutex<Vec<(TargetCircUsage, FakeOp)>>,
+    pub(crate) script: sync::Mutex<Vec<(TargetTunnelUsage, FakeOp)>>,
 }
 
 #[derive(Debug, Clone)]
@@ -96,7 +96,7 @@ pub(crate) enum FakeOp {
     Timeout,
     TimeoutReleaseAdvance(String),
     NoPlan,
-    WrongSpec(SupportedCircUsage),
+    WrongSpec(SupportedTunnelUsage),
 }
 
 impl MockablePlan for FakePlan {
@@ -110,15 +110,15 @@ impl MockablePlan for FakePlan {
 const FAKE_CIRC_DELAY: Duration = Duration::from_millis(30);
 
 #[async_trait]
-impl<RT: Runtime> AbstractCircBuilder<RT> for FakeBuilder<RT> {
-    type Circ = FakeCirc;
+impl<RT: Runtime> AbstractTunnelBuilder<RT> for FakeBuilder<RT> {
+    type Tunnel = FakeCirc;
     type Plan = FakePlan;
 
-    fn plan_circuit(
+    fn plan_tunnel(
         &self,
-        spec: &TargetCircUsage,
+        spec: &TargetTunnelUsage,
         _dir: DirInfo<'_>,
-    ) -> Result<(FakePlan, SupportedCircUsage)> {
+    ) -> Result<(FakePlan, SupportedTunnelUsage)> {
         let next_op = self.next_op(spec);
         if matches!(next_op, FakeOp::NoPlan) {
             return Err(Error::NoRelay {
@@ -128,12 +128,12 @@ impl<RT: Runtime> AbstractCircBuilder<RT> for FakeBuilder<RT> {
             });
         }
         let supported_circ_usage = match spec {
-            TargetCircUsage::Exit {
+            TargetTunnelUsage::Exit {
                 ports,
                 isolation,
                 country_code,
                 require_stability,
-            } => SupportedCircUsage::Exit {
+            } => SupportedTunnelUsage::Exit {
                 policy: ExitPolicy::from_target_ports(&TargetPorts::from(&ports[..])),
                 isolation: if isolation.isol_eq(&StreamIsolation::no_isolation()) {
                     None
@@ -144,7 +144,7 @@ impl<RT: Runtime> AbstractCircBuilder<RT> for FakeBuilder<RT> {
                 all_relays_stable: *require_stability,
             },
             #[cfg(feature = "hs-common")]
-            TargetCircUsage::HsCircBase { .. } => SupportedCircUsage::HsOnly,
+            TargetTunnelUsage::HsCircBase { .. } => SupportedTunnelUsage::HsOnly,
             _ => unimplemented!(),
         };
         let plan = FakePlan {
@@ -154,14 +154,14 @@ impl<RT: Runtime> AbstractCircBuilder<RT> for FakeBuilder<RT> {
         Ok((plan, supported_circ_usage))
     }
 
-    async fn build_circuit(&self, plan: FakePlan) -> Result<(SupportedCircUsage, Arc<FakeCirc>)> {
+    async fn build_tunnel(&self, plan: FakePlan) -> Result<(SupportedTunnelUsage, FakeCirc)> {
         let op = plan.op;
         let sl = self.runtime.sleep(FAKE_CIRC_DELAY);
         self.runtime.allow_one_advance(FAKE_CIRC_DELAY);
         sl.await;
         match op {
-            FakeOp::Succeed => Ok((plan.spec, Arc::new(FakeCirc { id: FakeId::next() }))),
-            FakeOp::WrongSpec(s) => Ok((s, Arc::new(FakeCirc { id: FakeId::next() }))),
+            FakeOp::Succeed => Ok((plan.spec, FakeCirc { id: FakeId::next() })),
+            FakeOp::WrongSpec(s) => Ok((s, FakeCirc { id: FakeId::next() })),
             FakeOp::Fail => Err(Error::CircTimeout(None)),
             FakeOp::Delay(d) => {
                 let sl = self.runtime.sleep(d);
@@ -242,7 +242,7 @@ impl<RT: Runtime> FakeBuilder<RT> {
     }
 
     /// set a plan for a given TargetCircUsage.
-    pub(crate) fn set<I>(&self, spec: &TargetCircUsage, v: I)
+    pub(crate) fn set<I>(&self, spec: &TargetTunnelUsage, v: I)
     where
         I: IntoIterator<Item = FakeOp>,
     {
@@ -254,7 +254,7 @@ impl<RT: Runtime> FakeBuilder<RT> {
         }
     }
 
-    fn next_op(&self, spec: &TargetCircUsage) -> FakeOp {
+    fn next_op(&self, spec: &TargetTunnelUsage) -> FakeOp {
         let mut script = self.script.lock().expect("Couldn't get lock on script");
 
         let idx = script

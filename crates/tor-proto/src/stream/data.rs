@@ -32,13 +32,10 @@ use std::sync::{Mutex, Weak};
 
 use educe::Educe;
 
-#[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
-use crate::tunnel::circuit::ClientCirc;
-
 use crate::memquota::StreamAccount;
 use crate::stream::xon_xoff::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
 use crate::stream::{StreamRateLimit, StreamReceiver};
-use crate::tunnel::StreamTarget;
+use crate::tunnel::{ClientTunnel, StreamTarget};
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
 use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
 use tor_basic_utils::skip_fmt;
@@ -166,8 +163,7 @@ pub struct ClientDataStreamCtrl {
     ///
     /// We make this a Weak reference so that once the stream itself is closed,
     /// we can't leak circuits.
-    // TODO(conflux): use ClientTunnel
-    circuit: Weak<ClientCirc>,
+    tunnel: Weak<ClientTunnel>,
 
     /// Shared user-visible information about the state of this stream.
     ///
@@ -510,9 +506,8 @@ restricted_msg! {
 // ClientDataStreamCtrl?
 #[cfg(feature = "stream-ctrl")]
 impl super::ctrl::ClientStreamCtrl for ClientDataStreamCtrl {
-    // TODO(conflux): use ClientTunnel
-    fn circuit(&self) -> Option<Arc<ClientCirc>> {
-        self.circuit.upgrade()
+    fn tunnel(&self) -> Option<Arc<ClientTunnel>> {
+        self.tunnel.upgrade()
     }
 }
 
@@ -599,7 +594,7 @@ impl DataStream {
 
         #[cfg(feature = "stream-ctrl")]
         let ctrl = Arc::new(ClientDataStreamCtrl {
-            circuit: Arc::downgrade(target.circuit()),
+            tunnel: Arc::downgrade(target.tunnel()),
             status: status.clone(),
             _memquota: memquota.clone(),
         });

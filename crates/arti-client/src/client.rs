@@ -16,6 +16,7 @@ use crate::config::{
 use safelog::{sensitive, Sensitive};
 use tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::{Isolation, StreamIsolation};
+use tor_circmgr::ClientDataTunnel;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
 #[cfg(feature = "bridge-client")]
@@ -29,7 +30,6 @@ use tor_netdir::{params::NetParameters, NetDirProvider};
 #[cfg(feature = "onion-service-service")]
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
-use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
@@ -1406,19 +1406,41 @@ impl<R: Runtime> TorClient<R> {
     ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
         let mut stream_parameters = prefs.stream_parameters();
+        // This macro helps prevent code duplication in the match below.
+        //
+        // Ideally, the match should resolve to a tuple consisting of the
+        // tunnel, and the address, port and stream params,
+        // but that's not currently possible because
+        // the Exit and Hs branches use different tunnel types.
+        //
+        // TODO: replace with an async closure (when our MSRV allows it),
+        // or with a more elegant approach.
+        macro_rules! begin_stream {
+            ($tunnel:expr, $addr:expr, $port:expr, $stream_params:expr) => {{
+                let fut = $tunnel.begin_stream($addr, $port, $stream_params);
+                self.runtime
+                    .timeout(self.timeoutcfg.get().connect_timeout, fut)
+                    .await
+                    .map_err(|_| ErrorDetail::ExitTimeout)?
+                    .map_err(|cause| ErrorDetail::StreamFailed {
+                        cause,
+                        kind: "data",
+                    })
+            }};
+        }
 
-        let (circ, addr, port) = match addr.into_stream_instructions(&self.addrcfg.get(), prefs)? {
+        let stream = match addr.into_stream_instructions(&self.addrcfg.get(), prefs)? {
             StreamInstructions::Exit {
                 hostname: addr,
                 port,
             } => {
                 let exit_ports = [prefs.wrap_target_port(port)];
-                let circ = self
-                    .get_or_launch_exit_circ(&exit_ports, prefs)
+                let tunnel = self
+                    .get_or_launch_exit_tunnel(&exit_ports, prefs)
                     .await
                     .map_err(wrap_err)?;
                 debug!("Got a circuit for {}:{}", sensitive(&addr), port);
-                (circ, addr, port)
+                begin_stream!(tunnel, &addr, port, Some(stream_parameters))
             }
 
             #[cfg(not(feature = "onion-service-client"))]
@@ -1461,9 +1483,9 @@ impl<R: Runtime> TorClient<R> {
                     .build()
                     .map_err(ErrorDetail::Configuration)?;
 
-                let circ = self
+                let tunnel = self
                     .hsclient
-                    .get_or_launch_circuit(
+                    .get_or_launch_tunnel(
                         &netdir,
                         hsid,
                         hs_client_secret_keys,
@@ -1478,23 +1500,12 @@ impl<R: Runtime> TorClient<R> {
                     .suppress_hostname()
                     .suppress_begin_flags()
                     .optimistic(false);
-                (circ, hostname, port)
+
+                begin_stream!(tunnel, &hostname, port, Some(stream_parameters))
             }
         };
 
-        let stream_future = circ.begin_stream(&addr, port, Some(stream_parameters));
-        // This timeout is needless but harmless for optimistic streams.
-        let stream = self
-            .runtime
-            .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
-            .await
-            .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(|cause| ErrorDetail::StreamFailed {
-                cause,
-                kind: "data",
-            })?;
-
-        Ok(stream)
+        Ok(stream?)
     }
 
     /// Sets the default preferences for future connections made with this client.
@@ -1538,7 +1549,7 @@ impl<R: Runtime> TorClient<R> {
 
         match addr.into_resolve_instructions(&self.addrcfg.get(), prefs)? {
             ResolveInstructions::Exit(hostname) => {
-                let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
+                let circ = self.get_or_launch_exit_tunnel(&[], prefs).await?;
 
                 let resolve_future = circ.resolve(&hostname);
                 let addrs = self
@@ -1572,7 +1583,7 @@ impl<R: Runtime> TorClient<R> {
         addr: IpAddr,
         prefs: &StreamPrefs,
     ) -> crate::Result<Vec<String>> {
-        let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
+        let circ = self.get_or_launch_exit_tunnel(&[], prefs).await?;
 
         let resolve_ptr_future = circ.resolve_ptr(addr);
         let hostnames = self
@@ -1664,17 +1675,17 @@ impl<R: Runtime> TorClient<R> {
 
     /// Get or launch an exit-suitable circuit with a given set of
     /// exit ports.
-    async fn get_or_launch_exit_circ(
+    async fn get_or_launch_exit_tunnel(
         &self,
         exit_ports: &[TargetPort],
         prefs: &StreamPrefs,
-    ) -> StdResult<Arc<ClientCirc>, ErrorDetail> {
+    ) -> StdResult<ClientDataTunnel, ErrorDetail> {
         // TODO HS probably this netdir ought to be made in connect_with_prefs
         // like for StreamInstructions::Hs.
         self.wait_for_bootstrap().await?;
         let dir = self.netdir(Timeliness::Timely, "build a circuit")?;
 
-        let circ = self
+        let tunnel = self
             .circmgr
             .get_or_launch_exit(
                 dir.as_ref().into(),
@@ -1690,7 +1701,7 @@ impl<R: Runtime> TorClient<R> {
             })?;
         drop(dir); // This decreases the refcount on the netdir.
 
-        Ok(circ)
+        Ok(tunnel)
     }
 
     /// Return an overall [`Isolation`] for this `TorClient` and a `StreamPrefs`.

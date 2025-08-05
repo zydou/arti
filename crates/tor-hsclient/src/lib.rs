@@ -65,10 +65,10 @@ use tracing::debug;
 
 use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::isolation::StreamIsolation;
+use tor_circmgr::ClientOnionServiceDataTunnel;
 use tor_error::{internal, Bug};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
-use tor_proto::circuit::ClientCirc;
 use tor_rtcompat::Runtime;
 
 pub use err::FailedAttemptError;
@@ -87,7 +87,7 @@ use state::{Config, MockableConnectorData, Services};
 /// and potentially different circuit isolation.
 ///
 /// The principal entrypoint is
-/// [`get_or_launch_connection()`](HsClientConnector::get_or_launch_connection).
+/// [`get_or_launch_tunnel()`](HsClientConnector::get_or_launch_tunnel).
 ///
 /// This object is handle-like: it is fairly cheap to clone,
 ///  and contains `Arc`s internally.
@@ -146,7 +146,7 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     /// a new circuit will be created.
     ///
     /// Once a circuit is returned, the caller can use it to open new streams to the
-    /// onion service. To do so, call [`ClientCirc::begin_stream`] on it.
+    /// onion service. To do so, call [`ClientOnionServiceDataTunnel::begin_stream`] on it.
     ///
     /// Each HS connection request must provide the appropriate
     /// service discovery keys to use -
@@ -157,34 +157,20 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     // Without this, it is possible for `Services::get_or_launch_connection`
     // to not return a `Send` future.
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1034#note_2881718
-    pub fn get_or_launch_circuit<'r>(
+    pub fn get_or_launch_tunnel<'r>(
         &'r self,
         netdir: &'r Arc<NetDir>,
         hs_id: HsId,
         secret_keys: HsClientSecretKeys,
         isolation: StreamIsolation,
-    ) -> impl Future<Output = Result<Arc<ClientCirc>, ConnError>> + Send + Sync + 'r {
+    ) -> impl Future<Output = Result<Arc<ClientOnionServiceDataTunnel>, ConnError>> + Send + Sync + 'r
+    {
         // As in tor-circmgr,  we take `StreamIsolation`, to ensure that callers in
         // arti-client pass us the final overall isolation,
         // including the per-TorClient isolation.
         // But internally we need a Box<dyn Isolation> since we need .join().
         let isolation = Box::new(isolation);
         Services::get_or_launch_connection(self, netdir, hs_id, isolation, secret_keys)
-    }
-
-    /// A deprecated alias for `get_or_launch_circuit`.
-    ///
-    /// We renamed it to be
-    /// more clear about what exactly it is launching.
-    #[deprecated(since = "0.5.1", note = "Use get_or_launch_circuit instead.")]
-    pub fn get_or_launch_connection<'r>(
-        &'r self,
-        netdir: &'r Arc<NetDir>,
-        hs_id: HsId,
-        secret_keys: HsClientSecretKeys,
-        isolation: StreamIsolation,
-    ) -> impl Future<Output = Result<Arc<ClientCirc>, ConnError>> + Send + Sync + 'r {
-        self.get_or_launch_circuit(netdir, hs_id, secret_keys, isolation)
     }
 }
 

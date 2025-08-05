@@ -69,7 +69,14 @@ pub use util::skew::ClockSkew;
 pub use channel::params::ChannelPaddingInstructions;
 pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
-pub use tunnel::{circuit, HopLocation, TargetHop};
+pub use tunnel::{circuit, ClientTunnel, HopLocation, TargetHop};
+#[cfg(feature = "send-control-msg")]
+#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
+pub use {
+    crate::tunnel::msghandler::{MsgHandler, UserMsgHandler},
+    crate::tunnel::reactor::MetaCellDisposition,
+    crate::tunnel::Conversation,
+};
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;

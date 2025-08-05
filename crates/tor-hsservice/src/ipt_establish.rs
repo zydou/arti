@@ -14,6 +14,7 @@ use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
     msg::IntroEstablished,
 };
+use tor_circmgr::ServiceOnionServiceIntroTunnel;
 use tor_proto::TargetHop;
 
 /// Handle onto the task which is establishing and maintaining one IPT
@@ -73,7 +74,7 @@ pub(crate) enum IptEstablisherError {
 
     /// We encountered an error while querying the circuit state.
     #[error("Unable to query circuit state")]
-    CircuitState(#[source] tor_proto::Error),
+    CircuitState(#[source] tor_circmgr::Error),
 
     /// We encountered an error while building and signing our establish_intro
     /// message.
@@ -87,7 +88,7 @@ pub(crate) enum IptEstablisherError {
     /// We encountered an error while sending our establish_intro
     /// message.
     #[error("Unable to send an ESTABLISH_INTRO message")]
-    SendEstablishIntro(#[source] tor_proto::Error),
+    SendEstablishIntro(#[source] tor_circmgr::Error),
 
     /// We did not receive an INTRO_ESTABLISHED message like we wanted; instead, the
     /// circuit was closed.
@@ -632,7 +633,7 @@ struct Reactor<R: Runtime> {
 pub(crate) struct IntroPtSession {
     /// The circuit to the introduction point, on which we're receiving
     /// Introduce2 messages.
-    intro_circ: Arc<ClientCirc>,
+    intro_tunnel: Arc<ServiceOnionServiceIntroTunnel>,
 }
 
 impl<R: Runtime> Reactor<R> {
@@ -712,7 +713,7 @@ impl<R: Runtime> Reactor<R> {
     async fn establish_intro_once(
         &self,
     ) -> Result<(IntroPtSession, GoodIptDetails), IptEstablisherError> {
-        let (protovers, circuit, ipt_details) = {
+        let (protovers, tunnel, ipt_details) = {
             let netdir = self
                 .netdir_provider
                 .wait_for_netdir(tor_netdir::Timeliness::Timely)
@@ -722,16 +723,15 @@ impl<R: Runtime> Reactor<R> {
                 .ok_or(IptError::IntroPointNotListed)?;
             let ipt_details = GoodIptDetails::try_from_circ_target(&circ_target)?;
 
-            let kind = tor_circmgr::hspool::HsCircKind::SvcIntro;
             let protovers = circ_target.protovers().clone();
-            let circuit = self
+            let tunnel = self
                 .pool
-                .get_or_launch_specific(netdir.as_ref(), kind, circ_target)
+                .get_or_launch_svc_intro(netdir.as_ref(), circ_target)
                 .await
                 .map_err(IptEstablisherError::BuildCircuit)?;
             // note that netdir is dropped here, to avoid holding on to it any
             // longer than necessary.
-            (protovers, circuit, ipt_details)
+            (protovers, tunnel, ipt_details)
         };
 
         let establish_intro = {
@@ -745,7 +745,7 @@ impl<R: Runtime> Reactor<R> {
                     details.set_extension_dos(dos_params.clone());
                 }
             }
-            let circuit_binding_key = circuit
+            let circuit_binding_key = tunnel
                 .binding_key(TargetHop::LastHop)
                 .await
                 .map_err(IptEstablisherError::CircuitState)?
@@ -790,7 +790,7 @@ impl<R: Runtime> Reactor<R> {
             request_context: self.request_context.clone(),
             replay_log,
         };
-        let _conversation = circuit
+        let _conversation = tunnel
             .start_conversation(Some(establish_intro), handler, TargetHop::LastHop)
             .await
             .map_err(IptEstablisherError::SendEstablishIntro)?;
@@ -798,7 +798,7 @@ impl<R: Runtime> Reactor<R> {
         // that the message was sent.  We have to wait for any actual `established`
         // message, though.
 
-        let length = circuit
+        let length = tunnel
             .n_hops()
             .map_err(into_internal!("failed to get circuit length"))?;
         let ack_timeout = self
@@ -815,7 +815,7 @@ impl<R: Runtime> Reactor<R> {
         // when the circuit closes, or when the keep_intro_established() future
         // is dropped.
         let session = IntroPtSession {
-            intro_circ: circuit,
+            intro_tunnel: tunnel.into(),
         };
         Ok((session, ipt_details))
     }
@@ -824,7 +824,7 @@ impl<R: Runtime> Reactor<R> {
 impl IntroPtSession {
     /// Wait for this introduction point session to be closed.
     fn wait_for_close(&self) -> impl Future<Output = ()> {
-        self.intro_circ.wait_for_close()
+        self.intro_tunnel.wait_for_close()
     }
 }
 
@@ -856,7 +856,7 @@ struct IptMsgHandler {
     replay_log: futures::lock::OwnedMutexGuard<IptReplayLog>,
 }
 
-impl tor_proto::circuit::MsgHandler for IptMsgHandler {
+impl tor_proto::MsgHandler for IptMsgHandler {
     fn handle_msg(&mut self, any_msg: AnyRelayMsg) -> tor_proto::Result<MetaCellDisposition> {
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             if let Some(tx) = self.established_tx.take() {

@@ -4,13 +4,13 @@ use std::time::{Duration, Instant};
 
 use crate::{
     hspool::{HsCircStem, HsCircStemKind},
-    AbstractCirc,
+    AbstractTunnel,
 };
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
 
 /// A collection of circuits used to fulfil onion-service-related requests.
-pub(super) struct Pool<C: AbstractCirc> {
+pub(super) struct Pool<C: AbstractTunnel> {
     /// The collection of circuits themselves, in no particular order.
     circuits: Vec<HsCircStem<C>>,
 
@@ -114,7 +114,7 @@ impl CircsToLaunch {
     }
 }
 
-impl<C: AbstractCirc> Default for Pool<C> {
+impl<C: AbstractTunnel> Default for Pool<C> {
     fn default() -> Self {
         Self {
             circuits: Vec::new(),
@@ -127,7 +127,7 @@ impl<C: AbstractCirc> Default for Pool<C> {
     }
 }
 
-impl<C: AbstractCirc> Pool<C> {
+impl<C: AbstractTunnel> Pool<C> {
     /// Add `circ` to this pool
     pub(super) fn insert(&mut self, circ: HsCircStem<C>) {
         self.circuits.push(circ);

@@ -3,7 +3,7 @@
 use std::str;
 
 use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
-use tor_proto::circuit::{ClientCirc, UniqId};
+use tor_proto::circuit::UniqId;
 
 use crate::{RequestError, RequestFailedError};
 
@@ -29,10 +29,10 @@ pub struct DirResponse {
 /// We use this to remember when a request has failed, so we can
 /// abandon the circuit.
 #[derive(Debug, Clone, derive_more::Display)]
-#[display("{} via {}", cache_id, circuit)]
+#[display("{} via {}", cache_id, tunnel)]
 pub struct SourceInfo {
     /// Unique identifier for the circuit we're using
-    circuit: UniqId,
+    tunnel: UniqId,
     /// Identity of the directory cache that provided us this information.
     cache_id: LoggedChanTarget,
 }
@@ -156,15 +156,18 @@ impl DirResponse {
 }
 
 impl SourceInfo {
-    /// Try to construct a new SourceInfo representing the last hop of a given circuit.
+    /// Try to construct a new SourceInfo representing the last hop of a given tunnel.
     ///
-    /// Return an error if the circuit is closed;
+    /// Return an error if the tunnel is closed;
     /// return `Ok(None)` if the circuit's last hop is virtual.
-    pub fn from_circuit(circuit: &ClientCirc) -> tor_proto::Result<Option<Self>> {
-        match circuit.last_hop_info()? {
+    pub fn from_tunnel(
+        tunnel: impl AsRef<tor_proto::ClientTunnel>,
+    ) -> tor_proto::Result<Option<Self>> {
+        let tunnel = tunnel.as_ref();
+        match tunnel.last_hop_info()? {
             None => Ok(None),
             Some(last_hop) => Ok(Some(SourceInfo {
-                circuit: circuit.unique_id(),
+                tunnel: tunnel.unique_id(),
                 cache_id: last_hop.into(),
             })),
         }
@@ -173,7 +176,7 @@ impl SourceInfo {
     /// Return the unique circuit identifier for the circuit on which
     /// we received this info.
     pub fn unique_circ_id(&self) -> &UniqId {
-        &self.circuit
+        &self.tunnel
     }
 
     /// Return information about the peer from which we received this info.

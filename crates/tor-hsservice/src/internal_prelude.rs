@@ -75,7 +75,7 @@ pub(crate) use {
     tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt as _},
     tor_basic_utils::{impl_debug_hex, retry::RetryDelay, PathExt as _, RngExt as _},
     tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg as _},
-    tor_circmgr::hspool::{HsCircKind, HsCircPool},
+    tor_circmgr::hspool::HsCircPool,
     tor_config::{ConfigBuildError, Reconfigure, ReconfigureError},
     tor_dirclient::request::HsDescUploadRequest,
     tor_dirclient::{send_request, Error as DirClientError, RequestFailedError},
@@ -107,8 +107,8 @@ pub(crate) use {
     tor_persist::state_dir::{
         ContainsInstanceStateGuard as _, InstanceRawSubdir, LockFileGuard, StateDirectory,
     },
-    tor_proto::circuit::{ClientCirc, MetaCellDisposition},
     tor_proto::stream::DataStream,
+    tor_proto::MetaCellDisposition,
     tor_rtcompat::SleepProvider,
     tor_rtcompat::{Runtime, SleepProviderExt as _},
 };

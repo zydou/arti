@@ -1,19 +1,19 @@
-//! Abstract code to manage a set of circuits.
+//! Abstract code to manage a set of tunnels which has underlying circuit(s).
 //!
 //! This module implements the real logic for deciding when and how to
-//! launch circuits, and for which circuits to hand out in response to
+//! launch tunnels, and for which tunnels to hand out in response to
 //! which requests.
 //!
 //! For testing and abstraction purposes, this module _does not_
-//! actually know anything about circuits _per se_.  Instead,
+//! actually know anything about tunnels _per se_.  Instead,
 //! everything is handled using a set of traits that are internal to this
 //! crate:
 //!
-//!  * [`AbstractCirc`] is a view of a circuit.
-//!  * [`AbstractCircBuilder`] knows how to build an `AbstractCirc`.
+//!  * [`AbstractTunnel`] is a view of a tunnel.
+//!  * [`AbstractTunnelBuilder`] knows how to build an `AbstractCirc`.
 //!
-//! Using these traits, the [`AbstractCircMgr`] object manages a set of
-//! circuits, launching them as necessary, and keeping track of the
+//! Using these traits, the [`AbstractTunnelMgr`] object manages a set of
+//! tunnels , launching them as necessary, and keeping track of the
 //! restrictions on their use.
 
 // TODO:
@@ -22,7 +22,7 @@
 //    - Error reported by restrict_mut?
 
 use crate::config::CircuitTiming;
-use crate::usage::{SupportedCircUsage, TargetCircUsage};
+use crate::usage::{SupportedTunnelUsage, TargetTunnelUsage};
 use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 
 use retry_error::RetryError;
@@ -53,10 +53,10 @@ use weak_table::PtrWeakHashSet;
 
 mod streams;
 
-/// Description of how we got a circuit.
+/// Description of how we got a tunnel.
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub(crate) enum CircProvenance {
+pub(crate) enum TunnelProvenance {
     /// This channel was newly launched, or was in progress and finished while
     /// we were waiting.
     NewlyCreated,
@@ -67,58 +67,55 @@ pub(crate) enum CircProvenance {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RestrictionFailed {
-    /// Tried to restrict a specification, but the circuit didn't support the
+    /// Tried to restrict a specification, but the tunnel didn't support the
     /// requested usage.
     #[error("Specification did not support desired usage")]
     NotSupported,
 }
 
-/// Minimal abstract view of a circuit.
+/// Minimal abstract view of a tunnel.
 ///
-/// From this module's point of view, circuits are simply objects
+/// From this module's point of view, tunnels are simply objects
 /// with unique identities, and a possible closed-state.
 #[async_trait]
-pub(crate) trait AbstractCirc: Debug {
-    /// Type for a unique identifier for circuits.
+pub(crate) trait AbstractTunnel: Debug {
+    /// Type for a unique identifier for tunnels.
     type Id: Clone + Debug + Hash + Eq + Send + Sync;
-    /// Return the unique identifier for this circuit.
+    /// Return the unique identifier for this tunnel.
     ///
     /// # Requirements
     ///
     /// The values returned by this function are unique for distinct
-    /// circuits.
+    /// tunnels.
     fn id(&self) -> Self::Id;
 
-    /// Return true if this circuit is usable for some purpose.
+    /// Return true if this tunnel is usable for some purpose.
     ///
-    /// Reasons a circuit might be unusable include being closed.
+    /// Reasons a tunnel might be unusable include being closed.
     fn usable(&self) -> bool;
 
-    /// Return a [`Path`] object describing all the hops in this circuit.
+    /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
     ///
-    /// Returns an error if the circuit is closed.
-    ///
-    /// Note that this `Path` is not automatically updated if the circuit is
-    /// extended.
-    fn path_ref(&self) -> tor_proto::Result<Arc<Path>>;
+    /// Returns an error if the tunnel has more than one tunnel.
+    fn single_path(&self) -> tor_proto::Result<Arc<Path>>;
 
-    /// Return the number of hops in this circuit.
+    /// Return the number of hops in this tunnel.
     ///
     /// Returns an error if the circuit is closed.
     ///
     /// NOTE: This function will currently return only the number of hops
-    /// _currently_ in the circuit. If there is an extend operation in progress,
+    /// _currently_ in the tunnel. If there is an extend operation in progress,
     /// the currently pending hop may or may not be counted, depending on whether
     /// the extend operation finishes before this call is done.
     fn n_hops(&self) -> tor_proto::Result<usize>;
 
-    /// Return true if this circuit is closed and therefore unusable.
+    /// Return true if this tunnel is closed and therefore unusable.
     fn is_closing(&self) -> bool;
 
-    /// Return a process-unique identifier for this circuit.
+    /// Return a process-unique identifier for this tunnel.
     fn unique_id(&self) -> UniqId;
 
-    /// Extend the circuit via the most appropriate handshake to a new `target` hop.
+    /// Extend the tunnel via the most appropriate handshake to a new `target` hop.
     async fn extend<T: CircTarget + Sync>(
         &self,
         target: &T,
@@ -135,20 +132,21 @@ pub(crate) trait MockablePlan {
     fn add_blocked_advance_reason(&mut self, _reason: String) {}
 }
 
-/// An object that knows how to build circuits.
+/// An object that knows how to build tunnels.
 ///
-/// AbstractCircBuilder creates circuits in two phases.  First, a plan is
-/// made for how to build the circuit.  This planning phase should be
+/// This creates tunnels in two phases. First, a plan is
+/// made for how to build the tunnel. This planning phase should be
 /// relatively fast, and must not suspend or block.  Its purpose is to
-/// get an early estimate of which operations the circuit will be able
+/// get an early estimate of which operations the tunnel will be able
 /// to support when it's done.
 ///
-/// Second, the circuit is actually built, using the plan as input.
+/// Second, the tunnel is actually built, using the plan as input.
+
 #[async_trait]
-pub(crate) trait AbstractCircBuilder<R: Runtime>: Send + Sync {
-    /// The circuit type that this builder knows how to build.
-    type Circ: AbstractCirc + Send + Sync;
-    /// An opaque type describing how a given circuit will be built.
+pub(crate) trait AbstractTunnelBuilder<R: Runtime>: Send + Sync {
+    /// The tunnel type that this builder knows how to build.
+    type Tunnel: AbstractTunnel + Send + Sync;
+    /// An opaque type describing how a given tunnel will be built.
     /// It may represent some or all of a path-or it may not.
     //
     // TODO: It would be nice to have this parameterized on a lifetime,
@@ -162,73 +160,70 @@ pub(crate) trait AbstractCircBuilder<R: Runtime>: Send + Sync {
     // create::DirInfo, but that would need to be parameterized too,
     // and would make everything complicated.
 
-    /// Form a plan for how to build a new circuit that supports `usage`.
+    /// Form a plan for how to build a new tunnel that supports `usage`.
     ///
     /// Return an opaque Plan object, and a new spec describing what
-    /// the circuit will actually support when it's built.  (For
-    /// example, if the input spec requests a circuit that connect to
-    /// port 80, then "planning" the circuit might involve picking an
+    /// the tunnel will actually support when it's built.  (For
+    /// example, if the input spec requests a tunnel that connect to
+    /// port 80, then "planning" the tunnel might involve picking an
     /// exit that supports port 80, and the resulting spec might be
     /// the exit's complete list of supported ports.)
     ///
     /// # Requirements
     ///
     /// The resulting Spec must support `usage`.
-    fn plan_circuit(
+    fn plan_tunnel(
         &self,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(Self::Plan, SupportedCircUsage)>;
+    ) -> Result<(Self::Plan, SupportedTunnelUsage)>;
 
-    /// Construct a circuit according to a given plan.
+    /// Construct a tunnel according to a given plan.
     ///
-    /// On success, return a spec describing what the circuit can be used for,
-    /// and the circuit that was just constructed.
+    /// On success, return a spec describing what the tunnel can be used for,
+    /// and the tunnel that was just constructed.
     ///
     /// This function should implement some kind of a timeout for
-    /// circuits that are taking too long.
+    /// tunnel that are taking too long.
     ///
     /// # Requirements
     ///
     /// The spec that this function returns _must_ support the usage
-    /// that was originally passed to `plan_circuit`.  It _must_ also
+    /// that was originally passed to `plan_tunnel`.  It _must_ also
     /// contain the spec that was originally returned by
-    /// `plan_circuit`.
-    async fn build_circuit(
-        &self,
-        plan: Self::Plan,
-    ) -> Result<(SupportedCircUsage, Arc<Self::Circ>)>;
+    /// `plan_tunnel`.
+    async fn build_tunnel(&self, plan: Self::Plan) -> Result<(SupportedTunnelUsage, Self::Tunnel)>;
 
-    /// Return a "parallelism factor" with which circuits should be
+    /// Return a "parallelism factor" with which tunnels should be
     /// constructed for a given purpose.
     ///
-    /// If this function returns N, then whenever we launch circuits
+    /// If this function returns N, then whenever we launch tunnels
     /// for this purpose, then we launch N in parallel.
     ///
     /// The default implementation returns 1.  The value of 0 is
     /// treated as if it were 1.
-    fn launch_parallelism(&self, usage: &TargetCircUsage) -> usize {
+    fn launch_parallelism(&self, usage: &TargetTunnelUsage) -> usize {
         let _ = usage; // default implementation ignores this.
         1
     }
 
-    /// Return a "parallelism factor" for which circuits should be
+    /// Return a "parallelism factor" for which tunnels should be
     /// used for a given purpose.
     ///
     /// If this function returns N, then whenever we select among
-    /// open circuits for this purpose, we choose at random from the
+    /// open tunnels for this purpose, we choose at random from the
     /// best N.
     ///
     /// The default implementation returns 1.  The value of 0 is
     /// treated as if it were 1.
     // TODO: Possibly this doesn't belong in this trait.
-    fn select_parallelism(&self, usage: &TargetCircUsage) -> usize {
+    fn select_parallelism(&self, usage: &TargetTunnelUsage) -> usize {
         let _ = usage; // default implementation ignores this.
         1
     }
 
-    /// Return true if we are currently attempting to learn circuit
-    /// timeouts by building testing circuits.
+    /// Return true if we are currently attempting to learn tunnel
+    /// timeouts by building testing tunnels.
     fn learning_timeouts(&self) -> bool;
 
     /// Flush state to the state manager if we own the lock.
@@ -267,36 +262,36 @@ pub(crate) trait AbstractCircBuilder<R: Runtime>: Send + Sync {
 
     /// Reconfigure this builder using the latest set of network parameters.
     ///
-    /// (NOTE: for now, this only affects circuit timeout estimation.)
+    /// (NOTE: for now, this only affects tunnel timeout estimation.)
     fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters);
 }
 
-/// Enumeration to track the expiration state of a circuit.
+/// Enumeration to track the expiration state of a tunnel.
 ///
-/// A circuit an either be unused (at which point it should expire if it is
+/// A tunnel an either be unused (at which point it should expire if it is
 /// _still unused_ by a certain time, or dirty (at which point it should
 /// expire after a certain duration).
 ///
-/// All circuits start out "unused" and become "dirty" when their spec
+/// All tunnels start out "unused" and become "dirty" when their spec
 /// is first restricted -- that is, when they are first handed out to be
 /// used for a request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ExpirationInfo {
-    /// The circuit has never been used.
+    /// The tunnel has never been used.
     Unused {
-        /// A time when the circuit should expire.
+        /// A time when the tunnel should expire.
         use_before: Instant,
     },
-    /// The circuit has been used (or at least, restricted for use with a
+    /// The tunnel has been used (or at least, restricted for use with a
     /// request) at least once.
     Dirty {
-        /// The time at which this circuit's spec was first restricted.
+        /// The time at which this tunnel's spec was first restricted.
         dirty_since: Instant,
     },
 }
 
 impl ExpirationInfo {
-    /// Return an ExpirationInfo for a newly created circuit.
+    /// Return an ExpirationInfo for a newly created tunnel.
     fn new(use_before: Instant) -> Self {
         ExpirationInfo::Unused { use_before }
     }
@@ -309,41 +304,41 @@ impl ExpirationInfo {
     }
 }
 
-/// An entry for an open circuit held by an `AbstractCircMgr`.
+/// An entry for an open tunnel held by an `AbstractTunnelMgr`.
 #[derive(Debug, Clone)]
-pub(crate) struct OpenEntry<C> {
-    /// The supported usage for this circuit.
-    spec: SupportedCircUsage,
-    /// The circuit under management.
-    circ: Arc<C>,
-    /// When does this circuit expire?
+pub(crate) struct OpenEntry<T> {
+    /// The supported usage for this tunnel.
+    spec: SupportedTunnelUsage,
+    /// The tunnel under management.
+    tunnel: Arc<T>,
+    /// When does this tunnel expire?
     ///
-    /// (Note that expired circuits are removed from the manager,
+    /// (Note that expired tunnels are removed from the manager,
     /// which does not actually close them until there are no more
     /// references to them.)
     expiration: ExpirationInfo,
 }
 
-impl<C: AbstractCirc> OpenEntry<C> {
-    /// Make a new OpenEntry for a given circuit and spec.
-    fn new(spec: SupportedCircUsage, circ: Arc<C>, expiration: ExpirationInfo) -> Self {
+impl<T: AbstractTunnel> OpenEntry<T> {
+    /// Make a new OpenEntry for a given tunnel and spec.
+    fn new(spec: SupportedTunnelUsage, tunnel: T, expiration: ExpirationInfo) -> Self {
         OpenEntry {
             spec,
-            circ,
+            tunnel: tunnel.into(),
             expiration,
         }
     }
 
-    /// Return true if this circuit can be used for `usage`.
-    pub(crate) fn supports(&self, usage: &TargetCircUsage) -> bool {
-        self.circ.usable() && self.spec.supports(usage)
+    /// Return true if the underlying tunnel can be used for `usage`.
+    pub(crate) fn supports(&self, usage: &TargetTunnelUsage) -> bool {
+        self.tunnel.usable() && self.spec.supports(usage)
     }
 
-    /// Change this circuit's permissible usage, based on its having
+    /// Change the underlying tunnel's permissible usage, based on its having
     /// been used for `usage` at time `now`.
     ///
-    /// Return an error if this circuit may not be used for `usage`.
-    fn restrict_mut(&mut self, usage: &TargetCircUsage, now: Instant) -> Result<()> {
+    /// Return an error if the tunnel may not be used for `usage`.
+    fn restrict_mut(&mut self, usage: &TargetTunnelUsage, now: Instant) -> Result<()> {
         self.spec.restrict_mut(usage)?;
         self.expiration.mark_dirty(now);
         Ok(())
@@ -353,7 +348,7 @@ impl<C: AbstractCirc> OpenEntry<C> {
     /// a given `usage`.
     ///
     /// If `parallelism` is some N greater than 1, we pick randomly
-    /// from the best `N` circuits.
+    /// from the best `N` tunnels.
     ///
     /// # Requirements
     ///
@@ -362,7 +357,7 @@ impl<C: AbstractCirc> OpenEntry<C> {
     fn find_best<'a>(
         // we do not mutate `ents`, but to return `&mut Self` we must have a mutable borrow
         ents: &'a mut [&'a mut Self],
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         parallelism: usize,
     ) -> &'a mut Self {
         let _ = usage; // not yet used.
@@ -374,8 +369,8 @@ impl<C: AbstractCirc> OpenEntry<C> {
         slice.choose_mut(&mut rng).expect("Input list was empty")
     }
 
-    /// Return true if this circuit has been marked as dirty before
-    /// `dirty_cutoff`, or if it is an unused circuit set to expire before
+    /// Return true if this tunnel has been marked as dirty before
+    /// `dirty_cutoff`, or if it is an unused tunnel set to expire before
     /// `unused_cutoff`.
     fn should_expire(&self, unused_cutoff: Instant, dirty_cutoff: Instant) -> bool {
         match self.expiration {
@@ -385,54 +380,54 @@ impl<C: AbstractCirc> OpenEntry<C> {
     }
 }
 
-/// A result type whose "Ok" value is the Id for a circuit from B.
-type PendResult<B, R> = Result<<<B as AbstractCircBuilder<R>>::Circ as AbstractCirc>::Id>;
+/// A result type whose "Ok" value is the Id for a tunnel from B.
+type PendResult<B, R> = Result<<<B as AbstractTunnelBuilder<R>>::Tunnel as AbstractTunnel>::Id>;
 
-/// An in-progress circuit request tracked by an `AbstractCircMgr`.
+/// An in-progress tunnel request tracked by an `AbstractTunnelMgr`.
 ///
-/// (In addition to tracking circuits, `AbstractCircMgr` tracks
-/// _requests_ for circuits.  The manager uses these entries if it
-/// finds that some circuit created _after_ a request first launched
+/// (In addition to tracking tunnels, `AbstractTunnelMgr` tracks
+/// _requests_ for tunnels.  The manager uses these entries if it
+/// finds that some tunnel created _after_ a request first launched
 /// might meet the request's requirements.)
-struct PendingRequest<B: AbstractCircBuilder<R>, R: Runtime> {
+struct PendingRequest<B: AbstractTunnelBuilder<R>, R: Runtime> {
     /// Usage for the operation requested by this request
-    usage: TargetCircUsage,
-    /// A channel to use for telling this request about circuits that it
+    usage: TargetTunnelUsage,
+    /// A channel to use for telling this request about tunnels that it
     /// might like.
     notify: mpsc::Sender<PendResult<B, R>>,
 }
 
-impl<B: AbstractCircBuilder<R>, R: Runtime> PendingRequest<B, R> {
+impl<B: AbstractTunnelBuilder<R>, R: Runtime> PendingRequest<B, R> {
     /// Return true if this request would be supported by `spec`.
-    fn supported_by(&self, spec: &SupportedCircUsage) -> bool {
+    fn supported_by(&self, spec: &SupportedTunnelUsage) -> bool {
         spec.supports(&self.usage)
     }
 }
 
-/// An entry for an under-construction in-progress circuit tracked by
-/// an `AbstractCircMgr`.
+/// An entry for an under-construction in-progress tunnel tracked by
+/// an `AbstractTunnelMgr`.
 #[derive(Debug)]
-struct PendingEntry<B: AbstractCircBuilder<R>, R: Runtime> {
-    /// Specification that this circuit will support, if every pending
+struct PendingEntry<B: AbstractTunnelBuilder<R>, R: Runtime> {
+    /// Specification that this tunnel will support, if every pending
     /// request that is waiting for it is attached to it.
     ///
     /// This spec becomes more and more restricted as more pending
-    /// requests are waiting for this circuit.
+    /// requests are waiting for this tunnel.
     ///
     /// This spec is contained by circ_spec, and must support the usage
-    /// of every pending request that's waiting for this circuit.
-    tentative_assignment: sync::Mutex<SupportedCircUsage>,
+    /// of every pending request that's waiting for this tunnel.
+    tentative_assignment: sync::Mutex<SupportedTunnelUsage>,
     /// A shared future for requests to use when waiting for
-    /// notification of this circuit's success.
+    /// notification of this tunnel's success.
     receiver: Shared<oneshot::Receiver<PendResult<B, R>>>,
 }
 
-impl<B: AbstractCircBuilder<R>, R: Runtime> PendingEntry<B, R> {
+impl<B: AbstractTunnelBuilder<R>, R: Runtime> PendingEntry<B, R> {
     /// Make a new PendingEntry that starts out supporting a given
     /// spec.  Return that PendingEntry, along with a Sender to use to
-    /// report the result of building this circuit.
-    fn new(circ_spec: &SupportedCircUsage) -> (Self, oneshot::Sender<PendResult<B, R>>) {
-        let tentative_assignment = sync::Mutex::new(circ_spec.clone());
+    /// report the result of building this tunnel.
+    fn new(spec: &SupportedTunnelUsage) -> (Self, oneshot::Sender<PendResult<B, R>>) {
+        let tentative_assignment = sync::Mutex::new(spec.clone());
         let (sender, receiver) = oneshot::channel();
         let receiver = receiver.shared();
         let entry = PendingEntry {
@@ -442,19 +437,19 @@ impl<B: AbstractCircBuilder<R>, R: Runtime> PendingEntry<B, R> {
         (entry, sender)
     }
 
-    /// Return true if this circuit's current tentative assignment
+    /// Return true if this tunnel's current tentative assignment
     /// supports `usage`.
-    fn supports(&self, usage: &TargetCircUsage) -> bool {
+    fn supports(&self, usage: &TargetTunnelUsage) -> bool {
         let assignment = self.tentative_assignment.lock().expect("poisoned lock");
         assignment.supports(usage)
     }
 
-    /// Try to change the tentative assignment of this circuit by
+    /// Try to change the tentative assignment of this tunnel by
     /// restricting it for use with `usage`.
     ///
     /// Return an error if the current tentative assignment didn't
     /// support `usage` in the first place.
-    fn tentative_restrict_mut(&self, usage: &TargetCircUsage) -> Result<()> {
+    fn tentative_restrict_mut(&self, usage: &TargetTunnelUsage) -> Result<()> {
         if let Ok(mut assignment) = self.tentative_assignment.lock() {
             assignment.restrict_mut(usage)?;
         }
@@ -468,7 +463,7 @@ impl<B: AbstractCircBuilder<R>, R: Runtime> PendingEntry<B, R> {
     ///
     /// The `ents` slice must not be empty.  Every element of `ents`
     /// must support the given spec.
-    fn find_best(ents: &[Arc<Self>], usage: &TargetCircUsage) -> Vec<Arc<Self>> {
+    fn find_best(ents: &[Arc<Self>], usage: &TargetTunnelUsage) -> Vec<Arc<Self>> {
         // TODO: Actually look over the whole list to see which is better.
         let _ = usage; // currently unused
         vec![Arc::clone(&ents[0])]
@@ -476,84 +471,84 @@ impl<B: AbstractCircBuilder<R>, R: Runtime> PendingEntry<B, R> {
 }
 
 /// Wrapper type to represent the state between planning to build a
-/// circuit and constructing it.
+/// tunnel and constructing it.
 #[derive(Debug)]
-struct CircBuildPlan<B: AbstractCircBuilder<R>, R: Runtime> {
-    /// The Plan object returned by [`AbstractCircBuilder::plan_circuit`].
+struct TunnelBuildPlan<B: AbstractTunnelBuilder<R>, R: Runtime> {
+    /// The Plan object returned by [`AbstractTunnelBuilder::plan_tunnel`].
     plan: B::Plan,
-    /// A sender to notify any pending requests when this circuit is done.
+    /// A sender to notify any pending requests when this tunnel is done.
     sender: oneshot::Sender<PendResult<B, R>>,
-    /// A strong entry to the PendingEntry for this circuit build attempt.
+    /// A strong entry to the PendingEntry for this tunnel build attempt.
     pending: Arc<PendingEntry<B, R>>,
 }
 
-/// The inner state of an [`AbstractCircMgr`].
-struct CircList<B: AbstractCircBuilder<R>, R: Runtime> {
-    /// A map from circuit ID to [`OpenEntry`] values for all managed
-    /// open circuits.
+/// The inner state of an [`AbstractTunnelMgr`].
+struct TunnelList<B: AbstractTunnelBuilder<R>, R: Runtime> {
+    /// A map from tunnel ID to [`OpenEntry`] values for all managed
+    /// open tunnels.
     ///
-    /// A circuit is added here from [`AbstractCircMgr::do_launch`] when we find
+    /// A tunnel is added here from [`AbstractTunnelMgr::do_launch`] when we find
     /// that it completes successfully, and has not been cancelled.
-    /// When we decide that such a circuit should no longer be handed out for
-    /// any new requests, we "retire" the circuit by removing it from this map.
+    /// When we decide that such a tunnel should no longer be handed out for
+    /// any new requests, we "retire" the tunnel by removing it from this map.
     #[allow(clippy::type_complexity)]
-    open_circs: HashMap<<B::Circ as AbstractCirc>::Id, OpenEntry<B::Circ>>,
-    /// Weak-set of PendingEntry for circuits that are being built.
+    open_tunnels: HashMap<<B::Tunnel as AbstractTunnel>::Id, OpenEntry<B::Tunnel>>,
+    /// Weak-set of PendingEntry for tunnels that are being built.
     ///
     /// Because this set only holds weak references, and the only strong
-    /// reference to the PendingEntry is held by the task building the circuit,
-    /// this set's members are lazily removed after the circuit is either built
+    /// reference to the PendingEntry is held by the task building the tunnel,
+    /// this set's members are lazily removed after the tunnel is either built
     /// or fails to build.
     ///
     /// This set is used for two purposes:
     ///
-    /// 1. When a circuit request finds that there is no open circuit for its
-    ///    purposes, it checks here to see if there is a pending circuit that it
+    /// 1. When a tunnel request finds that there is no open tunnel for its
+    ///    purposes, it checks here to see if there is a pending tunnel that it
     ///    could wait for.
-    /// 2. When a pending circuit finishes building, it checks here to make sure
+    /// 2. When a pending tunnel finishes building, it checks here to make sure
     ///    that it has not been cancelled. (Removing an entry from this set marks
     ///    it as cancelled.)
     ///
-    /// An entry is added here in [`AbstractCircMgr::prepare_action`] when we
-    /// decide that a circuit needs to be launched.
+    /// An entry is added here in [`AbstractTunnelMgr::prepare_action`] when we
+    /// decide that a tunnel needs to be launched.
     ///
-    /// Later, in [`AbstractCircMgr::do_launch`], once the circuit has finished
+    /// Later, in [`AbstractTunnelMgr::do_launch`], once the tunnel has finished
     /// (or failed), we remove the entry (by pointer identity).
     /// If we cannot find the entry, we conclude that the request has been
-    /// _cancelled_, and so we discard any circuit that was created.
-    pending_circs: PtrWeakHashSet<Weak<PendingEntry<B, R>>>,
+    /// _cancelled_, and so we discard any tunnel that was created.
+    pending_tunnels: PtrWeakHashSet<Weak<PendingEntry<B, R>>>,
     /// Weak-set of PendingRequest for requests that are waiting for a
-    /// circuit to be built.
+    /// tunnel to be built.
     ///
     /// Because this set only holds weak references, and the only
     /// strong reference to the PendingRequest is held by the task
-    /// waiting for the circuit to be built, this set's members are
+    /// waiting for the tunnel to be built, this set's members are
     /// lazily removed after the request succeeds or fails.
     pending_requests: PtrWeakHashSet<Weak<PendingRequest<B, R>>>,
 }
 
-impl<B: AbstractCircBuilder<R>, R: Runtime> CircList<B, R> {
+impl<B: AbstractTunnelBuilder<R>, R: Runtime> TunnelList<B, R> {
     /// Make a new empty `CircList`
     fn new() -> Self {
-        CircList {
-            open_circs: HashMap::new(),
-            pending_circs: PtrWeakHashSet::new(),
+        TunnelList {
+            open_tunnels: HashMap::new(),
+            pending_tunnels: PtrWeakHashSet::new(),
             pending_requests: PtrWeakHashSet::new(),
         }
     }
 
-    /// Add `e` to the list of open circuits.
-    fn add_open(&mut self, e: OpenEntry<B::Circ>) {
-        let id = e.circ.id();
-        self.open_circs.insert(id, e);
+    /// Add `e` to the list of open tunnels.
+    fn add_open(&mut self, e: OpenEntry<B::Tunnel>) {
+        let id = e.tunnel.id();
+        self.open_tunnels.insert(id, e);
     }
 
-    /// Find all the usable open circuits that support `usage`.
+    /// Find all the usable open tunnels that support `usage`.
     ///
-    /// Return None if there are no such circuits.
-    fn find_open(&mut self, usage: &TargetCircUsage) -> Option<Vec<&mut OpenEntry<B::Circ>>> {
-        let list = self.open_circs.values_mut();
-        let v = SupportedCircUsage::find_supported(list, usage);
+    /// Return None if there are no such tunnels.
+    fn find_open(&mut self, usage: &TargetTunnelUsage) -> Option<Vec<&mut OpenEntry<B::Tunnel>>> {
+        let list = self.open_tunnels.values_mut();
+        let v = SupportedTunnelUsage::find_supported(list, usage);
         if v.is_empty() {
             None
         } else {
@@ -561,62 +556,68 @@ impl<B: AbstractCircBuilder<R>, R: Runtime> CircList<B, R> {
         }
     }
 
-    /// Find an open circuit by ID.
+    /// Find an open tunnel by ID.
     ///
-    /// Return None if no such circuit exists in this list.
+    /// Return None if no such tunnels exists in this list.
     fn get_open_mut(
         &mut self,
-        id: &<B::Circ as AbstractCirc>::Id,
-    ) -> Option<&mut OpenEntry<B::Circ>> {
-        self.open_circs.get_mut(id)
+        id: &<B::Tunnel as AbstractTunnel>::Id,
+    ) -> Option<&mut OpenEntry<B::Tunnel>> {
+        self.open_tunnels.get_mut(id)
     }
 
-    /// Extract an open circuit by ID, removing it from this list.
+    /// Extract an open tunnel by ID, removing it from this list.
     ///
-    /// Return None if no such circuit exists in this list.
-    fn take_open(&mut self, id: &<B::Circ as AbstractCirc>::Id) -> Option<OpenEntry<B::Circ>> {
-        self.open_circs.remove(id)
+    /// Return None if no such tunnel exists in this list.
+    fn take_open(
+        &mut self,
+        id: &<B::Tunnel as AbstractTunnel>::Id,
+    ) -> Option<OpenEntry<B::Tunnel>> {
+        self.open_tunnels.remove(id)
     }
 
-    /// Remove circuits based on expiration times.
+    /// Remove tunnels based on expiration times.
     ///
-    /// We remove every unused circuit that is set to expire by
-    /// `unused_cutoff`, and every dirty circuit that has been dirty
+    /// We remove every unused tunnel that is set to expire by
+    /// `unused_cutoff`, and every dirty tunnel that has been dirty
     /// since before `dirty_cutoff`.
-    fn expire_circs(&mut self, unused_cutoff: Instant, dirty_cutoff: Instant) {
-        self.open_circs
+    fn expire_tunnels(&mut self, unused_cutoff: Instant, dirty_cutoff: Instant) {
+        self.open_tunnels
             .retain(|_k, v| !v.should_expire(unused_cutoff, dirty_cutoff));
     }
 
-    /// Remove the circuit with given `id`, if it is scheduled to
+    /// Remove the tunnel with given `id`, if it is scheduled to
     /// expire now, according to the provided expiration times.
-    fn expire_circ(
+    fn expire_tunnel(
         &mut self,
-        id: &<B::Circ as AbstractCirc>::Id,
+        id: &<B::Tunnel as AbstractTunnel>::Id,
         unused_cutoff: Instant,
         dirty_cutoff: Instant,
     ) {
         let should_expire = self
-            .open_circs
+            .open_tunnels
             .get(id)
             .map(|v| v.should_expire(unused_cutoff, dirty_cutoff))
             .unwrap_or_else(|| false);
         if should_expire {
-            self.open_circs.remove(id);
+            self.open_tunnels.remove(id);
         }
     }
 
-    /// Add `pending` to the set of in-progress circuits.
-    fn add_pending_circ(&mut self, pending: Arc<PendingEntry<B, R>>) {
-        self.pending_circs.insert(pending);
+    /// Add `pending` to the set of in-progress tunnels.
+    fn add_pending_tunnel(&mut self, pending: Arc<PendingEntry<B, R>>) {
+        self.pending_tunnels.insert(pending);
     }
 
-    /// Find all pending circuits that support `usage`.
+    /// Find all pending tunnels that support `usage`.
     ///
-    /// If no such circuits are currently being built, return None.
-    fn find_pending_circs(&self, usage: &TargetCircUsage) -> Option<Vec<Arc<PendingEntry<B, R>>>> {
+    /// If no such tunnels are currently being built, return None.
+    fn find_pending_tunnels(
+        &self,
+        usage: &TargetTunnelUsage,
+    ) -> Option<Vec<Arc<PendingEntry<B, R>>>> {
         let result: Vec<_> = self
-            .pending_circs
+            .pending_tunnels
             .iter()
             .filter(|p| p.supports(usage))
             .filter(|p| !matches!(p.receiver.peek(), Some(Err(_))))
@@ -631,26 +632,26 @@ impl<B: AbstractCircBuilder<R>, R: Runtime> CircList<B, R> {
 
     /// Return true if `circ` is still pending.
     ///
-    /// A circuit will become non-pending when finishes (successfully or not), or when it's
-    /// removed from this list via `clear_all_circuits()`.
-    fn circ_is_pending(&self, circ: &Arc<PendingEntry<B, R>>) -> bool {
-        self.pending_circs.contains(circ)
+    /// A tunnel will become non-pending when finishes (successfully or not), or when it's
+    /// removed from this list via `clear_all_tunnels()`.
+    fn tunnel_is_pending(&self, circ: &Arc<PendingEntry<B, R>>) -> bool {
+        self.pending_tunnels.contains(circ)
     }
 
     /// Construct and add a new entry to the set of request waiting
-    /// for a circuit.
+    /// for a tunnel.
     ///
     /// Return the request, and a new receiver stream that it should
-    /// use for notification of possible circuits to use.
+    /// use for notification of possible tunnels to use.
     fn add_pending_request(&mut self, pending: &Arc<PendingRequest<B, R>>) {
         self.pending_requests.insert(Arc::clone(pending));
     }
 
-    /// Return all pending requests that would be satisfied by a circuit
+    /// Return all pending requests that would be satisfied by a tunnel
     /// that supports `circ_spec`.
     fn find_pending_requests(
         &self,
-        circ_spec: &SupportedCircUsage,
+        circ_spec: &SupportedTunnelUsage,
     ) -> Vec<Arc<PendingRequest<B, R>>> {
         self.pending_requests
             .iter()
@@ -658,29 +659,29 @@ impl<B: AbstractCircBuilder<R>, R: Runtime> CircList<B, R> {
             .collect()
     }
 
-    /// Clear all pending circuits and open circuits.
+    /// Clear all pending and open tunnels.
     ///
-    /// Calling `clear_all_circuits` ensures that any request that is answered _after
-    /// this method runs_ will receive a circuit that was launched _after this
+    /// Calling `clear_all_tunnels` ensures that any request that is answered _after
+    /// this method runs_ will receive a tunnels that was launched _after this
     /// method runs_.
-    fn clear_all_circuits(&mut self) {
+    fn clear_all_tunnels(&mut self) {
         // Note that removing entries from pending_circs will also cause the
-        // circuit tasks to realize that they are cancelled when they
+        // tunnel tasks to realize that they are cancelled when they
         // go to tell anybody about their results.
-        self.pending_circs.clear();
-        self.open_circs.clear();
+        self.pending_tunnels.clear();
+        self.open_tunnels.clear();
     }
 }
 
-/// Timing information for circuits that have been built but never used.
+/// Timing information for tunnels that have been built but never used.
 ///
 /// Currently taken from the network parameters.
 struct UnusedTimings {
-    /// Minimum lifetime of a circuit created while learning
-    /// circuit timeouts.
+    /// Minimum lifetime of a tunnel created while learning
+    /// tunnel timeouts.
     learning: Duration,
-    /// Minimum lifetime of a circuit created while not learning
-    /// circuit timeouts.
+    /// Minimum lifetime of a tunnel created while not learning
+    /// tunnel timeouts.
     not_learning: Duration,
 }
 
@@ -701,65 +702,65 @@ impl From<&tor_netdir::params::NetParameters> for UnusedTimings {
     }
 }
 
-/// Abstract implementation for circuit management.
+/// Abstract implementation for tunnel management.
 ///
 /// The algorithm provided here is fairly simple. In its simplest form:
 ///
-/// When somebody asks for a circuit for a given operation: if we find
-/// one open already, we return it.  If we find in-progress circuits
+/// When somebody asks for a tunnel for a given operation: if we find
+/// one open already, we return it.  If we find in-progress tunnels
 /// that would meet our needs, we wait for one to finish (or for all
-/// to fail).  And otherwise, we launch one or more circuits to meet the
+/// to fail).  And otherwise, we launch one or more tunnels to meet the
 /// request's needs.
 ///
 /// If this process fails, then we retry it, up to a timeout or a
 /// numerical limit.
 ///
-/// If a circuit not previously considered for a given request
-/// finishes before the request is satisfied, and if the circuit would
-/// satisfy the request, we try to give that circuit as an answer to
-/// that request even if it was not one of the circuits that request
+/// If a tunnel not previously considered for a given request
+/// finishes before the request is satisfied, and if the tunnel would
+/// satisfy the request, we try to give that tunnel as an answer to
+/// that request even if it was not one of the tunnels that request
 /// was waiting for.
-pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder<R>, R: Runtime> {
-    /// Builder used to construct circuits.
+pub(crate) struct AbstractTunnelMgr<B: AbstractTunnelBuilder<R>, R: Runtime> {
+    /// Builder used to construct tunnels.
     builder: B,
     /// An asynchronous runtime to use for launching tasks and
     /// checking timeouts.
     runtime: R,
-    /// A CircList to manage our list of circuits, requests, and
-    /// pending circuits.
-    circs: sync::Mutex<CircList<B, R>>,
+    /// A CircList to manage our list of tunnels, requests, and
+    /// pending tunnels.
+    tunnels: sync::Mutex<TunnelList<B, R>>,
 
-    /// Configured information about when to expire circuits and requests.
+    /// Configured information about when to expire tunnels and requests.
     circuit_timing: MutCfg<CircuitTiming>,
 
-    /// Minimum lifetime of an unused circuit.
+    /// Minimum lifetime of an unused tunnel.
     ///
     /// Derived from the network parameters.
     unused_timing: sync::Mutex<UnusedTimings>,
 }
 
-/// An action to take in order to satisfy a request for a circuit.
-enum Action<B: AbstractCircBuilder<R>, R: Runtime> {
-    /// We found an open circuit: return immediately.
-    Open(Arc<B::Circ>),
-    /// We found one or more pending circuits: wait until one succeeds,
+/// An action to take in order to satisfy a request for a tunnel.
+enum Action<B: AbstractTunnelBuilder<R>, R: Runtime> {
+    /// We found an open tunnel: return immediately.
+    Open(Arc<B::Tunnel>),
+    /// We found one or more pending tunnels: wait until one succeeds,
     /// or all fail.
     Wait(FuturesUnordered<Shared<oneshot::Receiver<PendResult<B, R>>>>),
-    /// We should launch circuits: here are the instructions for how
+    /// We should launch tunnels: here are the instructions for how
     /// to do so.
-    Build(Vec<CircBuildPlan<B, R>>),
+    Build(Vec<TunnelBuildPlan<B, R>>),
 }
 
-impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
-    /// Construct a new AbstractCircMgr.
+impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> {
+    /// Construct a new AbstractTunnelMgr.
     pub(crate) fn new(builder: B, runtime: R, circuit_timing: CircuitTiming) -> Self {
-        let circs = sync::Mutex::new(CircList::new());
+        let circs = sync::Mutex::new(TunnelList::new());
         let dflt_params = tor_netdir::params::NetParameters::default();
         let unused_timing = (&dflt_params).into();
-        AbstractCircMgr {
+        AbstractTunnelMgr {
             builder,
             runtime,
-            circs,
+            tunnels: circs,
             circuit_timing: circuit_timing.into(),
             unused_timing: sync::Mutex::new(unused_timing),
         }
@@ -787,13 +788,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// creating that circuit if necessary, and restricting it
     /// under the assumption that it will be used for that spec.
     ///
-    /// This is the primary entry point for AbstractCircMgr.
+    /// This is the primary entry point for AbstractTunnelMgr.
     #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor?
     pub(crate) async fn get_or_launch(
         self: &Arc<Self>,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(Arc<B::Circ>, CircProvenance)> {
+    ) -> Result<(Arc<B::Tunnel>, TunnelProvenance)> {
         /// Largest number of "resets" that we will accept in this attempt.
         ///
         /// A "reset" is an internally generated error that does not represent a
@@ -821,7 +822,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         );
 
         let mut retry_schedule = RetryDelay::from_msec(100);
-        let mut retry_err = RetryError::<Box<Error>>::in_attempt_to("find or build a circuit");
+        let mut retry_err = RetryError::<Box<Error>>::in_attempt_to("find or build a tunnel");
 
         let mut n_failures = 0;
         let mut n_resets = 0;
@@ -853,7 +854,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         Err(_) => {
                             // We ran out of "remaining" time; there is nothing
                             // more to be done.
-                            warn!("All circuit attempts failed due to timeout");
+                            warn!("All tunnel attempts failed due to timeout");
                             retry_err.push(Error::RequestTimeout);
                             break;
                         }
@@ -863,7 +864,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // We couldn't pick the action!
                     debug_report!(
                         &e,
-                        "Couldn't pick action for circuit attempt {}",
+                        "Couldn't pick action for tunnel attempt {}",
                         attempt_num,
                     );
                     e
@@ -915,10 +916,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// used for `usage`, and launch one or more circuits in a background task
     /// if there is not.
     // TODO: This should probably take some kind of parallelism parameter.
-    #[allow(dead_code)]
-    pub(crate) async fn ensure_circuit(
+    #[cfg(test)]
+    pub(crate) async fn ensure_tunnel(
         self: &Arc<Self>,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
     ) -> Result<()> {
         let action = self.prepare_action(usage, dir, false)?;
@@ -932,7 +933,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         Ok(())
     }
 
-    /// Choose which action we should take in order to provide a circuit
+    /// Choose which action we should take in order to provide a tunnel
     /// for a given `usage`.
     ///
     /// If `restrict_circ` is true, we restrict the spec of any
@@ -940,28 +941,28 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// `usage`.
     fn prepare_action(
         &self,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
         restrict_circ: bool,
     ) -> Result<Action<B, R>> {
-        let mut list = self.circs.lock().expect("poisoned lock");
+        let mut list = self.tunnels.lock().expect("poisoned lock");
 
         if let Some(mut open) = list.find_open(usage) {
-            // We have open circuits that meet the spec: return the best one.
+            // We have open tunnels that meet the spec: return the best one.
             let parallelism = self.builder.select_parallelism(usage);
             let best = OpenEntry::find_best(&mut open, usage, parallelism);
             if restrict_circ {
                 let now = self.runtime.now();
                 best.restrict_mut(usage, now)?;
             }
-            // TODO: If we have fewer circuits here than our select
+            // TODO: If we have fewer tunnels here than our select
             // parallelism, perhaps we should launch more?
 
-            return Ok(Action::Open(best.circ.clone()));
+            return Ok(Action::Open(best.tunnel.clone()));
         }
 
-        if let Some(pending) = list.find_pending_circs(usage) {
-            // There are pending circuits that could meet the spec.
+        if let Some(pending) = list.find_pending_tunnels(usage) {
+            // There are pending tunnels that could meet the spec.
             // Restrict them under the assumption that they could all
             // be used for this, and then wait until one is ready (or
             // all have failed)
@@ -974,20 +975,20 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 }
             }
             let stream = best.iter().map(|item| item.receiver.clone()).collect();
-            // TODO: if we have fewer circuits here than our launch
+            // TODO: if we have fewer tunnels here than our launch
             // parallelism, we might want to launch more.
 
             return Ok(Action::Wait(stream));
         }
 
-        // Okay, we need to launch circuits here.
+        // Okay, we need to launch tunnels here.
         let parallelism = std::cmp::max(1, self.builder.launch_parallelism(usage));
         let mut plans = Vec::new();
         let mut last_err = None;
         for _ in 0..parallelism {
             match self.plan_by_usage(dir, usage) {
                 Ok((pending, plan)) => {
-                    list.add_pending_circ(pending);
+                    list.add_pending_tunnel(pending);
                     plans.push(plan);
                 }
                 Err(e) => {
@@ -1007,13 +1008,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     }
 
     /// Execute an action returned by pick-action, and return the
-    /// resulting circuit or error.
+    /// resulting tunnel or error.
     #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor
     async fn take_action(
         self: Arc<Self>,
         act: Action<B, R>,
-        usage: &TargetCircUsage,
-    ) -> std::result::Result<(Arc<B::Circ>, CircProvenance), RetryError<Box<Error>>> {
+        usage: &TargetTunnelUsage,
+    ) -> std::result::Result<(Arc<B::Tunnel>, TunnelProvenance), RetryError<Box<Error>>> {
         /// Store the error `err` into `retry_err`, as appropriate.
         fn record_error(
             retry_err: &mut RetryError<Box<Error>>,
@@ -1022,13 +1023,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
             mut err: Error,
         ) {
             if source == streams::Source::Right {
-                // We don't care about this error, since it is from neither a circuit we launched
+                // We don't care about this error, since it is from neither a tunnel we launched
                 // nor one that we're waiting on.
                 return;
             }
             if !building {
-                // We aren't building our own circuits, so our errors are
-                // secondary reports of other circuits' failures.
+                // We aren't building our own tunnels, so our errors are
+                // secondary reports of other tunnels' failures.
                 err = Error::PendingFailed(Box::new(err));
             }
             retry_err.push(err);
@@ -1038,31 +1039,31 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         fn describe_source(building: bool, source: streams::Source) -> &'static str {
             match (building, source) {
                 (_, streams::Source::Right) => "optimistic advice",
-                (true, streams::Source::Left) => "circuit we're building",
-                (false, streams::Source::Left) => "pending circuit",
+                (true, streams::Source::Left) => "tunnel we're building",
+                (false, streams::Source::Left) => "pending tunnel",
             }
         }
 
         // Get or make a stream of futures to wait on.
         let (building, wait_on_stream) = match act {
             Action::Open(c) => {
-                // There's already a perfectly good open circuit; we can return
+                // There's already a perfectly good open tunnel; we can return
                 // it now.
-                return Ok((c, CircProvenance::Preexisting));
+                return Ok((c, TunnelProvenance::Preexisting));
             }
             Action::Wait(f) => {
-                // There is one or more pending circuit that we're waiting for.
+                // There is one or more pending tunnel that we're waiting for.
                 // If any succeeds, we try to use it.  If they all fail, we
                 // fail.
                 (false, f)
             }
             Action::Build(plans) => {
-                // We're going to launch one or more circuits in parallel.  We
+                // We're going to launch one or more tunnels in parallel.  We
                 // report success if any succeeds, and failure of they all fail.
                 let futures = FuturesUnordered::new();
                 for plan in plans {
                     let self_clone = Arc::clone(&self);
-                    // (This is where we actually launch circuits.)
+                    // (This is where we actually launch tunnels.)
                     futures.push(self_clone.spawn_launch(usage, plan));
                 }
                 (true, futures)
@@ -1070,20 +1071,20 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         };
 
         // Insert ourself into the list of pending requests, and make a
-        // stream for us to listen on for notification from pending circuits
+        // stream for us to listen on for notification from pending tunnels
         // other than those we are pending on.
         let (pending_request, additional_stream) = {
             // We don't want this queue to participate in memory quota tracking.
-            // There isn't any circuit yet, so there wouldn't be anything to account it to.
+            // There isn't any tunnel yet, so there wouldn't be anything to account it to.
             // If this queue has the oldest data, probably the whole system is badly broken.
-            // Tearing down the whole circuit manager won't help.
+            // Tearing down the whole tunnel manager won't help.
             let (send, recv) = mpsc_channel_no_memquota(8);
             let pending = Arc::new(PendingRequest {
                 usage: usage.clone(),
                 notify: send,
             });
 
-            let mut list = self.circs.lock().expect("poisoned lock");
+            let mut list = self.tunnels.lock().expect("poisoned lock");
             list.add_pending_request(&pending);
 
             (pending, recv)
@@ -1092,8 +1093,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         // We use our "select_biased" stream combiner here to ensure that:
         //   1) Circuits from wait_on_stream (the ones we're pending on) are
         //      preferred.
-        //   2) We exit this function when those circuits are exhausted.
-        //   3) We still get notified about other circuits that might meet our
+        //   2) We exit this function when those tunnels are exhausted.
+        //   3) We still get notified about other tunnels that might meet our
         //      interests.
         //
         // The events from Left stream are the oes that we explicitly asked for,
@@ -1102,13 +1103,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         // not a big deal if those fail.
         let mut incoming = streams::select_biased(wait_on_stream, additional_stream.map(Ok));
 
-        let mut retry_error = RetryError::in_attempt_to("wait for circuits");
+        let mut retry_error = RetryError::in_attempt_to("wait for tunnels");
 
         while let Some((src, id)) = incoming.next().await {
             match id {
                 Ok(Ok(ref id)) => {
-                    // Great, we have a circuit. See if we can use it!
-                    let mut list = self.circs.lock().expect("poisoned lock");
+                    // Great, we have a tunnel . See if we can use it!
+                    let mut list = self.tunnels.lock().expect("poisoned lock");
                     if let Some(ent) = list.get_open_mut(id) {
                         let now = self.runtime.now();
                         match ent.restrict_mut(usage, now) {
@@ -1118,19 +1119,19 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                 // it from the list.
                                 drop(pending_request);
                                 if matches!(ent.expiration, ExpirationInfo::Unused { .. }) {
-                                    // Since this circuit hasn't been used yet, schedule expiration task after `max_dirtiness` from now.
+                                    // Since this tunnel hasn't been used yet, schedule expiration task after `max_dirtiness` from now.
                                     spawn_expiration_task(
                                         &self.runtime,
                                         Arc::downgrade(&self),
-                                        ent.circ.id(),
+                                        ent.tunnel.id(),
                                         now + self.circuit_timing().max_dirtiness,
                                     );
                                 }
-                                return Ok((ent.circ.clone(), CircProvenance::NewlyCreated));
+                                return Ok((ent.tunnel.clone(), TunnelProvenance::NewlyCreated));
                             }
                             Err(e) => {
                                 // In this case, a `UsageMismatched` error just means that we lost the race
-                                // to restrict this circuit.
+                                // to restrict this tunnel.
                                 let e = match e {
                                     Error::UsageMismatched(e) => Error::LostUsabilityRace(e),
                                     x => x,
@@ -1171,7 +1172,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
             }
 
             debug!(
-                "While waiting on circuit: {:?} from {}",
+                "While waiting on tunnel: {:?} from {}",
                 id,
                 describe_source(building, src)
             );
@@ -1186,26 +1187,26 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     }
 
     /// Given a directory and usage, compute the necessary objects to
-    /// build a circuit: A [`PendingEntry`] to keep track of the in-process
-    /// circuit, and a [`CircBuildPlan`] that we'll give to the thread
-    /// that will build the circuit.
+    /// build a tunnel: A [`PendingEntry`] to keep track of the in-process
+    /// tunnel, and a [`TunnelBuildPlan`] that we'll give to the thread
+    /// that will build the tunnel.
     ///
     /// The caller should probably add the resulting `PendingEntry` to
     /// `self.circs`.
     ///
     /// This is an internal function that we call when we're pretty sure
-    /// we want to build a circuit.
+    /// we want to build a tunnel.
     #[allow(clippy::type_complexity)]
     fn plan_by_usage(
         &self,
         dir: DirInfo<'_>,
-        usage: &TargetCircUsage,
-    ) -> Result<(Arc<PendingEntry<B, R>>, CircBuildPlan<B, R>)> {
-        let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
+        usage: &TargetTunnelUsage,
+    ) -> Result<(Arc<PendingEntry<B, R>>, TunnelBuildPlan<B, R>)> {
+        let (plan, bspec) = self.builder.plan_tunnel(usage, dir)?;
         let (pending, sender) = PendingEntry::new(&bspec);
         let pending = Arc::new(pending);
 
-        let plan = CircBuildPlan {
+        let plan = TunnelBuildPlan {
             plan,
             sender,
             pending: Arc::clone(&pending),
@@ -1214,36 +1215,36 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         Ok((pending, plan))
     }
 
-    /// Launch a managed circuit for a target usage, without checking
+    /// Launch a managed tunnel for a target usage, without checking
     /// whether one already exists or is pending.
     ///
-    /// Return a listener that will be informed when the circuit is done.
+    /// Return a listener that will be informed when the tunnel is done.
     pub(crate) fn launch_by_usage(
         self: &Arc<Self>,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
     ) -> Result<Shared<oneshot::Receiver<PendResult<B, R>>>> {
         let (pending, plan) = self.plan_by_usage(dir, usage)?;
 
-        self.circs
+        self.tunnels
             .lock()
-            .expect("Poisoned lock for circuit list")
-            .add_pending_circ(pending);
+            .expect("Poisoned lock for tunnel list")
+            .add_pending_tunnel(pending);
 
         Ok(Arc::clone(self).spawn_launch(usage, plan))
     }
 
-    /// Spawn a background task to launch a circuit, and report its status.
+    /// Spawn a background task to launch a tunnel, and report its status.
     ///
     /// The `usage` argument is the usage from the original request that made
-    /// us build this circuit.
+    /// us build this tunnel.
     fn spawn_launch(
         self: Arc<Self>,
-        usage: &TargetCircUsage,
-        plan: CircBuildPlan<B, R>,
+        usage: &TargetTunnelUsage,
+        plan: TunnelBuildPlan<B, R>,
     ) -> Shared<oneshot::Receiver<PendResult<B, R>>> {
         let _ = usage; // Currently unused.
-        let CircBuildPlan {
+        let TunnelBuildPlan {
             mut plan,
             sender,
             pending,
@@ -1255,8 +1256,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let runtime_copy = self.runtime.clone();
 
         let tid = rand::random::<u64>();
-        // We release this block when the circuit builder task terminates.
-        let reason = format!("circuit builder task {}", tid);
+        // We release this block when the tunnel builder task terminates.
+        let reason = format!("tunnel builder task {}", tid);
         runtime.block_advance(reason.clone());
         // During tests, the `FakeBuilder` will need to release the block in order to fake a timeout
         // correctly.
@@ -1270,80 +1271,80 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     Ok(x) => x, // Success or regular failure
                     Err(e) => {
                         // Okay, this is a panic.  We have to tell the calling
-                        // thread about it, then exit this circuit builder task.
-                        let _ = sender.send(Err(internal!("circuit build task panicked").into()));
+                        // thread about it, then exit this tunnel builder task.
+                        let _ = sender.send(Err(internal!("tunnel build task panicked").into()));
                         std::panic::panic_any(e);
                     }
                 };
 
                 // Tell anybody who was listening about it that this
-                // circuit is now usable or failed.
+                // tunnel is now usable or failed.
                 //
                 // (We ignore any errors from `send`: That just means that nobody
-                // was waiting for this circuit.)
+                // was waiting for this tunnel.)
                 let _ = sender.send(reply.clone());
 
                 if let Some(new_spec) = new_spec {
                     // Wait briefly before we notify opportunistically.  This
-                    // delay will give the circuits that were originally
+                    // delay will give the tunnels that were originally
                     // specifically intended for a request a little more time
-                    // to finish, before we offer it this circuit instead.
+                    // to finish, before we offer it this tunnel instead.
                     let sl = runtime_copy.sleep(request_loyalty);
                     runtime_copy.allow_one_advance(request_loyalty);
                     sl.await;
 
                     let pending = {
-                        let list = self.circs.lock().expect("poisoned lock");
+                        let list = self.tunnels.lock().expect("poisoned lock");
                         list.find_pending_requests(&new_spec)
                     };
                     for pending_request in pending {
                         let _ = pending_request.notify.clone().try_send(reply.clone());
                     }
                 }
-                runtime_copy.release_advance(format!("circuit builder task {}", tid));
+                runtime_copy.release_advance(format!("tunnel builder task {}", tid));
             })
-            .expect("Couldn't spawn circuit-building task");
+            .expect("Couldn't spawn tunnel-building task");
 
         wait_on_future
     }
 
-    /// Run in the background to launch a circuit. Return a 2-tuple of the new
-    /// circuit spec and the outcome that should be sent to the initiator.
+    /// Run in the background to launch a tunnel. Return a 2-tuple of the new
+    /// tunnel spec and the outcome that should be sent to the initiator.
     async fn do_launch(
         self: Arc<Self>,
-        plan: <B as AbstractCircBuilder<R>>::Plan,
+        plan: <B as AbstractTunnelBuilder<R>>::Plan,
         pending: Arc<PendingEntry<B, R>>,
-    ) -> (Option<SupportedCircUsage>, PendResult<B, R>) {
-        let outcome = self.builder.build_circuit(plan).await;
+    ) -> (Option<SupportedTunnelUsage>, PendResult<B, R>) {
+        let outcome = self.builder.build_tunnel(plan).await;
 
         match outcome {
             Err(e) => (None, Err(e)),
-            Ok((new_spec, circ)) => {
-                let id = circ.id();
+            Ok((new_spec, tunnel)) => {
+                let id = tunnel.id();
 
                 let use_duration = self.pick_use_duration();
                 let exp_inst = self.runtime.now() + use_duration;
                 let runtime_copy = self.runtime.clone();
-                spawn_expiration_task(&runtime_copy, Arc::downgrade(&self), circ.id(), exp_inst);
+                spawn_expiration_task(&runtime_copy, Arc::downgrade(&self), tunnel.id(), exp_inst);
                 // I used to call restrict_mut here, but now I'm not so
                 // sure. Doing restrict_mut makes sure that this
-                // circuit will be suitable for the request that asked
+                // tunnel will be suitable for the request that asked
                 // for us in the first place, but that should be
                 // ensured anyway by our tracking its tentative
                 // assignment.
                 //
                 // new_spec.restrict_mut(&usage_copy).unwrap();
                 let use_before = ExpirationInfo::new(exp_inst);
-                let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
+                let open_ent = OpenEntry::new(new_spec.clone(), tunnel, use_before);
                 {
-                    let mut list = self.circs.lock().expect("poisoned lock");
-                    // Finally, before we return this circuit, we need to make
-                    // sure that this pending circuit is still pending.  (If it
+                    let mut list = self.tunnels.lock().expect("poisoned lock");
+                    // Finally, before we return this tunnel, we need to make
+                    // sure that this pending tunnel is still pending.  (If it
                     // is not pending, then it was cancelled through a call to
-                    // `retire_all_circuits`, and the configuration that we used
+                    // `retire_all_tunnels`, and the configuration that we used
                     // to launch it is now sufficiently outdated that we should
-                    // no longer give this circuit to a client.)
-                    if list.circ_is_pending(&pending) {
+                    // no longer give this tunnel to a client.)
+                    if list.tunnel_is_pending(&pending) {
                         list.add_open(open_ent);
                         // We drop our reference to 'pending' here:
                         // this should make all the weak references to
@@ -1351,8 +1352,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         drop(pending);
                         (Some(new_spec), Ok(id))
                     } else {
-                        // This circuit is no longer pending! It must have been cancelled, probably
-                        // by a call to retire_all_circuits()
+                        // This tunnel is no longer pending! It must have been cancelled, probably
+                        // by a call to retire_all_tunnels()
                         drop(pending); // ibid
                         (None, Err(Error::CircCanceled))
                     }
@@ -1361,85 +1362,88 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         }
     }
 
-    /// Plan and launch a new circuit to a given target, bypassing our managed
-    /// pool of circuits.
+    /// Plan and launch a new tunnel to a given target, bypassing our managed
+    /// pool of tunnels.
     ///
-    /// This method will always return a new circuit, and never return a circuit
+    /// This method will always return a new tunnel, and never return a tunnel
     /// that this CircMgr gives out for anything else.
     ///
-    /// The new circuit will participate in the guard and timeout apparatus as
-    /// appropriate, no retry attempt will be made if the circuit fails.
+    /// The new tunnel will participate in the guard and timeout apparatus as
+    /// appropriate, no retry attempt will be made if the tunnel fails.
     #[cfg(feature = "hs-common")]
     pub(crate) async fn launch_unmanaged(
         &self,
-        usage: &TargetCircUsage,
+        usage: &TargetTunnelUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(SupportedCircUsage, Arc<B::Circ>)> {
+    ) -> Result<(SupportedTunnelUsage, B::Tunnel)> {
         let (_, plan) = self.plan_by_usage(dir, usage)?;
-        self.builder.build_circuit(plan.plan).await
+        self.builder.build_tunnel(plan.plan).await
     }
 
-    /// Remove the circuit with a given `id` from this manager.
+    /// Remove the tunnel with a given `id` from this manager.
     ///
-    /// After this function is called, that circuit will no longer be handed
+    /// After this function is called, that tunnel will no longer be handed
     /// out to any future requests.
     ///
-    /// Return None if we have no circuit with the given ID.
-    pub(crate) fn take_circ(&self, id: &<B::Circ as AbstractCirc>::Id) -> Option<Arc<B::Circ>> {
-        let mut list = self.circs.lock().expect("poisoned lock");
-        list.take_open(id).map(|e| e.circ)
+    /// Return None if we have no tunnel with the given ID.
+    pub(crate) fn take_tunnel(
+        &self,
+        id: &<B::Tunnel as AbstractTunnel>::Id,
+    ) -> Option<Arc<B::Tunnel>> {
+        let mut list = self.tunnels.lock().expect("poisoned lock");
+        list.take_open(id).map(|e| e.tunnel)
     }
 
-    /// Remove all open and pending circuits and from this manager, to ensure
+    /// Remove all open and pending tunnels and from this manager, to ensure
     /// they can't be given out for any more requests.
     ///
-    /// Calling `retire_all_circuits` ensures that any circuit request that gets
-    /// an  answer _after this method runs_ will receive a circuit that was
+    /// Calling `retire_all_tunnels` ensures that any tunnel request that gets
+    /// an  answer _after this method runs_ will receive a tunnel that was
     /// launched _after this method runs_.
     ///
     /// We call this method this when our configuration changes in such a way
     /// that we want to make sure that any new (or pending) requests will
-    /// receive circuits that are built using the new configuration.
+    /// receive tunnels that are built using the new configuration.
     //
     // For more information, see documentation on [`CircuitList::open_circs`],
     // [`CircuitList::pending_circs`], and comments in `do_launch`.
-    pub(crate) fn retire_all_circuits(&self) {
-        let mut list = self.circs.lock().expect("poisoned lock");
-        list.clear_all_circuits();
+    pub(crate) fn retire_all_tunnels(&self) {
+        let mut list = self.tunnels.lock().expect("poisoned lock");
+        list.clear_all_tunnels();
     }
 
-    /// Expire circuits according to the rules in `config` and the
+    /// Expire tunnels according to the rules in `config` and the
     /// current time `now`.
     ///
-    /// Expired circuits will not be automatically closed, but they will
-    /// no longer be given out for new circuits.
-    pub(crate) fn expire_circs(&self, now: Instant) {
-        let mut list = self.circs.lock().expect("poisoned lock");
+    /// Expired tunnels will not be automatically closed, but they will
+    /// no longer be given out for new tunnels.
+    pub(crate) fn expire_tunnels(&self, now: Instant) {
+        let mut list = self.tunnels.lock().expect("poisoned lock");
         if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
-            list.expire_circs(now, dirty_cutoff);
+            list.expire_tunnels(now, dirty_cutoff);
         }
     }
 
-    /// Consider expiring the circuit with given circuit `id`,
+    /// Consider expiring the tunnel with given tunnel `id`,
     /// according to the rules in `config` and the current time `now`.
-    pub(crate) fn expire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id, now: Instant) {
-        let mut list = self.circs.lock().expect("poisoned lock");
+    pub(crate) fn expire_tunnel(&self, tun_id: &<B::Tunnel as AbstractTunnel>::Id, now: Instant) {
+        let mut list = self.tunnels.lock().expect("poisoned lock");
         if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
-            list.expire_circ(circ_id, now, dirty_cutoff);
+            list.expire_tunnel(tun_id, now, dirty_cutoff);
         }
     }
 
-    /// Return the number of open circuits held by this circuit manager.
-    pub(crate) fn n_circs(&self) -> usize {
-        let list = self.circs.lock().expect("poisoned lock");
-        list.open_circs.len()
+    /// Return the number of open tunnels held by this tunnel manager.
+    pub(crate) fn n_tunnels(&self) -> usize {
+        let list = self.tunnels.lock().expect("poisoned lock");
+        list.open_tunnels.len()
     }
 
-    /// Return the number of pending circuits tracked by this circuit manager.
+    /// Return the number of pending tunnels tracked by this tunnel manager.
     #[cfg(test)]
-    pub(crate) fn n_pending_circs(&self) -> usize {
-        let list = self.circs.lock().expect("poisoned lock");
-        list.pending_circs.len()
+    pub(crate) fn n_pending_tunnels(&self) -> usize {
+        let list = self.tunnels.lock().expect("poisoned lock");
+        list.pending_tunnels.len()
     }
 
     /// Get a reference to this manager's runtime.
@@ -1452,7 +1456,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         &self.builder
     }
 
-    /// Pick a duration by when a new circuit should expire from now
+    /// Pick a duration by when a new tunnel should expire from now
     /// if it has not yet been used
     fn pick_use_duration(&self) -> Duration {
         let timings = self
@@ -1474,22 +1478,22 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     }
 }
 
-/// Spawn an expiration task that expires a circuit at given instant.
+/// Spawn an expiration task that expires a tunnel at given instant.
 ///
-/// If given instant is earlier than now, expire the circuit immediately.
+/// If given instant is earlier than now, expire the tunnel immediately.
 /// Otherwise, spawn a timer expiration task on given runtime.
 ///
-/// When the timeout occurs, if the circuit manager is still present,
-/// the task will ask the manager to expire the circuit, if the circuit
+/// When the timeout occurs, if the tunnel manager is still present,
+/// the task will ask the manager to expire the tunnel, if the tunnel
 /// is ready to expire.
 fn spawn_expiration_task<B, R>(
     runtime: &R,
-    circmgr: Weak<AbstractCircMgr<B, R>>,
-    circ_id: <<B as AbstractCircBuilder<R>>::Circ as AbstractCirc>::Id,
+    circmgr: Weak<AbstractTunnelMgr<B, R>>,
+    circ_id: <<B as AbstractTunnelBuilder<R>>::Tunnel as AbstractTunnel>::Id,
     exp_inst: Instant,
 ) where
     R: Runtime,
-    B: 'static + AbstractCircBuilder<R>,
+    B: 'static + AbstractTunnelBuilder<R>,
 {
     let now = runtime.now();
     let rt_copy = runtime.clone();
@@ -1503,7 +1507,7 @@ fn spawn_expiration_task<B, R>(
             // Circuits manager has already been dropped, so are the references it held.
             return;
         };
-        cm.expire_circ(&circ_id, now);
+        cm.expire_tunnel(&circ_id, now);
     } else {
         // Spawn a timer expiration task with given expiration instant.
         if let Err(e) = runtime.spawn(async move {
@@ -1513,7 +1517,7 @@ fn spawn_expiration_task<B, R>(
             } else {
                 return;
             };
-            cm.expire_circ(&circ_id, exp_inst);
+            cm.expire_tunnel(&circ_id, exp_inst);
         }) {
             warn_report!(e, "Unable to launch expiration task");
         }
@@ -1538,8 +1542,10 @@ mod test {
     use super::*;
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
     use crate::mocks::{FakeBuilder, FakeCirc, FakeId, FakeOp};
-    use crate::usage::{ExitPolicy, SupportedCircUsage};
-    use crate::{Error, IsolationToken, StreamIsolation, TargetCircUsage, TargetPort, TargetPorts};
+    use crate::usage::{ExitPolicy, SupportedTunnelUsage};
+    use crate::{
+        Error, IsolationToken, StreamIsolation, TargetPort, TargetPorts, TargetTunnelUsage,
+    };
     use std::sync::LazyLock;
     use tor_guardmgr::fallback::FallbackList;
     use tor_guardmgr::TestConfig;
@@ -1558,14 +1564,14 @@ mod test {
         (&*FALLBACKS_EMPTY).into()
     }
 
-    fn target_to_spec(target: &TargetCircUsage) -> SupportedCircUsage {
+    fn target_to_spec(target: &TargetTunnelUsage) -> SupportedTunnelUsage {
         match target {
-            TargetCircUsage::Exit {
+            TargetTunnelUsage::Exit {
                 ports,
                 isolation,
                 country_code,
                 require_stability,
-            } => SupportedCircUsage::Exit {
+            } => SupportedTunnelUsage::Exit {
                 policy: ExitPolicy::from_target_ports(&TargetPorts::from(&ports[..])),
                 isolation: Some(isolation.clone()),
                 country_code: country_code.clone(),
@@ -1578,7 +1584,7 @@ mod test {
     impl<U: PartialEq> IsolationTokenEq for OpenEntry<U> {
         fn isol_eq(&self, other: &Self) -> bool {
             self.spec.isol_eq(&other.spec)
-                && self.circ == other.circ
+                && self.tunnel == other.tunnel
                 && self.expiration == other.expiration
         }
     }
@@ -1586,7 +1592,7 @@ mod test {
     impl<U: PartialEq> IsolationTokenEq for &mut OpenEntry<U> {
         fn isol_eq(&self, other: &Self) -> bool {
             self.spec.isol_eq(&other.spec)
-                && self.circ == other.circ
+                && self.tunnel == other.tunnel
                 && self.expiration == other.expiration
         }
     }
@@ -1605,36 +1611,36 @@ mod test {
 
             let builder = make_builder(&rt);
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
             ));
 
-            let webports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let webports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
             // Check initialization.
-            assert_eq!(mgr.n_circs(), 0);
+            assert_eq!(mgr.n_tunnels(), 0);
             assert!(mgr.peek_builder().script.lock().unwrap().is_empty());
 
-            // Launch a circuit; make sure we get it.
+            // Launch a tunnel ; make sure we get it.
             let c1 = rt.wait_for(mgr.get_or_launch(&webports, di())).await;
             let c1 = c1.unwrap().0;
-            assert_eq!(mgr.n_circs(), 1);
+            assert_eq!(mgr.n_tunnels(), 1);
 
             // Make sure we get the one we already made if we ask for it.
-            let port80 = TargetCircUsage::new_from_ipv4_ports(&[80]);
+            let port80 = TargetTunnelUsage::new_from_ipv4_ports(&[80]);
             let c2 = mgr.get_or_launch(&port80, di()).await;
 
             let c2 = c2.unwrap().0;
             assert!(FakeCirc::eq(&c1, &c2));
-            assert_eq!(mgr.n_circs(), 1);
+            assert_eq!(mgr.n_tunnels(), 1);
 
-            // Now try launching two circuits "at once" to make sure that our
-            // pending-circuit code works.
+            // Now try launching two tunnels "at once" to make sure that our
+            // pending-tunnel code works.
 
-            let dnsport = TargetCircUsage::new_from_ipv4_ports(&[53]);
-            let dnsport_restrict = TargetCircUsage::Exit {
+            let dnsport = TargetTunnelUsage::new_from_ipv4_ports(&[53]);
+            let dnsport_restrict = TargetTunnelUsage::Exit {
                 ports: vec![TargetPort::ipv4(53)],
                 isolation: StreamIsolation::builder().build().unwrap(),
                 country_code: None,
@@ -1653,28 +1659,28 @@ mod test {
             assert!(!FakeCirc::eq(&c1, &c3));
             assert!(FakeCirc::eq(&c3, &c4));
             assert_eq!(c3.id(), c4.id());
-            assert_eq!(mgr.n_circs(), 2);
+            assert_eq!(mgr.n_tunnels(), 2);
 
             // Now we're going to remove c3 from consideration.  It's the
             // same as c4, so removing c4 will give us None.
-            let c3_taken = mgr.take_circ(&c3.id()).unwrap();
-            let now_its_gone = mgr.take_circ(&c4.id());
+            let c3_taken = mgr.take_tunnel(&c3.id()).unwrap();
+            let now_its_gone = mgr.take_tunnel(&c4.id());
             assert!(FakeCirc::eq(&c3_taken, &c3));
             assert!(now_its_gone.is_none());
-            assert_eq!(mgr.n_circs(), 1);
+            assert_eq!(mgr.n_tunnels(), 1);
 
             // Having removed them, let's launch another dnsport and make
-            // sure we get a different circuit.
+            // sure we get a different tunnel.
             let c5 = rt.wait_for(mgr.get_or_launch(&dnsport, di())).await;
             let c5 = c5.unwrap().0;
             assert!(!FakeCirc::eq(&c3, &c5));
             assert!(!FakeCirc::eq(&c4, &c5));
-            assert_eq!(mgr.n_circs(), 2);
+            assert_eq!(mgr.n_tunnels(), 2);
 
             // Now try launch_by_usage.
-            let prev = mgr.n_pending_circs();
+            let prev = mgr.n_pending_tunnels();
             assert!(mgr.launch_by_usage(&dnsport, di()).is_ok());
-            assert_eq!(mgr.n_pending_circs(), prev + 1);
+            assert_eq!(mgr.n_pending_tunnels(), prev + 1);
             // TODO: Actually make sure that launch_by_usage launched
             // the right thing.
         });
@@ -1686,14 +1692,14 @@ mod test {
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
 
-            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail once, and then completely time out.  The
             // result will be a failure.
             let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::Fail, FakeOp::Timeout]);
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
@@ -1716,7 +1722,7 @@ mod test {
             // Now try a more complicated case: we'll try to get things so
             // that we wait for a little over our predicted time because
             // of our wait-for-next-action logic.
-            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
             let builder = make_builder(&rt);
             builder.set(
                 &ports,
@@ -1726,7 +1732,7 @@ mod test {
                 ],
             );
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
@@ -1746,13 +1752,13 @@ mod test {
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
 
-            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail a the planning stages, a lot.
             let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::NoPlan; 2000]);
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
@@ -1768,13 +1774,13 @@ mod test {
         MockRuntime::test_with_various(|rt| async move {
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
-            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail 1000 times, which is above the retry limit.
             let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::Fail; 1000]);
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
@@ -1790,20 +1796,20 @@ mod test {
         MockRuntime::test_with_various(|rt| async move {
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
-            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
-            // The first time this is called, it will build a circuit
-            // with the wrong spec.  (A circuit builder should never
+            // The first time this is called, it will build a tunnel
+            // with the wrong spec.  (A tunnel builder should never
             // actually _do_ that, but it's something we code for.)
             let builder = make_builder(&rt);
             builder.set(
                 &ports,
                 vec![FakeOp::WrongSpec(target_to_spec(
-                    &TargetCircUsage::new_from_ipv4_ports(&[22]),
+                    &TargetTunnelUsage::new_from_ipv4_ports(&[22]),
                 ))],
             );
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
@@ -1819,14 +1825,14 @@ mod test {
         MockRuntime::test_with_various(|rt| async move {
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
-            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail twice, and then succeed. The result will be
             // a success.
             let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::Fail, FakeOp::Fail]);
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
@@ -1855,15 +1861,15 @@ mod test {
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let builder = make_builder(&rt);
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
             ));
 
-            // Set our isolation so that iso1 and iso2 can't share a circuit,
-            // but no_iso can share a circuit with either.
-            let iso1 = TargetCircUsage::Exit {
+            // Set our isolation so that iso1 and iso2 can't share a tunnel,
+            // but no_iso can share a tunnel with either.
+            let iso1 = TargetTunnelUsage::Exit {
                 ports: vec![TargetPort::ipv4(443)],
                 isolation: StreamIsolation::builder()
                     .owner_token(IsolationToken::new())
@@ -1872,7 +1878,7 @@ mod test {
                 country_code: None,
                 require_stability: false,
             };
-            let iso2 = TargetCircUsage::Exit {
+            let iso2 = TargetTunnelUsage::Exit {
                 ports: vec![TargetPort::ipv4(443)],
                 isolation: StreamIsolation::builder()
                     .owner_token(IsolationToken::new())
@@ -1881,10 +1887,10 @@ mod test {
                 country_code: None,
                 require_stability: false,
             };
-            let no_iso1 = TargetCircUsage::new_from_ipv4_ports(&[443]);
+            let no_iso1 = TargetTunnelUsage::new_from_ipv4_ports(&[443]);
             let no_iso2 = no_iso1.clone();
 
-            // We're going to try launching these circuits in 24 different
+            // We're going to try launching these tunnels in 24 different
             // orders, to make sure that the outcome is correct each time.
             use itertools::Itertools;
             let timeouts: Vec<_> = [0_u64, 2, 4, 6]
@@ -1943,19 +1949,19 @@ mod test {
             // making a second request after we launch it.  That
             // request should succeed, and notify the first request.
 
-            let ports1 = TargetCircUsage::new_from_ipv4_ports(&[80]);
-            let ports2 = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports1 = TargetTunnelUsage::new_from_ipv4_ports(&[80]);
+            let ports2 = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
 
             let builder = make_builder(&rt);
             builder.set(&ports1, vec![FakeOp::Timeout]);
 
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
             ));
             // Note that ports2 will be wider than ports1, so the second
-            // request will have to launch a new circuit.
+            // request will have to launch a new tunnel.
 
             let (c1, c2) = rt
                 .wait_for(futures::future::join(
@@ -1978,25 +1984,25 @@ mod test {
     #[test]
     fn prebuild() {
         MockRuntime::test_with_various(|rt| async move {
-            // This time we're going to use ensure_circuit() to make
-            // sure that a circuit gets built, and then launch two
-            // other circuits that will use it.
+            // This time we're going to use ensure_tunnel() to make
+            // sure that a tunnel gets built, and then launch two
+            // other tunnels that will use it.
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
             let builder = make_builder(&rt);
-            let mgr = Arc::new(AbstractCircMgr::new(
+            let mgr = Arc::new(AbstractTunnelMgr::new(
                 builder,
                 rt.clone(),
                 CircuitTiming::default(),
             ));
 
-            let ports1 = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
-            let ports2 = TargetCircUsage::new_from_ipv4_ports(&[80]);
-            let ports3 = TargetCircUsage::new_from_ipv4_ports(&[443]);
+            let ports1 = TargetTunnelUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports2 = TargetTunnelUsage::new_from_ipv4_ports(&[80]);
+            let ports3 = TargetTunnelUsage::new_from_ipv4_ports(&[443]);
 
             let (ok, c1, c2) = rt
                 .wait_for(futures::future::join3(
-                    mgr.ensure_circuit(&ports1, di()),
+                    mgr.ensure_tunnel(&ports1, di()),
                     async {
                         rt.sleep(Duration::from_millis(10)).await;
                         mgr.get_or_launch(&ports2, di()).await
@@ -2014,7 +2020,7 @@ mod test {
             let c2 = c2.unwrap().0;
 
             // If we had launched these separately, they wouldn't share
-            // a circuit.
+            // a tunnel.
             assert!(FakeCirc::eq(&c1, &c2));
         });
     }
@@ -2023,7 +2029,7 @@ mod test {
     fn expiration() {
         MockRuntime::test_with_various(|rt| async move {
             use crate::config::CircuitTimingBuilder;
-            // Now let's make some circuits -- one dirty, one clean, and
+            // Now let's make some tunnels -- one dirty, one clean, and
             // make sure that one expires and one doesn't.
             #[allow(deprecated)] // TODO #1885
             let rt = MockSleepRuntime::new(rt);
@@ -2034,14 +2040,14 @@ mod test {
                 .build()
                 .unwrap();
 
-            let mgr = Arc::new(AbstractCircMgr::new(builder, rt.clone(), circuit_timing));
+            let mgr = Arc::new(AbstractTunnelMgr::new(builder, rt.clone(), circuit_timing));
 
-            let imap = TargetCircUsage::new_from_ipv4_ports(&[993]);
-            let pop = TargetCircUsage::new_from_ipv4_ports(&[995]);
+            let imap = TargetTunnelUsage::new_from_ipv4_ports(&[993]);
+            let pop = TargetTunnelUsage::new_from_ipv4_ports(&[995]);
 
             let (ok, pop1) = rt
                 .wait_for(futures::future::join(
-                    mgr.ensure_circuit(&imap, di()),
+                    mgr.ensure_tunnel(&imap, di()),
                     mgr.get_or_launch(&pop, di()),
                 ))
                 .await;
@@ -2053,13 +2059,13 @@ mod test {
             rt.advance(Duration::from_secs(15)).await;
             let imap1 = rt.wait_for(mgr.get_or_launch(&imap, di())).await.unwrap().0;
 
-            // This should expire the pop circuit, since it came from
-            // get_or_launch() [which marks the circuit as being
-            // used].  It should not expire the imap circuit, since
+            // This should expire the pop tunnel, since it came from
+            // get_or_launch() [which marks the tunnel as being
+            // used].  It should not expire the imap tunnel, since
             // it was not dirty until 15 seconds after the cutoff.
             let now = rt.now();
 
-            mgr.expire_circs(now);
+            mgr.expire_tunnels(now);
 
             let (pop2, imap2) = rt
                 .wait_for(futures::future::join(
@@ -2103,13 +2109,13 @@ mod test {
     #[test]
     fn test_find_supported() {
         let (ep_none, ep_web, ep_full) = get_exit_policies();
-        let fake_circ = Arc::new(FakeCirc { id: FakeId::next() });
+        let fake_circ = FakeCirc { id: FakeId::next() };
         let expiration = ExpirationInfo::Unused {
             use_before: Instant::now() + Duration::from_secs(60 * 60),
         };
 
         let mut entry_none = OpenEntry::new(
-            SupportedCircUsage::Exit {
+            SupportedTunnelUsage::Exit {
                 policy: ep_none,
                 isolation: None,
                 country_code: None,
@@ -2120,7 +2126,7 @@ mod test {
         );
         let mut entry_none_c = entry_none.clone();
         let mut entry_web = OpenEntry::new(
-            SupportedCircUsage::Exit {
+            SupportedTunnelUsage::Exit {
                 policy: ep_web,
                 isolation: None,
                 country_code: None,
@@ -2131,7 +2137,7 @@ mod test {
         );
         let mut entry_web_c = entry_web.clone();
         let mut entry_full = OpenEntry::new(
-            SupportedCircUsage::Exit {
+            SupportedTunnelUsage::Exit {
                 policy: ep_full,
                 isolation: None,
                 country_code: None,
@@ -2142,11 +2148,11 @@ mod test {
         );
         let mut entry_full_c = entry_full.clone();
 
-        let usage_web = TargetCircUsage::new_from_ipv4_ports(&[80]);
+        let usage_web = TargetTunnelUsage::new_from_ipv4_ports(&[80]);
         let empty: Vec<&mut OpenEntry<FakeCirc>> = vec![];
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(vec![&mut entry_none].into_iter(), &usage_web),
+            SupportedTunnelUsage::find_supported(vec![&mut entry_none].into_iter(), &usage_web),
             empty
         );
 
@@ -2155,7 +2161,7 @@ mod test {
         //            refs, which we can't have more than one of.
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(
+            SupportedTunnelUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web].into_iter(),
                 &usage_web,
             ),
@@ -2163,30 +2169,30 @@ mod test {
         );
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(
+            SupportedTunnelUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web, &mut entry_full].into_iter(),
                 &usage_web,
             ),
             vec![&mut entry_web_c, &mut entry_full_c]
         );
 
-        // Test preemptive circuit usage:
+        // Test preemptive tunnel usage:
 
-        let usage_preemptive_web = TargetCircUsage::Preemptive {
+        let usage_preemptive_web = TargetTunnelUsage::Preemptive {
             port: Some(TargetPort::ipv4(80)),
             circs: 2,
             require_stability: false,
         };
-        let usage_preemptive_dns = TargetCircUsage::Preemptive {
+        let usage_preemptive_dns = TargetTunnelUsage::Preemptive {
             port: None,
             circs: 2,
             require_stability: false,
         };
 
-        // shouldn't return anything unless there are >=2 circuits
+        // shouldn't return anything unless there are >=2 tunnels
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(
+            SupportedTunnelUsage::find_supported(
                 vec![&mut entry_none].into_iter(),
                 &usage_preemptive_web
             ),
@@ -2194,7 +2200,7 @@ mod test {
         );
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(
+            SupportedTunnelUsage::find_supported(
                 vec![&mut entry_none].into_iter(),
                 &usage_preemptive_dns
             ),
@@ -2202,7 +2208,7 @@ mod test {
         );
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(
+            SupportedTunnelUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web].into_iter(),
                 &usage_preemptive_web
             ),
@@ -2210,7 +2216,7 @@ mod test {
         );
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(
+            SupportedTunnelUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web].into_iter(),
                 &usage_preemptive_dns
             ),
@@ -2218,7 +2224,7 @@ mod test {
         );
 
         assert_isoleq!(
-            SupportedCircUsage::find_supported(
+            SupportedTunnelUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web, &mut entry_full].into_iter(),
                 &usage_preemptive_web
             ),
@@ -2237,9 +2243,9 @@ mod test {
             let builder = make_builder(&rt);
 
             for circs in [2, 8].iter() {
-                let mut circlist = CircList::<FakeBuilder<MockRuntime>, MockRuntime>::new();
+                let mut circlist = TunnelList::<FakeBuilder<MockRuntime>, MockRuntime>::new();
 
-                let preemptive_target = TargetCircUsage::Preemptive {
+                let preemptive_target = TargetTunnelUsage::Preemptive {
                     port: Some(TargetPort::ipv4(80)),
                     circs: *circs,
                     require_stability: false,
@@ -2248,9 +2254,9 @@ mod test {
                 for _ in 0..*circs {
                     assert!(circlist.find_open(&preemptive_target).is_none());
 
-                    let usage = TargetCircUsage::new_from_ipv4_ports(&[80]);
-                    let (plan, _) = builder.plan_circuit(&usage, dirinfo).unwrap();
-                    let (spec, circ) = rt.wait_for(builder.build_circuit(plan)).await.unwrap();
+                    let usage = TargetTunnelUsage::new_from_ipv4_ports(&[80]);
+                    let (plan, _) = builder.plan_tunnel(&usage, dirinfo).unwrap();
+                    let (spec, circ) = rt.wait_for(builder.build_tunnel(plan)).await.unwrap();
                     let entry = OpenEntry::new(
                         spec,
                         circ,

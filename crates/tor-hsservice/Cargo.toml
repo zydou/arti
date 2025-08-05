@@ -104,7 +104,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
 tor-bytes = { version = "0.33.0", path = "../tor-bytes" }
 tor-cell = { version = "0.33.0", path = "../tor-cell", features = ["hs"] }
 tor-checkable = { version = "0.33.0", path = "../tor-checkable", optional = true }
-tor-circmgr = { version = "0.33.0", path = "../tor-circmgr", features = ["hs-service"] }
+tor-circmgr = { version = "0.33.0", path = "../tor-circmgr", features = ["hs-service", "send-control-msg"] }
 tor-config = { version = "0.33.0", path = "../tor-config" }
 tor-config-path = { version = "0.33.0", path = "../tor-config-path" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.33.0", default-features = false, features = ["hs-service"] }

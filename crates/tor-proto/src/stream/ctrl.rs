@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::tunnel::circuit::ClientCirc;
+use crate::tunnel::ClientTunnel;
 
 /// An object that lets the owner "control" a client stream.
 ///
@@ -19,7 +19,5 @@ pub trait ClientStreamCtrl {
     ///
     /// (If the circuit object itself is not present, the stream is necessarily
     /// closed.)
-    //
-    // TODO(conflux): use ClientTunnel
-    fn circuit(&self) -> Option<Arc<ClientCirc>>;
+    fn tunnel(&self) -> Option<Arc<ClientTunnel>>;
 }

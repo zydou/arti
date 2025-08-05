@@ -121,7 +121,7 @@ where
     R: Runtime,
     SP: SleepProvider,
 {
-    let circuit = circ_mgr.get_or_launch_dir(dirinfo).await?;
+    let tunnel = circ_mgr.get_or_launch_dir(dirinfo).await?;
 
     if req.anonymized() == AnonymizedRequest::Anonymized {
         return Err(bad_api_usage!("Tried to use get_resource for an anonymized request").into());
@@ -129,7 +129,7 @@ where
 
     // TODO(nickm) This should be an option, and is too long.
     let begin_timeout = Duration::from_secs(5);
-    let source = match SourceInfo::from_circuit(&circuit) {
+    let source = match SourceInfo::from_tunnel(&tunnel) {
         Ok(source) => source,
         Err(e) => {
             return Err(Error::RequestFailed(RequestFailedError {
@@ -146,11 +146,11 @@ where
         })
     };
 
-    req.check_circuit(&circuit).await.map_err(wrap_err)?;
+    req.check_circuit(&tunnel).await.map_err(wrap_err)?;
 
     // Launch the stream.
     let mut stream = runtime
-        .timeout(begin_timeout, circuit.clone().begin_dir_stream())
+        .timeout(begin_timeout, tunnel.begin_dir_stream())
         .await
         .map_err(RequestError::from)
         .map_err(wrap_err)?
@@ -162,7 +162,7 @@ where
     let r = send_request(runtime, req, &mut stream, source.clone()).await;
 
     if should_retire_circ(&r) {
-        retire_circ(&circ_mgr, &circuit.unique_id(), "Partial response");
+        retire_circ(&circ_mgr, &tunnel.unique_id(), "Partial response");
     }
 
     r
