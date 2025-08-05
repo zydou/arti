@@ -70,7 +70,7 @@ to make sure we aren't going to break our users.
    cargo run -p fixup-features -- --exclude examples/ --exclude maint/ Cargo.toml
    ```
 
-6. Does `maint/semver-checks "arti-v$LAST_VERSION"` find any issues
+6. Does `maint/semver-checks "arti-v$LAST_VERSION" | tee ../semver.log` find any issues
    not noted in our semver.md files?
    If so, add them.
 
