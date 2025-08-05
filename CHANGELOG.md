@@ -5,18 +5,16 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.4.6 — 4 August 2025
 
-<!--
-TODO-RELEASE-BLOCKER
-Here is a blurb describing the release. It summarizes the major points,
-especially the ones that the user needs to know about.
+Arti 1.4.6 continues development on xon-based ([Proposal 324]) flow
+control, [Conflux], and improved cryptography (CGO, [Proposal 359]).
 
-It can be multiple paragraphs.
+Arti 1.4.6 also contains two improvements to help resist two different
+kinds of denial-of-service attack, relating to Hidden Services, and
+some other bugfixes.  Especially, users who operate `.onion` services
+are advised to upgrade.
 
-It is followed by sections, sorted roughly in descending order of
-importance.  Remove any empty sections.
-It is okay to re-order or change the sections or add new ones,
-but please do so judiciously.
--->
+(There's significant work ongoing on Arti Relay, but that is currently
+occurring outside of the Arti mainline so has not landed in in 1.4.6.)
 
 ### Breaking changes
 
