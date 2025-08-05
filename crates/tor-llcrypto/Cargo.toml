@@ -74,7 +74,7 @@ zeroize = "1"
 
 [dev-dependencies]
 cipher = "0.4.1"
-hex-literal = "0.4"
+hex-literal = "1.0"
 rand = "0.9.1"
 serde_test = "1.0.124"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }

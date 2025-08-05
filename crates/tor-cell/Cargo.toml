@@ -75,6 +75,6 @@ void = "1"
 
 [dev-dependencies]
 hex = "0.4"
-hex-literal = "0.4"
+hex-literal = "1.0"
 [package.metadata.docs.rs]
 all-features = true

@@ -137,7 +137,7 @@ criterion-cycles-per-byte = "0.6.1"
 [dev-dependencies]
 criterion = "0.5.1"
 hex = "0.4"
-hex-literal = "0.4"
+hex-literal = "1.0"
 humantime = "2"
 itertools = "0.14.0"
 regex = { version = "1", default-features = false, features = ["std"] }

@@ -54,5 +54,5 @@ zeroize = "1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
-hex-literal = "0.4"
+hex-literal = "1.0"
 tempfile = "3.10"

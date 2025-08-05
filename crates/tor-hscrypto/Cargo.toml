@@ -71,7 +71,7 @@ void = "1"
 zeroize = { version = "1", optional = true }
 
 [dev-dependencies]
-hex-literal = "0.4"
+hex-literal = "1.0"
 tor-basic-utils = { version = "0.33.0", path = "../tor-basic-utils" }
 
 [[test]]

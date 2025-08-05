@@ -40,6 +40,6 @@ tor-error = { path = "../tor-error", version = "0.33.0", default-features = fals
 
 [dev-dependencies]
 anyhow = "1.0.75"
-hex-literal = "0.4"
+hex-literal = "1.0"
 [package.metadata.docs.rs]
 all-features = true

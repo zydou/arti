@@ -35,4 +35,4 @@ rand_core = "0.9.3"
 thiserror = "2"
 
 [dev-dependencies]
-hex-literal = "0.4.1"
+hex-literal = "1.0.0"
