@@ -23,10 +23,7 @@ s{[ \t]*$}{};
 
 my $linky = qr{[!#]\d{3,}|TROVE-\d+-\d+};
 
-if (m{^  ($linky)$}) {
-  push @links, "[$1]";
-  $_ = '';
-} else {
+sub write_out_links () {
   if (@links) {
     print "  (";
     print join ', ', @links;
@@ -34,3 +31,12 @@ if (m{^  ($linky)$}) {
     @links = ();
   }
 }
+
+if (m{^  ($linky)$}) {
+  push @links, "[$1]";
+  $_ = '';
+} else {
+  write_out_links();
+}
+
+END { write_out_links(); }
