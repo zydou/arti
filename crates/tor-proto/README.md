@@ -101,3 +101,8 @@ all the ones I could find or think of, but it would be great to
 find a good way to eliminate every lock that we have.
 
 License: MIT OR Apache-2.0
+
+[`tor-netdoc`]: https://docs.rs/tor-netdoc/
+[`tor-netdir`]: https://docs.rs/tor-netdir/
+[`arti-client`]: https://docs.rs/arti-client/
+

@@ -7,7 +7,7 @@ use futures::Sink;
 
 //---------- principal API ----------
 
-/// A [`Sink`] with a `close_channel` method like [`futures::channel::mpsc::Sender`'s]
+/// A [`Sink`] with a `close_channel` method like [`futures::channel::mpsc::Sender`]'s.
 pub trait SinkCloseChannel<T>: Sink<T> {
     /// Close the channel from the sending end, giving EOF at the receiver
     ///

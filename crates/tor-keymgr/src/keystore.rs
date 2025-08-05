@@ -96,7 +96,7 @@ pub trait Keystore: Send + Sync + 'static {
     /// List all the entries in this keystore.
     ///
     /// Returns a list of results, where `Ok` signifies a recognized entry,
-    /// and [`Err(KeystoreListError)`] an unrecognized one.
+    /// and `Err(KeystoreListError)` an unrecognized one.
     /// An entry is said to be recognized if it has a valid [`KeyPath`](crate).
     fn list(&self) -> Result<Vec<KeystoreEntryResult<KeystoreEntry>>>;
 }

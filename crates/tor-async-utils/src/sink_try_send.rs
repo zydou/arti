@@ -12,7 +12,7 @@ use thiserror::Error;
 
 //---------- principal API ----------
 
-/// A [`Sink`] with a `try_send` method like [`futures::channel::mpsc::Sender`'s]
+/// A [`Sink`] with a `try_send` method like [`futures::channel::mpsc::Sender`]'s.
 pub trait SinkTrySend<T>: Sink<T> {
     /// Errors that is not disconnected, or full
     type Error: SinkTrySendError;

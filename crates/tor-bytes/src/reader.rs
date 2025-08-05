@@ -73,7 +73,7 @@ enum Completeness {
     PossiblyIncomplete,
     /// We ought to have the whole message
     ///
-    /// Throw [`Error::MissingData']
+    /// Throw [`Error::MissingData`]
     SupposedlyComplete,
 }
 
