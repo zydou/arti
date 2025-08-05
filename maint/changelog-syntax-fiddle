@@ -38,3 +38,5 @@ if (m{^  ($linky)$}) {
 } else {
   write_out_links();
 }
+
+END { write_out_links(); }
