@@ -351,6 +351,11 @@ before you continue!
    by the right set of developers.
    If you aren't sure, run `maint/cargo-crate-owners`.
 
+4. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
+
+   If anything was janky or didn't go as planned, and you can see how
+   to improve it, please fix it - here or in the relevant tooling.
+
 [!2271]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2271
 
 <!-- ================================================== -->
