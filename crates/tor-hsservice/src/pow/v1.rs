@@ -12,8 +12,8 @@ use std::{
 };
 
 use arrayvec::ArrayVec;
-use futures::{channel::mpsc, Stream};
 use futures::task::SpawnExt;
+use futures::{channel::mpsc, Stream};
 use futures::{SinkExt, StreamExt};
 use num_traits::FromPrimitive;
 use rand::{CryptoRng, RngCore};
