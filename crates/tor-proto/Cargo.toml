@@ -63,7 +63,7 @@ experimental-api = ["__is_experimental"]
 # start_conversation etc.; TODO HS should be renamed
 send-control-msg = []
 stream-ctrl = ["__is_experimental"]
-counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval"]
+counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval", "flowctl-cc"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
