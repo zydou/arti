@@ -18,7 +18,7 @@ tokio = { version = "1.7", features = ["full"] }
 tor-chanmgr = { path = "../../../crates/tor-chanmgr", features = ["pt-client", "experimental-api"] }
 tor-error = { path = "../../../crates/tor-error" }
 tor-guardmgr = { path = "../../../crates/tor-guardmgr", features = ["full"] }
-tor-proto = { path = "../../../crates/tor-proto", features = ["experimental"] }
+tor-proto = { path = "../../../crates/tor-proto", features = [] }
 tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
 tracing-subscriber = "0.3.17"
 

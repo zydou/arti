@@ -164,6 +164,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use cfg_if::cfg_if;
+
     use super::*;
 
     #[test]
@@ -188,7 +190,7 @@ mod test {
             assert!(unsupported.is_empty(), "{} not supported", unsupported);
         }
 
-        // TODO: Remove this once congestion control is fully implemented.
+        // TODO: Revise this once congestion control is fully implemented and always-on.
         {
             // Recommended by c-tor main-branch authorities as of 2024-04-02
             let rec: tor_protover::Protocols =
@@ -197,12 +199,18 @@ mod test {
                     .parse()
                     .unwrap();
 
-            // Although this is recommended, Arti hasn't built it yet.
-            let expected_missing: tor_protover::Protocols =
-                [tor_protover::named::FLOWCTRL_CC].into_iter().collect();
-
+            // Although this is recommended, it isn't always-on in Arti yet yet.
+            cfg_if! {
+                if #[cfg(feature="flowctl-cc")] {
+                     let permitted_missing: tor_protover::Protocols =
+                        [].into_iter().collect();
+                } else {
+                    let permitted_missing: tor_protover::Protocols =
+                        [tor_protover::named::FLOWCTRL_CC].into_iter().collect();
+                }
+            }
             let unsupported = rec.difference(&pr);
-            assert_eq!(unsupported, expected_missing);
+            assert!(unsupported.difference(&permitted_missing).is_empty());
         }
     }
 
