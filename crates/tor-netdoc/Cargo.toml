@@ -33,11 +33,11 @@ full = [
 ]
 experimental = [
     "build_docs",
+    "dangerous-expose-struct-fields",
     "experimental-api",
+    "hsdesc-inner-docs",
     "hs-dir",
     "hs-pow-full",
-    "hsdesc-inner-docs",
-    "dangerous-expose-struct-fields",
 ]
 
 # Enable code to build the objects that represent different network documents.
