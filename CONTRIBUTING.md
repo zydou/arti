@@ -9,6 +9,26 @@ Make sure to familiarize yourself with our
 The new-account process on our gitlab instance is moderated, to reduce
 spam and abuse.  (*Insert instructions for anonymous usage here*)
 
+**NOTE 2025-08-05:**
+The GitLab process described below for creating new merge requests no longer works.
+Due to GitLab changes,
+new contributors can no longer create project forks and submit merge requests.
+While we work toward a better long-term solution,
+we are [piloting a contributor fork model][pilot] to support external code contributions.
+If you would like to contribute code changes,
+[request access here][pilot-request-access] and follow the onboarding process.
+You can follow the status of the pilot project
+and leave feedback at [this GitLab issue][tpo-team-405].
+If you are unable to use the contributor fork model,
+and if you have a small patch which is unlikely to require additional revisions,
+we can also accept [formatted patches][fmt-patch] attached to [GitLab issues][gitlab-issues].
+
+[pilot]: https://gitlab.torproject.org/tor-contributors/meta
+[pilot-request-access]: https://gitlab.torproject.org/tor-contributors/members
+[tpo-team-405]: https://gitlab.torproject.org/tpo/team/-/issues/405
+[fmt-patch]: https://git-scm.com/docs/git-format-patch
+[gitlab-issues]: https://gitlab.torproject.org/tpo/core/arti/-/issues
+
 ## Licensing notice
 
 Unless you explicitly state otherwise, any contribution intentionally
