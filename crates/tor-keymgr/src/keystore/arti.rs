@@ -12,12 +12,12 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
+use crate::keystore::fs_utils::{FilesystemAction, FilesystemError, RelKeyPath, checked_op};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    arti_path, ArtiPath, ArtiPathUnavailableError, KeystoreEntry, KeystoreId, Result,
-    UnknownKeyTypeError, UnrecognizedEntryError,
+    ArtiPath, ArtiPathUnavailableError, KeystoreEntry, KeystoreId, Result, UnknownKeyTypeError,
+    UnrecognizedEntryError, arti_path,
 };
 use certs::UnparsedCert;
 use err::ArtiNativeKeystoreError;
@@ -412,17 +412,17 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::test_utils::ssh_keys::*;
-    use crate::test_utils::sshkeygen_ed25519_strings;
-    use crate::test_utils::TEST_SPECIFIER_PATH;
-    use crate::test_utils::{assert_found, TestSpecifier};
     use crate::KeyPath;
     use crate::UnrecognizedEntry;
+    use crate::test_utils::TEST_SPECIFIER_PATH;
+    use crate::test_utils::ssh_keys::*;
+    use crate::test_utils::sshkeygen_ed25519_strings;
+    use crate::test_utils::{TestSpecifier, assert_found};
     use std::cmp::Ordering;
     use std::fs;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{TempDir, tempdir};
     use tor_cert::{CertifiedKey, Ed25519Cert};
     use tor_checkable::{SelfSigned, Timebound};
     use tor_key_forge::{CertType, KeyType, ParsedEd25519Cert};
@@ -559,9 +559,11 @@ mod tests {
 
         // Make the permissions of the test key too permissive
         fs::set_permissions(&key_path, fs::Permissions::from_mode(0o777)).unwrap();
-        assert!(key_store
-            .get(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
-            .is_err());
+        assert!(
+            key_store
+                .get(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
+                .is_err()
+        );
 
         // Make the permissions of the parent directory too lax
         fs::set_permissions(

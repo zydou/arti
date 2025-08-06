@@ -12,15 +12,15 @@ use crate::internal_prelude::*;
 use crate::pow::PowManager;
 
 use backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
-use descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use reactor::read_blind_id_keypair;
+use descriptor::{DescriptorStatus, VersionedDescriptor, build_sign};
 use reactor::Reactor;
+use reactor::read_blind_id_keypair;
 use reupload_timer::ReuploadTimer;
 
 use tor_config_path::CfgPathResolver;
 
 pub use reactor::UploadError;
-pub(crate) use reactor::{Mockable, Real, OVERALL_UPLOAD_TIMEOUT};
+pub(crate) use reactor::{Mockable, OVERALL_UPLOAD_TIMEOUT, Real};
 
 /// A handle for the Hsdir Publisher for an onion service.
 ///
@@ -167,36 +167,36 @@ mod test {
     use std::io;
     use std::path::Path;
     use std::pin::Pin;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{Context, Poll};
     use std::time::Duration;
 
     use async_trait::async_trait;
     use fs_mistrust::Mistrust;
     use futures::{AsyncRead, AsyncWrite};
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{TempDir, tempdir};
     use test_temp_dir::test_temp_dir;
 
-    use tor_basic_utils::test_rng::{testing_rng, TestingRng};
+    use tor_basic_utils::test_rng::{TestingRng, testing_rng};
     use tor_circmgr::hspool::HsCircKind;
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
     use tor_key_forge::ToEncodableKey;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeySpecifier};
     use tor_llcrypto::pk::{ed25519, rsa};
     use tor_netdir::testprovider::TestNetDirProvider;
-    use tor_netdir::{testnet, NetDir};
+    use tor_netdir::{NetDir, testnet};
     use tor_netdoc::doc::hsdesc::test_data;
     use tor_rtcompat::ToplevelBlockOn;
     use tor_rtmock::MockRuntime;
 
+    use crate::HsNickname;
     use crate::config::OnionServiceConfigBuilder;
-    use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
+    use crate::ipt_set::{IptInSet, IptSet, ipts_channel};
     use crate::pow::NewPowManager;
     use crate::publish::reactor::MockableDirTunnel;
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::test::create_storage_handles;
-    use crate::HsNickname;
     use crate::{
         BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
         HsIdKeypairSpecifier, HsIdPublicKeySpecifier,

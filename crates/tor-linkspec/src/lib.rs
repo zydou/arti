@@ -56,9 +56,9 @@ mod transport;
 pub mod verbatim;
 
 pub use ids::{
+    RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter,
     by_id::{ByRelayIds, ByRelayIdsError, ListByRelayIds, ListByRelayIdsError, ListByRelayIdsIter},
     set::RelayIdSet,
-    RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter,
 };
 pub use ls::{EncodedLinkSpec, LinkSpec, LinkSpecType};
 pub use owned::{

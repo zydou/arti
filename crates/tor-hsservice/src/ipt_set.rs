@@ -535,8 +535,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::test::create_storage_handles;
     use crate::FatalError;
+    use crate::test::create_storage_handles;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
     use test_temp_dir::test_temp_dir;

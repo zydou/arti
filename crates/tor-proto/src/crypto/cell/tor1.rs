@@ -8,7 +8,7 @@
 //! I am calling this design `tor1`; it does not have a generally recognized
 //! name.
 
-use crate::{circuit::CircuitBinding, crypto::binding::CIRC_BINDING_LEN, Error, Result};
+use crate::{Error, Result, circuit::CircuitBinding, crypto::binding::CIRC_BINDING_LEN};
 
 use cipher::{KeyIvInit, StreamCipher};
 use digest::Digest;
@@ -324,7 +324,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::crypto::cell::{
-        test::add_layers, InboundClientCrypt, OutboundClientCrypt, Tor1RelayCrypto,
+        InboundClientCrypt, OutboundClientCrypt, Tor1RelayCrypto, test::add_layers,
     };
 
     use super::*;

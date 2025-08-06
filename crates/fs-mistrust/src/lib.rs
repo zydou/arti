@@ -87,7 +87,7 @@ use std::{
 
 pub use dir::CheckedDir;
 pub use disable::GLOBAL_DISABLE_VAR;
-pub use err::{format_access_bits, Error};
+pub use err::{Error, format_access_bits};
 pub use file_access::FileAccess;
 
 /// A result type as returned by this crate
@@ -658,7 +658,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use testing::{mistrust_build, Dir, MistrustOp};
+    use testing::{Dir, MistrustOp, mistrust_build};
 
     #[cfg(target_family = "unix")]
     use testing::LinkType;

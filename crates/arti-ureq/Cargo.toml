@@ -1,7 +1,7 @@
 [package]
 name = "arti-ureq"
 version = "0.33.0"
-edition = "2021"
+edition = "2024"
 authors = ["The Tor Project, Inc.", "Niel Duysters"]
 license = "MIT OR Apache-2.0"
 description = "Library to use Arti in the ureq http client"

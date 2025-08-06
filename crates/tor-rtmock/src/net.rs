@@ -7,8 +7,8 @@
 
 #![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
 
-use super::io::{stream_pair, LocalStream};
 use super::MockNetRuntime;
+use super::io::{LocalStream, stream_pair};
 use crate::util::mpsc_channel;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
@@ -18,12 +18,12 @@ use tor_rtcompat::{
 use tor_rtcompat::{UdpProvider, UdpSocket};
 
 use async_trait::async_trait;
+use futures::FutureExt;
 use futures::channel::mpsc;
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::lock::Mutex as AsyncMutex;
 use futures::sink::SinkExt;
 use futures::stream::{Stream, StreamExt};
-use futures::FutureExt;
 use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io::{self, Error as IoError, ErrorKind, Result as IoResult};

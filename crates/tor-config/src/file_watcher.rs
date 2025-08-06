@@ -420,7 +420,7 @@ mod test {
 
     use super::*;
     use notify::event::{AccessKind, ModifyKind};
-    use test_temp_dir::{test_temp_dir, TestTempDir};
+    use test_temp_dir::{TestTempDir, test_temp_dir};
 
     /// Write `data` to file `name` within `dir`.
     fn write_file(dir: &TestTempDir, name: &str, data: &[u8]) -> PathBuf {

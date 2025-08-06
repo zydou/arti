@@ -56,17 +56,17 @@ mod state;
 use std::future::Future;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use futures::StreamExt as _;
 use futures::stream::BoxStream;
 use futures::task::SpawnExt as _;
-use futures::StreamExt as _;
 
 use educe::Educe;
 use tracing::debug;
 
+use tor_circmgr::ClientOnionServiceDataTunnel;
 use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::isolation::StreamIsolation;
-use tor_circmgr::ClientOnionServiceDataTunnel;
-use tor_error::{internal, Bug};
+use tor_error::{Bug, internal};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
 use tor_rtcompat::Runtime;
@@ -77,7 +77,7 @@ pub use keys::{HsClientDescEncKeypairSpecifier, HsClientSecretKeys, HsClientSecr
 pub use relay_info::InvalidTarget;
 pub use state::HsClientConnectorConfig;
 
-use err::{rend_pt_identity_for_error, IntroPtIndex, RendPtIdentityForError};
+use err::{IntroPtIndex, RendPtIdentityForError, rend_pt_identity_for_error};
 use state::{Config, MockableConnectorData, Services};
 
 /// An object that negotiates connections with onion services

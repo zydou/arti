@@ -2,8 +2,8 @@
 
 use std::pin::Pin;
 
-use futures::channel::mpsc;
 use futures::Sink;
+use futures::channel::mpsc;
 
 //---------- principal API ----------
 

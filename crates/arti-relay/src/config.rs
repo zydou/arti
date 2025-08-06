@@ -14,7 +14,7 @@ use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
-use tor_config::{impl_standard_builder, mistrust::BuilderExt, ConfigBuildError};
+use tor_config::{ConfigBuildError, impl_standard_builder, mistrust::BuilderExt};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;

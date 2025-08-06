@@ -11,7 +11,7 @@ use thiserror::Error;
 use time::format_description::FormatItem;
 use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
-use tor_error::{into_internal, Bug};
+use tor_error::{Bug, into_internal};
 
 /// A UTC timestamp that can be encoded in ISO 8601 format,
 /// and that can be used as a `Slug`.
@@ -116,9 +116,11 @@ mod test {
         assert!("2024-10-23 130545".parse::<Iso8601TimeSlug>().is_err());
         assert!("20241023".parse::<Iso8601TimeSlug>().is_err());
         assert!("2024102313054".parse::<Iso8601TimeSlug>().is_err());
-        assert!(format!("{VALID_TIMESTAMP}Z")
-            .parse::<Iso8601TimeSlug>()
-            .is_err());
+        assert!(
+            format!("{VALID_TIMESTAMP}Z")
+                .parse::<Iso8601TimeSlug>()
+                .is_err()
+        );
         assert!("not a timestamp".parse::<Iso8601TimeSlug>().is_err());
 
         let parsed_timestamp = VALID_TIMESTAMP.parse::<Iso8601TimeSlug>().unwrap();

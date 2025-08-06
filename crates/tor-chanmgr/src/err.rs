@@ -7,7 +7,7 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 use crate::factory::AbstractPtError;
-use tor_error::{internal, ErrorKind};
+use tor_error::{ErrorKind, internal};
 use tor_linkspec::{BridgeAddr, ChanTarget, IntoOwnedChanTarget, LoggedChanTarget};
 use tor_proto::ClockSkew;
 
@@ -152,9 +152,9 @@ impl From<tor_linkspec::ListByRelayIdsError> for Error {
 
 impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
-        use tor_proto::Error as ProtoErr;
         use Error as E;
         use ErrorKind as EK;
+        use tor_proto::Error as ProtoErr;
         match self {
             E::ChanTimeout { .. }
             | E::Io { .. }
@@ -180,8 +180,8 @@ impl tor_error::HasKind for Error {
 
 impl tor_error::HasRetryTime for Error {
     fn retry_time(&self) -> tor_error::RetryTime {
-        use tor_error::RetryTime as RT;
         use Error as E;
+        use tor_error::RetryTime as RT;
         match self {
             // We can retry this action immediately; there was already a time delay.
             E::ChanTimeout { .. } => RT::Immediate,

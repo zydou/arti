@@ -4,7 +4,7 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryFutureExt};
+use futures::{FutureExt, StreamExt, TryFutureExt, stream::FuturesUnordered};
 use safelog::sensitive as sv;
 use tor_error::bad_api_usage;
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
@@ -47,7 +47,7 @@ impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
             _ => {
                 return Err(Error::UnusableTarget(bad_api_usage!(
                     "Used default transport implementation for an unsupported transport."
-                )))
+                )));
             }
         };
 
@@ -147,7 +147,7 @@ mod test {
 
     use std::str::FromStr;
 
-    use tor_rtcompat::{test_with_one_runtime, SleepProviderExt};
+    use tor_rtcompat::{SleepProviderExt, test_with_one_runtime};
     use tor_rtmock::net::MockNetwork;
 
     use super::*;

@@ -231,7 +231,7 @@ mod test {
     use assert_matches::assert_matches;
     use std::path::PathBuf;
 
-    use crate::{home, CfgPathResolver};
+    use crate::{CfgPathResolver, home};
 
     #[test]
     fn parse_inet_ok() {

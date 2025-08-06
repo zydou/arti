@@ -100,20 +100,21 @@ use std::ffi::OsString;
 use std::fmt::Write;
 
 pub use cfg::{
-    ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig, ArtiConfig, ArtiConfigBuilder,
-    ProxyConfig, ProxyConfigBuilder, SystemConfig, SystemConfigBuilder, ARTI_EXAMPLE_CONFIG,
+    ARTI_EXAMPLE_CONFIG, ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig,
+    ArtiConfig, ArtiConfigBuilder, ProxyConfig, ProxyConfigBuilder, SystemConfig,
+    SystemConfigBuilder,
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
-use arti_client::config::default_config_files;
 use arti_client::TorClient;
+use arti_client::config::default_config_files;
 use safelog::with_safe_logging_suppressed;
-use tor_config::mistrust::BuilderExt as _;
 use tor_config::ConfigurationSources;
+use tor_config::mistrust::BuilderExt as _;
 use tor_rtcompat::ToplevelRuntime;
 
 use anyhow::{Context, Error, Result};
-use clap::{value_parser, Arg, ArgAction, Command};
+use clap::{Arg, ArgAction, Command, value_parser};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
@@ -386,7 +387,9 @@ where
     #[cfg(feature = "harden")]
     if !config.application().permit_debugging {
         if let Err(e) = process::enable_process_hardening() {
-            error!("Encountered a problem while enabling hardening. To disable this feature, set application.permit_debugging to true.");
+            error!(
+                "Encountered a problem while enabling hardening. To disable this feature, set application.permit_debugging to true."
+            );
             return Err(e);
         }
     }

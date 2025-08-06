@@ -8,8 +8,8 @@ use std::os::unix::net::UnixStream;
 use fs_mistrust::Mistrust;
 
 use crate::{
-    auth::{cookie::CookieLocation, RpcAuth, RpcCookieSource},
     ConnectError, ResolvedConnectPoint,
+    auth::{RpcAuth, RpcCookieSource, cookie::CookieLocation},
 };
 
 /// Information about an initial connection to a connect point.

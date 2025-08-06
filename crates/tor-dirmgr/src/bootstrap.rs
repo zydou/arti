@@ -9,13 +9,14 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::err::BootstrapAction;
-use crate::state::{DirState, PoisonedState};
 use crate::DirMgrConfig;
 use crate::DocSource;
+use crate::err::BootstrapAction;
+use crate::state::{DirState, PoisonedState};
 use crate::{
+    DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
     docid::{self, ClientRequest},
-    upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
+    upgrade_weak_ref,
 };
 
 use futures::FutureExt;
@@ -23,8 +24,8 @@ use futures::StreamExt;
 use oneshot_fused_workaround as oneshot;
 use tor_dirclient::DirResponse;
 use tor_error::{info_report, warn_report};
-use tor_rtcompat::scheduler::TaskSchedule;
 use tor_rtcompat::Runtime;
+use tor_rtcompat::scheduler::TaskSchedule;
 use tracing::{debug, info, trace, warn};
 
 use crate::storage::Store;
@@ -738,9 +739,9 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::DownloadSchedule;
     use crate::storage::DynStore;
     use crate::test::new_mgr;
-    use crate::DownloadSchedule;
     use std::sync::Mutex;
     use tor_netdoc::doc::microdesc::MdDigest;
     use tor_rtcompat::SleepProvider;

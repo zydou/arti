@@ -176,20 +176,20 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use derive_more::{AsRef, Deref};
 use itertools::chain;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use fs_mistrust::{CheckedDir, Mistrust};
-use tor_error::bad_api_usage;
 use tor_error::ErrorReport as _;
+use tor_error::bad_api_usage;
 use tracing::trace;
 
+pub use crate::Error;
 use crate::err::{Action, ErrorSource, Resource};
 use crate::load_store;
 use crate::slug::{BadSlug, Slug, SlugRef, TryIntoSlug};
-pub use crate::Error;
 
 #[allow(unused_imports)] // Simplifies a lot of references in our docs
 use crate::slug;
@@ -705,7 +705,7 @@ impl StateDirectory {
             let md = match fs::metadata(&dir_path) {
                 // If instance dir is ENOENT, treat as old (maybe there was just a lockfile)
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    return Ok((Liveness::PossiblyUnused, None))
+                    return Ok((Liveness::PossiblyUnused, None));
                 }
                 other => other.map_err(handle_io_error)?,
             };
@@ -1125,8 +1125,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use derive_deftly::{derive_deftly_adhoc, Deftly};
-    use itertools::{iproduct, Itertools};
+    use derive_deftly::{Deftly, derive_deftly_adhoc};
+    use itertools::{Itertools, iproduct};
     use serde::{Deserialize, Serialize};
     use std::collections::BTreeSet;
     use std::fmt::Display;

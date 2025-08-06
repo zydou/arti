@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex, Weak};
 
 use derive_deftly::Deftly;
 use tor_rpc_connect::auth::{
-    cookie::{Cookie, CookieAuthMac, CookieAuthNonce},
     RpcAuth,
+    cookie::{Cookie, CookieAuthMac, CookieAuthNonce},
 };
 use tor_rpcbase::{self as rpc, templates::*};
 

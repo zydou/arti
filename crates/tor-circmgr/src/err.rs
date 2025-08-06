@@ -199,8 +199,8 @@ impl HasKind for Error {
 
 impl HasRetryTime for Error {
     fn retry_time(&self) -> tor_error::RetryTime {
-        use tor_error::RetryTime as RT;
         use Error as E;
+        use tor_error::RetryTime as RT;
 
         match self {
             // If we fail because of a timeout, there is no need to wait before trying again.

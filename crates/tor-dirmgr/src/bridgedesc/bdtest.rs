@@ -18,18 +18,18 @@ use std::future::Future;
 use std::iter;
 use std::time::UNIX_EPOCH;
 
+use futures::Stream;
 use futures::select_biased;
 use futures::stream::FusedStream;
-use futures::Stream;
-use itertools::{chain, Itertools};
+use itertools::{Itertools, chain};
 use tempfile::TempDir;
 use time::OffsetDateTime;
 use tracing_test::traced_test;
 
 use tor_linkspec::HasAddrs;
 use tor_rtcompat::SleepProvider;
-use tor_rtmock::simple_time::SimpleMockTimeProvider;
 use tor_rtmock::MockRuntime;
+use tor_rtmock::simple_time::SimpleMockTimeProvider;
 
 use super::*;
 

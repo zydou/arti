@@ -187,7 +187,10 @@ impl std::fmt::Display for ConfigLoadError {
         let s = self.0.to_string();
         write!(f, "{}", s)?;
         if s.contains("invalid escape") || s.contains("invalid hex escape") {
-            write!(f, "   (If you wanted to include a literal \\ character, you need to escape it by writing two in a row: \\\\)")?;
+            write!(
+                f,
+                "   (If you wanted to include a literal \\ character, you need to escape it by writing two in a row: \\\\)"
+            )?;
         }
         Ok(())
     }

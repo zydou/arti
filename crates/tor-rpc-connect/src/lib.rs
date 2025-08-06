@@ -86,8 +86,8 @@ impl HasClientErrorAction for tor_config_path::CfgPathError {
 }
 impl HasClientErrorAction for tor_config_path::addr::CfgAddrError {
     fn client_action(&self) -> ClientErrorAction {
-        use tor_config_path::addr::CfgAddrError as CAE;
         use ClientErrorAction as A;
+        use tor_config_path::addr::CfgAddrError as CAE;
         match self {
             CAE::NoAfUnixSocketSupport(_) => A::Decline,
             CAE::Path(cfg_path_error) => cfg_path_error.client_action(),
@@ -103,8 +103,8 @@ impl HasClientErrorAction for tor_config_path::addr::CfgAddrError {
 /// Note that this is not an implementation of `HasClientErrorAction`:
 /// We want to decline on a different set of errors for network operation.
 fn fs_error_action(err: &std::io::Error) -> ClientErrorAction {
-    use std::io::ErrorKind as EK;
     use ClientErrorAction as A;
+    use std::io::ErrorKind as EK;
     match err.kind() {
         EK::NotFound => A::Decline,
         EK::PermissionDenied => A::Decline,
@@ -117,8 +117,8 @@ fn fs_error_action(err: &std::io::Error) -> ClientErrorAction {
 /// Note that this is not an implementation of `HasClientErrorAction`:
 /// We want to decline on a different set of errors for fs operation.
 fn net_error_action(err: &std::io::Error) -> ClientErrorAction {
-    use std::io::ErrorKind as EK;
     use ClientErrorAction as A;
+    use std::io::ErrorKind as EK;
     match err.kind() {
         EK::ConnectionRefused => A::Decline,
         EK::ConnectionReset => A::Decline,
@@ -129,8 +129,8 @@ fn net_error_action(err: &std::io::Error) -> ClientErrorAction {
 }
 impl HasClientErrorAction for fs_mistrust::Error {
     fn client_action(&self) -> ClientErrorAction {
-        use fs_mistrust::Error as E;
         use ClientErrorAction as A;
+        use fs_mistrust::Error as E;
         match self {
             E::Multiple(errs) => {
                 if errs.iter().any(|e| e.client_action() == A::Abort) {

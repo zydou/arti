@@ -13,7 +13,7 @@
 //! The order of dequeueing u8 items vs u32 items intentionally modifies the
 //! assignment of particular u64 [`RngCore`] values to the two queues.
 
-use crate::siphash::{siphash13_ctr, SipState};
+use crate::siphash::{SipState, siphash13_ctr};
 use arrayvec::ArrayVec;
 use rand_core::RngCore;
 

@@ -86,8 +86,8 @@ enum OneshotClientError {
 
 impl tor_error::HasKind for OneshotClientError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use OneshotClientError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::AlreadyUsed => EK::BadApiUsage, // TODO RPC: is this the correct ErrorKind?
         }

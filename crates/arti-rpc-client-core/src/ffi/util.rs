@@ -541,8 +541,8 @@ macro_rules! ffi_initialize {
 #[allow(clippy::unnecessary_wraps)]
 pub(super) mod arg_conversion {
     use super::{OutPtr, OutSocketOwned, OutVal};
-    use crate::ffi::{err::InvalidInput, ArtiRpcRawSocket};
-    use std::ffi::{c_char, CStr};
+    use crate::ffi::{ArtiRpcRawSocket, err::InvalidInput};
+    use std::ffi::{CStr, c_char};
     use void::Void;
 
     /// Try to convert a const pointer to an optional reference.

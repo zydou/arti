@@ -108,7 +108,7 @@ use tor_config::ConfigurationSources;
 use tor_dirmgr::filter::DirFilter;
 use tor_rtcompat::{PreferredRuntime, Runtime, RuntimeSubstExt as _, SleepProviderExt};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tracing_subscriber::prelude::*;
 //use std::path::PathBuf;
 use std::str::FromStr;

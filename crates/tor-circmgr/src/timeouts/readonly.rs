@@ -1,6 +1,6 @@
 //! Implement a timeout estimator that just uses another process's estimates.
 
-use crate::timeouts::{pareto::ParetoTimeoutState, Action, TimeoutEstimator};
+use crate::timeouts::{Action, TimeoutEstimator, pareto::ParetoTimeoutState};
 use std::time::Duration;
 
 /// A timeout estimator based on reading timeouts that another timeout estimator

@@ -3,13 +3,13 @@
 //! For a more information on the algorithm, see
 //! [`RetryDelay`].
 
-use std::num::{NonZeroU32, NonZeroU8};
+use std::num::{NonZeroU8, NonZeroU32};
 use std::time::Duration;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_basic_utils::retry::RetryDelay;
-use tor_config::{impl_standard_builder, ConfigBuildError};
+use tor_config::{ConfigBuildError, impl_standard_builder};
 
 /// Configuration for how many times to retry a download, with what
 /// frequency.

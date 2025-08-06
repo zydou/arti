@@ -6,12 +6,12 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use itertools::{chain, Itertools};
+use itertools::{Itertools, chain};
 use serde::{Deserialize, Serialize};
 
 use tor_basic_utils::derive_serde_raw;
 use tor_config::define_list_builder_accessors;
-use tor_config::{impl_standard_builder, ConfigBuildError};
+use tor_config::{ConfigBuildError, impl_standard_builder};
 use tor_linkspec::RelayId;
 use tor_linkspec::TransportId;
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
@@ -283,15 +283,16 @@ impl BridgeConfigBuilder {
             #[cfg(feature = "pt-client")]
             () if transp.as_pluggable().is_some() => {
                 let transport = transp.into_pluggable().expect("became not pluggable!");
-                let addr =
-                    match addrs {
-                        [] => PtTargetAddr::None,
-                        [addr] => Some(addr.clone()).into(),
-                        [_, _, ..] => return Err(inconsist_transp(
+                let addr = match addrs {
+                    [] => PtTargetAddr::None,
+                    [addr] => Some(addr.clone()).into(),
+                    [_, _, ..] => {
+                        return Err(inconsist_transp(
                             "addrs",
                             "Transport (non-direct bridge) only supports a single nominal address",
-                        )),
-                    };
+                        ));
+                    }
+                };
                 let mut target = PtTarget::new(transport, addr);
                 for (i, (k, v)) in settings.iter().enumerate() {
                     // Using PtTargetSettings TryFrom would prevent us reporting the index i
@@ -308,8 +309,10 @@ impl BridgeConfigBuilder {
                 // inner variants, it would trigger.
                 return Err(unsupported(
                     "transport".into(),
-                    &format_args!("support for selected transport '{}' disabled in tor-guardmgr cargo features",
-                                  transp),
+                    &format_args!(
+                        "support for selected transport '{}' disabled in tor-guardmgr cargo features",
+                        transp
+                    ),
                 ));
             }
         };
@@ -342,7 +345,7 @@ impl BridgeConfigBuilder {
                     return Err(unsupported(
                         format!("ids.{}", i),
                         &format_args!("unsupported bridge id type {}", other.id_type()),
-                    ))
+                    ));
                 }
             }
         }
@@ -524,7 +527,7 @@ impl FromStr for Inner {
                 Ok(_) => {
                     return Err(BPE::UnsupportedIdentityType {
                         word: word.to_string(),
-                    })?
+                    })?;
                 }
             }
             s.next();
@@ -694,38 +697,45 @@ mod test {
 
         // example from https://tb-manual.torproject.org/bridges/, with cert= truncated
         #[cfg(feature = "pt-client")]
-        chk(&[
-            "obfs4 38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
-            "obfs4 38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
-            "Bridge obfs4 38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
-        ], Inner {
-            addrs: mk_pt_target(
-                "obfs4",
-                PtTargetAddr::IpPort("38.229.33.83:80".parse().unwrap()),
-                &[
-                    ("cert", "VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op" ),
-                    ("iat-mode", "1"),
-                ],
-            ),
-            rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
-            ed_id: None,
-        });
+        chk(
+            &[
+                "obfs4 38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
+                "obfs4 38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
+                "Bridge obfs4 38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
+            ],
+            Inner {
+                addrs: mk_pt_target(
+                    "obfs4",
+                    PtTargetAddr::IpPort("38.229.33.83:80".parse().unwrap()),
+                    &[
+                        (
+                            "cert",
+                            "VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op",
+                        ),
+                        ("iat-mode", "1"),
+                    ],
+                ),
+                rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
+                ed_id: None,
+            },
+        );
 
         #[cfg(feature = "pt-client")]
-        chk(&[
-            "obfs4 some-host:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE iat-mode=1",
-            "obfs4 some-host:80 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE 0BAC39417268B96B9F514E7F63FA6FBA1A788955 iat-mode=1",
-        ], Inner {
-            addrs: mk_pt_target(
-                "obfs4",
-                PtTargetAddr::HostPort("some-host".into(), 80),
-                &[
-                    ("iat-mode", "1"),
-                ],
-            ),
-            rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
-            ed_id: Some(mk_ed("dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE")),
-        });
+        chk(
+            &[
+                "obfs4 some-host:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE iat-mode=1",
+                "obfs4 some-host:80 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE 0BAC39417268B96B9F514E7F63FA6FBA1A788955 iat-mode=1",
+            ],
+            Inner {
+                addrs: mk_pt_target(
+                    "obfs4",
+                    PtTargetAddr::HostPort("some-host".into(), 80),
+                    &[("iat-mode", "1")],
+                ),
+                rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
+                ed_id: Some(mk_ed("dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE")),
+            },
+        );
 
         chk(
             &[
@@ -751,14 +761,17 @@ mod test {
             },
         );
 
-        chk(&[
-            "38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
-            "38.229.33.83:80 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE 0BAC39417268B96B9F514E7F63FA6FBA1A788955",
-        ], Inner {
-            addrs: mk_direct("38.229.33.83:80"),
-            rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
-            ed_id: Some(mk_ed("dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE")),
-        });
+        chk(
+            &[
+                "38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
+                "38.229.33.83:80 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE 0BAC39417268B96B9F514E7F63FA6FBA1A788955",
+            ],
+            Inner {
+                addrs: mk_direct("38.229.33.83:80"),
+                rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
+                ed_id: Some(mk_ed("dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE")),
+            },
+        );
 
         chk_e(
             &[
@@ -855,9 +868,14 @@ mod test {
             }"#],
             &|bcb| {
                 bcb.addrs().push("38.229.33.83:80".parse().unwrap());
-                bcb.ids().push("ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE".parse().unwrap());
-                bcb.ids().push("$0bac39417268b96b9f514e7f63fa6fba1a788955".parse().unwrap());
-            }
+                bcb.ids().push(
+                    "ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE"
+                        .parse()
+                        .unwrap(),
+                );
+                bcb.ids()
+                    .push("$0bac39417268b96b9f514e7f63fa6fba1a788955".parse().unwrap());
+            },
         );
 
         #[cfg(feature = "pt-client")]

@@ -21,7 +21,7 @@
 //! [recommended]: https://spec.torproject.org/tor-spec/subprotocol-versioning.html#required-recommended
 //! [older]: https://spec.torproject.org/proposals/297-safer-protover-shutdowns.html
 
-use futures::{task::SpawnExt as _, Stream, StreamExt as _};
+use futures::{Stream, StreamExt as _, task::SpawnExt as _};
 use std::{
     future::Future,
     sync::{Arc, Weak},
@@ -128,7 +128,9 @@ async fn watch_protocol_statuses<S, F, Fut>(
             provider.protocol_statuses()
         };
         let Some((timestamp, new_status)) = new_status else {
-            warn!("Bug: Got DirEvent::NewProtocolRecommendation, but protocol_statuses() returned None.");
+            warn!(
+                "Bug: Got DirEvent::NewProtocolRecommendation, but protocol_statuses() returned None."
+            );
             continue;
         };
         // It information is older than this software, there is a good chance
@@ -189,8 +191,10 @@ pub(crate) fn evaluate_protocol_status(
         Err(ProtocolSupportError::MissingRecommended(missing))
             if missing.difference(&missing_recommended_ok()).is_empty() =>
         {
-            debug!("Recommended protocols ({}) are missing, but that's expected: we haven't built them them yet in Arti.",
-                  missing);
+            debug!(
+                "Recommended protocols ({}) are missing, but that's expected: we haven't built them them yet in Arti.",
+                missing
+            );
             Ok(())
         }
         Err(ProtocolSupportError::MissingRecommended(missing)) => {
@@ -211,7 +215,8 @@ This version of Arti may not work correctly on the Tor network; please upgrade."
                 .is_empty()
             {
                 warn!(
-"(These protocols are listed in 'ignore_missing_required_protocols', so Arti won't exit now, but you should still upgrade.)");
+                    "(These protocols are listed in 'ignore_missing_required_protocols', so Arti won't exit now, but you should still upgrade.)"
+                );
                 return Ok(());
             }
 

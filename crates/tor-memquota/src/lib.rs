@@ -270,7 +270,7 @@ pub use config::{Config, ConfigBuilder};
 pub use error::{Error, MemoryReclaimedError, StartupError};
 pub use if_enabled::EnabledToken;
 pub use memory_cost::HasMemoryCost;
-pub use memory_cost_derive::{assert_copy_static, HasMemoryCostStructural};
+pub use memory_cost_derive::{HasMemoryCostStructural, assert_copy_static};
 pub use mtracker::{Account, MemoryQuotaTracker};
 pub use utils::ArcMemoryQuotaTrackerExt;
 

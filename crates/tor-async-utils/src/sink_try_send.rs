@@ -4,10 +4,10 @@ use std::error::Error;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::channel::mpsc;
 use futures::Sink;
+use futures::channel::mpsc;
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use thiserror::Error;
 
 //---------- principal API ----------

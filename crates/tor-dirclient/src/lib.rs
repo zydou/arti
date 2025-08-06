@@ -66,10 +66,10 @@ use async_compression::futures::bufread::ZlibDecoder;
 #[cfg(feature = "zstd")]
 use async_compression::futures::bufread::ZstdDecoder;
 
+use futures::FutureExt;
 use futures::io::{
     AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader,
 };
-use futures::FutureExt;
 use memchr::memchr;
 use std::sync::Arc;
 use std::time::Duration;

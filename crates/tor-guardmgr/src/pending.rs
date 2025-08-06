@@ -7,10 +7,10 @@
 //! then the circuit manager can't know whether to use a circuit built
 //! through that guard until the guard manager tells it.  This is
 //! handled via [`GuardUsable`].
-use crate::{daemon, FirstHopId};
+use crate::{FirstHopId, daemon};
 
 use educe::Educe;
-use futures::{channel::mpsc::UnboundedSender, Future};
+use futures::{Future, channel::mpsc::UnboundedSender};
 use oneshot_fused_workaround as oneshot;
 use pin_project::pin_project;
 use std::fmt::Debug;

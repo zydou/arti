@@ -190,7 +190,7 @@ mod test {
     use std::{future, time::Duration};
 
     use super::*;
-    use futures::{stream::FuturesUnordered, FutureExt as _, StreamExt as _};
+    use futures::{FutureExt as _, StreamExt as _, stream::FuturesUnordered};
     use futures_await_test::async_test;
     use oneshot_fused_workaround as oneshot;
     use tor_basic_utils::RngExt;

@@ -33,8 +33,8 @@ use std::time::{Duration, Instant};
 
 use derive_builder::Builder;
 use educe::Educe;
-use futures::future::{self, FusedFuture};
 use futures::FutureExt;
+use futures::future::{self, FusedFuture};
 use pin_project::pin_project;
 use rand::distr::Distribution;
 use tracing::error;
@@ -451,7 +451,7 @@ mod test {
     use super::*;
     use futures::future::ready;
     use futures::select_biased;
-    use itertools::{izip, Itertools};
+    use itertools::{Itertools, izip};
     use statrs::distribution::ContinuousCDF;
     use tokio::pin;
     use tokio_crate::{self as tokio};

@@ -15,9 +15,9 @@ use std::{
 use crate::{
     llconn,
     msgs::{
+        AnyRequestId, ObjectId,
         request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
-        AnyRequestId, ObjectId,
     },
 };
 

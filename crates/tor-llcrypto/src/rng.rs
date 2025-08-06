@@ -160,7 +160,7 @@ impl rand_core::CryptoRng for CautiousRng {}
 #[cfg(not(target_arch = "wasm32"))]
 mod backup {
 
-    use rand::{rngs::ReseedingRng, RngCore};
+    use rand::{RngCore, rngs::ReseedingRng};
     use rand_chacha::ChaCha20Core;
     use std::sync::LazyLock;
     use std::sync::{Mutex, MutexGuard};

@@ -60,12 +60,12 @@ pub mod config;
 pub mod status;
 
 pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
-pub use builder::{TorClientBuilder, MAX_LOCAL_RESOURCE_TIMEOUT};
+pub use builder::{MAX_LOCAL_RESOURCE_TIMEOUT, TorClientBuilder};
 pub use client::{BootstrapBehavior, DormantMode, InertTorClient, StreamPrefs, TorClient};
 pub use config::TorClientConfig;
 
-pub use tor_circmgr::isolation;
 pub use tor_circmgr::IsolationToken;
+pub use tor_circmgr::isolation;
 pub use tor_error::{ErrorKind, HasKind};
 pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 

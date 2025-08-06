@@ -64,7 +64,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 #![allow(unreachable_pub)]
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 

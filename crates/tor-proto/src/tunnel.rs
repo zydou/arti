@@ -14,8 +14,8 @@ use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use std::net::IpAddr;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
@@ -28,7 +28,7 @@ use crate::stream::{
 };
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
-use circuit::{ClientCirc, Path, StreamMpscSender, UniqId, CIRCUIT_BUFFER_SIZE};
+use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path, StreamMpscSender, UniqId};
 use reactor::{
     CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };

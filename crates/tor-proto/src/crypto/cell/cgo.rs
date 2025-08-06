@@ -21,10 +21,10 @@
 use aes::{Aes128, Aes128Dec, Aes128Enc, Aes256, Aes256Dec, Aes256Enc};
 use cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, BlockSizeUser, StreamCipher as _};
 use digest::KeyInit;
-use polyval::{universal_hash::UniversalHash, Polyval};
+use polyval::{Polyval, universal_hash::UniversalHash};
 use static_assertions::const_assert;
 use tor_cell::{
-    chancell::{ChanCmd, CELL_DATA_LEN},
+    chancell::{CELL_DATA_LEN, ChanCmd},
     relaycell::msg::SendmeTag,
 };
 use tor_error::internal;
@@ -679,8 +679,8 @@ mod test {
 
     #[test]
     fn testvec_polyval() {
-        use polyval::universal_hash::{KeyInit, UniversalHash};
         use polyval::Polyval;
+        use polyval::universal_hash::{KeyInit, UniversalHash};
 
         // Test vectors from RFC8452 worked example in appendix A.
         let h = hex!("25629347589242761d31f826ba4b757b");

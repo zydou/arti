@@ -2,16 +2,16 @@
 
 use paste::paste;
 use std::error::Error as StdError;
-use std::ffi::{c_char, c_int, CStr};
+use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Display;
 use std::io::Error as IoError;
-use std::panic::{catch_unwind, UnwindSafe};
+use std::panic::{UnwindSafe, catch_unwind};
 
 use crate::conn::ErrorResponse;
 use crate::util::Utf8CString;
 
-use super::util::{ffi_body_raw, OptOutPtrExt as _, OutPtr};
 use super::ArtiRpcStatus;
+use super::util::{OptOutPtrExt as _, OutPtr, ffi_body_raw};
 
 /// Helper:
 /// Given a restricted enum defining FfiStatus, also define a series of constants for its variants,
@@ -342,8 +342,8 @@ impl IntoFfiError for crate::ConnectError {
 
 impl IntoFfiError for tor_rpc_connect::ConnectError {
     fn status(&self) -> FfiStatus {
-        use tor_rpc_connect::ConnectError as E;
         use FfiStatus as F;
+        use tor_rpc_connect::ConnectError as E;
         match self {
             E::Io(_) => F::ConnectIo,
             E::ExplicitAbort => F::AllConnectAttemptsFailed,

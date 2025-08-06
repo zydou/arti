@@ -21,7 +21,7 @@ use std::time::SystemTime;
 
 use rand::Rng;
 
-use tor_error::{bad_api_usage, internal, Bug};
+use tor_error::{Bug, bad_api_usage, internal};
 #[cfg(feature = "geoip")]
 use tor_geoip::{CountryCode, HasCountryCode};
 use tor_guardmgr::fallback::FallbackDir;
@@ -304,7 +304,7 @@ fn pick_path<'a, B: AnonymousPathBuilder, R: Rng, RT: Runtime>(
             return Err(bad_api_usage!(
                 "Tried to build a multihop path without a network directory"
             )
-            .into())
+            .into());
         }
     };
     let rs_cfg = config.relay_selection_config();

@@ -1,7 +1,7 @@
 //! Test helpers.
 
 #[cfg(test)]
-use super::{rtt::RoundtripTimeEstimator, CongestionWindow};
+use super::{CongestionWindow, rtt::RoundtripTimeEstimator};
 
 // Make a new RTT estimator.
 #[cfg(test)]

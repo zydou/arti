@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use tor_config::{impl_standard_builder, ConfigBuildError};
+use tor_config::{ConfigBuildError, impl_standard_builder};
 use tor_config_path::CfgPath;
 use tor_linkspec::PtTransportName;
 

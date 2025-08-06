@@ -69,12 +69,12 @@ use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 
-use crate::{hspool::HsCircKind, hspool::HsCircStemKind, Error, Result};
+use crate::{Error, Result, hspool::HsCircKind, hspool::HsCircStemKind};
 
 use super::AnonymousPathBuilder;
 
 use {
-    crate::path::{pick_path, TorPath},
+    crate::path::{TorPath, pick_path},
     crate::{DirInfo, PathConfig},
     std::time::SystemTime,
     tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable},
@@ -83,11 +83,11 @@ use {
 
 #[cfg(feature = "vanguards")]
 use {
-    crate::path::{select_guard, MaybeOwnedRelay},
+    crate::path::{MaybeOwnedRelay, select_guard},
     tor_error::bad_api_usage,
+    tor_guardmgr::VanguardMode,
     tor_guardmgr::vanguards::Layer,
     tor_guardmgr::vanguards::VanguardMgr,
-    tor_guardmgr::VanguardMode,
 };
 
 #[cfg(feature = "vanguards")]
@@ -236,7 +236,7 @@ impl VanguardHsPathBuilder {
                 return Err(bad_api_usage!(
                     "Tried to build a multihop path without a network directory"
                 )
-                .into())
+                .into());
             }
         };
 
@@ -421,7 +421,7 @@ mod test {
     use super::*;
 
     use tor_linkspec::{ChannelMethod, OwnedCircTarget};
-    use tor_netdir::{testnet::NodeBuilders, testprovider::TestNetDirProvider, NetDirProvider};
+    use tor_netdir::{NetDirProvider, testnet::NodeBuilders, testprovider::TestNetDirProvider};
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
     use tor_rtmock::MockRuntime;
 

@@ -10,14 +10,14 @@ use err::{ArtiRpcError, InvalidInput};
 use std::ffi::{c_char, c_int};
 use std::sync::Mutex;
 use util::{
-    ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OptOutValExt, OutPtr, OutSocketOwned,
-    OutVal,
+    OptOutPtrExt as _, OptOutValExt, OutPtr, OutSocketOwned, OutVal, ffi_body_raw,
+    ffi_body_with_err,
 };
 
 use crate::{
+    ObjectId, RpcConnBuilder,
     conn::{AnyResponse, RequestHandle},
     util::Utf8CString,
-    ObjectId, RpcConnBuilder,
 };
 
 /// A status code returned by an Arti RPC function.

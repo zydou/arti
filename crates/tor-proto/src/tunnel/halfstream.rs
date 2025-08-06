@@ -3,9 +3,9 @@
 //! A half-closed stream is one that we've sent an END on, but where
 //! we might still receive some cells.
 
-use crate::congestion::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
-use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamStatus};
 use crate::Result;
+use crate::congestion::sendme::{StreamRecvWindow, cmd_counts_towards_windows};
+use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamStatus};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
 /// Type to track state of half-closed streams.
@@ -105,8 +105,8 @@ mod test {
     use rand::{CryptoRng, Rng};
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::relaycell::{
-        msg::{self, AnyRelayMsg},
         AnyRelayMsgOuter, RelayCellFormat, StreamId,
+        msg::{self, AnyRelayMsg},
     };
 
     fn to_unparsed<R: Rng + CryptoRng>(rng: &mut R, val: AnyRelayMsg) -> UnparsedRelayMsg {
@@ -138,9 +138,10 @@ mod test {
 
         // one sendme is fine
         let m = msg::Sendme::new_empty();
-        assert!(hs
-            .handle_msg(to_unparsed(&mut rng, m.clone().into()))
-            .is_ok());
+        assert!(
+            hs.handle_msg(to_unparsed(&mut rng, m.clone().into()))
+                .is_ok()
+        );
         // but no more were expected!
         let e = hs
             .handle_msg(to_unparsed(&mut rng, m.into()))
@@ -172,9 +173,10 @@ mod test {
         // 20 data cells are okay.
         let m = msg::Data::new(&b"this offer is unrepeatable"[..]).unwrap();
         for _ in 0_u8..20 {
-            assert!(hs
-                .handle_msg(to_unparsed(&mut rng, m.clone().into()))
-                .is_ok());
+            assert!(
+                hs.handle_msg(to_unparsed(&mut rng, m.clone().into()))
+                    .is_ok()
+            );
         }
 
         // But one more is a protocol violation.
@@ -195,12 +197,14 @@ mod test {
         // We were told to accept a connected, so we'll accept one
         // and no more.
         let m = msg::Connected::new_empty();
-        assert!(hs
-            .handle_msg(to_unparsed(&mut rng, m.clone().into()))
-            .is_ok());
-        assert!(hs
-            .handle_msg(to_unparsed(&mut rng, m.clone().into()))
-            .is_err());
+        assert!(
+            hs.handle_msg(to_unparsed(&mut rng, m.clone().into()))
+                .is_ok()
+        );
+        assert!(
+            hs.handle_msg(to_unparsed(&mut rng, m.clone().into()))
+                .is_err()
+        );
 
         // If we try that again _after getting a connected_,
         // accept any.

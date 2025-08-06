@@ -63,8 +63,8 @@ pub trait KeystoreError:
 
 impl HasKind for Error {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use Error as E;
+        use tor_error::ErrorKind as EK;
 
         match self {
             E::Keystore(e) => e.kind(),

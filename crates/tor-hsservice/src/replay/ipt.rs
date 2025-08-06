@@ -1,6 +1,6 @@
 //! Code for a replay log for [`Introduce2`] messages.
 
-use super::{ReplayLogType, MAGIC_LEN, OUTPUT_LEN, REPLAY_LOG_SUFFIX};
+use super::{MAGIC_LEN, OUTPUT_LEN, REPLAY_LOG_SUFFIX, ReplayLogType};
 use crate::internal_prelude::*;
 use hash::hash;
 use tor_cell::relaycell::msg::Introduce2;

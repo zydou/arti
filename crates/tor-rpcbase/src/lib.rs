@@ -54,8 +54,8 @@ use std::{collections::HashSet, convert::Infallible, sync::Arc};
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::{RpcError, RpcErrorKind};
 pub use method::{
-    check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod, Method,
-    NoUpdates, RpcMethod,
+    DeserMethod, DynMethod, Method, NoUpdates, RpcMethod, check_method_names, is_method_name,
+    iter_method_names,
 };
 pub use obj::{Object, ObjectArcExt, ObjectId};
 

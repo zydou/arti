@@ -8,8 +8,8 @@ use crate::{Error, Result};
 use derive_deftly::Deftly;
 use std::fmt::{self, Display};
 use tor_cell::chancell::{
-    msg::{self as chanmsg, AnyChanMsg},
     ChanMsg,
+    msg::{self as chanmsg, AnyChanMsg},
 };
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 

@@ -1,8 +1,8 @@
 //! Types and traits for converting objects to addresses which
 //! Tor can connect to.
 
-use crate::err::ErrorDetail;
 use crate::StreamPrefs;
+use crate::err::ErrorDetail;
 use std::fmt::Display;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str::FromStr;
@@ -11,7 +11,7 @@ use tor_basic_utils::StrExt;
 use tor_error::{ErrorKind, HasKind};
 
 #[cfg(feature = "onion-service-client")]
-use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
+use tor_hscrypto::pk::{HSID_ONION_SUFFIX, HsId};
 
 /// Fake plastic imitation of some of the `tor-hs*` functionality
 #[cfg(not(feature = "onion-service-client"))]
@@ -789,9 +789,9 @@ mod test {
     #[test]
     fn prefs_onion_services() {
         use crate::err::ErrorDetailDiscriminants;
-        use tor_error::{ErrorKind, HasKind as _};
         use ErrorDetailDiscriminants as EDD;
         use ErrorKind as EK;
+        use tor_error::{ErrorKind, HasKind as _};
 
         #[allow(clippy::redundant_closure)] // for symmetry with prefs_of, below, and clarity
         let prefs_def = || StreamPrefs::default();

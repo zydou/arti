@@ -2,7 +2,7 @@
 
 use crate::err::{Action, ErrorSource, Resource};
 use crate::{Error, LockStatus, Result, StateMgr};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

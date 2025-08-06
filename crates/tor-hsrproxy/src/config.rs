@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, ops::RangeInclusive, str::FromStr};
 use tracing::warn;
 //use tor_config::derive_deftly_template_Flattenable;
-use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
+use tor_config::{ConfigBuildError, define_list_builder_accessors, define_list_builder_helper};
 
 /// Configuration for a reverse proxy running for one onion service.
 #[derive(Clone, Debug, Builder, Eq, PartialEq)]

@@ -3,7 +3,7 @@ name = "test-temp-dir"
 version = "0.3.5"
 # TODO make this 1.x.  Let's say, do this in December 2024 or January 2025
 authors = ["The Tor Project, Inc.", "Ian Jackson <iwj@torproject.org>"]
-edition = "2021"
+edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"

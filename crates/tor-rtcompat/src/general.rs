@@ -1,7 +1,7 @@
 //! Support for streams and listeners on `general::SocketAddr`.
 
 use async_trait::async_trait;
-use futures::{stream, AsyncRead, AsyncWrite, StreamExt as _};
+use futures::{AsyncRead, AsyncWrite, StreamExt as _, stream};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
 use std::net;
 use std::task::Poll;

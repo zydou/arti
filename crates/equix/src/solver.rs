@@ -8,7 +8,7 @@ use crate::bucket_array::{
     hash::Insert, hash::KeyValueBucketArray, mem::BucketArrayMemory, mem::Uninit,
 };
 use crate::collision::{self, PackedCollision};
-use crate::solution::{self, HashValue, Solution, SolutionArray, SolutionItem, EQUIHASH_N};
+use crate::solution::{self, EQUIHASH_N, HashValue, Solution, SolutionArray, SolutionItem};
 use arrayvec::ArrayVec;
 use hashx::HashX;
 

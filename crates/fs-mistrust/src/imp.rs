@@ -9,8 +9,8 @@ use std::{
 use std::os::unix::prelude::MetadataExt;
 
 use crate::{
-    walk::{PathType, ResolvePath},
     Error, Result, Type,
+    walk::{PathType, ResolvePath},
 };
 
 /// Definition for the "sticky bit", which on Unix means that the contents of

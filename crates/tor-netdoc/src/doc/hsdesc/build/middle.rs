@@ -4,13 +4,13 @@
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
+use crate::NetdocBuilder;
 use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::build::ClientAuth;
 use crate::doc::hsdesc::desc_enc::{
-    build_descriptor_cookie_key, HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN,
+    HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN, build_descriptor_cookie_key,
 };
-use crate::doc::hsdesc::middle::{AuthClient, HsMiddleKwd, HS_DESC_AUTH_TYPE};
-use crate::NetdocBuilder;
+use crate::doc::hsdesc::middle::{AuthClient, HS_DESC_AUTH_TYPE, HsMiddleKwd};
 
 use tor_bytes::EncodeError;
 use tor_hscrypto::Subcredential;
@@ -41,9 +41,9 @@ pub(super) struct HsDescMiddle<'a> {
 
 impl<'a> NetdocBuilder for HsDescMiddle<'a> {
     fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError> {
+        use HsMiddleKwd::*;
         use cipher::{KeyIvInit, StreamCipher};
         use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
-        use HsMiddleKwd::*;
 
         let HsDescMiddle {
             client_auth,
@@ -142,8 +142,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::doc::hsdesc::build::test::{create_curve25519_pk, expect_bug};
     use crate::doc::hsdesc::build::ClientAuth;
+    use crate::doc::hsdesc::build::test::{create_curve25519_pk, expect_bug};
     use crate::doc::hsdesc::test_data::TEST_SUBCREDENTIAL;
     use tor_basic_utils::test_rng::Config;
     use tor_hscrypto::pk::HsSvcDescEncKeypair;
@@ -198,8 +198,10 @@ AQIDBA==
         .build_sign(&mut rng)
         .unwrap_err();
 
-        assert!(expect_bug(err)
-            .contains("restricted discovery is enabled, but there are no authorized clients"));
+        assert!(
+            expect_bug(err)
+                .contains("restricted discovery is enabled, but there are no authorized clients")
+        );
     }
 
     #[test]

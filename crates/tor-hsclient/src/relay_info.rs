@@ -3,10 +3,10 @@
 //!
 //! (Later this will include support for INTRODUCE2 messages too.)
 
-use tor_error::{into_internal, HasRetryTime, RetryTime};
+use tor_error::{HasRetryTime, RetryTime, into_internal};
 use tor_linkspec::{
-    decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget, EncodedLinkSpec,
-    OwnedChanTargetBuilder, OwnedCircTarget,
+    CircTarget, EncodedLinkSpec, OwnedChanTargetBuilder, OwnedCircTarget, decode::Strictness,
+    verbatim::VerbatimLinkSpecCircTarget,
 };
 use tor_llcrypto::pk::curve25519;
 use tor_netdir::NetDir;

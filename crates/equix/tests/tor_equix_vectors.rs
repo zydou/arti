@@ -11,21 +11,27 @@ fn verify_only() {
     assert!(matches!(
         equix::verify_array(
             b"a",
-            &[0x2227, 0xa173, 0x365a, 0xb47d, 0x1bb2, 0xa077, 0x0d5e, 0xf25f]
+            &[
+                0x2227, 0xa173, 0x365a, 0xb47d, 0x1bb2, 0xa077, 0x0d5e, 0xf25f
+            ]
         ),
         Ok(())
     ));
     assert!(matches!(
         equix::verify_array(
             b"a",
-            &[0x1bb2, 0xa077, 0x0d5e, 0xf25f, 0x2220, 0xa173, 0x365a, 0xb47d]
+            &[
+                0x1bb2, 0xa077, 0x0d5e, 0xf25f, 0x2220, 0xa173, 0x365a, 0xb47d
+            ]
         ),
         Err(Error::Order)
     ));
     assert!(matches!(
         equix::verify_array(
             b"a",
-            &[0x2220, 0xa173, 0x365a, 0xb47d, 0x1bb2, 0xa077, 0x0d5e, 0xf25f]
+            &[
+                0x2220, 0xa173, 0x365a, 0xb47d, 0x1bb2, 0xa077, 0x0d5e, 0xf25f
+            ]
         ),
         Err(Error::HashSum)
     ));

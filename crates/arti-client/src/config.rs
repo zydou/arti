@@ -18,9 +18,9 @@ pub use tor_config::convert_helper_via_multi_line_list_builder;
 pub use tor_config::impl_standard_builder;
 pub use tor_config::list_builder::{MultilineListBuilder, MultilineListBuilderError};
 pub use tor_config::mistrust::BuilderExt as _;
-pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 pub use tor_config::{BoolOrAuto, ConfigError};
 pub use tor_config::{ConfigBuildError, ConfigurationSource, ConfigurationSources, Reconfigure};
+pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 pub use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 pub use tor_linkspec::{ChannelMethod, HasChanMethod, PtTransportName, TransportId};
 
@@ -487,7 +487,7 @@ fn validate_bridges_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigB
             return Err(ConfigBuildError::Inconsistent {
                 fields: ["enabled", "bridges"].map(Into::into).into_iter().collect(),
                 problem: "bridges.enabled=true, but no bridges defined".into(),
-            })
+            });
         }
     }
     #[cfg(feature = "pt-client")]

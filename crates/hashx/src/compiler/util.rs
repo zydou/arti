@@ -1,12 +1,12 @@
 //! Shared utility layer for all architecture-specific compilers
 
-use crate::compiler::Executable;
 use crate::CompilerError;
+use crate::compiler::Executable;
 use arrayvec::ArrayVec;
 use dynasmrt::mmap::MutableBuffer;
 use dynasmrt::{
-    components::PatchLoc, relocations::Relocation, AssemblyOffset, DynamicLabel, DynasmApi,
-    DynasmLabelApi,
+    AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi, components::PatchLoc,
+    relocations::Relocation,
 };
 use std::marker::PhantomData;
 

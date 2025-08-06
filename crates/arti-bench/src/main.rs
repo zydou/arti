@@ -50,13 +50,13 @@
 // because it's OK if tests and benchmarks simply crash if things go wrong.
 #![allow(clippy::unwrap_used)]
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use arti::cfg::ArtiCombinedConfig;
 use arti_client::{IsolationToken, TorAddr, TorClient, TorClientConfig};
-use clap::{value_parser, Arg, ArgAction};
+use clap::{Arg, ArgAction, value_parser};
 use futures::StreamExt;
-use rand::distr::StandardUniform;
 use rand::Rng;
+use rand::distr::StandardUniform;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::OsString;

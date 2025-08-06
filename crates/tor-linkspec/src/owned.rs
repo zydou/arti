@@ -345,7 +345,10 @@ mod test {
             .ed_identity([42; 32].into())
             .rsa_identity([45; 20].into());
         let ids = builder.build().unwrap();
-        assert_eq!(format!("{}", ids), "ed25519:KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio $2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d");
+        assert_eq!(
+            format!("{}", ids),
+            "ed25519:KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio $2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d"
+        );
         assert_eq!(format!("{}", ids.redacted()), "ed25519:Ki…");
     }
 }

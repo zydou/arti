@@ -12,14 +12,14 @@ use arti_client::{TorAddr, TorClient, TorClientConfig};
 use clap::Parser;
 use http_body_util::{BodyExt, Empty};
 use hyper::{
-    body::Bytes, client::conn::http1::SendRequest, header, http::uri::Scheme, Method, Request,
-    StatusCode, Uri,
+    Method, Request, StatusCode, Uri, body::Bytes, client::conn::http1::SendRequest, header,
+    http::uri::Scheme,
 };
 use hyper_util::rt::TokioIo;
 use sha2::{Digest, Sha256};
 use tokio::{fs::OpenOptions, io::AsyncWriteExt};
 use tor_rtcompat::PreferredRuntime;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Tor Browser Bundle download manager
 ///
@@ -205,7 +205,9 @@ async fn main() -> anyhow::Result<()> {
 
     // Warn user when using more than 8 connections
     if connections > 8 {
-        tracing::warn!("The Tor network has limited bandwidth, it is recommended to use less than 8 connections");
+        tracing::warn!(
+            "The Tor network has limited bandwidth, it is recommended to use less than 8 connections"
+        );
     };
 
     // Generate download and checksum URL from Tor version

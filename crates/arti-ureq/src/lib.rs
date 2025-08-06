@@ -48,7 +48,7 @@ use std::sync::{Arc, Mutex};
 
 use arti_client::{IntoTorAddr, TorClient};
 use ureq::{
-    http::{uri::Scheme, Uri},
+    http::{Uri, uri::Scheme},
     tls::TlsProvider as UreqTlsProvider,
     unversioned::{
         resolver::{ArrayVec, ResolvedSocketAddrs, Resolver as UreqResolver},

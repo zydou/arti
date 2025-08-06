@@ -7,10 +7,10 @@ use crate::crypto::cell::{
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
-use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::TunnelScopedCircId;
-use crate::{congestion, HopLocation};
+use crate::tunnel::reactor::MetaCellDisposition;
 use crate::{Error, Result};
+use crate::{HopLocation, congestion};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
 use std::marker::PhantomData;

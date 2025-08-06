@@ -21,7 +21,7 @@ use std::iter;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures_await_test::async_test;
-use itertools::{zip_eq, Itertools};
+use itertools::{Itertools, zip_eq};
 
 use tor_cell::chancell::msg::PaddingNegotiateCmd;
 use tor_config::PaddingLevel;
@@ -31,8 +31,8 @@ use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
 use tor_proto::memquota::{ChannelAccount, ToplevelAccount};
 
-use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
 use crate::ChannelUsage;
+use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
 
 use crate::factory::BootstrapReporter;
 use PaddingLevel as PL;

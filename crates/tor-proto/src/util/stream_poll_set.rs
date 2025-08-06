@@ -4,14 +4,14 @@
 #![allow(unreachable_pub)]
 
 use std::{
-    collections::{hash_map, BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, hash_map},
     future::Future,
     hash::Hash,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use futures::{task::noop_waker_ref, FutureExt, StreamExt as _};
+use futures::{FutureExt, StreamExt as _, task::noop_waker_ref};
 use tor_async_utils::peekable_stream::PeekableStream;
 
 use crate::util::keyed_futures_unordered::KeyedFuturesUnordered;
@@ -153,9 +153,11 @@ where
         if let Some((key, fut)) = self.pending_streams.remove(key) {
             // Validate `priorities` invariant that keys are also present in exactly one of
             // `pending_streams` and `ready_values`.
-            debug_assert!(!self
-                .ready_streams
-                .contains_key(&(priority.clone(), key.clone())));
+            debug_assert!(
+                !self
+                    .ready_streams
+                    .contains_key(&(priority.clone(), key.clone()))
+            );
             let stream = fut
                 .into_inner()
                 // We know the future hasn't completed, so the stream should be present.
@@ -438,7 +440,7 @@ mod test {
         task::Poll,
     };
 
-    use futures::{stream::Peekable, SinkExt as _};
+    use futures::{SinkExt as _, stream::Peekable};
     use pin_project::pin_project;
     use tor_rtmock::MockRuntime;
 

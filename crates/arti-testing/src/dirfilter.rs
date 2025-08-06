@@ -1,7 +1,7 @@
 //! Support for modifying directories in various ways in order to cause
 //! different kinds of network failure.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use rand::Rng;
 use std::sync::{Arc, Mutex};
 use tor_dirmgr::filter::DirFilter;

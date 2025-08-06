@@ -6,7 +6,7 @@
 
 use tor_basic_utils::define_accessor_trait;
 use tor_config::impl_standard_builder;
-use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
+use tor_config::{ConfigBuildError, define_list_builder_accessors, define_list_builder_helper};
 use tor_guardmgr::{GuardFilter, GuardMgrConfig};
 
 use derive_builder::Builder;
@@ -383,9 +383,9 @@ define_accessor_trait! {
 pub(crate) mod test_config {
     use super::*;
     use crate::*;
-    use tor_guardmgr::bridge::BridgeConfig;
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use tor_guardmgr::VanguardConfig;
+    use tor_guardmgr::bridge::BridgeConfig;
 
     /// Testing configuration, with public fields
     #[derive(Default, derive_more::AsRef)]

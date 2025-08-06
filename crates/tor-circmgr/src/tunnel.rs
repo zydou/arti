@@ -2,16 +2,16 @@
 //!
 //! These tunnel types are part of the public API.
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use std::{net::IpAddr, sync::Arc};
 
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::internal;
 use tor_linkspec::{CircTarget, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::{
+    ClockSkew, TargetHop,
     circuit::{CircParameters, CircuitBinding, ClientCirc, UniqId},
     stream::{DataStream, StreamParameters},
-    ClockSkew, TargetHop,
 };
 
 use crate::{Error, Result};

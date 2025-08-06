@@ -5,7 +5,7 @@
 
 use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
-use tor_memquota::{derive_deftly_template_HasMemoryCost, HasMemoryCostStructural};
+use tor_memquota::{HasMemoryCostStructural, derive_deftly_template_HasMemoryCost};
 
 /// A list of extensions, represented in a common format used by many messages.
 ///

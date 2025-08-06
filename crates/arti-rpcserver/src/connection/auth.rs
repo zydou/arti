@@ -59,8 +59,8 @@ struct AuthenticateReply {
 
 impl From<AuthenticationFailure> for rpc::RpcError {
     fn from(value: AuthenticationFailure) -> Self {
-        use tor_error::ErrorKind as EK;
         use AuthenticationFailure as AF;
+        use tor_error::ErrorKind as EK;
 
         let mut err = rpc::RpcError::new(value.to_string(), rpc::RpcErrorKind::RequestError);
         match value {

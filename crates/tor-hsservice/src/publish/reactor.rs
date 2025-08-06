@@ -81,10 +81,10 @@ use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_dirclient::SourceInfo;
 use tor_netdir::{DirEvent, NetDir};
 
+use crate::config::OnionServiceConfigPublisherView;
 use crate::config::restricted_discovery::{
     DirectoryKeyProviderList, RestrictedDiscoveryConfig, RestrictedDiscoveryKeys,
 };
-use crate::config::OnionServiceConfigPublisherView;
 use crate::status::{DescUploadRetryError, Problem};
 
 use super::*;
@@ -242,7 +242,11 @@ impl<R: Runtime, M: Mockable> Immutable<R, M> {
                     // run out of its pre-previsioned keys).
                     //
                     // This will be addressed when we add support for offline hs_id mode
-                    .ok_or_else(|| internal!("identity keys are offline, but descriptor signing key is unavailable?!"))?
+                    .ok_or_else(|| {
+                        internal!(
+                            "identity keys are offline, but descriptor signing key is unavailable?!"
+                        )
+                    })?
                     .into();
                 key.to_bytes()
             }

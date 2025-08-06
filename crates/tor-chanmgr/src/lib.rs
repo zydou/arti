@@ -55,16 +55,16 @@ mod testing;
 pub mod transport;
 pub(crate) mod util;
 
+use futures::StreamExt;
 use futures::select_biased;
 use futures::task::SpawnExt;
-use futures::StreamExt;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_config::ReconfigureError;
 use tor_error::error_report;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
-use tor_netdir::{params::NetParameters, NetDirProvider};
+use tor_netdir::{NetDirProvider, params::NetParameters};
 use tor_proto::channel::Channel;
 #[cfg(feature = "experimental-api")]
 use tor_proto::memquota::ChannelAccount;

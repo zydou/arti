@@ -2,8 +2,8 @@
 
 use crate::pow::v1::challenge::Challenge;
 use crate::pow::v1::{
-    err::RuntimeErrorV1, types::Effort, types::Instance, types::Nonce, types::Solution,
-    types::NONCE_LEN,
+    err::RuntimeErrorV1, types::Effort, types::Instance, types::NONCE_LEN, types::Nonce,
+    types::Solution,
 };
 use equix::{EquiXBuilder, HashError, RuntimeOption, SolverMemory};
 use rand::{CryptoRng, Rng, RngCore};

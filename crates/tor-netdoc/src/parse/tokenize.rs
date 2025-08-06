@@ -712,11 +712,7 @@ impl<'a, K: Keyword> itertools::PeekingNext for NetDocReader<'a, K> {
     where
         F: FnOnce(&Self::Item) -> bool,
     {
-        if f(self.peek()?) {
-            self.next()
-        } else {
-            None
-        }
+        if f(self.peek()?) { self.next() } else { None }
     }
 }
 

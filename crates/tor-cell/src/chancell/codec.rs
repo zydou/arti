@@ -1,8 +1,8 @@
 //! Implementation for encoding and decoding of ChanCells.
 
-use super::{ChanCell, CELL_DATA_LEN};
-use crate::chancell::{ChanCmd, ChanMsg, CircId};
+use super::{CELL_DATA_LEN, ChanCell};
 use crate::Error;
+use crate::chancell::{ChanCmd, ChanMsg, CircId};
 use tor_bytes::{self, Reader, Writer};
 use tor_error::internal;
 

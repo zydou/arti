@@ -7,9 +7,9 @@
 
 use crate::internal_prelude::*;
 
-use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
 use IptStatusStatus as ISS;
 use TrackedStatus as TS;
+use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
 
 mod persist;
 pub(crate) use persist::IptStorageHandle;
@@ -1806,7 +1806,7 @@ mod test {
     use slotmap_careful::DenseSlotMap;
     use std::collections::BTreeMap;
     use std::sync::Mutex;
-    use test_temp_dir::{test_temp_dir, TestTempDir};
+    use test_temp_dir::{TestTempDir, test_temp_dir};
     use tor_basic_utils::test_rng::TestingRng;
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;

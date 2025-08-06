@@ -2,9 +2,9 @@
 #![doc = include_str!("../README.md")]
 use crate::checking::RECEIVE_TIMEOUT;
 use axum::{
+    Json, Router,
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
 use clap::Parser;
 use serde::{Deserialize, Serialize};

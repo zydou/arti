@@ -22,26 +22,26 @@ use tor_circmgr::{
     ClientOnionServiceDataTunnel, ClientOnionServiceDirTunnel, ClientOnionServiceIntroTunnel,
 };
 use tor_dirclient::SourceInfo;
-use tor_error::{debug_report, warn_report, Bug};
+use tor_error::{Bug, debug_report, warn_report};
 use tor_hscrypto::Subcredential;
-use tor_proto::circuit::handshake::hs_ntor;
 use tor_proto::TargetHop;
+use tor_proto::circuit::handshake::hs_ntor;
 use tracing::{debug, trace};
 
 use retry_error::RetryError;
 use safelog::{DispRedacted, Sensitive};
+use tor_cell::relaycell::RelayMsg;
 use tor_cell::relaycell::hs::{
     AuthKeyType, EstablishRendezvous, IntroduceAck, RendezvousEstablished,
 };
-use tor_cell::relaycell::RelayMsg;
-use tor_checkable::{timed::TimerangeBound, Timebound};
+use tor_checkable::{Timebound, timed::TimerangeBound};
 use tor_circmgr::hspool::HsCircPool;
 use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
-use tor_error::{internal, into_internal};
 use tor_error::{HasRetryTime as _, RetryTime};
-use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
+use tor_error::{internal, into_internal};
 use tor_hscrypto::RendCookie;
+use tor_hscrypto::pk::{HsBlindId, HsId, HsIdKey};
 use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{NetDir, Relay};
@@ -50,13 +50,13 @@ use tor_proto::circuit::CircParameters;
 use tor_proto::{MetaCellDisposition, MsgHandler};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
+use crate::Config;
 use crate::pow::HsPowClient;
 use crate::proto_oneshot;
 use crate::relay_info::ipt_to_circtarget;
 use crate::state::MockableConnectorData;
-use crate::Config;
-use crate::{rend_pt_identity_for_error, FailedAttemptError, IntroPtIndex, RendPtIdentityForError};
 use crate::{ConnError, DescriptorError, DescriptorErrorDetail};
+use crate::{FailedAttemptError, IntroPtIndex, RendPtIdentityForError, rend_pt_identity_for_error};
 use crate::{HsClientConnector, HsClientSecretKeys};
 
 use ConnError as CE;
@@ -503,7 +503,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         CE::NoHsDirs
                     } else {
                         CE::DescriptorDownload(errors)
-                    })
+                    });
                 }
             };
             let hsdir_for_error: Sensitive<Ed25519Identity> = (*relay.id()).into();
@@ -1637,12 +1637,12 @@ mod test {
     use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
-    use tor_basic_utils::test_rng::{testing_rng, TestingRng};
+    use tor_basic_utils::test_rng::{TestingRng, testing_rng};
     use tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncKeypair};
     use tor_llcrypto::pk::curve25519;
     use tor_netdoc::doc::{hsdesc::test_data, netstatus::Lifetime};
-    use tor_rtcompat::tokio::TokioNativeTlsRuntime;
     use tor_rtcompat::RuntimeSubstExt as _;
+    use tor_rtcompat::tokio::TokioNativeTlsRuntime;
     #[allow(deprecated)] // TODO #1885
     use tor_rtmock::time::MockSleepProvider;
     use tracing_test::traced_test;

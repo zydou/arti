@@ -1,6 +1,6 @@
 //! Define HashX's register file, and how it's created and digested.
 
-use crate::siphash::{siphash24_ctr, SipState};
+use crate::siphash::{SipState, siphash24_ctr};
 use arrayvec::ArrayVec;
 use std::fmt;
 

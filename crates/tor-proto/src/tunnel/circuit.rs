@@ -1120,7 +1120,7 @@ pub(crate) mod test {
 
     use super::*;
     use crate::channel::OpenChanCellS2C;
-    use crate::channel::{test::new_reactor, CodecError};
+    use crate::channel::{CodecError, test::new_reactor};
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
@@ -1139,12 +1139,12 @@ pub(crate) mod test {
     use std::fmt::Debug;
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody, ChanCell, ChanCmd};
+    use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCell, ChanCmd, msg as chanmsg};
     use tor_cell::relaycell::extend::{self as extend_ext, CircRequestExt, CircResponseExt};
     use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
-        msg as relaymsg, msg::AnyRelayMsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd,
-        RelayMsg as _, StreamId,
+        AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId, msg as relaymsg,
+        msg::AnyRelayMsg,
     };
     use tor_linkspec::OwnedCircTarget;
     use tor_memquota::HasMemoryCost;
@@ -1275,7 +1275,7 @@ pub(crate) mod test {
         // We want to try progressing from a pending circuit to a circuit
         // via a crate_fast handshake.
 
-        use crate::crypto::handshake::{fast::CreateFastServer, ntor::NtorServer, ServerHandshake};
+        use crate::crypto::handshake::{ServerHandshake, fast::CreateFastServer, ntor::NtorServer};
 
         let (chan, mut rx, _sink) = working_fake_channel(rt);
         let circid = CircId::new(128).unwrap();
@@ -1583,7 +1583,7 @@ pub(crate) mod test {
     }
 
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
-        use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
+        use crate::crypto::handshake::{ServerHandshake, ntor::NtorServer};
 
         let (chan, mut rx, _sink) = working_fake_channel(rt);
         let (tunnel, mut sink) = newtunnel(rt, chan).await;
@@ -2584,9 +2584,11 @@ pub(crate) mod test {
 
                 // The two circuits don't end in the same hop (no join point),
                 // so the reactor will refuse to link them
-                assert!(err_src
-                    .to_string()
-                    .contains("one more more conflux circuits are invalid"));
+                assert!(
+                    err_src
+                        .to_string()
+                        .contains("one more more conflux circuits are invalid")
+                );
             }
         });
     }

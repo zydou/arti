@@ -16,8 +16,8 @@
 //! `cargo asm slotmap_careful::key_data::key_data_parts`,
 //! and confirm that the result would fit on a napkin.
 use serde::{
-    ser::{Impossible, SerializeStruct},
     Serialize,
+    ser::{Impossible, SerializeStruct},
 };
 use slotmap::Key;
 

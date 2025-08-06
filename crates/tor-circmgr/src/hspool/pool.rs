@@ -3,8 +3,8 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    hspool::{HsCircStem, HsCircStemKind},
     AbstractTunnel,
+    hspool::{HsCircStem, HsCircStemKind},
 };
 use rand::Rng;
 use tor_basic_utils::RngExt as _;

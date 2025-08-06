@@ -27,10 +27,10 @@ use crate::event::DirProgress;
 
 use crate::storage::DynStore;
 use crate::{
+    CacheUsage, ClientRequest, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
     docmeta::{AuthCertMeta, ConsensusMeta},
     event,
     retry::DownloadSchedule,
-    CacheUsage, ClientRequest, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
 };
 use crate::{DocSource, SharedMutArc};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
@@ -42,12 +42,12 @@ use tor_netdoc::doc::{
     netstatus::MdConsensus,
 };
 use tor_netdoc::{
+    AllowAnnotations,
     doc::{
         authcert::{AuthCert, AuthCertKeyIds},
         microdesc::MicrodescReader,
         netstatus::{ConsensusFlavor, UnvalidatedMdConsensus},
     },
-    AllowAnnotations,
 };
 use tor_rtcompat::Runtime;
 
@@ -1493,12 +1493,14 @@ mod test {
             assert!(matches!(outcome, Err(Error::NetDocError { .. })));
             assert!(!changed);
             // make sure it wasn't stored...
-            assert!(store
-                .lock()
-                .unwrap()
-                .latest_consensus(ConsensusFlavor::Microdesc, None)
-                .unwrap()
-                .is_none());
+            assert!(
+                store
+                    .lock()
+                    .unwrap()
+                    .latest_consensus(ConsensusFlavor::Microdesc, None)
+                    .unwrap()
+                    .is_none()
+            );
 
             // Now try again, with a real consensus... but the wrong authorities.
             let mut changed = false;
@@ -1511,12 +1513,14 @@ mod test {
             );
             assert!(matches!(outcome, Err(Error::UnrecognizedAuthorities)));
             assert!(!changed);
-            assert!(store
-                .lock()
-                .unwrap()
-                .latest_consensus(ConsensusFlavor::Microdesc, None)
-                .unwrap()
-                .is_none());
+            assert!(
+                store
+                    .lock()
+                    .unwrap()
+                    .latest_consensus(ConsensusFlavor::Microdesc, None)
+                    .unwrap()
+                    .is_none()
+            );
 
             // Great. Change the receiver to use a configuration where these test
             // authorities are recognized.
@@ -1535,12 +1539,14 @@ mod test {
                 state.add_from_download(CONSENSUS, &req, source, Some(&store), &mut changed);
             assert!(outcome.is_ok());
             assert!(changed);
-            assert!(store
-                .lock()
-                .unwrap()
-                .latest_consensus(ConsensusFlavor::Microdesc, None)
-                .unwrap()
-                .is_some());
+            assert!(
+                store
+                    .lock()
+                    .unwrap()
+                    .latest_consensus(ConsensusFlavor::Microdesc, None)
+                    .unwrap()
+                    .is_some()
+            );
 
             // And with that, we should be asking for certificates
             assert!(state.can_advance());
@@ -1666,12 +1672,14 @@ mod test {
             assert!(!changed);
             let missing2 = state.missing_docs();
             assert_eq!(missing, missing2); // No change.
-            assert!(store
-                .lock()
-                .unwrap()
-                .authcerts(&[authcert_id_5a23()])
-                .unwrap()
-                .is_empty());
+            assert!(
+                store
+                    .lock()
+                    .unwrap()
+                    .authcerts(&[authcert_id_5a23()])
+                    .unwrap()
+                    .is_empty()
+            );
 
             // Now try to add the other from a download ... for real!
             let mut req = tor_dirclient::request::AuthCertRequest::new();
@@ -1685,12 +1693,14 @@ mod test {
             let missing3 = state.missing_docs();
             assert!(missing3.is_empty());
             assert!(state.can_advance());
-            assert!(!store
-                .lock()
-                .unwrap()
-                .authcerts(&[authcert_id_5a23()])
-                .unwrap()
-                .is_empty());
+            assert!(
+                !store
+                    .lock()
+                    .unwrap()
+                    .authcerts(&[authcert_id_5a23()])
+                    .unwrap()
+                    .is_empty()
+            );
 
             let next = state.advance();
             assert_eq!(

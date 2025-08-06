@@ -12,11 +12,11 @@ use pin_project::pin_project;
 use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
-use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
+use tor_cell::relaycell::{StreamId, msg::AnyRelayMsg};
 
-use std::collections::hash_map;
 use std::collections::HashMap;
+use std::collections::hash_map;
 use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::task::{Poll, Waker};

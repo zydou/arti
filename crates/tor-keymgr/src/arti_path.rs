@@ -2,7 +2,7 @@
 
 use std::str::FromStr;
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
 use tor_persist::slug::{self, BadSlug};

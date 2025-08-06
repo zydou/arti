@@ -4,12 +4,12 @@ use bitvec::prelude::*;
 
 use super::{AnyCmdChecker, DataStream, StreamStatus};
 use crate::circuit::ClientCircSyncView;
-use crate::tunnel::reactor::CloseStreamBehavior;
 use crate::tunnel::StreamComponents;
+use crate::tunnel::reactor::CloseStreamBehavior;
 use crate::{Error, Result};
 use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;
-use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayMsg};
+use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg, msg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -248,8 +248,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use tor_cell::relaycell::{
-        msg::{Begin, BeginDir, Data, Resolve},
         AnyRelayMsgOuter, RelayCellFormat,
+        msg::{Begin, BeginDir, Data, Resolve},
     };
 
     use super::*;

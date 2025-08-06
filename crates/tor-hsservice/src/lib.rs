@@ -663,7 +663,7 @@ pub(crate) mod test {
     use std::path::Path;
 
     use fs_mistrust::Mistrust;
-    use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
+    use test_temp_dir::{TestTempDir, TestTempDirGuard, test_temp_dir};
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
@@ -843,13 +843,15 @@ pub(crate) mod test {
             .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Primary, true)
             .unwrap();
 
-        assert!(maybe_generate_hsid(
-            &keymgr,
-            &nickname,
-            false, /* offline_hsid */
-            Default::default()
-        )
-        .is_err());
+        assert!(
+            maybe_generate_hsid(
+                &keymgr,
+                &nickname,
+                false, /* offline_hsid */
+                Default::default()
+            )
+            .is_err()
+        );
     }
 
     #[test]

@@ -7,7 +7,7 @@ use tor_linkspec::HasRelayIds;
 
 use super::{DirStatus, FallbackDir, FallbackDirBuilder};
 use crate::fallback::default_fallbacks;
-use crate::{ids::FallbackId, PickGuardError};
+use crate::{PickGuardError, ids::FallbackId};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_config::define_list_builder_helper;
 
@@ -317,11 +317,12 @@ mod test {
 
         // It should have the same elements, in the same order.
         assert_eq!(set.fallbacks.len(), set2.fallbacks.len());
-        assert!(set
-            .fallbacks
-            .iter()
-            .zip(set2.fallbacks.iter())
-            .all(|(ent1, ent2)| ent1.same_relay_ids(ent2)));
+        assert!(
+            set.fallbacks
+                .iter()
+                .zip(set2.fallbacks.iter())
+                .all(|(ent1, ent2)| ent1.same_relay_ids(ent2))
+        );
     }
 
     #[test]
@@ -458,11 +459,12 @@ mod test {
 
         // Make sure that the new fbs are there.
         for new_fb in fbs_new {
-            assert!(set2
-                .get_mut(&FallbackId::from_relay_ids(&new_fb))
-                .unwrap()
-                .status
-                .usable_at(now));
+            assert!(
+                set2.get_mut(&FallbackId::from_relay_ids(&new_fb))
+                    .unwrap()
+                    .status
+                    .usable_at(now)
+            );
         }
     }
 }

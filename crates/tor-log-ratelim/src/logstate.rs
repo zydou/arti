@@ -167,7 +167,7 @@ mod tests {
         assert_eq!(ls.n_fail, 1);
         let problem = ls.display_problem(duration);
         let expected_problem = String::from(
-            "test: error (problem occurred 1/1 times in the last 10ms): test: error: TestError is here!: TestErrorBuddy is here!"
+            "test: error (problem occurred 1/1 times in the last 10ms): test: error: TestError is here!: TestErrorBuddy is here!",
         );
         let str_problem = format!("{problem}");
         assert_eq!(expected_problem, str_problem);

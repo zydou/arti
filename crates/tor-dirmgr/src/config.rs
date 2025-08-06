@@ -8,12 +8,12 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
+use crate::Result;
 use crate::authority::{Authority, AuthorityBuilder, AuthorityList, AuthorityListBuilder};
 use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
-use crate::Result;
 use tor_checkable::timed::TimerangeBound;
-use tor_config::{define_list_builder_accessors, impl_standard_builder, ConfigBuildError};
+use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
 use tor_guardmgr::fallback::FallbackDirBuilder;
 use tor_netdoc::doc::netstatus::{self, Lifetime};
 

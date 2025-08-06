@@ -7,11 +7,11 @@ mod clean;
 use crate::err::{Action, ErrorSource, Resource};
 use crate::load_store;
 use crate::{Error, LockStatus, Result, StateMgr};
-use fs_mistrust::anon_home::PathExt as _;
 use fs_mistrust::CheckedDir;
+use fs_mistrust::anon_home::PathExt as _;
 use futures::FutureExt;
 use oneshot_fused_workaround as oneshot;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -344,9 +344,10 @@ mod test {
         store.clean(SystemTime::now() + Duration::from_secs(365 * 86400));
         let lst: Vec<_> = statedir.read_dir().unwrap().collect();
         assert_eq!(lst.len(), 2); // one file, one lock.
-        assert!(lst
-            .iter()
-            .any(|ent| ent.as_ref().unwrap().file_name() == "quoll.json"));
+        assert!(
+            lst.iter()
+                .any(|ent| ent.as_ref().unwrap().file_name() == "quoll.json")
+        );
 
         Ok(())
     }
@@ -380,7 +381,7 @@ mod test {
             return Ok(());
         }
         assert_eq!(lst.len(), 3); // We can't remove the file, but we didn't freak out. Great!
-                                  // Try failing to read a mode-0 file.
+        // Try failing to read a mode-0 file.
         std::fs::set_permissions(&statedir, rw_dir).unwrap();
         std::fs::set_permissions(fname2, unusable).unwrap();
 

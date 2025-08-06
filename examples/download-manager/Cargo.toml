@@ -1,7 +1,7 @@
 [package]
 name = "download-manager"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Download the Tor Browser using multiple tor connections."
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"

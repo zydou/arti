@@ -10,7 +10,7 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt as _;
 
-use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result, Verifier};
+use crate::{CheckedDir, Error, Result, Verifier, dir::FullPathCheck, walk::PathType};
 
 /// Helper object for accessing a file on disk while checking the necessary permissions.
 ///
@@ -311,7 +311,7 @@ mod test {
     use std::fs;
 
     use super::*;
-    use crate::{testing::Dir, Mistrust};
+    use crate::{Mistrust, testing::Dir};
 
     #[test]
     fn create_public_in_checked_dir() {

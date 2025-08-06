@@ -9,15 +9,15 @@ use std::{
     marker::PhantomData,
     pin::Pin,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     task::Poll,
     time::SystemTime,
 };
 
 use educe::Educe;
-use futures::{stream::Stream, Future, StreamExt};
+use futures::{Future, StreamExt, stream::Stream};
 use itertools::chain;
 use paste::paste;
 use time::OffsetDateTime;
@@ -1108,7 +1108,8 @@ mod test {
             },
         });
 
-        assert_eq!(bs.to_string(),
+        assert_eq!(
+            bs.to_string(),
             "directory is usable, fresh until 2022-01-17 12:00:00 UTC, and valid until 2022-01-17 14:00:00 UTC; next directory is fetching microdescriptors (5/40)"
         );
 

@@ -5,8 +5,8 @@
 //! Used by [`connect`](crate::connect)
 
 use oneshot_fused_workaround as oneshot;
-use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::RelayMsg;
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::internal;
 use tor_proto::MetaCellDisposition;
 

@@ -10,10 +10,10 @@ use hyper_util::rt::TokioIo;
 use tokio_util::sync::CancellationToken;
 
 use arti_client::{TorClient, TorClientConfig};
-use safelog::{sensitive, DisplayRedacted};
+use safelog::{DisplayRedacted, sensitive};
 use tor_cell::relaycell::msg::Connected;
-use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_hsservice::StreamRequest;
+use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_proto::stream::IncomingStreamRequest;
 
 struct WebHandler {

@@ -74,7 +74,7 @@ use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, Rou
 use {hsdir_ring::HsDirRing, std::iter};
 
 use derive_more::{From, Into};
-use futures::{stream::BoxStream, StreamExt};
+use futures::{StreamExt, stream::BoxStream};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::seq::{IndexedRandom as _, SliceRandom as _, WeightError};
 use serde::Deserialize;
@@ -91,7 +91,7 @@ use typed_index_collections::{TiSlice, TiVec};
 use {
     itertools::Itertools,
     std::collections::HashSet,
-    tor_error::{internal, Bug},
+    tor_error::{Bug, internal},
     tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
 };
 
@@ -2620,14 +2620,16 @@ mod test {
         assert!(e32.low_level_details().ipv4_policy().allows_some_port());
         assert!(e32.low_level_details().ipv6_policy().allows_some_port());
 
-        assert!(e12
-            .low_level_details()
-            .ipv4_declared_policy()
-            .allows_some_port());
-        assert!(e12
-            .low_level_details()
-            .ipv6_declared_policy()
-            .allows_some_port());
+        assert!(
+            e12.low_level_details()
+                .ipv4_declared_policy()
+                .allows_some_port()
+        );
+        assert!(
+            e12.low_level_details()
+                .ipv6_declared_policy()
+                .allows_some_port()
+        );
     }
 
     #[cfg(feature = "experimental-api")]
@@ -2809,9 +2811,11 @@ mod test {
             .unwrap();
         assert_eq!(w, RelayWeight(4_000));
 
-        assert!(netdir
-            .weight_by_rsa_id(&[99; 20].into(), WeightRole::Guard)
-            .is_none());
+        assert!(
+            netdir
+                .weight_by_rsa_id(&[99; 20].into(), WeightRole::Guard)
+                .is_none()
+        );
     }
 
     #[test]

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
-use crate::{method::method_info_by_typeid, MethodInfo_, NoUpdates};
+use crate::{MethodInfo_, NoUpdates, method::method_info_by_typeid};
 
 /// A table describing, for a single RPC method,
 /// which types it expects and returns, and which objects it applies to.

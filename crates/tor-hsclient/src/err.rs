@@ -11,7 +11,7 @@ use retry_error::RetryError;
 use safelog::{Redacted, Sensitive};
 use tor_cell::relaycell::hs::IntroduceAckStatus;
 use tor_error::define_asref_dyn_std_error;
-use tor_error::{internal, Bug, ErrorKind, ErrorReport as _, HasKind, HasRetryTime, RetryTime};
+use tor_error::{Bug, ErrorKind, ErrorReport as _, HasKind, HasRetryTime, RetryTime, internal};
 use tor_linkspec::RelayIds;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::Relay;
@@ -387,9 +387,9 @@ impl HasKind for DescriptorError {
 
 impl HasKind for DescriptorErrorDetail {
     fn kind(&self) -> ErrorKind {
-        use tor_dirclient::RequestError as RE;
         use DescriptorErrorDetail as DED;
         use ErrorKind as EK;
+        use tor_dirclient::RequestError as RE;
         match self {
             DED::Timeout => EK::TorNetworkTimeout,
             DED::Circuit(e) => e.kind(),

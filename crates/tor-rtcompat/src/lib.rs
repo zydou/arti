@@ -363,9 +363,7 @@ macro_rules! test_with_all_runtimes {
     any(feature = "tokio", feature = "async-std"),
 ))]
 macro_rules! test_with_one_runtime {
-    ( $fn:expr ) => {{
-        $crate::PreferredRuntime::run_test($fn)
-    }};
+    ( $fn:expr ) => {{ $crate::PreferredRuntime::run_test($fn) }};
 }
 
 #[cfg(all(

@@ -135,8 +135,8 @@ mod test {
     // Tests where only elements from the left stream should be yielded.
     #[async_test]
     async fn left_only() {
-        use futures::stream::iter;
         use Source::Left as L;
+        use futures::stream::iter;
         // If there's nothing in the right stream, we just yield the left.
         let left = vec![1_usize, 2, 3];
         let right = vec![];
@@ -164,8 +164,8 @@ mod test {
     // Tests where only elements from the right stream should be yielded.
     #[async_test]
     async fn right_only() {
-        use futures::stream::{iter, pending};
         use Source::Right as R;
+        use futures::stream::{iter, pending};
 
         // Try a forever-pending stream for the left hand side.
         let left = pending();
@@ -179,8 +179,8 @@ mod test {
     // Tests where we can find elements from both streams.
     #[async_test]
     async fn multiplex() {
-        use futures::SinkExt;
         use Source::{Left as L, Right as R};
+        use futures::SinkExt;
 
         let (mut snd_l, rcv_l) = futures::channel::mpsc::channel(5);
         let (mut snd_r, rcv_r) = futures::channel::mpsc::channel(5);

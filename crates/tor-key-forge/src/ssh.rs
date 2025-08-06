@@ -1,7 +1,7 @@
 //! Shared OpenSSH helpers.
 
 use ssh_key::{
-    private::KeypairData, public::KeyData, Algorithm, LineEnding, PrivateKey, PublicKey,
+    Algorithm, LineEnding, PrivateKey, PublicKey, private::KeypairData, public::KeyData,
 };
 use tor_error::{internal, into_internal};
 use tor_llcrypto::pk::{curve25519, ed25519};

@@ -53,20 +53,20 @@ use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
-use crate::util::private::Sealed;
 use crate::util::PeekableIterator;
+use crate::util::private::Sealed;
 use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::{net, result, time};
-use tor_error::{internal, HasKind};
+use tor_error::{HasKind, internal};
 use tor_protover::Protocols;
 
 use bitflags::bitflags;
 use digest::Digest;
 use std::sync::LazyLock;
-use tor_checkable::{timed::TimerangeBound, ExternallySigned};
+use tor_checkable::{ExternallySigned, timed::TimerangeBound};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -1171,7 +1171,7 @@ impl SharedRandStatus {
                     "wrong keyword {:?} on shared-random value",
                     item.kwd()
                 ))
-                .at_pos(item.pos()))
+                .at_pos(item.pos()));
             }
         }
         let n_reveals: u8 = item.parse_arg(0)?;

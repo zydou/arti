@@ -128,7 +128,9 @@ impl<R: Runtime> PtMgr<R> {
         for opt in ret.values() {
             if let TransportOptions::Unmanaged(u) = opt {
                 if !u.is_localhost() {
-                    warn!("Configured to connect to a PT on a non-local addresses. This is usually insecure! We recommend running PTs on localhost only.");
+                    warn!(
+                        "Configured to connect to a PT on a non-local addresses. This is usually insecure! We recommend running PTs on localhost only."
+                    );
                 }
             }
         }
@@ -236,7 +238,9 @@ impl<R: Runtime> PtMgr<R> {
                 match managed_cmethod {
                     // A configured-and-running cmethod.
                     Some(cmethod) => {
-                        trace!("Found configured managed transport {transport} accessible via {cmethod:?}");
+                        trace!(
+                            "Found configured managed transport {transport} accessible via {cmethod:?}"
+                        );
                         Ok(Some(cmethod))
                     }
                     // A configured-but-not-running cmethod.
@@ -282,7 +286,9 @@ impl<R: Runtime> PtMgr<R> {
     ) -> Result<PtClientMethod, PtError> {
         // Tell the reactor to spawn the PT, and wait for it.
         // (The reactor will handle coalescing multiple requests.)
-        info!("Got a request for transport {transport}, which is not currently running. Launching it.");
+        info!(
+            "Got a request for transport {transport}, which is not currently running. Launching it."
+        );
 
         let (tx, rx) = oneshot::channel();
         self.tx
