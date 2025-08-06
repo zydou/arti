@@ -38,6 +38,7 @@ experimental = [
     "hsdesc-inner-docs",
     "hs-dir",
     "hs-pow-full",
+    "parse2",
 ]
 
 # Enable code to build the objects that represent different network documents.
@@ -52,6 +53,9 @@ testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
 
 # Enable the "ns consensus" document type, which some relays cache and serve.
 ns_consensus = []
+
+# Enable the `parse` derive-based netdoc parser
+parse2 = []
 
 # Client-side, directory-side, and service-side support for onion services.
 # Experimental: not covered by semver guarantees.

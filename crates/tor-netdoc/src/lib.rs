@@ -56,6 +56,11 @@ mod err;
 pub mod types;
 mod util;
 
+#[cfg(feature = "parse2")]
+pub mod parse2;
+#[doc(hidden)]
+pub use derive_deftly;
+
 // Use `#[doc(hidden)]` rather than pub(crate), because otherwise the doctest
 // doesn't work.
 #[doc(hidden)]
