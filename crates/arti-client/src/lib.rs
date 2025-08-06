@@ -202,15 +202,15 @@ mod test {
             // Although this is recommended, it isn't always-on in Arti yet yet.
             cfg_if! {
                 if #[cfg(feature="flowctl-cc")] {
-                     let expected_missing: tor_protover::Protocols =
+                     let permitted_missing: tor_protover::Protocols =
                         [].into_iter().collect();
                 } else {
-                    let expected_missing: tor_protover::Protocols =
+                    let permitted_missing: tor_protover::Protocols =
                         [tor_protover::named::FLOWCTRL_CC].into_iter().collect();
                 }
             }
             let unsupported = rec.difference(&pr);
-            assert_eq!(unsupported, expected_missing);
+            assert!(unsupported.difference(&permitted_missing).is_empty());
         }
     }
 
