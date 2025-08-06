@@ -101,6 +101,8 @@ pub mod multiplicity;
 mod signatures;
 mod traits;
 
+pub mod poc;
+
 use internal_prelude::*;
 
 pub use error::{ErrorProblem, ParseError, VerifyFailed};
