@@ -13,7 +13,7 @@ use std::{
 
 use arrayvec::ArrayVec;
 use futures::{channel::mpsc, Stream};
-use futures::{task::SpawnExt, FutureExt};
+use futures::task::SpawnExt;
 use futures::{SinkExt, StreamExt};
 use num_traits::FromPrimitive;
 use rand::{CryptoRng, RngCore};
@@ -1040,7 +1040,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                 .queue
                 .first()
                 .map(|r| {
-                    max_age.saturating_sub((runtime.now().saturating_duration_since(r.recv_time)))
+                    max_age.saturating_sub(runtime.now().saturating_duration_since(r.recv_time))
                 })
                 .unwrap_or(max_age);
             drop(inner);
