@@ -395,10 +395,7 @@ impl CTorKeystoreConfigBuilder {
         use itertools::Itertools as _;
         use itertools::chain;
 
-        let Self {
-            ref services,
-            ref clients,
-        } = self;
+        let Self { services, clients } = self;
         let mut ctor_store_ids = chain![
             services.stores.iter().flatten().map(|s| &s.id),
             clients.stores.iter().flatten().map(|s| &s.id)

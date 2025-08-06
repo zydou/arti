@@ -473,7 +473,7 @@ impl ConfluxSet {
         // Returns an error if one of the hops is virtual.
         let hops_eq = |h1: &HopDetail, h2: &HopDetail| {
             match (h1, h2) {
-                (HopDetail::Relay(t1), HopDetail::Relay(ref t2)) => Ok(t1.same_relay_ids(t2)),
+                (HopDetail::Relay(t1), HopDetail::Relay(t2)) => Ok(t1.same_relay_ids(t2)),
                 #[cfg(feature = "hs-common")]
                 (HopDetail::Virtual, HopDetail::Virtual) => {
                     // TODO(#2016): support onion service conflux

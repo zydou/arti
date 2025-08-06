@@ -271,12 +271,15 @@ impl ClientTunnel {
     // will be discarded (along with the reactor of that circuit)
     #[cfg(feature = "hs-service")]
     #[allow(unreachable_code, unused_variables)] // TODO(conflux)
-    pub async fn allow_stream_requests(
+    pub async fn allow_stream_requests<'a, FILT>(
         self: &Arc<Self>,
-        allow_commands: &[tor_cell::relaycell::RelayCmd],
+        allow_commands: &'a [tor_cell::relaycell::RelayCmd],
         hop: TargetHop,
-        filter: impl crate::stream::IncomingStreamRequestFilter,
-    ) -> Result<impl futures::Stream<Item = IncomingStream>> {
+        filter: FILT,
+    ) -> Result<impl futures::Stream<Item = IncomingStream> + use<'a, FILT>>
+    where
+        FILT: crate::stream::IncomingStreamRequestFilter + 'a,
+    {
         use futures::stream::StreamExt;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.

@@ -1975,7 +1975,7 @@ mod test {
 
         fn estabs_inventory(&self) -> impl Eq + Debug + 'static + use<> {
             let estabs = self.estabs.lock().unwrap();
-            let estabs = estabs
+            estabs
                 .values()
                 .map(|MockEstabState { params: p, .. }| {
                     (
@@ -1992,8 +1992,7 @@ mod test {
                         ),
                     )
                 })
-                .collect::<BTreeMap<_, _>>();
-            estabs
+                .collect::<BTreeMap<_, _>>()
         }
     }
 

@@ -911,10 +911,8 @@ impl PartialNetDir {
                 .c_relays()
                 .iter()
                 .map(|rs| {
-                    let ret = db
-                        .lookup_country_code_multi(rs.addrs().iter().map(|x| x.ip()))
-                        .cloned();
-                    ret
+                    db.lookup_country_code_multi(rs.addrs().iter().map(|x| x.ip()))
+                        .cloned()
                 })
                 .collect()
         } else {
@@ -1128,18 +1126,15 @@ impl NetDir {
                 move |replica: u8| {
                     let hsdir_idx = hsdir_ring::service_hsdir_index(&hsid, replica, ring.params());
 
-                    let items = ring
-                        .ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
-                            // According to rend-spec 2.2.3:
-                            //                                                  ... If any of those
-                            // nodes have already been selected for a lower-numbered replica of the
-                            // service, any nodes already chosen are disregarded (i.e. skipped over)
-                            // when choosing a replica's hsdir_spread_store nodes.
-                            selected_nodes.insert(*hsdir_idx)
-                        })
-                        .collect::<Vec<_>>();
-
-                    items
+                    ring.ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
+                        // According to rend-spec 2.2.3:
+                        //                                                  ... If any of those
+                        // nodes have already been selected for a lower-numbered replica of the
+                        // service, any nodes already chosen are disregarded (i.e. skipped over)
+                        // when choosing a replica's hsdir_spread_store nodes.
+                        selected_nodes.insert(*hsdir_idx)
+                    })
+                    .collect::<Vec<_>>()
                 }
             })
             .filter_map(move |(_hsdir_idx, rs_idx)| {
@@ -1959,18 +1954,15 @@ impl NetDir {
                 move |(ring, replica): (&HsDirRing, u8)| {
                     let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
 
-                    let items = ring
-                        .ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
-                            // According to rend-spec 2.2.3:
-                            //                                                  ... If any of those
-                            // nodes have already been selected for a lower-numbered replica of the
-                            // service, any nodes already chosen are disregarded (i.e. skipped over)
-                            // when choosing a replica's hsdir_spread_store nodes.
-                            selected_nodes.insert(*hsdir_idx)
-                        })
-                        .collect::<Vec<_>>();
-
-                    items
+                    ring.ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
+                        // According to rend-spec 2.2.3:
+                        //                                                  ... If any of those
+                        // nodes have already been selected for a lower-numbered replica of the
+                        // service, any nodes already chosen are disregarded (i.e. skipped over)
+                        // when choosing a replica's hsdir_spread_store nodes.
+                        selected_nodes.insert(*hsdir_idx)
+                    })
+                    .collect::<Vec<_>>()
                 }
             })
             .filter_map(|(_hsdir_idx, rs_idx)| {

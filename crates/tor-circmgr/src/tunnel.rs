@@ -460,12 +460,15 @@ impl ServiceOnionServiceDataTunnel {
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
     #[cfg(feature = "hs-service")]
-    pub async fn allow_stream_requests(
+    pub async fn allow_stream_requests<'a, FILT>(
         &self,
-        allow_commands: &[tor_cell::relaycell::RelayCmd],
+        allow_commands: &'a [tor_cell::relaycell::RelayCmd],
         hop: TargetHop,
-        filter: impl tor_proto::stream::IncomingStreamRequestFilter,
-    ) -> Result<impl futures::Stream<Item = tor_proto::stream::IncomingStream>> {
+        filter: FILT,
+    ) -> Result<impl futures::Stream<Item = tor_proto::stream::IncomingStream> + use<'a, FILT>>
+    where
+        FILT: tor_proto::stream::IncomingStreamRequestFilter,
+    {
         self.tunnel_ref()
             .allow_stream_requests(allow_commands, hop, filter)
             .await

@@ -1068,8 +1068,7 @@ where
         }
     };
 
-    // (We have to use a binding here to appease borrowck.)
-    let all_compatible = path.iter().all(|ent: &circuit::PathEntry| {
+    path.iter().all(|ent: &circuit::PathEntry| {
         match relay_for_path_ent(netdir, ent) {
             Err(NoRelayForPathEnt::HopWasVirtual) => {
                 // This is a virtual hop; it's necessarily compatible with everything.
@@ -1085,8 +1084,7 @@ where
                 relay_okay(&r)
             }
         }
-    });
-    all_compatible
+    })
 }
 
 /// A possible error condition when trying to look up a PathEntry

@@ -85,7 +85,7 @@ async fn launch_all_listeners<R: Runtime>(
     resolver: &CfgPathResolver,
     mistrust: &Mistrust,
 ) -> anyhow::Result<(
-    impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin,
+    impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin + use<R>,
     Vec<tor_rpc_connect::server::ListenerGuard>,
 )> {
     let mut listeners = Vec::new();

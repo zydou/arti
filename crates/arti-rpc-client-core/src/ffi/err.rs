@@ -50,7 +50,7 @@ macro_rules! define_ffi_status {
         /// Return a string representing the meaning of a given `ArtiRpcStatus`.
         ///
         /// The result will always be non-NULL, even if the status is unrecognized.
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn arti_rpc_status_to_str(status: ArtiRpcStatus) -> *const c_char {
             match status {
                 $(
@@ -458,7 +458,7 @@ pub type ArtiRpcError = FfiError;
 ///
 /// If `err` is NULL, return [`ARTI_RPC_STATUS_INVALID_INPUT`].
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRpcStatus {
     ffi_body_raw!(
         {
@@ -480,7 +480,7 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
 /// Returns 0 if `err` is NULL, or if `err` was not caused by the failure of an
 /// OS library call.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_err_os_error_code(err: *const ArtiRpcError) -> c_int {
     ffi_body_raw!(
         {
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn arti_rpc_err_os_error_code(err: *const ArtiRpcError) ->
 ///
 /// The resulting string pointer is valid only for as long as the input `err` is not freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *const c_char {
     ffi_body_raw!(
         {
@@ -532,7 +532,7 @@ pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *cons
 ///
 /// The resulting string pointer is valid only for as long as the input `err` is not freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *const c_char {
     ffi_body_raw!(
         {
@@ -556,7 +556,7 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
 /// The caller is responsible for making sure that the returned object
 /// is eventually freed with `arti_rpc_err_free()`.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut ArtiRpcError {
     ffi_body_raw!(
         {
@@ -572,7 +572,7 @@ pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut Ar
 
 /// Release storage held by a provided error.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
     ffi_body_raw!(
         {

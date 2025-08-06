@@ -121,14 +121,13 @@ pub struct SrvPeriodOffset(
 /// Panics if slice is not even in size.
 fn add_slice_as_le_u16(slice: &[u8]) -> u64 {
     assert_eq!(slice.len() % 2, 0);
-    let s = slice
+    slice
         .chunks_exact(2)
         .map(|bytepair| {
             let a: [u8; 2] = bytepair.try_into().expect("chunk was not of size 2!");
             u64::from(u16::from_le_bytes(a))
         })
-        .sum();
-    s
+        .sum()
 }
 
 #[cfg(test)]
