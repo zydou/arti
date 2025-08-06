@@ -135,6 +135,7 @@ experimental = [
     "restricted-discovery",
     "onion-service-cli-extra",
     "flowctl-cc",
+    "counter-galois-onion",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
@@ -148,6 +149,7 @@ ctor-keystore = ["tor-keymgr/ctor-keystore", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 flowctl-cc = ["tor-circmgr/flowctl-cc", "__is_experimental"]
+counter-galois-onion = ["tor-proto/counter-galois-onion", "flowctl-cc", "__is_experimental"]
 
 restricted-discovery = [
     "onion-service-service",
