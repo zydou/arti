@@ -27,6 +27,7 @@ use tor_hscrypto::{
     time::TimePeriod,
 };
 use tor_keymgr::KeyMgr;
+use tor_netdir::{params::NetParameters, NetDirProvider, NetdirProviderShutdown};
 use tor_netdoc::doc::hsdesc::pow::{v1::PowParamsV1, PowParams};
 use tor_persist::{
     hsnickname::HsNickname,
@@ -88,6 +89,9 @@ struct State<R, Q> {
     ///
     /// We need a reference to this in order to tell it when to update the suggested_effort value.
     rend_request_rx: RendRequestReceiver<R, Q>,
+
+    /// [`NetDirProvider`], used for getting consensus parameters for configuration values.
+    netdir_provider: Arc<dyn NetDirProvider>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -120,7 +124,7 @@ pub(crate) enum PowSolveError {
 }
 
 /// On-disk record of [`PowManagerGeneric`] state.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct PowManagerStateRecord {
     /// Seeds for each time period.
     ///
@@ -129,7 +133,11 @@ pub(crate) struct PowManagerStateRecord {
     /// that, so we instead store it as a list of tuples, and convert it to/from the map when
     /// saving/loading.
     seeds: Vec<(TimePeriod, SeedsForTimePeriod)>,
-    // TODO POW: suggested_effort / etc should be serialized
+
+    /// Most recently published suggested_effort value.
+    #[serde(default)]
+    suggested_effort: Effort,
+    // TODO POW: Consider whether we should persist other values from RendRequestReceiver.
 }
 
 impl<R: Runtime, Q> State<R, Q> {
@@ -137,14 +145,22 @@ impl<R: Runtime, Q> State<R, Q> {
     pub(crate) fn to_record(&self) -> PowManagerStateRecord {
         PowManagerStateRecord {
             seeds: self.seeds.clone().into_iter().collect(),
+            suggested_effort: *self.suggested_effort.lock().expect("Lock poisoned"),
         }
     }
 }
 
 /// Maximum depth of the queue of [`RendRequest`]s.
-// TODO POW: Pick a better number, based on available memory or something like that.
 // TODO POW: Allow this to be changed in onion service config.
-const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 1024;
+// Each request should take a few KB, so a queue of this depth should only take up ~32MB in the
+// worst case.
+//
+// The "a few KB" measurement was done by using the get_size crate to
+// measure the size of the RendRequest object, but due to limitations in
+// that crate (and in my willingness to go implement ways of checking the
+// size of external types), it might be somewhat off. The ~32MB value is
+// based on the idea that each RendRequest is 4KB.
+const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 8192;
 
 /// How frequently the suggested effort should be recalculated.
 const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
@@ -194,6 +210,8 @@ pub(crate) enum InternalPowError {
     StorageError,
     /// Error from the ReplayLog.
     CreateIptError(CreateIptError),
+    /// NetDirProvider has shut down
+    NetdirProviderShutdown(NetdirProviderShutdown),
 }
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q> {
@@ -205,19 +223,27 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         instance_dir: InstanceRawSubdir,
         keymgr: Arc<KeyMgr>,
         storage_handle: StorageHandle<PowManagerStateRecord>,
+        netdir_provider: Arc<dyn NetDirProvider>,
     ) -> Result<NewPowManager<R>, StartupError> {
-        let on_disk_state = storage_handle.load().map_err(StartupError::LoadState)?;
-        let seeds = on_disk_state.map_or(vec![], |on_disk_state| on_disk_state.seeds);
-        let seeds = seeds.into_iter().collect();
+        let on_disk_state = storage_handle
+            .load()
+            .map_err(StartupError::LoadState)?
+            .unwrap_or(PowManagerStateRecord::default());
+
+        let seeds = on_disk_state.seeds.into_iter().collect();
+        let suggested_effort = Arc::new(Mutex::new(on_disk_state.suggested_effort));
 
         // This queue is extremely small, and we only make one of it per onion service, so it's
         // fine to not use memquota tracking.
         let (publisher_update_tx, publisher_update_rx) =
             crate::mpsc_channel_no_memquota(PUBLISHER_UPDATE_QUEUE_DEPTH);
 
-        let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
         let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
-        let rend_req_rx = RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
+        let rend_req_rx = RendRequestReceiver::new(
+            runtime.clone(),
+            suggested_effort.clone(),
+            netdir_provider.clone(),
+        );
 
         let state = State {
             seeds,
@@ -230,6 +256,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             runtime: runtime.clone(),
             storage_handle,
             rend_request_rx: rend_req_rx.clone(),
+            netdir_provider,
         };
         let pow_manager = Arc::new(PowManagerGeneric(RwLock::new(state)));
 
@@ -249,7 +276,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let runtime = pow_manager.0.read().expect("Lock poisoned").runtime.clone();
 
         runtime
-            .spawn(pow_manager.main_loop_task())
+            .spawn(pow_manager.main_loop_error_wrapper())
             .map_err(|cause| StartupError::Spawn {
                 spawning: "pow manager",
                 cause: cause.into(),
@@ -257,8 +284,15 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         Ok(())
     }
 
+    /// Run [`Self::main_loop_task`], reporting any errors.
+    async fn main_loop_error_wrapper(self: Arc<Self>) {
+        if let Err(err) = self.clone().main_loop_task().await {
+            tracing::warn!(?err, "PoW main loop error!");
+        }
+    }
+
     /// Main loop for rotating seeds.
-    async fn main_loop_task(self: Arc<Self>) {
+    async fn main_loop_task(self: Arc<Self>) -> Result<(), InternalPowError> {
         let runtime = self.0.write().expect("Lock poisoned").runtime.clone();
 
         let mut last_suggested_effort_update = runtime.now();
@@ -271,6 +305,19 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             .expect("Lock poisoned"))
         .into();
 
+        let netdir_provider = self
+            .0
+            .read()
+            .expect("Lock poisoned")
+            .netdir_provider
+            .clone();
+        let net_params = netdir_provider
+            .wait_for_netdir(tor_netdir::Timeliness::Timely)
+            .await
+            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .params()
+            .clone();
+
         loop {
             let next_update_time = self.rotate_seeds_if_expiring().await;
 
@@ -281,7 +328,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
                     let inner = self.0.read().expect("Lock poisoned");
 
-                    inner.rend_request_rx.update_suggested_effort();
+                    inner.rend_request_rx.update_suggested_effort(&net_params);
                     last_suggested_effort_update = runtime.now();
                     let new_suggested_effort: u32 =
                         (*inner.suggested_effort.lock().expect("Lock poisoned")).into();
@@ -642,9 +689,13 @@ struct RendRequestOrdByEffort<Q> {
 
 impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
     /// Create a new [`RendRequestOrdByEffort`].
-    fn new(request: Q, request_num: u64) -> Result<Self, rend_handshake::IntroRequestError> {
+    fn new(
+        request: Q,
+        max_effort: Effort,
+        request_num: u64,
+    ) -> Result<Self, rend_handshake::IntroRequestError> {
         let pow = match request.proof_of_work()?.cloned() {
-            Some(ProofOfWork::V1(pow)) => Some(pow),
+            Some(ProofOfWork::V1(pow)) => Some(pow.cap_effort(max_effort)),
             None | Some(_) => None,
         };
 
@@ -728,6 +779,9 @@ struct RendRequestReceiverInner<R, Q> {
     /// Runtime, used to get current time in a testable way.
     runtime: R,
 
+    /// [`NetDirProvider`], for getting configuration values in consensus parameters.
+    netdir_provider: Arc<dyn NetDirProvider>,
+
     /// When the current update period started.
     update_period_start: Instant,
     /// Number of requests that were enqueued during the current update period, and had an effort
@@ -752,12 +806,17 @@ struct RendRequestReceiverInner<R, Q> {
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R, Q> {
     /// Create a new [`RendRequestReceiver`].
-    fn new(runtime: R, suggested_effort: Arc<Mutex<Effort>>) -> Self {
+    fn new(
+        runtime: R,
+        suggested_effort: Arc<Mutex<Effort>>,
+        netdir_provider: Arc<dyn NetDirProvider>,
+    ) -> Self {
         let now = runtime.now();
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
             waker: None,
             runtime,
+            netdir_provider,
             update_period_start: now,
             num_enqueued_gte_suggested: 0,
             num_dequeued: 0,
@@ -768,6 +827,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         })))
     }
 
+    // spawn_blocking executes immediately, but some of our abstractions make clippy not
+    // realize this.
+    #[allow(clippy::let_underscore_future)]
     /// Start helper thread to accept and validate [`RendRequest`]s.
     fn start_accept_thread<P: MockablePowManager + Send + Sync + 'static>(
         &self,
@@ -776,22 +838,28 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         inner_receiver: mpsc::Receiver<Q>,
     ) {
         let receiver_clone = self.clone();
-        // spawn_blocking executes immediately, but some of our abstractions make clippy not
-        // realize this.
-        #[allow(clippy::let_underscore_future)]
+        let runtime_clone = runtime.clone();
         let _ = runtime.clone().spawn_blocking(move || {
-            receiver_clone.accept_loop(&runtime, &pow_manager, inner_receiver);
+            if let Err(err) =
+                receiver_clone.accept_loop(&runtime_clone, &pow_manager, inner_receiver)
+            {
+                tracing::warn!(?err, "PoW accept loop error!");
+            }
+        });
+
+        let receiver_clone = self.clone();
+        let _ = runtime.clone().spawn_blocking(move || {
+            if let Err(err) = receiver_clone.expire_old_requests_loop(&runtime) {
+                tracing::warn!(?err, "PoW request expiration loop error!");
+            }
         });
     }
 
     /// Update the suggested effort value, as per the algorithm in prop362
-    fn update_suggested_effort(&self) {
-        const CONFIG_DECAY_ADJUSTMENT: usize = 0; // TODO POW: Get from config
-        let decay_adjustment_fraction = f64::from_usize(CONFIG_DECAY_ADJUSTMENT)
-            .expect("Error converting decay adjustment")
-            / 100.0;
-
+    fn update_suggested_effort(&self, net_params: &NetParameters) {
         let mut inner = self.0.lock().expect("Lock poisoned");
+
+        let decay_adjustment_fraction = net_params.hs_pow_v1_default_decay_adjustment.as_fraction();
 
         if inner.num_dequeued != 0 {
             let update_period_duration = inner.runtime.now() - inner.update_period_start;
@@ -866,20 +934,40 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         runtime: &R,
         pow_manager: &Arc<P>,
         mut receiver: mpsc::Receiver<Q>,
-    ) {
+    ) -> Result<(), InternalPowError> {
         let mut request_num = 0;
+
+        let netdir_provider = self
+            .0
+            .lock()
+            .expect("Lock poisoned")
+            .netdir_provider
+            .clone();
+        let net_params = runtime
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
+            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .params()
+            .clone();
+
+        let max_effort: u32 = net_params
+            .hs_pow_v1_max_effort
+            .get()
+            .try_into()
+            .expect("Bounded i32 not in range of u32?!");
+        let max_effort = Effort::from(max_effort);
 
         loop {
             let rend_request = runtime
                 .reenter_block_on(receiver.next())
                 .expect("Other side of RendRequest queue hung up");
-            let rend_request = match RendRequestOrdByEffort::new(rend_request, request_num) {
-                Ok(rend_request) => rend_request,
-                Err(err) => {
-                    tracing::trace!(?err, "Error processing RendRequest");
-                    continue;
-                }
-            };
+            let rend_request =
+                match RendRequestOrdByEffort::new(rend_request, max_effort, request_num) {
+                    Ok(rend_request) => rend_request,
+                    Err(err) => {
+                        tracing::trace!(?err, "Error processing RendRequest");
+                        continue;
+                    }
+                };
 
             request_num = request_num.wrapping_add(1);
 
@@ -922,6 +1010,49 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             }
         }
     }
+
+    /// Loop to check for messages that are older than our timeout and remove them from the queue.
+    fn expire_old_requests_loop(self, runtime: &R) -> Result<(), InternalPowError> {
+        let netdir_provider = self
+            .0
+            .lock()
+            .expect("Lock poisoned")
+            .netdir_provider
+            .clone();
+        let net_params = runtime
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
+            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .params()
+            .clone();
+
+        let max_age: Duration = net_params
+            .hs_pow_v1_service_intro_timeout
+            .try_into()
+            .expect(
+                "Couldn't convert HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds to Duration",
+            );
+
+        loop {
+            let inner = self.0.lock().expect("Lock poisoned");
+            // Wake up when the oldest request will reach the expiration age, or, if there are no
+            // items currently in the queue, wait for the maximum age.
+            let wait_time = inner
+                .queue
+                .first()
+                .map(|r| {
+                    max_age.saturating_sub(runtime.now().saturating_duration_since(r.recv_time))
+                })
+                .unwrap_or(max_age);
+            drop(inner);
+
+            runtime.reenter_block_on(runtime.sleep(wait_time));
+
+            tracing::trace!("Expiring timed out RendRequests");
+            let mut inner = self.0.lock().expect("Lock poisoned");
+            let now = runtime.now();
+            inner.queue.retain(|r| now - r.recv_time < max_age);
+        }
+    }
 }
 
 impl<R: Runtime, Q: MockableRendRequest> Stream for RendRequestReceiver<R, Q> {
@@ -954,6 +1085,7 @@ mod test {
     use super::*;
     use futures::FutureExt;
     use tor_hscrypto::pow::v1::{Nonce, SolutionByteArray};
+    use tor_netdir::{testnet, testprovider::TestNetDirProvider};
     use tor_rtmock::MockRuntime;
 
     struct MockPowManager;
@@ -981,15 +1113,17 @@ mod test {
         }
     }
 
-    fn make_req(id: usize, effort: u32) -> MockRendRequest {
+    fn make_req(id: usize, effort: Option<u32>) -> MockRendRequest {
         MockRendRequest {
             id,
-            pow: Some(ProofOfWork::V1(ProofOfWorkV1::new(
-                Nonce::from([0; 16]),
-                Effort::from(effort),
-                SeedHead::from([0; 4]),
-                SolutionByteArray::from([0; 16]),
-            ))),
+            pow: effort.map(|e| {
+                ProofOfWork::V1(ProofOfWorkV1::new(
+                    Nonce::from([0; 16]),
+                    Effort::from(e),
+                    SeedHead::from([0; 4]),
+                    SolutionByteArray::from([0; 16]),
+                ))
+            }),
         }
     }
 
@@ -1005,58 +1139,82 @@ mod test {
         }
     }
 
+    fn make_test_receiver(
+        runtime: &MockRuntime,
+        netdir_params: Vec<(String, i32)>,
+    ) -> (
+        RendRequestReceiver<MockRuntime, MockRendRequest>,
+        mpsc::Sender<MockRendRequest>,
+        Arc<Mutex<Effort>>,
+        NetParameters,
+    ) {
+        let pow_manager = Arc::new(MockPowManager);
+        let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
+        let netdir = testnet::construct_custom_netdir_with_params(
+            testnet::simple_net_func,
+            netdir_params,
+            None,
+        )
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+        let net_params = netdir.params().clone();
+        let netdir_provider: Arc<TestNetDirProvider> = Arc::new(netdir.into());
+        let receiver: RendRequestReceiver<_, MockRendRequest> =
+            RendRequestReceiver::new(runtime.clone(), suggested_effort.clone(), netdir_provider);
+        let (tx, rx) = mpsc::channel(32);
+        receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+
+        (receiver, tx, suggested_effort, net_params)
+    }
+
     #[test]
     fn test_basic_pow_ordering() {
         MockRuntime::test_with_various(|runtime| async move {
-            let pow_manager = Arc::new(MockPowManager);
-            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
-            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
-                RendRequestReceiver::new(runtime.clone(), suggested_effort);
-            let (mut tx, rx) = mpsc::channel(32);
-            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+            let (mut receiver, mut tx, _suggested_effort, _net_params) =
+                make_test_receiver(&runtime, vec![]);
 
             // Request with no PoW
-            let r0 = MockRendRequest { id: 0, pow: None };
-            tx.send(r0).await.unwrap();
+            tx.send(make_req(0, None)).await.unwrap();
             assert_eq!(receiver.next().await.unwrap().id, 0);
 
             // Request with PoW
-            tx.send(make_req(1, 0)).await.unwrap();
+            tx.send(make_req(1, Some(0))).await.unwrap();
             assert_eq!(receiver.next().await.unwrap().id, 1);
 
             // Request with effort is before request with zero effort
-            tx.send(make_req(2, 0)).await.unwrap();
-            tx.send(make_req(3, 16)).await.unwrap();
-            runtime.advance_until_stalled().await;
+            tx.send(make_req(2, Some(0))).await.unwrap();
+            tx.send(make_req(3, Some(16))).await.unwrap();
+            runtime.progress_until_stalled().await;
             assert_eq!(receiver.next().await.unwrap().id, 3);
             assert_eq!(receiver.next().await.unwrap().id, 2);
 
             // Invalid solves are dropped
             tx.send(make_req_invalid(4, 32)).await.unwrap();
-            tx.send(make_req(5, 16)).await.unwrap();
-            runtime.advance_until_stalled().await;
+            tx.send(make_req(5, Some(16))).await.unwrap();
+            runtime.progress_until_stalled().await;
             assert_eq!(receiver.next().await.unwrap().id, 5);
-            assert!(receiver.next().now_or_never().is_none());
+            assert_eq!(receiver.0.lock().unwrap().queue.len(), 0);
         });
     }
 
     #[test]
     fn test_suggested_effort_increase() {
         MockRuntime::test_with_various(|runtime| async move {
-            let pow_manager = Arc::new(MockPowManager);
-            let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
-            let mut receiver: RendRequestReceiver<_, MockRendRequest> =
-                RendRequestReceiver::new(runtime.clone(), suggested_effort.clone());
-            let (mut tx, rx) = mpsc::channel(1024);
-            receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
+            let (mut receiver, mut tx, suggested_effort, net_params) = make_test_receiver(
+                &runtime,
+                vec![(
+                    "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds".to_string(),
+                    60000,
+                )],
+            );
 
             // Get through all the requests in plenty of time, no increase
 
             for n in 0..128 {
-                tx.send(make_req(n, 0)).await.unwrap();
+                tx.send(make_req(n, Some(0))).await.unwrap();
             }
 
-            runtime.advance_until_stalled().await;
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
             for _ in 0..128 {
@@ -1064,7 +1222,7 @@ mod test {
             }
 
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             assert_eq!(suggested_effort.lock().unwrap().clone(), Effort::zero());
 
@@ -1072,10 +1230,9 @@ mod test {
             // increase
 
             for n in 0..128 {
-                tx.send(make_req(n, 0)).await.unwrap();
+                tx.send(make_req(n, Some(0))).await.unwrap();
             }
 
-            runtime.advance_until_stalled().await;
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
             for _ in 0..64 {
@@ -1083,7 +1240,7 @@ mod test {
             }
 
             runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             let mut new_suggested_effort = *suggested_effort.lock().unwrap();
             assert!(new_suggested_effort > Effort::zero());
@@ -1091,15 +1248,14 @@ mod test {
             // We keep on being behind, effort should increase again.
 
             for n in 0..64 {
-                tx.send(make_req(n, new_suggested_effort.into()))
+                tx.send(make_req(n, Some(new_suggested_effort.into())))
                     .await
                     .unwrap();
             }
-            runtime.advance_until_stalled().await;
 
             receiver.next().await.unwrap();
             runtime.advance_by(HS_UPDATE_PERIOD).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             let mut old_suggested_effort = new_suggested_effort;
             new_suggested_effort = *suggested_effort.lock().unwrap();
@@ -1108,12 +1264,10 @@ mod test {
             // We catch up now, effort should start dropping, but not be zero immediately.
 
             for n in 0..32 {
-                tx.send(make_req(n, new_suggested_effort.into()))
+                tx.send(make_req(n, Some(new_suggested_effort.into())))
                     .await
                     .unwrap();
             }
-
-            runtime.advance_until_stalled().await;
 
             runtime.advance_by(HS_UPDATE_PERIOD / 16 * 15).await;
 
@@ -1122,7 +1276,7 @@ mod test {
             }
 
             runtime.advance_by(HS_UPDATE_PERIOD / 16).await;
-            receiver.update_suggested_effort();
+            receiver.update_suggested_effort(&net_params);
 
             old_suggested_effort = new_suggested_effort;
             new_suggested_effort = *suggested_effort.lock().unwrap();
@@ -1133,10 +1287,9 @@ mod test {
 
             let mut num_loops = 0;
             loop {
-                tx.send(make_req(0, new_suggested_effort.into()))
+                tx.send(make_req(0, Some(new_suggested_effort.into())))
                     .await
                     .unwrap();
-                runtime.advance_until_stalled().await;
                 runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
 
                 while receiver.next().now_or_never().is_some() {
@@ -1144,7 +1297,7 @@ mod test {
                 }
 
                 runtime.advance_by(HS_UPDATE_PERIOD / 2).await;
-                receiver.update_suggested_effort();
+                receiver.update_suggested_effort(&net_params);
 
                 old_suggested_effort = new_suggested_effort;
                 new_suggested_effort = *suggested_effort.lock().unwrap();
@@ -1161,6 +1314,26 @@ mod test {
                     panic!("Took too long for suggested effort to fall!");
                 }
             }
+        });
+    }
+
+    #[test]
+    fn test_rendrequest_timeout() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let (receiver, mut tx, _suggested_effort, net_params) =
+                make_test_receiver(&runtime, vec![]);
+
+            let r0 = MockRendRequest { id: 0, pow: None };
+            tx.send(r0).await.unwrap();
+
+            let max_age: Duration = net_params
+                .hs_pow_v1_service_intro_timeout
+                .try_into()
+                .unwrap();
+            runtime.advance_by(max_age * 2).await;
+
+            // Waited too long, request has been dropped
+            assert_eq!(receiver.0.lock().unwrap().queue.len(), 0);
         });
     }
 }

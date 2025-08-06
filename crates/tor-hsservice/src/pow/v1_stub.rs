@@ -7,6 +7,7 @@ use futures::channel::mpsc;
 use serde::{Deserialize, Serialize};
 use tor_hscrypto::time::TimePeriod;
 use tor_keymgr::KeyMgr;
+use tor_netdir::NetDirProvider;
 use tor_persist::{
     hsnickname::HsNickname,
     state_dir::{InstanceRawSubdir, StorageHandle},
@@ -36,6 +37,7 @@ impl<R: Runtime> PowManager<R> {
         _instance_dir: InstanceRawSubdir,
         _keymgr: Arc<KeyMgr>,
         _storage_handle: StorageHandle<PowManagerStateRecord>,
+        _netdir_provider: Arc<dyn NetDirProvider>,
     ) -> Result<NewPowManager<R>, StartupError> {
         let (rend_req_tx, rend_req_rx) = super::make_rend_queue();
         let (publisher_update_tx, publisher_update_rx) = mpsc::channel(1);

@@ -319,6 +319,7 @@ impl OnionService {
             pow_nonce_dir,
             keymgr.clone(),
             pow_manager_storage_handle,
+            netdir_provider.clone(),
         )?;
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
