@@ -3,7 +3,7 @@ name = "tor-cell"
 version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
-rust-version = "1.83"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Encode and decode Tor cells and messages"
@@ -75,6 +75,6 @@ void = "1"
 
 [dev-dependencies]
 hex = "0.4"
-hex-literal = "0.4"
+hex-literal = "1.0"
 [package.metadata.docs.rs]
 all-features = true

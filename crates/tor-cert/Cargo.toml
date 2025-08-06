@@ -3,7 +3,7 @@ name = "tor-cert"
 version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
-rust-version = "1.83"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Non-standard certificate formats used by Tor"
@@ -37,7 +37,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0" }
 
 [dev-dependencies]
 base64ct = "1.5.1"
-hex-literal = "0.4"
+hex-literal = "1.0"
 humantime = "2"
 rand = "0.9.1"
 [package.metadata.docs.rs]

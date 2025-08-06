@@ -3,7 +3,7 @@ name = "tor-llcrypto"
 version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
-rust-version = "1.83"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Low level cryptography wrappers used by Tor"
@@ -74,7 +74,7 @@ zeroize = "1"
 
 [dev-dependencies]
 cipher = "0.4.1"
-hex-literal = "0.4"
+hex-literal = "1.0"
 rand = "0.9.1"
 serde_test = "1.0.124"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }

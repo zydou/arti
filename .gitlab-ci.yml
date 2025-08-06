@@ -398,8 +398,8 @@ cargo-miri:
   #  1. choose a new Nightly version, for example according to these instructions
   #      https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/blob/main/macros/HACKING.md?ref_type=heads#choosing-which-nightly-rust-version-to-update-to
   #  2. insert the new image hash, and corresponding nightly date, above
-  image: rustlang/rust@sha256:b68e38306c8c67d7c95b88e99e75aeef3610e533ea69f64749e1adce818cf2e1
-  # ^ this is from tags.2024-10-08T13:08+00:00.gz (see HACKING.md)
+  image: rustlang/rust@sha256:f0dbbb1daf8e2a1d40e6a5dc74b03628e64fc020baae68a59e88e06f166d5dd0
+  # ^ this is from tags.2025-06-19T13_08+00_00.gz (see HACKING.md)
   script:
     - rustup component add miri
     # TOOD use miri test more of our crates-containing-unsafe
@@ -430,7 +430,7 @@ coverage:
 minimal-versions:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: ${DOCKER_REGISTRY_URL}/amd64/rust:1.83
+  image: ${DOCKER_REGISTRY_URL}/amd64/rust:1.85
   needs: ["rust-checks"]
   script:
     - rustup install nightly

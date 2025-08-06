@@ -3,7 +3,7 @@ name = "tor-bytes"
 version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
-rust-version = "1.83"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Helpers for encoding and decoding byte-orientted data, as used by Tor"
@@ -23,7 +23,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0", optional = true }
 zeroize = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-hex-literal = "0.4"
+hex-literal = "1.0"
 
 [features]
 default = ["tor-llcrypto"]

@@ -2,7 +2,7 @@
 name = "tor-rpc-connect"
 version = "0.33.0"
 edition = "2021"
-rust-version = "1.83"
+rust-version = "1.85"
 authors = ["The Tor Project, Inc."]
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
@@ -54,5 +54,5 @@ zeroize = "1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
-hex-literal = "0.4"
+hex-literal = "1.0"
 tempfile = "3.10"
