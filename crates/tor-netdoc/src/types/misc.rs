@@ -15,10 +15,7 @@ pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
 pub(crate) use timeimpl::*;
 
-#[cfg(feature = "dangerous-expose-struct-fields")]
 pub use nickname::Nickname;
-#[cfg(not(feature = "dangerous-expose-struct-fields"))]
-pub(crate) use nickname::Nickname;
 
 pub use fingerprint::Fingerprint;
 
@@ -494,10 +491,8 @@ mod nickname {
     ///
     /// Nicknames are required to be ASCII, alphanumeric, and between 1 and 19
     /// characters inclusive.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    #[cfg_attr(feature = "dangerous-expose-struct-fields", visibility::make(pub))]
     #[derive(Clone, Debug)]
-    pub(crate) struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
+    pub struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
     impl Nickname {
         /// Return a view of this nickname as a string slice.

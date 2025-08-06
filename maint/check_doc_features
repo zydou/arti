@@ -77,7 +77,6 @@ additional_required["tor-proto"] = [
 
 # This is detected two times, but only on cfg_attr(docsrs) is enough
 additional_provided["tor-netdoc"] = [
-    ("Nickname", 'feature = "dangerous-expose-struct-fields"'),
     ("NsConsensusRouterStatus", 'feature = "ns_consensus"'),
 ]
 
