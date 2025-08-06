@@ -4,3 +4,6 @@ use super::*;
 
 pub mod authcert;
 pub mod netstatus;
+
+#[cfg(test)]
+mod test;
