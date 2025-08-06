@@ -4,7 +4,9 @@ use super::extlist::{decl_extension_group, Ext, ExtList, ExtListRef};
 #[cfg(feature = "hs")]
 use super::hs::pow::ProofOfWork;
 use caret::caret_int;
+use itertools::Itertools as _;
 use tor_bytes::{EncodeResult, Reader, Writeable as _, Writer};
+use tor_protover::NumberedSubver;
 
 caret_int! {
     /// A type of circuit request extension data (`EXT_FIELD_TYPE`).
@@ -119,15 +121,13 @@ impl Ext for SubprotocolRequest {
         while b.remaining() != 0 {
             protocols.push(b.extract()?);
         }
-        let protocols_orig = protocols.clone();
-        // TODO MSRV 1.82: Use is_sorted, and avoid creating protocols_orig.
-        protocols.sort();
-        protocols.dedup();
-        if protocols_orig != protocols {
+
+        if !is_strictly_ascending(&protocols) {
             return Err(tor_bytes::Error::InvalidMessage(
                 "SubprotocolRequest not sorted and deduplicated.".into(),
             ));
         }
+
         Ok(Self { protocols })
     }
 
@@ -206,6 +206,12 @@ macro_rules! impl_encode_decode {
 
 impl_encode_decode!(CircRequestExt, "CREATE2 extension list");
 impl_encode_decode!(CircResponseExt, "CREATED2 extension list");
+
+/// Return true iff the list of protocol capabilities is strictly ascending.
+fn is_strictly_ascending(vers: &[NumberedSubver]) -> bool {
+    // We don't use is_sorted, since that doesn't detect duplicates.
+    vers.iter().tuple_windows().all(|(a, b)| a < b)
+}
 
 #[cfg(test)]
 mod test {

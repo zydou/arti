@@ -325,12 +325,9 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
         let Some(remainder) = username.strip_prefix(SOCKS_EXT_CONST_ANY) else {
             return Ok(Uname::Legacy);
         };
-        if remainder.is_empty() {
-            return Err(anyhow!("Extended SOCKS information without format code."));
-        }
-        // TODO MSRV 1.80: use split_at_checked instead.
-        // This won't panic since we checked for an empty string above.
-        let (format_code, remainder) = remainder.split_at(1);
+        let (format_code, remainder) = remainder
+            .split_at_checked(1)
+            .ok_or_else(|| anyhow!("Extended SOCKS information without format code."))?;
         Ok(Uname::Extended(format_code[0], remainder))
     }
 
