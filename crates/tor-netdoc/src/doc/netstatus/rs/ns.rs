@@ -1,6 +1,8 @@
 //! Implementation for the style of router descriptors used in
 //! old-style "ns" consensus documents.
 
+ns_do_species_ns! {}
+
 use super::{FromRsString, GenericRouterStatus};
 use crate::doc::netstatus::{
     ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,

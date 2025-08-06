@@ -1,6 +1,8 @@
 //! Implementation for the style of router descriptors used in
 //! microdesc consensus documents.
 
+ns_do_species_md! {}
+
 use super::{FromRsString, GenericRouterStatus};
 use crate::doc::microdesc::MdDigest;
 use crate::doc::netstatus::{
