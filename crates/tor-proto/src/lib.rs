@@ -154,9 +154,12 @@ pub fn supported_client_protocols() -> tor_protover::Protocols {
         RELAY_NTOR,
         RELAY_EXTEND_IPv6,
         RELAY_NTORV3,
+        RELAY_NEGOTIATE_SUBPROTO,
     ];
     #[cfg(feature = "flowctl-cc")]
     protocols.push(FLOWCTRL_CC);
+    #[cfg(feature = "counter-galois-onion")]
+    protocols.push(RELAY_CRYPT_CGO);
 
     protocols.into_iter().collect()
 }
@@ -185,10 +188,13 @@ mod test {
     fn protocols() {
         let pr = supported_client_protocols();
         cfg_if! {
-            if #[cfg(feature="flowctl-cc")] {
-                let expected = "FlowCtrl=1-2 Link=4-5 LinkAuth=3 Relay=2-4".parse().unwrap();
+            if #[cfg(all(feature="flowctl-cc", feature="counter-galois-onion"))] {
+                let expected = "FlowCtrl=1-2 Link=4-5 LinkAuth=3 Relay=2-6".parse().unwrap();
+            } else if #[cfg(feature="flowctl-cc")] {
+                let expected = "FlowCtrl=1-2 Link=4-5 LinkAuth=3 Relay=2-5".parse().unwrap();
+                // (Note that we don't have to check for cgo without cc, since that isn't possible.)
             } else {
-                let expected = "FlowCtrl=1 Link=4-5 LinkAuth=3 Relay=2-4".parse().unwrap();
+                let expected = "FlowCtrl=1 Link=4-5 LinkAuth=3 Relay=2-5".parse().unwrap();
             }
         }
         assert_eq!(pr, expected);
