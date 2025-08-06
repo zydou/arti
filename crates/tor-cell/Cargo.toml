@@ -15,13 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 conflux = ["__is_experimental"]
 
-experimental = [
-    "experimental-udp",
-    "hs",
-    "hs-pow-full",
-    "conflux",
-    "testing",
-]
+experimental = ["experimental-udp", "hs", "hs-pow-full", "conflux", "testing"]
 # Enable experimental UDP support.
 experimental-udp = ["__is_experimental"]
 
@@ -57,6 +51,7 @@ caret = { path = "../caret", version = "0.5.3" }
 derive-deftly = "1.2.0"
 derive_more = { version = "2.0.1", features = ["full"] }
 educe = "0.4.22"
+itertools = "0.14.0"
 paste = "1"
 rand = "0.9.1"
 smallvec = "1.10"

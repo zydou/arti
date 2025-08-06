@@ -5800,6 +5800,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
+ "itertools 0.14.0",
  "paste",
  "rand 0.9.2",
  "smallvec",
