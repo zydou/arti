@@ -1,8 +1,8 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{Circuit, ReactorResultChannel};
-use crate::circuit::handshake::HandshakeRole;
 use crate::circuit::HopSettings;
+use crate::circuit::handshake::HandshakeRole;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
