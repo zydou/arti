@@ -133,6 +133,30 @@ $ arti -c keys.toml keys list
 
  --------------------------------------------------------------------------------
 
+ CTor service key
+ Hidden service nickname: allium-cepa
+ Keystore ID: ctor
+ KeystoreItemType: Ed25519ExpandedKeypair
+ Location: hs_ed25519_secret_key
+
+ --------------------------------------------------------------------------------
+
+ Unrecognized entry
+ Keystore ID: ctor
+ Location: hostname
+ Error: Key hostname is malformed
+
+ --------------------------------------------------------------------------------
+
+ CTor service key
+ Hidden service nickname: allium-cepa
+ Keystore ID: ctor
+ KeystoreItemType: Ed25519PublicKey
+ Location: hs_ed25519_public_key
+
+ --------------------------------------------------------------------------------
 
 ```
 </details>
+
+> The `hostname` file of a CTor keystore is represented as an unrecognized entry.
