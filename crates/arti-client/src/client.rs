@@ -2063,7 +2063,7 @@ impl<R: Runtime> TorClient<R> {
             .borrow_mut() = Some(mode);
     }
 
-    /// Return a [`Future`](futures::Future) which resolves
+    /// Return a [`Future`] which resolves
     /// once this TorClient has stopped.
     #[cfg(feature = "experimental-api")]
     pub fn wait_for_stop(
