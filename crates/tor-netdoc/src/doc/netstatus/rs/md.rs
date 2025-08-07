@@ -4,7 +4,7 @@
 ns_do_species_md! {}
 
 use super::{FromRsString, GenericRouterStatus};
-use crate::doc::microdesc::MdDigest;
+use crate::doc::microdesc::{MdDigest as DocDigest};
 use crate::doc::netstatus::{
     ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,
 };
@@ -30,11 +30,11 @@ pub struct ConsensusRouterStatus {
     /// This is private because we don't want to leak that these two
     /// types have the same implementation "under the hood".
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    rs: GenericRouterStatus<MdDigest>,
+    rs: GenericRouterStatus<DocDigest>,
 }
 
-impl From<GenericRouterStatus<MdDigest>> for ConsensusRouterStatus {
-    fn from(rs: GenericRouterStatus<MdDigest>) -> Self {
+impl From<GenericRouterStatus<DocDigest>> for ConsensusRouterStatus {
+    fn from(rs: GenericRouterStatus<DocDigest>) -> Self {
         ConsensusRouterStatus { rs }
     }
 }
@@ -43,7 +43,7 @@ super::implement_accessors! {ConsensusRouterStatus}
 
 impl ConsensusRouterStatus {
     /// Return the expected microdescriptor digest for this routerstatus
-    pub fn md_digest(&self) -> &MdDigest {
+    pub fn md_digest(&self) -> &DocDigest {
         &self.rs.doc_digest
     }
 }
@@ -51,13 +51,13 @@ impl ConsensusRouterStatus {
 impl Sealed for ConsensusRouterStatus {}
 
 impl RouterStatus for ConsensusRouterStatus {
-    type DocumentDigest = MdDigest;
+    type DocumentDigest = DocDigest;
 
     fn rsa_identity(&self) -> &RsaIdentity {
         &self.rs.identity
     }
 
-    fn doc_digest(&self) -> &MdDigest {
+    fn doc_digest(&self) -> &DocDigest {
         self.md_digest()
     }
 }
@@ -73,8 +73,8 @@ impl ParseRouterStatus for ConsensusRouterStatus {
     }
 }
 
-impl FromRsString for MdDigest {
-    fn decode(s: &str) -> Result<MdDigest> {
+impl FromRsString for DocDigest {
+    fn decode(s: &str) -> Result<DocDigest> {
         s.parse::<B64>()?
             .check_len(32..=32)?
             .as_bytes()

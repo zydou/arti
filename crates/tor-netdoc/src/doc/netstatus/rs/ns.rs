@@ -7,7 +7,7 @@ use super::{FromRsString, GenericRouterStatus};
 use crate::doc::netstatus::{
     ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,
 };
-use crate::doc::routerdesc::RdDigest;
+use crate::doc::routerdesc::{RdDigest as DocDigest};
 use crate::types::misc::*;
 use crate::{Error, Result};
 use crate::{parse::parser::Section, util::private::Sealed};
@@ -33,11 +33,11 @@ pub struct ConsensusRouterStatus {
     /// This is private because we don't want to leak that these two
     /// types have the same implementation "under the hood".
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    rs: GenericRouterStatus<RdDigest>,
+    rs: GenericRouterStatus<DocDigest>,
 }
 
-impl From<GenericRouterStatus<RdDigest>> for ConsensusRouterStatus {
-    fn from(rs: GenericRouterStatus<RdDigest>) -> Self {
+impl From<GenericRouterStatus<DocDigest>> for ConsensusRouterStatus {
+    fn from(rs: GenericRouterStatus<DocDigest>) -> Self {
         ConsensusRouterStatus { rs }
     }
 }
@@ -46,7 +46,7 @@ super::implement_accessors! {ConsensusRouterStatus}
 
 impl ConsensusRouterStatus {
     /// Return the expected router descriptor digest for this routerstatus
-    pub fn rd_digest(&self) -> &RdDigest {
+    pub fn rd_digest(&self) -> &DocDigest {
         &self.rs.doc_digest
     }
 }
@@ -54,13 +54,13 @@ impl ConsensusRouterStatus {
 impl Sealed for ConsensusRouterStatus {}
 
 impl RouterStatus for ConsensusRouterStatus {
-    type DocumentDigest = RdDigest;
+    type DocumentDigest = DocDigest;
 
     fn rsa_identity(&self) -> &RsaIdentity {
         &self.rs.identity
     }
 
-    fn doc_digest(&self) -> &RdDigest {
+    fn doc_digest(&self) -> &DocDigest {
         self.rd_digest()
     }
 }
@@ -76,8 +76,8 @@ impl ParseRouterStatus for ConsensusRouterStatus {
     }
 }
 
-impl FromRsString for RdDigest {
-    fn decode(s: &str) -> Result<RdDigest> {
+impl FromRsString for DocDigest {
+    fn decode(s: &str) -> Result<DocDigest> {
         s.parse::<B64>()?
             .check_len(20..=20)?
             .as_bytes()
