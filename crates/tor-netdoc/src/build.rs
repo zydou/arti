@@ -18,7 +18,7 @@ use std::fmt::{Display, Write};
 use base64ct::{Base64, Base64Unpadded, Encoding};
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
-use tor_error::{internal, Bug};
+use tor_error::{Bug, internal};
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::tag_keywords_ok;

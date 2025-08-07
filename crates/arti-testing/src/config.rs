@@ -3,8 +3,8 @@
 use crate::rt::badtcp::ConditionalAction;
 use crate::{Action, Job, TcpBreakage};
 
-use anyhow::{anyhow, Result};
-use clap::{value_parser, Arg, ArgAction, Command};
+use anyhow::{Result, anyhow};
+use clap::{Arg, ArgAction, Command, value_parser};
 use std::ffi::OsString;
 use std::str::FromStr;
 use std::time::Duration;

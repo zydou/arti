@@ -10,22 +10,22 @@ use tracing::debug;
 
 use derive_builder::Builder;
 use derive_deftly::Deftly;
-use fs_mistrust::{anon_home::PathExt as _, Mistrust};
+use fs_mistrust::{Mistrust, anon_home::PathExt as _};
 use serde::{Deserialize, Serialize};
 use tor_basic_utils::PathExt as _;
 use tor_config::{
-    define_map_builder, derive_deftly_template_ExtendBuilder, extend_builder::ExtendBuilder as _,
-    extend_builder::ExtendStrategy, impl_standard_builder, ConfigBuildError,
+    ConfigBuildError, define_map_builder, derive_deftly_template_ExtendBuilder,
+    extend_builder::ExtendBuilder as _, extend_builder::ExtendStrategy, impl_standard_builder,
 };
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_error::internal;
 use tor_rpc_connect::{
+    ParsedConnectPoint,
     auth::RpcAuth,
     load::{LoadError, LoadOptions, LoadOptionsBuilder},
     server::ListenerGuard,
-    ParsedConnectPoint,
 };
-use tor_rtcompat::{general, Runtime};
+use tor_rtcompat::{Runtime, general};
 
 define_map_builder! {
     /// Builder for a map of RpcListenerSetConfig.
@@ -306,7 +306,7 @@ impl RpcListenerSetConfig {
                                 "Can't read RPC connect point directory at {}",
                                 dir.anonymize_home()
                             )
-                        })
+                        });
                     }
                 };
             for (path, conn_pt_result) in dir_contents {

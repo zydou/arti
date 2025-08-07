@@ -13,20 +13,20 @@ use crate::address::{IntoTorAddr, ResolveInstructions, StreamInstructions};
 use crate::config::{
     ClientAddrConfig, SoftwareStatusOverrideConfig, StreamTimeoutConfig, TorClientConfig,
 };
-use safelog::{sensitive, Sensitive};
+use safelog::{Sensitive, sensitive};
 use tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt};
-use tor_circmgr::isolation::{Isolation, StreamIsolation};
 use tor_circmgr::ClientDataTunnel;
-use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
+use tor_circmgr::isolation::{Isolation, StreamIsolation};
+use tor_circmgr::{IsolationToken, TargetPort, isolation::StreamIsolationBuilder};
 use tor_config::MutCfg;
 #[cfg(feature = "bridge-client")]
 use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
-use tor_error::{error_report, internal, Bug};
+use tor_error::{Bug, error_report, internal};
 use tor_guardmgr::{GuardMgr, RetireCircuits};
 use tor_keymgr::Keystore;
 use tor_memquota::MemoryQuotaTracker;
-use tor_netdir::{params::NetParameters, NetDirProvider};
+use tor_netdir::{NetDirProvider, params::NetParameters};
 #[cfg(feature = "onion-service-service")]
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
@@ -50,7 +50,7 @@ use tor_hsservice::HsIdKeypairSpecifier;
 #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
 use {tor_hscrypto::pk::HsId, tor_hscrypto::pk::HsIdKeypair, tor_keymgr::KeystoreSelector};
 
-use tor_keymgr::{config::ArtiKeystoreKind, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
+use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, config::ArtiKeystoreKind};
 
 #[cfg(feature = "ephemeral-keystore")]
 use tor_keymgr::ArtiEphemeralKeystore;
@@ -58,15 +58,15 @@ use tor_keymgr::ArtiEphemeralKeystore;
 #[cfg(feature = "ctor-keystore")]
 use tor_keymgr::{CTorClientKeystore, CTorServiceKeystore};
 
+use futures::StreamExt as _;
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
-use futures::StreamExt as _;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
-use crate::{status, util, TorClientBuilder};
+use crate::{TorClientBuilder, status, util};
 #[cfg(feature = "geoip")]
 use tor_geoip::CountryCode;
 use tor_rtcompat::scheduler::TaskHandle;
@@ -1743,7 +1743,7 @@ impl<R: Runtime> TorClient<R> {
         config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<(
         Arc<tor_hsservice::RunningOnionService>,
-        impl futures::Stream<Item = tor_hsservice::RendRequest>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
     )> {
         let keymgr = self
             .inert_client
@@ -1805,7 +1805,7 @@ impl<R: Runtime> TorClient<R> {
         id_keypair: HsIdKeypair,
     ) -> crate::Result<(
         Arc<tor_hsservice::RunningOnionService>,
-        impl futures::Stream<Item = tor_hsservice::RendRequest>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
     )> {
         let nickname = config.nickname();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
@@ -2063,10 +2063,12 @@ impl<R: Runtime> TorClient<R> {
             .borrow_mut() = Some(mode);
     }
 
-    /// Return a [`Future`](futures::Future) which resolves
+    /// Return a [`Future`] which resolves
     /// once this TorClient has stopped.
     #[cfg(feature = "experimental-api")]
-    pub fn wait_for_stop(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+    pub fn wait_for_stop(
+        &self,
+    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<R> {
         // We defer to the "wait for unlock" handle on our statemgr.
         //
         // The statemgr won't actually be unlocked until it is finally

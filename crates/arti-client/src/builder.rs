@@ -3,7 +3,7 @@
 #![allow(missing_docs, clippy::missing_docs_in_private_items)]
 
 use crate::{
-    err::ErrorDetail, BootstrapBehavior, InertTorClient, Result, TorClient, TorClientConfig,
+    BootstrapBehavior, InertTorClient, Result, TorClient, TorClientConfig, err::ErrorDetail,
 };
 use std::{
     result::Result as StdResult,

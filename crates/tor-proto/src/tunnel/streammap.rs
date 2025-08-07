@@ -12,11 +12,11 @@ use pin_project::pin_project;
 use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
-use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
+use tor_cell::relaycell::{StreamId, msg::AnyRelayMsg};
 
-use std::collections::hash_map;
 use std::collections::HashMap;
+use std::collections::hash_map;
 use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::task::{Poll, Waker};
@@ -502,7 +502,7 @@ impl StreamMap {
     pub(super) fn poll_ready_streams_iter<'a>(
         &'a mut self,
         cx: &mut std::task::Context,
-    ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>)> + 'a {
+    ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>)> + 'a + use<'a> {
         self.open_streams
             .poll_ready_iter_mut(cx)
             .map(|(sid, _priority, ent)| {

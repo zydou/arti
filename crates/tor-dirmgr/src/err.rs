@@ -390,8 +390,8 @@ impl HasKind for Error {
 
 /// Convert a sqlite error code into a real ErrorKind.
 fn sqlite_error_kind(e: &rusqlite::Error) -> ErrorKind {
-    use rusqlite::ErrorCode as RE;
     use ErrorKind as EK;
+    use rusqlite::ErrorCode as RE;
 
     match e {
         rusqlite::Error::SqliteFailure(code, _) => match code.code {

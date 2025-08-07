@@ -398,9 +398,10 @@ mod test {
     fn exclude_nothing() {
         let nd = testnet();
         let usage = RelayExclusion::no_relays_excluded();
-        assert!(nd
-            .relays()
-            .all(|r| usage.low_level_predicate_permits_relay(&r)));
+        assert!(
+            nd.relays()
+                .all(|r| usage.low_level_predicate_permits_relay(&r))
+        );
     }
 
     #[test]

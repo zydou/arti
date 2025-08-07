@@ -302,7 +302,7 @@ impl<'a> DiffCommand<'a> {
     /// add to the output.
     fn linebuf_mut(&mut self) -> Option<&mut Vec<&'a str>> {
         match self {
-            Self::Replace { ref mut lines, .. } | Self::Insert { ref mut lines, .. } => Some(lines),
+            Self::Replace { lines, .. } | Self::Insert { lines, .. } => Some(lines),
             _ => None,
         }
     }
@@ -372,7 +372,7 @@ impl<'a> DiffCommand<'a> {
 
         match (low, high) {
             (lo, Some(RangeEnd::Num(hi))) if lo > hi.into() => {
-                return Err(Error::BadDiff("mis-ordered lines in range"))
+                return Err(Error::BadDiff("mis-ordered lines in range"));
             }
             (_, _) => (),
         }
@@ -641,28 +641,34 @@ mod test {
         assert_eq!(d.to_string(), "a\nb\nc\nd\n".to_string());
 
         let mut d = example.clone();
-        assert!(DiffCommand::Delete { low: 3, high: 5 }
-            .apply_to(&mut d)
-            .is_ok());
+        assert!(
+            DiffCommand::Delete { low: 3, high: 5 }
+                .apply_to(&mut d)
+                .is_ok()
+        );
         assert_eq!(d.to_string(), "a\nb\nf\n".to_string());
 
         let mut d = example.clone();
-        assert!(DiffCommand::Replace {
-            low: 3,
-            high: 5,
-            lines: vec!["hello", "world"]
-        }
-        .apply_to(&mut d)
-        .is_ok());
+        assert!(
+            DiffCommand::Replace {
+                low: 3,
+                high: 5,
+                lines: vec!["hello", "world"]
+            }
+            .apply_to(&mut d)
+            .is_ok()
+        );
         assert_eq!(d.to_string(), "a\nb\nhello\nworld\nf\n".to_string());
 
         let mut d = example.clone();
-        assert!(DiffCommand::Insert {
-            pos: 3,
-            lines: vec!["hello", "world"]
-        }
-        .apply_to(&mut d)
-        .is_ok());
+        assert!(
+            DiffCommand::Insert {
+                pos: 3,
+                lines: vec!["hello", "world"]
+            }
+            .apply_to(&mut d)
+            .is_ok()
+        );
         assert_eq!(
             d.to_string(),
             "a\nb\nc\nhello\nworld\nd\ne\nf\n".to_string()
@@ -835,30 +841,38 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         assert!(header_from("").is_err());
         assert!(header_from("5,$d\n1,2d\n").is_err());
         assert!(header_from("network-status-diff-version 1\n").is_err());
-        assert!(header_from(
-            "network-status-diff-version 1
+        assert!(
+            header_from(
+                "network-status-diff-version 1
 hash x y
 5,5d"
-        )
-        .is_err());
-        assert!(header_from(
-            "network-status-diff-version 1
+            )
+            .is_err()
+        );
+        assert!(
+            header_from(
+                "network-status-diff-version 1
 hash x y
 5,5d"
-        )
-        .is_err());
-        assert!(header_from(
-            "network-status-diff-version 1
+            )
+            .is_err()
+        );
+        assert!(
+            header_from(
+                "network-status-diff-version 1
 hash AA BB
 5,5d"
-        )
-        .is_err());
-        assert!(header_from(
-            "network-status-diff-version 1
+            )
+            .is_err()
+        );
+        assert!(
+            header_from(
+                "network-status-diff-version 1
 oh hello there
 5,5d"
-        )
-        .is_err());
+            )
+            .is_err()
+        );
         assert!(header_from("network-status-diff-version 1
 hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6B3BA58BB23D29E53A8ED6CBB995543DBE075DD5671481C4BA677FB extra").is_err());
 

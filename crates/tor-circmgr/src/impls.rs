@@ -4,7 +4,7 @@ use crate::build::TunnelBuilder;
 use crate::mgr::{self, MockablePlan};
 use crate::path::OwnedPath;
 use crate::usage::{SupportedTunnelUsage, TargetTunnelUsage};
-use crate::{timeouts, DirInfo, Error, PathConfig, Result};
+use crate::{DirInfo, Error, PathConfig, Result, timeouts};
 use async_trait::async_trait;
 use educe::Educe;
 use futures::future::OptionFuture;
@@ -14,8 +14,8 @@ use tor_error::{bad_api_usage, internal};
 #[cfg(feature = "vanguards")]
 use tor_guardmgr::vanguards::VanguardMgr;
 use tor_linkspec::CircTarget;
-use tor_proto::circuit::{CircParameters, Path, UniqId};
 use tor_proto::ClientTunnel;
+use tor_proto::circuit::{CircParameters, Path, UniqId};
 use tor_rtcompat::Runtime;
 
 #[async_trait]

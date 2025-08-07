@@ -4,8 +4,8 @@ mod inner;
 mod middle;
 mod outer;
 
-use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
 use crate::NetdocBuilder;
+use crate::doc::hsdesc::{IntroAuthType, IntroPointDesc};
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_cell::chancell::msg::HandshakeType;
@@ -27,7 +27,7 @@ use self::inner::HsDescInner;
 use self::middle::HsDescMiddle;
 use self::outer::HsDescOuter;
 
-use super::desc_enc::{HsDescEncNonce, HsDescEncryption, HS_DESC_ENC_NONCE_LEN};
+use super::desc_enc::{HS_DESC_ENC_NONCE_LEN, HsDescEncNonce, HsDescEncryption};
 use super::pow::PowParams;
 
 /// An intermediary type for encoding hidden service descriptors.
@@ -413,9 +413,11 @@ mod test {
         let expiry = SystemTime::now() + Duration::from_secs(CERT_EXPIRY_SECS);
         let mut rng = Config::Deterministic.into_rng();
         let intro_points = vec![IntroPointDesc {
-            link_specifiers: vec![LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)
-                .encode()
-                .unwrap()],
+            link_specifiers: vec![
+                LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 9999)
+                    .encode()
+                    .unwrap(),
+            ],
             ipt_ntor_key: create_curve25519_pk(&mut rng),
             ipt_sid_key: ed25519::Keypair::generate(&mut rng).verifying_key().into(),
             svc_ntor_key: create_curve25519_pk(&mut rng).into(),

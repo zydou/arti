@@ -11,17 +11,18 @@ use std::{
 };
 
 use crate::{
-    build::{onion_circparams_from_netparams, TunnelBuilder},
-    mgr::AbstractTunnelBuilder,
-    path::hspath::hs_stem_terminal_hop_usage,
-    timeouts, AbstractTunnel, CircMgr, CircMgrInner, ClientOnionServiceDataTunnel,
+    AbstractTunnel, CircMgr, CircMgrInner, ClientOnionServiceDataTunnel,
     ClientOnionServiceDirTunnel, ClientOnionServiceIntroTunnel, Error, Result,
     ServiceOnionServiceDataTunnel, ServiceOnionServiceDirTunnel, ServiceOnionServiceIntroTunnel,
+    build::{TunnelBuilder, onion_circparams_from_netparams},
+    mgr::AbstractTunnelBuilder,
+    path::hspath::hs_stem_terminal_hop_usage,
+    timeouts,
 };
-use futures::{task::SpawnExt, StreamExt, TryFutureExt};
+use futures::{StreamExt, TryFutureExt, task::SpawnExt};
 use once_cell::sync::OnceCell;
+use tor_error::{Bug, debug_report};
 use tor_error::{bad_api_usage, internal};
-use tor_error::{debug_report, Bug};
 use tor_guardmgr::VanguardMode;
 use tor_linkspec::{
     CircTarget, HasRelayIds as _, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget,
@@ -30,8 +31,8 @@ use tor_netdir::{NetDir, NetDirProvider, Relay};
 use tor_proto::circuit::{self, CircParameters};
 use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
 use tor_rtcompat::{
-    scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
+    scheduler::{TaskHandle, TaskSchedule},
 };
 use tracing::{debug, trace, warn};
 
@@ -1067,8 +1068,7 @@ where
         }
     };
 
-    // (We have to use a binding here to appease borrowck.)
-    let all_compatible = path.iter().all(|ent: &circuit::PathEntry| {
+    path.iter().all(|ent: &circuit::PathEntry| {
         match relay_for_path_ent(netdir, ent) {
             Err(NoRelayForPathEnt::HopWasVirtual) => {
                 // This is a virtual hop; it's necessarily compatible with everything.
@@ -1084,8 +1084,7 @@ where
                 relay_okay(&r)
             }
         }
-    });
-    all_compatible
+    })
 }
 
 /// A possible error condition when trying to look up a PathEntry

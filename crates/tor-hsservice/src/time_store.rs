@@ -82,7 +82,7 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime};
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use serde::{Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
 use thiserror::Error;
@@ -490,8 +490,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use humantime::parse_rfc3339;
-    use itertools::{chain, Itertools};
-    use tor_rtmock::{simple_time::SimpleMockTimeProvider, MockRuntime};
+    use itertools::{Itertools, chain};
+    use tor_rtmock::{MockRuntime, simple_time::SimpleMockTimeProvider};
 
     fn secs(s: u64) -> Duration {
         Duration::from_secs(s)

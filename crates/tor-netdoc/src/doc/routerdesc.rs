@@ -40,14 +40,14 @@ use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::util::PeekableIterator;
-use crate::{doc, AllowAnnotations, Error, NetdocErrorKind as EK, Result};
+use crate::{AllowAnnotations, Error, NetdocErrorKind as EK, Result, doc};
 
 use ll::pk::ed25519::Ed25519Identity;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::{net, time};
 use tor_cert::CertType;
-use tor_checkable::{signed, timed, Timebound};
+use tor_checkable::{Timebound, signed, timed};
 use tor_error::{internal, into_internal};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -762,7 +762,7 @@ impl RouterDesc {
                         return Err(Error::from(internal!(
                             "tried to parse a strange line as a policy"
                         ))
-                        .at_pos(ruletok.pos()))
+                        .at_pos(ruletok.pos()));
                     }
                 };
                 let pat: AddrPortPattern = ruletok
@@ -1059,8 +1059,8 @@ mod test {
 
     #[test]
     fn test_bad() {
-        use crate::types::policy::PolicyError;
         use crate::Pos;
+        use crate::types::policy::PolicyError;
         fn check(fname: &str, e: &Error) {
             let text = read_bad(fname);
             let rd = RouterDesc::parse(&text);

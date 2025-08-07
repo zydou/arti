@@ -7,7 +7,7 @@ use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
 use crate::skew::SkewObservation;
 use crate::{
-    ids::GuardId, ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError,
+    ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError, ids::GuardId,
 };
 use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
@@ -825,7 +825,7 @@ impl GuardSet {
                     (_, Reachable::Reachable) => return Some(false),
                     (_, Reachable::Unreachable) => (),
                     (ListKind::Primary, Reachable::Untried | Reachable::Retriable) => {
-                        return Some(false)
+                        return Some(false);
                     }
                     (_, Reachable::Untried | Reachable::Retriable) => {
                         if guard.exploratory_attempt_after(cutoff) {

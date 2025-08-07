@@ -74,7 +74,7 @@ use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, Rou
 use {hsdir_ring::HsDirRing, std::iter};
 
 use derive_more::{From, Into};
-use futures::{stream::BoxStream, StreamExt};
+use futures::{StreamExt, stream::BoxStream};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::seq::{IndexedRandom as _, SliceRandom as _, WeightError};
 use serde::Deserialize;
@@ -91,7 +91,7 @@ use typed_index_collections::{TiSlice, TiVec};
 use {
     itertools::Itertools,
     std::collections::HashSet,
-    tor_error::{internal, Bug},
+    tor_error::{Bug, internal},
     tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
 };
 
@@ -911,10 +911,8 @@ impl PartialNetDir {
                 .c_relays()
                 .iter()
                 .map(|rs| {
-                    let ret = db
-                        .lookup_country_code_multi(rs.addrs().iter().map(|x| x.ip()))
-                        .cloned();
-                    ret
+                    db.lookup_country_code_multi(rs.addrs().iter().map(|x| x.ip()))
+                        .cloned()
                 })
                 .collect()
         } else {
@@ -1128,18 +1126,15 @@ impl NetDir {
                 move |replica: u8| {
                     let hsdir_idx = hsdir_ring::service_hsdir_index(&hsid, replica, ring.params());
 
-                    let items = ring
-                        .ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
-                            // According to rend-spec 2.2.3:
-                            //                                                  ... If any of those
-                            // nodes have already been selected for a lower-numbered replica of the
-                            // service, any nodes already chosen are disregarded (i.e. skipped over)
-                            // when choosing a replica's hsdir_spread_store nodes.
-                            selected_nodes.insert(*hsdir_idx)
-                        })
-                        .collect::<Vec<_>>();
-
-                    items
+                    ring.ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
+                        // According to rend-spec 2.2.3:
+                        //                                                  ... If any of those
+                        // nodes have already been selected for a lower-numbered replica of the
+                        // service, any nodes already chosen are disregarded (i.e. skipped over)
+                        // when choosing a replica's hsdir_spread_store nodes.
+                        selected_nodes.insert(*hsdir_idx)
+                    })
+                    .collect::<Vec<_>>()
                 }
             })
             .filter_map(move |(_hsdir_idx, rs_idx)| {
@@ -1959,18 +1954,15 @@ impl NetDir {
                 move |(ring, replica): (&HsDirRing, u8)| {
                     let hsdir_idx = hsdir_ring::service_hsdir_index(hsid, replica, ring.params());
 
-                    let items = ring
-                        .ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
-                            // According to rend-spec 2.2.3:
-                            //                                                  ... If any of those
-                            // nodes have already been selected for a lower-numbered replica of the
-                            // service, any nodes already chosen are disregarded (i.e. skipped over)
-                            // when choosing a replica's hsdir_spread_store nodes.
-                            selected_nodes.insert(*hsdir_idx)
-                        })
-                        .collect::<Vec<_>>();
-
-                    items
+                    ring.ring_items_at(hsdir_idx, spread, |(hsdir_idx, _)| {
+                        // According to rend-spec 2.2.3:
+                        //                                                  ... If any of those
+                        // nodes have already been selected for a lower-numbered replica of the
+                        // service, any nodes already chosen are disregarded (i.e. skipped over)
+                        // when choosing a replica's hsdir_spread_store nodes.
+                        selected_nodes.insert(*hsdir_idx)
+                    })
+                    .collect::<Vec<_>>()
                 }
             })
             .filter_map(|(_hsdir_idx, rs_idx)| {
@@ -2620,14 +2612,16 @@ mod test {
         assert!(e32.low_level_details().ipv4_policy().allows_some_port());
         assert!(e32.low_level_details().ipv6_policy().allows_some_port());
 
-        assert!(e12
-            .low_level_details()
-            .ipv4_declared_policy()
-            .allows_some_port());
-        assert!(e12
-            .low_level_details()
-            .ipv6_declared_policy()
-            .allows_some_port());
+        assert!(
+            e12.low_level_details()
+                .ipv4_declared_policy()
+                .allows_some_port()
+        );
+        assert!(
+            e12.low_level_details()
+                .ipv6_declared_policy()
+                .allows_some_port()
+        );
     }
 
     #[cfg(feature = "experimental-api")]
@@ -2809,9 +2803,11 @@ mod test {
             .unwrap();
         assert_eq!(w, RelayWeight(4_000));
 
-        assert!(netdir
-            .weight_by_rsa_id(&[99; 20].into(), WeightRole::Guard)
-            .is_none());
+        assert!(
+            netdir
+                .weight_by_rsa_id(&[99; 20].into(), WeightRole::Guard)
+                .is_none()
+        );
     }
 
     #[test]

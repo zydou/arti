@@ -47,7 +47,7 @@
 mod key_data;
 
 pub use slotmap::{
-    new_key_type, secondary, DefaultKey, Key, KeyData, SecondaryMap, SparseSecondaryMap,
+    DefaultKey, Key, KeyData, SecondaryMap, SparseSecondaryMap, new_key_type, secondary,
 };
 
 use key_data::key_version_serde as key_version;

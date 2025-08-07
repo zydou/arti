@@ -20,7 +20,7 @@ use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]
 use tor_config::define_list_builder_accessors;
 use tor_config::resolve_alternative_specs;
-pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
+pub(crate) use tor_config::{ConfigBuildError, Listen, impl_standard_builder};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
@@ -389,9 +389,9 @@ mod test {
     // Saves adding many individual #[cfg], or a sub-module
     #![cfg_attr(not(feature = "pt-client"), allow(dead_code))]
 
-    use arti_client::config::dir;
     use arti_client::config::TorClientConfigBuilder;
-    use itertools::{chain, EitherOrBoth, Itertools};
+    use arti_client::config::dir;
+    use itertools::{EitherOrBoth, Itertools, chain};
     use regex::Regex;
     use std::collections::HashSet;
     use std::fmt::Write as _;
@@ -904,9 +904,9 @@ example config file {which:?}, uncommented={uncommented:?}
     ///   3. Either add a trivial example for the affected key(s) (starting with just `#`)
     ///      or add the affected key(s) to `declared_config_exceptions`
     fn exhaustive_1(example_file: &str, which: WhichExample, deprecated: &[String]) {
+        use InExample::*;
         use serde_json::Value as JsValue;
         use std::collections::BTreeSet;
-        use InExample::*;
 
         let example = uncomment_example_settings(example_file);
         let example: toml::Value = toml::from_str(&example).unwrap();
@@ -1062,7 +1062,7 @@ example config file {which:?}, uncommented={uncommented:?}
         // a newly-defined config item has not been added to the list for OLDEST_SUPPORTED_CONFIG.
         assert!(
             problems.is_empty(),
- "example config {which:?} exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
+            "example config {which:?} exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
             problems.join("\n"),
             example_file,
         );
@@ -1224,7 +1224,7 @@ example config file {which:?}, uncommented={uncommented:?}
 
         #[cfg(feature = "pt-client")]
         {
-            use arti_client::config::{pt::TransportConfig, BridgesConfig};
+            use arti_client::config::{BridgesConfig, pt::TransportConfig};
             use tor_config_path::CfgPath;
 
             let bridges_got: &BridgesConfig = cfg_got.0.as_ref();

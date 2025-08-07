@@ -7,7 +7,7 @@ use std::sync::Arc;
 use time::OffsetDateTime;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, Receiver, Sender};
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tor_error::ErrorReport;
 use tor_guardmgr::bridge::{BridgeConfig, BridgeParseError};
 use tor_proto::channel::Channel;

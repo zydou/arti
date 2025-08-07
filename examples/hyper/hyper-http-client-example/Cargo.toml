@@ -2,7 +2,7 @@
 name = "hyper-http-client-example"
 version = "0.1.0"
 authors = ["The Tor Project, Inc.", "Ramid Khan <ramidzkh@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Example of a HTTP client written with hyper, connecting through Tor"
 publish = false

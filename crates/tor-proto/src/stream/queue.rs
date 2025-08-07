@@ -16,9 +16,9 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use futures::{Sink, SinkExt, Stream};
+use tor_async_utils::SinkTrySend;
 use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
-use tor_async_utils::SinkTrySend;
 use tor_cell::relaycell::UnparsedRelayMsg;
 use tor_memquota::mq_queue::{self, ChannelSpec, MpscSpec, MpscUnboundedSpec};
 use tor_rtcompat::DynTimeProvider;

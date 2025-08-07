@@ -151,8 +151,8 @@ pub enum RpcErrorKind {
 ///
 /// These are not especially helpful and nobody should really use them.
 fn kind_to_code(kind: tor_error::ErrorKind) -> RpcErrorKind {
-    use tor_error::ErrorKind as EK;
     use RpcErrorKind as RC;
+    use tor_error::ErrorKind as EK;
     match kind {
         EK::Internal | EK::BadApiUsage => RC::InternalError,
         _ => RC::RequestError, // (This is our catch-all "request error.")

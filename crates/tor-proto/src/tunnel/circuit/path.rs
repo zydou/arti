@@ -67,7 +67,7 @@ impl PathEntry {
     /// a reference to a ChanTarget representing that instance.
     ///
     /// Otherwise, return None.
-    pub fn as_chan_target(&self) -> Option<&impl tor_linkspec::ChanTarget> {
+    pub fn as_chan_target(&self) -> Option<&(impl tor_linkspec::ChanTarget + use<>)> {
         match &self.inner {
             HopDetail::Relay(chan_target) => Some(chan_target),
             #[cfg(feature = "hs-common")]

@@ -13,7 +13,7 @@ use std::num::NonZeroU32;
 
 use caret::caret_int;
 use derive_deftly::Deftly;
-use tor_memquota::{derive_deftly_template_HasMemoryCost, HasMemoryCostStructural};
+use tor_memquota::{HasMemoryCostStructural, derive_deftly_template_HasMemoryCost};
 
 /// The amount of data sent in a fixed-length cell.
 ///

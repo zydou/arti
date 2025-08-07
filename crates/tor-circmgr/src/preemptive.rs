@@ -61,7 +61,7 @@ impl PreemptiveCircuitPredictor {
         let circs = config.min_exit_circs_for_port;
         self.usages
             .iter()
-            .filter(|(_, &time)| {
+            .filter(|&(_, &time)| {
                 time.checked_add(config.prediction_lifetime)
                     .map(|t| t > now)
                     .unwrap_or_else(|| {
@@ -112,7 +112,7 @@ mod test {
     };
     use std::time::{Duration, Instant};
 
-    use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
+    use crate::isolation::test::{IsolationTokenEq, assert_isoleq};
 
     #[test]
     fn predicts_starting_ports() {
@@ -138,20 +138,24 @@ mod test {
 
         let results = predictor.predict(&path_config);
         assert_eq!(results.len(), 2);
-        assert!(results
-            .iter()
-            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
-                port: None,
-                circs: 2,
-                require_stability: false,
-            })));
-        assert!(results
-            .iter()
-            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
-                port: Some(TargetPort::ipv4(80)),
-                circs: 2,
-                require_stability: false,
-            })));
+        assert!(
+            results
+                .iter()
+                .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
+                    port: None,
+                    circs: 2,
+                    require_stability: false,
+                }))
+        );
+        assert!(
+            results
+                .iter()
+                .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
+                    port: Some(TargetPort::ipv4(80)),
+                    circs: 2,
+                    require_stability: false,
+                }))
+        );
     }
 
     #[test]
@@ -175,20 +179,24 @@ mod test {
 
         let results = predictor.predict(&path_config);
         assert_eq!(results.len(), 2);
-        assert!(results
-            .iter()
-            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
-                port: None,
-                circs: 2,
-                require_stability: false,
-            })));
-        assert!(results
-            .iter()
-            .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
-                port: Some(TargetPort::ipv4(1234)),
-                circs: 2,
-                require_stability: false,
-            })));
+        assert!(
+            results
+                .iter()
+                .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
+                    port: None,
+                    circs: 2,
+                    require_stability: false,
+                }))
+        );
+        assert!(
+            results
+                .iter()
+                .any(|r| r.isol_eq(&TargetTunnelUsage::Preemptive {
+                    port: Some(TargetPort::ipv4(1234)),
+                    circs: 2,
+                    require_stability: false,
+                }))
+        );
     }
 
     #[test]

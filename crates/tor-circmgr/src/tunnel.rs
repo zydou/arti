@@ -2,16 +2,16 @@
 //!
 //! These tunnel types are part of the public API.
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use std::{net::IpAddr, sync::Arc};
 
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::internal;
 use tor_linkspec::{CircTarget, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::{
+    ClockSkew, TargetHop,
     circuit::{CircParameters, CircuitBinding, ClientCirc, UniqId},
     stream::{DataStream, StreamParameters},
-    ClockSkew, TargetHop,
 };
 
 use crate::{Error, Result};
@@ -123,7 +123,7 @@ define_derive_deftly! {
         ///
         // TODO: Perhaps this should return some kind of status indication instead
         // of just ()
-        pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<> {
             self.tunnel_ref().wait_for_close()
         }
 
@@ -460,12 +460,15 @@ impl ServiceOnionServiceDataTunnel {
     // TODO: Someday, we might want to allow a stream request handler to be
     // un-registered.  However, nothing in the Tor protocol requires it.
     #[cfg(feature = "hs-service")]
-    pub async fn allow_stream_requests(
+    pub async fn allow_stream_requests<'a, FILT>(
         &self,
-        allow_commands: &[tor_cell::relaycell::RelayCmd],
+        allow_commands: &'a [tor_cell::relaycell::RelayCmd],
         hop: TargetHop,
-        filter: impl tor_proto::stream::IncomingStreamRequestFilter,
-    ) -> Result<impl futures::Stream<Item = tor_proto::stream::IncomingStream>> {
+        filter: FILT,
+    ) -> Result<impl futures::Stream<Item = tor_proto::stream::IncomingStream> + use<'a, FILT>>
+    where
+        FILT: tor_proto::stream::IncomingStreamRequestFilter,
+    {
         self.tunnel_ref()
             .allow_stream_requests(allow_commands, hop, filter)
             .await

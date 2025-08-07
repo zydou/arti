@@ -51,7 +51,7 @@ pub use crate::err::Error;
 use rangemap::RangeInclusiveMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::net::{IpAddr, Ipv6Addr};
-use std::num::{NonZeroU32, NonZeroU8, TryFromIntError};
+use std::num::{NonZeroU8, NonZeroU32, TryFromIntError};
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 

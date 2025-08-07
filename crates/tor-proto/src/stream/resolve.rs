@@ -5,8 +5,8 @@ use crate::stream::StreamReceiver;
 use crate::{Error, Result};
 
 use futures::StreamExt;
-use tor_cell::relaycell::msg::Resolved;
 use tor_cell::relaycell::RelayCmd;
+use tor_cell::relaycell::msg::Resolved;
 use tor_cell::restricted_msg;
 
 use super::AnyCmdChecker;

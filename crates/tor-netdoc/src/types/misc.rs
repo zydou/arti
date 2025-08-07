@@ -201,8 +201,8 @@ mod timeimpl {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use std::time::SystemTime;
     use time::{
-        format_description::FormatItem, macros::format_description, OffsetDateTime,
-        PrimitiveDateTime,
+        OffsetDateTime, PrimitiveDateTime, format_description::FormatItem,
+        macros::format_description,
     };
 
     /// A wall-clock time, encoded in Iso8601 format with an intervening
@@ -562,14 +562,18 @@ mod test {
                 .as_bytes(),
             "🍒🍒🍒🍒🍒🍒".as_bytes()
         );
-        assert!("8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S"
-            .parse::<B64>()?
-            .check_len(24..25)
-            .is_ok());
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxKkz8="
-            .parse::<B64>()?
-            .check_len(32..33)
-            .is_ok());
+        assert!(
+            "8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S"
+                .parse::<B64>()?
+                .check_len(24..25)
+                .is_ok()
+        );
+        assert!(
+            "ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxKkz8="
+                .parse::<B64>()?
+                .check_len(32..33)
+                .is_ok()
+        );
         // Padded:
         assert_eq!("Mi43MTgyOA==".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
         assert!("Mi43MTgyOA==".parse::<B64>()?.check_len(7..8).is_ok());
@@ -581,9 +585,11 @@ mod test {
         assert!("Mi43!!!!!!".parse::<B64>().is_err());
         // Invalid last character.
         assert!("Mi".parse::<B64>().is_err());
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
-            .parse::<B64>()
-            .is_err());
+        assert!(
+            "ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
+                .parse::<B64>()
+                .is_err()
+        );
         // Invalid length.
         assert!("Mi43MTgyOA".parse::<B64>()?.check_len(8..).is_err());
         Ok(())
@@ -667,18 +673,26 @@ mod test {
         let k1: PublicKey = k1.parse::<Curve25519Public>()?.into();
         assert_eq!(k1, (*k2).into());
 
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxKkz"
-            .parse::<Curve25519Public>()
-            .is_err());
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORSomCMxKkz"
-            .parse::<Curve25519Public>()
-            .is_err());
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5wSomCMxKkz"
-            .parse::<Curve25519Public>()
-            .is_err());
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4ORwSomCMxKkz"
-            .parse::<Curve25519Public>()
-            .is_err());
+        assert!(
+            "ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxKkz"
+                .parse::<Curve25519Public>()
+                .is_err()
+        );
+        assert!(
+            "ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORSomCMxKkz"
+                .parse::<Curve25519Public>()
+                .is_err()
+        );
+        assert!(
+            "ppwthHXW8kXD0f9fE7UPYsOAAu4uj5wSomCMxKkz"
+                .parse::<Curve25519Public>()
+                .is_err()
+        );
+        assert!(
+            "ppwthHXW8kXD0f9fE7UPYsOAAu4ORwSomCMxKkz"
+                .parse::<Curve25519Public>()
+                .is_err()
+        );
 
         Ok(())
     }
@@ -693,19 +707,27 @@ mod test {
         let k1: Ed25519Identity = k1.parse::<Ed25519Public>()?.into();
         assert_eq!(k1, Ed25519Identity::from_bytes(&k2).unwrap());
 
-        assert!("WVIPQ8oArAqLY4Xzk0!!!!8KsUJHBQhG8SC57qru"
-            .parse::<Ed25519Public>()
-            .is_err());
-        assert!("WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qru"
-            .parse::<Ed25519Public>()
-            .is_err());
-        assert!("WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qr"
-            .parse::<Ed25519Public>()
-            .is_err());
+        assert!(
+            "WVIPQ8oArAqLY4Xzk0!!!!8KsUJHBQhG8SC57qru"
+                .parse::<Ed25519Public>()
+                .is_err()
+        );
+        assert!(
+            "WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qru"
+                .parse::<Ed25519Public>()
+                .is_err()
+        );
+        assert!(
+            "WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qr"
+                .parse::<Ed25519Public>()
+                .is_err()
+        );
         // right length, bad key:
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
-            .parse::<Curve25519Public>()
-            .is_err());
+        assert!(
+            "ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
+                .parse::<Curve25519Public>()
+                .is_err()
+        );
         Ok(())
     }
 
@@ -811,10 +833,11 @@ mod test {
             .check_subject_key_is(&right_subject_key)
             .unwrap();
         // check wrong type.
-        assert!(cert
-            .clone()
-            .check_cert_type(tor_cert::CertType::RSA_ID_X509)
-            .is_err());
+        assert!(
+            cert.clone()
+                .check_cert_type(tor_cert::CertType::RSA_ID_X509)
+                .is_err()
+        );
         // check wrong key.
         assert!(cert.check_subject_key_is(&wrong_subject_key).is_err());
 

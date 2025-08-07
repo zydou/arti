@@ -269,9 +269,9 @@ mod test {
 
     #[test]
     fn check_generic() {
-        let gen: Generic<&'static str> = Generic("foo");
+        let generic: Generic<&'static str> = Generic("foo");
         let tab = Generic::<&'static str>::make_cast_table();
-        let obj: &dyn Object = &gen;
+        let obj: &dyn Object = &generic;
         let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
 
         let arc = Arc::new(Generic("bar"));

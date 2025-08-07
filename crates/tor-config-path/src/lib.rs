@@ -110,7 +110,9 @@ pub enum CfgPathError {
     #[error("Unrecognized variable {0} in path")]
     UnknownVar(String),
     /// We couldn't construct a ProjectDirs object.
-    #[error("Couldn't determine XDG Project Directories, needed to resolve a path; probably, unable to determine HOME directory")]
+    #[error(
+        "Couldn't determine XDG Project Directories, needed to resolve a path; probably, unable to determine HOME directory"
+    )]
     NoProjectDirs,
     /// We couldn't construct a BaseDirs object.
     #[error("Can't construct base directories to resolve a path element")]
@@ -127,7 +129,9 @@ pub enum CfgPathError {
     #[error("Invalid path string: {0:?}")]
     InvalidString(String),
     /// Variable interpolation (`$`) attempted, but not compiled in
-    #[error("Variable interpolation $ is not supported (tor-config/expand-paths feature disabled)); $ must still be doubled")]
+    #[error(
+        "Variable interpolation $ is not supported (tor-config/expand-paths feature disabled)); $ must still be doubled"
+    )]
     VariableInterpolationNotSupported(String),
     /// Home dir interpolation (`~`) attempted, but not compiled in
     #[error("Home dir ~/ is not supported (tor-config/expand-paths feature disabled)")]
@@ -470,7 +474,7 @@ mod test_serde {
 
     use derive_builder::Builder;
     use tor_config::load::TopLevel;
-    use tor_config::{impl_standard_builder, ConfigBuildError};
+    use tor_config::{ConfigBuildError, impl_standard_builder};
 
     #[derive(Serialize, Deserialize, Builder, Eq, PartialEq, Debug)]
     #[builder(derive(Serialize, Deserialize, Debug))]

@@ -5,9 +5,9 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use futures::Sink;
 use futures::future::FusedFuture;
 use futures::ready;
-use futures::Sink;
 use pin_project::pin_project;
 
 /// Switch to the nontrivial version of this, to get debugging output on stderr
@@ -321,8 +321,7 @@ where
             };
         }
         /// Message to give when panicking because of improper extra poll.
-        const BAD_POLL_MSG: &str =
-            "future from SinkPrepareExt::prepare_send_from (SinkPrepareSendFuture) \
+        const BAD_POLL_MSG: &str = "future from SinkPrepareExt::prepare_send_from (SinkPrepareSendFuture) \
                  polled after returning Ready(Ok)";
 
         let () = match ready!(get_output!(self_).poll_ready(cx)) {
@@ -429,10 +428,10 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use futures::SinkExt as _;
     use futures::channel::mpsc;
     use futures::future::poll_fn;
     use futures::select_biased;
-    use futures::SinkExt as _;
     use futures_await_test::async_test;
     use std::convert::Infallible;
     use std::sync::Arc;

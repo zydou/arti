@@ -13,8 +13,8 @@ use std::time::{Duration, SystemTime};
 
 use futures::stream::BoxStream;
 use futures::task::SpawnExt as _;
-use futures::{future, FutureExt as _};
-use futures::{select_biased, StreamExt as _};
+use futures::{FutureExt as _, future};
+use futures::{StreamExt as _, select_biased};
 use postage::stream::Stream as _;
 use postage::watch;
 use rand::RngCore;
@@ -613,6 +613,7 @@ mod test {
 
     use super::*;
 
+    use Layer::*;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_linkspec::{HasRelayIds, RelayIds};
     use tor_netdir::{
@@ -621,7 +622,6 @@ mod test {
     };
     use tor_persist::FsStateMgr;
     use tor_rtmock::MockRuntime;
-    use Layer::*;
 
     use itertools::Itertools;
 
@@ -1119,9 +1119,11 @@ mod test {
             assert!(vanguardmgr.storage.load().unwrap().is_none());
 
             let mut rng = testing_rng();
-            assert!(vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer3, &permissive_selector())
-                .is_err());
+            assert!(
+                vanguardmgr
+                    .select_vanguard(&mut rng, &netdir, Layer3, &permissive_selector())
+                    .is_err()
+            );
 
             // Enable full vanguards again.
             //
@@ -1130,9 +1132,11 @@ mod test {
             rt.progress_until_stalled().await;
 
             let vanguard_sets_orig = vanguardmgr.storage.load().unwrap();
-            assert!(vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer3, &permissive_selector())
-                .is_ok());
+            assert!(
+                vanguardmgr
+                    .select_vanguard(&mut rng, &netdir, Layer3, &permissive_selector())
+                    .is_ok()
+            );
 
             // Switch to lite vanguards.
             switch_hs_mode_config(&vanguardmgr, VanguardMode::Lite);

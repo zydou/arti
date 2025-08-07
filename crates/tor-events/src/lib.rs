@@ -48,13 +48,13 @@ pub mod events;
 
 use crate::events::{TorEvent, TorEventKind};
 use async_broadcast::{InactiveReceiver, Receiver, Sender, TrySendError};
+use futures::StreamExt;
 use futures::channel::mpsc;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::future::Either;
-use futures::StreamExt;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 use thiserror::Error;
 use tracing::{error, warn};
@@ -306,7 +306,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use crate::{
-        broadcast, event_has_subscribers, EventReactor, StreamExt, TorEvent, TorEventKind,
+        EventReactor, StreamExt, TorEvent, TorEventKind, broadcast, event_has_subscribers,
     };
     use std::sync::{Mutex, MutexGuard, OnceLock};
     use std::time::Duration;

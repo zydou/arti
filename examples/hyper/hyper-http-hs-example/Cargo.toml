@@ -2,7 +2,7 @@
 name = "hyper-http-hs-example"
 version = "0.1.0"
 authors = ["The Tor Project, Inc.", "Ramid Khan <ramidzkh@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Example of a HTTP server written with hyper, running as a hidden service through Tor"
 publish = false

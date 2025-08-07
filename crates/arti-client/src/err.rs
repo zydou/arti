@@ -548,16 +548,24 @@ impl<'a> Display for ErrorHint<'a> {
                 if 0 != badbits & 0o444 {
                     writeln!(f, "* Untrusted users could read its contents.")?;
                 }
-                writeln!(f,
+                writeln!(
+                    f,
                     "You can fix this by further restricting the permissions of your filesystem, using:\n\
                          chmod {} {}",
-                        fs_mistrust::format_access_bits(badbits, '-'),
-                        filename.anonymize_home())?;
-                writeln!(f, "You can suppress this message by setting storage.permissions.dangerously_trust_everyone=true,\n\
-                    or setting ARTI_FS_DISABLE_PERMISSION_CHECKS=yes in your environment.")?;
+                    fs_mistrust::format_access_bits(badbits, '-'),
+                    filename.anonymize_home()
+                )?;
+                writeln!(
+                    f,
+                    "You can suppress this message by setting storage.permissions.dangerously_trust_everyone=true,\n\
+                    or setting ARTI_FS_DISABLE_PERMISSION_CHECKS=yes in your environment."
+                )?;
             }
             ErrorHintInner::MissingProtocols { required } => {
-                writeln!(f, "The consensus directory says that we need to support certain protocols which we do not implement.")?;
+                writeln!(
+                    f,
+                    "The consensus directory says that we need to support certain protocols which we do not implement."
+                )?;
                 writeln!(f, "The missing protocols are: {}", required)?;
                 writeln!(
                     f,

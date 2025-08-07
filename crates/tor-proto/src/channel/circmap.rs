@@ -8,13 +8,13 @@ use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
 
 use crate::tunnel::circuit::halfcirc::HalfCirc;
-use crate::tunnel::circuit::{celltypes::CreateResponse, CircuitRxSender};
+use crate::tunnel::circuit::{CircuitRxSender, celltypes::CreateResponse};
 
 use oneshot_fused_workaround as oneshot;
 
-use rand::distr::Distribution;
 use rand::Rng;
-use std::collections::{hash_map::Entry, HashMap};
+use rand::distr::Distribution;
+use std::collections::{HashMap, hash_map::Entry};
 use std::ops::{Deref, DerefMut};
 
 /// Which group of circuit IDs are we allowed to allocate in this map?

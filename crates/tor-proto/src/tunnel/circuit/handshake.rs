@@ -26,10 +26,10 @@ use crate::crypto::cell::{
 
 use crate::Result;
 
+pub use crate::crypto::handshake::KeyGenerator;
 #[cfg(feature = "hs-common")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
 pub use crate::crypto::handshake::hs_ntor;
-pub use crate::crypto::handshake::KeyGenerator;
 
 /// The relay protocol to use when extending a circuit manually with
 /// [`Circuit::extend_virtual`](crate::tunnel::circuit::ClientCirc::extend_virtual).

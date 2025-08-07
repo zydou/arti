@@ -26,9 +26,9 @@ use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
 use crate::{Error, Result};
 use tor_bytes::{Reader, SecretBuf, Writer};
 use tor_hscrypto::{
-    ops::{hs_mac, HS_MAC_LEN},
-    pk::{HsIntroPtSessionIdKey, HsSvcNtorKey},
     Subcredential,
+    ops::{HS_MAC_LEN, hs_mac},
+    pk::{HsIntroPtSessionIdKey, HsSvcNtorKey},
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
 use tor_llcrypto::util::ct::CtByteArray;

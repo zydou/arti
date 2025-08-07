@@ -1,10 +1,10 @@
 //! Dynamically emitted HashX assembly code for x86_64 targets
 
-use crate::compiler::{util, Architecture, Executable};
+use crate::CompilerError;
+use crate::compiler::{Architecture, Executable, util};
 use crate::program::{Instruction, InstructionArray, NUM_INSTRUCTIONS};
 use crate::register::{RegisterFile, RegisterId};
-use crate::CompilerError;
-use dynasmrt::{x64, x64::Rq, DynasmApi, DynasmLabelApi};
+use dynasmrt::{DynasmApi, DynasmLabelApi, x64, x64::Rq};
 use std::mem;
 
 impl Architecture for Executable {

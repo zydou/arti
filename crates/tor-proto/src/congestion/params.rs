@@ -6,7 +6,7 @@
 use caret::caret_int;
 use derive_builder::Builder;
 
-use tor_config::{impl_standard_builder, ConfigBuildError};
+use tor_config::{ConfigBuildError, impl_standard_builder};
 use tor_units::Percentage;
 
 /// Fixed window parameters that are for the SENDME v0 world of fixed congestion window.

@@ -1,7 +1,7 @@
 //! Object-safe, type-safe wrappers for [`StateMgr`].
 
 use crate::{Result, StateMgr};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 use std::sync::Arc;
 

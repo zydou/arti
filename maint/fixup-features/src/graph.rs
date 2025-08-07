@@ -64,7 +64,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 #![allow(unreachable_pub)]
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
@@ -165,7 +165,7 @@ impl FeatureGraph {
         }
     }
 
-    pub fn all_reachable_from(&self, feature: &str) -> impl Iterator<Item = String> + '_ {
+    pub fn all_reachable_from(&self, feature: &str) -> impl Iterator<Item = String> + '_ + use<'_> {
         match self.reachable_from.get(feature) {
             Some(set) => itertools::Either::Left(set.iter().cloned()),
             None => itertools::Either::Right(std::iter::empty()),
@@ -174,7 +174,7 @@ impl FeatureGraph {
 
     /// Return all the features that `feature` depends on.  Return an empty iterator if
     /// it has no dependencies, or is not in this map.
-    pub fn edges_from(&self, feature: &str) -> impl Iterator<Item = String> + '_ {
+    pub fn edges_from(&self, feature: &str) -> impl Iterator<Item = String> + '_ + use<'_> {
         match self.depends_on.get(feature) {
             Some(set) => itertools::Either::Left(set.iter().cloned()),
             None => itertools::Either::Right(std::iter::empty()),
@@ -183,7 +183,7 @@ impl FeatureGraph {
 
     /// Return all the features that depend on `feature` directly.  Return an empty iterator if
     /// it has no dependencies, or is not in this map.
-    pub fn edges_to(&self, feature: &str) -> impl Iterator<Item = String> + '_ {
+    pub fn edges_to(&self, feature: &str) -> impl Iterator<Item = String> + '_ + use<'_> {
         match self.depended_on_by.get(feature) {
             Some(set) => itertools::Either::Left(set.iter().cloned()),
             None => itertools::Either::Right(std::iter::empty()),

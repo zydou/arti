@@ -3,9 +3,9 @@
 use itertools::Itertools as _;
 use std::sync::LazyLock;
 use tor_cert::Ed25519Cert;
+use tor_checkable::Timebound;
 use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
-use tor_checkable::Timebound;
 use tor_error::internal;
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::{RevisionCounter, Subcredential};
@@ -14,7 +14,7 @@ use tor_units::IntegerMinutes;
 
 use crate::parse::tokenize::Item;
 use crate::parse::{keyword::Keyword, parser::SectionRules, tokenize::NetDocReader};
-use crate::types::misc::{UnvalidatedEdCert, B64};
+use crate::types::misc::{B64, UnvalidatedEdCert};
 use crate::{NetdocErrorKind as EK, Pos, Result};
 
 use super::desc_enc;
@@ -346,9 +346,11 @@ mod test {
         let subcred: tor_hscrypto::Subcredential = TEST_SUBCREDENTIAL.into();
         let inner = desc.decrypt_body(&subcred).unwrap();
 
-        assert!(std::str::from_utf8(&inner)
-            .unwrap()
-            .starts_with("desc-auth-type"));
+        assert!(
+            std::str::from_utf8(&inner)
+                .unwrap()
+                .starts_with("desc-auth-type")
+        );
 
         Ok(())
     }

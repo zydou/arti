@@ -3,8 +3,8 @@
 use std::cmp;
 use std::time::{Duration, SystemTime};
 
-use derive_deftly::{derive_deftly_adhoc, Deftly};
-use rand::{seq::IndexedRandom as _, RngCore};
+use derive_deftly::{Deftly, derive_deftly_adhoc};
+use rand::{RngCore, seq::IndexedRandom as _};
 use serde::{Deserialize, Serialize};
 
 use tor_basic_utils::RngExt as _;

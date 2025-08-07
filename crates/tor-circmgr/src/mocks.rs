@@ -1,5 +1,5 @@
 use crate::usage::{SupportedTunnelUsage, TargetTunnelUsage};
-use crate::{timeouts, DirInfo, Error, PathConfig, Result};
+use crate::{DirInfo, Error, PathConfig, Result, timeouts};
 
 #[cfg(feature = "vanguards")]
 use tor_guardmgr::vanguards::VanguardMgr;

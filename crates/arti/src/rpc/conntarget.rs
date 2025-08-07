@@ -1,8 +1,8 @@
 //! A wrapper around an RPC Object that can be used as a connection target.
 
 use arti_client::{
-    rpc::{ClientConnectionResult, ConnectWithPrefs, ResolvePtrWithPrefs, ResolveWithPrefs},
     DataStream, StreamPrefs, TorAddr, TorClient,
+    rpc::{ClientConnectionResult, ConnectWithPrefs, ResolvePtrWithPrefs, ResolveWithPrefs},
 };
 use std::{net::IpAddr, sync::Arc};
 use tor_error::into_internal;

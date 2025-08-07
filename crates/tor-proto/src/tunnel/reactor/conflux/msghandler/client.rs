@@ -5,13 +5,13 @@ use std::time::{Duration, SystemTime};
 use tor_cell::relaycell::conflux::V1Nonce;
 use tor_cell::relaycell::msg::{ConfluxLinked, ConfluxLinkedAck, ConfluxSwitch};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd, UnparsedRelayMsg};
-use tor_error::{internal, warn_report, Bug};
+use tor_error::{Bug, internal, warn_report};
 use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 
-use crate::tunnel::reactor::circuit::{unsupported_client_cell, ConfluxStatus};
-use crate::tunnel::reactor::{CircuitCmd, SendRelayCell};
-use crate::tunnel::HopNum;
 use crate::Error;
+use crate::tunnel::HopNum;
+use crate::tunnel::reactor::circuit::{ConfluxStatus, unsupported_client_cell};
+use crate::tunnel::reactor::{CircuitCmd, SendRelayCell};
 
 use super::AbstractConfluxMsgHandler;
 

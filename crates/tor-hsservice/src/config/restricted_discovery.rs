@@ -101,8 +101,8 @@ pub use key_provider::{
 
 use crate::internal_prelude::*;
 
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 
 use amplify::Getters;
 use derive_more::{Display, Into};
@@ -499,10 +499,12 @@ mod test {
 
         let restricted_config = builder.build().unwrap();
         let path_resolver = CfgPathResolver::default();
-        assert!(restricted_config
-            .read_keys(&path_resolver)
-            .unwrap()
-            .is_empty());
+        assert!(
+            restricted_config
+                .read_keys(&path_resolver)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

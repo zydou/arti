@@ -152,7 +152,7 @@ mod test {
 
     use super::*;
     use hex_literal::hex;
-    use serde_test::{assert_tokens, Token};
+    use serde_test::{Token, assert_tokens};
 
     #[test]
     fn basic_usage() {

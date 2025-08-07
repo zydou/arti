@@ -12,7 +12,7 @@ use std::sync::Arc;
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
-use tor_keymgr::{derive_deftly_template_KeySpecifier, CTorPath};
+use tor_keymgr::{CTorPath, derive_deftly_template_KeySpecifier};
 
 use derive_deftly::Deftly;
 use derive_more::Constructor;

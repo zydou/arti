@@ -1,11 +1,11 @@
 //! Declarations for a [`TimeoutEstimator`] type that can change implementation.
 
+use crate::TimeoutStateHandle;
 use crate::timeouts::{
+    Action, TimeoutEstimator,
     pareto::{ParetoTimeoutEstimator, ParetoTimeoutState},
     readonly::ReadonlyTimeoutEstimator,
-    Action, TimeoutEstimator,
 };
-use crate::TimeoutStateHandle;
 use std::sync::Mutex;
 use std::time::Duration;
 use tor_error::warn_report;

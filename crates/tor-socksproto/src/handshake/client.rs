@@ -116,7 +116,7 @@ impl SocksClientHandshake {
                 msg.write_u8(0);
             }
             SocksAuth::Username(_, _) => {
-                return Err(internal!("tried to send socks5 auth over socks4.").into())
+                return Err(internal!("tried to send socks5 auth over socks4.").into());
             }
         }
 
@@ -185,7 +185,7 @@ impl SocksClientHandshake {
             other => {
                 return Err(Error::NotImplemented(
                     format!("authentication type {}", other).into(),
-                ))
+                ));
             }
         };
 
@@ -283,7 +283,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::{msg::SocksCmd, Handshake as _};
+    use crate::{Handshake as _, msg::SocksCmd};
     use hex_literal::hex;
 
     #[test]

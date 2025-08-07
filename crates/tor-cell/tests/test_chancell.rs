@@ -3,9 +3,9 @@
 // Reminder: you can think of a cell as an message plus a circuitid.
 #![allow(clippy::uninlined_format_args)]
 
-use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{codec, msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
 use tor_cell::Error;
+use tor_cell::chancell::msg::AnyChanMsg;
+use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg, CircId, codec, msg};
 
 use bytes::BytesMut;
 use hex_literal::hex;

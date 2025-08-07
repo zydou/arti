@@ -1,7 +1,7 @@
 //! Encoding and decoding for relay messages related to onion services.
 
 use super::msg::{self, Body};
-use crate::relaycell::extlist::{decl_extension_group, ExtList};
+use crate::relaycell::extlist::{ExtList, decl_extension_group};
 use caret::caret_int;
 use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Result};
@@ -474,8 +474,8 @@ impl Body for IntroduceAck {
 /// if you do that you'll not get a meaningful retry time, but it won't panic.)
 impl tor_error::HasRetryTime for IntroduceAckStatus {
     fn retry_time(&self) -> tor_error::RetryTime {
-        use tor_error::RetryTime as RT;
         use IntroduceAckStatus as S;
+        use tor_error::RetryTime as RT;
         match *self {
             S::SUCCESS => RT::Never, // this is a bug
             S::NOT_RECOGNIZED => RT::AfterWaiting,

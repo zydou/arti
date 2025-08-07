@@ -14,8 +14,8 @@ use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use std::net::IpAddr;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
@@ -28,7 +28,7 @@ use crate::stream::{
 };
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
-use circuit::{ClientCirc, Path, StreamMpscSender, UniqId, CIRCUIT_BUFFER_SIZE};
+use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path, StreamMpscSender, UniqId};
 use reactor::{
     CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
@@ -240,7 +240,7 @@ impl ClientTunnel {
     /// Note that this method does not itself cause the tunnel to shut down.
     pub fn wait_for_close(
         self: &Arc<Self>,
-    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<> {
         self.circ.wait_for_close()
     }
 
@@ -271,12 +271,15 @@ impl ClientTunnel {
     // will be discarded (along with the reactor of that circuit)
     #[cfg(feature = "hs-service")]
     #[allow(unreachable_code, unused_variables)] // TODO(conflux)
-    pub async fn allow_stream_requests(
+    pub async fn allow_stream_requests<'a, FILT>(
         self: &Arc<Self>,
-        allow_commands: &[tor_cell::relaycell::RelayCmd],
+        allow_commands: &'a [tor_cell::relaycell::RelayCmd],
         hop: TargetHop,
-        filter: impl crate::stream::IncomingStreamRequestFilter,
-    ) -> Result<impl futures::Stream<Item = IncomingStream>> {
+        filter: FILT,
+    ) -> Result<impl futures::Stream<Item = IncomingStream> + use<'a, FILT>>
+    where
+        FILT: crate::stream::IncomingStreamRequestFilter + 'a,
+    {
         use futures::stream::StreamExt;
 
         /// The size of the channel receiving IncomingStreamRequestContexts.

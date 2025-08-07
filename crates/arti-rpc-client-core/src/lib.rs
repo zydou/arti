@@ -60,4 +60,4 @@ pub use conn::{
     BuilderError, ConnPtDescription, ConnectError, ConnectFailure, ProtoError, RpcConn,
     RpcConnBuilder, StreamError,
 };
-pub use msgs::{request::InvalidRequestError, response::RpcError, AnyRequestId, ObjectId};
+pub use msgs::{AnyRequestId, ObjectId, request::InvalidRequestError, response::RpcError};

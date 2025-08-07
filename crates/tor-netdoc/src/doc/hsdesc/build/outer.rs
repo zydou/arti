@@ -5,7 +5,7 @@
 //! hidden service descriptors.
 
 use crate::build::{NetdocBuilder, NetdocEncoder};
-use crate::doc::hsdesc::outer::{HsOuterKwd, HS_DESC_SIGNATURE_PREFIX, HS_DESC_VERSION_CURRENT};
+use crate::doc::hsdesc::outer::{HS_DESC_SIGNATURE_PREFIX, HS_DESC_VERSION_CURRENT, HsOuterKwd};
 
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;

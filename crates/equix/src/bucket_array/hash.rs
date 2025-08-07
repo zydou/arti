@@ -298,23 +298,23 @@ pub(crate) trait Key:
 }
 
 impl<
-        T: Copy
-            + Zero
-            + One
-            + PartialEq<Self>
-            + TryFrom<usize>
-            + TryInto<usize>
-            + Shl<usize, Output = Self>
-            + Shr<usize, Output = Self>
-            + Div<Self, Output = Self>
-            + Rem<Self, Output = Self>
-            + Mul<Self, Output = Self>
-            + Not
-            + Sub<Self, Output = Self>
-            + BitAnd<Self, Output = Self>
-            + WrappingAdd
-            + WrappingNeg,
-    > Key for T
+    T: Copy
+        + Zero
+        + One
+        + PartialEq<Self>
+        + TryFrom<usize>
+        + TryInto<usize>
+        + Shl<usize, Output = Self>
+        + Shr<usize, Output = Self>
+        + Div<Self, Output = Self>
+        + Rem<Self, Output = Self>
+        + Mul<Self, Output = Self>
+        + Not
+        + Sub<Self, Output = Self>
+        + BitAnd<Self, Output = Self>
+        + WrappingAdd
+        + WrappingNeg,
+> Key for T
 {
 }
 

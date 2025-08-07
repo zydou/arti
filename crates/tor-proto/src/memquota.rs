@@ -81,7 +81,7 @@
 //!
 //! Thus, killing a single queue will reclaim the memory associated with several other queues.
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use std::sync::Arc;
 use tor_memquota::{Account, MemoryQuotaTracker};
 

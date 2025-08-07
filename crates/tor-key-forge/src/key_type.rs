@@ -36,13 +36,13 @@
 // in a database.  But we don't need or want to write a generic "look up stuff in a database" API;
 // that can be (at least for now) a bespoke API just for HS restricted discovery."
 
+use ssh_key::Algorithm;
 use ssh_key::private::KeypairData;
 use ssh_key::public::KeyData;
-use ssh_key::Algorithm;
-use tor_error::{bad_api_usage, internal, Bug};
+use tor_error::{Bug, bad_api_usage, internal};
 
-use crate::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
 use crate::Result;
+use crate::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
 
 use std::fmt;
 use std::result::Result as StdResult;

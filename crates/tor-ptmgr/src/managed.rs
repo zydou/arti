@@ -4,13 +4,13 @@ use crate::config::{ManagedTransportOptions, TransportOptions};
 use crate::err;
 use crate::err::PtError;
 use crate::ipc::{
-    sealed::PluggableTransportPrivate, PluggableClientTransport, PluggableTransport,
-    PtClientParameters, PtCommonParameters,
+    PluggableClientTransport, PluggableTransport, PtClientParameters, PtCommonParameters,
+    sealed::PluggableTransportPrivate,
 };
 use crate::{PtClientMethod, PtSharedState};
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::stream::FuturesUnordered;
-use futures::{select, FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, select};
 use oneshot_fused_workaround as oneshot;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -124,8 +124,12 @@ impl<R: Runtime> PtReactor<R> {
                 let requested: HashSet<_> = covers.iter().collect();
                 let found: HashSet<_> = pt.transport_methods().keys().collect();
                 if requested != found {
-                    warn!("Bug: PT {} succeeded, but did not give the same transports we asked for. ({:?} vs {:?})",
-                          pt.identifier(), found, requested);
+                    warn!(
+                        "Bug: PT {} succeeded, but did not give the same transports we asked for. ({:?} vs {:?})",
+                        pt.identifier(),
+                        found,
+                        requested
+                    );
                 }
                 self.running.push(pt);
             }

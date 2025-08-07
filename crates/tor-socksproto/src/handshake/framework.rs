@@ -25,7 +25,7 @@ use derive_deftly::define_derive_deftly;
 use educe::Educe;
 
 use tor_bytes::Reader;
-use tor_error::{internal, Bug};
+use tor_error::{Bug, internal};
 
 use crate::SOCKS_BUF_LEN;
 use crate::{Action, Error, Truncated};
@@ -175,7 +175,7 @@ impl<'b, O> Finished<'b, O, PreciseReads> {
     pub fn into_output(self) -> Result<O, Bug> {
         if let Ok(nonzero) = NonZeroUsize::try_from(self.buffer.filled_slice().len()) {
             Err(internal!(
- "handshake complete, but we read too much earlier, and are now misframed by {nonzero} bytes!"
+                "handshake complete, but we read too much earlier, and are now misframed by {nonzero} bytes!"
             ))
         } else {
             Ok(self.output)
@@ -520,7 +520,7 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
                         internal!("protocol implementation drained nothing, replied nothing")
                             .into(),
                     ),
-                )
+                );
             }
             _ => {}
         };

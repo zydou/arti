@@ -69,13 +69,13 @@ pub use util::skew::ClockSkew;
 pub use channel::params::ChannelPaddingInstructions;
 pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
-pub use tunnel::{circuit, ClientTunnel, HopLocation, TargetHop};
+pub use tunnel::{ClientTunnel, HopLocation, TargetHop, circuit};
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub use {
+    crate::tunnel::Conversation,
     crate::tunnel::msghandler::{MsgHandler, UserMsgHandler},
     crate::tunnel::reactor::MetaCellDisposition,
-    crate::tunnel::Conversation,
 };
 
 /// A Result type for this crate.
@@ -83,8 +83,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 use std::fmt::Debug;
 use tor_memquota::{
-    mq_queue::{self, ChannelSpec as _},
     HasMemoryCost,
+    mq_queue::{self, ChannelSpec as _},
 };
 use tor_rtcompat::DynTimeProvider;
 

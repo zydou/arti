@@ -62,8 +62,8 @@
 #![allow(mismatched_lifetime_syntaxes)] // temporary workaround for arti#2060
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-use futures::channel::oneshot as fut_oneshot;
 use futures::FutureExt as _;
+use futures::channel::oneshot as fut_oneshot;
 
 pub use fut_oneshot::Canceled;
 

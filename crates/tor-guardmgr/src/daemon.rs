@@ -3,8 +3,8 @@
 //! These background tasks keep a weak reference to the [`GuardMgrInner`]
 //! and use that to notice when they should shut down.
 
-use crate::pending::{GuardStatus, RequestId};
 use crate::GuardMgrInner;
+use crate::pending::{GuardStatus, RequestId};
 
 use futures::{channel::mpsc, stream::StreamExt};
 #[cfg(test)]

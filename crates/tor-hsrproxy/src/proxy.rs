@@ -3,8 +3,8 @@
 use std::sync::{Arc, Mutex};
 
 use futures::{
-    select_biased, task::SpawnExt as _, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future,
-    FutureExt as _, Stream, StreamExt as _,
+    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Future, FutureExt as _, Stream,
+    StreamExt as _, select_biased, task::SpawnExt as _,
 };
 use itertools::iproduct;
 use oneshot_fused_workaround as oneshot;
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::io::{Error as IoError, Result as IoResult};
 use strum::IntoEnumIterator;
 use tor_cell::relaycell::msg as relaymsg;
-use tor_error::{debug_report, ErrorKind, HasKind};
+use tor_error::{ErrorKind, HasKind, debug_report};
 use tor_hsservice::{HsNickname, RendRequest, StreamRequest};
 use tor_log_ratelim::log_ratelim;
 use tor_proto::stream::{DataStream, IncomingStreamRequest};

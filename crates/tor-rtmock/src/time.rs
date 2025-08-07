@@ -347,8 +347,7 @@ impl MockSleepProvider {
                 // The next timeout is too far in the future.
                 trace!(
                     "should_advance = false; allow_one set but only up to {:?}, next is {:?}",
-                    state.allowed_advance,
-                    next_timeout
+                    state.allowed_advance, next_timeout
                 );
                 return false;
             }
@@ -419,8 +418,7 @@ impl SleepSchedule {
         self.sleepers_polled += 1;
         trace!(
             "sleeper polled, {}/{}",
-            self.sleepers_polled,
-            self.sleepers_made
+            self.sleepers_polled, self.sleepers_made
         );
         self.maybe_advance();
     }
@@ -435,9 +433,7 @@ impl SleepProvider for MockSleepProvider {
         provider.sleepers_made += 1;
         trace!(
             "sleeper made for {:?}, {}/{}",
-            duration,
-            provider.sleepers_polled,
-            provider.sleepers_made
+            duration, provider.sleepers_polled, provider.sleepers_made
         );
 
         Sleeping {

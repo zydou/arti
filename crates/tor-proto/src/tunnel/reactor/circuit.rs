@@ -5,11 +5,11 @@ pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
+use crate::circuit::HopSettings;
 #[cfg(feature = "counter-galois-onion")]
 use crate::circuit::handshake::RelayCryptLayerProtocol;
-use crate::circuit::HopSettings;
-use crate::congestion::sendme;
 use crate::congestion::CongestionSignals;
+use crate::congestion::sendme;
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt, OutboundClientLayer,
@@ -20,8 +20,9 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::queue::{stream_queue, StreamQueueSender};
+use crate::stream::queue::{StreamQueueSender, stream_queue};
 use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
+use crate::tunnel::TunnelScopedCircId;
 use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::tunnel::circuit::path;
@@ -29,11 +30,10 @@ use crate::tunnel::circuit::unique_id::UniqId;
 use crate::tunnel::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::streammap;
-use crate::tunnel::TunnelScopedCircId;
+use crate::util::SinkExt as _;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
-use crate::util::SinkExt as _;
 use crate::{ClockSkew, Error, Result};
 
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
@@ -45,7 +45,7 @@ use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, SendmeTag, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
 };
-use tor_error::{internal, Bug};
+use tor_error::{Bug, internal};
 use tor_linkspec::RelayIds;
 use tor_llcrypto::pk;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
@@ -81,8 +81,8 @@ use {
 use {
     super::conflux::ConfluxMsgHandler,
     super::conflux::{ConfluxAction, OooRelayMsg},
-    crate::tunnel::reactor::RemoveLegReason,
     crate::tunnel::TunnelId,
+    crate::tunnel::reactor::RemoveLegReason,
 };
 
 pub(super) use circhop::{CircHop, CircHopList};
@@ -337,7 +337,7 @@ impl Circuit {
         params: &crate::circuit::CircParameters,
         done: ReactorResultChannel<()>,
     ) {
-        use tor_protover::{named, Protocols};
+        use tor_protover::{Protocols, named};
 
         use crate::tunnel::circuit::test::DummyCrypto;
 
@@ -601,7 +601,7 @@ impl Circuit {
                         debug!(
                             "{id}: Ignoring partial relay msg received after triggering shutdown: {:?}",
                             incomplete,
-                            id=self.unique_id,
+                            id = self.unique_id,
                         );
                     }
                     circ_cmds.push(msg);
@@ -1347,7 +1347,7 @@ impl Circuit {
     pub(super) fn ready_streams_iterator(
         &self,
         exclude: Option<HopNum>,
-    ) -> impl Stream<Item = Result<CircuitCmd>> {
+    ) -> impl Stream<Item = Result<CircuitCmd>> + use<> {
         self.hops.ready_streams_iterator(exclude)
     }
 

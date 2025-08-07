@@ -6,8 +6,8 @@ mod v1;
 use crate::err::ProofOfWorkError;
 use tor_cell::relaycell::hs::pow::ProofOfWork;
 use tor_hscrypto::pk::HsBlindId;
-use tor_netdoc::doc::hsdesc::pow::PowParams;
 use tor_netdoc::doc::hsdesc::HsDesc;
+use tor_netdoc::doc::hsdesc::pow::PowParams;
 use v1::HsPowClientV1;
 
 /// Client-side state for a series of connection attempts that might use proof-of-work.

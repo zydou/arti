@@ -68,10 +68,10 @@ use tor_proto::ClockSkew;
 use tor_units::BoundedInt32;
 use tracing::{debug, info, trace, warn};
 
+use tor_config::{ExplicitOrAuto, impl_standard_builder};
+use tor_config::{ReconfigureError, impl_not_auto_value};
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
-use tor_config::{impl_not_auto_value, ReconfigureError};
-use tor_config::{impl_standard_builder, ExplicitOrAuto};
-use tor_netdir::{params::NetParameters, NetDir, Relay};
+use tor_netdir::{NetDir, Relay, params::NetParameters};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
 
@@ -1121,8 +1121,8 @@ impl GuardMgrInner {
 
             if frac_permitted < self.params.extreme_threshold {
                 warn!(
-                      "The number of guards permitted is smaller than the recommended minimum of {:.0}%.",
-                      self.params.extreme_threshold * 100.0,
+                    "The number of guards permitted is smaller than the recommended minimum of {:.0}%.",
+                    self.params.extreme_threshold * 100.0,
                 );
             }
         }
@@ -1141,7 +1141,9 @@ impl GuardMgrInner {
         // back online" event more than once.
         let interval = self.params.internet_down_timeout;
         if self.last_primary_retry_time + interval <= now {
-            debug!("Successfully reached a guard after a while off the internet; marking all primary guards retriable.");
+            debug!(
+                "Successfully reached a guard after a while off the internet; marking all primary guards retriable."
+            );
             self.guards
                 .active_guards_mut()
                 .mark_primary_guards_retriable();
@@ -1965,7 +1967,7 @@ mod test {
     }
 
     fn init<R: Runtime>(rt: R) -> (GuardMgr<R>, TestingStateMgr, NetDir) {
-        use tor_netdir::{testnet, MdReceiver, PartialNetDir};
+        use tor_netdir::{MdReceiver, PartialNetDir, testnet};
         let statemgr = TestingStateMgr::new();
         let have_lock = statemgr.try_lock().unwrap();
         assert!(have_lock.held());

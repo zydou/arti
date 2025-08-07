@@ -1,11 +1,11 @@
 //! All the traits of this crate.
 
-use downcast_rs::{impl_downcast, Downcast};
+use downcast_rs::{Downcast, impl_downcast};
 use rand::{CryptoRng, RngCore};
 use ssh_key::{
+    Algorithm, AlgorithmName,
     private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair},
     public::{Ed25519PublicKey, KeyData, OpaquePublicKey},
-    Algorithm, AlgorithmName,
 };
 use tor_error::internal;
 use tor_llcrypto::{
@@ -16,8 +16,8 @@ use tor_llcrypto::{
 use crate::certs::CertData;
 use crate::key_type::CertType;
 use crate::{
-    ssh::{SshKeyData, ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME},
     ErasedKey, KeyType, KeystoreItemType, Result,
+    ssh::{ED25519_EXPANDED_ALGORITHM_NAME, SshKeyData, X25519_ALGORITHM_NAME},
 };
 
 use std::result::Result as StdResult;

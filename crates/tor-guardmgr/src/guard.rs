@@ -12,8 +12,8 @@ use crate::dirstatus::DirStatus;
 use crate::sample::Candidate;
 use crate::skew::SkewObservation;
 use crate::util::randomize_time;
-use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
-use crate::{sample, ExternalActivity, GuardSetSelector, GuardUsageKind};
+use crate::{ExternalActivity, GuardSetSelector, GuardUsageKind, sample};
+use crate::{GuardParams, GuardRestriction, GuardUsage, ids::GuardId};
 
 #[cfg(feature = "bridge-client")]
 use safelog::Redactable as _;

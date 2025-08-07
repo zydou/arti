@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use tor_rpc_connect::auth::cookie::{Cookie, CookieAuthMac, CookieAuthNonce};
 
-use crate::msgs::{request::Request, ObjectId};
+use crate::msgs::{ObjectId, request::Request};
 
 use super::{ConnectError, RpcConn};
 

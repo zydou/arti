@@ -2,7 +2,7 @@
 name = "ureq-examples"
 version = "0.1.0"
 authors = ["The Tor Project, Inc.", "Niel Duysters"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Examples demonstrating the usage of the arti-ureq crate"
 publish = false

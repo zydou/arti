@@ -3,25 +3,25 @@
 use std::time::Duration;
 
 use super::AbstractChannelFactory;
-use super::{select, AbstractChannel, Pending, Sending};
+use super::{AbstractChannel, Pending, Sending, select};
 use crate::{ChannelConfig, Dormancy, Error, Result};
 
 use futures::FutureExt;
 use std::result::Result as StdResult;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{error_report, internal, into_internal};
 use tor_linkspec::{HasRelayIds, ListByRelayIds, RelayIds};
-use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
+use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, params::NetParameters};
+use tor_proto::ChannelPaddingInstructions;
+use tor_proto::channel::ChannelPaddingInstructionsUpdates;
 use tor_proto::channel::kist::{KistMode, KistParams};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
-use tor_proto::channel::ChannelPaddingInstructionsUpdates;
-use tor_proto::ChannelPaddingInstructions;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
 use void::{ResultVoidExt as _, Void};

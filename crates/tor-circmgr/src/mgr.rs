@@ -23,13 +23,13 @@
 
 use crate::config::CircuitTiming;
 use crate::usage::{SupportedTunnelUsage, TargetTunnelUsage};
-use crate::{timeouts, DirInfo, Error, PathConfig, Result};
+use crate::{DirInfo, Error, PathConfig, Result, timeouts};
 
 use retry_error::RetryError;
 use tor_async_utils::mpsc_channel_no_memquota;
 use tor_basic_utils::retry::RetryDelay;
 use tor_config::MutCfg;
-use tor_error::{debug_report, info_report, internal, warn_report, AbsRetryTime, HasRetryTime};
+use tor_error::{AbsRetryTime, HasRetryTime, debug_report, info_report, internal, warn_report};
 #[cfg(feature = "vanguards")]
 use tor_guardmgr::vanguards::VanguardMgr;
 use tor_linkspec::CircTarget;
@@ -549,11 +549,7 @@ impl<B: AbstractTunnelBuilder<R>, R: Runtime> TunnelList<B, R> {
     fn find_open(&mut self, usage: &TargetTunnelUsage) -> Option<Vec<&mut OpenEntry<B::Tunnel>>> {
         let list = self.open_tunnels.values_mut();
         let v = SupportedTunnelUsage::find_supported(list, usage);
-        if v.is_empty() {
-            None
-        } else {
-            Some(v)
-        }
+        if v.is_empty() { None } else { Some(v) }
     }
 
     /// Find an open tunnel by ID.
@@ -1540,15 +1536,15 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
+    use crate::isolation::test::{IsolationTokenEq, assert_isoleq};
     use crate::mocks::{FakeBuilder, FakeCirc, FakeId, FakeOp};
     use crate::usage::{ExitPolicy, SupportedTunnelUsage};
     use crate::{
         Error, IsolationToken, StreamIsolation, TargetPort, TargetPorts, TargetTunnelUsage,
     };
     use std::sync::LazyLock;
-    use tor_guardmgr::fallback::FallbackList;
     use tor_guardmgr::TestConfig;
+    use tor_guardmgr::fallback::FallbackList;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
     use tor_persist::TestingStateMgr;

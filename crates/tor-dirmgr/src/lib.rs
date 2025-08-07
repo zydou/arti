@@ -88,8 +88,8 @@ use async_trait::async_trait;
 use futures::{stream::BoxStream, task::SpawnExt};
 use oneshot_fused_workaround as oneshot;
 use tor_netdoc::doc::netstatus::ProtoStatuses;
-use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::Runtime;
+use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tracing::{debug, info, trace, warn};
 
 use std::marker::PhantomData;
@@ -598,7 +598,9 @@ impl<R: Runtime> DirMgr<R> {
                     // upgrade_to_readwrite() function is idempotent.)  We can
                     // do our own bootstrapping.
                     if logged {
-                        info!("The previous owning process has given up the lock. We are now in charge of managing the directory.");
+                        info!(
+                            "The previous owning process has given up the lock. We are now in charge of managing the directory."
+                        );
                     }
                     return Ok(());
                 }
@@ -609,7 +611,9 @@ impl<R: Runtime> DirMgr<R> {
                 if bootstrapped {
                     info!("Another process is managing the directory. We'll use its cache.");
                 } else {
-                    info!("Another process is bootstrapping the directory. Waiting till it finishes or exits.");
+                    info!(
+                        "Another process is bootstrapping the directory. Waiting till it finishes or exits."
+                    );
                 }
             }
 
@@ -696,7 +700,10 @@ impl<R: Runtime> DirMgr<R> {
                 if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
                         usable = true;
-                        info_report!(err, "Unable to completely download a directory. (Nevertheless, the directory is usable, so we'll pause for now)");
+                        info_report!(
+                            err,
+                            "Unable to completely download a directory. (Nevertheless, the directory is usable, so we'll pause for now)"
+                        );
                         break 'retry_attempt;
                     }
 
@@ -874,11 +881,7 @@ impl<R: Runtime> DirMgr<R> {
             .expect("Directory storage lock poisoned")
             .is_readonly();
         // A race-condition is possible here, but I believe it's harmless.
-        if rw {
-            Some(&self.store)
-        } else {
-            None
-        }
+        if rw { Some(&self.store) } else { None }
     }
 
     /// Construct a DirMgr from a DirMgrConfig.
@@ -965,7 +968,7 @@ impl<R: Runtime> DirMgr<R> {
     /// Multiple events may be batched up into a single item: each time
     /// this stream yields an event, all you can assume is that the event has
     /// occurred at least once.
-    pub fn events(&self) -> impl futures::Stream<Item = DirEvent> {
+    pub fn events(&self) -> impl futures::Stream<Item = DirEvent> + use<R> {
         self.events.subscribe()
     }
 

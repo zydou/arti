@@ -126,11 +126,12 @@ mod test {
         val.clear();
         assert_eq!(val.get(), None);
 
-        assert!(val
-            .mutate(|v| {
+        assert!(
+            val.mutate(|v| {
                 v.push(99);
                 Ok(())
             })
-            .is_err());
+            .is_err()
+        );
     }
 }

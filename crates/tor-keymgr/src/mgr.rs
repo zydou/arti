@@ -1443,9 +1443,11 @@ mod tests {
 
         let mgr = builder.build().unwrap();
 
-        assert!(!mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestItem::item_type())
-            .unwrap());
+        assert!(
+            !mgr.secondary_stores[0]
+                .contains(&TestKeySpecifier1, &TestItem::item_type())
+                .unwrap()
+        );
 
         // Insert a key into Keystore2
         mgr.insert(
@@ -1464,27 +1466,33 @@ mod tests {
         assert_eq!(key.meta.is_generated(), false);
 
         // Try to remove the key from a non-existent key store
-        assert!(mgr
-            .remove::<TestItem>(
+        assert!(
+            mgr.remove::<TestItem>(
                 &TestKeySpecifier1,
                 KeystoreSelector::Id(&KeystoreId::from_str("not_an_id_we_know_of").unwrap())
             )
-            .is_err());
+            .is_err()
+        );
         // The key still exists in Keystore2
-        assert!(mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestItem::item_type())
-            .unwrap());
+        assert!(
+            mgr.secondary_stores[0]
+                .contains(&TestKeySpecifier1, &TestItem::item_type())
+                .unwrap()
+        );
 
         // Try to remove the key from the primary key store
-        assert!(mgr
-            .remove::<TestItem>(&TestKeySpecifier1, KeystoreSelector::Primary)
-            .unwrap()
-            .is_none());
+        assert!(
+            mgr.remove::<TestItem>(&TestKeySpecifier1, KeystoreSelector::Primary)
+                .unwrap()
+                .is_none()
+        );
 
         // The key still exists in Keystore2
-        assert!(mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestItem::item_type())
-            .unwrap());
+        assert!(
+            mgr.secondary_stores[0]
+                .contains(&TestKeySpecifier1, &TestItem::item_type())
+                .unwrap()
+        );
 
         // Removing from Keystore2 should succeed.
         let removed_key = mgr
@@ -1502,9 +1510,11 @@ mod tests {
         assert_eq!(removed_key.meta.is_generated(), false);
 
         // The key doesn't exist in Keystore2 anymore
-        assert!(!mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestItem::item_type())
-            .unwrap());
+        assert!(
+            !mgr.secondary_stores[0]
+                .contains(&TestKeySpecifier1, &TestItem::item_type())
+                .unwrap()
+        );
     }
 
     #[test]
@@ -1524,10 +1534,11 @@ mod tests {
         .unwrap();
 
         // There is no corresponding public key entry.
-        assert!(mgr
-            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
-            .unwrap()
-            .is_none());
+        assert!(
+            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1)
+                .unwrap()
+                .is_none()
+        );
 
         // Try to generate a new key (overwrite = false)
         let err = mgr
@@ -1551,10 +1562,11 @@ mod tests {
         assert_eq!(key.meta.is_generated(), false);
 
         // We don't store public keys in the keystore
-        assert!(mgr
-            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
-            .unwrap()
-            .is_none());
+        assert!(
+            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1)
+                .unwrap()
+                .is_none()
+        );
 
         // Try to generate a new key (overwrite = true)
         let generated_key = mgr
@@ -1582,10 +1594,11 @@ mod tests {
         assert_eq!(retrieved_key.meta.is_generated(), true);
 
         // We don't store public keys in the keystore
-        assert!(mgr
-            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
-            .unwrap()
-            .is_none());
+        assert!(
+            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1)
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

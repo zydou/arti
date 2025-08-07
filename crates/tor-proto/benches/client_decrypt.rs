@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion, Throughput};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main, measurement::Measurement};
 use rand::Rng;
 
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
@@ -16,8 +16,8 @@ use tor_llcrypto::{
 #[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
 use tor_proto::bench_utils::{
-    circuit_encrypt_inbound, tor1, CryptInit, InboundClientCrypt, KGen, RelayCellBody,
-    BENCH_CHAN_CMD,
+    BENCH_CHAN_CMD, CryptInit, InboundClientCrypt, KGen, RelayCellBody, circuit_encrypt_inbound,
+    tor1,
 };
 
 // Helper macro to set up a client decryption benchmark.

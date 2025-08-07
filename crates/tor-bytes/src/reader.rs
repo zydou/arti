@@ -342,7 +342,7 @@ impl<'a> Reader<'a> {
             Completeness::PossiblyIncomplete => {
                 return Err(Error::Bug(bad_api_usage!(
                     "Called take_all_but on a PossiblyIncomplete reader."
-                )))
+                )));
             }
             Completeness::SupposedlyComplete => {}
         }

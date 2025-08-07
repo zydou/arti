@@ -25,7 +25,7 @@
 /// or other aspects of the HSDir ring structure.)
 use std::time::{Duration, SystemTime};
 
-use crate::{params::NetParameters, Error, HsDirs, Result};
+use crate::{Error, HsDirs, Result, params::NetParameters};
 use time::{OffsetDateTime, UtcOffset};
 use tor_hscrypto::time::TimePeriod;
 use tor_netdoc::doc::netstatus::{MdConsensus, SharedRandVal};

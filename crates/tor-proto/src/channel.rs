@@ -72,7 +72,7 @@ use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
-use crate::{tunnel, ClockSkew};
+use crate::{ClockSkew, tunnel};
 use crate::{Error, Result};
 use reactor::BoxedChannelStreamOps;
 use safelog::sensitive as sv;
@@ -81,7 +81,7 @@ use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{msg, msg::PaddingNegotiate, AnyChanCell, CircId};
+use tor_cell::chancell::{AnyChanCell, CircId, msg, msg::PaddingNegotiate};
 use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
@@ -734,7 +734,7 @@ impl Channel {
     /// Note that this method does not _cause_ the channel to shut down on its own.
     pub fn wait_for_close(
         &self,
-    ) -> impl Future<Output = StdResult<CloseInfo, ClosedUnexpectedly>> + Send + Sync + 'static
+    ) -> impl Future<Output = StdResult<CloseInfo, ClosedUnexpectedly>> + Send + Sync + 'static + use<>
     {
         self.reactor_closed_rx
             .clone()
@@ -812,7 +812,7 @@ where
                 return Err(Error::ChanMismatch(format!(
                     "Peer does not have {} identity",
                     id_type
-                )))
+                )));
             }
         }
     }
@@ -880,7 +880,7 @@ pub(crate) mod test {
     pub(crate) use crate::channel::reactor::test::new_reactor;
     use crate::util::fake_mq;
     use tor_cell::chancell::msg::HandshakeType;
-    use tor_cell::chancell::{msg, AnyChanCell};
+    use tor_cell::chancell::{AnyChanCell, msg};
     use tor_rtcompat::PreferredRuntime;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
@@ -915,13 +915,17 @@ pub(crate) mod test {
             let cell = AnyChanCell::new(CircId::new(7), msg::Created2::new(&b"hihi"[..]).into());
             let e = chan.sender().check_cell(&cell);
             assert!(e.is_err());
-            assert!(format!("{}", e.unwrap_err().source().unwrap())
-                .contains("Can't send CREATED2 cell on client channel"));
+            assert!(
+                format!("{}", e.unwrap_err().source().unwrap())
+                    .contains("Can't send CREATED2 cell on client channel")
+            );
             let cell = AnyChanCell::new(None, msg::Certs::new_empty().into());
             let e = chan.sender().check_cell(&cell);
             assert!(e.is_err());
-            assert!(format!("{}", e.unwrap_err().source().unwrap())
-                .contains("Can't send CERTS cell after handshake is done"));
+            assert!(
+                format!("{}", e.unwrap_err().source().unwrap())
+                    .contains("Can't send CERTS cell after handshake is done")
+            );
 
             let cell = AnyChanCell::new(
                 CircId::new(5),
@@ -939,9 +943,9 @@ pub(crate) mod test {
     fn chanbuilder() {
         let rt = PreferredRuntime::create().unwrap();
         let mut builder = ChannelBuilder::default();
-        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec!["127.0.0.1:9001"
-            .parse()
-            .unwrap()]));
+        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![
+            "127.0.0.1:9001".parse().unwrap(),
+        ]));
         let tls = MsgBuf::new(&b""[..]);
         let _outbound = builder.launch(tls, rt, fake_mq());
     }

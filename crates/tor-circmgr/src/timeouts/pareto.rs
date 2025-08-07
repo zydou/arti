@@ -668,8 +668,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::timeouts::TimeoutEstimator;
-    use tor_basic_utils::test_rng::testing_rng;
     use tor_basic_utils::RngExt as _;
+    use tor_basic_utils::test_rng::testing_rng;
 
     /// Return an action to build a 3-hop circuit.
     fn b3() -> Action {

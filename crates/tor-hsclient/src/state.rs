@@ -7,8 +7,8 @@ use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use futures::task::{SpawnError, SpawnExt as _};
 use futures::FutureExt as _;
+use futures::task::{SpawnError, SpawnExt as _};
 
 use async_trait::async_trait;
 use educe::Educe;
@@ -19,7 +19,7 @@ use tracing::{debug, error, trace};
 use safelog::DisplayRedacted as _;
 use tor_basic_utils::define_accessor_trait;
 use tor_circmgr::isolation::Isolation;
-use tor_error::{debug_report, error_report, internal, Bug, ErrorReport as _};
+use tor_error::{Bug, ErrorReport as _, debug_report, error_report, internal};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
 use tor_rtcompat::Runtime;
@@ -750,14 +750,14 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::*;
-    use futures::{poll, SinkExt};
+    use futures::{SinkExt, poll};
     use std::fmt;
     use std::task::Poll::{self, *};
     use tokio::pin;
     use tokio_crate as tokio;
     use tor_memquota::ArcMemoryQuotaTrackerExt as _;
     use tor_proto::memquota::ToplevelAccount;
-    use tor_rtcompat::{test_with_one_runtime, SleepProvider};
+    use tor_rtcompat::{SleepProvider, test_with_one_runtime};
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
 

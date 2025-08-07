@@ -9,24 +9,24 @@ use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
-use futures::{select_biased, stream::FuturesUnordered, FutureExt as _};
-use itertools::structs::ExactlyOneError;
+use futures::{FutureExt as _, select_biased, stream::FuturesUnordered};
 use itertools::Itertools;
-use smallvec::{smallvec, SmallVec};
+use itertools::structs::ExactlyOneError;
+use smallvec::{SmallVec, smallvec};
 use tor_rtcompat::SleepProviderExt as _;
 use tracing::{info, trace, warn};
 
 use tor_async_utils::SinkPrepareExt as _;
 use tor_basic_utils::flatten;
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd};
-use tor_error::{bad_api_usage, internal, Bug};
+use tor_error::{Bug, bad_api_usage, internal};
 use tor_linkspec::HasRelayIds as _;
 
 use crate::circuit::path::HopDetail;
 use crate::circuit::{TunnelMutableState, UniqId};
 use crate::crypto::cell::HopNum;
 use crate::tunnel::reactor::circuit::ConfluxStatus;
-use crate::tunnel::{streammap, TunnelId};
+use crate::tunnel::{TunnelId, streammap};
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
@@ -473,7 +473,7 @@ impl ConfluxSet {
         // Returns an error if one of the hops is virtual.
         let hops_eq = |h1: &HopDetail, h2: &HopDetail| {
             match (h1, h2) {
-                (HopDetail::Relay(t1), HopDetail::Relay(ref t2)) => Ok(t1.same_relay_ids(t2)),
+                (HopDetail::Relay(t1), HopDetail::Relay(t2)) => Ok(t1.same_relay_ids(t2)),
                 #[cfg(feature = "hs-common")]
                 (HopDetail::Virtual, HopDetail::Virtual) => {
                     // TODO(#2016): support onion service conflux

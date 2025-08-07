@@ -13,13 +13,13 @@ use std::{
 
 use arrayvec::ArrayVec;
 use futures::task::SpawnExt;
-use futures::{channel::mpsc, Stream};
 use futures::{SinkExt, StreamExt};
+use futures::{Stream, channel::mpsc};
 use num_traits::FromPrimitive;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tor_basic_utils::RngExt as _;
-use tor_cell::relaycell::hs::pow::{v1::ProofOfWorkV1, ProofOfWork};
+use tor_cell::relaycell::hs::pow::{ProofOfWork, v1::ProofOfWorkV1};
 use tor_checkable::timed::TimerangeBound;
 use tor_hscrypto::{
     pk::HsBlindIdKey,
@@ -27,8 +27,8 @@ use tor_hscrypto::{
     time::TimePeriod,
 };
 use tor_keymgr::KeyMgr;
-use tor_netdir::{params::NetParameters, NetDirProvider, NetdirProviderShutdown};
-use tor_netdoc::doc::hsdesc::pow::{v1::PowParamsV1, PowParams};
+use tor_netdir::{NetDirProvider, NetdirProviderShutdown, params::NetParameters};
+use tor_netdoc::doc::hsdesc::pow::{PowParams, v1::PowParamsV1};
 use tor_persist::{
     hsnickname::HsNickname,
     state_dir::{InstanceRawSubdir, StorageHandle},
@@ -36,8 +36,8 @@ use tor_persist::{
 use tor_rtcompat::Runtime;
 
 use crate::{
-    rend_handshake, replay::PowNonceReplayLog, BlindIdPublicKeySpecifier, CreateIptError,
-    RendRequest, ReplayError, StartupError,
+    BlindIdPublicKeySpecifier, CreateIptError, RendRequest, ReplayError, StartupError,
+    rend_handshake, replay::PowNonceReplayLog,
 };
 
 use super::NewPowManager;

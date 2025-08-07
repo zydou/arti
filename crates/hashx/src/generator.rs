@@ -1,11 +1,11 @@
 //! Pseudorandom generator for hash programs and parts thereof
 
+use crate::Error;
 use crate::constraints::{self, Pass, RegisterWriter, Validator};
 use crate::program::{Instruction, InstructionVec, Opcode};
 use crate::rand::RngBuffer;
 use crate::register::{RegisterId, RegisterSet};
 use crate::scheduler::{InstructionPlan, Scheduler};
-use crate::Error;
 use rand_core::RngCore;
 
 /// The `model` attempts to document HashX program generation choices,
@@ -462,14 +462,14 @@ enum OpcodeSelector {
 impl OpcodeSelector {
     /// Apply the selector, advancing the Rng state and returning an Opcode.
     #[inline(always)]
-    fn apply<R: RngCore>(&self, gen: &mut Generator<'_, R>) -> Opcode {
+    fn apply<R: RngCore>(&self, generator: &mut Generator<'_, R>) -> Opcode {
         match self {
             OpcodeSelector::Target => Opcode::Target,
             OpcodeSelector::Branch => Opcode::Branch,
             OpcodeSelector::Mul => Opcode::Mul,
-            OpcodeSelector::Normal => *gen.select_op(&model::NORMAL_OPS_TABLE),
-            OpcodeSelector::ImmediateSrc => *gen.select_op(&model::IMMEDIATE_SRC_OPS_TABLE),
-            OpcodeSelector::WideMul => *gen.select_op(&model::WIDE_MUL_OPS_TABLE),
+            OpcodeSelector::Normal => *generator.select_op(&model::NORMAL_OPS_TABLE),
+            OpcodeSelector::ImmediateSrc => *generator.select_op(&model::IMMEDIATE_SRC_OPS_TABLE),
+            OpcodeSelector::WideMul => *generator.select_op(&model::WIDE_MUL_OPS_TABLE),
         }
     }
 }

@@ -1,7 +1,7 @@
 //! An error type for [C Tor](crate::keystore::ctor) keystores.
 
-use crate::keystore::fs_utils;
 use crate::KeystoreError;
+use crate::keystore::fs_utils;
 use tor_error::{ErrorKind, HasKind};
 use tor_hscrypto::pk::HsIdParseError;
 use tor_key_forge::KeystoreItemType;

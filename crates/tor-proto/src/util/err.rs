@@ -1,7 +1,7 @@
 //! Define an error type for the tor-proto crate.
 use std::{sync::Arc, time::Duration};
 use thiserror::Error;
-use tor_cell::relaycell::{msg::EndReason, StreamId};
+use tor_cell::relaycell::{StreamId, msg::EndReason};
 use tor_error::{Bug, ErrorKind, HasKind};
 use tor_linkspec::RelayIdType;
 
@@ -214,8 +214,8 @@ impl Error {
 
 impl From<Error> for std::io::Error {
     fn from(err: Error) -> std::io::Error {
-        use std::io::ErrorKind;
         use Error::*;
+        use std::io::ErrorKind;
         let kind = match err {
             ChanIoErr(e) | HandshakeIoErr(e) => match Arc::try_unwrap(e) {
                 Ok(e) => return e,
@@ -262,9 +262,9 @@ impl From<Error> for std::io::Error {
 
 impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
-        use tor_bytes::Error as BytesError;
         use Error as E;
         use ErrorKind as EK;
+        use tor_bytes::Error as BytesError;
         match self {
             E::BytesErr {
                 err: BytesError::Bug(e),

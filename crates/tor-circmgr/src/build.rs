@@ -4,12 +4,12 @@ use crate::path::{OwnedPath, TorPath};
 use crate::timeouts::{self, Action};
 use crate::{Error, Result};
 use async_trait::async_trait;
-use futures::task::SpawnExt;
 use futures::Future;
+use futures::task::SpawnExt;
 use oneshot_fused_workaround as oneshot;
 use std::sync::{
-    atomic::{AtomicU32, Ordering},
     Arc,
+    atomic::{AtomicU32, Ordering},
 };
 use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
@@ -17,9 +17,9 @@ use tor_error::into_internal;
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
+use tor_proto::ClientTunnel;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, PendingClientTunnel};
-use tor_proto::ClientTunnel;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 
@@ -1175,8 +1175,8 @@ mod test {
 
             assert!(timeouts[1].0); // success
             assert_eq!(timeouts[1].1, 2); // three-hop
-                                          // BUG: This timer is not always reliable, due to races.
-                                          //assert_eq!(timeouts[1].2, Duration::from_millis(3300));
+            // BUG: This timer is not always reliable, due to races.
+            //assert_eq!(timeouts[1].2, Duration::from_millis(3300));
         });
     }
 }

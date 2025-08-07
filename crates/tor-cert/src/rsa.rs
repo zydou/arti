@@ -4,7 +4,7 @@
 //! key speaks for a given (deprecated) RSA identity.
 
 use tor_bytes::Reader;
-use tor_checkable::{timed::TimerangeBound, ExternallySigned};
+use tor_checkable::{ExternallySigned, timed::TimerangeBound};
 use tor_llcrypto as ll;
 
 use digest::Digest;

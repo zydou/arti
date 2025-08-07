@@ -135,8 +135,8 @@ pub enum IptError {
 
 impl tor_error::HasKind for IptEstablisherError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use IptEstablisherError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::Ipt(e) => e.kind(),
             E::NetdirProviderShutdown(e) => e.kind(),
@@ -153,8 +153,8 @@ impl tor_error::HasKind for IptEstablisherError {
 
 impl tor_error::HasKind for IptError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use IptError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1255) Not correct kind.
             E::BadEstablished => EK::RemoteProtocolViolation,
@@ -823,7 +823,7 @@ impl<R: Runtime> Reactor<R> {
 
 impl IntroPtSession {
     /// Wait for this introduction point session to be closed.
-    fn wait_for_close(&self) -> impl Future<Output = ()> {
+    fn wait_for_close(&self) -> impl Future<Output = ()> + use<> {
         self.intro_tunnel.wait_for_close()
     }
 }
@@ -911,7 +911,7 @@ impl tor_proto::MsgHandler for IptMsgHandler {
                         return Err(tor_proto::Error::CircProto(
                             "Received an INTRODUCE2 message before we were accepting requests!"
                                 .into(),
-                        ))
+                        ));
                     }
                     RequestDisposition::Shutdown => return Ok(MetaCellDisposition::CloseCirc),
                     RequestDisposition::Advertised => {}

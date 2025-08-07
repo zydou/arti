@@ -1,6 +1,6 @@
 //! Remember a list of changes to a Cargo.toml file
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use toml_edit::{Array, Item, Table, Value};
 
 #[derive(Debug, Clone, Default)]

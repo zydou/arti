@@ -1,6 +1,6 @@
 //! Types and encodings used during circuit extension.
 
-use super::extlist::{decl_extension_group, Ext, ExtList, ExtListRef};
+use super::extlist::{Ext, ExtList, ExtListRef, decl_extension_group};
 #[cfg(feature = "hs")]
 use super::hs::pow::ProofOfWork;
 use caret::caret_int;

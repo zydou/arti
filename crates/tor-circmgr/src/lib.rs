@@ -61,8 +61,8 @@ use tor_rtcompat::Runtime;
 #[cfg(any(feature = "specific-relay", feature = "hs-common"))]
 use tor_linkspec::IntoOwnedChanTarget;
 
-use futures::task::SpawnExt;
 use futures::StreamExt;
+use futures::task::SpawnExt;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, trace, warn};

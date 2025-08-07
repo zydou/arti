@@ -13,7 +13,7 @@ use std::future::{Future, IntoFuture};
 use std::ops::Drop;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
-use std::task::{ready, Context, Poll, Waker};
+use std::task::{Context, Poll, Waker, ready};
 
 use slotmap_careful::DenseSlotMap;
 

@@ -73,7 +73,7 @@ pub(crate) mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use itertools::{chain, Itertools};
+    use itertools::{Itertools, chain};
 
     #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
     struct IptLidTest {

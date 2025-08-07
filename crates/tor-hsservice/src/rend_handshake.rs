@@ -7,7 +7,7 @@ use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
 };
-use tor_circmgr::{build::onion_circparams_from_netparams, ServiceOnionServiceDataTunnel};
+use tor_circmgr::{ServiceOnionServiceDataTunnel, build::onion_circparams_from_netparams};
 use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
 use tor_proto::{
     circuit::handshake::{
@@ -43,8 +43,8 @@ pub enum IntroRequestError {
 
 impl HasKind for IntroRequestError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use IntroRequestError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::InvalidHandshake(e) => e.kind(),
             E::InvalidPayload(_) => EK::RemoteProtocolViolation,
@@ -92,8 +92,8 @@ pub enum EstablishSessionError {
 
 impl HasKind for EstablishSessionError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use EstablishSessionError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::NetdirUnavailable(e) => e.kind(),
             E::UnsupportedOnionKey => EK::RemoteProtocolViolation,

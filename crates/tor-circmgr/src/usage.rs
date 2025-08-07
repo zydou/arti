@@ -8,7 +8,7 @@ use tracing::trace;
 #[cfg(not(feature = "geoip"))]
 use void::Void;
 
-use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
+use crate::path::{TorPath, dirpath::DirPathBuilder, exitpath::ExitPathBuilder};
 use tor_chanmgr::ChannelUsage;
 #[cfg(feature = "geoip")]
 use tor_error::internal;
@@ -17,7 +17,7 @@ use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 #[cfg(feature = "hs-common")]
-use {crate::path::hspath::HsPathBuilder, crate::HsCircKind, crate::HsCircStemKind};
+use {crate::HsCircKind, crate::HsCircStemKind, crate::path::hspath::HsPathBuilder};
 
 #[cfg(feature = "specific-relay")]
 use tor_linkspec::{HasChanMethod, HasRelayIds};
@@ -41,9 +41,9 @@ use tor_linkspec::OwnedChanTarget;
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::VanguardMgr;
 
+use crate::Result;
 use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{AbstractTunnel, OpenEntry, RestrictionFailed};
-use crate::Result;
 
 pub use tor_relay_selection::TargetPort;
 
@@ -493,8 +493,7 @@ impl SupportedTunnelUsage {
             (Exit { .. }, TargetTunnelUsage::Preemptive { .. }) => Ok(()),
             (
                 Exit {
-                    isolation: ref mut isol1,
-                    ..
+                    isolation: isol1, ..
                 },
                 TargetTunnelUsage::Exit { isolation: i2, .. },
             ) => {
@@ -578,7 +577,7 @@ impl SupportedTunnelUsage {
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
+    use crate::isolation::test::{IsolationTokenEq, assert_isoleq};
     use crate::isolation::{IsolationToken, StreamIsolationBuilder};
     use crate::path::OwnedPath;
     use tor_basic_utils::test_rng::testing_rng;

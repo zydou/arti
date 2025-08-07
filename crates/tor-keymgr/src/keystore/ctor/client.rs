@@ -8,9 +8,9 @@ use std::result::Result as StdResult;
 use std::str::FromStr as _;
 use std::sync::Arc;
 
-use crate::keystore::ctor::err::{CTorKeystoreError, MalformedClientKeyError};
 use crate::keystore::ctor::CTorKeystore;
-use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
+use crate::keystore::ctor::err::{CTorKeystoreError, MalformedClientKeyError};
+use crate::keystore::fs_utils::{FilesystemAction, FilesystemError, RelKeyPath, checked_op};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
@@ -343,9 +343,9 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use std::fs;
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{TempDir, tempdir};
 
-    use crate::test_utils::{assert_found, DummyKey, TestCTorSpecifier};
+    use crate::test_utils::{DummyKey, TestCTorSpecifier, assert_found};
 
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;

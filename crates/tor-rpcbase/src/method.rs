@@ -209,7 +209,7 @@ define_derive_deftly! {
 }
 pub use derive_deftly_template_DynMethod;
 
-use crate::{is_valid_rpc_identifier, InvalidRpcIdentifier, ObjectId};
+use crate::{InvalidRpcIdentifier, ObjectId, is_valid_rpc_identifier};
 
 /// Return true if `name` is the name of some method.
 pub fn is_method_name(name: &str) -> bool {

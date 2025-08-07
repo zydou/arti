@@ -13,10 +13,10 @@ use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::B64;
 use crate::{Pos, Result};
 
-use super::desc_enc::{
-    HsDescEncNonce, HsDescEncryption, HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN,
-};
 use super::HsDescError;
+use super::desc_enc::{
+    HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN, HsDescEncNonce, HsDescEncryption,
+};
 
 /// The only currently recognized `desc-auth-type`.
 //

@@ -2,7 +2,7 @@
 name = "equix"
 version = "0.2.5"
 authors = ["The Tor Project, Inc.", "Micah Elizabeth Scott <beth@torproject.org>"]
-edition = "2021"
+edition = "2024"
 rust-version = "1.85"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Asymmetric function for client puzzle protocols"

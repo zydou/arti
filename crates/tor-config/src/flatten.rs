@@ -65,7 +65,7 @@ use std::fmt::{self, Display};
 use std::marker::PhantomData;
 use std::mem;
 
-use derive_deftly::{define_derive_deftly, derive_deftly_adhoc, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly, derive_deftly_adhoc};
 use paste::paste;
 use serde::de::{self, DeserializeSeed, Deserializer, Error as _, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Serialize, Serializer};

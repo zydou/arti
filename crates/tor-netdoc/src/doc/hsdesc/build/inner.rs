@@ -4,15 +4,15 @@
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
+use crate::NetdocBuilder;
 use crate::build::ItemArgument;
 use crate::build::NetdocEncoder;
-use crate::doc::hsdesc::inner::HsInnerKwd;
-use crate::doc::hsdesc::pow::v1::PowParamsV1;
-use crate::doc::hsdesc::pow::PowParams;
 use crate::doc::hsdesc::IntroAuthType;
 use crate::doc::hsdesc::IntroPointDesc;
+use crate::doc::hsdesc::inner::HsInnerKwd;
+use crate::doc::hsdesc::pow::PowParams;
+use crate::doc::hsdesc::pow::v1::PowParamsV1;
 use crate::types::misc::Iso8601TimeNoSp;
-use crate::NetdocBuilder;
 
 use rand::CryptoRng;
 use rand::RngCore;
@@ -131,7 +131,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
                 PowParams::V1(_) => {
                     return Err(internal!(
                         "Got a V1 PoW params but support for V1 is disabled."
-                    ))
+                    ));
                 }
             }
         }
@@ -250,9 +250,9 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::doc::hsdesc::IntroAuthType;
     use crate::doc::hsdesc::build::test::{create_intro_point_descriptor, expect_bug};
     use crate::doc::hsdesc::pow::v1::PowParamsV1;
-    use crate::doc::hsdesc::IntroAuthType;
 
     use smallvec::SmallVec;
     use std::net::Ipv4Addr;

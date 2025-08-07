@@ -9,9 +9,9 @@ use tracing::warn;
 use weak_table::WeakValueHashMap;
 
 use crate::{
+    RpcAuthentication,
     connection::{Connection, ConnectionId},
     globalid::{GlobalId, MacKey},
-    RpcAuthentication,
 };
 
 /// A function we use to construct Session objects in response to authentication.

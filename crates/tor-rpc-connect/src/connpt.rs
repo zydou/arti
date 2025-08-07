@@ -3,8 +3,8 @@
 use serde::Deserialize;
 use std::{fmt::Debug, path::PathBuf, str::FromStr};
 use tor_config_path::{
-    addr::{CfgAddr, CfgAddrError},
     CfgPath, CfgPathError, CfgPathResolver,
+    addr::{CfgAddr, CfgAddrError},
 };
 use tor_general_addr::general;
 
@@ -260,7 +260,7 @@ impl Connect<Resolved> {
         use general::SocketAddr::{Inet, Unix};
         match (self.socket.as_ref(), &self.auth) {
             (Inet(addr), _) if !addr.ip().is_loopback() => {
-                return Err(ResolveError::AddressNotLoopback)
+                return Err(ResolveError::AddressNotLoopback);
             }
             (Inet(_), Auth::None) => return Err(ResolveError::AuthNotCompatible),
             (_, Auth::Unrecognized(_)) => return Err(ResolveError::AuthNotRecognized),

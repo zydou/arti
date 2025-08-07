@@ -6,8 +6,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use futures::io::Error;
 use futures::AsyncWrite;
+use futures::io::Error;
 use sync_wrapper::SyncFuture;
 use tor_rtcompat::SleepProvider;
 

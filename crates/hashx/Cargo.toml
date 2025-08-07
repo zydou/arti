@@ -2,7 +2,7 @@
 name = "hashx"
 version = "0.3.4"
 authors = ["The Tor Project, Inc.", "Micah Elizabeth Scott <beth@torproject.org>"]
-edition = "2021"
+edition = "2024"
 rust-version = "1.85"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Hash function family designed for ASIC-resistant client puzzles"

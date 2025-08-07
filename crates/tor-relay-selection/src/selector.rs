@@ -420,8 +420,8 @@ mod test {
 
     use super::*;
     use crate::{
-        testing::{cfg, split_netdir, testnet},
         RelaySelectionConfig, TargetPort,
+        testing::{cfg, split_netdir, testnet},
     };
 
     #[test]
@@ -559,8 +559,11 @@ mod test {
         sel.mark_exclusion_flexible();
         let (r_some, si) = sel.select_relay(&mut rng, &nd);
         assert!(r_some.is_some());
-        assert_eq!(si.to_string(), "Failed at first, then succeeded. At first, rejected 12/40 as not usable as middle relay; \
+        assert_eq!(
+            si.to_string(),
+            "Failed at first, then succeeded. At first, rejected 12/40 as not usable as middle relay; \
                                     28/28 as in same family as already selected. \
-                                    After relaxing requirements, rejected 12/40 as not usable as middle relay");
+                                    After relaxing requirements, rejected 12/40 as not usable as middle relay"
+        );
     }
 }
