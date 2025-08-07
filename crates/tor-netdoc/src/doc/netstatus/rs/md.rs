@@ -20,7 +20,7 @@ use tor_protover::Protocols;
 /// The flavor
 const FLAVOR: ConsensusFlavor = ConsensusFlavor::Microdesc;
 
-/// A single relay's status, as represented in a microdesc consensus.
+/// A single relay's status, as represented in a consensus.
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
     visible::StructFields(pub),

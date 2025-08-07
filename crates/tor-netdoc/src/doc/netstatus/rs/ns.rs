@@ -20,15 +20,12 @@ use tor_protover::Protocols;
 /// The flavor
 const FLAVOR: ConsensusFlavor = ConsensusFlavor::Ns;
 
-/// A single relay's status, as represented in a "ns" consensus.
-///
-/// Only available if `tor-netdoc` is built with the `ns_consensus` feature.
+/// A single relay's status, as represented in a consensus.
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
     visible::StructFields(pub),
     non_exhaustive
 )]
-#[cfg_attr(docsrs, doc(cfg(feature = "ns-consensus")))]
 #[derive(Debug, Clone)]
 pub struct ConsensusRouterStatus {
     /// Underlying generic routerstatus object.
