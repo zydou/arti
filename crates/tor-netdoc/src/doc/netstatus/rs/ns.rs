@@ -27,7 +27,7 @@ use tor_protover::Protocols;
 )]
 #[cfg_attr(docsrs, doc(cfg(feature = "ns-consensus")))]
 #[derive(Debug, Clone)]
-pub struct NsConsensusRouterStatus {
+pub struct ConsensusRouterStatus {
     /// Underlying generic routerstatus object.
     ///
     /// This is private because we don't want to leak that these two
@@ -36,24 +36,24 @@ pub struct NsConsensusRouterStatus {
     rs: GenericRouterStatus<RdDigest>,
 }
 
-impl From<GenericRouterStatus<RdDigest>> for NsConsensusRouterStatus {
+impl From<GenericRouterStatus<RdDigest>> for ConsensusRouterStatus {
     fn from(rs: GenericRouterStatus<RdDigest>) -> Self {
-        NsConsensusRouterStatus { rs }
+        ConsensusRouterStatus { rs }
     }
 }
 
-super::implement_accessors! {NsConsensusRouterStatus}
+super::implement_accessors! {ConsensusRouterStatus}
 
-impl NsConsensusRouterStatus {
+impl ConsensusRouterStatus {
     /// Return the expected router descriptor digest for this routerstatus
     pub fn rd_digest(&self) -> &RdDigest {
         &self.rs.doc_digest
     }
 }
 
-impl Sealed for NsConsensusRouterStatus {}
+impl Sealed for ConsensusRouterStatus {}
 
-impl RouterStatus for NsConsensusRouterStatus {
+impl RouterStatus for ConsensusRouterStatus {
     type DocumentDigest = RdDigest;
 
     fn rsa_identity(&self) -> &RsaIdentity {
@@ -65,14 +65,14 @@ impl RouterStatus for NsConsensusRouterStatus {
     }
 }
 
-impl ParseRouterStatus for NsConsensusRouterStatus {
+impl ParseRouterStatus for ConsensusRouterStatus {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Ns
     }
 
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<NsConsensusRouterStatus> {
+    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusRouterStatus> {
         let rs = GenericRouterStatus::from_section(sec, ConsensusFlavor::Ns)?;
-        Ok(NsConsensusRouterStatus { rs })
+        Ok(ConsensusRouterStatus { rs })
     }
 }
 

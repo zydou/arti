@@ -24,7 +24,7 @@ use tor_protover::Protocols;
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-pub struct MdConsensusRouterStatus {
+pub struct ConsensusRouterStatus {
     /// Underlying generic routerstatus object.
     ///
     /// This is private because we don't want to leak that these two
@@ -33,24 +33,24 @@ pub struct MdConsensusRouterStatus {
     rs: GenericRouterStatus<MdDigest>,
 }
 
-impl From<GenericRouterStatus<MdDigest>> for MdConsensusRouterStatus {
+impl From<GenericRouterStatus<MdDigest>> for ConsensusRouterStatus {
     fn from(rs: GenericRouterStatus<MdDigest>) -> Self {
-        MdConsensusRouterStatus { rs }
+        ConsensusRouterStatus { rs }
     }
 }
 
-super::implement_accessors! {MdConsensusRouterStatus}
+super::implement_accessors! {ConsensusRouterStatus}
 
-impl MdConsensusRouterStatus {
+impl ConsensusRouterStatus {
     /// Return the expected microdescriptor digest for this routerstatus
     pub fn md_digest(&self) -> &MdDigest {
         &self.rs.doc_digest
     }
 }
 
-impl Sealed for MdConsensusRouterStatus {}
+impl Sealed for ConsensusRouterStatus {}
 
-impl RouterStatus for MdConsensusRouterStatus {
+impl RouterStatus for ConsensusRouterStatus {
     type DocumentDigest = MdDigest;
 
     fn rsa_identity(&self) -> &RsaIdentity {
@@ -62,14 +62,14 @@ impl RouterStatus for MdConsensusRouterStatus {
     }
 }
 
-impl ParseRouterStatus for MdConsensusRouterStatus {
+impl ParseRouterStatus for ConsensusRouterStatus {
     fn flavor() -> ConsensusFlavor {
         ConsensusFlavor::Microdesc
     }
 
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<MdConsensusRouterStatus> {
+    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusRouterStatus> {
         let rs = GenericRouterStatus::from_section(sec, ConsensusFlavor::Microdesc)?;
-        Ok(MdConsensusRouterStatus { rs })
+        Ok(ConsensusRouterStatus { rs })
     }
 }
 

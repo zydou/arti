@@ -178,7 +178,6 @@ macro_rules! ns_do_species_md   { {} => { ns_do_one_species! { md   : vote ns md
 ///
 /// All three modules `vote`, `ns`, and `md` must exist,
 /// and must contain the same items.
-#[allow(unused)] // XXXX
 macro_rules! ns_export_per_species {
     {
         $kind:ident: $( $ty:ident ),* $(,)?
