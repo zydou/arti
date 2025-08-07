@@ -17,6 +17,9 @@ use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
+/// The flavor
+const FLAVOR: ConsensusFlavor = ConsensusFlavor::Ns;
+
 /// A single relay's status, as represented in a "ns" consensus.
 ///
 /// Only available if `tor-netdoc` is built with the `ns_consensus` feature.
@@ -67,11 +70,11 @@ impl RouterStatus for ConsensusRouterStatus {
 
 impl ParseRouterStatus for ConsensusRouterStatus {
     fn flavor() -> ConsensusFlavor {
-        ConsensusFlavor::Ns
+        FLAVOR
     }
 
     fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusRouterStatus> {
-        let rs = GenericRouterStatus::from_section(sec, ConsensusFlavor::Ns)?;
+        let rs = GenericRouterStatus::from_section(sec, FLAVOR)?;
         Ok(ConsensusRouterStatus { rs })
     }
 }

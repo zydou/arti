@@ -17,6 +17,9 @@ use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
+/// The flavor
+const FLAVOR: ConsensusFlavor = ConsensusFlavor::Microdesc;
+
 /// A single relay's status, as represented in a microdesc consensus.
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
@@ -64,11 +67,11 @@ impl RouterStatus for ConsensusRouterStatus {
 
 impl ParseRouterStatus for ConsensusRouterStatus {
     fn flavor() -> ConsensusFlavor {
-        ConsensusFlavor::Microdesc
+        FLAVOR
     }
 
     fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusRouterStatus> {
-        let rs = GenericRouterStatus::from_section(sec, ConsensusFlavor::Microdesc)?;
+        let rs = GenericRouterStatus::from_section(sec, FLAVOR)?;
         Ok(ConsensusRouterStatus { rs })
     }
 }
