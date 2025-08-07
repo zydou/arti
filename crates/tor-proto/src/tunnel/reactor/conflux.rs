@@ -866,7 +866,7 @@ impl ConfluxSet {
             }
         };
 
-        Ok(StreamExt::into_future(self.legs
+        Ok(self.legs
             .iter_mut()
             .map(|leg| {
                 let unique_id = leg.unique_id();
@@ -964,7 +964,10 @@ impl ConfluxSet {
                     }
                 }
             })
-            .collect::<FuturesUnordered<_>>())
+            .collect::<FuturesUnordered<_>>()
+            // We only return the first ready action as a Future.
+            // Can't use `next()` since it borrows the stream.
+            .into_future()
             .map(|(next, _)| next.ok_or(internal!("empty conflux set").into()))
             // Clean up the nested `Result`s before returning to the caller.
             .map(|res| flatten(flatten(res))))
