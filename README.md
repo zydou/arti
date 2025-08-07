@@ -95,6 +95,11 @@ because it includes your username), you will want to take steps
 to prevent this.  See [`doc/safer-build.md`](doc/safer-build.md)
 for more information.
 
+⚠ **Safety Note**: when building `arti` for "production use",
+you should always use the `-p arti` option as documented above.
+While a `cargo build` without specifying the `-p arti` will still build `arti`,
+it may also enable unintended features (including experimental features)
+due to cargo feature unification.
 
 If you run into any trouble building the program, please have a
 look at [the troubleshooting guide](doc/TROUBLESHOOTING.md).
