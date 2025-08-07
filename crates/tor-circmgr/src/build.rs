@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_error::into_internal;
 use tor_guardmgr::GuardStatus;
-use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
+use tor_linkspec::{IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
 use tor_proto::ClientTunnel;
 use tor_proto::ccparams::{self, AlgorithmType};
@@ -82,35 +82,6 @@ pub(crate) trait Buildable: Sized {
     ) -> Result<()>;
 }
 
-/// Get or construct a channel, performing any necessary housekeeping.
-async fn get_channel_to_guard<RT: Runtime, CT: ChanTarget>(
-    chanmgr: &ChanMgr<RT>,
-    target: &CT,
-    guard_status: &GuardStatusHandle,
-    usage: ChannelUsage,
-) -> Result<Arc<tor_proto::channel::Channel>> {
-    // Get or construct the channel.
-    let result = chanmgr.get_or_launch(target, usage).await;
-
-    // Report the clock skew if appropriate, and exit if there has been an error.
-    match result {
-        Ok((chan, ChanProvenance::NewlyCreated)) => {
-            guard_status.skew(chan.clock_skew());
-            Ok(chan)
-        }
-        Ok((chan, _)) => Ok(chan),
-        Err(cause) => {
-            if let Some(skew) = cause.clock_skew() {
-                guard_status.skew(skew);
-            }
-            Err(Error::Channel {
-                peer: target.to_logged(),
-                cause,
-            })
-        }
-    }
-}
-
 /// Try to make a [`PendingClientTunnel`] to a given relay, and start its
 /// reactor.
 ///
@@ -142,15 +113,33 @@ impl Buildable for ClientTunnel {
 
     async fn open_channel<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
-        ct: &OwnedChanTarget,
+        target: &OwnedChanTarget,
         guard_status: &GuardStatusHandle,
         usage: ChannelUsage,
     ) -> Result<Arc<Self::Chan>> {
         // If we fail now, it's the guard's fault.
         guard_status.pending(GuardStatus::Failure);
 
-        // XXXX Flatten this function into this method.
-        get_channel_to_guard(chanmgr, ct, guard_status, usage).await
+        // Get or construct the channel.
+        let result = chanmgr.get_or_launch(target, usage).await;
+
+        // Report the clock skew if appropriate, and exit if there has been an error.
+        match result {
+            Ok((chan, ChanProvenance::NewlyCreated)) => {
+                guard_status.skew(chan.clock_skew());
+                Ok(chan)
+            }
+            Ok((chan, _)) => Ok(chan),
+            Err(cause) => {
+                if let Some(skew) = cause.clock_skew() {
+                    guard_status.skew(skew);
+                }
+                Err(Error::Channel {
+                    peer: target.to_logged(),
+                    cause,
+                })
+            }
+        }
     }
 
     async fn create_chantarget<RT: Runtime>(
@@ -719,6 +708,7 @@ mod test {
     use std::sync::Mutex;
     use tor_chanmgr::ChannelConfig;
     use tor_chanmgr::ChannelUsage as CU;
+    use tor_linkspec::ChanTarget;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_memquota::ArcMemoryQuotaTrackerExt as _;
