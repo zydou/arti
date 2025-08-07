@@ -74,6 +74,36 @@ pub(crate) trait Buildable: Sized {
     ) -> Result<()>;
 }
 
+/// Get or construct a channel, performing any necessary housekeeping.
+async fn get_channel_to_guard<RT: Runtime, CT: ChanTarget>(
+    chanmgr: &ChanMgr<RT>,
+
+    target: &CT,
+    guard_status: &GuardStatusHandle,
+    usage: ChannelUsage,
+) -> Result<Arc<tor_proto::channel::Channel>> {
+    // Get or construct the channel.
+    let result = chanmgr.get_or_launch(target, usage).await;
+
+    // Report the clock skew if appropriate, and exit if there has been an error.
+    match result {
+        Ok((chan, ChanProvenance::NewlyCreated)) => {
+            guard_status.skew(chan.clock_skew());
+            Ok(chan)
+        }
+        Ok((chan, _)) => Ok(chan),
+        Err(cause) => {
+            if let Some(skew) = cause.clock_skew() {
+                guard_status.skew(skew);
+            }
+            Err(Error::Channel {
+                peer: target.to_logged(),
+                cause,
+            })
+        }
+    }
+}
+
 /// Try to make a [`PendingClientTunnel`] to a given relay, and start its
 /// reactor.
 ///
@@ -86,26 +116,8 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     guard_status: &GuardStatusHandle,
     usage: ChannelUsage,
 ) -> Result<PendingClientTunnel> {
-    // Get or construct the channel.
-    let result = chanmgr.get_or_launch(target, usage).await;
+    let chan = get_channel_to_guard(chanmgr, target, guard_status, usage).await?;
 
-    // Report the clock skew if appropriate, and exit if there has been an error.
-    let chan = match result {
-        Ok((chan, ChanProvenance::NewlyCreated)) => {
-            guard_status.skew(chan.clock_skew());
-            chan
-        }
-        Ok((chan, _)) => chan,
-        Err(cause) => {
-            if let Some(skew) = cause.clock_skew() {
-                guard_status.skew(skew);
-            }
-            return Err(Error::Channel {
-                peer: target.to_logged(),
-                cause,
-            });
-        }
-    };
     // Construct the (zero-hop) circuit.
     let (pending_tunnel, reactor) = chan.new_tunnel().await.map_err(|error| Error::Protocol {
         error,
