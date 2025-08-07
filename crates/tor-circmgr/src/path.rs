@@ -264,6 +264,15 @@ impl OwnedPath {
             OwnedPath::Normal(p) => p.len(),
         }
     }
+
+    /// Return a reference to the first hop of this path, as an OwnedChanTarget.
+    pub(crate) fn first_hop_as_chantarget(&self) -> &OwnedChanTarget {
+        match self {
+            OwnedPath::ChannelOnly(ct) => ct,
+            // This access won't panic, since we enforce that path is nonempty.
+            OwnedPath::Normal(path) => path[0].chan_target(),
+        }
+    }
 }
 
 /// A path builder that builds multi-hop, anonymous paths.

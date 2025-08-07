@@ -39,29 +39,37 @@ pub(crate) use guardstatus::GuardStatusHandle;
 /// complicates things a bit.
 #[async_trait]
 pub(crate) trait Buildable: Sized {
+    /// Our equivalent to a tor_proto::Channel.
+    type Chan: Send + Sync;
+
+    /// Use a channel manager to open a new channel (or find an existing channel)
+    /// to a provided [`OwnedChanTarget`].
+    async fn open_channel<RT: Runtime>(
+        chanmgr: &ChanMgr<RT>,
+        ct: &OwnedChanTarget,
+        guard_status: &GuardStatusHandle,
+        usage: ChannelUsage,
+    ) -> Result<Arc<Self::Chan>>;
+
     /// Launch a new one-hop circuit to a given relay, given only a
     /// channel target `ct` specifying that relay.
     ///
     /// (Since we don't have a CircTarget here, we can't extend the circuit
     /// to be multihop later on.)
     async fn create_chantarget<RT: Runtime>(
-        chanmgr: &ChanMgr<RT>,
+        chan: Arc<Self::Chan>,
         rt: &RT,
-        guard_status: &GuardStatusHandle,
         ct: &OwnedChanTarget,
         params: CircParameters,
-        usage: ChannelUsage,
     ) -> Result<Self>;
 
     /// Launch a new circuit through a given relay, given a circuit target
     /// `ct` specifying that relay.
     async fn create<RT: Runtime>(
-        chanmgr: &ChanMgr<RT>,
+        chan: Arc<Self::Chan>,
         rt: &RT,
-        guard_status: &GuardStatusHandle,
         ct: &OwnedCircTarget,
         params: CircParameters,
-        usage: ChannelUsage,
     ) -> Result<Self>;
 
     /// Extend this circuit-like object by one hop, to the location described
@@ -77,7 +85,6 @@ pub(crate) trait Buildable: Sized {
 /// Get or construct a channel, performing any necessary housekeeping.
 async fn get_channel_to_guard<RT: Runtime, CT: ChanTarget>(
     chanmgr: &ChanMgr<RT>,
-
     target: &CT,
     guard_status: &GuardStatusHandle,
     usage: ChannelUsage,
@@ -109,15 +116,10 @@ async fn get_channel_to_guard<RT: Runtime, CT: ChanTarget>(
 ///
 /// This is common code, shared by all the first-hop functions in the
 /// implementation of `Buildable` for `ClientTunnel`.
-async fn create_common<RT: Runtime, CT: ChanTarget>(
-    chanmgr: &ChanMgr<RT>,
+async fn create_common<RT: Runtime>(
+    chan: Arc<tor_proto::channel::Channel>,
     rt: &RT,
-    target: &CT,
-    guard_status: &GuardStatusHandle,
-    usage: ChannelUsage,
 ) -> Result<PendingClientTunnel> {
-    let chan = get_channel_to_guard(chanmgr, target, guard_status, usage).await?;
-
     // Construct the (zero-hop) circuit.
     let (pending_tunnel, reactor) = chan.new_tunnel().await.map_err(|error| Error::Protocol {
         error,
@@ -136,15 +138,28 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
 
 #[async_trait]
 impl Buildable for ClientTunnel {
-    async fn create_chantarget<RT: Runtime>(
+    type Chan = tor_proto::channel::Channel;
+
+    async fn open_channel<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
-        rt: &RT,
+        ct: &OwnedChanTarget,
         guard_status: &GuardStatusHandle,
+        usage: ChannelUsage,
+    ) -> Result<Arc<Self::Chan>> {
+        // If we fail now, it's the guard's fault.
+        guard_status.pending(GuardStatus::Failure);
+
+        // XXXX Flatten this function into this method.
+        get_channel_to_guard(chanmgr, ct, guard_status, usage).await
+    }
+
+    async fn create_chantarget<RT: Runtime>(
+        chan: Arc<Self::Chan>,
+        rt: &RT,
         ct: &OwnedChanTarget,
         params: CircParameters,
-        usage: ChannelUsage,
     ) -> Result<Self> {
-        let pending_tunnel = create_common(chanmgr, rt, ct, guard_status, usage).await?;
+        let pending_tunnel = create_common(chan, rt).await?;
         let unique_id = Some(pending_tunnel.peek_unique_id());
         pending_tunnel
             .create_firsthop_fast(params)
@@ -157,14 +172,12 @@ impl Buildable for ClientTunnel {
             })
     }
     async fn create<RT: Runtime>(
-        chanmgr: &ChanMgr<RT>,
+        chan: Arc<Self::Chan>,
         rt: &RT,
-        guard_status: &GuardStatusHandle,
         ct: &OwnedCircTarget,
         params: CircParameters,
-        usage: ChannelUsage,
     ) -> Result<Self> {
-        let pending_tunnel = create_common(chanmgr, rt, ct, guard_status, usage).await?;
+        let pending_tunnel = create_common(chan, rt).await?;
         let unique_id = Some(pending_tunnel.peek_unique_id());
 
         let handshake_res = pending_tunnel.create_firsthop(ct, params).await;
@@ -237,30 +250,22 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     /// `guard_status` has its pending status set correctly to correspond
     /// to a circuit failure at any given stage.
     ///
+    /// Requires that `channel` is a channel to the first hop of `path`.
+    ///
     /// (TODO: Find
     /// a better design there.)
     async fn build_notimeout(
         self: Arc<Self>,
         path: OwnedPath,
+        channel: Arc<C::Chan>,
         params: CircParameters,
         start_time: Instant,
         n_hops_built: Arc<AtomicU32>,
         guard_status: Arc<GuardStatusHandle>,
-        usage: ChannelUsage,
     ) -> Result<C> {
         match path {
             OwnedPath::ChannelOnly(target) => {
-                // If we fail now, it's the guard's fault.
-                guard_status.pending(GuardStatus::Failure);
-                let circ = C::create_chantarget(
-                    &self.chanmgr,
-                    &self.runtime,
-                    &guard_status,
-                    &target,
-                    params,
-                    usage,
-                )
-                .await?;
+                let circ = C::create_chantarget(channel, &self.runtime, &target, params).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, true);
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
@@ -269,18 +274,8 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
             OwnedPath::Normal(p) => {
                 assert!(!p.is_empty());
                 let n_hops = p.len() as u8;
-                // If we fail now, it's the guard's fault.
-                guard_status.pending(GuardStatus::Failure);
                 // Each hop has its own circ parameters. This is for the first hop (CREATE).
-                let circ = C::create(
-                    &self.chanmgr,
-                    &self.runtime,
-                    &guard_status,
-                    &p[0],
-                    params.clone(),
-                    usage,
-                )
-                .await?;
+                let circ = C::create(channel, &self.runtime, &p[0], params.clone()).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, n_hops == 0);
                 // If we fail after this point, we can't tell whether it's
@@ -314,7 +309,6 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     ) -> Result<C> {
         let action = Action::BuildCircuit { length: path.len() };
         let (timeout, abandon_timeout) = self.timeouts.timeouts(&action);
-        let start_time = self.runtime.now();
 
         // TODO: This is probably not the best way for build_notimeout to
         // tell us how many hops it managed to build, but at least it is
@@ -324,13 +318,27 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
         let self_clone = Arc::clone(self);
         let params = params.clone();
 
+        // We open the channel separately from the rest of the circuit, since we don't want to count
+        // it towards the circuit timeout.
+        //
+        // We don't need a separate timeout here, since ChanMgr already implements its own timeouts.
+        let channel = C::open_channel(
+            &self.chanmgr,
+            path.first_hop_as_chantarget(),
+            guard_status.as_ref(),
+            usage,
+        )
+        .await?;
+
+        let start_time = self.runtime.now();
+
         let circuit_future = self_clone.build_notimeout(
             path,
+            channel,
             params,
             start_time,
             Arc::clone(&hops_built),
             guard_status,
-            usage,
         );
 
         match double_timeout(&self.runtime, circuit_future, timeout, abandon_timeout).await {
@@ -885,13 +893,22 @@ mod test {
     }
     #[async_trait]
     impl Buildable for Mutex<FakeCirc> {
-        async fn create_chantarget<RT: Runtime>(
-            _: &ChanMgr<RT>,
-            rt: &RT,
+        type Chan = ();
+
+        async fn open_channel<RT: Runtime>(
+            _chanmgr: &ChanMgr<RT>,
+            _ct: &OwnedChanTarget,
             _guard_status: &GuardStatusHandle,
+            _usage: ChannelUsage,
+        ) -> Result<Arc<Self::Chan>> {
+            Ok(Arc::new(()))
+        }
+
+        async fn create_chantarget<RT: Runtime>(
+            _: Arc<Self::Chan>,
+            rt: &RT,
             ct: &OwnedChanTarget,
             _: CircParameters,
-            _usage: ChannelUsage,
         ) -> Result<Self> {
             let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
@@ -906,12 +923,10 @@ mod test {
             Ok(Mutex::new(c))
         }
         async fn create<RT: Runtime>(
-            _: &ChanMgr<RT>,
+            _: Arc<Self::Chan>,
             rt: &RT,
-            _guard_status: &GuardStatusHandle,
             ct: &OwnedCircTarget,
             _: CircParameters,
-            _usage: ChannelUsage,
         ) -> Result<Self> {
             let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
