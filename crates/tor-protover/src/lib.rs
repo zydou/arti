@@ -755,7 +755,7 @@ pub mod doc_supported {}
 /// One concrete example of a very dangerous race that could occur:
 ///
 /// Suppose that the client supports protocols "HsDir=1-2" and the consensus
-/// requires protocols "HsDir=1-2.  If the client supported protocol list is
+/// requires protocols "HsDir=1-2".  If the client supported protocol list is
 /// then changed to "HSDir=2", while the consensus stills lists "HSDir=1-2",
 /// then these clients, even very recent ones, will shut down because they
 /// don't support "HSDir=1".
