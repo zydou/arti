@@ -86,7 +86,7 @@ where
 impl DownloadSchedule {
     /// Return an iterator to use over all the supported attempts for
     /// this configuration.
-    pub fn attempts(&self) -> impl Iterator<Item = u32> {
+    pub fn attempts(&self) -> impl Iterator<Item = u32> + use<> {
         0..(self.attempts.into())
     }
 

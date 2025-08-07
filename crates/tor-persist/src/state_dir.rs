@@ -525,7 +525,9 @@ impl StateDirectory {
     /// serialisation is not guaranteed across different instances.
     ///
     /// It *is* guaranteed to list each instance only once.
-    pub fn list_instances<I: InstanceIdentity>(&self) -> impl Iterator<Item = Result<Slug>> {
+    pub fn list_instances<I: InstanceIdentity>(
+        &self,
+    ) -> impl Iterator<Item = Result<Slug>> + use<I> {
         self.list_instances_inner(I::kind())
     }
 
@@ -536,7 +538,10 @@ impl StateDirectory {
     /// *Includes* instances that exists only as a stale lockfile.
     #[allow(clippy::blocks_in_conditions)] // TODO #1176 this wants to be global
     #[allow(clippy::redundant_closure_call)] // false positive, re handle_err
-    fn list_instances_inner(&self, kind: &'static str) -> impl Iterator<Item = Result<Slug>> {
+    fn list_instances_inner(
+        &self,
+        kind: &'static str,
+    ) -> impl Iterator<Item = Result<Slug>> + use<> {
         // We collect the output into these
         let mut out = HashSet::new();
         let mut errs = Vec::new();
@@ -1067,7 +1072,7 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
     }
 
     /// Helper to convert an `ErrorSource` to an `Error`, if we were performing `action`
-    fn map_err(&self, action: Action) -> impl FnOnce(ErrorSource) -> Error {
+    fn map_err(&self, action: Action) -> impl FnOnce(ErrorSource) -> Error + use<T> {
         let resource = self.err_resource();
         move |source| crate::Error::new(source, action, resource)
     }

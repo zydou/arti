@@ -41,7 +41,7 @@ impl<'a> super::Verifier<'a> {
     // to fix in the future if we can do so without adding much complexity
     // to the code.  It's not urgent, since the allocations won't cost much
     // compared to the filesystem access.
-    pub(crate) fn check_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
+    pub(crate) fn check_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ + use<'_> {
         if self.mistrust.is_disabled() {
             // We don't want to walk the path in this case at all: we'll just
             // look at the last element.
@@ -85,7 +85,10 @@ impl<'a> super::Verifier<'a> {
     /// If check_contents is set, return an iterator over all the errors in
     /// elements _contained in this directory_.
     #[cfg(feature = "walkdir")]
-    pub(crate) fn check_content_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
+    pub(crate) fn check_content_errors(
+        &self,
+        path: &Path,
+    ) -> impl Iterator<Item = Error> + '_ + use<'_> {
         use std::sync::Arc;
 
         if !self.check_contents || self.mistrust.is_disabled() {

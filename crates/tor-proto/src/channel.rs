@@ -734,7 +734,7 @@ impl Channel {
     /// Note that this method does not _cause_ the channel to shut down on its own.
     pub fn wait_for_close(
         &self,
-    ) -> impl Future<Output = StdResult<CloseInfo, ClosedUnexpectedly>> + Send + Sync + 'static
+    ) -> impl Future<Output = StdResult<CloseInfo, ClosedUnexpectedly>> + Send + Sync + 'static + use<>
     {
         self.reactor_closed_rx
             .clone()

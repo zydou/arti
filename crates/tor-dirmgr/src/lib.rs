@@ -965,7 +965,7 @@ impl<R: Runtime> DirMgr<R> {
     /// Multiple events may be batched up into a single item: each time
     /// this stream yields an event, all you can assume is that the event has
     /// occurred at least once.
-    pub fn events(&self) -> impl futures::Stream<Item = DirEvent> {
+    pub fn events(&self) -> impl futures::Stream<Item = DirEvent> + use<R> {
         self.events.subscribe()
     }
 

@@ -253,7 +253,7 @@ where
     pub fn poll_ready_iter_mut<'a>(
         &'a mut self,
         cx: &mut Context,
-    ) -> impl Iterator<Item = (&'a K, &'a P, &'a mut S)> + 'a {
+    ) -> impl Iterator<Item = (&'a K, &'a P, &'a mut S)> + 'a + use<'a, K, P, S> {
         // First poll for ready streams
         while let Poll::Ready(Some((key, stream))) = self.pending_streams.poll_next_unpin(cx) {
             let priority = self

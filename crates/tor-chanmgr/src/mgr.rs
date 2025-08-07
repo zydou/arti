@@ -416,7 +416,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 channel_map
                     .by_id(ident)
                     .filter_map(|entry| match entry {
-                        Open(ref ent) if ent.channel.is_usable() => Some(Arc::clone(&ent.channel)),
+                        Open(ent) if ent.channel.is_usable() => Some(Arc::clone(&ent.channel)),
                         _ => None,
                     })
                     .collect()

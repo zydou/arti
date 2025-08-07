@@ -26,7 +26,7 @@ fn circtarget_from_pieces(
     linkspecs: &[EncodedLinkSpec],
     ntor_onion_key: &curve25519::PublicKey,
     netdir: &NetDir,
-) -> Result<impl CircTarget, InvalidTarget> {
+) -> Result<impl CircTarget + use<>, InvalidTarget> {
     let mut bld = OwnedCircTarget::builder();
     // Decode the link specifiers and use them to find out what we can about
     // this relay.
@@ -67,7 +67,7 @@ fn circtarget_from_pieces(
 pub(crate) fn ipt_to_circtarget(
     desc: &IntroPointDesc,
     netdir: &NetDir,
-) -> Result<impl CircTarget, InvalidTarget> {
+) -> Result<impl CircTarget + use<>, InvalidTarget> {
     circtarget_from_pieces(desc.link_specifiers(), desc.ipt_ntor_key(), netdir)
 }
 

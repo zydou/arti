@@ -1743,7 +1743,7 @@ impl<R: Runtime> TorClient<R> {
         config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<(
         Arc<tor_hsservice::RunningOnionService>,
-        impl futures::Stream<Item = tor_hsservice::RendRequest>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
     )> {
         let keymgr = self
             .inert_client
@@ -1805,7 +1805,7 @@ impl<R: Runtime> TorClient<R> {
         id_keypair: HsIdKeypair,
     ) -> crate::Result<(
         Arc<tor_hsservice::RunningOnionService>,
-        impl futures::Stream<Item = tor_hsservice::RendRequest>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
     )> {
         let nickname = config.nickname();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
@@ -2066,7 +2066,9 @@ impl<R: Runtime> TorClient<R> {
     /// Return a [`Future`](futures::Future) which resolves
     /// once this TorClient has stopped.
     #[cfg(feature = "experimental-api")]
-    pub fn wait_for_stop(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+    pub fn wait_for_stop(
+        &self,
+    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<R> {
         // We defer to the "wait for unlock" handle on our statemgr.
         //
         // The statemgr won't actually be unlocked until it is finally

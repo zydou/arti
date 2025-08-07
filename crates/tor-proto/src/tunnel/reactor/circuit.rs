@@ -1347,7 +1347,7 @@ impl Circuit {
     pub(super) fn ready_streams_iterator(
         &self,
         exclude: Option<HopNum>,
-    ) -> impl Stream<Item = Result<CircuitCmd>> {
+    ) -> impl Stream<Item = Result<CircuitCmd>> + use<> {
         self.hops.ready_streams_iterator(exclude)
     }
 

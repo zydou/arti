@@ -152,7 +152,7 @@ fn filt_from_opt_str(s: &Option<String>, source: &str) -> Result<Option<Targets>
 }
 
 /// Try to construct a tracing [`Layer`] for logging to stderr.
-fn console_layer<S>(config: &LoggingConfig, cli: Option<&str>) -> Result<impl Layer<S>>
+fn console_layer<S>(config: &LoggingConfig, cli: Option<&str>) -> Result<impl Layer<S> + use<S>>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
 {
@@ -198,7 +198,7 @@ fn logfile_layer<S>(
     granularity: std::time::Duration,
     mistrust: &Mistrust,
     path_resolver: &CfgPathResolver,
-) -> Result<(impl Layer<S> + Send + Sync + Sized, WorkerGuard)>
+) -> Result<(impl Layer<S> + Send + Sync + Sized + use<S>, WorkerGuard)>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
 {
@@ -240,7 +240,7 @@ fn logfile_layers<S>(
     config: &LoggingConfig,
     mistrust: &Mistrust,
     path_resolver: &CfgPathResolver,
-) -> Result<(impl Layer<S>, Vec<WorkerGuard>)>
+) -> Result<(impl Layer<S> + use<S>, Vec<WorkerGuard>)>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
 {

@@ -302,7 +302,7 @@ impl<'a> DiffCommand<'a> {
     /// add to the output.
     fn linebuf_mut(&mut self) -> Option<&mut Vec<&'a str>> {
         match self {
-            Self::Replace { ref mut lines, .. } | Self::Insert { ref mut lines, .. } => Some(lines),
+            Self::Replace { lines, .. } | Self::Insert { lines, .. } => Some(lines),
             _ => None,
         }
     }

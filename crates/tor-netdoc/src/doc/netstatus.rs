@@ -1723,7 +1723,7 @@ impl<RS> UnvalidatedConsensus<RS> {
 
     /// Return an iterator of all the certificate IDs that we might use
     /// to validate this consensus.
-    pub fn signing_cert_ids(&self) -> impl Iterator<Item = AuthCertKeyIds> {
+    pub fn signing_cert_ids(&self) -> impl Iterator<Item = AuthCertKeyIds> + use<RS> {
         match self.key_is_correct(&[]) {
             Ok(()) => Vec::new(),
             Err(missing) => missing,

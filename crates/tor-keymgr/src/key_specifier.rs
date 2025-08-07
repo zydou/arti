@@ -101,7 +101,7 @@ impl KeyPath {
     /// Return the underlying [`ArtiPath`], if this is a `KeyPath::Arti`.
     pub fn arti(&self) -> Option<&ArtiPath> {
         match self {
-            KeyPath::Arti(ref arti) => Some(arti),
+            KeyPath::Arti(arti) => Some(arti),
             KeyPath::CTor(_) => None,
         }
     }
@@ -110,7 +110,7 @@ impl KeyPath {
     pub fn ctor(&self) -> Option<&CTorPath> {
         match self {
             KeyPath::Arti(_) => None,
-            KeyPath::CTor(ref ctor) => Some(ctor),
+            KeyPath::CTor(ctor) => Some(ctor),
         }
     }
 }

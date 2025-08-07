@@ -823,7 +823,7 @@ impl<R: Runtime> Reactor<R> {
 
 impl IntroPtSession {
     /// Wait for this introduction point session to be closed.
-    fn wait_for_close(&self) -> impl Future<Output = ()> {
+    fn wait_for_close(&self) -> impl Future<Output = ()> + use<> {
         self.intro_tunnel.wait_for_close()
     }
 }

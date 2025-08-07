@@ -61,7 +61,7 @@ impl PreemptiveCircuitPredictor {
         let circs = config.min_exit_circs_for_port;
         self.usages
             .iter()
-            .filter(|(_, &time)| {
+            .filter(|&(_, &time)| {
                 time.checked_add(config.prediction_lifetime)
                     .map(|t| t > now)
                     .unwrap_or_else(|| {

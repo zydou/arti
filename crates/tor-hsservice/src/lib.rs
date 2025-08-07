@@ -491,7 +491,7 @@ impl RunningOnionService {
     ///
     /// You can turn the resulting stream into a stream of [`StreamRequest`]
     /// using the [`handle_rend_requests`] helper function.
-    fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest>, StartupError> {
+    fn launch(self: &Arc<Self>) -> Result<impl Stream<Item = RendRequest> + use<>, StartupError> {
         let (rend_req_rx, launch) = {
             let mut inner = self.inner.lock().expect("poisoned lock");
             inner

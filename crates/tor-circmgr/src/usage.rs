@@ -493,8 +493,7 @@ impl SupportedTunnelUsage {
             (Exit { .. }, TargetTunnelUsage::Preemptive { .. }) => Ok(()),
             (
                 Exit {
-                    isolation: ref mut isol1,
-                    ..
+                    isolation: isol1, ..
                 },
                 TargetTunnelUsage::Exit { isolation: i2, .. },
             ) => {

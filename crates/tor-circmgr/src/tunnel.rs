@@ -123,7 +123,7 @@ define_derive_deftly! {
         ///
         // TODO: Perhaps this should return some kind of status indication instead
         // of just ()
-        pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<> {
             self.tunnel_ref().wait_for_close()
         }
 

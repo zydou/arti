@@ -462,14 +462,14 @@ enum OpcodeSelector {
 impl OpcodeSelector {
     /// Apply the selector, advancing the Rng state and returning an Opcode.
     #[inline(always)]
-    fn apply<R: RngCore>(&self, gen: &mut Generator<'_, R>) -> Opcode {
+    fn apply<R: RngCore>(&self, r#gen: &mut Generator<'_, R>) -> Opcode {
         match self {
             OpcodeSelector::Target => Opcode::Target,
             OpcodeSelector::Branch => Opcode::Branch,
             OpcodeSelector::Mul => Opcode::Mul,
-            OpcodeSelector::Normal => *gen.select_op(&model::NORMAL_OPS_TABLE),
-            OpcodeSelector::ImmediateSrc => *gen.select_op(&model::IMMEDIATE_SRC_OPS_TABLE),
-            OpcodeSelector::WideMul => *gen.select_op(&model::WIDE_MUL_OPS_TABLE),
+            OpcodeSelector::Normal => *r#gen.select_op(&model::NORMAL_OPS_TABLE),
+            OpcodeSelector::ImmediateSrc => *r#gen.select_op(&model::IMMEDIATE_SRC_OPS_TABLE),
+            OpcodeSelector::WideMul => *r#gen.select_op(&model::WIDE_MUL_OPS_TABLE),
         }
     }
 }

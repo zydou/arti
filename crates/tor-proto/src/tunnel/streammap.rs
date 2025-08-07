@@ -502,7 +502,7 @@ impl StreamMap {
     pub(super) fn poll_ready_streams_iter<'a>(
         &'a mut self,
         cx: &mut std::task::Context,
-    ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>)> + 'a {
+    ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>)> + 'a + use<'a> {
         self.open_streams
             .poll_ready_iter_mut(cx)
             .map(|(sid, _priority, ent)| {

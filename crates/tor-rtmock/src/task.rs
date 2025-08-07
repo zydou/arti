@@ -785,7 +785,7 @@ impl MockExecutor {
     /// before calling this method again.)
     ///
     /// Must be called and awaited within a future being run by `self`.
-    pub fn progress_until_stalled(&self) -> impl Future<Output = ()> {
+    pub fn progress_until_stalled(&self) -> impl Future<Output = ()> + use<> {
         let mut data = self.shared.lock();
         assert!(
             data.progressing_until_stalled.is_none(),
@@ -1216,30 +1216,38 @@ impl ActualWaker {
 
     /// Implementation of [`RawWakerVTable`]'s `clone`
     unsafe fn raw_clone(self_: *const ()) -> RawWaker {
-        let self_: *const ActualWaker = self_ as _;
-        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
-        let copy: ActualWaker = self_.clone();
-        copy.raw_new()
+        unsafe {
+            let self_: *const ActualWaker = self_ as _;
+            let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+            let copy: ActualWaker = self_.clone();
+            copy.raw_new()
+        }
     }
 
     /// Implementation of [`RawWakerVTable`]'s `wake`
     unsafe fn raw_wake(self_: *const ()) {
-        Self::raw_wake_by_ref(self_);
-        Self::raw_drop(self_);
+        unsafe {
+            Self::raw_wake_by_ref(self_);
+            Self::raw_drop(self_);
+        }
     }
 
     /// Implementation of [`RawWakerVTable`]'s `wake_ref_by`
     unsafe fn raw_wake_by_ref(self_: *const ()) {
-        let self_: *const ActualWaker = self_ as _;
-        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
-        self_.wake();
+        unsafe {
+            let self_: *const ActualWaker = self_ as _;
+            let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+            self_.wake();
+        }
     }
 
     /// Implementation of [`RawWakerVTable`]'s `drop`
     unsafe fn raw_drop(self_: *const ()) {
-        let self_: *mut ActualWaker = self_ as _;
-        let self_: Box<ActualWaker> = Box::from_raw(self_);
-        drop(self_);
+        unsafe {
+            let self_: *mut ActualWaker = self_ as _;
+            let self_: Box<ActualWaker> = Box::from_raw(self_);
+            drop(self_);
+        }
     }
 }
 

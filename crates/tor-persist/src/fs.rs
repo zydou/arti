@@ -195,7 +195,9 @@ impl FsStateMgr {
     }
 
     /// Return a handle which resolves when the file is unlocked
-    pub fn wait_for_unlock(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+    pub fn wait_for_unlock(
+        &self,
+    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<> {
         self.inner.lock_dropped_rx.clone().map(|_| ())
     }
 }

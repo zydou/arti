@@ -240,7 +240,7 @@ impl ClientTunnel {
     /// Note that this method does not itself cause the tunnel to shut down.
     pub fn wait_for_close(
         self: &Arc<Self>,
-    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+    ) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<> {
         self.circ.wait_for_close()
     }
 

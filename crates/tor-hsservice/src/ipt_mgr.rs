@@ -1973,7 +1973,7 @@ mod test {
             assert_eq!(runtime.mock_task().n_tasks(), 1); // just us
         }
 
-        fn estabs_inventory(&self) -> impl Eq + Debug + 'static {
+        fn estabs_inventory(&self) -> impl Eq + Debug + 'static + use<> {
             let estabs = self.estabs.lock().unwrap();
             let estabs = estabs
                 .values()
