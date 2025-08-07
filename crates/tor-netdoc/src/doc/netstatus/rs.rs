@@ -13,7 +13,7 @@ ns_export_per_species! {
     ty: ConsensusRouterStatus;
 }
 
-use super::{ConsensusFlavor, NetstatusKwd, RelayFlags, RelayWeight};
+use super::{ConsensusFlavor, NetstatusKwd, RelayFlags, RelayWeight, RouterStatus};
 use crate::doc;
 use crate::parse::parser::Section;
 use crate::types::misc::*;
