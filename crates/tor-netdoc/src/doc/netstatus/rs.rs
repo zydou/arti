@@ -6,7 +6,7 @@
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
 mod md;
-#[cfg(feature = "ns_consensus")]
+#[cfg(feature = "ns-consensus")]
 mod ns;
 
 use super::{ConsensusFlavor, NetstatusKwd, RelayFlags, RelayWeight};
@@ -23,7 +23,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
 pub use md::MdConsensusRouterStatus;
-#[cfg(feature = "ns_consensus")]
+#[cfg(feature = "ns-consensus")]
 pub use ns::NsConsensusRouterStatus;
 
 /// Shared implementation of MdConsensusRouterStatus and NsConsensusRouterStatus.

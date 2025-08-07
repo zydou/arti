@@ -23,7 +23,7 @@ use tor_protover::Protocols;
     visible::StructFields(pub),
     non_exhaustive
 )]
-#[cfg_attr(docsrs, doc(cfg(feature = "ns_consensus")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "ns-consensus")))]
 #[derive(Debug, Clone)]
 pub struct NsConsensusRouterStatus {
     /// Underlying generic routerstatus object.
