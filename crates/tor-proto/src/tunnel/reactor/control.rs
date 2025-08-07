@@ -8,7 +8,7 @@ use super::{
 use crate::Result;
 use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
-use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
+use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::queue::StreamQueueSender;
 use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
@@ -367,7 +367,7 @@ impl<'a> ControlHandler<'a> {
                     return Ok(None);
                 };
 
-                let (extender, cell) = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
+                let (extender, cell) = CircuitExtender::<NtorClient>::begin(
                     peer_id,
                     HandshakeType::NTOR,
                     &public_key,
@@ -406,17 +406,16 @@ impl<'a> ControlHandler<'a> {
 
                 let client_extensions = circ_extensions_from_settings(&settings)?;
 
-                let (extender, cell) =
-                    CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
-                        peer_id,
-                        HandshakeType::NTOR_V3,
-                        &public_key,
-                        linkspecs,
-                        settings,
-                        &client_extensions,
-                        circ,
-                        done,
-                    )?;
+                let (extender, cell) = CircuitExtender::<NtorV3Client>::begin(
+                    peer_id,
+                    HandshakeType::NTOR_V3,
+                    &public_key,
+                    linkspecs,
+                    settings,
+                    &client_extensions,
+                    circ,
+                    done,
+                )?;
                 self.reactor
                     .cell_handlers
                     .set_meta_handler(Box::new(extender))?;
