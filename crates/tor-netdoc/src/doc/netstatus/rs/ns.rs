@@ -7,7 +7,7 @@ use super::{FromRsString, GenericRouterStatus};
 use crate::doc::netstatus::{
     ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,
 };
-use crate::doc::routerdesc::{RdDigest as DocDigest};
+use crate::doc::routerdesc::{RdDigest as DocDigest, DOC_DIGEST_LEN};
 use crate::types::misc::*;
 use crate::{Error, Result};
 use crate::{parse::parser::Section, util::private::Sealed};
@@ -79,7 +79,7 @@ impl ParseRouterStatus for ConsensusRouterStatus {
 impl FromRsString for DocDigest {
     fn decode(s: &str) -> Result<DocDigest> {
         s.parse::<B64>()?
-            .check_len(20..=20)?
+            .check_len(DOC_DIGEST_LEN..=DOC_DIGEST_LEN)?
             .as_bytes()
             .try_into()
             .map_err(|_| Error::from(internal!("correct length on digest, but unable to convert")))

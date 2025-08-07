@@ -4,7 +4,7 @@
 ns_do_species_md! {}
 
 use super::{FromRsString, GenericRouterStatus};
-use crate::doc::microdesc::{MdDigest as DocDigest};
+use crate::doc::microdesc::{MdDigest as DocDigest, DOC_DIGEST_LEN};
 use crate::doc::netstatus::{
     ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,
 };
@@ -76,7 +76,7 @@ impl ParseRouterStatus for ConsensusRouterStatus {
 impl FromRsString for DocDigest {
     fn decode(s: &str) -> Result<DocDigest> {
         s.parse::<B64>()?
-            .check_len(32..=32)?
+            .check_len(DOC_DIGEST_LEN..=DOC_DIGEST_LEN)?
             .as_bytes()
             .try_into()
             .map_err(|_| Error::from(internal!("correct length on digest, but unable to convert")))

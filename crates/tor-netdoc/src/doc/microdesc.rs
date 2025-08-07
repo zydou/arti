@@ -39,6 +39,9 @@ mod build;
 #[cfg(feature = "build_docs")]
 pub use build::MicrodescBuilder;
 
+/// Length of a router microdescriptor digest
+pub const DOC_DIGEST_LEN: usize = 32;
+
 /// Annotations prepended to a microdescriptor that has been stored to
 /// disk.
 #[allow(dead_code)]
@@ -50,7 +53,7 @@ pub struct MicrodescAnnotation {
 }
 
 /// The digest of a microdescriptor as used in microdesc consensuses
-pub type MdDigest = [u8; 32];
+pub type MdDigest = [u8; DOC_DIGEST_LEN];
 
 /// A single microdescriptor.
 #[allow(dead_code)]
