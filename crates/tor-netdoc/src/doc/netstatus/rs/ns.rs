@@ -54,7 +54,6 @@ impl Sealed for NsConsensusRouterStatus {}
 impl RouterStatus for NsConsensusRouterStatus {
     type DocumentDigest = RdDigest;
 
-    /// Return the expected microdescriptor digest for this routerstatus
     fn rsa_identity(&self) -> &RsaIdentity {
         &self.rs.identity
     }

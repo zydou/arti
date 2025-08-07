@@ -51,7 +51,6 @@ impl Sealed for MdConsensusRouterStatus {}
 impl RouterStatus for MdConsensusRouterStatus {
     type DocumentDigest = MdDigest;
 
-    /// Return the expected microdescriptor digest for this routerstatus
     fn rsa_identity(&self) -> &RsaIdentity {
         &self.rs.identity
     }
