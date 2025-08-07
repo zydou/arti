@@ -47,7 +47,7 @@ super::implement_accessors! {ConsensusRouterStatus}
 impl ConsensusRouterStatus {
     /// Return the expected router descriptor digest for this routerstatus
     pub fn rd_digest(&self) -> &DocDigest {
-        &self.rs.doc_digest
+        self.doc_digest()
     }
 }
 
@@ -61,7 +61,7 @@ impl RouterStatus for ConsensusRouterStatus {
     }
 
     fn doc_digest(&self) -> &DocDigest {
-        self.rd_digest()
+        &self.rs.doc_digest
     }
 }
 

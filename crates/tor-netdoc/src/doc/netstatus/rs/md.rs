@@ -44,7 +44,7 @@ super::implement_accessors! {ConsensusRouterStatus}
 impl ConsensusRouterStatus {
     /// Return the expected microdescriptor digest for this routerstatus
     pub fn md_digest(&self) -> &DocDigest {
-        &self.rs.doc_digest
+        self.doc_digest()
     }
 }
 
@@ -58,7 +58,7 @@ impl RouterStatus for ConsensusRouterStatus {
     }
 
     fn doc_digest(&self) -> &DocDigest {
-        self.md_digest()
+        &self.rs.doc_digest
     }
 }
 
