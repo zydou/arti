@@ -735,8 +735,8 @@ impl Reactor {
         // May log at a higher level depending on the error kind.
         const MSG: &str = "Tunnel reactor stopped";
         match &result {
-            Ok(()) => trace!("{}: {MSG}", self.tunnel_id),
-            Err(e) => trace_report!(e, "{}: {}", self.tunnel_id, MSG),
+            Ok(()) => trace!(tunnel_id = %self.tunnel_id, "{MSG}"),
+            Err(e) => trace_report!(e, tunnel_id = %self.tunnel_id, "{MSG}"),
         }
 
         result
