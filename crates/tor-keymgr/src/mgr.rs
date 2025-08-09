@@ -4,7 +4,7 @@
 
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
-    ArtiPath, BoxedKeystore, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
+    ArtiPath, BoxedKeystore, Error, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
     KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeystoreCorruptionError,
     KeystoreEntryResult, KeystoreId, KeystoreSelector, Result,
 };
@@ -245,6 +245,38 @@ impl KeyMgr {
         self.get_from_store(key_spec, &K::Key::item_type(), store)
     }
 
+    /// Validates the integrity of a [`KeystoreEntry`].
+    ///
+    /// This retrieves the key corresponding to the provided [`KeystoreEntry`],
+    /// and checks if its contents are valid (i.e. that the key can be parsed).
+    /// The [`KeyPath`] of the entry is further validated using [`describe`](KeyMgr::describe).
+    ///
+    /// NOTE: Currently, ctor entries cannot be validated using [`describe`](KeyMgr::describe), so they
+    /// are considered valid if the manager successfully retrieves the corresponding keys,
+    /// but are otherwise not validated by this procedure.
+    ///
+    /// Returns `Ok(())` if the specified keystore entry is valid, and `Err` otherwise.
+    ///
+    /// NOTE: If the specified entry does not exist, this will only validate its [`KeyPath`].
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn validate_entry_integrity(&self, entry: &KeystoreEntry) -> Result<()> {
+        let selector = entry.keystore_id().into();
+        let store = self.select_keystore(&selector)?;
+        // Ignore the parsed key, only checking if it parses correctly
+        let _ = store.get(entry.key_path(), entry.key_type())?;
+
+        // TODO: Implement `describe()` support for CTor keystore entries
+        if !matches!(entry.key_path(), KeyPath::CTor(_)) {
+            // Ignore the result, just checking if the path is recognized
+            let _ = self
+                .describe(entry.key_path())
+                // TODO: `Error::Corruption` might not be the best fit for this situation.
+                .map_err(|e| Error::Corruption(e.into()))?;
+        }
+
+        Ok(())
+    }
+
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
     ///
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
@@ -252,8 +284,8 @@ impl KeyMgr {
     ///
     /// On success, this function returns the newly generated key.
     ///
-    /// Returns [`Error::KeyAlreadyExists`](crate::Error::KeyAlreadyExists)
-    /// if the key already exists in the specified key store and `overwrite` is `false`.
+    /// Returns [`Error::KeyAlreadyExists`] if the key already exists in the specified
+    /// key store and `overwrite` is `false`.
     ///
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The

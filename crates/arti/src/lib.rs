@@ -407,7 +407,7 @@ where
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-cli-extra")] {
             if let Some(keys_matches) = matches.subcommand_matches("keys") {
-                return subcommands::keys::run(runtime, keys_matches, &client_config);
+                return subcommands::keys::run(runtime, keys_matches, &config, &client_config);
             } else if let Some(raw_matches) = matches.subcommand_matches("keys-raw") {
                 return subcommands::raw::run(runtime, raw_matches, &client_config);
             }

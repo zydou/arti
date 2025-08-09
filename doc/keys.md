@@ -32,7 +32,7 @@ $ arti -c keys.toml keys list-keystores
 The command `arti keys list` is used for listing the content of keystores.
 
 By default the command displays the content of all the keystores. If the
-flag `-k` (`--keystore-id`) is provided, only the content of the specified
+flag `--keystore-id` is provided, only the content of the specified
 keystore will be displayed.
 
 This command provides a way of listing both recognized and unrecognized entries.
@@ -160,3 +160,238 @@ $ arti -c keys.toml keys list
 </details>
 
 > The `hostname` file of a CTor keystore is represented as an unrecognized entry.
+
+
+## Validate the integrity of keystores
+
+The command `arti keys check-integrity` performs a validity check on keystores.
+It detects and reports unrecognized entries and paths, as well as malformed or
+expired keys. Such entries can be removed if requested.
+
+By default, the command displays invalid entries from all keystores. If the
+`--keystore-id` flag is provided, only the invalid elements of the specified
+keystore are displayed. When the `--sweep` flag is used, you will be
+prompted to remove the detected invalid elements. If the `--batch` flag
+is used in conjunction with `-s`, invalid elements are removed without a prompt.
+
+The output consists of two sections: invalid keystore entries and expired entries.
+
+Some keys are time-bound and may expire. Expired entries correspond to keys
+associated with time periods (obtained from a consensus document) for which the
+owning service is not publishing descriptors. An internet connection is required
+to retrieve the consensus document and verify the validity of these keys.
+
+Example usage:
+
+<details>
+<summary>Default behavior</summary>
+
+```ignore
+$ arti keys check-integrity
+ ===== Invalid keystore entries =====
+
+
+ Unrecognized entry
+ Keystore ID: arti
+ Location: hss/allium-cepa/erba-spontanea
+ Error: Key has invalid path: hss/allium-cepa/erba-spontanea
+
+ --------------------------------------------------------------------------------
+
+ Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200.ed25519_expanded_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.x25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.x25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.x25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_id.ed25519_expanded_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized entry
+ Keystore ID: ctor
+ Location: hostname
+ Error: Key hostname is malformed
+
+ --------------------------------------------------------------------------------
+
+ ===== Expired keystore entries =====
+
+
+ Keystore ID: arti
+ Role: ks_hs_desc_sign
+ Summary: Descriptor signing key
+ KeystoreItemType: Ed25519Keypair
+ Location: hss/allium-cepa/ks_hs_desc_sign+20300_1440_43200.ed25519_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20300 2025-07-31T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+ Keystore ID: arti
+ Role: ks_hs_desc_sign
+ Summary: Descriptor signing key
+ KeystoreItemType: Ed25519Keypair
+ Location: hss/allium-cepa/ks_hs_desc_sign+20299_1440_43200.ed25519_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20299 2025-07-30T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+ Keystore ID: arti
+ Role: ks_hs_blind_id
+ Summary: Blinded signing keypair
+ KeystoreItemType: Ed25519ExpandedKeypair
+ Location: hss/allium-cepa/ks_hs_blind_id+20300_1440_43200.ed25519_expanded_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20300 2025-07-31T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+ Keystore ID: arti
+ Role: ks_hs_blind_id
+ Summary: Blinded signing keypair
+ KeystoreItemType: Ed25519ExpandedKeypair
+ Location: hss/allium-cepa/ks_hs_blind_id+20299_1440_43200.ed25519_expanded_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20299 2025-07-30T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+```
+</details>
+
+<details>
+<summary>With `-k` and `-s`</summary>
+
+```ignore
+$ arti keys check-integrity -k arti -s
+ ===== Invalid keystore entries =====
+
+
+ Unrecognized entry
+ Keystore ID: arti
+ Location: hss/allium-cepa/erba-spontanea
+ Error: Key has invalid path: hss/allium-cepa/erba-spontanea
+
+ --------------------------------------------------------------------------------
+
+ Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200.ed25519_expanded_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.x25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.x25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.x25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200.ed25519_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized path asdf/allium-cepa/ks_hs_id.ed25519_expanded_private
+
+ --------------------------------------------------------------------------------
+ Unrecognized entry
+ Keystore ID: ctor
+ Location: hostname
+ Error: Key hostname is malformed
+
+ --------------------------------------------------------------------------------
+
+ ===== Expired keystore entries =====
+
+
+ Keystore ID: arti
+ Role: ks_hs_desc_sign
+ Summary: Descriptor signing key
+ KeystoreItemType: Ed25519Keypair
+ Location: hss/allium-cepa/ks_hs_desc_sign+20300_1440_43200.ed25519_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20300 2025-07-31T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+ Keystore ID: arti
+ Role: ks_hs_desc_sign
+ Summary: Descriptor signing key
+ KeystoreItemType: Ed25519Keypair
+ Location: hss/allium-cepa/ks_hs_desc_sign+20299_1440_43200.ed25519_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20299 2025-07-30T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+ Keystore ID: arti
+ Role: ks_hs_blind_id
+ Summary: Blinded signing keypair
+ KeystoreItemType: Ed25519ExpandedKeypair
+ Location: hss/allium-cepa/ks_hs_blind_id+20300_1440_43200.ed25519_expanded_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20300 2025-07-31T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+ Keystore ID: arti
+ Role: ks_hs_blind_id
+ Summary: Blinded signing keypair
+ KeystoreItemType: Ed25519ExpandedKeypair
+ Location: hss/allium-cepa/ks_hs_blind_id+20299_1440_43200.ed25519_expanded_private
+ Extra info:
+ - nickname: allium-cepa
+ - period: #20299 2025-07-30T12:00:00Z..+24:00
+
+ --------------------------------------------------------------------------------
+
+Remove all invalid entries? (type yes or no):
+
+```
+</details>
+
+> With this and other interactive commands, logs can be intrusive and disrupt the
+> tool's workflow. In such cases, it is recommended to disable logging, either in
+> the configuration file or using these flags:
+>
+> ```bash
+> arti -o logging.console="off" -o logging.files='[{path = "file.log", filter = "info"}]' keys check-integrity
+> ```

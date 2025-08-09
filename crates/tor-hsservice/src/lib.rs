@@ -100,6 +100,7 @@ pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
 pub use ipt_mgr::IptError;
+use keys::HsTimePeriodKeySpecifier;
 pub use keys::{
     BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
     HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
@@ -108,9 +109,13 @@ use pow::{NewPowManager, PowManager};
 pub use publish::UploadError as DescUploadError;
 pub use req::{RendRequest, StreamRequest};
 pub use tor_hscrypto::pk::HsId;
+use tor_keymgr::KeystoreEntry;
 pub use tor_persist::hsnickname::{HsNickname, InvalidNickname};
 
 pub use helpers::handle_rend_requests;
+
+#[cfg(feature = "onion-service-cli-extra")]
+use tor_netdir::NetDir;
 
 //---------- top-level service implementation (types and methods) ----------
 
@@ -429,6 +434,22 @@ impl OnionService {
 
         maybe_generate_hsid(&self.keymgr, &self.config.nickname, offline_hsid, selector)
     }
+
+    /// List the no-longer-relevant keys of this service.
+    ///
+    /// Returns the [`KeystoreEntry`]s associated with time periods that are not
+    /// "relevant" according to the specified [`NetDir`],
+    /// (i.e. the keys associated with time periods
+    /// the service is not publishing descriptors for).
+    // TODO: unittest
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn list_expired_keys(&self, netdir: &NetDir) -> tor_keymgr::Result<Vec<KeystoreEntry>> {
+        list_expired_keys_for_service(
+            &netdir.hs_all_time_periods(),
+            self.config.nickname(),
+            &self.keymgr,
+        )
+    }
 }
 
 impl OnionServiceBuilder {
@@ -642,6 +663,54 @@ pub fn supported_hsservice_protocols() -> tor_protover::Protocols {
     ]
     .into_iter()
     .collect()
+}
+
+/// Returns all the keys (as [`KeystoreEntry`]) of the service
+/// identified by `nickname` that are expired according to the
+/// provided [`HsDirParams`].
+fn list_expired_keys_for_service<'a>(
+    relevant_periods: &[HsDirParams],
+    nickname: &HsNickname,
+    keymgr: &'a KeyMgr,
+) -> tor_keymgr::Result<Vec<KeystoreEntry<'a>>> {
+    let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hss/{}/*", nickname));
+    let possibly_relevant_keys = keymgr.list_matching(&arti_pat)?;
+    let mut expired_keys = Vec::new();
+
+    for entry in possibly_relevant_keys {
+        let key_path = entry.key_path();
+        let mut append_if_expired = |spec: &dyn HsTimePeriodKeySpecifier| {
+            if spec.nickname() != nickname {
+                return Err(internal!(
+                    "keymgr gave us key {spec:?} that doesn't match our pattern {arti_pat:?}"
+                )
+                .into());
+            }
+            let is_expired = relevant_periods
+                .iter()
+                .all(|p| &p.time_period() != spec.period());
+
+            if is_expired {
+                expired_keys.push(entry.clone());
+            }
+
+            tor_keymgr::Result::Ok(())
+        };
+
+        macro_rules! append_if_expired {
+            ($K:ty) => {{
+                if let Ok(spec) = <$K>::try_from(key_path) {
+                    append_if_expired(&spec)?;
+                }
+            }};
+        }
+
+        append_if_expired!(BlindIdPublicKeySpecifier);
+        append_if_expired!(BlindIdKeypairSpecifier);
+        append_if_expired!(DescSigningKeypairSpecifier);
+    }
+
+    Ok(expired_keys)
 }
 
 #[cfg(test)]
