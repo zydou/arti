@@ -1109,11 +1109,10 @@ impl Reactor {
                     self.note_conflux_handshake_result(Err(error), proto_violation.is_some())?;
 
                     if let Some(e) = proto_violation {
-                        // TODO: make warn_report support structured logging
                         tor_error::warn_report!(
                             e,
-                            "{}: Malformed conflux handshake, tearing down tunnel",
-                            self.tunnel_id
+                            tunnel_id = %self.tunnel_id,
+                            "Malformed conflux handshake, tearing down tunnel",
                         );
 
                         return Err(e.into());
