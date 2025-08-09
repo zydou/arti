@@ -27,7 +27,20 @@ impl<'a> Visit for ErrorVisitor<'a> {
 
     // format the error and use the inner visitor
     fn record_error(&mut self, field: &Field, value: &(dyn Error + 'static)) {
-        self.0.record_error(field, value)
+        use std::fmt;
+        use tor_error::ErrorReport as _;
+
+        /// Wrapper to add a `Debug` impl to something that implements `Display`.
+        struct DisplayToDebug<T: fmt::Display>(T);
+
+        impl<T: fmt::Display> fmt::Debug for DisplayToDebug<T> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fmt::Display::fmt(&self.0, f)
+            }
+        }
+
+        // use `ErrorReport` to format the error
+        self.0.record_debug(field, &DisplayToDebug(value.report()))
     }
 }
 
