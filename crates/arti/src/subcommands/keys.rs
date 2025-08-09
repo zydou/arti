@@ -156,6 +156,7 @@ fn display_keystore_entries(
 ) {
     if entries.is_empty() {
         println!("{empty_err_msg}");
+        return;
     }
     println!(" ===== Keystore entries =====\n\n");
     for entry in entries {
