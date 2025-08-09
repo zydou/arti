@@ -50,6 +50,10 @@ impl ErrorKind {
 // `event!(if cond {DEBUG} else {WARN}, ..)`.
 #[macro_export]
 macro_rules! event_report {
+    ($level:expr, $err:expr) => {
+        $crate::event_report!($level, $err,)
+    };
+
     ($level:expr, $err:expr, $($arg:tt)*) => {
         {
             use $crate::{tracing as tr, HasKind as _, };
@@ -60,6 +64,10 @@ macro_rules! event_report {
                 $crate::event_report!(@raw $level, err, $($arg)*);
             }
         }
+    };
+
+    (@raw $level:expr, $err:expr) => {
+        $crate::event_report!(@raw $level, $err,)
     };
 
     (@raw $level:expr, $err:expr, $($arg:tt)*) => {
@@ -114,6 +122,15 @@ macro_rules! define_report_macros { {
     /// ```
     #[macro_export]
     macro_rules! [< $level _report >] {
+        ( $D err:expr ) => {
+            // would be nice to do a `$D crate::[< $level _report >]!($D err,)` here,
+            // but apparently this isn't allowed:
+            // https://github.com/rust-lang/rust/pull/52234
+            $D crate::event_report!($($flag)*
+                                    $D crate::tracing::Level::[< $level:upper >],
+                                    $D err)
+        };
+
         ( $D err:expr, $D ($D rest:tt)* ) => {
             $D crate::event_report!($($flag)*
                                     $D crate::tracing::Level::[< $level:upper >],
@@ -155,6 +172,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use crate::internal;
     use crate::report::ErrorReport;
     use thiserror::Error;
     use tracing_test::traced_test;
@@ -165,6 +184,8 @@ mod test {
 
     #[test]
     #[traced_test]
+    // i really don't think that this test is too complicated
+    #[allow(clippy::cognitive_complexity)]
     fn warn_report() {
         let me = MyError;
         let _ = me.report();
@@ -173,5 +194,9 @@ mod test {
         let ae = anyhow::Error::from(me).context("context");
         let _ = ae.report();
         warn_report!(ae, "reporting anyhow");
+
+        let ie = internal!("Foo was not initialized");
+        let _ = ie.report();
+        warn_report!(ie);
     }
 }
