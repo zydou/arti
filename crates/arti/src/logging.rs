@@ -18,6 +18,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{Layer, filter::Targets, fmt, registry};
 
+mod fields;
 mod time;
 
 /// Structure to hold our logging configuration options
@@ -167,6 +168,8 @@ where
     // if isatty() returns true on the console, we can't be sure that the
     // terminal isn't saving backlog to disk or something like that.
     Ok(fmt::Layer::default()
+        // we apply custom field formatting so that error fields are listed last
+        .fmt_fields(fields::ErrorsLastFieldFormatter)
         .with_ansi(use_color)
         .with_timer(timer)
         .with_writer(std::io::stderr) // we make this explicit, to match with use_color.
@@ -225,6 +228,8 @@ where
     let appender = RollingFileAppender::new(rotation, directory, fname);
     let (nonblocking, guard) = non_blocking(appender);
     let layer = fmt::layer()
+        // we apply custom field formatting so that error fields are listed last
+        .fmt_fields(fields::ErrorsLastFieldFormatter)
         .with_ansi(false)
         .with_writer(nonblocking)
         .with_timer(timer)
