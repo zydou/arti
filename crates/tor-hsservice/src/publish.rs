@@ -178,7 +178,7 @@ mod test {
     use test_temp_dir::test_temp_dir;
 
     use tor_basic_utils::test_rng::{TestingRng, testing_rng};
-    use tor_circmgr::hspool::HsCircKind;
+
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
     use tor_key_forge::ToEncodableKey;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeySpecifier};
@@ -273,8 +273,7 @@ mod test {
             Ok(MockClientCirc {
                 publish_count: Arc::clone(&self.publish_count),
                 poll_read_responses: poll_read_responses.clone(),
-            }
-            .into())
+            })
         }
 
         fn estimate_upload_timeout(&self) -> Duration {
