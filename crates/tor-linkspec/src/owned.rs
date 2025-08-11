@@ -219,6 +219,11 @@ impl OwnedCircTarget {
     pub fn chan_target_mut(&mut self) -> &mut OwnedChanTarget {
         &mut self.chan_target
     }
+
+    /// Return a  view of this OwnedCircTarget as an [`OwnedChanTarget`].
+    pub fn chan_target(&self) -> &OwnedChanTarget {
+        &self.chan_target
+    }
 }
 
 impl HasAddrs for OwnedCircTarget {
