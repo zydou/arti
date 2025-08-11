@@ -269,7 +269,7 @@ impl Keystore for CTorServiceKeystore {
                             path: keystore_path.into(),
                             err: e
                                 .into_io_error()
-                                .unwrap_or_else(|| io::Error::other(msg.to_string()))
+                                .unwrap_or_else(|| io::Error::other(msg.clone()))
                                 .into(),
                         }
                     })

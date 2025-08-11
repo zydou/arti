@@ -106,7 +106,7 @@ impl ConfigurationTree {
         use figment::value::Value as V;
         let val = self.0.find_value(key).map_err(ConfigError::from_cfg_err)?;
         Ok(match val {
-            V::String(_, s) => s.to_string(),
+            V::String(_, s) => s.clone(),
             V::Num(_, n) => n.to_i128().expect("Failed to extract i128").to_string(),
             _ => format!("{:?}", val),
         })
