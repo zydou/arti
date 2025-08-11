@@ -64,6 +64,11 @@ def gen_shadow_config(seed: int, chutney_bin: Optional[str]) -> dict[str, Any]:
             # debug an issue is less likely to make the issue disappear.
             #
             # The primary tradeoffs are:
+            # * Larger values can result in managed processes measuring elapsed
+            #   time where not much happens as *zero*, which may not be handled
+            #   gracefully. e.g. in c-tor, using values of 1 ms or more here can
+            #   result in a flood of warnings "compute_drain_rate(): Bug:
+            #   Computing stream drain rate with zero time delta".
             # * Time will move forward at a larger granularity when unblocked syscall
             #   latency is applied. 10ms is still small enough though that this
             #   shouldn't be terribly strange; e.g. larger time jumps are likely
@@ -73,7 +78,7 @@ def gen_shadow_config(seed: int, chutney_bin: Optional[str]) -> dict[str, Any]:
             #   busy loop, it may spend a bit longer "spinning" before moving
             #   time forward, potentially causing the simulation to take a bit
             #   longer to run. (if it would have otherwise timed out earlier than 10ms)
-            "max_unapplied_cpu_latency": "10ms",
+            "max_unapplied_cpu_latency": "100us",
         },
         "hosts": {
             "host": {
