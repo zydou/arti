@@ -20,7 +20,7 @@ ConfigureNodes(
     Node(tag="a", authority=1, relay=1, launch_phase=LAUNCH_PHASE_DIR_AUTHS).getN(4)
     # Exits. We don't need many since authorities also function as exits,
     # but let's have at least 1 non-authority exit relay.
-    + Node(tag="r", relay=1, exit=1, launch_phase=LAUNCH_PHASE_RELAYS).getN(1)
+    + Node(tag="r", relay=1, exit=1, launch_phase=LAUNCH_PHASE_RELAYS).getN(2)
     # Simple tor client. Useful as a baseline check for "chutney verify",
     # and used in arti-bench for comparison.
     + Node(tag="torc", client=1, backend=NodeBackend.TOR, launch_phase=LAUNCH_PHASE_CLIENTS).getN(1)
@@ -30,7 +30,7 @@ ConfigureNodes(
     # bridge authority
     + Node(tag="ba", authority=1, bridgeauthority=1, relay=1, launch_phase=LAUNCH_PHASE_BRIDGE_AUTH).getN(1)
     # Bridge
-    + Node(tag="br", bridge=1, relay=1, launch_phase=LAUNCH_PHASE_BRIDGES).getN(1)
+    + Node(tag="br", bridge=1, relay=1, launch_phase=LAUNCH_PHASE_BRIDGES).getN(2)
     # arti bridge client
     + Node(tag="bc", client=1, backend=NodeBackend.ARTI, bridgeclient=1, launch_phase=LAUNCH_PHASE_CLIENTS).getN(1)
 )
