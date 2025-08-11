@@ -11,9 +11,9 @@ variables:
   FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
   # Enable timestamps in job log lines.
   FF_TIMESTAMPS: "true"
-  # Pinned CI image for must Rust tests
+  # Pinned CI image for most Rust tests
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  RECENT_RUST_IMAGE: "docker.io/amd64/rust:1.86.0-bookworm"
+  RECENT_RUST_IMAGE: "docker.io/amd64/rust:1.89.0-bookworm"
   # Pinned chutney version.
   # main @ 2025-07-16
   CHUTNEY_COMMIT: "f9435e45f826a265dd3b7d341356cb04f1aa7b09"
