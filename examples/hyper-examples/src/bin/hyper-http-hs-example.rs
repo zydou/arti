@@ -96,7 +96,9 @@ async fn main() -> Result<()> {
     match tokio::time::timeout(Duration::from_secs(timeout_seconds), binding.next()).await {
         Ok(Some(_)) => eprintln!("[+] Onion service is fully reachable."),
         Ok(None) => eprintln!("[-] Status stream ended unexpectedly."),
-        Err(_) => eprintln!("[-] Timeout waiting for service to become reachable. You can still attempt to visit the service."),
+        Err(_) => eprintln!(
+            "[-] Timeout waiting for service to become reachable. You can still attempt to visit the service."
+        ),
     }
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)
