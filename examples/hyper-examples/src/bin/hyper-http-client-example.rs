@@ -5,9 +5,10 @@ use hyper::http::uri::Scheme;
 use hyper::{Request, Uri};
 use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_native_tls::native_tls::TlsConnector;
 
 use arti_client::{TorClient, TorClientConfig};
+
+const TEST_URL: &str = "https://check.torproject.org/api/ip";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -16,16 +17,14 @@ async fn main() -> Result<()> {
     // =debug for more detailed logging.)
     tracing_subscriber::fmt::init();
 
-    // You can run this example with any arbitrary HTTP/1.1 (raw or within TLS) URL, but we'll default to icanhazip
+    // You can run this example with any arbitrary HTTP/1.1 (raw or within TLS) URL, but we'll default to check.torproject.org
     // because it's a good way of demonstrating that the connection is via Tor.
     let url: Uri = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "https://icanhazip.com".into())
+        .unwrap_or_else(|| TEST_URL.into())
         .parse()?;
     let host = url.host().unwrap();
     let https = url.scheme() == Some(&Scheme::HTTPS);
-
-    eprintln!("starting Arti...");
 
     // The client config includes things like where to store persistent Tor network state.
     // The defaults provided are the same as the Arti standalone application, and save data
@@ -45,11 +44,11 @@ async fn main() -> Result<()> {
 
     let stream = tor_client.connect((host, port)).await?;
 
-    // The rest is just standard usage of Hyper.
-    eprintln!("requesting {url} via Tor...");
+    // Following part is just standard usage of Hyper.
+    eprintln!("[+] Making request to: {}", url);
 
     if https {
-        let cx = TlsConnector::builder().build()?;
+        let cx = tokio_native_tls::native_tls::TlsConnector::builder().build()?;
         let cx = tokio_native_tls::TlsConnector::from(cx);
         let stream = cx.connect(host, stream).await?;
         make_request(host, stream).await
@@ -65,7 +64,7 @@ async fn make_request(
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(TokioIo::new(stream)).await?;
 
-    // spawn a task to poll the connection and drive the HTTP state
+    // Spawn a task to poll the connection and drive the HTTP state.
     tokio::spawn(async move {
         connection.await.unwrap();
     });
@@ -74,16 +73,16 @@ async fn make_request(
         .send_request(
             Request::builder()
                 .header("Host", host)
+                .uri(TEST_URL)
                 .method("GET")
                 .body(Empty::<Bytes>::new())?,
         )
         .await?;
 
-    eprintln!("status: {}", resp.status());
-
+    eprintln!("[+] Response status: {}", resp.status());
     while let Some(frame) = resp.body_mut().frame().await {
         let bytes = frame?.into_data().unwrap();
-        eprintln!("body: {}", std::str::from_utf8(&bytes)?);
+        eprintln!("[+] Response body:\n\n{}", std::str::from_utf8(&bytes)?);
     }
 
     Ok(())

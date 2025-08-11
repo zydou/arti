@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures::StreamExt;
@@ -22,8 +23,11 @@ struct WebHandler {
 
 impl WebHandler {
     async fn serve(&self, request: Request<Incoming>) -> Result<Response<String>> {
+        println!("[+] Incoming request: {:?}", request);
+
         let path = request.uri().path();
 
+        // Path to shutdown the service.
         // TODO: Unauthenticated management. This route is accessible by anyone, and exists solely
         //  to demonstrate how to safely shutdown further incoming requests. You should probably
         //  move this elsewhere to ensure proper checks are in place!
@@ -31,8 +35,9 @@ impl WebHandler {
             self.shutdown.cancel();
         }
 
+        // Default path.
         Ok(Response::builder().status(StatusCode::OK).body(format!(
-            "{} {}",
+            "You have succesfully reached your onion service served by Arti and hyper.\n\nYour request:\n\n{} {}",
             request.method(),
             path
         ))?)
@@ -40,7 +45,7 @@ impl WebHandler {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Make sure you read doc/OnionService.md to extract your Onion service hostname
 
     // Arti uses the `tracing` crate for logging. Install a handler for this, to print Arti's logs.
@@ -63,30 +68,45 @@ async fn main() {
     // (This takes a while to gather the necessary consensus state, etc.)
     let client = TorClient::create_bootstrapped(config).await.unwrap();
 
+    // Launch onion service.
+    eprintln!("[+] Launching onion service...");
     let svc_cfg = OnionServiceConfigBuilder::default()
         .nickname("allium-ampeloprasum".parse().unwrap())
         .build()
         .unwrap();
-    let (service, request_stream) = client.launch_onion_service(svc_cfg).unwrap();
-
-    // Wait until the service is believed to be fully reachable.
-    eprintln!("waiting for service to become fully reachable");
-    while let Some(status) = service.status_events().next().await {
-        if status.state().is_fully_reachable() {
-            break;
-        }
-    }
+    let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
     eprintln!(
-        "ready to serve connections via {}",
-        service.onion_address().unwrap().display_unredacted()
+        "[+] Onion address: {}",
+        service
+            .onion_address()
+            .expect("Onion address not found")
+            .display_unredacted()
     );
+
+    // `is_fully_reachable` might remain false even if the service is reachable in practice;
+    // after a timeout, we stop waiting for that and try anyway.
+    let timeout_seconds = 60;
+    eprintln!(
+        "[+] Waiting for onion service to be reachable. Please wait {} seconds...\r",
+        timeout_seconds
+    );
+    let status_stream = service.status_events();
+    let mut binding =
+        status_stream.filter(|status| futures::future::ready(status.state().is_fully_reachable()));
+    match tokio::time::timeout(Duration::from_secs(timeout_seconds), binding.next()).await {
+        Ok(Some(_)) => eprintln!("[+] Onion service is fully reachable."),
+        Ok(None) => eprintln!("[-] Status stream ended unexpectedly."),
+        Err(_) => eprintln!(
+            "[-] Timeout waiting for service to become reachable. You can still attempt to visit the service."
+        ),
+    }
 
     let stream_requests = tor_hsservice::handle_rend_requests(request_stream)
         .take_until(handler.shutdown.cancelled());
     tokio::pin!(stream_requests);
 
     while let Some(stream_request) = stream_requests.next().await {
-        // incoming connection
+        // Incoming connection.
         let handler = handler.clone();
 
         tokio::spawn(async move {
@@ -96,14 +116,20 @@ async fn main() {
             match result {
                 Ok(()) => {}
                 Err(err) => {
-                    eprintln!("error serving connection {:?}: {}", sensitive(request), err);
+                    eprintln!(
+                        "[-] Error serving connection {:?}: {}",
+                        sensitive(request),
+                        err
+                    );
                 }
             }
         });
     }
 
     drop(service);
-    eprintln!("onion service exited cleanly");
+    eprintln!("[+] Onion service exited cleanly.");
+
+    Ok(())
 }
 
 async fn handle_stream_request(

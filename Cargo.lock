@@ -2722,35 +2722,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyper-http-client-example"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arti-client",
- "http-body-util",
- "hyper",
- "hyper-util",
- "tokio",
- "tokio-native-tls",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "hyper-http-hs-example"
-version = "0.1.0"
+name = "hyper-examples"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arti-client",
  "futures",
+ "http",
+ "http-body-util",
  "hyper",
  "hyper-util",
  "safelog",
  "tokio",
+ "tokio-native-tls",
  "tokio-util",
  "tor-cell",
  "tor-hsservice",
  "tor-proto",
  "tracing-subscriber",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
