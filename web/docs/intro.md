@@ -7,12 +7,10 @@ id: getting-started
 # Introduction
 ---
 
-[Arti](https://gitlab.torproject.org/tpo/core/arti) is a complete rewrite of the [C Tor](https://gitweb.torproject.org/tor.git/) codebase, and it is currently under active development. It is written in Rust, and it is designed to be modular, reusable, and easy to audit. 
+[Arti](https://gitlab.torproject.org/tpo/core/arti) is a complete rewrite of the [C Tor](https://gitlab.torproject.org/tpo/core/tor) codebase, and it is currently under active development. It is written in Rust, and it is designed to be modular, reusable, and easy to audit.
 
-:::warning
-This is our brand new website for Arti. We will be spending the next couple of
-days going over the entire page to make sure that everything is up-to-date. If
-you are interested in the old Arti website, please have a look
+:::info
+If you are interested in the old Arti website, please have a look
 [here](https://tpo.pages.torproject.net/core/arti/old).
 :::
 
@@ -32,7 +30,7 @@ Arti is not yet ready for production use, but it is ready for testing and experi
 - [Protocol support and compatibility](/guides/compatibility)
 - [Capability and limitations](/guides/capability-limitations)
 
-### On censorship with Arti
+### On censorship circumvention with Arti
 - [Using Arti with bridges](/censorship/bridges)
 - [Pluggable transports](/censorship/pluggable-transports)
 
