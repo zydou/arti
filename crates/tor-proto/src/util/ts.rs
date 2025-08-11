@@ -84,7 +84,6 @@ impl AtomicOptTimestamp {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

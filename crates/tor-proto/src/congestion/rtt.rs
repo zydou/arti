@@ -248,7 +248,6 @@ impl RoundtripTimeEstimator {
 }
 
 #[cfg(test)]
-#[allow(clippy::print_stderr)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

@@ -328,7 +328,6 @@ impl CongestionControlAlgorithm for Vegas {
 }
 
 #[cfg(test)]
-#[allow(clippy::print_stderr)]
 pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
