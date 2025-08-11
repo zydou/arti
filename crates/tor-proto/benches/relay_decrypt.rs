@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion, Throughput};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main, measurement::Measurement};
 use rand::prelude::*;
 
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
@@ -16,8 +16,8 @@ use tor_llcrypto::{
 #[cfg(feature = "counter-galois-onion")]
 use tor_proto::bench_utils::cgo;
 use tor_proto::bench_utils::{
-    tor1, CryptInit, KGen, OutboundClientCrypt, OutboundRelayLayer, RelayCellBody, RelayLayer,
-    BENCH_CHAN_CMD,
+    BENCH_CHAN_CMD, CryptInit, KGen, OutboundClientCrypt, OutboundRelayLayer, RelayCellBody,
+    RelayLayer, tor1,
 };
 
 const HOP_NUM: u8 = 1;

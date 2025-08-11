@@ -306,10 +306,10 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::task::MockExecutor;
+    use Poll::*;
     use futures::poll;
     use humantime::parse_rfc3339;
     use tor_rtcompat::ToplevelBlockOn as _;
-    use Poll::*;
 
     fn ms(ms: u64) -> Duration {
         Duration::from_millis(ms)

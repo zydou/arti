@@ -8,7 +8,7 @@ use std::{pin::Pin, sync::Arc};
 
 pub(crate) use self::v1::PowManager;
 
-use futures::{channel::mpsc, Stream};
+use futures::{Stream, channel::mpsc};
 use tor_async_utils::mpsc_channel_no_memquota;
 use tor_hscrypto::time::TimePeriod;
 

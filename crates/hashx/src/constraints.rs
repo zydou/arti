@@ -10,7 +10,7 @@
 //! constraints.
 
 use crate::program::{Instruction, InstructionVec, Opcode};
-use crate::register::{RegisterId, RegisterSet, NUM_REGISTERS};
+use crate::register::{NUM_REGISTERS, RegisterId, RegisterSet};
 use crate::scheduler::Scheduler;
 
 pub(crate) use model::{Pass, RegisterWriter};
@@ -18,7 +18,7 @@ pub(crate) use model::{Pass, RegisterWriter};
 /// The `model` attempts to document what the HashX constraints are, separate
 /// from the process of implementing those constraints.
 mod model {
-    use crate::program::{Opcode, NUM_INSTRUCTIONS};
+    use crate::program::{NUM_INSTRUCTIONS, Opcode};
     use crate::register::{self, RegisterId};
 
     /// Programs require an exact number of instructions. (The instruction

@@ -6,8 +6,8 @@
 use tor_error::internal;
 use tor_key_forge::{ErasedKey, KeyType, SshKeyAlgorithm, SshKeyData};
 
-use crate::keystore::arti::err::ArtiNativeKeystoreError;
 use crate::Result;
+use crate::keystore::arti::err::ArtiNativeKeystoreError;
 
 use std::path::PathBuf;
 use zeroize::Zeroizing;

@@ -149,8 +149,8 @@ mod test {
 
     #[async_test]
     async fn postage_sender_ext() {
-        use futures::stream::StreamExt;
         use futures::FutureExt;
+        use futures::stream::StreamExt;
 
         let (mut s, mut r) = postage::watch::channel_with(20);
         // Receiver of a fresh watch wakes once, but let's not rely on this

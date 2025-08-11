@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
-use crate::{event::ChanMgrEventSender, Error};
+use crate::{Error, event::ChanMgrEventSender};
 
 use std::time::Duration;
 use tor_error::internal;
@@ -13,7 +13,7 @@ use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarg
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
-use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
+use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
 
 use async_trait::async_trait;
 use futures::task::SpawnExt;
@@ -279,8 +279,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::{
-        mgr::{AbstractChannel, AbstractChannelFactory},
         Result,
+        mgr::{AbstractChannel, AbstractChannelFactory},
     };
     use futures::StreamExt as _;
     use std::net::SocketAddr;
@@ -290,7 +290,7 @@ mod test {
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_proto::channel::Channel;
     use tor_proto::memquota::{ChannelAccount, SpecificAccount as _};
-    use tor_rtcompat::{test_with_one_runtime, NetStreamListener};
+    use tor_rtcompat::{NetStreamListener, test_with_one_runtime};
     use tor_rtmock::{io::LocalStream, net::MockNetwork};
 
     #[allow(deprecated)] // TODO #1885

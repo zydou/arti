@@ -7,10 +7,10 @@
 use crate::Result;
 
 use super::{
+    CongestionControlAlgorithm, CongestionSignals, CongestionWindow, State,
     params::{Algorithm, FixedWindowParams},
     rtt::RoundtripTimeEstimator,
     sendme::{self, WindowParams},
-    CongestionControlAlgorithm, CongestionSignals, CongestionWindow, State,
 };
 
 /// Fixed window algorithm which is essentially the SENDME v0 with fixed receive and send window

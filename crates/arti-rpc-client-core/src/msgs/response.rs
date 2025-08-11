@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{AnyRequestId, JsonAnyObj};
 use crate::{
     conn::ErrorResponse,
-    util::{define_from_for_arc, Utf8CString},
+    util::{Utf8CString, define_from_for_arc},
 };
 
 /// An unparsed and unvalidated response, as received from Arti.
@@ -81,7 +81,7 @@ impl UnparsedResponse {
             Err(_) => {
                 return Err(DecodeResponseError::Fatal(
                     ErrorResponse::from_validated_string(msg),
-                ))
+                ));
             }
         };
         Ok(ValidatedResponse { msg, meta })

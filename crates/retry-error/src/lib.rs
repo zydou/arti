@@ -143,7 +143,7 @@ impl<E> RetryError<E> {
         std::mem::swap(&mut old_errs, &mut self.errors);
 
         for (attempt, err) in old_errs {
-            if let Some((ref mut last_attempt, last_err)) = self.errors.last_mut() {
+            if let Some((last_attempt, last_err)) = self.errors.last_mut() {
                 if same_err(last_err, &err) {
                     last_attempt.grow();
                 } else {

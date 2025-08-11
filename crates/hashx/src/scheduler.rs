@@ -5,7 +5,7 @@
 //! avoid stalls.
 
 use crate::program::{Instruction, Opcode};
-use crate::register::{RegisterId, NUM_REGISTERS};
+use crate::register::{NUM_REGISTERS, RegisterId};
 
 /// Scheduling information for each opcode
 mod model {

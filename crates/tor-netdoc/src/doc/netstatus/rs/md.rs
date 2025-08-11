@@ -7,8 +7,8 @@ use crate::doc::netstatus::{
     ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,
 };
 use crate::types::misc::*;
-use crate::{parse::parser::Section, util::private::Sealed};
 use crate::{Error, Result};
+use crate::{parse::parser::Section, util::private::Sealed};
 use std::net;
 
 use tor_error::internal;

@@ -8,7 +8,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 use tokio::time::Duration;
 use tokio_stream::StreamExt;
-use tor_chanmgr::transport::proxied::{settings_to_protocol, Protocol};
+use tor_chanmgr::transport::proxied::{Protocol, settings_to_protocol};
 use tor_linkspec::PtTransportName;
 use tor_ptmgr::ipc::{
     PluggableClientTransport, PluggableServerTransport, PluggableTransport, PtClientParameters,

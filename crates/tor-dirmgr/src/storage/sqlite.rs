@@ -28,7 +28,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
+use rusqlite::{OpenFlags, OptionalExtension, Transaction, params};
 use time::OffsetDateTime;
 use tracing::{trace, warn};
 
@@ -1429,7 +1429,7 @@ pub(crate) mod test {
     use crate::storage::EXPIRATION_DEFAULTS;
     use digest::Digest;
     use hex_literal::hex;
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{TempDir, tempdir};
     use time::ext::NumericalDuration;
     use tor_llcrypto::d::Sha3_256;
 
@@ -1644,19 +1644,25 @@ pub(crate) mod test {
             );
             assert!(store.consensus_by_meta(&cmeta3).is_err());
 
-            assert!(store
-                .consensus_by_sha3_digest_of_signed_part(&[0x99; 32])?
-                .is_none());
+            assert!(
+                store
+                    .consensus_by_sha3_digest_of_signed_part(&[0x99; 32])?
+                    .is_none()
+            );
         }
 
         {
-            assert!(store
-                .consensus_by_sha3_digest_of_signed_part(&[0xAB; 32])?
-                .is_some());
+            assert!(
+                store
+                    .consensus_by_sha3_digest_of_signed_part(&[0xAB; 32])?
+                    .is_some()
+            );
             store.delete_consensus(&cmeta)?;
-            assert!(store
-                .consensus_by_sha3_digest_of_signed_part(&[0xAB; 32])?
-                .is_none());
+            assert!(
+                store
+                    .consensus_by_sha3_digest_of_signed_part(&[0xAB; 32])?
+                    .is_none()
+            );
         }
 
         Ok(())

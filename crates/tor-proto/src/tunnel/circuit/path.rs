@@ -67,7 +67,7 @@ impl PathEntry {
     /// a reference to a ChanTarget representing that instance.
     ///
     /// Otherwise, return None.
-    pub fn as_chan_target(&self) -> Option<&impl tor_linkspec::ChanTarget> {
+    pub fn as_chan_target(&self) -> Option<&(impl tor_linkspec::ChanTarget + use<>)> {
         match &self.inner {
             HopDetail::Relay(chan_target) => Some(chan_target),
             #[cfg(feature = "hs-common")]
@@ -122,7 +122,7 @@ impl Path {
 
     /// Return the index of the last hop on this path, or `None` if the path is
     /// empty (or impossibly long).
-    pub(super) fn last_hop_num(&self) -> Option<HopNum> {
+    pub(crate) fn last_hop_num(&self) -> Option<HopNum> {
         let n = self.n_hops();
         let idx: u8 = n.checked_sub(1)?.try_into().ok()?;
         Some(idx.into())

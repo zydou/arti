@@ -573,6 +573,30 @@ pub struct NetParameters {
     pub hs_intro_dos_rate: BoundedInt32<0, {i32::MAX}> = (25)
         from  "HiddenServiceEnableIntroDoSRatePerSec",
 
+    /// Maximum Proof-of-Work V1 effort clients should send. Services will cap higher efforts to
+    /// this value.
+    ///
+    /// See
+    /// <https://spec.torproject.org/proposals/362-update-pow-control-loop.html>
+    // TODO POW: Make u32, or change spec.
+    pub hs_pow_v1_max_effort: BoundedInt32<0, {i32::MAX}> = (10_000)
+        from "HiddenServiceProofOfWorkV1MaxEffort",
+
+    /// The maximum age for items in the onion service intro queue, when Proof-of-Work V1 is
+    /// enabled.
+    ///
+    /// See
+    /// <https://spec.torproject.org/proposals/362-update-pow-control-loop.html>
+    pub hs_pow_v1_service_intro_timeout: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (300)
+        from "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds",
+
+    /// The default Proof-of-Work V1 decay adjustment value.
+    ///
+    /// See
+    /// <https://spec.torproject.org/proposals/362-update-pow-control-loop.html>
+    pub hs_pow_v1_default_decay_adjustment: Percentage<BoundedInt32<0, 99>> = (0)
+        from "HiddenServiceProofOfWorkV1ServiceDefaultDecayAdjustment",
+
     /// The type of vanguards to use by default when building onion service circuits:
     ///
     /// ```text

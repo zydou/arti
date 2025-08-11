@@ -7,8 +7,8 @@ use amplify::Getters;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_config::{
-    define_list_builder_helper, impl_not_auto_value, impl_standard_builder, BoolOrAuto,
-    ExplicitOrAuto,
+    BoolOrAuto, ExplicitOrAuto, define_list_builder_helper, impl_not_auto_value,
+    impl_standard_builder,
 };
 use tor_persist::hsnickname::HsNickname;
 
@@ -392,13 +392,10 @@ impl CTorKeystoreConfigBuilder {
     /// Validate the configured C Tor keystores.
     #[cfg(feature = "ctor-keystore")]
     fn validate(&self) -> Result<(), ConfigBuildError> {
-        use itertools::chain;
         use itertools::Itertools as _;
+        use itertools::chain;
 
-        let Self {
-            ref services,
-            ref clients,
-        } = self;
+        let Self { services, clients } = self;
         let mut ctor_store_ids = chain![
             services.stores.iter().flatten().map(|s| &s.id),
             clients.stores.iter().flatten().map(|s| &s.id)

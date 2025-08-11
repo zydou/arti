@@ -26,8 +26,8 @@ pub enum Error {
 
 impl HasKind for Error {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use Error as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::DirExpired => EK::DirectoryExpired,
             E::DirNotYetValid => EK::ClockSkew,
@@ -52,8 +52,8 @@ pub enum OnionDirLookupError {
 #[cfg(feature = "hs-common")]
 impl HasKind for OnionDirLookupError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use OnionDirLookupError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::WrongTimePeriod => EK::BadApiUsage,
         }

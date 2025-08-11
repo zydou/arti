@@ -3,9 +3,9 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use futures::AsyncWrite;
 use futures::io::Error;
 use futures::stream::FusedStream;
-use futures::AsyncWrite;
 use tor_rtcompat::SleepProvider;
 
 use super::writer::{RateLimitedWriter, RateLimitedWriterConfig};

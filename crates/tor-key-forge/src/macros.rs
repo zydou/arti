@@ -348,7 +348,7 @@ pub mod deps {
     pub use derive_more;
     pub use paste::paste;
     pub use signature;
-    pub use tor_llcrypto::pk::{curve25519, ed25519, ValidatableSignature};
+    pub use tor_llcrypto::pk::{ValidatableSignature, curve25519, ed25519};
 }
 
 #[cfg(test)]

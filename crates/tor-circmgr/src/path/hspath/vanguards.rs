@@ -4,7 +4,7 @@ use std::result::Result as StdResult;
 
 use rand::Rng;
 
-use tor_error::{internal, Bug};
+use tor_error::{Bug, internal};
 use tor_guardmgr::vanguards::{Layer, VanguardMgr};
 use tor_linkspec::HasRelayIds;
 use tor_netdir::{NetDir, Relay};
@@ -141,7 +141,7 @@ impl<'n, 'a, RT: Runtime, R: Rng> PathBuilder<'n, 'a, RT, R> {
                 return Err(internal!(
                     "tried to build an invalid vanguard path: cannot add a {kind} hop after {}",
                     self.last_hop_kind
-                ))
+                ));
             }
         }
 

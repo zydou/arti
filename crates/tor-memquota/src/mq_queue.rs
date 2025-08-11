@@ -554,10 +554,9 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
             Ok(y) => y,
             Err(CollapsedDueToReclaim) => return None,
         };
-        let peeked = Pin::new(&mut state.rx)
+        Pin::new(&mut state.rx)
             .unobtrusive_peek()
-            .map(|peeked| peeked.when);
-        peeked
+            .map(|peeked| peeked.when)
     }
 
     fn reclaim(self: Arc<Self>, _: EnabledToken) -> mtracker::ReclaimFuture {

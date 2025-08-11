@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, measurement::Measurement, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main, measurement::Measurement};
 use digest::Digest;
 use rand::prelude::*;
 
@@ -9,7 +9,7 @@ use criterion_cycles_per_byte::CyclesPerByte as Meas;
 
 use tor_cell::relaycell::msg::SendmeTag;
 use tor_llcrypto::d::{Sha1, Sha3_256};
-use tor_proto::bench_utils::{tor1, RelayCellBody};
+use tor_proto::bench_utils::{RelayCellBody, tor1};
 
 /// Create a random inbound cell with the digest computed.
 fn create_digested_cell<D: Digest + Clone>(rng: &mut ThreadRng, d: &mut D) -> RelayCellBody {

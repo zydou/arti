@@ -284,7 +284,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::relaycell::{msg, AnyRelayMsgOuter, RelayCellFormat, StreamId};
+    use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, msg};
 
     #[test]
     fn what_counts() {

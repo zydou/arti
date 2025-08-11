@@ -5,11 +5,11 @@
 //! solve and to verify puzzles.
 
 use crate::pow::v1::{
-    err::SolutionErrorV1, types::Effort, types::Instance, types::Nonce, types::Seed,
-    types::NONCE_LEN, types::SEED_LEN,
+    err::SolutionErrorV1, types::Effort, types::Instance, types::NONCE_LEN, types::Nonce,
+    types::SEED_LEN, types::Seed,
 };
 use arrayvec::{ArrayVec, CapacityError};
-use blake2::{digest::consts::U4, Blake2b, Digest};
+use blake2::{Blake2b, Digest, digest::consts::U4};
 
 /// Algorithm personalization string (P)
 ///

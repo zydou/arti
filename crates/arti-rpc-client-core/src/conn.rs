@@ -9,9 +9,9 @@ use std::{
 };
 
 use crate::msgs::{
+    AnyRequestId, ObjectId,
     request::InvalidRequestError,
     response::{ResponseKind, RpcError, ValidatedResponse},
-    AnyRequestId, ObjectId,
 };
 
 mod auth;
@@ -22,9 +22,9 @@ mod stream;
 use crate::util::Utf8CString;
 pub use builder::{BuilderError, ConnPtDescription, RpcConnBuilder};
 pub use connimpl::RpcConn;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{Deserialize, de::DeserializeOwned};
 pub use stream::StreamError;
-use tor_rpc_connect::{auth::cookie::CookieAccessError, HasClientErrorAction};
+use tor_rpc_connect::{HasClientErrorAction, auth::cookie::CookieAccessError};
 
 /// A handle to an open request.
 ///
@@ -581,8 +581,8 @@ pub enum ConnectError {
 
 impl HasClientErrorAction for ConnectError {
     fn client_action(&self) -> tor_rpc_connect::ClientErrorAction {
-        use tor_rpc_connect::ClientErrorAction as A;
         use ConnectError as E;
+        use tor_rpc_connect::ClientErrorAction as A;
         match self {
             E::BadEnvironment => A::Abort,
             E::CannotParse(e) => e.client_action(),
@@ -607,8 +607,8 @@ impl HasClientErrorAction for ConnectError {
 
 impl HasClientErrorAction for ProtoError {
     fn client_action(&self) -> tor_rpc_connect::ClientErrorAction {
-        use tor_rpc_connect::ClientErrorAction as A;
         use ProtoError as E;
+        use tor_rpc_connect::ClientErrorAction as A;
         match self {
             E::Shutdown(_) => A::Decline,
             E::InternalRequestFailed(_) => A::Decline,
@@ -679,8 +679,8 @@ mod test {
     use std::{sync::atomic::AtomicUsize, thread, time::Duration};
 
     use io::{BufRead as _, BufReader, Write as _};
-    use rand::{seq::SliceRandom as _, Rng as _, SeedableRng as _};
-    use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
+    use rand::{Rng as _, SeedableRng as _, seq::SliceRandom as _};
+    use tor_basic_utils::{RngExt as _, test_rng::testing_rng};
 
     use crate::{
         llconn,

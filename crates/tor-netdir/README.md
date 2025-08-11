@@ -28,3 +28,7 @@ Only modern consensus methods and microdescriptor consensuses are
 supported.
 
 License: MIT OR Apache-2.0
+
+[`tor-dirmgr`]: https://docs.rs/tor-dirmgr
+[`tor-circmgr`]: https://docs.rs/tor-circmgr
+

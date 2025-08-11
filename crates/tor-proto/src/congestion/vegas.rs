@@ -5,9 +5,9 @@
 //! Spec: prop324 section 3.3 (TOR_VEGAS)
 
 use super::{
+    CongestionControlAlgorithm, CongestionSignals, CongestionWindow, State,
     params::{Algorithm, VegasParams},
     rtt::RoundtripTimeEstimator,
-    CongestionControlAlgorithm, CongestionSignals, CongestionWindow, State,
 };
 use crate::Result;
 

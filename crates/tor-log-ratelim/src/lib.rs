@@ -77,15 +77,15 @@ mod ratelim;
 
 use std::time::Duration;
 
-pub use ratelim::rt::{install_runtime, InstallRuntimeError};
+pub use ratelim::rt::{InstallRuntimeError, install_runtime};
 
 /// Re-exports for macros.
 #[doc(hidden)]
 pub mod macro_prelude {
     pub use crate::{
-        logstate::LogState,
-        ratelim::{rt::rt_support, RateLim},
         Activity, Loggable,
+        logstate::LogState,
+        ratelim::{RateLim, rt::rt_support},
     };
     pub use std::sync::LazyLock;
     pub use std::sync::{Arc, Mutex, Weak};

@@ -301,7 +301,7 @@ impl MockRuntime {
                         Some(Some(v)) => Some(v),
                         Some(None) => {
                             eprintln!(
- "warning: MockRuntime advance_* looped >{WARN_AT} (next sleep: {}ms)\n{:?}",
+                                "warning: MockRuntime advance_* looped >{WARN_AT} (next sleep: {}ms)\n{:?}",
                                 advance.as_millis(),
                                 self.mock_task().as_debug_dump(),
                             );
@@ -424,9 +424,9 @@ mod test {
     use super::*;
     use futures::channel::mpsc;
     use futures::{SinkExt as _, StreamExt as _};
+    use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::SeqCst;
-    use std::sync::Arc;
     use tracing::trace;
     use tracing_test::traced_test;
 

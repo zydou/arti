@@ -91,7 +91,7 @@ use std::fmt::{self, Display};
 use std::iter;
 use std::mem;
 
-use itertools::{chain, izip, Itertools};
+use itertools::{Itertools, chain, izip};
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 use tracing::warn;
@@ -495,8 +495,8 @@ where
 
 /// Turns a [`serde_ignored::Path`] (which is borrowed) into an owned `DisfavouredKey`
 fn copy_path(mut path: &serde_ignored::Path) -> DisfavouredKey {
-    use serde_ignored::Path as SiP;
     use PathEntry as PE;
+    use serde_ignored::Path as SiP;
 
     let mut descend = vec![];
     loop {

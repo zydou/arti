@@ -5,7 +5,7 @@
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError};
+use tor_config::{ConfigBuildError, define_list_builder_helper, impl_standard_builder};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// A single authority that signs a consensus directory.

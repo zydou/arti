@@ -125,16 +125,16 @@ pub(crate) struct PackedCollision<
 >(T);
 
 impl<
-        T: Copy
-            + TryFrom<usize>
-            + TryInto<usize>
-            + Shl<usize, Output = T>
-            + Shr<usize, Output = T>
-            + BitAnd<T, Output = T>
-            + BitOr<T, Output = T>,
-        const BUCKET_BITS: usize,
-        const ITEM_BITS: usize,
-    > PackedCollision<T, BUCKET_BITS, ITEM_BITS>
+    T: Copy
+        + TryFrom<usize>
+        + TryInto<usize>
+        + Shl<usize, Output = T>
+        + Shr<usize, Output = T>
+        + BitAnd<T, Output = T>
+        + BitOr<T, Output = T>,
+    const BUCKET_BITS: usize,
+    const ITEM_BITS: usize,
+> PackedCollision<T, BUCKET_BITS, ITEM_BITS>
 {
     /// Construct a new [`PackedCollision`] from its inner type.
     #[inline(always)]

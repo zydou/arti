@@ -186,11 +186,7 @@ fn check_tree_sums(func: &HashX, items: &[SolutionItem], n_bits: usize) -> Resul
         left.wrapping_add(right)
     };
     let mask = ((1 as HashValue) << n_bits) - 1;
-    if (sum & mask) == 0 {
-        Ok(sum)
-    } else {
-        Err(())
-    }
+    if (sum & mask) == 0 { Ok(sum) } else { Err(()) }
 }
 
 /// Check all tree sums, using the full size defined by [`EQUIHASH_N`].

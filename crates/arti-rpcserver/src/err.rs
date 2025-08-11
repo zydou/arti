@@ -54,8 +54,8 @@ pub enum RequestParseError {
 
 impl From<RequestParseError> for RpcError {
     fn from(err: RequestParseError) -> Self {
-        use tor_rpcbase::RpcErrorKind as EK;
         use RequestParseError as E;
+        use tor_rpcbase::RpcErrorKind as EK;
         let kind = match err {
             E::IdMissing
             | E::IdType

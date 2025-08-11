@@ -10,14 +10,14 @@ use err::{ArtiRpcError, InvalidInput};
 use std::ffi::{c_char, c_int};
 use std::sync::Mutex;
 use util::{
-    ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OptOutValExt, OutPtr, OutSocketOwned,
-    OutVal,
+    OptOutPtrExt as _, OptOutValExt, OutPtr, OutSocketOwned, OutVal, ffi_body_raw,
+    ffi_body_with_err,
 };
 
 use crate::{
+    ObjectId, RpcConnBuilder,
     conn::{AnyResponse, RequestHandle},
     util::Utf8CString,
-    ObjectId, RpcConnBuilder,
 };
 
 /// A status code returned by an Arti RPC function.
@@ -98,7 +98,7 @@ impl Default for ArtiRpcRawSocket {
 /// The caller is responsible for making sure that `*builder_out` and `*error_out`,
 /// if set, are eventually freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_builder_new(
     builder_out: *mut *mut ArtiRpcConnBuilder,
     error_out: *mut *mut ArtiRpcError,
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_new(
 
 /// Release storage held by an `ArtiRpcConnBuilder`.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_builder_free(builder: *mut ArtiRpcConnBuilder) {
     ffi_body_raw!(
         {
@@ -160,7 +160,7 @@ pub const ARTI_RPC_BUILDER_ENTRY_LITERAL_PATH: ArtiRpcBuilderEntryType = 3;
 /// The caller is responsible for making sure that `*error_out`,
 /// if set, is eventually freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_builder_prepend_entry(
     builder: *const ArtiRpcConnBuilder,
     entry_type: ArtiRpcBuilderEntryType,
@@ -201,7 +201,7 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_prepend_entry(
 /// The caller is responsible for making sure that `*rpc_conn_out` and `*error_out`,
 /// if set, are eventually freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_builder_connect(
     builder: *const ArtiRpcConnBuilder,
     rpc_conn_out: *mut *mut ArtiRpcConn,
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_connect(
 /// The resulting string is a reference to part of the `ArtiRpcConn`.
 /// It lives for no longer than the underlying `ArtiRpcConn` object.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_get_session_id(
     rpc_conn: *const ArtiRpcConn,
 ) -> *const c_char {
@@ -271,7 +271,7 @@ pub unsafe extern "C" fn arti_rpc_conn_get_session_id(
 ///
 /// The caller is responsible for making sure that `*response_out`, if set, is eventually freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_execute(
     rpc_conn: *const ArtiRpcConn,
     msg: *const c_char,
@@ -312,7 +312,7 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
 ///
 /// The caller is responsible for making sure that `*handle_out`, if set, is eventually freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_execute_with_handle(
     rpc_conn: *const ArtiRpcConn,
     msg: *const c_char,
@@ -346,7 +346,7 @@ pub unsafe extern "C" fn arti_rpc_conn_execute_with_handle(
 /// Otherwise return some other status code,
 /// and set `*error_out` (if provided) to a newly allocated error object.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_cancel_handle(
     rpc_conn: *const ArtiRpcConn,
     handle: *const ArtiRpcHandle,
@@ -419,7 +419,7 @@ impl AnyResponse {
 ///
 /// The caller is responsible for making sure that `*response_out`, if set, is eventually freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_handle_wait(
     handle: *const ArtiRpcHandle,
     response_out: *mut *mut ArtiRpcStr,
@@ -449,7 +449,7 @@ pub unsafe extern "C" fn arti_rpc_handle_wait(
 /// NOTE: This does not cancel the underlying request if it is still running.
 /// To cancel a request, use `arti_rpc_conn_cancel_handle`.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_handle_free(handle: *mut ArtiRpcHandle) {
     ffi_body_raw!(
         {
@@ -463,7 +463,7 @@ pub unsafe extern "C" fn arti_rpc_handle_free(handle: *mut ArtiRpcHandle) {
 }
 /// Free a string returned by the Arti RPC API.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
     ffi_body_raw!(
         {
@@ -486,7 +486,7 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
 ///
 /// The resulting string pointer is valid only for as long as the input `string` is not freed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c_char {
     ffi_body_raw!(
         {
@@ -506,7 +506,7 @@ pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c
 
 /// Close and free an open Arti RPC connection.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
     ffi_body_raw!(
         {
@@ -574,7 +574,7 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
 /// The caller is responsible for making sure that `*socket_out`, if set,
 /// is eventually closed.
 #[allow(clippy::missing_safety_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn arti_rpc_conn_open_stream(
     rpc_conn: *const ArtiRpcConn,
     hostname: *const c_char,

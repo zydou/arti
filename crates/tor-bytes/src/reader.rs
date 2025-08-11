@@ -73,7 +73,7 @@ enum Completeness {
     PossiblyIncomplete,
     /// We ought to have the whole message
     ///
-    /// Throw [`Error::MissingData']
+    /// Throw [`Error::MissingData`]
     SupposedlyComplete,
 }
 
@@ -342,7 +342,7 @@ impl<'a> Reader<'a> {
             Completeness::PossiblyIncomplete => {
                 return Err(Error::Bug(bad_api_usage!(
                     "Called take_all_but on a PossiblyIncomplete reader."
-                )))
+                )));
             }
             Completeness::SupposedlyComplete => {}
         }

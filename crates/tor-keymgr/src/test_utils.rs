@@ -321,9 +321,11 @@ mod internal {
             if $found {
                 assert!(res.is_some());
                 // Ensure contains() agrees with get()
-                assert!($key_store
-                    .contains($key_spec, &$key_type.clone().into())
-                    .unwrap());
+                assert!(
+                    $key_store
+                        .contains($key_spec, &$key_type.clone().into())
+                        .unwrap()
+                );
             } else {
                 assert!(res.is_none());
             }

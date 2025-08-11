@@ -231,7 +231,7 @@ mod test {
     use assert_matches::assert_matches;
     use std::path::PathBuf;
 
-    use crate::{home, CfgPathResolver};
+    use crate::{CfgPathResolver, home};
 
     #[test]
     fn parse_inet_ok() {
@@ -280,6 +280,7 @@ mod test {
     }
 
     #[test]
+    #[cfg_attr(not(unix), expect(unused_variables))]
     fn unix_literal() {
         let resolv = CfgPathResolver::from_pairs([("USER_HOME", home().unwrap())]);
         let pb = PathBuf::from("${USER_HOME}/.local/socket");
@@ -303,6 +304,7 @@ mod test {
         );
     }
 
+    #[cfg_attr(not(unix), expect(unused_variables))]
     fn try_unix(addr: &str, want: &str, path_resolver: &CfgPathResolver) {
         let p = CfgPath::new(want.to_string());
         let expansion = p.path(path_resolver).unwrap();

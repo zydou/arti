@@ -5,9 +5,10 @@ use super::{
     CircuitHandshake, CloseStreamBehavior, MetaCellHandler, Reactor, ReactorResultChannel,
     RunOnceCmdInner, SendRelayCell,
 };
+use crate::Result;
 use crate::circuit::HopSettings;
 use crate::crypto::binding::CircuitBinding;
-use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto};
+use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::queue::StreamQueueSender;
 use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
@@ -15,10 +16,9 @@ use crate::tunnel::circuit::celltypes::CreateResponse;
 use crate::tunnel::circuit::path;
 use crate::tunnel::reactor::circuit::circ_extensions_from_settings;
 use crate::tunnel::reactor::{NoJoinPointError, NtorClient, ReactorError};
-use crate::tunnel::{streammap, HopLocation, TargetHop};
+use crate::tunnel::{HopLocation, TargetHop, streammap};
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
-use crate::Result;
 #[cfg(test)]
 use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
 use postage::watch;
@@ -26,7 +26,7 @@ use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
-use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
+use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage};
 use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
 use {
@@ -367,7 +367,7 @@ impl<'a> ControlHandler<'a> {
                     return Ok(None);
                 };
 
-                let (extender, cell) = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
+                let (extender, cell) = CircuitExtender::<NtorClient>::begin(
                     peer_id,
                     HandshakeType::NTOR,
                     &public_key,
@@ -406,17 +406,16 @@ impl<'a> ControlHandler<'a> {
 
                 let client_extensions = circ_extensions_from_settings(&settings)?;
 
-                let (extender, cell) =
-                    CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
-                        peer_id,
-                        HandshakeType::NTOR_V3,
-                        &public_key,
-                        linkspecs,
-                        settings,
-                        &client_extensions,
-                        circ,
-                        done,
-                    )?;
+                let (extender, cell) = CircuitExtender::<NtorV3Client>::begin(
+                    peer_id,
+                    HandshakeType::NTOR_V3,
+                    &public_key,
+                    linkspecs,
+                    settings,
+                    &client_extensions,
+                    circ,
+                    done,
+                )?;
                 self.reactor
                     .cell_handlers
                     .set_meta_handler(Box::new(extender))?;
@@ -511,14 +510,12 @@ impl<'a> ControlHandler<'a> {
                                 // `StreamTarget` asks us to send a stream-level SENDME, and this tunnel
                                 // originally created the `StreamTarget` to begin with. So this is a
                                 // legitimate bug somewhere in the tunnel code.
-                                let err = internal!(
-                                    "Could not send a stream-level SENDME to a join point on a tunnel without a join point",
+                                return Err(
+                                    internal!(
+                                        "Could not send a stream-level SENDME to a join point on a tunnel without a join point",
+                                    )
+                                    .into()
                                 );
-                                // TODO: Rather than calling `warn_report` here, we should call
-                                // `trace_report!` from `Reactor::run_once()`. Since this is an internal
-                                // error, `trace_report!` should log it at "warn" level.
-                                warn_report!(err, "Tunnel reactor error");
-                                return Err(err.into());
                             }
                         };
 
@@ -532,7 +529,9 @@ impl<'a> ControlHandler<'a> {
                                 // It is possible that is a bug and this is an incorrect leg/hop number, but
                                 // it's not currently possible to differentiate between an incorrect leg/hop
                                 // number and a circuit hop that has been closed.
-                                debug!("Could not send a stream-level SENDME on a hop that does not exist. Ignoring.");
+                                debug!(
+                                    "Could not send a stream-level SENDME on a hop that does not exist. Ignoring."
+                                );
                                 return Ok(None);
                             }
                         };

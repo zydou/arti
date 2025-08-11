@@ -10,12 +10,12 @@ use std::{
 use fs_mistrust::Mistrust;
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_rpc_connect::{
+    ClientErrorAction, HasClientErrorAction, ParsedConnectPoint,
     auth::RpcAuth,
     load::{LoadError, LoadOptions},
-    ClientErrorAction, HasClientErrorAction, ParsedConnectPoint,
 };
 
-use crate::{conn::ConnectError, llconn, msgs::response::UnparsedResponse, RpcConn};
+use crate::{RpcConn, conn::ConnectError, llconn, msgs::response::UnparsedResponse};
 
 use super::ConnectFailure;
 
@@ -415,7 +415,7 @@ impl SearchEntry {
                         return ConnPtIterator::Singleton(
                             descr_file(None),
                             Err(ConnectError::CannotResolvePath(e)),
-                        )
+                        );
                     }
                 };
                 if !path.is_absolute() {

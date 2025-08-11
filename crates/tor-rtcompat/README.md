@@ -189,3 +189,5 @@ network, in order to test asynchronous code effectively.
 (See the [`tor-rtmock`] crate for examples.)
 
 License: MIT OR Apache-2.0
+
+[`tor-rtmock`]: https://docs.rs/tor-rtmock/latest/tor_rtmock/

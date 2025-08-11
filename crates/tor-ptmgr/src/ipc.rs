@@ -4,11 +4,11 @@
 //! version 1, and communicate with them in order to specify configuration parameters and
 //! receive updates as to the current state of the PT.
 
+use crate::PtClientMethod;
 use crate::err;
 use crate::err::PtError;
-use crate::PtClientMethod;
-use futures::channel::mpsc::Receiver;
 use futures::StreamExt;
+use futures::channel::mpsc::Receiver;
 use itertools::Itertools;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -535,7 +535,7 @@ pub(crate) mod sealed {
                         return Err(PtError::ProtocolViolation(format!(
                             "unknown CMETHOD protocol '{}'",
                             x
-                        )))
+                        )));
                     }
                 },
                 None => SocksVersion::V5,

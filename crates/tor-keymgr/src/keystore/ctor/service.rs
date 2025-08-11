@@ -2,9 +2,9 @@
 //!
 //! See [`CTorServiceKeystore`] for more details.
 
-use crate::keystore::ctor::err::{CTorKeystoreError, MalformedServiceKeyError};
 use crate::keystore::ctor::CTorKeystore;
-use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError};
+use crate::keystore::ctor::err::{CTorKeystoreError, MalformedServiceKeyError};
+use crate::keystore::fs_utils::{FilesystemAction, FilesystemError, checked_op};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore, KeystoreId};
 use crate::raw::{RawEntryId, RawKeystoreEntry};
 use crate::{
@@ -423,10 +423,10 @@ mod tests {
 
     use super::*;
     use std::fs;
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{TempDir, tempdir};
 
-    use crate::test_utils::{assert_found, DummyKey, TestCTorSpecifier};
     use crate::CTorServicePath;
+    use crate::test_utils::{DummyKey, TestCTorSpecifier, assert_found};
 
     const PUBKEY: &[u8] = include_bytes!("../../../testdata/tor-service/hs_ed25519_public_key");
     const PRIVKEY: &[u8] = include_bytes!("../../../testdata/tor-service/hs_ed25519_secret_key");

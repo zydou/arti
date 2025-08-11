@@ -1,25 +1,25 @@
 //! Module exposing structures relating to the reactor's view of a circuit's hops.
 
 use super::CircuitCmd;
-use super::{CloseStreamBehavior, SendRelayCell, SEND_WINDOW_INIT};
+use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::circuit::HopSettings;
-use crate::congestion::sendme;
 use crate::congestion::CongestionControl;
+use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
 use crate::stream::queue::StreamQueueSender;
 use crate::stream::{
     AnyCmdChecker, DrainRateRequest, StreamFlowControl, StreamRateLimit, StreamStatus,
 };
+use crate::tunnel::TunnelScopedCircId;
 use crate::tunnel::circuit::StreamMpscReceiver;
 use crate::tunnel::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
-use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
-use futures::stream::FuturesUnordered;
 use futures::Stream;
+use futures::stream::FuturesUnordered;
 use postage::watch;
 use safelog::sensitive as sv;
 use tor_cell::chancell::BoxedCellBody;
@@ -30,7 +30,7 @@ use tor_cell::relaycell::{
     RelayMsg, StreamId, UnparsedRelayMsg,
 };
 
-use tor_error::{internal, Bug};
+use tor_error::{Bug, internal};
 use tracing::{trace, warn};
 
 use std::num::NonZeroU32;
@@ -90,7 +90,7 @@ impl CircHopList {
     pub(super) fn ready_streams_iterator(
         &self,
         exclude: Option<HopNum>,
-    ) -> impl Stream<Item = Result<CircuitCmd>> {
+    ) -> impl Stream<Item = Result<CircuitCmd>> + use<> {
         self.hops
             .iter()
             .enumerate()
@@ -608,12 +608,22 @@ impl CircHop {
 
         if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
             if e.is_full() {
-                // If we get here, we either have a logic bug (!), or an attacker
-                // is sending us more cells than we asked for via congestion control.
-                return Err(Error::CircProto(format!(
-                    "Stream sink would block; received too many cells on stream ID {}",
-                    sv(streamid),
-                )));
+                cfg_if::cfg_if! {
+                    if #[cfg(not(feature = "flowctl-cc"))] {
+                        // If we get here, we either have a logic bug (!), or an attacker
+                        // is sending us more cells than we asked for via congestion control.
+                        return Err(Error::CircProto(format!(
+                            "Stream sink would block; received too many cells on stream ID {}",
+                            sv(streamid),
+                        )));
+                    } else {
+                        return Err(internal!(
+                            "Stream (ID {}) uses an unbounded queue, but apparently it's full?",
+                            sv(streamid),
+                        )
+                        .into());
+                    }
+                }
             }
             if e.is_disconnected() && cell_counts_toward_windows {
                 // the other side of the stream has gone away; remember

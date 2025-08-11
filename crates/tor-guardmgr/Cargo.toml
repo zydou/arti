@@ -1,9 +1,9 @@
 [package]
 name = "tor-guardmgr"
-version = "0.32.0"
+version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2021"
-rust-version = "1.83"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Manage a set of guard relays for Tor network"
@@ -60,7 +60,7 @@ __is_experimental = []
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
 base64ct = "1.5.1"
-derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 dyn-clone = "1.0.4"
@@ -74,25 +74,25 @@ oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.9.1"
-safelog = { path = "../safelog", version = "0.4.7" }
+safelog = { path = "../safelog", version = "0.4.8" }
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
-tor-async-utils = { version = "0.32.0", path = "../tor-async-utils" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
-tor-config = { path = "../tor-config", version = "0.32.0" }
-tor-error = { path = "../tor-error", version = "0.32.0" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.32.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.32.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.32.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.32.0" }                              # for address pattern
-tor-persist = { path = "../tor-persist", version = "0.32.0" }
-tor-proto = { path = "../tor-proto", version = "0.32.0" }
-tor-protover = { path = "../tor-protover", version = "0.32.0", optional = true }
-tor-relay-selection = { path = "../tor-relay-selection", version = "0.32.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0" }
-tor-rtmock = { path = "../tor-rtmock", version = "0.32.0", optional = true }
-tor-units = { path = "../tor-units", version = "0.32.0" }
+tor-async-utils = { version = "0.33.0", path = "../tor-async-utils" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
+tor-config = { path = "../tor-config", version = "0.33.0" }
+tor-error = { path = "../tor-error", version = "0.33.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.33.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.33.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.33.0" }                              # for address pattern
+tor-persist = { path = "../tor-persist", version = "0.33.0" }
+tor-proto = { path = "../tor-proto", version = "0.33.0" }
+tor-protover = { path = "../tor-protover", version = "0.33.0", optional = true }
+tor-relay-selection = { path = "../tor-relay-selection", version = "0.33.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.33.0", optional = true }
+tor-units = { path = "../tor-units", version = "0.33.0" }
 tracing = "0.1.36"
 
 [dev-dependencies]
@@ -101,11 +101,11 @@ fs-mistrust = { path = "../fs-mistrust", version = "0.10.0" }
 serde_json = "1.0.50"
 tempfile = "3"
 toml = "0.8.8"
-tor-netdir = { path = "../tor-netdir", version = "0.32.0", features = ["testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.32.0" }
-tor-persist = { path = "../tor-persist", version = "0.32.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.32.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.33.0", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.33.0" }
+tor-persist = { path = "../tor-persist", version = "0.33.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.33.0" }
 
 [package.metadata.docs.rs]
 all-features = true

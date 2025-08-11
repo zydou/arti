@@ -2,9 +2,9 @@
 
 use std::collections::VecDeque;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll, Poll::*};
+use std::task::{Context, Poll, Poll::*, ready};
 
-use futures::{future, Sink};
+use futures::{Sink, future};
 
 use pin_project::pin_project;
 

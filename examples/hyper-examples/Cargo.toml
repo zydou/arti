@@ -2,7 +2,7 @@
 name = "hyper-examples"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Ramid Khan <ramidzkh@gmail.com>", "Niel Duysters"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Examples demonstrating the usage of Arti with hyper"
 publish = false

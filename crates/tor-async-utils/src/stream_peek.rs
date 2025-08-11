@@ -5,9 +5,9 @@
 //! *without* getting involved with the async tasks.
 
 use educe::Educe;
+use futures::Stream;
 use futures::stream::FusedStream;
 use futures::task::noop_waker_ref;
-use futures::Stream;
 use pin_project::pin_project;
 
 use crate::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};

@@ -222,11 +222,7 @@ mod test_roundtrip {
                             Error::UnexpectedEof => {}
                             other => panic!("{:?}", other),
                         });
-                        if n != 0 {
-                            Some(DidSomething)
-                        } else {
-                            None
-                        }
+                        if n != 0 { Some(DidSomething) } else { None }
                     }
                     NS::Send(send) => {
                         for c in send {

@@ -342,7 +342,7 @@ impl<'a, K: Keyword> Item<'a, K> {
         })
     }
     /// Return an iterator over the arguments of this item.
-    pub(crate) fn args(&self) -> impl Iterator<Item = &'a str> {
+    pub(crate) fn args(&self) -> impl Iterator<Item = &'a str> + use<'a, K> {
         self.args.split(is_sp).filter(|s| !s.is_empty())
     }
     /// Return the nth argument of this item, if there is one.
@@ -633,7 +633,11 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     pub(crate) fn pause_at<'f, 'r, F>(
         &mut self,
         mut f: F,
-    ) -> itertools::PeekingTakeWhile<'_, Self, impl FnMut(&Result<Item<'a, K>>) -> bool + 'f>
+    ) -> itertools::PeekingTakeWhile<
+        '_,
+        Self,
+        impl FnMut(&Result<Item<'a, K>>) -> bool + 'f + use<'a, 'f, F, K>,
+    >
     where
         'f: 'r,
         F: FnMut(&Result<Item<'a, K>>) -> bool + 'f,
@@ -708,11 +712,7 @@ impl<'a, K: Keyword> itertools::PeekingNext for NetDocReader<'a, K> {
     where
         F: FnOnce(&Self::Item) -> bool,
     {
-        if f(self.peek()?) {
-            self.next()
-        } else {
-            None
-        }
+        if f(self.peek()?) { self.next() } else { None }
     }
 }
 

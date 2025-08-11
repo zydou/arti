@@ -29,9 +29,9 @@
 //! SipHash is defined by Jean-Philippe Aumasson and Daniel J.Bernstein in
 //! their paper "SipHash: a fast short-input PRF" (2012).
 
+use blake2::Blake2bVarCore;
 use blake2::digest::block_buffer::LazyBuffer;
 use blake2::digest::core_api::{BlockSizeUser, UpdateCore, VariableOutputCore};
-use blake2::Blake2bVarCore;
 use std::fmt::{self, Debug};
 
 /// Internal state of one SipHash instance
@@ -194,7 +194,7 @@ pub(crate) fn siphash24_ctr(key: SipState, input: u64) -> [u64; 8] {
 
 #[cfg(test)]
 mod test {
-    use super::{siphash24_ctr, SipState};
+    use super::{SipState, siphash24_ctr};
 
     #[test]
     fn sip_round_vectors() {

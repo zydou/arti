@@ -208,13 +208,13 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::path::{
-        assert_same_path_when_owned, MaybeOwnedRelay, OwnedPath, TorPath, TorPathInner,
+        MaybeOwnedRelay, OwnedPath, TorPath, TorPathInner, assert_same_path_when_owned,
     };
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::TestConfig;
     use tor_linkspec::{HasRelayIds, RelayIds};
-    use tor_netdir::{testnet, FamilyRules, SubnetConfig};
+    use tor_netdir::{FamilyRules, SubnetConfig, testnet};
     use tor_persist::TestingStateMgr;
     use tor_relay_selection::LowLevelRelayPredicate;
     use tor_rtcompat::SleepProvider;

@@ -53,7 +53,7 @@ use std::io::{self, ErrorKind};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context as _};
+use anyhow::{Context as _, anyhow};
 use derive_more::{Deref, DerefMut};
 use educe::Educe;
 

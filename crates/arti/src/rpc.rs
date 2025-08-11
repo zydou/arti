@@ -4,17 +4,17 @@ use anyhow::Result;
 use arti_rpcserver::RpcMgr;
 use derive_builder::Builder;
 use fs_mistrust::Mistrust;
-use futures::{stream::StreamExt, task::SpawnExt, AsyncReadExt};
+use futures::{AsyncReadExt, stream::StreamExt, task::SpawnExt};
 use listener::{RpcListenerMap, RpcListenerMapBuilder};
 use serde::{Deserialize, Serialize};
 use session::ArtiRpcSession;
 use std::{io::Result as IoResult, sync::Arc};
-use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError};
+use tor_config::{ConfigBuildError, define_list_builder_helper, impl_standard_builder};
 use tor_config_path::CfgPathResolver;
 use tracing::{debug, info};
 
 use arti_client::TorClient;
-use tor_rtcompat::{general, NetStreamListener as _, Runtime};
+use tor_rtcompat::{NetStreamListener as _, Runtime, general};
 
 pub(crate) mod conntarget;
 pub(crate) mod listener;
@@ -85,7 +85,7 @@ async fn launch_all_listeners<R: Runtime>(
     resolver: &CfgPathResolver,
     mistrust: &Mistrust,
 ) -> anyhow::Result<(
-    impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin,
+    impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin + use<R>,
     Vec<tor_rpc_connect::server::ListenerGuard>,
 )> {
     let mut listeners = Vec::new();

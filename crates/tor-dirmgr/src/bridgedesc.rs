@@ -12,20 +12,20 @@ use std::time::{Duration, Instant, SystemTime};
 use async_trait::async_trait;
 use derive_more::{Deref, DerefMut};
 use educe::Educe;
+use futures::FutureExt;
 use futures::future;
 use futures::select;
 use futures::stream::{BoxStream, StreamExt};
 use futures::task::{SpawnError, SpawnExt as _};
-use futures::FutureExt;
 use tracing::{debug, error, info, trace};
 
 use safelog::sensitive;
-use tor_basic_utils::retry::RetryDelay;
 use tor_basic_utils::BinaryHeapExt as _;
+use tor_basic_utils::retry::RetryDelay;
 use tor_checkable::{SelfSigned, Timebound};
 use tor_circmgr::CircMgr;
-use tor_error::{error_report, internal, ErrorKind, HasKind};
 use tor_error::{AbsRetryTime, HasRetryTime, RetryTime};
+use tor_error::{ErrorKind, HasKind, error_report, internal};
 use tor_guardmgr::bridge::{BridgeConfig, BridgeDesc};
 use tor_guardmgr::bridge::{BridgeDescError, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
 use tor_netdoc::doc::routerdesc::RouterDesc;
@@ -205,8 +205,8 @@ impl<R: Runtime> mockable::MockableAPI<R> for () {
         _if_modified_since: Option<SystemTime>,
     ) -> Result<Option<String>, Error> {
         // TODO actually support _if_modified_since
-        let circuit = circmgr.get_or_launch_dir_specific(bridge).await?;
-        let mut stream = circuit
+        let tunnel = circmgr.get_or_launch_dir_specific(bridge).await?;
+        let mut stream = tunnel
             .begin_dir_stream()
             .await
             .map_err(Error::StreamFailed)?;
@@ -1324,7 +1324,7 @@ pub enum Error {
 
     /// Couldn't establish a directory stream to the bridge
     #[error("Failed to establish directory stream")]
-    StreamFailed(#[source] tor_proto::Error),
+    StreamFailed(#[source] tor_circmgr::Error),
 
     /// Directory request failed
     #[error("Directory request failed")]

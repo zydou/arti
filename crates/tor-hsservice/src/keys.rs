@@ -237,8 +237,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use tor_keymgr::test_utils::check_key_specifier;
     use tor_keymgr::KeySpecifier;
+    use tor_keymgr::test_utils::check_key_specifier;
 
     #[test]
     fn hsid_key_specifiers() {

@@ -59,8 +59,8 @@ pub enum PickGuardError {
 
 impl tor_error::HasKind for PickGuardError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use PickGuardError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::AllFallbacksDown { .. } | E::AllGuardsDown { .. } => EK::TorAccessFailed,
             E::NoCandidatesAvailable => EK::NoPath,
@@ -71,8 +71,8 @@ impl tor_error::HasKind for PickGuardError {
 
 impl tor_error::HasRetryTime for PickGuardError {
     fn retry_time(&self) -> tor_error::RetryTime {
-        use tor_error::RetryTime as RT;
         use PickGuardError as E;
+        use tor_error::RetryTime as RT;
         match self {
             // Some errors contain times that we can just use.
             E::AllGuardsDown {
@@ -154,14 +154,16 @@ impl GuardMgrError {
 #[non_exhaustive]
 pub enum GuardMgrConfigError {
     /// Specified configuration requires exclusive access to stored state, which we don't have
-    #[error("Configuration requires exclusive access to shared state, but another instance of Arti has the lock: {0}")]
+    #[error(
+        "Configuration requires exclusive access to shared state, but another instance of Arti has the lock: {0}"
+    )]
     NoLock(String),
 }
 
 impl From<GuardMgrConfigError> for tor_config::ReconfigureError {
     fn from(g: GuardMgrConfigError) -> tor_config::ReconfigureError {
-        use tor_config::ReconfigureError as R;
         use GuardMgrConfigError as G;
+        use tor_config::ReconfigureError as R;
         match g {
             e @ G::NoLock(_) => R::UnsupportedSituation(e.to_string()),
         }

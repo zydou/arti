@@ -1,18 +1,18 @@
 use anyhow::Result;
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 use futures::StreamExt;
-use hyper::body::Incoming;
 use hyper::Request;
+use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server;
 use tower::Service;
 
 use arti_client::{TorClient, TorClientConfig};
-use safelog::{sensitive, DisplayRedacted as _};
+use safelog::{DisplayRedacted as _, sensitive};
 use tor_cell::relaycell::msg::Connected;
-use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_hsservice::StreamRequest;
+use tor_hsservice::config::OnionServiceConfigBuilder;
 use tor_proto::stream::IncomingStreamRequest;
 
 #[tokio::main]

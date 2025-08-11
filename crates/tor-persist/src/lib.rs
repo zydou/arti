@@ -61,7 +61,7 @@ mod testing;
 #[cfg(feature = "state-dir")]
 pub mod state_dir;
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 
 /// Wrapper type for Results returned from this crate.

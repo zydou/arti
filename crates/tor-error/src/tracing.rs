@@ -5,7 +5,7 @@ use crate::ErrorKind;
 #[doc(hidden)]
 pub use static_assertions;
 #[doc(hidden)]
-pub use tracing::{event, Level};
+pub use tracing::{Level, event};
 
 use paste::paste;
 

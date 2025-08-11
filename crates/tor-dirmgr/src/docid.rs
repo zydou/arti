@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 use tracing::trace;
 
-use crate::storage::Store;
 use crate::DocumentText;
+use crate::storage::Store;
 use tor_dirclient::request;
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;

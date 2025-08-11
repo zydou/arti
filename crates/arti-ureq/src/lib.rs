@@ -48,7 +48,7 @@ use std::sync::{Arc, Mutex};
 
 use arti_client::{IntoTorAddr, TorClient};
 use ureq::{
-    http::{uri::Scheme, Uri},
+    http::{Uri, uri::Scheme},
     tls::TlsProvider as UreqTlsProvider,
     unversioned::{
         resolver::{ArrayVec, ResolvedSocketAddrs, Resolver as UreqResolver},
@@ -374,16 +374,18 @@ impl<R: Runtime + ToplevelBlockOn> Transport for HttpTransport<R> {
     }
 }
 
-impl<R: Runtime> ConnectorBuilder<R> {
+impl ConnectorBuilder<tor_rtcompat::PreferredRuntime> {
     /// Returns instance of [`ConnectorBuilder`] with default values.
-    pub fn new() -> Result<ConnectorBuilder<tor_rtcompat::PreferredRuntime>, Error> {
+    pub fn new() -> Result<Self, Error> {
         Ok(ConnectorBuilder {
             client: None,
             runtime: tor_rtcompat::PreferredRuntime::create()?,
             tls_provider: None,
         })
     }
+}
 
+impl<R: Runtime> ConnectorBuilder<R> {
     /// Creates instance of [`Connector`] from the builder.
     pub fn build(self) -> Result<Connector<R>, Error> {
         let client = match self.client {
@@ -628,10 +630,10 @@ pub fn get_default_tls_provider() -> UreqTlsProvider {
 ///
 /// let arti_connector = builder.build();
 /// ```
-impl<R: Runtime> Connector<R> {
+impl Connector<tor_rtcompat::PreferredRuntime> {
     /// Returns new [`ConnectorBuilder`] with default values.
     pub fn builder() -> Result<ConnectorBuilder<tor_rtcompat::PreferredRuntime>, Error> {
-        ConnectorBuilder::<R>::new()
+        ConnectorBuilder::new()
     }
 }
 
@@ -740,13 +742,11 @@ mod arti_ureq_test {
             .expect("Failed to read body.");
         let json_response: serde_json::Value =
             serde_json::from_str(&response).expect("Failed to parse JSON.");
-        let is_tor = json_response
+        json_response
             .get("IsTor")
             .expect("Failed to retrieve IsTor property from response")
             .as_bool()
-            .expect("Failed to convert IsTor to bool");
-
-        is_tor
+            .expect("Failed to convert IsTor to bool")
     }
 
     // Quick internal test to check if our helper function `equal_types` works as expected.

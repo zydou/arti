@@ -1,9 +1,9 @@
 [package]
 name = "tor-rtmock"
-version = "0.32.0"
+version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2021"
-rust-version = "1.83"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Testing mock support for tor-rtcomapt"
@@ -15,7 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 amplify = { version = "4", default-features = false, features = ["derive"] }
 assert_matches = "1.5.0"
 async-trait = "0.1.54"
-derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
 educe = "0.4.22"
 futures = "0.3.14"
@@ -27,9 +27,9 @@ priority-queue = "2.0.3"
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.5" }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
-tor-error = { version = "0.32.0", path = "../tor-error", features = ["tracing"] }
-tor-general-addr = { version = "0.32.0", path = "../tor-general-addr" }
-tor-rtcompat = { version = "0.32.0", path = "../tor-rtcompat" }
+tor-error = { version = "0.33.0", path = "../tor-error", features = ["tracing"] }
+tor-general-addr = { version = "0.33.0", path = "../tor-general-addr" }
+tor-rtcompat = { version = "0.33.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 tracing-test = "0.2.4"
 void = "1"
@@ -37,9 +37,9 @@ void = "1"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 rand = "0.9.1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
-tor-general-addr = { path = "../tor-general-addr", version = "0.32.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0", features = ["tokio", "native-tls"] }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
+tor-general-addr = { path = "../tor-general-addr", version = "0.33.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0", features = ["tokio", "native-tls"] }
 
 [features]
 full = [

@@ -44,7 +44,7 @@ pub use {inner::HsDescInner, middle::HsDescMiddle, outer::HsDescOuter};
 
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub use build::{create_desc_sign_key_cert, HsDescBuilder};
+pub use build::{HsDescBuilder, create_desc_sign_key_cert};
 
 /// Metadata about an onion service descriptor, as stored at an HsDir.
 ///
@@ -419,8 +419,8 @@ pub enum HsDescError {
 
 impl tor_error::HasKind for HsDescError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use HsDescError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::OuterParsing(_) | E::OuterValidation(_) => EK::TorProtocolViolation,
             E::MissingDecryptionKey => EK::OnionServiceMissingClientAuth,

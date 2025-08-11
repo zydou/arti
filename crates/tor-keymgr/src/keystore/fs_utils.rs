@@ -135,8 +135,8 @@ pub(crate) enum FilesystemAction {
 
 impl HasKind for FilesystemError {
     fn kind(&self) -> ErrorKind {
-        use tor_persist::FsMistrustErrorExt as _;
         use FilesystemError as FE;
+        use tor_persist::FsMistrustErrorExt as _;
 
         match self {
             FE::Io { .. } => ErrorKind::KeystoreAccessFailed,

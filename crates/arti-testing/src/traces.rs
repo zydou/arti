@@ -1,8 +1,8 @@
 //! Code to count the traces at different severities.
 
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 use tracing::Subscriber;
 use tracing_subscriber::Layer;

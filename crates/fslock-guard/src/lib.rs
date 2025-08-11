@@ -260,7 +260,7 @@ mod os {
 #[cfg(windows)]
 mod os {
     use std::{fs::File, mem::MaybeUninit, os::windows::io::AsRawHandle, path::Path};
-    use winapi::um::fileapi::{GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION as Info};
+    use winapi::um::fileapi::{BY_HANDLE_FILE_INFORMATION as Info, GetFileInformationByHandle};
 
     /// Return true if `lf` currently exists with the given `path`, and false otherwise.
     pub(crate) fn lockfile_has_path(lf: &fslock::LockFile, path: &Path) -> std::io::Result<bool> {

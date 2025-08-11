@@ -86,39 +86,43 @@ fn verify_seed0_effort0_seed_err() {
 #[test]
 fn verify_effort0_ok() {
     // Valid zero-effort solution
-    assert!(Verifier::new(Instance::new(
-        hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
-        hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").into()
-    ))
-    .check(
-        &Solution::try_from_bytes(
-            hex!("55555555555555555555555555555555").into(),
-            0_u32.into(),
-            hex!("aaaaaaaa").into(),
-            &hex!("4312f87ceab844c78e1c793a913812d7")
+    assert!(
+        Verifier::new(Instance::new(
+            hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
+            hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").into()
+        ))
+        .check(
+            &Solution::try_from_bytes(
+                hex!("55555555555555555555555555555555").into(),
+                0_u32.into(),
+                hex!("aaaaaaaa").into(),
+                &hex!("4312f87ceab844c78e1c793a913812d7")
+            )
+            .unwrap()
         )
-        .unwrap()
-    )
-    .is_ok());
+        .is_ok()
+    );
 }
 
 #[test]
 fn verify_effort1m_ok() {
     // Valid high-effort solution
-    assert!(Verifier::new(Instance::new(
-        hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
-        hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").into()
-    ))
-    .check(
-        &Solution::try_from_bytes(
-            hex!("59217255555555555555555555555555").into(),
-            1_000_000_u32.into(),
-            hex!("aaaaaaaa").into(),
-            &hex!("0f3db97b9cac20c1771680a1a34848d3")
+    assert!(
+        Verifier::new(Instance::new(
+            hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
+            hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").into()
+        ))
+        .check(
+            &Solution::try_from_bytes(
+                hex!("59217255555555555555555555555555").into(),
+                1_000_000_u32.into(),
+                hex!("aaaaaaaa").into(),
+                &hex!("0f3db97b9cac20c1771680a1a34848d3")
+            )
+            .unwrap()
         )
-        .unwrap()
-    )
-    .is_ok());
+        .is_ok()
+    );
 }
 
 #[test]
@@ -172,20 +176,22 @@ fn verify_seed86_effort100k_effort_err() {
 
 #[test]
 fn verify_seed86_effort100k_ok() {
-    assert!(Verifier::new(Instance::new(
-        hex!("bfd298428562e530c52bdb36d81a0e293ef4a0e94d787f0f8c0c611f4f9e78ed").into(),
-        hex!("86fb0acf4932cda44dbb451282f415479462dd10cb97ff5e7e8e2a53c3767a7f").into()
-    ))
-    .check(
-        &Solution::try_from_bytes(
-            hex!("2eff9fdbc34326d9d2f18ed277469c63").into(),
-            100_000_u32.into(),
-            hex!("86fb0acf").into(),
-            &hex!("400cb091139f86b352119f6e131802d6")
+    assert!(
+        Verifier::new(Instance::new(
+            hex!("bfd298428562e530c52bdb36d81a0e293ef4a0e94d787f0f8c0c611f4f9e78ed").into(),
+            hex!("86fb0acf4932cda44dbb451282f415479462dd10cb97ff5e7e8e2a53c3767a7f").into()
+        ))
+        .check(
+            &Solution::try_from_bytes(
+                hex!("2eff9fdbc34326d9d2f18ed277469c63").into(),
+                100_000_u32.into(),
+                hex!("86fb0acf").into(),
+                &hex!("400cb091139f86b352119f6e131802d6")
+            )
+            .unwrap()
         )
-        .unwrap()
-    )
-    .is_ok());
+        .is_ok()
+    );
 }
 
 /// Utility to solve and verify one puzzle
@@ -206,13 +212,15 @@ fn solve_and_verify(
     assert_eq!(solution.effort(), effort);
     assert_eq!(solution.nonce(), &expected_nonce);
     assert_eq!(solution.proof_to_bytes(), expected_proof);
-    assert!(Solution::try_from_bytes(
-        expected_nonce,
-        effort,
-        instance.seed().head(),
-        &expected_proof
-    )
-    .is_ok());
+    assert!(
+        Solution::try_from_bytes(
+            expected_nonce,
+            effort,
+            instance.seed().head(),
+            &expected_proof
+        )
+        .is_ok()
+    );
     assert!(Verifier::new(instance).check(&solution).is_ok());
 }
 

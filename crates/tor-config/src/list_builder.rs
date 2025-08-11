@@ -848,6 +848,9 @@ mod test {
         let o = toml::from_str::<OuterWithMllb>("list = \"\"\"\nfail\n\"\"\"").unwrap();
         let l: Result<Option<Vec<_>>, _> = o.list.try_into();
         let e = l.unwrap_err().to_string();
-        assert_eq!(e, "multi-line string, line/item 1: could not parse \"fail\": invalid digit found in string");
+        assert_eq!(
+            e,
+            "multi-line string, line/item 1: could not parse \"fail\": invalid digit found in string"
+        );
     }
 }

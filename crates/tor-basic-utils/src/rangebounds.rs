@@ -112,9 +112,9 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use Bound::{Excluded as Excl, Included as Incl, Unbounded};
     use std::fmt::Debug;
     use std::time::{Duration, SystemTime};
-    use Bound::{Excluded as Excl, Included as Incl, Unbounded};
 
     /// A helper that computes the intersection of `range1` and `range2`.
     ///

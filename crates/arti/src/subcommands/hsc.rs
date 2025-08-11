@@ -3,7 +3,7 @@
 use crate::subcommands::prompt;
 use crate::{Result, TorClient};
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use arti_client::{HsClientDescEncKey, HsId, InertTorClient, KeystoreSelector, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
 use safelog::DisplayRedacted;
@@ -194,8 +194,8 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> 
             Some(key) => key,
             None => {
                 return Err(anyhow!(
-                        "Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair"
-                    ));
+                    "Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair"
+                ));
             }
         },
     };
@@ -224,7 +224,9 @@ fn display_service_discovery_key(args: &KeygenArgs, key: &HsClientDescEncKey) ->
             if let Err(e) = res {
                 match e.kind() {
                     io::ErrorKind::AlreadyExists => {
-                        return Err(anyhow!("{filename} already exists. Move it, or rerun with --overwrite to overwrite it"));
+                        return Err(anyhow!(
+                            "{filename} already exists. Move it, or rerun with --overwrite to overwrite it"
+                        ));
                     }
                     _ => {
                         return Err(e)

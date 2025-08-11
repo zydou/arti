@@ -304,7 +304,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
 ///
 /// We isolate this code to make it easier to replace.
 mod data {
-    use super::{ReplayError, OUTPUT_LEN};
+    use super::{OUTPUT_LEN, ReplayError};
     use growable_bloom_filter::GrowableBloom;
 
     /// A probabilistic membership filter.
@@ -375,7 +375,7 @@ mod test {
     use super::*;
     use crate::test::mk_state_instance;
     use rand::Rng;
-    use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
+    use test_temp_dir::{TestTempDir, TestTempDirGuard, test_temp_dir};
 
     struct TestReplayLogType;
 

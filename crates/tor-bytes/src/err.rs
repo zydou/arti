@@ -3,10 +3,10 @@
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use safelog::Sensitive;
 use thiserror::Error;
-use tor_error::{into_internal, Bug};
+use tor_error::{Bug, into_internal};
 
 define_derive_deftly! {
     /// `impl PartialEq for Error`

@@ -50,4 +50,14 @@ impl ProofOfWorkV1 {
         self.solution.write_onto(b)?;
         Ok(())
     }
+
+    /// Returns [`ProofOfWorkV1`], with [`Effort`] capped to a maximum value.
+    pub fn cap_effort(mut self, max: Effort) -> ProofOfWorkV1 {
+        if self.effort > max {
+            self.effort = max;
+            self
+        } else {
+            self
+        }
+    }
 }

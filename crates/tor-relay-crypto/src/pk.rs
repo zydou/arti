@@ -5,16 +5,16 @@ use std::fmt;
 use std::time::SystemTime;
 
 use derive_deftly::Deftly;
-use derive_more::derive::{From, Into};
 use derive_more::Constructor;
+use derive_more::derive::{From, Into};
 
 use tor_error::Bug;
 use tor_key_forge::define_ed25519_keypair;
 use tor_keymgr::{
-    derive_deftly_template_KeySpecifier, InvalidKeyPathComponentValue, KeySpecifier,
-    KeySpecifierComponent,
+    InvalidKeyPathComponentValue, KeySpecifier, KeySpecifierComponent,
+    derive_deftly_template_KeySpecifier,
 };
-use tor_persist::slug::{timestamp::Iso8601TimeSlug, Slug};
+use tor_persist::slug::{Slug, timestamp::Iso8601TimeSlug};
 
 // TODO: The legacy RSA key is needed. Require support in tor-key-forge and keystore.
 // See https://gitlab.torproject.org/tpo/core/arti/-/work_items/1598

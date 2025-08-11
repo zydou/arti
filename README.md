@@ -95,6 +95,11 @@ because it includes your username), you will want to take steps
 to prevent this.  See [`doc/safer-build.md`](doc/safer-build.md)
 for more information.
 
+⚠ **Safety Note**: when building `arti` for "production use",
+you should always use the `-p arti` option as documented above.
+While a `cargo build` without specifying the `-p arti` will still build `arti`,
+it may also enable unintended features (including experimental features)
+due to cargo feature unification.
 
 If you run into any trouble building the program, please have a
 look at [the troubleshooting guide](doc/TROUBLESHOOTING.md).
@@ -132,7 +137,7 @@ for more details.
 
 ## Minimum supported Rust Version
 
-Our current Minimum Supported Rust Version (MSRV) is 1.83.
+Our current Minimum Supported Rust Version (MSRV) is 1.85.
 
 When increasing this MSRV, we won't require any Rust version released in the
 last six months. (That is, we'll only require Rust versions released at least

@@ -5,10 +5,10 @@
 
 use super::flow_ctrl::{Xoff, Xon};
 use super::{RelayCellFormat, RelayCmd};
+use crate::chancell::CELL_DATA_LEN;
 use crate::chancell::msg::{
     DestroyReason, HandshakeType, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_LEN,
 };
-use crate::chancell::CELL_DATA_LEN;
 use caret::caret_int;
 use derive_deftly::Deftly;
 use std::fmt::Write;
@@ -30,8 +30,8 @@ pub use super::conflux::{ConfluxLink, ConfluxLinked, ConfluxLinkedAck, ConfluxSw
 #[cfg(feature = "hs")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs")))]
 pub use super::hs::{
-    est_intro::EstablishIntro, EstablishRendezvous, IntroEstablished, Introduce1, Introduce2,
-    IntroduceAck, Rendezvous1, Rendezvous2, RendezvousEstablished,
+    EstablishRendezvous, IntroEstablished, Introduce1, Introduce2, IntroduceAck, Rendezvous1,
+    Rendezvous2, RendezvousEstablished, est_intro::EstablishIntro,
 };
 #[cfg(feature = "experimental-udp")]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-udp")))]
@@ -469,8 +469,8 @@ caret_int! {
 
 impl tor_error::HasKind for EndReason {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use EndReason as E;
+        use tor_error::ErrorKind as EK;
         match *self {
             E::MISC => EK::RemoteStreamError,
             E::RESOLVEFAILED => EK::RemoteHostResolutionFailed,

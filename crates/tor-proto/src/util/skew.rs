@@ -118,8 +118,8 @@ impl ClockSkew {
 
 impl Ord for ClockSkew {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        use std::cmp::Ordering::*;
         use ClockSkew::*;
+        use std::cmp::Ordering::*;
         match (self, other) {
             // This is the reason we need to define this ordering rather than
             // deriving it: we want clock skews to sort by their signed distance
@@ -213,8 +213,8 @@ mod test {
 
     #[test]
     fn order() {
-        use rand::seq::SliceRandom as _;
         use ClockSkew as CS;
+        use rand::seq::SliceRandom as _;
         let sorted: Vec<ClockSkew> = vec![-10.0, -5.0, 0.0, 0.0, 10.0, 20.0]
             .into_iter()
             .map(|n| CS::from_secs_f64(n).unwrap())

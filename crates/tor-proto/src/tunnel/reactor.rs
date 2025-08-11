@@ -28,10 +28,10 @@ use crate::stream::queue::StreamQueueReceiver;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
 use crate::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
+use crate::tunnel::circuit::CircuitRxReceiver;
 use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
 use crate::tunnel::circuit::unique_id::UniqId;
-use crate::tunnel::circuit::CircuitRxReceiver;
-use crate::tunnel::{streammap, HopLocation, TargetHop, TunnelId, TunnelScopedCircId};
+use crate::tunnel::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, streammap};
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
@@ -46,12 +46,12 @@ use std::mem::size_of;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{bad_api_usage, internal, into_bad_api_usage, warn_report, Bug};
+use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage, trace_report, warn_report};
 use tor_rtcompat::DynTimeProvider;
 
-use futures::channel::mpsc;
 use futures::StreamExt;
-use futures::{select_biased, FutureExt as _};
+use futures::channel::mpsc;
+use futures::{FutureExt as _, select_biased};
 use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
@@ -724,7 +724,15 @@ impl Reactor {
                 Err(ReactorError::Err(e)) => break Err(e),
             }
         };
-        trace!(tunnel_id = %self.tunnel_id, "Tunnel reactor stopped: {:?}", result);
+
+        // Log that the reactor stopped, possibly with the associated error as a report.
+        // May log at a higher level depending on the error kind.
+        const MSG: &str = "Tunnel reactor stopped";
+        match &result {
+            Ok(()) => trace!("{}: {MSG}", self.tunnel_id),
+            Err(e) => trace_report!(e, "{}: {}", self.tunnel_id, MSG),
+        }
+
         result
     }
 
@@ -1002,14 +1010,12 @@ impl Reactor {
                         // `StreamTarget` asks us to send an XON message, and this tunnel
                         // originally created the `StreamTarget` to begin with. So this is a
                         // legitimate bug somewhere in the tunnel code.
-                        let err = internal!(
-                            "Could not send an XON message to a join point on a tunnel without a join point",
+                        return Err(
+                            internal!(
+                                "Could not send an XON message to a join point on a tunnel without a join point",
+                            )
+                            .into()
                         );
-                        // TODO: Rather than calling `warn_report` here, we should call
-                        // `trace_report!` from `Reactor::run_once()`. Since this is an internal
-                        // error, `trace_report!` should log it at "warn" level.
-                        warn_report!(err, "Tunnel reactor error");
-                        return Err(err.into());
                     }
                 };
 

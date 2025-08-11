@@ -1,6 +1,6 @@
 //! Encoding and decoding for relay messages related to conflux.
 
-use super::msg::{empty_body, Body};
+use super::msg::{Body, empty_body};
 
 use amplify::Getters;
 use caret::caret_int;

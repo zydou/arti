@@ -263,7 +263,7 @@ impl ConfigurationSources {
     /// Scan for files and load the configuration into a new [`ConfigurationTree`].
     ///
     /// This is a convenience method for [`scan()`](Self::scan)
-    /// followed by [`files.load`].
+    /// followed by `files.load`.
     pub fn load(&self) -> Result<ConfigurationTree, ConfigError> {
         let files = self.scan()?;
         files.load()

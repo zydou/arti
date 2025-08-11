@@ -23,20 +23,20 @@ pub(crate) use std::{
     future::Future,
     marker::PhantomData,
     mem::{self, size_of},
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
 };
 
 pub(crate) use futures::{
+    FutureExt as _, Sink, SinkExt as _, Stream, StreamExt as _,
     channel::mpsc,
     stream::FusedStream,
-    task::{noop_waker_ref, Spawn, SpawnError, SpawnExt as _},
-    FutureExt as _, Sink, SinkExt as _, Stream, StreamExt as _,
+    task::{Spawn, SpawnError, SpawnExt as _, noop_waker_ref},
 };
 
 pub(crate) use {
-    derive_deftly::{define_derive_deftly, derive_deftly_adhoc, Deftly},
+    derive_deftly::{Deftly, define_derive_deftly, derive_deftly_adhoc},
     derive_more::{Constructor, Deref, DerefMut},
     dyn_clone::DynClone,
     educe::Educe,
@@ -56,7 +56,7 @@ pub(crate) use {
     tor_async_utils::stream_peek::StreamUnobtrusivePeeker,
     tor_basic_utils::ByteQty as Qty,
     tor_config::{ConfigBuildError, ExplicitOrAuto, ReconfigureError},
-    tor_error::{error_report, internal, into_internal, trace_report, Bug, ErrorKind, HasKind},
+    tor_error::{Bug, ErrorKind, HasKind, error_report, internal, into_internal, trace_report},
     tor_log_ratelim::log_ratelim,
     tor_rtcompat::{CoarseInstant, CoarseTimeProvider, DynTimeProvider},
 };

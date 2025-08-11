@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::event::ChanMgrEventSender;
 use async_trait::async_trait;
-use tor_error::{internal, HasKind, HasRetryTime};
+use tor_error::{HasKind, HasRetryTime, internal};
 use tor_linkspec::{HasChanMethod, OwnedChanTarget, PtTransportName};
 use tor_proto::channel::Channel;
 use tor_proto::memquota::ChannelAccount;
@@ -191,7 +191,7 @@ impl<CF: ChannelFactory> ChannelFactory for CompoundFactory<CF> {
             _ => {
                 return Err(crate::Error::Internal(internal!(
                     "No support for channel method"
-                )))
+                )));
             }
         };
 

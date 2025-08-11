@@ -1,9 +1,9 @@
 [package]
 name = "arti-client"
-version = "0.32.0"
+version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2021"
-rust-version = "1.83"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Library for connecting to the Tor network as an anonymous client"
@@ -24,6 +24,7 @@ full = [
     "vanguards",
     "tokio",
     "async-std",
+    "memquota",
     "native-tls",
     "compression",
     "bridge-client",
@@ -133,6 +134,8 @@ experimental = [
     "tor-keymgr/experimental",
     "restricted-discovery",
     "onion-service-cli-extra",
+    "flowctl-cc",
+    "counter-galois-onion",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
@@ -145,6 +148,8 @@ ephemeral-keystore = ["tor-keymgr/ephemeral-keystore", "__is_experimental"]
 ctor-keystore = ["tor-keymgr/ctor-keystore", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
+flowctl-cc = ["tor-circmgr/flowctl-cc", "__is_experimental"]
+counter-galois-onion = ["tor-proto/counter-galois-onion", "flowctl-cc", "__is_experimental"]
 
 restricted-discovery = [
     "onion-service-service",
@@ -157,7 +162,7 @@ __is_experimental = []
 anyhow = { version = "1.0.23", optional = true }
 async-trait = "0.1.54"
 cfg-if = "1.0.0"
-derive-deftly = { version = "~1.1.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 dyn-clone = { version = "1.0.11", optional = true }
@@ -171,35 +176,35 @@ libc = "0.2"
 once_cell = "1.9"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.9.1"
-safelog = { path = "../safelog", version = "0.4.7" }
+safelog = { path = "../safelog", version = "0.4.8" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "2"
 time = { version = "0.3.20", features = ["parsing", "macros"] }
-tor-async-utils = { path = "../tor-async-utils", version = "0.32.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.32.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.32.0" }
-tor-config = { path = "../tor-config", version = "0.32.0" }
-tor-config-path = { path = "../tor-config-path", version = "0.32.0", features = ["arti-client"] }
-tor-dirmgr = { path = "../tor-dirmgr", version = "0.32.0", default-features = false, features = ["mmap"] }
-tor-error = { path = "../tor-error", version = "0.32.0", features = ["tracing"] }
-tor-geoip = { path = "../tor-geoip", version = "0.32.0", optional = true }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.32.0" }
-tor-hsclient = { path = "../tor-hsclient", version = "0.32.0", optional = true }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.32.0", optional = true }
-tor-hsservice = { path = "../tor-hsservice", version = "0.32.0", optional = true }
-tor-keymgr = { path = "../tor-keymgr", version = "0.32.0", default-features = false }
-tor-linkspec = { path = "../tor-linkspec", version = "0.32.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.32.0" }
-tor-memquota = { path = "../tor-memquota", version = "0.32.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.32.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.32.0" }
-tor-persist = { path = "../tor-persist", version = "0.32.0" }
-tor-proto = { path = "../tor-proto", version = "0.32.0" }
-tor-protover = { path = "../tor-protover", version = "0.32.0" }
-tor-ptmgr = { path = "../tor-ptmgr", version = "0.32.0", optional = true }
-tor-rpcbase = { path = "../tor-rpcbase", version = "0.32.0", optional = true }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0" }
+tor-async-utils = { path = "../tor-async-utils", version = "0.33.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.33.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.33.0" }
+tor-config = { path = "../tor-config", version = "0.33.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.33.0", features = ["arti-client"] }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.33.0", default-features = false, features = ["mmap"] }
+tor-error = { path = "../tor-error", version = "0.33.0", features = ["tracing"] }
+tor-geoip = { path = "../tor-geoip", version = "0.33.0", optional = true }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.33.0" }
+tor-hsclient = { path = "../tor-hsclient", version = "0.33.0", optional = true }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.33.0", optional = true }
+tor-hsservice = { path = "../tor-hsservice", version = "0.33.0", optional = true }
+tor-keymgr = { path = "../tor-keymgr", version = "0.33.0", default-features = false }
+tor-linkspec = { path = "../tor-linkspec", version = "0.33.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0" }
+tor-memquota = { path = "../tor-memquota", version = "0.33.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.33.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.33.0" }
+tor-persist = { path = "../tor-persist", version = "0.33.0" }
+tor-proto = { path = "../tor-proto", version = "0.33.0" }
+tor-protover = { path = "../tor-protover", version = "0.33.0" }
+tor-ptmgr = { path = "../tor-ptmgr", version = "0.33.0", optional = true }
+tor-rpcbase = { path = "../tor-rpcbase", version = "0.33.0", optional = true }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0" }
 tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }
 void = "1"
@@ -219,8 +224,8 @@ tokio-crate = { package = "tokio", version = "1.7", features = [
     "macros",
 ] }
 toml = "0.8.8"
-tor-relay-selection = { path = "../tor-relay-selection", version = "0.32.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0", features = ["tokio", "native-tls"] }
+tor-relay-selection = { path = "../tor-relay-selection", version = "0.33.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.0"
 tracing-test = "0.2.4"
 

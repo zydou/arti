@@ -3,8 +3,8 @@
 
 use tor_bytes::Error;
 use tor_cell::relaycell::{
-    msg::{self, AnyRelayMsg},
     AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
+    msg::{self, AnyRelayMsg},
 };
 
 #[cfg(feature = "experimental-udp")]

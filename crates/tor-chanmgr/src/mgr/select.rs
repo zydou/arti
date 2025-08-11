@@ -1,7 +1,7 @@
 //! Logic for filtering and selecting channels in order to find suitable channels for a target.
 
-use crate::mgr::state::{ChannelState, OpenEntry, PendingEntry};
 use crate::mgr::AbstractChannel;
+use crate::mgr::state::{ChannelState, OpenEntry, PendingEntry};
 use tor_linkspec::{HasRelayIds, RelayIds};
 
 /// Returns `true` if the open channel is allowed to be used for a new channel request to the
@@ -107,8 +107,8 @@ pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
     channels: impl IntoIterator<Item = &'a ChannelState<C>>,
     target: &impl HasRelayIds,
 ) -> Option<&'a ChannelState<C>> {
-    use std::cmp::Ordering;
     use ChannelState::*;
+    use std::cmp::Ordering;
 
     let channels = channels.into_iter();
 
@@ -224,8 +224,8 @@ mod test {
     use tor_linkspec::RelayIds;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_llcrypto::pk::rsa::RsaIdentity;
-    use tor_proto::channel::kist::KistParams;
     use tor_proto::channel::ChannelPaddingInstructionsUpdates;
+    use tor_proto::channel::kist::KistParams;
 
     #[derive(Debug)]
     struct FakeChannel {

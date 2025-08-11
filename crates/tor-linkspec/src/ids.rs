@@ -11,8 +11,8 @@ use derive_deftly::Deftly;
 use derive_more::{Display, From};
 use safelog::Redactable;
 use tor_llcrypto::pk::{
-    ed25519::{Ed25519Identity, ED25519_ID_LEN},
-    rsa::{RsaIdentity, RSA_ID_LEN},
+    ed25519::{ED25519_ID_LEN, Ed25519Identity},
+    rsa::{RSA_ID_LEN, RsaIdentity},
 };
 
 pub(crate) mod by_id;
@@ -368,7 +368,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use hex_literal::hex;
-    use serde_test::{assert_tokens, Token};
+    use serde_test::{Token, assert_tokens};
     use std::str::FromStr;
 
     use super::*;

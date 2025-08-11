@@ -1,13 +1,13 @@
 //! Implementation for using Rustls with a runtime.
 
-use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 use crate::StreamOps;
+use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use futures_rustls::rustls::{self, crypto::CryptoProvider};
 use rustls::client::danger;
-use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSupportedAlgorithms};
+use rustls::crypto::{WebPkiSupportedAlgorithms, verify_tls12_signature, verify_tls13_signature};
 use rustls::{CertificateError, Error as TLSError};
 use rustls_pki_types::{CertificateDer, ServerName};
 use webpki::EndEntityCert; // this is actually rustls_webpki.
@@ -129,7 +129,7 @@ fn ensure_provider_installed() {
 }
 
 impl RustlsProvider {
-    /// Construct a new [`RustlsProvider`.]
+    /// Construct a new [`RustlsProvider`].
     pub(crate) fn new() -> Self {
         ensure_provider_installed();
 

@@ -264,7 +264,7 @@ impl<R: SleepProvider> Stream for TaskSchedule<R> {
 ))]
 mod test {
     use crate::scheduler::TaskSchedule;
-    use crate::{test_with_all_runtimes, SleepProvider};
+    use crate::{SleepProvider, test_with_all_runtimes};
     use futures::FutureExt;
     use futures::StreamExt;
     use std::time::{Duration, Instant};

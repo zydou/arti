@@ -1,9 +1,9 @@
 [package]
 name = "tor-circmgr"
-version = "0.32.0"
+version = "0.33.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2021"
-rust-version = "1.83"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Manage a set of anonymous circuits over the Tor network"
@@ -21,7 +21,9 @@ full = [
     "vanguards",
     "retry-error/full",
     "safelog/full",
+    "send-control-msg",
     "tor-basic-utils/full",
+    "tor-cell/full",
     "tor-chanmgr/full",
     "tor-config/full",
     "tor-error/full",
@@ -51,8 +53,9 @@ testing = ["tor-guardmgr/testing", "__is_experimental"]
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "testing", "flowctl-cc", "geoip"]
+experimental = ["experimental-api", "testing", "flowctl-cc", "geoip", "conflux"]
 flowctl-cc = ["__is_experimental", "tor-proto/flowctl-cc"]
+conflux = ["__is_experimental", "tor-proto/conflux"]
 geoip = [
     "tor-geoip",
     "tor-netdir/geoip",
@@ -60,8 +63,9 @@ geoip = [
     "__is_experimental",
 ]
 experimental-api = ["visibility", "__is_experimental"]
+send-control-msg = ["tor-proto/send-control-msg"]
 hs-client = ["hs-common"]
-hs-service = ["hs-common"]
+hs-service = ["hs-common", "tor-proto/hs-service"]
 hs-common = []
 __is_experimental = []
 
@@ -70,6 +74,7 @@ amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 bounded-vec-deque = "0.1"
 cfg-if = "1.0.0"
+derive-deftly = { version = "1.1.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
@@ -83,27 +88,28 @@ oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.
 pin-project = "1"
 rand = "0.9.1"
 retry-error = { path = "../retry-error", version = "0.6.5" }
-safelog = { path = "../safelog", version = "0.4.7" }
+safelog = { path = "../safelog", version = "0.4.8" }
 serde = { version = "1.0.103", features = ["derive"] }
 static_assertions = "1"
 thiserror = "2"
-tor-async-utils = { version = "0.32.0", path = "../tor-async-utils" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.32.0" }
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.32.0" }
-tor-config = { path = "../tor-config", version = "0.32.0" }
-tor-error = { path = "../tor-error", version = "0.32.0", features = ["tracing"] }
-tor-geoip = { path = "../tor-geoip", version = "0.32.0", optional = true }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.32.0" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.32.0" }
-tor-memquota = { version = "0.32.0", path = "../tor-memquota", default-features = false }
-tor-netdir = { path = "../tor-netdir", version = "0.32.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.32.0" }
-tor-persist = { path = "../tor-persist", version = "0.32.0" }
-tor-proto = { path = "../tor-proto", version = "0.32.0" }
-tor-protover = { path = "../tor-protover", version = "0.32.0" }
-tor-relay-selection = { path = "../tor-relay-selection", version = "0.32.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0" }
-tor-units = { path = "../tor-units", version = "0.32.0" }
+tor-async-utils = { version = "0.33.0", path = "../tor-async-utils" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
+tor-cell = { path = "../tor-cell", version = "0.33.0" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.33.0" }
+tor-config = { path = "../tor-config", version = "0.33.0" }
+tor-error = { path = "../tor-error", version = "0.33.0", features = ["tracing"] }
+tor-geoip = { path = "../tor-geoip", version = "0.33.0", optional = true }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.33.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.33.0" }
+tor-memquota = { version = "0.33.0", path = "../tor-memquota", default-features = false }
+tor-netdir = { path = "../tor-netdir", version = "0.33.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.33.0" }
+tor-persist = { path = "../tor-persist", version = "0.33.0" }
+tor-proto = { path = "../tor-proto", version = "0.33.0" }
+tor-protover = { path = "../tor-protover", version = "0.33.0" }
+tor-relay-selection = { path = "../tor-relay-selection", version = "0.33.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0" }
+tor-units = { path = "../tor-units", version = "0.33.0" }
 tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }
 void = "1.0"
@@ -112,11 +118,11 @@ weak-table = "0.3.0"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 hex = "0.4"
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.32.0", features = ["testing", "vanguards"] }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.32.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.32.0", features = ["testing"] }
-tor-persist = { path = "../tor-persist", version = "0.32.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.32.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.32.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.33.0", features = ["testing", "vanguards"] }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.33.0", features = ["testing"] }
+tor-persist = { path = "../tor-persist", version = "0.33.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.33.0" }
 [package.metadata.docs.rs]
 all-features = true

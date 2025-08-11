@@ -5,7 +5,7 @@ use std::time::Instant;
 use tor_async_utils::oneshot;
 use tor_async_utils::oneshot::Canceled;
 use tor_cell::relaycell::hs::pow::v1::ProofOfWorkV1;
-use tor_checkable::{timed::TimerangeBound, Timebound};
+use tor_checkable::{Timebound, timed::TimerangeBound};
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::pow::v1::{Effort, Instance, SolverInput};
 use tor_netdoc::doc::hsdesc::pow::v1::PowParamsV1;

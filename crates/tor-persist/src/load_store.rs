@@ -12,7 +12,7 @@
 use std::path::Path;
 
 use fs_mistrust::CheckedDir;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use tor_error::ErrorReport as _;
 use tracing::trace;
 

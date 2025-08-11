@@ -13,7 +13,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use super::{raw_addr_of, raw_addr_of_weak, GenIdx, ObjMap, TaggedAddr};
+use super::{GenIdx, ObjMap, TaggedAddr, raw_addr_of, raw_addr_of_weak};
 use tor_rpcbase as rpc;
 
 /// A single entry to a weak Object stored in the generational arena.

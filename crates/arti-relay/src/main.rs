@@ -58,11 +58,11 @@ use anyhow::Context;
 use clap::Parser;
 use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::{PreferredRuntime, Runtime};
+use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::FmtSubscriber;
 
-use crate::config::{base_resolver, TorRelayConfig, DEFAULT_LOG_LEVEL};
+use crate::config::{DEFAULT_LOG_LEVEL, TorRelayConfig, base_resolver};
 use crate::relay::TorRelay;
 
 fn main() {

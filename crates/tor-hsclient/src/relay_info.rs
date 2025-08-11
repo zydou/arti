@@ -3,10 +3,10 @@
 //!
 //! (Later this will include support for INTRODUCE2 messages too.)
 
-use tor_error::{into_internal, HasRetryTime, RetryTime};
+use tor_error::{HasRetryTime, RetryTime, into_internal};
 use tor_linkspec::{
-    decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget, EncodedLinkSpec,
-    OwnedChanTargetBuilder, OwnedCircTarget,
+    CircTarget, EncodedLinkSpec, OwnedChanTargetBuilder, OwnedCircTarget, decode::Strictness,
+    verbatim::VerbatimLinkSpecCircTarget,
 };
 use tor_llcrypto::pk::curve25519;
 use tor_netdir::NetDir;
@@ -26,7 +26,7 @@ fn circtarget_from_pieces(
     linkspecs: &[EncodedLinkSpec],
     ntor_onion_key: &curve25519::PublicKey,
     netdir: &NetDir,
-) -> Result<impl CircTarget, InvalidTarget> {
+) -> Result<impl CircTarget + use<>, InvalidTarget> {
     let mut bld = OwnedCircTarget::builder();
     // Decode the link specifiers and use them to find out what we can about
     // this relay.
@@ -67,7 +67,7 @@ fn circtarget_from_pieces(
 pub(crate) fn ipt_to_circtarget(
     desc: &IntroPointDesc,
     netdir: &NetDir,
-) -> Result<impl CircTarget, InvalidTarget> {
+) -> Result<impl CircTarget + use<>, InvalidTarget> {
     circtarget_from_pieces(desc.link_specifiers(), desc.ipt_ntor_key(), netdir)
 }
 

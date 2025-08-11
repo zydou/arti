@@ -128,7 +128,7 @@ fn batch_verify() {
 
 #[test]
 fn serde_rsaid() {
-    use serde_test::{assert_tokens, Configure, Token};
+    use serde_test::{Configure, Token, assert_tokens};
 
     let rsa_id = ll::pk::rsa::RsaIdentity::from_bytes(b"example key id here!").unwrap();
 
@@ -141,7 +141,7 @@ fn serde_rsaid() {
 
 #[test]
 fn serde_edid() {
-    use serde_test::{assert_tokens, Configure, Token};
+    use serde_test::{Configure, Token, assert_tokens};
 
     let rsa_id =
         ll::pk::ed25519::Ed25519Identity::from_bytes(b"this is another key. not valid..").unwrap();

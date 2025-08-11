@@ -203,8 +203,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #[test]
     fn validatable_ed_sig() {
-        use super::ed25519::{PublicKey, Signature, ValidatableEd25519Signature};
         use super::ValidatableSignature;
+        use super::ed25519::{PublicKey, Signature, ValidatableEd25519Signature};
         use hex_literal::hex;
         let pk = PublicKey::from_bytes(&hex!(
             "fc51cd8e6218a1a38da47ed00230f058

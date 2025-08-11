@@ -53,3 +53,7 @@ let signed_key = cert.subject_key();
 ```
 
 License: MIT OR Apache-2.0
+
+[`tor-netdoc`]: https://docs.rs/tor-netdoc/
+[`tor-netdoc::doc::authcert`]: https://docs.rs/tor-netdoc/latest/tor_netdoc/doc/authcert/index.html
+[`tor-proto`]: https://docs.rs/tor-proto/

@@ -9,14 +9,14 @@ use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::io::{self, Write as _};
 use std::iter;
-use std::panic::{catch_unwind, panic_any, AssertUnwindSafe};
-use std::pin::{pin, Pin};
+use std::panic::{AssertUnwindSafe, catch_unwind, panic_any};
+use std::pin::{Pin, pin};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
+use futures::FutureExt as _;
 use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
-use futures::FutureExt as _;
 
 use assert_matches::assert_matches;
 use educe::Educe;
@@ -461,7 +461,7 @@ impl Blocking for MockExecutor {
         assert_matches!(
             THREAD_DESCRIPTOR.get(),
             ThreadDescriptor::Executor | ThreadDescriptor::Subthread(_),
- "MockExecutor::spawn_blocking_io only allowed from future or subthread, being run by this executor"
+            "MockExecutor::spawn_blocking_io only allowed from future or subthread, being run by this executor"
         );
         Box::pin(
             self.subthread_spawn("spawn_blocking", f)
@@ -785,7 +785,7 @@ impl MockExecutor {
     /// before calling this method again.)
     ///
     /// Must be called and awaited within a future being run by `self`.
-    pub fn progress_until_stalled(&self) -> impl Future<Output = ()> {
+    pub fn progress_until_stalled(&self) -> impl Future<Output = ()> + use<> {
         let mut data = self.shared.lock();
         assert!(
             data.progressing_until_stalled.is_none(),
@@ -945,7 +945,7 @@ impl MockExecutor {
                 panic!("subthread_block_on_future called from MockExecutor thread (async task?)")
             }
             ThreadDescriptor::Foreign => panic!(
-    "subthread_block_on_future called on foreign thread (not spawned with spawn_subthread)"
+                "subthread_block_on_future called on foreign thread (not spawned with spawn_subthread)"
             ),
         };
         trace!("MockExecutor thread {id:?}, subthread_block_on_future...");
@@ -1216,30 +1216,38 @@ impl ActualWaker {
 
     /// Implementation of [`RawWakerVTable`]'s `clone`
     unsafe fn raw_clone(self_: *const ()) -> RawWaker {
-        let self_: *const ActualWaker = self_ as _;
-        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
-        let copy: ActualWaker = self_.clone();
-        copy.raw_new()
+        unsafe {
+            let self_: *const ActualWaker = self_ as _;
+            let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+            let copy: ActualWaker = self_.clone();
+            copy.raw_new()
+        }
     }
 
     /// Implementation of [`RawWakerVTable`]'s `wake`
     unsafe fn raw_wake(self_: *const ()) {
-        Self::raw_wake_by_ref(self_);
-        Self::raw_drop(self_);
+        unsafe {
+            Self::raw_wake_by_ref(self_);
+            Self::raw_drop(self_);
+        }
     }
 
     /// Implementation of [`RawWakerVTable`]'s `wake_ref_by`
     unsafe fn raw_wake_by_ref(self_: *const ()) {
-        let self_: *const ActualWaker = self_ as _;
-        let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
-        self_.wake();
+        unsafe {
+            let self_: *const ActualWaker = self_ as _;
+            let self_: &ActualWaker = self_.as_ref().unwrap_unchecked();
+            self_.wake();
+        }
     }
 
     /// Implementation of [`RawWakerVTable`]'s `drop`
     unsafe fn raw_drop(self_: *const ()) {
-        let self_: *mut ActualWaker = self_ as _;
-        let self_: Box<ActualWaker> = Box::from_raw(self_);
-        drop(self_);
+        unsafe {
+            let self_: *mut ActualWaker = self_ as _;
+            let self_: Box<ActualWaker> = Box::from_raw(self_);
+            drop(self_);
+        }
     }
 }
 

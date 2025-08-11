@@ -3,6 +3,193 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.4.6 — 4 August 2025
+
+Arti 1.4.6 continues development on xon-based ([Proposal 324]) flow
+control, [Conflux], and improved cryptography (CGO,. ([Proposal 359])
+
+Arti 1.4.6 also contains two improvements to help resist two different
+kinds of denial-of-service attack, relating to Hidden Services, and
+some other bugfixes.  Especially, users who operate `.onion` services
+are advised to upgrade.
+
+(There's significant work ongoing on Arti Relay, but that is currently
+occurring outside of the Arti mainline so has not landed in in 1.4.6.)
+
+### Breaking changes
+
+#### Developer-facing
+
+- `tor_memquota::ConfigBuilder::max()` and `ConfigBuilder::low_water()`
+  now take a `impl Into<ExplicitOrAuto<usize>>` instead of a `usize`.
+  This should generally be backwards compatible, but may cause type inference errors.
+  (These types are effectively part of the public API of `arti-client`.)
+  ([!3110])
+- In `arti-ureq`, `PreferredRuntime`-using `ConnectorBuilder`
+  constructors are now associated functions on `ConnectorBuilder<PreferredRuntime>`
+  rather than (anomalously) `ConnectorBuilder<impl Runtime>`.
+  (The return types haven't changed.)
+  ([!3101])
+
+### Security fixes
+
+- Replace the Hidden Service (.onion service) Proof of Work control loop.
+  Improves denial of service resistance.
+  ([Proposal 362], [!3093], no TROVE.)
+- Limit hidden service descriptor size inflation.
+  ([Proposal 360], [torspec!411], [#2046], [!3070], no TROVE.)
+
+### Major bugfixes
+
+- Fix spurious 0-length buffer read in `DataReader`.
+  This bug caused some client programs to experience truncated streams, losing data.
+  ([!3080], [#2053])
+
+### Major features
+
+- New experimental `arti hss ctor-migrate` command line invocation
+  for migrating a hidden serivce (`.onion` service) identity key
+  from C Tor to an Arti keystore.
+  ([!3102])
+- Enable the memquota (memory use control) system by default.
+  (Part of congestion control work.)
+  ([!3110], [#2030])
+
+### Breaking changes in lower-level crates
+
+- `tor-cell`: `UnparsedRelayMsg::data_len()` now returns a `Result`.
+  ([!3094])
+- `tor-hscrypto`: `HsID` no longer implements `LowerHex` or `Display`.
+  ([!3107])
+- `tor-keymgr`: `UnrecognizedEntryError::new` no longer exposed;
+  `UnrecognizedEntryId` renamed to `UnrecognizedEntry`;
+  `KeyMgr::list()` and `Keystore::list()` return types changed.
+  ([!3059])
+
+### Development progress
+
+#### Conflux
+
+- Add tests for client-side SWITCH handling.
+  ([!3091])
+- Preparatory work for replacing the `tor-proto` circuit reactor:
+  Add a `ConfluxSet::remove_unchecked` method.
+  ([!3105], [#1803])
+
+#### Congestion control
+
+- Code for handling XON/XOFF messages in `tor-proto` and `tor-cell`.
+  ([!3054], [!3094], [!3099])
+- `tor-cell`: Exposed flow-control related types.
+  (Previously these were behind the experimental 'flowctl-cc' feature,
+  which is removed in this release.)
+
+#### CGO (Counter Galois Onion - improved crpytography)
+
+- Implementation of CGO negotiation and use, in `tor-proto`.
+  Not yet usable.
+  ([Proposal 359], [!3069], [#1947], [#1945])
+
+### Testing
+
+- Update shadow, mostly to get reproducibility fixes.
+  ([!3092], [shadow#3610])
+- Pin `cargo-licence` to 0.7.0, and update our allows to match its output.
+  ([!3108], [#2083], [!3111])
+
+### Cleanups, minor features, and bugfixes
+
+#### User-facing
+
+- Provide experimental `arti keys-raw remove-by-id` command line function.
+  ([!3059], [!3095])
+
+#### Developer-facing
+
+- Re-export `ConfigurationSources` from the `arti_client` crate.
+  ([!3044])
+- `safelog`: New `DisplayRedacted`/`DebugRedacted` APIs
+  to help avoid accidentally redacting, corrupting, or exposing,
+  hidden service identities (`.onion` names).
+  ([!3107], [!3071], [#2012], [#2066])
+- Fix documentation for macros in `tor_hscrypto::pk`.
+  ([#2050], [!3104])
+- Many typo fixes.
+  ([!3090], [!3089])
+
+#### Internal and administrative
+
+- Introduce a new internal error type `KeystoreNotConfigured`,
+  for improved clarity and less confusion in keystore error handling.
+  ([!3103])
+- Update an internal TODO about `NonZero`.
+  ([!3067], [rust-lang/rust#142966])
+- Remove some unnecessary parens in the code.
+  ([!3096])
+- Update dependencies.
+  ([!3073], [!3117])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+hashcatHitman, hjrgrn, nield, and tcyrus.
+
+Also, our deep thanks to
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!3044]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3044
+[!3054]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3054
+[!3059]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3059
+[!3067]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3067
+[!3069]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3069
+[!3070]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3070
+[!3071]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3071
+[!3073]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3073
+[!3080]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3080
+[!3089]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3089
+[!3090]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3090
+[!3091]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3091
+[!3092]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3092
+[!3093]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3093
+[!3094]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3094
+[!3095]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3095
+[!3096]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3096
+[!3099]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3099
+[!3101]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3101
+[!3102]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3102
+[!3103]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3103
+[!3104]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3104
+[!3105]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3105
+[!3107]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3107
+[!3108]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3108
+[!3110]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3110
+[!3111]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3111
+[!3117]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3117
+[#1803]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1803
+[#1945]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1945
+[#1947]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1947
+[#2012]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2012
+[#2030]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2030
+[#2046]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2046
+[#2050]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2050
+[#2053]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2053
+[#2066]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2066
+[#2083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2083
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Conflux]: https://spec.torproject.org/proposals/329-traffic-splitting.html
+[Proposal 324]: https://spec.torproject.org/proposals/324-rtt-congestion-control.html
+[Proposal 359]: https://spec.torproject.org/proposals/359-cgo-redux.html
+[Proposal 360]: https://spec.torproject.org/proposals/360-hsdesc-len-limit.html
+[Proposal 362]: https://spec.torproject.org/proposals/362-update-pow-control-loop.html
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[rust-lang/rust#142966]: https://github.com/rust-lang/rust/issues/142966
+[shadow#3610]: https://github.com/shadow/shadow/issues/3610
+[torspec!411]: https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/411
+
+
+
 # Arti 1.4.5 — 7 July 2025
 
 Arti 1.4.5 continues development on xon-based ([proposal 324]) flow control and

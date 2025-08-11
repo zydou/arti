@@ -179,7 +179,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use tor_basic_utils::test_rng::{testing_rng, TestingRng};
+    use tor_basic_utils::test_rng::{TestingRng, testing_rng};
     use tor_error::{ErrorKind, HasKind};
     use tor_key_forge::{KeyType, Keygen};
     use tor_llcrypto::pk::{curve25519, ed25519};
@@ -229,17 +229,23 @@ mod tests {
         let key_store = ArtiEphemeralKeystore::new("test-ephemeral".to_string());
 
         // verify no key in store
-        assert!(!key_store
-            .contains(key_spec().as_ref(), &key_type())
-            .unwrap());
+        assert!(
+            !key_store
+                .contains(key_spec().as_ref(), &key_type())
+                .unwrap()
+        );
 
         // insert key and verify in store
-        assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref())
-            .is_ok());
-        assert!(key_store
-            .contains(key_spec().as_ref(), &key_type())
-            .unwrap());
+        assert!(
+            key_store
+                .insert(key().as_ref(), key_spec().as_ref())
+                .is_ok()
+        );
+        assert!(
+            key_store
+                .contains(key_spec().as_ref(), &key_type())
+                .unwrap()
+        );
     }
 
     #[test]
@@ -247,15 +253,19 @@ mod tests {
         let key_store = ArtiEphemeralKeystore::new("test-ephemeral".to_string());
 
         // verify no result to get
-        assert!(key_store
-            .get(key_spec().as_ref(), &key_type())
-            .unwrap()
-            .is_none());
+        assert!(
+            key_store
+                .get(key_spec().as_ref(), &key_type())
+                .unwrap()
+                .is_none()
+        );
 
         // insert and verify get is a result
-        assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref())
-            .is_ok());
+        assert!(
+            key_store
+                .insert(key().as_ref(), key_spec().as_ref())
+                .is_ok()
+        );
 
         let key = key_store
             .get(key_spec().as_ref(), &key_type())
@@ -288,28 +298,38 @@ mod tests {
     fn insert() {
         let key_store = ArtiEphemeralKeystore::new("test-ephemeral".to_string());
 
-        assert!(!key_store
-            .contains(key_spec().as_ref(), &key_type_bad())
-            .unwrap());
-        assert!(key_store
-            .get(key_spec().as_ref(), &key_type_bad())
-            .unwrap()
-            .is_none());
+        assert!(
+            !key_store
+                .contains(key_spec().as_ref(), &key_type_bad())
+                .unwrap()
+        );
+        assert!(
+            key_store
+                .get(key_spec().as_ref(), &key_type_bad())
+                .unwrap()
+                .is_none()
+        );
         assert!(key_store.list().unwrap().is_empty());
 
         // verify inserting a key succeeds
-        assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref())
-            .is_ok());
+        assert!(
+            key_store
+                .insert(key().as_ref(), key_spec().as_ref())
+                .is_ok()
+        );
 
         // further ensure correct side effects
-        assert!(key_store
-            .contains(key_spec().as_ref(), &key_type())
-            .unwrap());
-        assert!(key_store
-            .get(key_spec().as_ref(), &key_type())
-            .unwrap()
-            .is_some());
+        assert!(
+            key_store
+                .contains(key_spec().as_ref(), &key_type())
+                .unwrap()
+        );
+        assert!(
+            key_store
+                .get(key_spec().as_ref(), &key_type())
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(key_store.list().unwrap().len(), 1);
     }
 
@@ -318,19 +338,25 @@ mod tests {
         let key_store = ArtiEphemeralKeystore::new("test-ephemeral".to_string());
 
         // verify removing from an empty store returns None
-        assert!(key_store
-            .remove(key_spec().as_ref(), &key_type())
-            .unwrap()
-            .is_none());
+        assert!(
+            key_store
+                .remove(key_spec().as_ref(), &key_type())
+                .unwrap()
+                .is_none()
+        );
 
         // verify inserting and removing results in Some(())
-        assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref())
-            .is_ok());
-        assert!(key_store
-            .remove(key_spec().as_ref(), &key_type())
-            .unwrap()
-            .is_some());
+        assert!(
+            key_store
+                .insert(key().as_ref(), key_spec().as_ref())
+                .is_ok()
+        );
+        assert!(
+            key_store
+                .remove(key_spec().as_ref(), &key_type())
+                .unwrap()
+                .is_some()
+        );
 
         // verify mismatched key type on removal results in the appropriate error
         {
@@ -358,9 +384,11 @@ mod tests {
         assert!(key_store.list().unwrap().is_empty());
 
         // verify size 1 after inserting a key
-        assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref())
-            .is_ok());
+        assert!(
+            key_store
+                .insert(key().as_ref(), key_spec().as_ref())
+                .is_ok()
+        );
         assert_eq!(key_store.list().unwrap().len(), 1);
     }
 }

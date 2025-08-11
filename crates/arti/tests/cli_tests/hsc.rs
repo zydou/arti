@@ -57,9 +57,11 @@ fn gen_key() {
     cmd.write_stdin(ONION_ADDR);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
-    assert!(String::from_utf8(output.stdout)
-        .unwrap()
-        .contains("descriptor:x25519:"));
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("descriptor:x25519:")
+    );
 
     let keystore_path = state_dir
         .join("keystore/client")
@@ -122,9 +124,11 @@ fn generate_then_remove() {
     cmd.write_stdin(ONION_ADDR);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
-    assert!(String::from_utf8(output.stdout)
-        .unwrap()
-        .contains("descriptor:x25519:"));
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("descriptor:x25519:")
+    );
 
     let mut cmd = build_hsc_cmd(ArtiHscCmd::Remove, state_dir);
     cmd.write_stdin(ONION_ADDR);

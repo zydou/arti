@@ -72,9 +72,7 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
 ) -> Result<R::Stream, ProxyError> {
     trace!(
         "Launching a proxied connection to {} via proxy at {} using {:?}",
-        target,
-        proxy,
-        protocol
+        target, proxy, protocol
     );
     let mut stream = runtime
         .connect(proxy)
@@ -123,7 +121,7 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
             NS::Finished(fin) => {
                 break fin
                     .into_output_forbid_pipelining()
-                    .map_err(ProxyError::SocksProto)?
+                    .map_err(ProxyError::SocksProto)?;
             }
             NS::Recv(mut recv) => {
                 let n = stream.read(recv.buf()).await?;
@@ -135,8 +133,7 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
     let status = reply.status();
     trace!(
         "SOCKS handshake with {} succeeded, with status {:?}",
-        proxy,
-        status
+        proxy, status
     );
 
     if status != SocksStatus::SUCCEEDED {
@@ -204,8 +201,8 @@ impl From<std::io::Error> for ProxyError {
 
 impl tor_error::HasKind for ProxyError {
     fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
         use ProxyError as E;
+        use tor_error::ErrorKind as EK;
         match self {
             E::ProxyConnect(_) | E::ProxyIo(_) => EK::LocalNetworkError,
             E::InvalidSocksAddr(_) | E::InvalidSocksRequest(_) => EK::BadApiUsage,
@@ -220,9 +217,9 @@ impl tor_error::HasKind for ProxyError {
 
 impl tor_error::HasRetryTime for ProxyError {
     fn retry_time(&self) -> tor_error::RetryTime {
-        use tor_error::RetryTime as RT;
         use ProxyError as E;
         use SocksStatus as S;
+        use tor_error::RetryTime as RT;
         match self {
             E::ProxyConnect(_) | E::ProxyIo(_) => RT::AfterWaiting,
             E::InvalidSocksAddr(_) => RT::Never,
@@ -283,14 +280,14 @@ impl<R: NetStreamProvider + Send + Sync> TransportImplHelper for ExternalProxyPl
             ChannelMethod::Direct(_) => {
                 return Err(crate::Error::UnusableTarget(bad_api_usage!(
                     "Used pluggable transport for a TCP connection."
-                )))
+                )));
             }
             ChannelMethod::Pluggable(target) => target,
             other => {
                 return Err(crate::Error::UnusableTarget(bad_api_usage!(
                     "Used unknown, unsupported, transport {:?} for a TCP connection.",
                     other,
-                )))
+                )));
             }
         };
 

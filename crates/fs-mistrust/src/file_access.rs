@@ -10,7 +10,7 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt as _;
 
-use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result, Verifier};
+use crate::{CheckedDir, Error, Result, Verifier, dir::FullPathCheck, walk::PathType};
 
 /// Helper object for accessing a file on disk while checking the necessary permissions.
 ///
@@ -103,6 +103,8 @@ impl<'a> FileAccess<'a> {
     /// that file will be created with the provided unix permissions.
     ///
     /// If this option is not set, newly created files have mode 0600.
+    #[cfg_attr(not(unix), expect(unused_mut))]
+    #[cfg_attr(not(unix), expect(unused_variables))]
     pub fn create_with_mode(mut self, mode: u32) -> Self {
         #[cfg(unix)]
         {
@@ -305,10 +307,11 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    #[cfg(unix)]
     use std::fs;
 
     use super::*;
-    use crate::{testing::Dir, Mistrust};
+    use crate::{Mistrust, testing::Dir};
 
     #[test]
     fn create_public_in_checked_dir() {

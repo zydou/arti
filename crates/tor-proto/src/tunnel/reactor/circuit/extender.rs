@@ -2,18 +2,16 @@
 
 use super::{Circuit, ReactorResultChannel};
 use crate::circuit::HopSettings;
-use crate::crypto::cell::{
-    ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientLayer,
-};
+use crate::circuit::handshake::HandshakeRole;
+use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
-use crate::tunnel::reactor::MetaCellDisposition;
 use crate::tunnel::TunnelScopedCircId;
-use crate::{congestion, HopLocation};
+use crate::tunnel::reactor::MetaCellDisposition;
 use crate::{Error, Result};
+use crate::{HopLocation, congestion};
 use oneshot_fused_workaround as oneshot;
 use std::borrow::Borrow;
-use std::marker::PhantomData;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_cell::relaycell::{AnyRelayMsgOuter, UnparsedRelayMsg};
@@ -31,7 +29,7 @@ use tracing::trace;
 ///
 /// Yes, I know having trait bounds on structs is bad, but in this case it's necessary
 /// since we want to be able to use `H::KeyType`.
-pub(crate) struct CircuitExtender<H, L, FWD, REV>
+pub(crate) struct CircuitExtender<H>
 where
     H: ClientHandshake,
 {
@@ -49,21 +47,11 @@ where
     expected_hop: HopNum,
     /// A oneshot channel that we should inform when we are done with this extend operation.
     operation_finished: Option<oneshot::Sender<Result<()>>>,
-    /// `PhantomData` used to make the other type parameters required for a circuit extension
-    /// part of the `struct`, instead of having them be provided during a function call.
-    ///
-    /// This is done this way so we can implement `MetaCellHandler` for this type, which
-    /// doesn't include any generic type parameters; we need them to be part of the type
-    /// so we know what they are for that `impl` block.
-    phantom: PhantomData<(L, FWD, REV)>,
 }
-impl<H, L, FWD, REV> CircuitExtender<H, L, FWD, REV>
+impl<H> CircuitExtender<H>
 where
     H: ClientHandshake + HandshakeAuxDataHandler,
     H::KeyGen: KeyGenerator,
-    L: CryptInit + ClientLayer<FWD, REV>,
-    FWD: OutboundClientLayer + 'static + Send,
-    REV: InboundClientLayer + 'static + Send,
 {
     /// Start extending a circuit, sending the necessary EXTEND cell and returning a
     /// new `CircuitExtender` to be called when the reply arrives.
@@ -116,10 +104,9 @@ where
                 unique_id,
                 expected_hop: hop,
                 operation_finished: None,
-                phantom: Default::default(),
             };
 
-            Ok::<(CircuitExtender<_, _, _, _>, SendRelayCell), Error>((extender, cell))
+            Ok::<(CircuitExtender<_>, SendRelayCell), Error>((extender, cell))
         })() {
             Ok(mut result) => {
                 result.0.operation_finished = Some(done);
@@ -165,31 +152,30 @@ where
         // requested extensions have been acknowledged.
         H::handle_server_aux_data(&mut self.settings, &server_aux_data)?;
 
-        let layer = L::construct(keygen)?;
+        let layer = self
+            .settings
+            .relay_crypt_protocol()
+            .construct_client_layers(HandshakeRole::Initiator, keygen)?;
 
         trace!(circ_id = %self.unique_id, "Handshake complete; circuit extended.");
 
         // If we get here, it succeeded.  Add a new hop to the circuit.
-        let (layer_fwd, layer_back, binding) = layer.split_client_layer();
         circ.add_hop(
             path::HopDetail::Relay(self.peer_id.clone()),
-            Box::new(layer_fwd),
-            Box::new(layer_back),
-            Some(binding),
+            layer.fwd,
+            layer.back,
+            layer.binding,
             &self.settings,
         )?;
         Ok(MetaCellDisposition::ConversationFinished)
     }
 }
 
-impl<H, L, FWD, REV> MetaCellHandler for CircuitExtender<H, L, FWD, REV>
+impl<H> MetaCellHandler for CircuitExtender<H>
 where
     H: ClientHandshake + HandshakeAuxDataHandler,
     H::StateType: Send,
     H::KeyGen: KeyGenerator,
-    L: CryptInit + ClientLayer<FWD, REV> + Send,
-    FWD: OutboundClientLayer + 'static + Send,
-    REV: InboundClientLayer + 'static + Send,
 {
     fn expected_hop(&self) -> HopLocation {
         (self.unique_id.unique_id(), self.expected_hop).into()

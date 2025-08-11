@@ -10,8 +10,8 @@ use serde::Deserialize;
 
 use super::{ErrorResponse, NoParams, RpcConn};
 use crate::{
-    msgs::{request::Request, response::RpcErrorCode},
     ObjectId,
+    msgs::{request::Request, response::RpcErrorCode},
 };
 
 use tor_error::ErrorReport as _;
@@ -266,11 +266,11 @@ fn negotiate_socks(
     username: &str,
     password: &str,
 ) -> Result<(), StreamError> {
+    use StreamError as E;
     use tor_socksproto::{
         Handshake as _, SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksHostname,
         SocksRequest, SocksStatus, SocksVersion,
     };
-    use StreamError as E;
 
     let request = SocksRequest::new(
         SocksVersion::V5,
@@ -297,7 +297,7 @@ fn negotiate_socks(
             NS::Finished(fin) => {
                 break fin
                     .into_output()
-                    .map_err(|bug| E::Internal(bug.report().to_string()))?
+                    .map_err(|bug| E::Internal(bug.report().to_string()))?;
             }
         }
     };

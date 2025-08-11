@@ -176,20 +176,20 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use derive_more::{AsRef, Deref};
 use itertools::chain;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use fs_mistrust::{CheckedDir, Mistrust};
-use tor_error::bad_api_usage;
 use tor_error::ErrorReport as _;
+use tor_error::bad_api_usage;
 use tracing::trace;
 
+pub use crate::Error;
 use crate::err::{Action, ErrorSource, Resource};
 use crate::load_store;
 use crate::slug::{BadSlug, Slug, SlugRef, TryIntoSlug};
-pub use crate::Error;
 
 #[allow(unused_imports)] // Simplifies a lot of references in our docs
 use crate::slug;
@@ -525,7 +525,9 @@ impl StateDirectory {
     /// serialisation is not guaranteed across different instances.
     ///
     /// It *is* guaranteed to list each instance only once.
-    pub fn list_instances<I: InstanceIdentity>(&self) -> impl Iterator<Item = Result<Slug>> {
+    pub fn list_instances<I: InstanceIdentity>(
+        &self,
+    ) -> impl Iterator<Item = Result<Slug>> + use<I> {
         self.list_instances_inner(I::kind())
     }
 
@@ -536,7 +538,10 @@ impl StateDirectory {
     /// *Includes* instances that exists only as a stale lockfile.
     #[allow(clippy::blocks_in_conditions)] // TODO #1176 this wants to be global
     #[allow(clippy::redundant_closure_call)] // false positive, re handle_err
-    fn list_instances_inner(&self, kind: &'static str) -> impl Iterator<Item = Result<Slug>> {
+    fn list_instances_inner(
+        &self,
+        kind: &'static str,
+    ) -> impl Iterator<Item = Result<Slug>> + use<> {
         // We collect the output into these
         let mut out = HashSet::new();
         let mut errs = Vec::new();
@@ -700,7 +705,7 @@ impl StateDirectory {
             let md = match fs::metadata(&dir_path) {
                 // If instance dir is ENOENT, treat as old (maybe there was just a lockfile)
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    return Ok((Liveness::PossiblyUnused, None))
+                    return Ok((Liveness::PossiblyUnused, None));
                 }
                 other => other.map_err(handle_io_error)?,
             };
@@ -1067,7 +1072,7 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
     }
 
     /// Helper to convert an `ErrorSource` to an `Error`, if we were performing `action`
-    fn map_err(&self, action: Action) -> impl FnOnce(ErrorSource) -> Error {
+    fn map_err(&self, action: Action) -> impl FnOnce(ErrorSource) -> Error + use<T> {
         let resource = self.err_resource();
         move |source| crate::Error::new(source, action, resource)
     }
@@ -1120,8 +1125,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use derive_deftly::{derive_deftly_adhoc, Deftly};
-    use itertools::{iproduct, Itertools};
+    use derive_deftly::{Deftly, derive_deftly_adhoc};
+    use itertools::{Itertools, iproduct};
     use serde::{Deserialize, Serialize};
     use std::collections::BTreeSet;
     use std::fmt::Display;

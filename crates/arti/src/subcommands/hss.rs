@@ -291,11 +291,9 @@ fn migrate_ctor_keys(
             let arti_id_key: HsIdKeypair = match keymgr.get_entry(arti_id_entry)? {
                 Some(aik) => aik,
                 None => {
-                    return Err(
-                        anyhow!(
-                            "Identity key disappeared during migration (is another process using the keystore?)"
-                        )
-                    );
+                    return Err(anyhow!(
+                        "Identity key disappeared during migration (is another process using the keystore?)"
+                    ));
                 }
             };
             if arti_id_key.as_ref().public() == ctor_id_key.as_ref().public() {

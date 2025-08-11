@@ -3,8 +3,8 @@
 use std::{io, path::PathBuf, sync::Arc};
 
 use crate::{
-    auth::{cookie::Cookie, RpcAuth, RpcCookieSource},
     ConnectError, ResolvedConnectPoint,
+    auth::{RpcAuth, RpcCookieSource, cookie::Cookie},
 };
 use fs_mistrust::Mistrust;
 use tor_general_addr::general;

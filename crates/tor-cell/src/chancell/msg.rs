@@ -1,6 +1,6 @@
 //! Different kinds of messages that can be encoded in channel cells.
 
-use super::{BoxedCellBody, ChanCmd, RawCellBody, CELL_DATA_LEN};
+use super::{BoxedCellBody, CELL_DATA_LEN, ChanCmd, RawCellBody};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
@@ -732,11 +732,7 @@ impl Versions {
             .iter()
             .filter(|p| self.versions.contains(p))
             .fold(0_u16, |a, b| u16::max(a, *b));
-        if p == 0 {
-            None
-        } else {
-            Some(p)
-        }
+        if p == 0 { None } else { Some(p) }
     }
 }
 impl Body for Versions {

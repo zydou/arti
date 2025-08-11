@@ -3,7 +3,7 @@
 use std::{io::Error as IoError, marker::PhantomData};
 
 use futures::{AsyncRead, AsyncWrite};
-use tor_cell::chancell::{codec, ChanCell, ChanMsg};
+use tor_cell::chancell::{ChanCell, ChanMsg, codec};
 
 use asynchronous_codec;
 use bytes::BytesMut;
@@ -127,8 +127,8 @@ pub(crate) mod test {
     use tor_cell::chancell::msg::AnyChanMsg;
     use tor_rtcompat::StreamOps;
 
-    use super::{asynchronous_codec, ChannelCodec};
-    use tor_cell::chancell::{msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
+    use super::{ChannelCodec, asynchronous_codec};
+    use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg, CircId, msg};
 
     /// Helper type for reading and writing bytes to/from buffers.
     // TODO: We might want to move this

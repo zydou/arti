@@ -18,9 +18,7 @@ pub enum BridgeParseError {
 
     /// Expected PT name or host:port, looked a bit like a PT name, but didn't parse
     #[cfg(feature = "bridge-client")]
-    #[error(
-        "Cannot parse {word:?} as PT name ({pt_error}), nor as direct bridge IpAddress:ORPort"
-    )]
+    #[error("Cannot parse {word:?} as PT name ({pt_error}), nor as direct bridge IpAddress:ORPort")]
     InvalidPtOrAddr {
         /// The offending word
         word: String,
@@ -119,7 +117,9 @@ pub enum BridgeParseError {
     /// Pluggable transport support disabled in cargo features
     // We deliberately make this one *not* configured out if PT support is enabled
     #[cfg(feature = "bridge-client")]
-    #[error("Pluggable transport requested ({word:?} is not an IpAddress:ORPort), but support disabled in cargo features")]
+    #[error(
+        "Pluggable transport requested ({word:?} is not an IpAddress:ORPort), but support disabled in cargo features"
+    )]
     PluggableTransportsNotSupported {
         /// The offending word
         word: String,

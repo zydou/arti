@@ -52,8 +52,8 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
 use futures::Sink;
+use futures::future::BoxFuture;
 
 use tor_error::internal;
 use void::Void;
@@ -775,7 +775,7 @@ pub(crate) mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::{method::RpcMethod, templates::*, DispatchTable, InvokeError, Method, NoUpdates};
+    use crate::{DispatchTable, InvokeError, Method, NoUpdates, method::RpcMethod, templates::*};
     use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;

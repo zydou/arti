@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{walk::PathType, Error, Mistrust, Result, Verifier};
+use crate::{Error, Mistrust, Result, Verifier, walk::PathType};
 
 /// A directory whose access properties we have verified, along with accessor
 /// functions to access members of that directory.
@@ -261,7 +261,7 @@ impl CheckedDir {
         for component in p.components() {
             match component {
                 Component::Prefix(_) | Component::RootDir | Component::ParentDir => {
-                    return Err(Error::InvalidSubdirectory)
+                    return Err(Error::InvalidSubdirectory);
                 }
                 Component::CurDir | Component::Normal(_) => {}
             }

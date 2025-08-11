@@ -1,6 +1,6 @@
 //! Types and functions for onion service descriptor encryption.
 
-use tor_hscrypto::{pk::HsBlindId, RevisionCounter, Subcredential};
+use tor_hscrypto::{RevisionCounter, Subcredential, pk::HsBlindId};
 use tor_llcrypto::cipher::aes::Aes256Ctr as Cipher;
 use tor_llcrypto::d::Sha3_256 as Hash;
 use tor_llcrypto::d::Shake256 as KDF;

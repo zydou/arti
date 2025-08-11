@@ -9,8 +9,8 @@ use std::str::FromStr;
 use derive_more::From;
 use safelog::DisplayRedacted as _;
 use thiserror::Error;
-use tor_error::{internal, into_internal, Bug};
-use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
+use tor_error::{Bug, internal, into_internal};
+use tor_hscrypto::pk::{HSID_ONION_SUFFIX, HsId, HsIdParseError};
 use tor_hscrypto::time::TimePeriod;
 use tor_persist::hsnickname::HsNickname;
 use tor_persist::slug::Slug;
@@ -101,7 +101,7 @@ impl KeyPath {
     /// Return the underlying [`ArtiPath`], if this is a `KeyPath::Arti`.
     pub fn arti(&self) -> Option<&ArtiPath> {
         match self {
-            KeyPath::Arti(ref arti) => Some(arti),
+            KeyPath::Arti(arti) => Some(arti),
             KeyPath::CTor(_) => None,
         }
     }
@@ -110,7 +110,7 @@ impl KeyPath {
     pub fn ctor(&self) -> Option<&CTorPath> {
         match self {
             KeyPath::Arti(_) => None,
-            KeyPath::CTor(ref ctor) => Some(ctor),
+            KeyPath::CTor(ctor) => Some(ctor),
         }
     }
 }

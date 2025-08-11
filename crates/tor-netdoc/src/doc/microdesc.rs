@@ -19,8 +19,8 @@ use crate::types::family::{RelayFamily, RelayFamilyId};
 use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
-use crate::util::str::Extent;
 use crate::util::PeekableIterator;
+use crate::util::str::Extent;
 use crate::{AllowAnnotations, Error, NetdocErrorKind as EK, Result};
 use tor_error::internal;
 use tor_llcrypto::d;
@@ -584,8 +584,8 @@ mod test {
 
     #[test]
     fn test_bad() {
-        use crate::types::policy::PolicyError;
         use crate::Pos;
+        use crate::types::policy::PolicyError;
         fn check(fname: &str, e: &Error) {
             let content = read_bad(fname);
             let res = Microdesc::parse(&content);

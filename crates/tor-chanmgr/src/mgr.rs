@@ -416,7 +416,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 channel_map
                     .by_id(ident)
                     .filter_map(|entry| match entry {
-                        Open(ref ent) if ent.channel.is_usable() => Some(Arc::clone(&ent.channel)),
+                        Open(ent) if ent.channel.is_usable() => Some(Arc::clone(&ent.channel)),
                         _ => None,
                     })
                     .collect()
@@ -457,15 +457,15 @@ mod test {
     use crate::Error;
 
     use futures::join;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
     use tor_error::bad_api_usage;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 
     use crate::ChannelUsage as CU;
-    use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
+    use tor_rtcompat::{Runtime, task::yield_now, test_with_one_runtime};
 
     #[derive(Clone)]
     struct FakeChannelFactory<RT> {

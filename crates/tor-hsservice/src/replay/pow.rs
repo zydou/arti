@@ -4,7 +4,7 @@ use std::{borrow::Cow, ffi::OsStr};
 
 use tor_hscrypto::pow::v1::{Nonce, Seed};
 
-use super::{ReplayLogType, MAGIC_LEN, OUTPUT_LEN, REPLAY_LOG_SUFFIX};
+use super::{MAGIC_LEN, OUTPUT_LEN, REPLAY_LOG_SUFFIX, ReplayLogType};
 
 /// A [`ReplayLogType`] to indicate using [`Nonce`] messages with [`Seed`] names.
 pub(crate) struct PowNonceReplayLogType;

@@ -4,15 +4,15 @@ use std::error::Error;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::channel::mpsc;
 use futures::Sink;
+use futures::channel::mpsc;
 
-use derive_deftly::{define_derive_deftly, Deftly};
+use derive_deftly::{Deftly, define_derive_deftly};
 use thiserror::Error;
 
 //---------- principal API ----------
 
-/// A [`Sink`] with a `try_send` method like [`futures::channel::mpsc::Sender`'s]
+/// A [`Sink`] with a `try_send` method like [`futures::channel::mpsc::Sender`]'s.
 pub trait SinkTrySend<T>: Sink<T> {
     /// Errors that is not disconnected, or full
     type Error: SinkTrySendError;
@@ -208,6 +208,25 @@ impl<T> SinkTrySend<T> for mpsc::Sender<T> {
     ) -> Result<(), (ErasedSinkTrySendError, T)> {
         let self_: &mut Self = Pin::into_inner(self);
         mpsc::Sender::try_send(self_, item).map_err(handle_mpsc_error)
+    }
+}
+
+// `UnboundedSender` doesn't have a `try_send()` method,
+// since `UnboundedSender` won't fail to send due to lack of space.
+// But it may fail to send if the receiver has gone away.
+// Regardless, we can still implement `SinkTrySend` and just use `unbounded_send()` instead,
+// which is like a less-fallible version of `try_send()`.
+impl<T> SinkTrySend<T> for mpsc::UnboundedSender<T> {
+    // Ideally we would just use [`mpsc::SendError`].
+    // But `mpsc::TrySendError` lacks an `into_parts` method that gives both `SendError` and `T`.
+    type Error = ErasedSinkTrySendError;
+
+    fn try_send_or_return(
+        self: Pin<&mut Self>,
+        item: T,
+    ) -> Result<(), (ErasedSinkTrySendError, T)> {
+        let self_: &mut Self = Pin::into_inner(self);
+        mpsc::UnboundedSender::unbounded_send(self_, item).map_err(handle_mpsc_error)
     }
 }
 

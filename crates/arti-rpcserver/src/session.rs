@@ -4,8 +4,8 @@
 //! is the root for all other RPC capabilities.
 
 use arti_client::{
-    rpc::{ClientConnectionResult, ConnectWithPrefs, ResolvePtrWithPrefs, ResolveWithPrefs},
     TorClient,
+    rpc::{ClientConnectionResult, ConnectWithPrefs, ResolvePtrWithPrefs, ResolveWithPrefs},
 };
 use derive_deftly::Deftly;
 use std::{net::IpAddr, sync::Arc};
@@ -166,7 +166,7 @@ mod list_all_methods {
     use std::{convert::Infallible, sync::Arc};
 
     use derive_deftly::Deftly;
-    use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*, RpcDispatchInformation};
+    use tor_rpcbase::{self as rpc, RpcDispatchInformation, static_rpc_invoke_fn, templates::*};
 
     /// Return a description of all recognized RPC methods.
     ///

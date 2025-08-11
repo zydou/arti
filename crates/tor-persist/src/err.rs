@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::slug::BadSlug;
 use crate::FsMistrustErrorExt as _;
+use crate::slug::BadSlug;
 use fs_mistrust::anon_home::PathExt as _;
 use tor_basic_utils::PathExt as _;
-use tor_error::{into_bad_api_usage, Bug, ErrorKind};
+use tor_error::{Bug, ErrorKind, into_bad_api_usage};
 
 /// A resource that we failed to access or where we found a problem.
 #[derive(Debug, Clone, derive_more::Display)]

@@ -12,13 +12,13 @@
 use std::iter;
 
 use derive_deftly::define_derive_deftly;
-use itertools::{izip, EitherOrBoth, Itertools};
+use itertools::{EitherOrBoth, Itertools, izip};
 
 use super::*;
 use crate::DENOTATOR_SEP;
 
 pub use crate::KeyPathInfoBuilder;
-pub use tor_error::{internal, into_internal, Bug};
+pub use tor_error::{Bug, internal, into_internal};
 
 /// Trait for (only) formatting as a [`KeySpecifierComponent`]
 ///

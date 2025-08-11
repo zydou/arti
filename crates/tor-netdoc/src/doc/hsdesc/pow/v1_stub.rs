@@ -1,8 +1,8 @@
 //! Stub; `v1` proof of work scheme has been disabled at compile time
 
+use crate::Result;
 use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::parse::tokenize::Item;
-use crate::Result;
 
 /// Marker for a `pow-params v1` line which was not parsed
 ///

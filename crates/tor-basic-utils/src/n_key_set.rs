@@ -672,9 +672,10 @@ mod test {
         assert_eq!(set.capacity(), cap_orig);
         set.check_invariants();
 
-        assert!(set
-            .insert(("A=0".to_string(), "B=0".to_string()))
-            .is_empty());
+        assert!(
+            set.insert(("A=0".to_string(), "B=0".to_string()))
+                .is_empty()
+        );
         assert!(set.capacity() < cap_orig);
         assert_eq!(set.len(), 10);
         for idx in 0..=9 {

@@ -15,7 +15,7 @@ use tor_rtcompat::ToplevelRuntime;
 
 #[cfg(feature = "dns-proxy")]
 use crate::dns;
-use crate::{exit, process, reload_cfg, socks, ArtiConfig, TorClient};
+use crate::{ArtiConfig, TorClient, exit, process, reload_cfg, socks};
 
 #[cfg(feature = "rpc")]
 use crate::rpc;
@@ -202,7 +202,9 @@ async fn run_proxy<R: ToplevelRuntime>(
 
     if proxy.is_empty() {
         if !launched_onion_svc {
-            warn!("No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option.");
+            warn!(
+                "No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option."
+            );
             return Ok(());
         } else {
             // Push a dummy future to appease future::select_all,

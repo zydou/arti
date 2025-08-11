@@ -2,7 +2,7 @@
 
 use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::parse::{keyword::Keyword, tokenize::Item};
-use crate::types::misc::{Iso8601TimeNoSp, B64};
+use crate::types::misc::{B64, Iso8601TimeNoSp};
 use crate::{NetdocErrorKind, Result};
 use std::time::SystemTime;
 use tor_checkable::timed::TimerangeBound;
