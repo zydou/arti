@@ -58,7 +58,9 @@ impl ChannelCodec {
         dst.write_u32(CircId::get_or_zero(circid));
         dst.write_u8(cmd.into());
 
-        let pos = dst.len(); // always 5?
+        // this is typically 5, but not always
+        // (for example if we were given a non-empty `dst`)
+        let pos = dst.len();
 
         // now write the cell body and handle the length.
         if cmd.is_var_cell() {
