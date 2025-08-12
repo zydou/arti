@@ -13,11 +13,16 @@ pub enum PickGuardError {
     /// All members of the current sample were down or unusable.
     #[error(
         "No usable guards. Rejected {} as down, then {} as pending, then \
-         {} as unsuitable to purpose, then {} with filter.",
+         {} as unsuitable to purpose, then {} with filter.{}",
         running.display_frac_rejected(),
         pending.display_frac_rejected(),
         suitable.display_frac_rejected(),
         filtered.display_frac_rejected(),
+        if let Some(retry_at) = retry_at {
+            format!(" Retrying in {:?}.", *retry_at - Instant::now())
+        } else {
+            "".to_string()
+        },
     )]
     AllGuardsDown {
         /// The next time at which any guard will be retriable.
