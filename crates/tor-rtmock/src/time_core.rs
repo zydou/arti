@@ -24,9 +24,9 @@ define_derive_deftly! {
     }
 }
 
-/// Mock time, as a value
+/// Mock time, as (mostly) a value
 ///
-/// Contains an `Instant`, `SystemTime` and `CoarseInstant`.
+/// Contains an `Instant`, `SystemTime` and `CoarseTimeProvider`.
 ///
 /// Arranges that they are all moved in step,
 /// unless explicitly requested otherwise.
