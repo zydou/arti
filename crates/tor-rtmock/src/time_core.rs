@@ -12,15 +12,16 @@ define_derive_deftly! {
     ///
     /// TODO add this feature to `amplify`.
     CrateGetters:
+
     ${define REF ${if not(fmeta(getter_copy)) { & }}}
-    $(
-        impl $ttype {
+    impl $ttype {
+        $(
             ${fattrs doc}
             pub(crate) fn $fname(&self) -> $REF $ftype {
                 $REF self.$fname
             }
-        }
-    )
+        )
+    }
 }
 
 /// Mock time, as a value
