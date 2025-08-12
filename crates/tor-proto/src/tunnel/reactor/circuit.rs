@@ -455,8 +455,7 @@ impl Circuit {
             circhop.ccontrol_mut().note_data_sent(&runtime, &tag)?;
         }
 
-        let cell = AnyChanCell::new(Some(self.channel_id), msg);
-        Pin::new(&mut self.chan_sender).send_unbounded(cell).await?;
+        self.send_msg(msg).await?;
 
         #[cfg(feature = "conflux")]
         if let Some(conflux) = self.conflux_handler.as_mut() {
