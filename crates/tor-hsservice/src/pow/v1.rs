@@ -737,6 +737,9 @@ struct RendRequestOrdByEffort<Q> {
     request: Q,
     /// The proof-of-work options, if given.
     pow: Option<ProofOfWorkV1>,
+    /// The maximum effort allowed. If the effort of this request is higher than this, it will be
+    /// treated as though it is this value.
+    max_effort: Effort,
     /// When this request was received, used for ordreing if the effort values are the same.
     recv_time: Instant,
     /// Unique number for this request, which is used for ordering among requests with the same
@@ -756,13 +759,14 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
         request_num: u64,
     ) -> Result<Self, rend_handshake::IntroRequestError> {
         let pow = match request.proof_of_work()?.cloned() {
-            Some(ProofOfWork::V1(pow)) => Some(pow.cap_effort(max_effort)),
+            Some(ProofOfWork::V1(pow)) => Some(pow),
             None | Some(_) => None,
         };
 
         Ok(Self {
             request,
             pow,
+            max_effort,
             recv_time: Instant::now(),
             request_num,
         })
@@ -771,11 +775,12 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
 
 impl<Q: MockableRendRequest> Ord for RendRequestOrdByEffort<Q> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
-        let other_effort = other
-            .pow
-            .as_ref()
-            .map_or(Effort::zero(), |pow| pow.effort());
+        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), self.max_effort)
+        });
+        let other_effort = other.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), other.max_effort)
+        });
         match self_effort.cmp(&other_effort) {
             std::cmp::Ordering::Equal => {
                 // Flip ordering, since we want the oldest ones to be handled first.
@@ -799,11 +804,12 @@ impl<Q: MockableRendRequest> PartialOrd for RendRequestOrdByEffort<Q> {
 
 impl<Q: MockableRendRequest> PartialEq for RendRequestOrdByEffort<Q> {
     fn eq(&self, other: &Self) -> bool {
-        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
-        let other_effort = other
-            .pow
-            .as_ref()
-            .map_or(Effort::zero(), |pow| pow.effort());
+        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), self.max_effort)
+        });
+        let other_effort = other.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), other.max_effort)
+        });
         self_effort == other_effort && self.recv_time == other.recv_time
     }
 }
@@ -1080,21 +1086,6 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             };
 
             if config_rx.borrow().enable_pow {
-                #[cfg(feature = "metrics")]
-                {
-                    // For metrics purposes, we treat a request with no PoW and a request with zero
-                    // effort as the same thing.
-                    if let Ok(pow) = rend_request.proof_of_work() {
-                        let effort = pow
-                            .and_then(|pow| match pow {
-                                ProofOfWork::V1(pow) => Some(pow.effort().into()),
-                                _ => None,
-                            })
-                            .unwrap_or(0);
-
-                        histogram_rendrequest_effort.record(effort);
-                    };
-                }
                 let rend_request =
                     match RendRequestOrdByEffort::new(rend_request, max_effort, request_num) {
                         Ok(rend_request) => rend_request,
@@ -1114,6 +1105,12 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                         #[cfg(feature = "metrics")]
                         counter_rendrequest_verification_failure.increment(1);
                         continue;
+                    } else {
+                        #[cfg(feature = "metrics")]
+                        {
+                            let effort: u32 = pow.effort().into();
+                            histogram_rendrequest_effort.record(effort);
+                        }
                     }
                 }
 
