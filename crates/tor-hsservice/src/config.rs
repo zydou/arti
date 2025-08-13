@@ -298,6 +298,15 @@ impl OnionServiceConfigBuilder {
                 dos_params_from_token_bucket_config(rate_limit)?;
         }
 
+        cfg_if::cfg_if! {
+            if #[cfg(not(feature = "hs-pow-full"))] {
+                if self.enable_pow == Some(true) {
+                    // TODO (#2020) is it correct for this to raise a error?
+                    return Err(ConfigBuildError::NoCompileTimeSupport { field: "enable_pow".into(), problem: "Arti was built without hs-pow-full feature!".into() });
+                }
+            }
+        }
+
         Ok(())
     }
 
