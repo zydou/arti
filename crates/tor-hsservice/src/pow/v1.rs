@@ -1214,7 +1214,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             tracing::trace!(dropped, "Expired timed out RendRequests");
             #[cfg(feature = "metrics")]
             counter_rendrequest_expired
-                .increment(dropped.try_into().expect("u64 overflowed usize!"));
+                .increment(dropped.try_into().expect("usize overflowed u64!"));
         }
     }
 }
