@@ -667,6 +667,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
     /// Verify a PoW solve.
     fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError> {
+        // Note that we put the nonce into the replay log before we check the solve. While this
+        // might not be ideal, it's not a problem and is probably the most reasonable thing to do.
+        // See commit bc5b313028 for a more full explaination.
         {
             let state = self.0.write().expect("Lock poisoned");
             let mut replay_log = match state.verifiers.get(&solve.seed_head()) {
