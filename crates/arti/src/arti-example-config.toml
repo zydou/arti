@@ -546,7 +546,9 @@
 # The maximum number of entries allowed in the rendezvous request queue when PoW is enabled.
 #
 # If you are seeing dropped requests, have a bursty traffic pattern, and have some memory to
-# spare, you may want to increase this.
+# spare, you may want to increase this. Each entry will take a few KB. If this is reduced at
+# runtime, it may prevent new requests from coming in until the queue is smaller than the new
+# size, but it will not drop existing requests that are in the queue.
 #
 #    pow_rend_queue_depth = 8192
 
