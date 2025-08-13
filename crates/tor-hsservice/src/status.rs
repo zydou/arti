@@ -199,7 +199,7 @@ pub enum Problem {
     /// Error in the PowManager subsystem
     // TODO: add variants for other transient errors?
     #[cfg(feature = "hs-pow-full")]
-    Pow(crate::pow::v1::InternalPowError),
+    Pow(crate::pow::v1::PowError),
 }
 
 impl OnionServiceStatus {

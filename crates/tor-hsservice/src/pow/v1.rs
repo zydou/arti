@@ -208,8 +208,8 @@ const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // We want to show fields in Debug even if we don't use them.
 #[non_exhaustive]
-/// Internal error within the PoW subsystem.
-pub enum InternalPowError {
+/// Error within the PoW subsystem.
+pub enum PowError {
     /// We don't have a key that is needed.
     MissingKey,
     /// Error in the underlying storage layer.
@@ -343,7 +343,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
     }
 
     /// Main loop for rotating seeds.
-    async fn main_loop_task(self: Arc<Self>) -> Result<(), InternalPowError> {
+    async fn main_loop_task(self: Arc<Self>) -> Result<(), PowError> {
         let runtime = self.0.write().expect("Lock poisoned").runtime.clone();
 
         let mut last_suggested_effort_update = runtime.now();
@@ -365,7 +365,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let net_params = netdir_provider
             .wait_for_netdir(tor_netdir::Timeliness::Timely)
             .await
-            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .map_err(PowError::NetdirProviderShutdown)?
             .params()
             .clone();
 
@@ -597,7 +597,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         self: &Arc<Self>,
         time_period: TimePeriod,
         rng: &mut Rng,
-    ) -> Result<PowParams, InternalPowError> {
+    ) -> Result<PowParams, PowError> {
         let (seed_and_expiration, suggested_effort) = {
             let state = self.0.read().expect("Lock poisoned");
             let seed = state
@@ -636,11 +636,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                     seed.clone(),
                     &state.config_rx.borrow(),
                 )
-                .ok_or(InternalPowError::MissingKey)?;
+                .ok_or(PowError::MissingKey)?;
 
                 let replay_log = Mutex::new(
                     PowNonceReplayLog::new_logged(&state.instance_dir, &seed)
-                        .map_err(InternalPowError::OpenReplayLog)?,
+                        .map_err(PowError::OpenReplayLog)?,
                 );
                 state.verifiers.insert(seed.head(), (verifier, replay_log));
 
@@ -648,7 +648,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 state
                     .storage_handle
                     .store(&record)
-                    .map_err(|_| InternalPowError::StorageError)?;
+                    .map_err(|_| PowError::StorageError)?;
 
                 (seed, next_expiration_time)
             }
@@ -1026,7 +1026,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         runtime: &R,
         pow_manager: &Arc<P>,
         mut receiver: mpsc::Receiver<Q>,
-    ) -> Result<(), InternalPowError> {
+    ) -> Result<(), PowError> {
         let mut request_num = 0;
 
         let netdir_provider = self
@@ -1037,7 +1037,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .clone();
         let net_params = runtime
             .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .map_err(PowError::NetdirProviderShutdown)?
             .params()
             .clone();
 
@@ -1165,7 +1165,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
     }
 
     /// Loop to check for messages that are older than our timeout and remove them from the queue.
-    fn expire_old_requests_loop(self, runtime: &R) -> Result<(), InternalPowError> {
+    fn expire_old_requests_loop(self, runtime: &R) -> Result<(), PowError> {
         let netdir_provider = self
             .0
             .lock()
@@ -1174,7 +1174,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .clone();
         let net_params = runtime
             .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .map_err(PowError::NetdirProviderShutdown)?
             .params()
             .clone();
 
