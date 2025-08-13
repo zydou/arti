@@ -338,7 +338,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 .write()
                 .expect("Lock poisoned")
                 .status_tx
-                .send(PowManagerState::DegradedReachable, Some(Problem::Pow(err)));
+                .send_broken(Problem::Pow(err));
         }
     }
 
@@ -942,7 +942,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                     .lock()
                     .expect("Lock poisoned")
                     .status_tx
-                    .send(PowManagerState::DegradedReachable, Some(Problem::Pow(err)));
+                    .send_broken(Problem::Pow(err));
             }
         });
     }
