@@ -206,7 +206,7 @@ cargo-audit:
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
 
     - section_start "build arti"
-    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
+    - cargo build --profile quicktest --locked --verbose --target x86_64-unknown-linux-gnu -p arti
 
     - section_start "build docs"
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
@@ -217,7 +217,7 @@ rust-recent:
   image: $RECENT_RUST_IMAGE
   script:
     - *rust-recent-script
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/quicktest/arti target/x86_64-unknown-linux-gnu/release/arti-bench
   artifacts:
     paths:
       - artifacts
@@ -249,6 +249,7 @@ rust-latest:
     # we'll get the union of all features needed by anything in the workspace,
     # including examples.
     - cargo build --verbose
+      --profile quicktest
       --target x86_64-unknown-linux-gnu
       -p arti -p tor-circmgr
       --bin arti
@@ -259,10 +260,10 @@ rust-recent-arti-extra-features:
   image: $RECENT_RUST_IMAGE
   script:
     - *rust-recent-arti-extra-features-script
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/quicktest/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
-    - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - mv artifacts/target/x86_64-unknown-linux-gnu/quicktest/arti artifacts/target/x86_64-unknown-linux-gnu/quicktest/arti-extra
   artifacts:
     paths:
       - artifacts
