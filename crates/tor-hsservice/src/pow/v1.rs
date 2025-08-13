@@ -216,8 +216,8 @@ pub enum PowError {
     #[error("Missing required key.")]
     MissingKey,
     /// Error in the underlying storage layer.
-    #[error("Storage error.")]
-    StorageError,
+    #[error(transparent)]
+    StorageError(#[from] tor_persist::Error),
     /// Error from the ReplayLog.
     #[error(transparent)]
     OpenReplayLog(#[from] OpenReplayLogError),
@@ -370,8 +370,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             .clone();
         let net_params = netdir_provider
             .wait_for_netdir(tor_netdir::Timeliness::Timely)
-            .await
-            .map_err(PowError::NetdirProviderShutdown)?
+            .await?
             .params()
             .clone();
 
@@ -644,17 +643,12 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 )
                 .ok_or(PowError::MissingKey)?;
 
-                let replay_log = Mutex::new(
-                    PowNonceReplayLog::new_logged(&state.instance_dir, &seed)
-                        .map_err(PowError::OpenReplayLog)?,
-                );
+                let replay_log =
+                    Mutex::new(PowNonceReplayLog::new_logged(&state.instance_dir, &seed)?);
                 state.verifiers.insert(seed.head(), (verifier, replay_log));
 
                 let record = state.to_record();
-                state
-                    .storage_handle
-                    .store(&record)
-                    .map_err(|_| PowError::StorageError)?;
+                state.storage_handle.store(&record)?;
 
                 (seed, next_expiration_time)
             }
@@ -1042,8 +1036,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .netdir_provider
             .clone();
         let net_params = runtime
-            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .map_err(PowError::NetdirProviderShutdown)?
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))?
             .params()
             .clone();
 
@@ -1179,8 +1172,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .netdir_provider
             .clone();
         let net_params = runtime
-            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .map_err(PowError::NetdirProviderShutdown)?
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))?
             .params()
             .clone();
 
