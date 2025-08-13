@@ -207,6 +207,7 @@ const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // We want to show fields in Debug even if we don't use them.
+#[non_exhaustive]
 /// Internal error within the PoW subsystem.
 pub enum InternalPowError {
     /// We don't have a key that is needed.
