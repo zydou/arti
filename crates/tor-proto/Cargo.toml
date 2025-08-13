@@ -52,6 +52,7 @@ experimental = [
     "testing",
     "bench",
     "counter-galois-onion",
+    "relay",
 ]
 conflux = ["tor-cell/conflux", "__is_experimental"]
 flowctl-cc = ["__is_experimental"]
@@ -64,6 +65,7 @@ experimental-api = ["__is_experimental"]
 send-control-msg = []
 stream-ctrl = ["__is_experimental"]
 counter-galois-onion = ["__is_experimental", "aes", "ctr", "polyval", "flowctl-cc"]
+relay = ["__is_experimental", "flowctl-cc"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
