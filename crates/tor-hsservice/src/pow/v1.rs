@@ -19,9 +19,11 @@ use futures::{Stream, channel::mpsc};
 use num_traits::FromPrimitive;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tor_basic_utils::RngExt as _;
 use tor_cell::relaycell::hs::pow::{ProofOfWork, v1::ProofOfWorkV1};
 use tor_checkable::timed::TimerangeBound;
+use tor_error::warn_report;
 use tor_hscrypto::{
     pk::HsBlindIdKey,
     pow::v1::{
@@ -205,19 +207,23 @@ const _: () = assert!(
 /// 32 is likely way larger than we need but the messages are tiny so we might as well.
 const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 #[allow(dead_code)] // We want to show fields in Debug even if we don't use them.
 #[non_exhaustive]
 /// Error within the PoW subsystem.
 pub enum PowError {
     /// We don't have a key that is needed.
+    #[error("Missing required key.")]
     MissingKey,
     /// Error in the underlying storage layer.
+    #[error("Storage error.")]
     StorageError,
     /// Error from the ReplayLog.
-    OpenReplayLog(OpenReplayLogError),
+    #[error(transparent)]
+    OpenReplayLog(#[from] OpenReplayLogError),
     /// NetDirProvider has shut down
-    NetdirProviderShutdown(NetdirProviderShutdown),
+    #[error(transparent)]
+    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
 }
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q> {
@@ -261,7 +267,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 let replay_log = match PowNonceReplayLog::new_logged(&instance_dir, &seed) {
                     Ok(replay_log) => replay_log,
                     Err(err) => {
-                        tracing::warn!(?err, "Error constructing replay log");
+                        warn_report!(err, "Error constructing replay log");
                         continue;
                     }
                 };
@@ -450,7 +456,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let blind_id_key = match keymgr.get::<HsBlindIdKey>(&blind_id_spec) {
             Ok(blind_id_key) => blind_id_key,
             Err(err) => {
-                tracing::warn!(?err, "KeyMgr error when getting blinded ID key for PoW");
+                warn_report!(err, "KeyMgr error when getting blinded ID key for PoW");
                 None
             }
         };
@@ -574,7 +580,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
             let record = state.to_record();
             if let Err(err) = state.storage_handle.store(&record) {
-                tracing::warn!(?err, "Error saving PoW state");
+                warn_report!(err, "Error saving PoW state");
             }
 
             state.publisher_update_tx.clone()
@@ -582,7 +588,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
         for time_period in updated_tps {
             if let Err(err) = publisher_update_tx.send(time_period).await {
-                tracing::warn!(?err, "Couldn't send update message to publisher");
+                warn_report!(err, "Couldn't send update message to publisher");
             }
         }
 
@@ -923,7 +929,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                     .clone()
                     .accept_loop(&runtime_clone, &pow_manager, inner_receiver)
             {
-                tracing::warn!(?err, "PoW accept loop error!");
+                warn_report!(err, "PoW accept loop error!");
                 receiver
                     .0
                     .lock()
@@ -936,7 +942,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         let receiver = self.clone();
         let _ = runtime.clone().spawn_blocking(move || {
             if let Err(err) = receiver.clone().expire_old_requests_loop(&runtime) {
-                tracing::warn!(?err, "PoW request expiration loop error!");
+                warn_report!(err, "PoW request expiration loop error!");
                 receiver
                     .0
                     .lock()
