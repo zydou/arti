@@ -260,14 +260,19 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 ) {
                     Some(verifier) => verifier,
                     None => {
-                        tracing::warn!("Couldn't construct verifier (key not available?)");
+                        tracing::warn!(
+                            "Couldn't construct verifier (key not available?). We will continue without this key, but this may prevent clients from connecting..."
+                        );
                         continue;
                     }
                 };
                 let replay_log = match PowNonceReplayLog::new_logged(&instance_dir, &seed) {
                     Ok(replay_log) => replay_log,
                     Err(err) => {
-                        warn_report!(err, "Error constructing replay log");
+                        warn_report!(
+                            err,
+                            "Error constructing replay log. We will continue without the log, but be aware that this may allow attackers to bypass PoW defenses..."
+                        );
                         continue;
                     }
                 };
@@ -1128,7 +1133,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
                         if let Some(total_effort) = inner.total_effort.checked_add(effort.into()) {
                             inner.total_effort = total_effort;
                         } else {
-                            tracing::warn!("PoW total_effort would overflow");
+                            tracing::warn!(
+                                "PoW total_effort would overflow. The total effort has been capped, but this is not expected to happen - please file a bug report with logs and information about the circumstances under which this occured."
+                            );
                             inner.total_effort = u64::MAX;
                         }
                     }
