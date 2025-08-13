@@ -301,7 +301,7 @@ pub(crate) enum CreateIptError {
     Keystore(#[from] tor_keymgr::Error),
 
     /// Error opening the intro request replay log
-    #[error("unable to open the intro req replay log: {:?}", .0.file)]
+    #[error(transparent)]
     OpenReplayLog(#[from] OpenReplayLogError),
 }
 
