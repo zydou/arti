@@ -53,8 +53,8 @@
 //!
 //! * **`ns_const_name!( BASE_CONST_NAME )`**:
 //!
-//!   Expands to `VOTE_BASE_TYPE_NAME`, `NS_BASE_TYPE_NAME`, or `MD_BASE_TYPE_NAME`.
-// XXXX should be PLAIN_BASE_TYPE_NAME not NS_
+//!   Expands to `VOTE_BASE_CONST_NAME`, `NS_BASE_CONST_NAME`, or `MD_BASE_CONST_NAME`.
+// XXXX should be PLAIN_BASE_CONST_NAME not NS_
 //!
 //! * **`ns_type!( TypeForVote, TypeForPlainConsensus, [TypeForMdConsensus] )`**:
 //!
