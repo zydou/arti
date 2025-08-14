@@ -5,7 +5,8 @@
 
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
-mod md;
+// pub(crate) for the benefit of rustdocs of the species macros
+pub(crate) mod md;
 #[cfg(feature = "ns-consensus")]
 mod ns;
 
