@@ -8,7 +8,7 @@ pub(crate) mod build;
 // pub(crate) for the benefit of rustdocs of the species macros
 pub(crate) mod md;
 #[cfg(feature = "ns-consensus")]
-mod ns;
+mod plain;
 
 ns_export_per_species! {
     ty: ConsensusRouterStatus;

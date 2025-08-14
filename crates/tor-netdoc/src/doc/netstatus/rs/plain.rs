@@ -3,7 +3,7 @@
 
 use super::*;
 
-ns_do_species_ns! {}
+ns_do_species_plain! {}
 
 use crate::doc::routerdesc::{RdDigest as DocDigest, DOC_DIGEST_LEN};
 

@@ -13,7 +13,7 @@
 //! Create and include (with `mod`) normal module files:
 //!  * `vote.rs`
 //!  * `md.rs`
-//!  * `ns.rs`
+//!  * `plain
 //!
 //! These contain species-specific definitions.
 //!
@@ -21,8 +21,8 @@
 //!  * `per_species.rs`
 //!
 //! Do not write a `mod` line for it.
-//! Instead, in each of `vote.rs`, `ns.rs` and `md.rs`,
-//! call [`ns_do_species_vote`], [`ns_do_species_ns`], or [`ns_do_species_md`].
+//! Instead, in each of `vote.rs`, `plain.rs` and `md.rs`,
+//! call [`ns_do_species_vote`], [`ns_do_species_plain`], or [`ns_do_species_md`].
 //!
 //! This module will be included three times, once each as a submodule
 //! of the species-specific file.
@@ -43,6 +43,7 @@
 //! * **[`ns_ty_name!`](crate::doc::netstatus::rs::md::ns_ty_name)`( BaseTtypeName )`**:
 //!
 //!   Expands to `VoteBaseTypeName`, `NsBaseTypeName`, or `MdBaseTypeName`.
+// XXXX should be PlainBaseTypeName not Ns_
 //!
 //!   Cannot be used to *define* a type.
 //!   (Define the type with an unqualified name, and
@@ -53,18 +54,19 @@
 //! * **`ns_const_name!( BASE_CONST_NAME )`**:
 //!
 //!   Expands to `VOTE_BASE_TYPE_NAME`, `NS_BASE_TYPE_NAME`, or `MD_BASE_TYPE_NAME`.
+// XXXX should be PLAIN_BASE_TYPE_NAME not NS_
 //!
-//! * **`ns_type!( TypeForVote, TypeForNsConsensus, [TypeForMdConsensus] )`**:
+//! * **`ns_type!( TypeForVote, TypeForPlainConsensus, [TypeForMdConsensus] )`**:
 //!
 //!   Expands to the appropriate one of the two or three specified types.
 //!   If `TypeForMdConsensus` is not specified, `TypeForNsConsensus` is used.
 //!
-//! * **`ns_expr!( value_for_vote, value_for_ns_consensus, [value_for_md_consensus] )`**:
+//! * **`ns_expr!( value_for_vote, value_for_plain_consensus, [value_for_md_consensus] )`**:
 //!
 //!   Expands to the appropriate one of the two or three specified expressions.
 //!   If `value_for_consensus_md` is not specified, `TypeForConsensus` is used.
 //!
-//! * **`ns_choose!( ( FOR VOTE.. )( FOR NS CONSENSUS.. )( FOR MD CONSENSUS.. ) )`**:
+//! * **`ns_choose!( ( FOR VOTE.. )( FOR PLAIN CONSENSUS.. )( FOR MD CONSENSUS.. ) )`**:
 //!
 //!   Expands to the appropriate one of the two or three specified token streams.
 //!   (The `( )` surrounding each argument are discarded.)
@@ -97,15 +99,15 @@
 ///
 /// **Internal to `ns_per_species_macros.rs`, do not use directly!**
 ///
-///  * `$abbrev` is one of `vote`, `ns`, or `md` as applicable.
+///  * `$abbrev` is one of `vote`, `plain`, or `md` as applicable.
 ///
-///  * `: $vote $ns $md $d` is always `: vote ns md $`.
+///  * `: $vote $plain $md $d` is always `: vote plain md $`.
 ///    `$d` is needed because it's not possible to write a literal `$`
 ///    in the expansion part of a proc macro, except at the end of a group (!)
 ///    (`$$` can do that but is is not stable.)
 ///    `$vote` etc. are needed to match the identifier hygiene of `$abbrev`.
 macro_rules! ns_do_one_species { {
-    $abbrev:ident : $vote:ident $ns:ident $md:ident $d:tt
+    $abbrev:ident : $vote:ident $plain:ident $md:ident $d:tt
 } => {
     // ----- Define the selector macros (see the module top-level comment -----
 
@@ -113,18 +115,18 @@ macro_rules! ns_do_one_species { {
     macro_rules! ns_choose {
         {
             ( $d( $d $vote:tt )* )
-            ( $d( $d $ns  :tt )* )
+            ( $d( $d $plain:tt )* )
             ( $d( $d $md  :tt )* )
         } => {
             $d( $d $abbrev )*
         };
         {
             ( $d( $d vote:tt )* )
-            ( $d( $d ns  :tt )* )
+            ( $d( $d plain:tt )* )
         } => { ns_choose! {
             ( $d( $d vote    )* )
-            ( $d( $d ns      )* )
-            ( $d( $d ns      )* )
+            ( $d( $d plain   )* )
+            ( $d( $d plain   )* )
         } }
     }
 
@@ -170,19 +172,19 @@ macro_rules! ns_do_one_species { {
 ///
 /// Use within `vote.rs`.
 #[allow(unused)] // TODO feature = "ns-vote"
-macro_rules! ns_do_species_vote { {} => { ns_do_one_species! { vote : vote ns md $ } } }
+macro_rules! ns_do_species_vote { {} => { ns_do_one_species! { vote : vote plain md $ } } }
 use ns_do_species_vote;
 
 /// Include species-agnostic items, for a full consensus, from `per_species.rs`.
 ///
-/// Use within `ns.rs`.
-macro_rules! ns_do_species_ns   { {} => { ns_do_one_species! { ns   : vote ns md $ } } }
-use ns_do_species_ns;
+/// Use within `plain.rs`.
+macro_rules! ns_do_species_plain { {} => { ns_do_one_species! { plain : vote plain md $ } } }
+use ns_do_species_plain;
 
 /// Include species-agnostic items, for an md consensus, from `per_species.rs`.
 ///
 /// Use within `md.rs`.
-macro_rules! ns_do_species_md   { {} => { ns_do_one_species! { md   : vote ns md $ } } }
+macro_rules! ns_do_species_md   { {} => { ns_do_one_species! { md   : vote plain md $ } } }
 use ns_do_species_md;
 
 /// Export species-specific names from each module.
@@ -199,8 +201,10 @@ use ns_do_species_md;
 /// Exports each `Tyename` as `SpeciesTypename`,
 /// and each `CONSTNAME` as `SPECIES_CONSTNAME`.
 ///
-/// All three modules `vote`, `ns`, and `md` must exist,
+/// All three modules `vote`, `plain`, and `md` must exist,
 /// and must contain the same items.
+//
+// Should prefix items with Plain/PLAIN_, rather than Ns/NS_
 macro_rules! ns_export_per_species {
     {
         $kind:ident: $( $ty:ident ),* $(,)?
@@ -220,7 +224,7 @@ macro_rules! ns_export_per_species {
         pub use { vote::$id as [<vote $($case)* $($infix)* $id>] };
         #[cfg(feature = "ns-consensus")]
         #[cfg_attr(docsrs, doc(cfg(feature = "ns-consensus")))]
-        pub use { ns  ::$id as [<ns   $($case)* $($infix)* $id>] };
+        pub use { plain ::$id as [<ns   $($case)* $($infix)* $id>] };
         // unconditional
         pub use { md  ::$id as [<md   $($case)* $($infix)* $id>] };
     } };
