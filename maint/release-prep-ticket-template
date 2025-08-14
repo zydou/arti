@@ -4,6 +4,8 @@
 #
 # Tickybox lines contain a `[ ]`.
 # Each tickybox should be at the start of a bulleted or numbered list.
+# The script only uses the line with the tickybox on it, not the whole paragraph.
+# (Tickybox items should be short.)
 #
 # We only add tickybox lines for headings, and we make sure the tickybox lines
 # are summaries, so that the checklist is really a checklist, not an  explanation.
