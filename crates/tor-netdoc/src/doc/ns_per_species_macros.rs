@@ -107,6 +107,8 @@
 macro_rules! ns_do_one_species { {
     $abbrev:ident : $vote:ident $ns:ident $md:ident $d:tt
 } => {
+    // ----- Define the selector macros (see the module top-level comment -----
+
     #[allow(unused)]
     macro_rules! ns_choose {
         {
@@ -151,9 +153,15 @@ macro_rules! ns_do_one_species { {
     macro_rules! ns_expr {
         { $d( $d option:expr ),* $d(,)? } => { ns_choose!( $d( ( $d option ) )* ) }
     }
+
+    // ----- Now read per_species.rs in the context with *these* macro definitions -----
+
     #[allow(clippy::duplicate_mod)]
     #[path = "per_species.rs"]
     mod per_species;
+
+    // ----- And finally re-export everything into the caller's scope -----
+
     #[allow(unused, unreachable_pub)] // There might not be any pub items.
     pub use per_species::*;
 } }
