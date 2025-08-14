@@ -304,7 +304,7 @@ impl<'a, K: Keyword> Iterator for NetDocReaderBase<'a, K> {
 
 /// Helper: as base64::decode(), but allows newlines in the middle of the
 /// encoded object.
-fn base64_decode_multiline(s: &str) -> std::result::Result<Vec<u8>, base64ct::Error> {
+pub(crate) fn base64_decode_multiline(s: &str) -> std::result::Result<Vec<u8>, base64ct::Error> {
     // base64 module hates whitespace.
     let mut s = s.to_string();
     s.retain(|ch| ch != '\n');

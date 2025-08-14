@@ -1914,9 +1914,9 @@ mod test {
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
 
     #[cfg(feature = "ns_consensus")]
-    const NS_CERTS: &str = include_str!("../../testdata/authcerts3.txt");
+    const NS_CERTS: &str = include_str!("../../testdata2/cached-certs");
     #[cfg(feature = "ns_consensus")]
-    const NS_CONSENSUS: &str = include_str!("../../testdata/nsconsensus1.txt");
+    const NS_CONSENSUS: &str = include_str!("../../testdata2/cached-consensus");
 
     fn read_bad(fname: &str) -> String {
         use std::fs;
@@ -2005,7 +2005,7 @@ mod test {
             certs.push(cert);
         }
         let auth_ids: Vec<_> = certs.iter().map(|c| &c.key_ids().id_fingerprint).collect();
-        assert_eq!(certs.len(), 3);
+        assert_eq!(certs.len(), 4);
 
         let (_, _, consensus) = NsConsensus::parse(NS_CONSENSUS)?;
         let consensus = consensus.dangerously_assume_timely().set_n_authorities(3);

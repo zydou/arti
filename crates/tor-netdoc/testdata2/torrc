@@ -1,0 +1,124 @@
+
+TestingTorNetwork 1
+
+## Rapid Bootstrap Testing Options ##
+# These typically launch a working minimal Tor network in ~20s
+# These parameters make tor networks bootstrap fast,
+# but can cause consensus instability and network unreliability
+# (Some are also bad for security.)
+#
+# We need at least 3 descriptors to build circuits.
+# In a 3 relay network, 0.67 > 2/3, so we try hard to get 3 descriptors.
+# In larger networks, 0.67 > 2/N, so we try hard to get >=3 descriptors.
+PathsNeededToBuildCircuits 0.67
+TestingDirAuthVoteExit *
+TestingDirAuthVoteHSDir *
+V3AuthNIntervalsValid 2
+
+## Always On Testing Options ##
+# We enable TestingDirAuthVoteGuard to avoid Guard stability requirements
+TestingDirAuthVoteGuard *
+# We set TestingMinExitFlagThreshold to 0 to avoid Exit bandwidth requirements
+TestingMinExitFlagThreshold 0
+# VoteOnHidServDirectoriesV2 needs to be set for HSDirs to get the HSDir flag
+#Default VoteOnHidServDirectoriesV2 1
+
+## Options that we always want to test ##
+DataDirectory /builds/tpo/core/arti/nodes.946684805/000a
+RunAsDaemon 1
+ConnLimit 60
+Nickname test000a
+# Let tor close connections gracefully before exiting
+ShutdownWaitLength 2
+DisableDebuggerAttachment 0
+
+AddressDisableIPv6 1
+ControlPort 8000
+# Use ControlSocket rather than ControlPort unix: to support older tors
+ControlSocket 0
+CookieAuthentication 1
+PidFile /builds/tpo/core/arti/nodes.946684805/000a/pid
+
+Log notice file /builds/tpo/core/arti/nodes.946684805/000a/notice.log
+Log info file /builds/tpo/core/arti/nodes.946684805/000a/info.log
+# Turn this off to save space
+#Log debug file /builds/tpo/core/arti/nodes.946684805/000a/debug.log
+ProtocolWarnings 1
+SafeLogging 0
+LogTimeGranularity 1
+
+# Options that we can disable at runtime, based on n vars
+
+# Use tor's sandbox. Defaults to 1 on Linux, and 0 on other platforms.
+# Use CHUTNEY_TOR_SANDBOX=0 to disable, if tor's sandbox doesn't work with
+# your glibc.
+Sandbox 0
+
+# Ask all child tor processes to exit when chutney's test-network.sh exits
+# (if the CHUTNEY_*_TIME options leave the network running, this option is
+# disabled)
+#__OwningControllerProcess 0
+
+SocksPort 0
+DnsPort 0
+
+UseMicrodescriptors 1
+Address 127.0.0.1
+OrPort 127.0.0.1:5100
+AlternateDirAuthority test000a no-v2 orport=5100 v3ident=1724402CE2D54399C61B99FD663987E74F3FBC3B 127.0.0.1:7100 434981794F07ABD6EB4A646BFD8FA0277606932F
+AlternateDirAuthority test001a no-v2 orport=5101 v3ident=CBC82F96A5000A5FE0D6FB69519B79EA0C03EBE1 127.0.0.1:7101 84206251C5B65C6272BE9D7B5516306FCC7A81EC
+AlternateDirAuthority test002a no-v2 orport=5102 v3ident=771234538D81E6291F6D0787D3B18C69FB958B3D 127.0.0.1:7102 CB72A3C70A0F5EDE59C72720C98E9B9A60609620
+AlternateDirAuthority test003a no-v2 orport=5103 v3ident=170F4FAA8EE1142794255A006560E2E8E5B759D9 127.0.0.1:7103 C19FF3872B24998FB3EE50C154E9B9C0F61BE433
+AlternateBridgeAuthority test007ba no-v2 orport=5107 bridge 127.0.0.1:7107 5042DA9D45DAB39C1991857CB377A11421458185
+
+ExitRelay 0
+
+# These options are set here so they apply to IPv4 and IPv6 Exits
+#
+# Tell Exits to avoid using DNS: otherwise, chutney will fail if DNS fails
+# (Chutney only accesses 127.0.0.1 and ::1, so it doesn't need DNS)
+ServerDNSDetectHijacking 0
+ServerDNSTestAddresses
+# If this option is /dev/null, or any other empty or unreadable file, tor exits
+# will not use DNS. Otherwise, DNS is enabled with this config.
+# (If the following line is commented out, tor uses /etc/resolv.conf.)
+ServerDNSResolvConfFile /etc/resolv.conf
+
+DirPort 7100
+
+AuthoritativeDirectory 1
+ContactInfo auth0@test.test
+
+V3AuthoritativeDirectory 1
+
+# Disable authority to relay/bridge reachability checks
+# These checks happen every half hour, even in testing networks
+# As of tor 0.4.3, there is no way to speed up these checks
+AssumeReachable 1
+
+# Speed up the consensus cycle as fast as it will go.
+# If clock desynchronisation is an issue, increase these voting times.
+
+# V3AuthVotingInterval and TestingV3AuthInitialVotingInterval can be:
+#   10, 12, 15, 18, 20, ...
+# TestingV3AuthInitialVotingInterval can also be:
+#    5, 6, 8, 9
+# They both need to evenly divide 24 hours.
+
+# Initial Vote + Initial Dist must be less than Initial Interval
+#
+# Mixed 0.3.3 and 0.3.4 networks are unstable, due to timing changes.
+# When all 0.3.3 and earlier versions are obsolete, we may be able to revert to
+# TestingV3AuthInitialVotingInterval 5
+TestingV3AuthInitialVotingInterval 20
+TestingV3AuthInitialVoteDelay 4
+TestingV3AuthInitialDistDelay 4
+# Vote + Dist must be less than Interval/2, because when there's no consensus,
+# tor uses Interval/2 as the voting interval
+#
+V3AuthVotingInterval 20.0
+V3AuthVoteDelay 4
+V3AuthDistDelay 4
+
+ConsensusParams cc_alg=2
+

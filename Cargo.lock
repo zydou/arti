@@ -5440,6 +5440,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "testresult"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "614b328ff036a4ef882c61570f72918f7e9c5bee1da33f8e7f91e01daee7e56c"
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6584,6 +6590,7 @@ dependencies = [
  "base64ct",
  "bitflags 2.9.1",
  "cipher",
+ "derive-deftly 1.2.0",
  "derive_builder_fork_arti",
  "derive_more",
  "digest",
@@ -6593,6 +6600,7 @@ dependencies = [
  "humantime",
  "itertools 0.14.0",
  "memchr",
+ "paste",
  "phf",
  "rand 0.9.2",
  "serde",
@@ -6600,7 +6608,9 @@ dependencies = [
  "serde_with",
  "signature",
  "smallvec",
+ "strum",
  "subtle",
+ "testresult",
  "thiserror 2.0.12",
  "time",
  "tinystr",
