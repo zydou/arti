@@ -72,7 +72,6 @@ pub(crate) mod linkv4 {
     restricted_msg! {
         /// A channel message that we allow to be sent from a Client to a Relay on
         /// an open channel.
-        #[allow(unused)] // TODO: Remove once used.
         #[derive(Clone, Debug)]
         pub(crate) enum OpenChanMsgC2R: ChanMsg {
             // No Create*, it is obsolete (TAP).
@@ -265,7 +264,6 @@ pub(crate) mod linkv5 {
     restricted_msg! {
         /// A channel message that we allow to be sent from a Client to a Relay on
         /// an open channel.
-        #[allow(unused)] // TODO: Remove once used.
         #[derive(Clone, Debug)]
         pub(crate) enum OpenChanMsgC2R: ChanMsg {
             // No Create*, it is obsolete (TAP).

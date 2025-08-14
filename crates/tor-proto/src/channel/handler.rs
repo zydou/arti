@@ -24,7 +24,6 @@ use super::{ChannelType, msg::MessageFilter};
 ///
 /// From the New state, it will automatically transition to the right state as information is
 /// attached to it (ex: link protocol version).
-#[allow(unused)] // TODO: Remove once used.
 pub(crate) enum ChannelCellHandler {
     /// When a network connection opens to another endpoint, the channel is considered "New" and
     /// so we use this handler to start the handshake.
@@ -44,7 +43,6 @@ impl From<super::ChannelType> for ChannelCellHandler {
     }
 }
 
-#[allow(unused)] // TODO: Remove once used.
 impl ChannelCellHandler {
     /// Set link protocol for this channel cell handler. This transition the handler into the
     /// handshake handler state.
