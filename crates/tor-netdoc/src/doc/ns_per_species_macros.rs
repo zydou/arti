@@ -93,7 +93,7 @@
 //
 //  * build.rs, ad-hoc templating.  But this wouldn't be Rust syntax.
 
-/// Does the work for one species.
+/// Includes items from `per_species.rs` for a particular species.
 ///
 /// **Internal to `ns_per_species_macros.rs`, do not use directly!**
 ///
