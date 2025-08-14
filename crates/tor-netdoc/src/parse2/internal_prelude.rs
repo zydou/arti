@@ -12,7 +12,7 @@ pub use std::slice;
 pub use std::str::FromStr;
 pub use std::time::{Duration, SystemTime};
 
-pub use derive_deftly::{define_derive_deftly, Deftly};
+pub use derive_deftly::{Deftly, define_derive_deftly};
 pub use digest::Digest;
 pub use educe::Educe;
 pub use itertools::Itertools;
@@ -33,7 +33,7 @@ pub use super::{
     lines::{Lines, StrExt as _},
     multiplicity::{ItemSetMethods, ItemSetSelector},
     signatures::{
-        sig_hash_methods, SignatureHashInputs, SignatureItemParseable, SignedDocumentBody,
+        SignatureHashInputs, SignatureItemParseable, SignedDocumentBody, sig_hash_methods,
     },
     structural::{StopAt, StopPredicate},
     traits::{ItemArgumentParseable, ItemValueParseable, NetdocParseable, NetdocSigned},

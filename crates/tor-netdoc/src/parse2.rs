@@ -111,7 +111,7 @@ pub use keyword::KeywordRef;
 pub use lex::{ArgumentStream, ItemStream, NoFurtherArguments, UnparsedItem, UnparsedObject};
 pub use lines::{Lines, Peeked, StrExt};
 pub use signatures::{
-    check_validity_time, sig_hash_methods, SignatureHashInputs, SignatureItemParseable,
+    SignatureHashInputs, SignatureItemParseable, check_validity_time, sig_hash_methods,
 };
 pub use structural::{StopAt, StopPredicate};
 pub use traits::{ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable};
