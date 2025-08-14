@@ -8,3 +8,6 @@
 //! as the client tunnel (to reduce code duplication).
 //!
 //! See the design notes at doc/dev/notes/relay-reactor.md
+
+#[allow(unreachable_pub)] // TODO(relay): use in tor-chanmgr(?)
+pub mod channel_provider;
