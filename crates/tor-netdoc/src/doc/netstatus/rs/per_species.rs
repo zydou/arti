@@ -1,4 +1,4 @@
-//! router status entries - types that vary by document flavour
+//! router status entries - types that vary by document species
 //!
 //! **This file is reincluded multiple times**,
 //! once for votes, and once for each consensus flavour.
