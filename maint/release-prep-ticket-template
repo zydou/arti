@@ -1,0 +1,77 @@
+#!/usr/bin/env -S perl -w
+#
+# Processes "tickyboxes" in Release.md into something to use as a ticket body in gitlab.
+#
+# Tickybox lines contain a `[ ]`.
+# Each tickybox should be at the start of a bulleted or numbered list.
+# The script only uses the line with the tickybox on it, not the whole paragraph.
+# (Tickybox items should be short.)
+#
+# We only add tickybox lines for headings, and we make sure the tickybox lines
+# are summaries, so that the checklist is really a checklist, not an  explanation.
+#
+# We also don't add tickybox lines for things which automation will detect for us,
+# unless the way the automation detects/reports it is very annoying.
+# The checklist is for things the human must remember.
+
+use strict;
+use Carp;
+
+open I, "doc/dev/Release.md" or confess $!;
+
+our $output = '';
+sub p { $output .= $_ foreach @_; }
+
+p <<END;
+# Automatically scraped release checklist
+
+For details of items, and further information, refer to `doc/dev/Release.md`.
+
+END
+
+my @headings;
+my $before_heading = "";
+my $incorporate_links = 0;
+my @links;
+
+sub output_links {
+  p "\n" if @links;
+  foreach (@links) { p $_ }
+}
+
+while (<I>) {
+  if ($incorporate_links) {
+    if (m/\[([^][]+)\]: /) {
+      push @links, $_;
+    } elsif (m/\S/) {
+      $incorporate_links = 0;
+    }
+  }
+
+  if (m/^(\#+) /) {
+    my $level = (length $1) - 1;
+    $headings[$level] = $_;
+    $#headings = $level + 1;
+  }
+
+  if (m/ \[ +\]\s/) {
+    m{^ *(?:\d+\.|\*|\-) +\[ \] (\S.*)$} or die 'tickybox on line with unexpected syntax';
+    my $instruction = $1;
+    foreach my $h (@headings) {
+      if (defined $h) {
+	output_links();
+	p $before_heading, $h, "\n";
+	$h = undef;
+	$before_heading = "";
+      }
+    }
+    p " * [ ] $instruction\n";
+    $before_heading = "\n";
+    $incorporate_links = 1;
+  }
+}
+
+output_links();
+p $before_heading, "# End of the release checklist\n";
+print STDOUT $output or confess $!;
+close STDOUT or confess $!;
