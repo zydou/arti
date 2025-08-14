@@ -22,7 +22,7 @@
 //!
 //! Do not write a `mod` line for it.
 //! Instead, in each of `vote.rs`, `ns.rs` and `md.rs`,
-//! call `ns_do_species_vote`, `ns_do_species_ns`, md `or_ns_do_species`,
+//! call `ns_do_species_vote`, `ns_do_species_ns`, or `ns_do_species_md`.
 //!
 //! This module will be included three times, once each as a submodule
 //! of the species-specific file.
