@@ -469,6 +469,12 @@ macro_rules! unwrap_or_shutdown {
     }};
 }
 
+// Note: this is used in the relay reactor too
+//
+// TODO(relay): refactor the common parts of the two reactors
+// into a shared module
+pub(crate) use unwrap_or_shutdown;
+
 /// Object to handle incoming cells and background tasks on a circuit
 ///
 /// This type is returned when you finish a circuit; you need to spawn a
