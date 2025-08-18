@@ -8,6 +8,7 @@
 //! We call these three kinds of document "species".
 // XXXX Change "species" to "variety" everywhere.
 // XXXX Rename `per_species` to `each_variety`.
+// XXXX Rename this file to ns_variety_definition_macros.rs
 //! So a species is either "vote", or a consensus flavour.
 //!
 //! # Overwview
