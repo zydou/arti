@@ -6,7 +6,7 @@
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
 mod md;
-#[cfg(feature = "ns-consensus")]
+#[cfg(feature = "plain-consensus")]
 mod plain;
 
 // Export md::ConsensusRouterStatus as MdConsensusRouterStatus, etc.

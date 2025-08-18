@@ -78,7 +78,7 @@ pub use build::ConsensusBuilder;
 pub use rs::build::RouterStatusBuilder;
 
 pub use rs::MdConsensusRouterStatus;
-#[cfg(feature = "ns-consensus")]
+#[cfg(feature = "plain-consensus")]
 pub use rs::PlainConsensusRouterStatus;
 use void::ResultVoidExt as _;
 
@@ -729,17 +729,17 @@ pub type UnvalidatedMdConsensus = UnvalidatedConsensus<MdConsensusRouterStatus>;
 /// and timeliness.
 pub type UncheckedMdConsensus = UncheckedConsensus<MdConsensusRouterStatus>;
 
-#[cfg(feature = "ns-consensus")]
+#[cfg(feature = "plain-consensus")]
 /// A consensus document that lists relays along with their
 /// router descriptor documents.
 pub type PlainConsensus = Consensus<PlainConsensusRouterStatus>;
 
-#[cfg(feature = "ns-consensus")]
+#[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed and checked for timeliness,
 /// but not for signatures.
 pub type UnvalidatedPlainConsensus = UnvalidatedConsensus<PlainConsensusRouterStatus>;
 
-#[cfg(feature = "ns-consensus")]
+#[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed but not checked for signatures
 /// and timeliness.
 pub type UncheckedPlainConsensus = UncheckedConsensus<PlainConsensusRouterStatus>;
@@ -1913,9 +1913,9 @@ mod test {
     const CERTS: &str = include_str!("../../testdata/authcerts2.txt");
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
 
-    #[cfg(feature = "ns-consensus")]
+    #[cfg(feature = "plain-consensus")]
     const PLAIN_CERTS: &str = include_str!("../../testdata2/cached-certs");
-    #[cfg(feature = "ns-consensus")]
+    #[cfg(feature = "plain-consensus")]
     const PLAIN_CONSENSUS: &str = include_str!("../../testdata2/cached-consensus");
 
     fn read_bad(fname: &str) -> String {
@@ -1996,7 +1996,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "ns-consensus")]
+    #[cfg(feature = "plain-consensus")]
     fn parse_and_validate_ns() -> Result<()> {
         use tor_checkable::{SelfSigned, Timebound};
         let mut certs = Vec::new();

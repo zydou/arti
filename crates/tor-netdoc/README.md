@@ -34,7 +34,7 @@ network documents.
 `routerdesc`: enable support for the "router descriptor" document type, which
 is needed by bridge clients and relays.
 
-`ns-consensus`: enable support for the "ns consensus" document type, which
+`plain-consensus`: enable support for the "plain (unflavoured) consensus" document type, which
 some relays cache and serve.
 
 ## Caveat haxxor: limitations and infelicities
