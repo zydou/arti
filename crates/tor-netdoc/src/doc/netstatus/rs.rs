@@ -10,7 +10,7 @@ mod md;
 mod plain;
 
 // Export md::ConsensusRouterStatus as MdConsensusRouterStatus, etc.
-ns_export_per_species! {
+ns_export_per_variety! {
     ty: ConsensusRouterStatus;
 }
 

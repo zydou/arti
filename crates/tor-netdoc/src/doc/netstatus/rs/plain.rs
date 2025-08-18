@@ -7,7 +7,7 @@
 use super::*;
 
 // Import `each_variety.rs`, appropriately variegated
-ns_do_species_plain! {}
+ns_do_variety_plain! {}
 
 use crate::doc::routerdesc::{RdDigest as DocDigest, DOC_DIGEST_LEN};
 

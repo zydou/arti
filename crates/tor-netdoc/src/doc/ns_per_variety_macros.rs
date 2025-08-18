@@ -1,15 +1,14 @@
-//! Machinery for defining multiple species of network status document.
+//! Machinery for defining multiple varieties of network status document.
 //!
 //! This module handles re-using the same source code to define
 //!  * Votes, and parts thereof
 //!  * Consensuses, and parts thereof
 //!  * Microdescriptor consensuses, and parts thereof
 //!
-//! We call these three kinds of document "species".
-// XXXX Change "species" to "variety" everywhere.
-// XXXX Rename `per_species` to `each_variety`.
+//! We call these three kinds of document "variety".
+// XXXX Rename `per_variety` to `each_variety`.
 // XXXX Rename this file to ns_variety_definition_macros.rs
-//! So a species is either "vote", or a consensus flavour.
+//! So a variety is either "vote", or a consensus flavour.
 //!
 //! # Overwview
 //!
@@ -46,20 +45,20 @@
 //! which will be included once for each variety.
 //!
 //! Within `each_variety.rs`, macros are available
-//! (provided by the machinery here in `ns_per_species_macros`)
+//! (provided by the machinery here in `ns_per_variety_macros`)
 //! which can be used to define individual fields, or code fragments,
 //! which vary between varietys.
 //!
 //! Inclusion of the `each_variety.rs` file, as adapted for the particular variety,
-//! is done by calling `ns_do_species_SPECIES`
+//! is done by calling `ns_do_variety_VARIETY`
 //! in the (handwritten) specifies-specific module.
 //!
-//! For example, the call to `ns_do_species_md!()`
+//! For example, the call to `ns_do_variety_md!()`
 //! in `tor-netdoc/src/doc/netstatus/rs/md.rs`
 //! imports all of the contents of
-//! `tor-netdoc/src/doc/netstatus/rs/each_species.rs`
+//! `tor-netdoc/src/doc/netstatus/rs/each_variety.rs`
 //! into the module `doc::netstatus::rs::md`.
-//! And, for example, within `rs/each_species.rs`,
+//! And, for example, within `rs/each_variety.rs`,
 //! `ns_const_name!(FOO)` expands to `MD_FOO`.
 //!
 //! # Usage
@@ -69,24 +68,24 @@
 //!  * `md.rs`
 //!  * `plain
 //!
-//! These contain species-specific definitions.
+//! These contain variety-specific definitions.
 //!
 //! Alongside these files, create:
-//!  * `per_species.rs`
+//!  * `per_variety.rs`
 //!
 //! Do not write a `mod` line for it.
 //! Instead, in each of `vote.rs`, `plain.rs` and `md.rs`,
-//! call [`ns_do_species_vote`], [`ns_do_species_plain`], or [`ns_do_species_md`].
+//! call [`ns_do_variety_vote`], [`ns_do_variety_plain`], or [`ns_do_variety_md`].
 //!
-//! The `per_species.rs` file will be included three times, once each as a submodule
-//! of the species-specific file.
-//! So there will be `...:vote::per_species::`, etc.,
+//! The `per_variety.rs` file will be included three times, once each as a submodule
+//! of the variety-specific file.
+//! So there will be `...:vote::per_variety::`, etc.,
 //! all of which will automatically be re-imported into the parent `vote`.
 //!
-//! Within `per_species.rs`, all items you define will be triplicated.
+//! Within `per_variety.rs`, all items you define will be triplicated.
 //! Give them unqualified names.
 //! Re-export them in the overall parent module,
-//! using `ns_export_per_species`.
+//! using `ns_export_per_variety`.
 //!
 //! # Module scope for `..::VARIETY` and `..::VARIETY::each_variety`
 //!
@@ -103,11 +102,11 @@
 //!
 //! `VARIETY.rs` can and should use variety-agnostic names for internal types.
 //!
-//! # Macros for across-species-variation
+//! # Macros for across-variety-variation
 //!
-//! Within `per_species.rs`,
-//! the following macros are defined for use in `per_species.rs`
-//! for species-dependent elements:
+//! Within `per_variety.rs`,
+//! the following macros are defined for use in `per_variety.rs`
+//! for variety-dependent elements:
 //!
 //! * **`ns_ty_name!( BaseTypeName )`**:
 //!
@@ -116,7 +115,7 @@
 //!
 //!   Cannot be used to *define* a type.
 //!   (Define the type with an unqualified name, and
-//!   re-export it with the qualified name, using `ns_export_per_species`.)
+//!   re-export it with the qualified name, using `ns_export_per_variety`.)
 //!
 //! * **`ns_const_name!( BASE_CONST_NAME )`**:
 //!
@@ -127,13 +126,13 @@
 //!
 //!   Expands to the appropriate one of the two or three specified types.
 //!   If `TypeForVote` is not specified, it is a compile error
-//!   for this `per_species` file to be used for votes.
+//!   for this `per_variety` file to be used for votes.
 //!
 //! * **`ns_expr!( value_for_plain_consensus, value_for_md_consensus, [value_for_vote] )`**:
 //!
 //!   Expands to the appropriate one of the two or three specified expressions.
 //!   If `value_for_vote` is not specified, it is a compile error
-//!   for this `per_species` file to be used for votes.
+//!   for this `per_variety` file to be used for votes.
 //!
 //! * **`ns_choose!( ( FOR PLAIN CONSENSUS.. )( FOR MD CONSENSUS.. )[( FOR VOTE.. )] )`**:
 //!
@@ -141,14 +140,14 @@
 //!   (The `( )` surrounding each argument are discarded.)
 //!
 //!   If `FOR VOTE` is not specified, it is a compile error
-//!   for this `per_species` file to be used for votes.
+//!   for this `per_variety` file to be used for votes.
 //!
-//!   When defining whole items, prefer to put the species-specific items directly
-//!   in each of the species-specific modules.
+//!   When defining whole items, prefer to put the variety-specific items directly
+//!   in each of the variety-specific modules.
 //
 // Other ways we could have done this:
 //
-//  * Generics: `NetworkStatus<Species>`.
+//  * Generics: `NetworkStatus<Variety>`.
 //
 //    The generics get everywhere, and they seriously mess up the
 //    ad-hoc specialisation used for type-based multiplicity dispatch
@@ -168,9 +167,9 @@
 //
 //  * build.rs, ad-hoc templating.  But this wouldn't be Rust syntax.
 
-/// Includes items from `per_species.rs` for a particular species.
+/// Includes items from `per_variety.rs` for a particular variety.
 ///
-/// **Internal to `ns_per_species_macros.rs`, do not use directly!**
+/// **Internal to `ns_per_variety_macros.rs`, do not use directly!**
 ///
 ///  * `$abbrev` is one of `vote`, `plain`, or `md` as applicable.
 ///
@@ -179,7 +178,7 @@
 ///    in the expansion part of a proc macro, except at the end of a group (!)
 ///    (`$$` can do that but is is not stable.)
 ///    `$vote` etc. are needed to match the identifier hygiene of `$abbrev`.
-macro_rules! ns_do_one_species { {
+macro_rules! ns_do_one_variety { {
     $abbrev:ident : $plain:ident $md:ident $vote:ident $d:tt
 } => {
     // ----- Define the selector macros (see the module top-level comment -----
@@ -219,53 +218,53 @@ macro_rules! ns_do_one_species { {
         { $d( $d option:expr ),* $d(,)? } => { ns_choose!( $d( ( $d option ) )* ) }
     }
 
-    // ----- Now read per_species.rs in the context with *these* macro definitions -----
+    // ----- Now read per_variety.rs in the context with *these* macro definitions -----
 
     #[allow(clippy::duplicate_mod)]
-    #[path = "per_species.rs"]
-    mod per_species;
+    #[path = "per_variety.rs"]
+    mod per_variety;
 
     // ----- And finally re-export everything into the caller's scope -----
 
     #[allow(unused, unreachable_pub)] // There might not be any pub items.
-    pub use per_species::*;
+    pub use per_variety::*;
 } }
 
-/// Include species-agnostic items, for a full consensus, from `per_species.rs`.
+/// Include variety-agnostic items, for a full consensus, from `per_variety.rs`.
 ///
 /// Use within `plain.rs`.
-macro_rules! ns_do_species_plain { {} => { ns_do_one_species! { plain : plain md vote $ } } }
+macro_rules! ns_do_variety_plain { {} => { ns_do_one_variety! { plain : plain md vote $ } } }
 #[cfg(doc)]
-use ns_do_species_plain;
+use ns_do_variety_plain;
 
-/// Include species-agnostic items, for an md consensus, from `per_species.rs`.
+/// Include variety-agnostic items, for an md consensus, from `per_variety.rs`.
 ///
 /// Use within `md.rs`.
-macro_rules! ns_do_species_md   { {} => { ns_do_one_species! { md   : plain md vote $ } } }
+macro_rules! ns_do_variety_md   { {} => { ns_do_one_variety! { md   : plain md vote $ } } }
 #[cfg(doc)]
-use ns_do_species_md;
+use ns_do_variety_md;
 
-/// Include species-agnostic items, for a vote, from `per_species.rs`.
+/// Include variety-agnostic items, for a vote, from `per_variety.rs`.
 ///
 /// Use within `vote.rs`.
 #[allow(unused)] // TODO feature = "ns-vote"
-macro_rules! ns_do_species_vote { {} => { ns_do_one_species! { vote : plain md vote $ } } }
+macro_rules! ns_do_variety_vote { {} => { ns_do_one_variety! { vote : plain md vote $ } } }
 #[cfg(doc)]
-use ns_do_species_vote;
+use ns_do_variety_vote;
 
-/// Export species-specific names from each module.
+/// Export variety-specific names from each module.
 ///
 /// Usage:
 ///
 /// ```rust,ignore
-/// ns_export_per_species! {
+/// ns_export_per_variety! {
 ///     ty: Typename1, Typename2;
 ///     const: CONSTNAME_1, CONSTNAME_2;
 /// }
 /// ```
 ///
-/// Exports each `Tyename` as `SpeciesTypename`,
-/// and each `CONSTNAME` as `SPECIES_CONSTNAME`.
+/// Exports each `Tyename` as `VarietyTypename`,
+/// and each `CONSTNAME` as `VARIETY_CONSTNAME`.
 ///
 /// All three modules `vote`, `plain`, and `md` must exist,
 /// and must contain the same items.
@@ -273,19 +272,19 @@ use ns_do_species_vote;
 // Should prefix items with Plain/PLAIN_, rather than Ns/NS_
 // XXXX rename to ns_export_each_vareity
 //
-// TODO consider instead making the species-specific module names public.
+// TODO consider instead making the variety-specific module names public.
 // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3139#note_3239852
-macro_rules! ns_export_per_species {
+macro_rules! ns_export_per_variety {
     {
         $kind:ident: $( $ty:ident ),* $(,)?
         $(; $($rest:tt)* )?
     } => {
-        ns_export_per_species! { @ $kind $($ty)* }
-        $( ns_export_per_species! { $($rest)* } )?
+        ns_export_per_variety! { @ $kind $($ty)* }
+        $( ns_export_per_variety! { $($rest)* } )?
     };
     { } => {};
-    { @ ty    $($id:ident)* } => { $( ns_export_per_species! { @ [:camel] [ ] $id } )* };
-    { @ const $($id:ident)* } => { $( ns_export_per_species! { @ [:upper] [_] $id } )* };
+    { @ ty    $($id:ident)* } => { $( ns_export_per_variety! { @ [:camel] [ ] $id } )* };
+    { @ const $($id:ident)* } => { $( ns_export_per_variety! { @ [:upper] [_] $id } )* };
     {
         @ [ $($case:tt)* ] [$($infix:tt)*] $id:ident
     } => { paste::paste!{

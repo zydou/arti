@@ -7,7 +7,7 @@
 use super::*;
 
 // Import `each_variety.rs`, appropriately variegated
-ns_do_species_md! {}
+ns_do_variety_md! {}
 
 // We bind some variety-agnostic names for the benefit of `each_variety.rs`,
 // which reimports the contents of this module with `use super::*`.

@@ -1,14 +1,14 @@
-//! router status entries - types that vary by document species
+//! router status entries - types that vary by document variety
 //!
 //! **This file is reincluded multiple times**,
-//! by the macros in [`crate::doc::ns_per_species_macros`],
+//! by the macros in [`crate::doc::ns_per_variety_macros`],
 //! once for votes, and once for each consensus flavour.
-//! It is *not* a module `crate::doc::netstatus::rs::per_species`.
+//! It is *not* a module `crate::doc::netstatus::rs::per_variety`.
 //!
 //! Each time this file is included by one of the macros mentioned above,
 //! the `ns_***` macros (such as `ns_const_name!`) may expand to different values.
 //!
-//! See [`crate::doc::ns_per_species_macros`].
+//! See [`crate::doc::ns_per_variety_macros`].
 
 use super::*;
 
