@@ -56,26 +56,28 @@
 #[cfg(feature = "bench")]
 pub mod bench_utils;
 pub mod channel;
+pub mod client;
 mod congestion;
 mod crypto;
 pub mod memquota;
-pub mod stream;
-pub(crate) mod tunnel;
 mod util;
+
+#[cfg(feature = "relay")]
+pub(crate) mod relay;
 
 pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
 pub use channel::params::ChannelPaddingInstructions;
+pub use client::{ClientTunnel, HopLocation, TargetHop, circuit};
 pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
-pub use tunnel::{ClientTunnel, HopLocation, TargetHop, circuit};
 #[cfg(feature = "send-control-msg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub use {
-    crate::tunnel::Conversation,
-    crate::tunnel::msghandler::{MsgHandler, UserMsgHandler},
-    crate::tunnel::reactor::MetaCellDisposition,
+    crate::client::Conversation,
+    crate::client::msghandler::{MsgHandler, UserMsgHandler},
+    crate::client::reactor::MetaCellDisposition,
 };
 
 /// A Result type for this crate.

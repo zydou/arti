@@ -1544,7 +1544,7 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
 #[async_trait]
 impl MockableClientDir for ClientOnionServiceDirTunnel {
     /// Client circuit
-    type DirStream = tor_proto::stream::DataStream;
+    type DirStream = tor_proto::client::stream::DataStream;
     async fn m_begin_dir_stream(&self) -> tor_circmgr::Result<Self::DirStream> {
         Self::begin_dir_stream(self).await
     }

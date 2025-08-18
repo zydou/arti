@@ -12,7 +12,7 @@
 //!
 //!  * Broad names from specific contexts, that are unsuitable for wide imports.
 //!    For example, individual cell and message names from `tor-cell`,
-//!    and the types from `tor_proto::stream` other than the high-level `DataStream`.
+//!    and the types from `tor_proto::client::stream` other than the high-level `DataStream`.
 
 //---------- std ----------
 
@@ -108,7 +108,7 @@ pub(crate) use {
         ContainsInstanceStateGuard as _, InstanceRawSubdir, LockFileGuard, StateDirectory,
     },
     tor_proto::MetaCellDisposition,
-    tor_proto::stream::DataStream,
+    tor_proto::client::stream::DataStream,
     tor_rtcompat::SleepProvider,
     tor_rtcompat::{Runtime, SleepProviderExt as _},
 };

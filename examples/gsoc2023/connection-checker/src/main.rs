@@ -46,7 +46,7 @@ use arti_client::config::{BridgeConfigBuilder, CfgPath, Reconfigure};
 use arti_client::{TorClient, TorClientConfig};
 use clap::Parser;
 use tor_error::ErrorReport;
-use tor_proto::stream::ClientStreamCtrl as _;
+use tor_proto::client::stream::ClientStreamCtrl as _;
 use tor_rtcompat::PreferredRuntime;
 use tracing::{error, info};
 

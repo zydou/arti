@@ -5,7 +5,7 @@ use dyn_clone::DynClone;
 use futures::{SinkExt as _, StreamExt as _};
 use serde::{Deserialize, Serialize};
 use std::{net::IpAddr, sync::Arc};
-use tor_proto::stream::DataStream;
+use tor_proto::client::stream::DataStream;
 
 use tor_rpcbase as rpc;
 use tor_rtcompat::Runtime;

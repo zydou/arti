@@ -9,7 +9,7 @@ use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 use tor_circmgr::ServiceOnionServiceDataTunnel;
 use tor_hscrypto::Subcredential;
 use tor_keymgr::ArtiPath;
-use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
+use tor_proto::client::stream::{IncomingStream, IncomingStreamRequest};
 
 /// Request to complete an introduction/rendezvous handshake.
 ///
