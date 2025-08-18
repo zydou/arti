@@ -64,7 +64,7 @@ pub(crate) mod tunnel;
 mod util;
 
 #[cfg(feature = "relay")]
-pub(crate) mod relay_tunnel;
+pub(crate) mod relay;
 
 pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
