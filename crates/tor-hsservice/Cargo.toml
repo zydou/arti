@@ -16,6 +16,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+metrics = ["dep:metrics", "__is_experimental"]
 
 # Onion service proof of work schemes
 hs-pow-full = [
@@ -23,6 +24,7 @@ hs-pow-full = [
     "tor-netdoc/hs-pow-full",
     "tor-cell/hs-pow-full",
     "arrayvec",
+    "equix",
     "num-traits",
     "tor-checkable",
     "__is_experimental",
@@ -62,7 +64,7 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "hs-pow-full", "restricted-discovery"]
+experimental = ["experimental-api", "hs-pow-full", "restricted-discovery", "metrics"]
 experimental-api = ["restricted-discovery", "__is_experimental"]
 
 restricted-discovery = ["__is_experimental"]
@@ -80,6 +82,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.22"
+equix = { path = "../equix", version = "0.2.5", optional = true }
 fs-mistrust = { path = "../fs-mistrust", version = "0.10.0", features = ["serde"] }
 futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
@@ -87,6 +90,7 @@ hex = "0.4"
 humantime = "2"
 itertools = "0.14.0"
 k12 = "0.3.0"
+metrics = { version = "0.24.1", optional = true }
 num-traits = { version = "0.2.15", optional = true }
 once_cell = "1"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.3" }

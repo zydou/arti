@@ -53,4 +53,4 @@ features.
 
 MIT OR Apache-2.0
 
-When the `pow` feature is used, we link with LGPL licensed dependencies.
+When the `hs-pow-full` feature is used, we link with LGPL licensed dependencies.

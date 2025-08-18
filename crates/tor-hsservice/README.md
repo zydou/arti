@@ -43,3 +43,5 @@ You can learn more about the protocols here as part of the onion services
 [Specification](https://spec.torproject.org/rend-spec/index.html).
 
 LICENSE: MIT OR Apache-2.0
+
+When the `hs-pow-full` feature is used, we link with LGPL licensed dependencies.

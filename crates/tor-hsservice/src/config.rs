@@ -55,10 +55,23 @@ pub struct OnionServiceConfig {
     max_concurrent_streams_per_circuit: u32,
 
     /// If true, we will require proof-of-work when we're under heavy load.
-    // TODO POW: If this is set to true but the pow feature is disabled we should error.
     #[builder(default = "false")]
     #[deftly(publisher_view)]
     pub(crate) enable_pow: bool,
+
+    /// The maximum number of entries allowed in the rendezvous request queue when PoW is enabled.
+    ///
+    /// If you are seeing dropped requests, have a bursty traffic pattern, and have some memory to
+    /// spare, you may want to increase this.
+    ///
+    /// Each request will take a few KB, the default queue is expected to take 32MB at most.
+    // The "a few KB" measurement was done by using the get_size crate to
+    // measure the size of the RendRequest object, but due to limitations in
+    // that crate (and in my willingness to go implement ways of checking the
+    // size of external types), it might be somewhat off. The ~32MB value is
+    // based on the idea that each RendRequest is 4KB.
+    #[builder(default = "8192")]
+    pub(crate) pow_rend_queue_depth: usize,
 
     /// Configure restricted discovery mode.
     ///
@@ -81,20 +94,10 @@ pub struct OnionServiceConfig {
     // #[builder(default)]
     // #[deftly(publisher_view)]
     // pub(crate) anonymity: crate::Anonymity,
-
-    // TODO POW: The POW items are disabled for now, since they aren't implemented.
-    // /// Disable the compiled backend for proof-of-work.
-    // // disable_pow_compilation: bool,
-
-    // TODO POW: C tor has this, but I don't know if we want it.
-    //
-    // TODO POW: It's possible that we want this to relate, somehow, to our
-    // rate_limit_at_intro settings.
-    //
-    // /// A rate-limit on dispatching requests from the request queue when
-    // /// our proof-of-work defense is enabled.
-    // pow_queue_rate: TokenBucketConfig,
-    // ...
+    /// Whether to use the compiled backend for proof-of-work.
+    // TODO: Consider making this a global option instead?
+    #[builder(default = "false")]
+    disable_pow_compilation: bool,
 }
 
 derive_deftly_adhoc! {
@@ -227,8 +230,18 @@ impl OnionServiceConfig {
             // The descriptor publisher responds by generating and publishing a new descriptor.
             restricted_discovery: simply_update,
 
-            // TODO POW: Verify that simply_update has correct behaviour here.
-            enable_pow: simply_update,
+            // TODO (#2082): allow changing enable_pow while the client is running
+            enable_pow: unchangeable,
+
+            // Do note that if the depth of the queue is decreased at runtime to a value smaller
+            // than the number of items in the queue, that will prevent new requests from coming in
+            // until the queue is smaller than the new size, but if will not trim the existing
+            // queue.
+            pow_rend_queue_depth: simply_update,
+
+            // This is a little too much effort to allow to by dynamically changeable for what it's
+            // worth.
+            disable_pow_compilation: unchangeable,
         }
 
         Ok(other)
@@ -283,6 +296,15 @@ impl OnionServiceConfigBuilder {
         if let Some(Some(ref rate_limit)) = self.rate_limit_at_intro {
             let _ignore_extension: est_intro::DosParams =
                 dos_params_from_token_bucket_config(rate_limit)?;
+        }
+
+        cfg_if::cfg_if! {
+            if #[cfg(not(feature = "hs-pow-full"))] {
+                if self.enable_pow == Some(true) {
+                    // TODO (#2020) is it correct for this to raise a error?
+                    return Err(ConfigBuildError::NoCompileTimeSupport { field: "enable_pow".into(), problem: "Arti was built without hs-pow-full feature!".into() });
+                }
+            }
         }
 
         Ok(())

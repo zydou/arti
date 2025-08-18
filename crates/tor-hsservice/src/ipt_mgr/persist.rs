@@ -169,7 +169,7 @@ impl IptRecord {
                 action: "load IPT key(s)",
                 cause,
             },
-            CreateIptError::OpenReplayLog { file, error } => {
+            CreateIptError::OpenReplayLog(OpenReplayLogError { file, error }) => {
                 StartupError::StateDirectoryInaccessibleIo {
                     source: error,
                     action: "opening",

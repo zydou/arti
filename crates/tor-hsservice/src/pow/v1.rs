@@ -5,25 +5,30 @@
 //! * <https://spec.torproject.org/hspow-spec/v1-equix.html>
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, VecDeque},
     sync::{Arc, Mutex, RwLock},
     task::Waker,
     time::{Duration, Instant, SystemTime},
 };
 
 use arrayvec::ArrayVec;
+use equix::EquiXBuilder;
 use futures::task::SpawnExt;
 use futures::{SinkExt, StreamExt};
 use futures::{Stream, channel::mpsc};
 use num_traits::FromPrimitive;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tor_basic_utils::RngExt as _;
 use tor_cell::relaycell::hs::pow::{ProofOfWork, v1::ProofOfWorkV1};
 use tor_checkable::timed::TimerangeBound;
+use tor_error::warn_report;
 use tor_hscrypto::{
     pk::HsBlindIdKey,
-    pow::v1::{Effort, Instance, Seed, SeedHead, Solution, SolutionErrorV1, Verifier},
+    pow::v1::{
+        Effort, Instance, RuntimeOption, Seed, SeedHead, Solution, SolutionErrorV1, Verifier,
+    },
     time::TimePeriod,
 };
 use tor_keymgr::KeyMgr;
@@ -36,8 +41,10 @@ use tor_persist::{
 use tor_rtcompat::Runtime;
 
 use crate::{
-    BlindIdPublicKeySpecifier, CreateIptError, RendRequest, ReplayError, StartupError,
-    rend_handshake, replay::PowNonceReplayLog,
+    BlindIdPublicKeySpecifier, OnionServiceConfig, RendRequest, ReplayError, StartupError,
+    rend_handshake,
+    replay::{OpenReplayLogError, PowNonceReplayLog},
+    status::{PowManagerStatusSender, Problem, State as PowManagerState},
 };
 
 use super::NewPowManager;
@@ -92,6 +99,12 @@ struct State<R, Q> {
 
     /// [`NetDirProvider`], used for getting consensus parameters for configuration values.
     netdir_provider: Arc<dyn NetDirProvider>,
+
+    /// Sender for reporting back onion service status.
+    status_tx: PowManagerStatusSender,
+
+    /// Receiver for the current configuration.
+    config_rx: postage::watch::Receiver<Arc<OnionServiceConfig>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -137,7 +150,13 @@ pub(crate) struct PowManagerStateRecord {
     /// Most recently published suggested_effort value.
     #[serde(default)]
     suggested_effort: Effort,
-    // TODO POW: Consider whether we should persist other values from RendRequestReceiver.
+    // We don't persist any per-period state. While it might be sort of nice to, it's complex to
+    // decide when to write the state out to disk. The disadvantage to not storing it is that when
+    // we restart the process, we may be up to 5 minutes slower to update the suggested effort to a
+    // new value, which isn't particularly bad. The only case it would be bad is if a attacker has
+    // a way to cause the Arti process to restart (in which case they could do that just before the
+    // update period to pin the suggested effort value at a specific value), but if they have that,
+    // they have a much more valuable attack (including as a DoS vector) than just a PoW bypass.
 }
 
 impl<R: Runtime, Q> State<R, Q> {
@@ -149,18 +168,6 @@ impl<R: Runtime, Q> State<R, Q> {
         }
     }
 }
-
-/// Maximum depth of the queue of [`RendRequest`]s.
-// TODO POW: Allow this to be changed in onion service config.
-// Each request should take a few KB, so a queue of this depth should only take up ~32MB in the
-// worst case.
-//
-// The "a few KB" measurement was done by using the get_size crate to
-// measure the size of the RendRequest object, but due to limitations in
-// that crate (and in my willingness to go implement ways of checking the
-// size of external types), it might be somewhat off. The ~32MB value is
-// based on the idea that each RendRequest is 4KB.
-const REND_REQUEST_QUEUE_MAX_DEPTH: usize = 8192;
 
 /// How frequently the suggested effort should be recalculated.
 const HS_UPDATE_PERIOD: Duration = Duration::from_secs(300);
@@ -200,23 +207,28 @@ const _: () = assert!(
 /// 32 is likely way larger than we need but the messages are tiny so we might as well.
 const PUBLISHER_UPDATE_QUEUE_DEPTH: usize = 32;
 
-#[derive(Debug)]
+#[derive(Error, Debug, Clone)]
 #[allow(dead_code)] // We want to show fields in Debug even if we don't use them.
-/// Internal error within the PoW subsystem.
-pub(crate) enum InternalPowError {
+#[non_exhaustive]
+/// Error within the PoW subsystem.
+pub enum PowError {
     /// We don't have a key that is needed.
+    #[error("Missing required key.")]
     MissingKey,
     /// Error in the underlying storage layer.
-    StorageError,
+    #[error(transparent)]
+    StorageError(#[from] tor_persist::Error),
     /// Error from the ReplayLog.
-    CreateIptError(CreateIptError),
+    #[error(transparent)]
+    OpenReplayLog(#[from] OpenReplayLogError),
     /// NetDirProvider has shut down
-    NetdirProviderShutdown(NetdirProviderShutdown),
+    #[error(transparent)]
+    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
 }
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q> {
     /// Create a new [`PowManagerGeneric`].
-    #[allow(clippy::new_ret_no_self)]
+    #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     pub(crate) fn new(
         runtime: R,
         nickname: HsNickname,
@@ -224,14 +236,49 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         keymgr: Arc<KeyMgr>,
         storage_handle: StorageHandle<PowManagerStateRecord>,
         netdir_provider: Arc<dyn NetDirProvider>,
+        status_tx: PowManagerStatusSender,
+        config_rx: postage::watch::Receiver<Arc<OnionServiceConfig>>,
     ) -> Result<NewPowManager<R>, StartupError> {
         let on_disk_state = storage_handle
             .load()
             .map_err(StartupError::LoadState)?
             .unwrap_or(PowManagerStateRecord::default());
 
-        let seeds = on_disk_state.seeds.into_iter().collect();
+        let seeds: HashMap<TimePeriod, SeedsForTimePeriod> =
+            on_disk_state.seeds.into_iter().collect();
         let suggested_effort = Arc::new(Mutex::new(on_disk_state.suggested_effort));
+
+        let mut verifiers = HashMap::new();
+        for (tp, seeds_for_tp) in seeds.clone().into_iter() {
+            for seed in seeds_for_tp.seeds {
+                let verifier = match Self::make_verifier(
+                    &keymgr,
+                    nickname.clone(),
+                    tp,
+                    seed.clone(),
+                    &config_rx.borrow(),
+                ) {
+                    Some(verifier) => verifier,
+                    None => {
+                        tracing::warn!(
+                            "Couldn't construct verifier (key not available?). We will continue without this key, but this may prevent clients from connecting..."
+                        );
+                        continue;
+                    }
+                };
+                let replay_log = match PowNonceReplayLog::new_logged(&instance_dir, &seed) {
+                    Ok(replay_log) => replay_log,
+                    Err(err) => {
+                        warn_report!(
+                            err,
+                            "Error constructing replay log. We will continue without the log, but be aware that this may allow attackers to bypass PoW defenses..."
+                        );
+                        continue;
+                    }
+                };
+                verifiers.insert(seed.head(), (verifier, Mutex::new(replay_log)));
+            }
+        }
 
         // This queue is extremely small, and we only make one of it per onion service, so it's
         // fine to not use memquota tracking.
@@ -241,8 +288,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let (rend_req_tx, rend_req_rx_channel) = super::make_rend_queue();
         let rend_req_rx = RendRequestReceiver::new(
             runtime.clone(),
+            nickname.clone(),
             suggested_effort.clone(),
             netdir_provider.clone(),
+            status_tx.clone(),
+            config_rx.clone(),
         );
 
         let state = State {
@@ -251,12 +301,14 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             instance_dir,
             keymgr,
             publisher_update_tx,
-            verifiers: HashMap::new(),
+            verifiers,
             suggested_effort: suggested_effort.clone(),
             runtime: runtime.clone(),
             storage_handle,
             rend_request_rx: rend_req_rx.clone(),
             netdir_provider,
+            status_tx,
+            config_rx,
         };
         let pow_manager = Arc::new(PowManagerGeneric(RwLock::new(state)));
 
@@ -281,18 +333,28 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 spawning: "pow manager",
                 cause: cause.into(),
             })?;
+
+        self.0
+            .write()
+            .expect("Lock poisoned")
+            .status_tx
+            .send(PowManagerState::Running, None);
         Ok(())
     }
 
     /// Run [`Self::main_loop_task`], reporting any errors.
     async fn main_loop_error_wrapper(self: Arc<Self>) {
         if let Err(err) = self.clone().main_loop_task().await {
-            tracing::warn!(?err, "PoW main loop error!");
+            self.0
+                .write()
+                .expect("Lock poisoned")
+                .status_tx
+                .send_broken(Problem::Pow(err));
         }
     }
 
     /// Main loop for rotating seeds.
-    async fn main_loop_task(self: Arc<Self>) -> Result<(), InternalPowError> {
+    async fn main_loop_task(self: Arc<Self>) -> Result<(), PowError> {
         let runtime = self.0.write().expect("Lock poisoned").runtime.clone();
 
         let mut last_suggested_effort_update = runtime.now();
@@ -313,8 +375,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             .clone();
         let net_params = netdir_provider
             .wait_for_netdir(tor_netdir::Timeliness::Timely)
-            .await
-            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .await?
             .params()
             .clone();
 
@@ -393,17 +454,22 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         nickname: HsNickname,
         time_period: TimePeriod,
         seed: Seed,
+        config: &OnionServiceConfig,
     ) -> Option<Verifier> {
         let blind_id_spec = BlindIdPublicKeySpecifier::new(nickname, time_period);
         let blind_id_key = match keymgr.get::<HsBlindIdKey>(&blind_id_spec) {
             Ok(blind_id_key) => blind_id_key,
             Err(err) => {
-                tracing::warn!(?err, "KeyMgr error when getting blinded ID key for PoW");
+                warn_report!(err, "KeyMgr error when getting blinded ID key for PoW");
                 None
             }
         };
         let instance = Instance::new(blind_id_key?.id(), seed);
-        Some(Verifier::new(instance))
+        let mut equix = EquiXBuilder::default();
+        if *config.disable_pow_compilation() {
+            equix.runtime(RuntimeOption::InterpretOnly);
+        }
+        Some(Verifier::new_with_equix(instance, equix))
     }
 
     /// Calculate a time when we want to rotate a seed, slightly before it expires, in order to
@@ -439,11 +505,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
         let mut expired_tps = vec![];
 
         let mut publisher_update_tx = {
-            // TODO POW: get rng from the right place...
-            let mut rng = rand::rng();
-
             let mut state = self.0.write().expect("Lock poisoned");
 
+            let config = state.config_rx.borrow().clone();
             let keymgr = state.keymgr.clone();
             let nickname = state.nickname.clone();
 
@@ -452,12 +516,19 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 update_times.push(rotation_time);
 
                 if rotation_time <= SystemTime::now() {
+                    // This does not allow for easy testing, but because we're in a async function, it's
+                    // non-trivial to pass in a Rng from the outside world. If we end up writing tests that
+                    // require that, we can take a function to generate a Rng, but for now, just using the
+                    // thread rng is fine.
+                    let mut rng = rand::rng();
+
                     let seed = Seed::new(&mut rng, None);
                     let verifier = match Self::make_verifier(
                         &keymgr,
                         nickname.clone(),
                         *time_period,
                         seed.clone(),
+                        &config,
                     ) {
                         Some(verifier) => verifier,
                         None => {
@@ -513,7 +584,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
             let record = state.to_record();
             if let Err(err) = state.storage_handle.store(&record) {
-                tracing::warn!(?err, "Error saving PoW state");
+                warn_report!(err, "Error saving PoW state");
             }
 
             state.publisher_update_tx.clone()
@@ -521,7 +592,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
         for time_period in updated_tps {
             if let Err(err) = publisher_update_tx.send(time_period).await {
-                tracing::warn!(?err, "Couldn't send update message to publisher");
+                warn_report!(err, "Couldn't send update message to publisher");
             }
         }
 
@@ -532,10 +603,11 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
     ///
     /// If we don't have any [`Seed`]s for the requested period, generate them. This is the only
     /// way that [`PowManagerGeneric`] learns about new [`TimePeriod`]s.
-    pub(crate) fn get_pow_params(
+    pub(crate) fn get_pow_params<Rng: RngCore + CryptoRng>(
         self: &Arc<Self>,
         time_period: TimePeriod,
-    ) -> Result<PowParams, InternalPowError> {
+        rng: &mut Rng,
+    ) -> Result<PowParams, PowError> {
         let (seed_and_expiration, suggested_effort) = {
             let state = self.0.read().expect("Lock poisoned");
             let seed = state
@@ -551,11 +623,8 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
             None => {
                 // We don't have a seed for this time period, so we need to generate one.
 
-                // TODO POW: get rng from the right place...
-                let mut rng = rand::rng();
-
-                let seed = Seed::new(&mut rng, None);
-                let next_expiration_time = Self::make_next_expiration_time(&mut rng);
+                let seed = Seed::new(rng, None);
+                let next_expiration_time = Self::make_next_expiration_time(rng);
 
                 let mut seeds = ArrayVec::new();
                 seeds.push(seed.clone());
@@ -575,20 +644,16 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                     state.nickname.clone(),
                     time_period,
                     seed.clone(),
+                    &state.config_rx.borrow(),
                 )
-                .ok_or(InternalPowError::MissingKey)?;
+                .ok_or(PowError::MissingKey)?;
 
-                let replay_log = Mutex::new(
-                    PowNonceReplayLog::new_logged(&state.instance_dir, &seed)
-                        .map_err(InternalPowError::CreateIptError)?,
-                );
+                let replay_log =
+                    Mutex::new(PowNonceReplayLog::new_logged(&state.instance_dir, &seed)?);
                 state.verifiers.insert(seed.head(), (verifier, replay_log));
 
                 let record = state.to_record();
-                state
-                    .storage_handle
-                    .store(&record)
-                    .map_err(|_| InternalPowError::StorageError)?;
+                state.storage_handle.store(&record)?;
 
                 (seed, next_expiration_time)
             }
@@ -602,10 +667,9 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
 
     /// Verify a PoW solve.
     fn check_solve(self: &Arc<Self>, solve: &ProofOfWorkV1) -> Result<(), PowSolveError> {
-        // TODO POW: This puts the nonce in the replay structure before we check if the solve is
-        // valid, which could be a problem — a potential attack would be to send a large number of
-        // invalid solves with the hope of causing collisions with valid requests. This is probably
-        // highly impractical, but we should think through it before stabilizing PoW.
+        // Note that we put the nonce into the replay log before we check the solve. While this
+        // might not be ideal, it's not a problem and is probably the most reasonable thing to do.
+        // See commit bc5b313028 for a more full explaination.
         {
             let state = self.0.write().expect("Lock poisoned");
             let mut replay_log = match state.verifiers.get(&solve.seed_head()) {
@@ -676,6 +740,9 @@ struct RendRequestOrdByEffort<Q> {
     request: Q,
     /// The proof-of-work options, if given.
     pow: Option<ProofOfWorkV1>,
+    /// The maximum effort allowed. If the effort of this request is higher than this, it will be
+    /// treated as though it is this value.
+    max_effort: Effort,
     /// When this request was received, used for ordreing if the effort values are the same.
     recv_time: Instant,
     /// Unique number for this request, which is used for ordering among requests with the same
@@ -695,13 +762,14 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
         request_num: u64,
     ) -> Result<Self, rend_handshake::IntroRequestError> {
         let pow = match request.proof_of_work()?.cloned() {
-            Some(ProofOfWork::V1(pow)) => Some(pow.cap_effort(max_effort)),
+            Some(ProofOfWork::V1(pow)) => Some(pow),
             None | Some(_) => None,
         };
 
         Ok(Self {
             request,
             pow,
+            max_effort,
             recv_time: Instant::now(),
             request_num,
         })
@@ -710,11 +778,12 @@ impl<Q: MockableRendRequest> RendRequestOrdByEffort<Q> {
 
 impl<Q: MockableRendRequest> Ord for RendRequestOrdByEffort<Q> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
-        let other_effort = other
-            .pow
-            .as_ref()
-            .map_or(Effort::zero(), |pow| pow.effort());
+        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), self.max_effort)
+        });
+        let other_effort = other.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), other.max_effort)
+        });
         match self_effort.cmp(&other_effort) {
             std::cmp::Ordering::Equal => {
                 // Flip ordering, since we want the oldest ones to be handled first.
@@ -738,11 +807,12 @@ impl<Q: MockableRendRequest> PartialOrd for RendRequestOrdByEffort<Q> {
 
 impl<Q: MockableRendRequest> PartialEq for RendRequestOrdByEffort<Q> {
     fn eq(&self, other: &Self) -> bool {
-        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| pow.effort());
-        let other_effort = other
-            .pow
-            .as_ref()
-            .map_or(Effort::zero(), |pow| pow.effort());
+        let self_effort = self.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), self.max_effort)
+        });
+        let other_effort = other.pow.as_ref().map_or(Effort::zero(), |pow| {
+            Effort::min(pow.effort(), other.max_effort)
+        });
         self_effort == other_effort && self.recv_time == other.recv_time
     }
 }
@@ -773,14 +843,26 @@ struct RendRequestReceiverInner<R, Q> {
     /// Internal priority queue of requests.
     queue: BTreeSet<RendRequestOrdByEffort<Q>>,
 
+    /// Internal FIFO queue of requests used when PoW is disabled.
+    ///
+    /// We have this here to support switching back and forth between PoW enabled and disabled at
+    /// runtime, although that isn't currently supported.
+    queue_pow_disabled: VecDeque<Q>,
+
     /// Waker to inform async readers when there is a new message on the queue.
     waker: Option<Waker>,
 
     /// Runtime, used to get current time in a testable way.
     runtime: R,
 
+    /// Nickname, use when reporting metrics.
+    nickname: HsNickname,
+
     /// [`NetDirProvider`], for getting configuration values in consensus parameters.
     netdir_provider: Arc<dyn NetDirProvider>,
+
+    /// Current configuration, used to see whether PoW is enabled or not.
+    config_rx: postage::watch::Receiver<Arc<OnionServiceConfig>>,
 
     /// When the current update period started.
     update_period_start: Instant,
@@ -802,21 +884,30 @@ struct RendRequestReceiverInner<R, Q> {
     ///
     /// We write to this, which is then published in the pow-params line by [`PowManagerGeneric`].
     suggested_effort: Arc<Mutex<Effort>>,
+
+    /// Sender for reporting back onion service status.
+    status_tx: PowManagerStatusSender,
 }
 
 impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R, Q> {
     /// Create a new [`RendRequestReceiver`].
     fn new(
         runtime: R,
+        nickname: HsNickname,
         suggested_effort: Arc<Mutex<Effort>>,
         netdir_provider: Arc<dyn NetDirProvider>,
+        status_tx: PowManagerStatusSender,
+        config_rx: postage::watch::Receiver<Arc<OnionServiceConfig>>,
     ) -> Self {
         let now = runtime.now();
         RendRequestReceiver(Arc::new(Mutex::new(RendRequestReceiverInner {
             queue: BTreeSet::new(),
+            queue_pow_disabled: VecDeque::new(),
             waker: None,
             runtime,
+            nickname,
             netdir_provider,
+            config_rx,
             update_period_start: now,
             num_enqueued_gte_suggested: 0,
             num_dequeued: 0,
@@ -824,6 +915,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             last_transition: now,
             total_effort: 0,
             suggested_effort,
+            status_tx,
         })))
     }
 
@@ -837,20 +929,34 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         pow_manager: Arc<P>,
         inner_receiver: mpsc::Receiver<Q>,
     ) {
-        let receiver_clone = self.clone();
+        let receiver = self.clone();
         let runtime_clone = runtime.clone();
         let _ = runtime.clone().spawn_blocking(move || {
             if let Err(err) =
-                receiver_clone.accept_loop(&runtime_clone, &pow_manager, inner_receiver)
+                receiver
+                    .clone()
+                    .accept_loop(&runtime_clone, &pow_manager, inner_receiver)
             {
-                tracing::warn!(?err, "PoW accept loop error!");
+                warn_report!(err, "PoW accept loop error!");
+                receiver
+                    .0
+                    .lock()
+                    .expect("Lock poisoned")
+                    .status_tx
+                    .send_broken(Problem::Pow(err));
             }
         });
 
-        let receiver_clone = self.clone();
+        let receiver = self.clone();
         let _ = runtime.clone().spawn_blocking(move || {
-            if let Err(err) = receiver_clone.expire_old_requests_loop(&runtime) {
-                tracing::warn!(?err, "PoW request expiration loop error!");
+            if let Err(err) = receiver.clone().expire_old_requests_loop(&runtime) {
+                warn_report!(err, "PoW request expiration loop error!");
+                receiver
+                    .0
+                    .lock()
+                    .expect("Lock poisoned")
+                    .status_tx
+                    .send_broken(Problem::Pow(err));
             }
         });
     }
@@ -934,7 +1040,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
         runtime: &R,
         pow_manager: &Arc<P>,
         mut receiver: mpsc::Receiver<Q>,
-    ) -> Result<(), InternalPowError> {
+    ) -> Result<(), PowError> {
         let mut request_num = 0;
 
         let netdir_provider = self
@@ -944,8 +1050,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .netdir_provider
             .clone();
         let net_params = runtime
-            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))?
             .params()
             .clone();
 
@@ -956,63 +1061,117 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .expect("Bounded i32 not in range of u32?!");
         let max_effort = Effort::from(max_effort);
 
+        let config_rx = self.0.lock().expect("Lock poisoned").config_rx.clone();
+
+        let nickname = self.0.lock().expect("Lock poisoned").nickname.to_string();
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "metrics")] {
+                let counter_rendrequest_error_total = metrics::counter!("arti_hss_pow_rendrequest_error_total", "nickname" => nickname.clone());
+                let counter_rendrequest_verification_failure = metrics::counter!("arti_hss_pow_rendrequest_verification_failure_total", "nickname" => nickname.clone());
+                let counter_rend_queue_overflow = metrics::counter!("arti_hss_pow_rend_queue_overflow_total", "nickname" => nickname.clone());
+                let counter_rendrequest_enqueued = metrics::counter!("arti_hss_pow_rendrequest_enqueued_total", "nickname" => nickname.clone());
+                let histogram_rendrequest_effort = metrics::histogram!("arti_hss_pow_rendrequest_effort_hist", "nickname" => nickname.clone());
+            }
+        }
+
         loop {
-            let rend_request = runtime
-                .reenter_block_on(receiver.next())
-                .expect("Other side of RendRequest queue hung up");
-            let rend_request =
-                match RendRequestOrdByEffort::new(rend_request, max_effort, request_num) {
-                    Ok(rend_request) => rend_request,
-                    Err(err) => {
-                        tracing::trace!(?err, "Error processing RendRequest");
+            let rend_request = if let Some(rend_request) = runtime.reenter_block_on(receiver.next())
+            {
+                rend_request
+            } else {
+                self.0
+                    .lock()
+                    .expect("Lock poisoned")
+                    .status_tx
+                    .send_shutdown();
+                return Ok(());
+            };
+
+            if config_rx.borrow().enable_pow {
+                let rend_request =
+                    match RendRequestOrdByEffort::new(rend_request, max_effort, request_num) {
+                        Ok(rend_request) => rend_request,
+                        Err(err) => {
+                            #[cfg(feature = "metrics")]
+                            counter_rendrequest_error_total.increment(1);
+                            tracing::trace!(?err, "Error processing RendRequest");
+                            continue;
+                        }
+                    };
+
+                request_num = request_num.wrapping_add(1);
+
+                if let Some(ref pow) = rend_request.pow {
+                    if let Err(err) = pow_manager.check_solve(pow) {
+                        tracing::debug!(?err, "PoW verification failed");
+                        #[cfg(feature = "metrics")]
+                        counter_rendrequest_verification_failure.increment(1);
                         continue;
-                    }
-                };
-
-            request_num = request_num.wrapping_add(1);
-
-            if let Some(ref pow) = rend_request.pow {
-                if let Err(err) = pow_manager.check_solve(pow) {
-                    tracing::debug!(?err, "PoW verification failed");
-                    continue;
-                }
-            }
-
-            let mut inner = self.0.lock().expect("Lock poisoned");
-            if inner.queue.is_empty() {
-                let now = runtime.now();
-                let last_transition = inner.last_transition;
-                inner.idle_time += now - last_transition;
-                inner.last_transition = now;
-            }
-            if let Some(ref request_pow) = rend_request.pow {
-                if request_pow.effort() >= *inner.suggested_effort.lock().expect("Lock poisoned") {
-                    inner.num_enqueued_gte_suggested += 1;
-                    let effort: u32 = request_pow.effort().into();
-                    if let Some(total_effort) = inner.total_effort.checked_add(effort.into()) {
-                        inner.total_effort = total_effort;
                     } else {
-                        tracing::warn!("PoW total_effort would overflow");
-                        inner.total_effort = u64::MAX;
+                        #[cfg(feature = "metrics")]
+                        {
+                            let effort: u32 = pow.effort().into();
+                            histogram_rendrequest_effort.record(effort);
+                        }
                     }
                 }
-            }
-            if inner.queue.len() >= REND_REQUEST_QUEUE_MAX_DEPTH {
-                let dropped_request = inner.queue.pop_first();
-                tracing::debug!(
-                    dropped_effort = ?dropped_request.map(|x| x.pow.map(|x| x.effort())),
-                    "RendRequest queue full, dropping request."
-                );
-            }
-            inner.queue.insert(rend_request);
-            if let Some(waker) = &inner.waker {
-                waker.wake_by_ref();
+
+                let mut inner = self.0.lock().expect("Lock poisoned");
+                if inner.queue.is_empty() {
+                    let now = runtime.now();
+                    let last_transition = inner.last_transition;
+                    inner.idle_time += now - last_transition;
+                    inner.last_transition = now;
+                }
+                if let Some(ref request_pow) = rend_request.pow {
+                    if request_pow.effort()
+                        >= *inner.suggested_effort.lock().expect("Lock poisoned")
+                    {
+                        inner.num_enqueued_gte_suggested += 1;
+                        let effort: u32 = request_pow.effort().into();
+                        if let Some(total_effort) = inner.total_effort.checked_add(effort.into()) {
+                            inner.total_effort = total_effort;
+                        } else {
+                            tracing::warn!(
+                                "PoW total_effort would overflow. The total effort has been capped, but this is not expected to happen - please file a bug report with logs and information about the circumstances under which this occured."
+                            );
+                            inner.total_effort = u64::MAX;
+                        }
+                    }
+                }
+                if inner.queue.len() >= config_rx.borrow().pow_rend_queue_depth {
+                    let dropped_request = inner.queue.pop_first();
+                    #[cfg(feature = "metrics")]
+                    counter_rend_queue_overflow.increment(1);
+                    tracing::debug!(
+                        dropped_effort = ?dropped_request.map(|x| x.pow.map(|x| x.effort())),
+                        "RendRequest queue full, dropping request."
+                    );
+                }
+                inner.queue.insert(rend_request);
+                #[cfg(feature = "metrics")]
+                counter_rendrequest_enqueued.increment(1);
+                if let Some(waker) = &inner.waker {
+                    waker.wake_by_ref();
+                }
+            } else {
+                // TODO (#2082): when allowing enable_pow to be toggled at runtime, we will need to
+                // do bookkeeping here, as above. Perhaps it can be refactored nicely so the
+                // bookkeeping code can be the same in both cases.
+                let mut inner = self.0.lock().expect("Lock poisoned");
+                inner.queue_pow_disabled.push_back(rend_request);
+                #[cfg(feature = "metrics")]
+                counter_rendrequest_enqueued.increment(1);
+                if let Some(waker) = &inner.waker {
+                    waker.wake_by_ref();
+                }
             }
         }
     }
 
     /// Loop to check for messages that are older than our timeout and remove them from the queue.
-    fn expire_old_requests_loop(self, runtime: &R) -> Result<(), InternalPowError> {
+    fn expire_old_requests_loop(self, runtime: &R) -> Result<(), PowError> {
         let netdir_provider = self
             .0
             .lock()
@@ -1020,8 +1179,7 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .netdir_provider
             .clone();
         let net_params = runtime
-            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))
-            .map_err(InternalPowError::NetdirProviderShutdown)?
+            .reenter_block_on(netdir_provider.wait_for_netdir(tor_netdir::Timeliness::Timely))?
             .params()
             .clone();
 
@@ -1031,6 +1189,10 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
             .expect(
                 "Couldn't convert HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds to Duration",
             );
+
+        let nickname = self.0.lock().expect("Lock poisoned").nickname.to_string();
+        #[cfg(feature = "metrics")]
+        let counter_rendrequest_expired = metrics::counter!("arti_hss_pow_rendrequest_expired_total", "nickname" => nickname.clone());
 
         loop {
             let inner = self.0.lock().expect("Lock poisoned");
@@ -1047,10 +1209,15 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> RendRequestReceiver<R,
 
             runtime.reenter_block_on(runtime.sleep(wait_time));
 
-            tracing::trace!("Expiring timed out RendRequests");
             let mut inner = self.0.lock().expect("Lock poisoned");
             let now = runtime.now();
+            let prev_len = inner.queue.len();
             inner.queue.retain(|r| now - r.recv_time < max_age);
+            let dropped = prev_len - inner.queue.len();
+            tracing::trace!(dropped, "Expired timed out RendRequests");
+            #[cfg(feature = "metrics")]
+            counter_rendrequest_expired
+                .increment(dropped.try_into().expect("usize overflowed u64!"));
         }
     }
 }
@@ -1063,18 +1230,27 @@ impl<R: Runtime, Q: MockableRendRequest> Stream for RendRequestReceiver<R, Q> {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         let mut inner = self.get_mut().0.lock().expect("Lock poisoned");
-        match inner.queue.pop_last() {
-            Some(item) => {
-                inner.num_dequeued += 1;
-                if inner.queue.is_empty() {
-                    inner.last_transition = inner.runtime.now();
+        if inner.config_rx.borrow().enable_pow {
+            match inner.queue.pop_last() {
+                Some(item) => {
+                    inner.num_dequeued += 1;
+                    if inner.queue.is_empty() {
+                        inner.last_transition = inner.runtime.now();
+                    }
+                    std::task::Poll::Ready(Some(item.request))
                 }
-                std::task::Poll::Ready(Some(item.request))
+                None => {
+                    inner.waker = Some(cx.waker().clone());
+                    std::task::Poll::Pending
+                }
             }
-            None => {
-                inner.waker = Some(cx.waker().clone());
-                std::task::Poll::Pending
-            }
+        } else if let Some(request) = inner.queue_pow_disabled.pop_front() {
+            // TODO (#2082): when we allow changing enable_pow at runtime, we will need to do
+            // bookkeeping here.
+            std::task::Poll::Ready(Some(request))
+        } else {
+            inner.waker = Some(cx.waker().clone());
+            std::task::Poll::Pending
         }
     }
 }
@@ -1082,6 +1258,9 @@ impl<R: Runtime, Q: MockableRendRequest> Stream for RendRequestReceiver<R, Q> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    use crate::config::OnionServiceConfigBuilder;
+    use crate::status::{OnionServiceStatus, StatusSender};
+
     use super::*;
     use futures::FutureExt;
     use tor_hscrypto::pow::v1::{Nonce, SolutionByteArray};
@@ -1139,14 +1318,17 @@ mod test {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn make_test_receiver(
         runtime: &MockRuntime,
         netdir_params: Vec<(String, i32)>,
+        config: Option<OnionServiceConfig>,
     ) -> (
         RendRequestReceiver<MockRuntime, MockRendRequest>,
         mpsc::Sender<MockRendRequest>,
         Arc<Mutex<Effort>>,
         NetParameters,
+        postage::watch::Sender<Arc<OnionServiceConfig>>,
     ) {
         let pow_manager = Arc::new(MockPowManager);
         let suggested_effort = Arc::new(Mutex::new(Effort::zero()));
@@ -1160,19 +1342,36 @@ mod test {
         .unwrap();
         let net_params = netdir.params().clone();
         let netdir_provider: Arc<TestNetDirProvider> = Arc::new(netdir.into());
-        let receiver: RendRequestReceiver<_, MockRendRequest> =
-            RendRequestReceiver::new(runtime.clone(), suggested_effort.clone(), netdir_provider);
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
+        let nickname = HsNickname::new("test-hs".to_string()).unwrap();
+        let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(
+            config.unwrap_or(
+                OnionServiceConfigBuilder::default()
+                    .nickname(nickname.clone())
+                    .enable_pow(true)
+                    .build()
+                    .unwrap(),
+            ),
+        ));
+        let receiver: RendRequestReceiver<_, MockRendRequest> = RendRequestReceiver::new(
+            runtime.clone(),
+            nickname.clone(),
+            suggested_effort.clone(),
+            netdir_provider,
+            status_tx,
+            config_rx,
+        );
         let (tx, rx) = mpsc::channel(32);
         receiver.start_accept_thread(runtime.clone(), pow_manager, rx);
 
-        (receiver, tx, suggested_effort, net_params)
+        (receiver, tx, suggested_effort, net_params, config_tx)
     }
 
     #[test]
     fn test_basic_pow_ordering() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (mut receiver, mut tx, _suggested_effort, _net_params) =
-                make_test_receiver(&runtime, vec![]);
+            let (mut receiver, mut tx, _suggested_effort, _net_params, _config_tx) =
+                make_test_receiver(&runtime, vec![], None);
 
             // Request with no PoW
             tx.send(make_req(0, None)).await.unwrap();
@@ -1201,13 +1400,15 @@ mod test {
     #[test]
     fn test_suggested_effort_increase() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (mut receiver, mut tx, suggested_effort, net_params) = make_test_receiver(
-                &runtime,
-                vec![(
-                    "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds".to_string(),
-                    60000,
-                )],
-            );
+            let (mut receiver, mut tx, suggested_effort, net_params, _config_tx) =
+                make_test_receiver(
+                    &runtime,
+                    vec![(
+                        "HiddenServiceProofOfWorkV1ServiceIntroTimeoutSeconds".to_string(),
+                        60000,
+                    )],
+                    None,
+                );
 
             // Get through all the requests in plenty of time, no increase
 
@@ -1320,8 +1521,8 @@ mod test {
     #[test]
     fn test_rendrequest_timeout() {
         MockRuntime::test_with_various(|runtime| async move {
-            let (receiver, mut tx, _suggested_effort, net_params) =
-                make_test_receiver(&runtime, vec![]);
+            let (receiver, mut tx, _suggested_effort, net_params, _config_tx) =
+                make_test_receiver(&runtime, vec![], None);
 
             let r0 = MockRendRequest { id: 0, pow: None };
             tx.send(r0).await.unwrap();
@@ -1334,6 +1535,91 @@ mod test {
 
             // Waited too long, request has been dropped
             assert_eq!(receiver.0.lock().unwrap().queue.len(), 0);
+        });
+    }
+
+    #[test]
+    fn test_pow_disabled() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let (mut receiver, mut tx, _suggested_effort, _net_params, _config_tx) =
+                make_test_receiver(
+                    &runtime,
+                    vec![],
+                    Some(
+                        OnionServiceConfigBuilder::default()
+                            .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                            .enable_pow(false)
+                            .build()
+                            .unwrap(),
+                    ),
+                );
+
+            // Request with no PoW
+            tx.send(make_req(0, None)).await.unwrap();
+            tx.send(make_req(1, Some(0))).await.unwrap();
+            tx.send(make_req(2, Some(20))).await.unwrap();
+            tx.send(make_req(3, Some(10))).await.unwrap();
+
+            runtime.progress_until_stalled().await;
+
+            // Requests are FIFO, since PoW is disabled
+            assert_eq!(receiver.next().await.unwrap().id, 0);
+            assert_eq!(receiver.next().await.unwrap().id, 1);
+            assert_eq!(receiver.next().await.unwrap().id, 2);
+            assert_eq!(receiver.next().await.unwrap().id, 3);
+        });
+    }
+
+    #[test]
+    fn test_rend_queue_max_depth() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let (mut receiver, mut tx, _suggested_effort, _net_params, mut config_tx) =
+                make_test_receiver(
+                    &runtime,
+                    vec![],
+                    Some(
+                        OnionServiceConfigBuilder::default()
+                            .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                            .enable_pow(true)
+                            .pow_rend_queue_depth(2)
+                            .build()
+                            .unwrap(),
+                    ),
+                );
+
+            tx.send(make_req(0, None)).await.unwrap();
+            tx.send(make_req(1, None)).await.unwrap();
+            tx.send(make_req(2, None)).await.unwrap();
+
+            runtime.progress_until_stalled().await;
+
+            assert!(receiver.next().await.is_some());
+            assert!(receiver.next().await.is_some());
+            assert_eq!(receiver.0.lock().unwrap().queue.len(), 0);
+
+            // Check that increasing queue size at runtime works...
+
+            config_tx
+                .send(Arc::new(
+                    OnionServiceConfigBuilder::default()
+                        .nickname(HsNickname::new("test-hs".to_string()).unwrap())
+                        .enable_pow(true)
+                        .pow_rend_queue_depth(8)
+                        .build()
+                        .unwrap(),
+                ))
+                .await
+                .unwrap();
+
+            tx.send(make_req(0, None)).await.unwrap();
+            tx.send(make_req(1, None)).await.unwrap();
+            tx.send(make_req(2, None)).await.unwrap();
+
+            runtime.progress_until_stalled().await;
+
+            assert!(receiver.next().await.is_some());
+            assert!(receiver.next().await.is_some());
+            assert!(receiver.next().await.is_some());
         });
     }
 }

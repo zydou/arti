@@ -122,7 +122,6 @@ pub(crate) use {
     crate::err::IptStoreError,
     crate::err::StateExpiryError,
     crate::ipt_lid::{InvalidIptLocalId, IptLocalId},
-    crate::ipt_mgr::CreateIptError,
     crate::ipt_mgr::IptManager,
     crate::ipt_set::IptSet,
     crate::ipt_set::IptsManagerView,

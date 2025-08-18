@@ -138,6 +138,7 @@ experimental = [
 ]
 metrics = [
     "dep:metrics-exporter-prometheus",
+    "tor-hsservice?/metrics",
     "tor-hsrproxy?/metrics",
     "__is_experimental",
 ]

@@ -145,8 +145,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     }
 }
 
-// TODO POW: Enable this test for hs-pow-full once the MockExecutor supports this
-#[cfg(all(test, not(feature = "hs-pow-full")))]
+#[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
@@ -179,7 +178,7 @@ mod test {
     use test_temp_dir::test_temp_dir;
 
     use tor_basic_utils::test_rng::{TestingRng, testing_rng};
-    use tor_circmgr::hspool::HsCircKind;
+
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
     use tor_key_forge::ToEncodableKey;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeySpecifier};
@@ -274,8 +273,7 @@ mod test {
             Ok(MockClientCirc {
                 publish_count: Arc::clone(&self.publish_count),
                 poll_read_responses: poll_read_responses.clone(),
-            }
-            .into())
+            })
         }
 
         fn estimate_upload_timeout(&self) -> Duration {
@@ -463,7 +461,7 @@ mod test {
         keymgr: Arc<KeyMgr>,
         pv: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
-        status_tx: PublisherStatusSender,
+        status_tx: StatusSender,
         netdir: NetDir,
         reactor_event: impl FnOnce(),
         poll_read_responses: I,
@@ -501,6 +499,8 @@ mod test {
                 keymgr.clone(),
                 pow_manager_storage_handle,
                 netdir_provider.clone(),
+                status_tx.clone().into(),
+                config_rx.clone(),
             )
             .unwrap();
             let mut status_rx = status_tx.subscribe();
@@ -511,7 +511,7 @@ mod test {
                 circpool,
                 pv,
                 config_rx,
-                status_tx,
+                status_tx.into(),
                 keymgr,
                 Arc::new(CfgPathResolver::default()),
                 pow_manager,
@@ -631,7 +631,7 @@ mod test {
         // If any of the uploads fail, they will be retried. Note that the upload failure will
         // affect _each_ hsdir, so the expected number of uploads is a multiple of hsdir_count.
         let expected_upload_count = hsdir_count * multiplier;
-        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown()).into();
+        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         run_test(
             runtime.clone(),

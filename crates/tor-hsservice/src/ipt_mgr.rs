@@ -5,7 +5,7 @@
 //!
 //! See [`IptManager::run_once`] for discussion of the implementation approach.
 
-use crate::internal_prelude::*;
+use crate::{internal_prelude::*, replay::OpenReplayLogError};
 
 use IptStatusStatus as ISS;
 use TrackedStatus as TS;
@@ -290,7 +290,7 @@ enum ChooseIptError {
 /// An error that happened while trying to crate an IPT (at a selected relay)
 ///
 /// Used only within the IPT manager.
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub(crate) enum CreateIptError {
     /// Fatal error
     #[error("fatal error")]
@@ -301,14 +301,8 @@ pub(crate) enum CreateIptError {
     Keystore(#[from] tor_keymgr::Error),
 
     /// Error opening the intro request replay log
-    #[error("unable to open the intro req replay log: {file:?}")]
-    OpenReplayLog {
-        /// What filesystem object we tried to do it to
-        file: PathBuf,
-        /// What happened
-        #[source]
-        error: Arc<io::Error>,
-    },
+    #[error(transparent)]
+    OpenReplayLog(#[from] OpenReplayLogError),
 }
 
 //========== Relays we've chosen, and IPTs ==========

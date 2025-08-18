@@ -141,12 +141,12 @@ impl<T: ReplayLogType> ReplayLog<T> {
     pub(crate) fn new_logged(
         dir: &InstanceRawSubdir,
         name: &T::Name,
-    ) -> Result<Self, CreateIptError> {
+    ) -> Result<Self, OpenReplayLogError> {
         let leaf = T::format_filename(name);
         let path = dir.as_path().join(leaf);
         let lock_guard = dir.raw_lock_guard();
 
-        Self::new_logged_inner(&path, lock_guard).map_err(|error| CreateIptError::OpenReplayLog {
+        Self::new_logged_inner(&path, lock_guard).map_err(|error| OpenReplayLogError {
             file: path,
             error: error.into(),
         })
@@ -354,6 +354,17 @@ pub(crate) enum ReplayError {
     /// We were unable to record this item in the log.
     #[error("Unable to log data")]
     Log(Arc<std::io::Error>),
+}
+
+/// Error occured while opening replay log.
+#[derive(thiserror::Error, Clone, Debug)]
+#[error("unable to open replay log: {file:?}")]
+pub struct OpenReplayLogError {
+    /// What filesystem object we tried to do it to
+    pub(crate) file: PathBuf,
+    /// What happened
+    #[source]
+    pub(crate) error: Arc<io::Error>,
 }
 
 #[cfg(test)]
