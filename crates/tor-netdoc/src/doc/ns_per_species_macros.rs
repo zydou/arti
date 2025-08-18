@@ -77,7 +77,7 @@
 //! Instead, in each of `vote.rs`, `plain.rs` and `md.rs`,
 //! call [`ns_do_species_vote`], [`ns_do_species_plain`], or [`ns_do_species_md`].
 //!
-//! This module will be included three times, once each as a submodule
+//! The `per_species.rs` file will be included three times, once each as a submodule
 //! of the species-specific file.
 //! So there will be `...:vote::per_species::`, etc.,
 //! all of which will automatically be re-imported into the parent `vote`.
