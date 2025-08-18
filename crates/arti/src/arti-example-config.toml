@@ -472,9 +472,9 @@
 # to Arti when we launch?
 #max_files = 16384
 
-# Are we limiting memory use and if so to how much?
-#
-# Maximum memory use, after which reclamation starts.
+## Are we limiting memory use, and if so to how much?
+
+# Maximum tracked memory use, after which reclamation starts.
 #
 # The default is "auto", which uses a value derived from the total system
 # memory. It should not be assumed that the value used for "auto" will remain
@@ -485,7 +485,8 @@
 # `system.memory.max` must also be given as an explicit value.
 #
 #    memory.max = "8 GiB"
-#
+
+# Low-water mark for tracked memory:
 # When reclaiming memory, we stop when we reach this amount.
 #
 # The default is "auto", which uses 3/4 of `system.memory.max`. It should not be
