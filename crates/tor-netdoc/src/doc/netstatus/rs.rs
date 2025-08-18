@@ -9,6 +9,7 @@ mod md;
 #[cfg(feature = "ns-consensus")]
 mod plain;
 
+// Export md::ConsensusRouterStatus as MdConsensusRouterStatus, etc.
 ns_export_per_species! {
     ty: ConsensusRouterStatus;
 }

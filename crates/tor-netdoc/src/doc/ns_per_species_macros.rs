@@ -256,6 +256,7 @@ use ns_do_species_vote;
 /// and must contain the same items.
 //
 // Should prefix items with Plain/PLAIN_, rather than Ns/NS_
+// XXXX rename to ns_export_each_vareity
 macro_rules! ns_export_per_species {
     {
         $kind:ident: $( $ty:ident ),* $(,)?
