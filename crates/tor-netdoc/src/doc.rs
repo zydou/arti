@@ -32,7 +32,7 @@
 use crate::util::intern::InternCache;
 
 #[macro_use]
-mod ns_per_variety_macros;
+mod ns_variety_definition_macros;
 
 pub mod authcert;
 #[cfg(feature = "hs-common")]

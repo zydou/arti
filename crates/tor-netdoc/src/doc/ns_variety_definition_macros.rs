@@ -7,7 +7,6 @@
 //!
 //! We call these three kinds of document "variety".
 // XXXX Rename `per_variety` to `each_variety`.
-// XXXX Rename this file to ns_variety_definition_macros.rs
 //! So a variety is either "vote", or a consensus flavour.
 //!
 //! # Overwview
@@ -45,7 +44,7 @@
 //! which will be included once for each variety.
 //!
 //! Within `each_variety.rs`, macros are available
-//! (provided by the machinery here in `ns_per_variety_macros`)
+//! (provided by the machinery here in `ns_variety_definition_macros`)
 //! which can be used to define individual fields, or code fragments,
 //! which vary between varietys.
 //!
@@ -169,7 +168,7 @@
 
 /// Includes items from `per_variety.rs` for a particular variety.
 ///
-/// **Internal to `ns_per_variety_macros.rs`, do not use directly!**
+/// **Internal to `ns_variety_definition_macros.rs`, do not use directly!**
 ///
 ///  * `$abbrev` is one of `vote`, `plain`, or `md` as applicable.
 ///
