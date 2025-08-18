@@ -10,6 +10,57 @@
 // XXXX Rename `per_species` to `each_variety`.
 //! So a species is either "vote", or a consensus flavour.
 //!
+//! # Overwview
+//1
+//! Network status documents, including consensuses (of various flavours) and votes,
+//! have a lot of similarity.
+//! But they also have a lot of fiddly ad-hoc differences.
+//!
+//! To deal with this similarity, and to avoid repeating too much code,
+//! while still handling the variation, we do as follows:
+//!
+//!  * Types which are simply the same for all varieties,
+//!    are defined in shared modules like
+//!    `tor_netdoc::doc::netstatus` (whole network status documents) and
+//!    `tor_netdoc::doc::netstatus::rs` (router status entries).
+// We would like to linkify ^ these but that involves decorating many things pub(crate)
+// only in #[cfg(doc)] which is quite annoying.  These are just examples, anyway.
+//!
+//!  * Types which are completely different between varieties
+//!    are defined in ordinary variety-specific modules like
+//!    `tor_netdoc::doc::netstatus::rs::md`
+//!    (router status entries in microdescriptor consensus).
+//!
+//!  * Types which are *similar* across varieties, but not identical,
+//!    are handled via a per-variety macro-and-multiple-inclusion scheme.
+//!    That scheme is implemented in this module.
+//!
+//! # Each-variety macro and multiple inclusion scheme
+//!
+//! This module contains macros that will be used to define
+//! similar-but-not-identical  types
+//! for each document variety ("vote", "md", and "plain").
+//!
+//! The definition of such type is in an `each_variety.rs` file,
+//! which will be included once for each variety.
+//!
+//! Within `each_variety.rs`, macros are available
+//! (provided by the machinery here in `ns_per_species_macros`)
+//! which can be used to define individual fields, or code fragments,
+//! which vary between varietys.
+//!
+//! Inclusion of the `each_variety.rs` file, as adapted for the particular variety,
+//! is done by calling `ns_do_species_SPECIES`
+//! in the (handwritten) specifies-specific module.
+//!
+//! For example, the call to `ns_do_species_md!()`
+//! in `tor-netdoc/src/doc/netstatus/rs/md.rs`
+//! imports all of the contents of
+//! `tor-netdoc/src/doc/netstatus/rs/each_species.rs`
+//! into the module `doc::netstatus::rs::md`.
+//! And, for example, within `rs/each_species.rs`,
+//! `ns_const_name!(FOO)` expands to `MD_FOO`.
+//!
 //! # Usage
 //!
 //! Create and include (with `mod`) normal module files:
