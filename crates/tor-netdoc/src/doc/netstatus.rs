@@ -82,6 +82,19 @@ pub use rs::MdConsensusRouterStatus;
 pub use rs::PlainConsensusRouterStatus;
 use void::ResultVoidExt as _;
 
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use PlainConsensus as NsConsensus;
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use PlainConsensusRouterStatus as NsConsensusRouterStatus;
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use UncheckedPlainConsensus as UncheckedNsConsensus;
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
+
 /// The lifetime of a networkstatus document.
 ///
 /// In a consensus, this type describes when the consensus may safely
