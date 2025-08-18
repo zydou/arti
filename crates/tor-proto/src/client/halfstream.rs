@@ -99,8 +99,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::{
-        congestion::sendme::{StreamRecvWindow, StreamSendWindow},
         client::stream::DataCmdChecker,
+        congestion::sendme::{StreamRecvWindow, StreamSendWindow},
     };
     use rand::{CryptoRng, Rng};
     use tor_basic_utils::test_rng::testing_rng;
