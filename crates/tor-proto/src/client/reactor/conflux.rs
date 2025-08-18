@@ -24,9 +24,9 @@ use tor_linkspec::HasRelayIds as _;
 
 use crate::circuit::path::HopDetail;
 use crate::circuit::{TunnelMutableState, UniqId};
-use crate::crypto::cell::HopNum;
 use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::{TunnelId, streammap};
+use crate::crypto::cell::HopNum;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;

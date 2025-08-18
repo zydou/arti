@@ -48,12 +48,12 @@ pub(crate) mod unique_id;
 
 use crate::channel::Channel;
 use crate::circuit::handshake::RelayCryptLayerProtocol;
+use crate::client::circuit::celltypes::*;
+use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::CircuitAccount;
-use crate::client::circuit::celltypes::*;
-use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use cfg_if::cfg_if;
@@ -66,9 +66,9 @@ use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
 use tor_rtcompat::DynTimeProvider;
 
+pub use crate::client::circuit::unique_id::UniqId;
 pub use crate::crypto::binding::CircuitBinding;
 pub use crate::memquota::StreamAccount;
-pub use crate::client::circuit::unique_id::UniqId;
 
 use super::{ClientTunnel, TargetHop};
 

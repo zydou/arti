@@ -3,11 +3,11 @@
 use super::{Circuit, ReactorResultChannel};
 use crate::circuit::HopSettings;
 use crate::circuit::handshake::HandshakeRole;
+use crate::client::TunnelScopedCircId;
+use crate::client::reactor::MetaCellDisposition;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
-use crate::client::TunnelScopedCircId;
-use crate::client::reactor::MetaCellDisposition;
 use crate::{Error, Result};
 use crate::{HopLocation, congestion};
 use oneshot_fused_workaround as oneshot;
@@ -17,10 +17,10 @@ use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_cell::relaycell::{AnyRelayMsgOuter, UnparsedRelayMsg};
 use tor_error::internal;
 
-use crate::crypto::handshake::ntor::NtorClient;
-use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::client::circuit::path;
 use crate::client::reactor::{MetaCellHandler, SendRelayCell};
+use crate::crypto::handshake::ntor::NtorClient;
+use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use tor_cell::relaycell::extend::CircResponseExt;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 use tracing::trace;

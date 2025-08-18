@@ -10,9 +10,9 @@ use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 use tracing::debug;
 
+use crate::client::StreamTarget;
 use crate::congestion::sendme;
 use crate::stream::queue::StreamQueueReceiver;
-use crate::client::StreamTarget;
 use crate::{Error, Result};
 
 /// The read part of a stream on a particular circuit.

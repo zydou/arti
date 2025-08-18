@@ -1,11 +1,11 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
-use crate::congestion::sendme;
-use crate::stream::queue::StreamQueueSender;
-use crate::stream::{AnyCmdChecker, StreamFlowControl};
 use crate::client::circuit::StreamMpscReceiver;
 use crate::client::halfstream::HalfStream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
+use crate::congestion::sendme;
+use crate::stream::queue::StreamQueueSender;
+use crate::stream::{AnyCmdChecker, StreamFlowControl};
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;
@@ -564,8 +564,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::stream::queue::fake_stream_queue;
     use crate::client::circuit::test::fake_mpsc;
+    use crate::stream::queue::fake_stream_queue;
     use crate::{congestion::sendme::StreamSendWindow, stream::DataCmdChecker};
 
     #[test]

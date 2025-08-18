@@ -3,17 +3,17 @@
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::circuit::HopSettings;
+use crate::client::TunnelScopedCircId;
+use crate::client::circuit::StreamMpscReceiver;
+use crate::client::streammap::{
+    self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
+};
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
 use crate::stream::queue::StreamQueueSender;
 use crate::stream::{
     AnyCmdChecker, DrainRateRequest, StreamFlowControl, StreamRateLimit, StreamStatus,
-};
-use crate::client::TunnelScopedCircId;
-use crate::client::circuit::StreamMpscReceiver;
-use crate::client::streammap::{
-    self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};

@@ -44,8 +44,8 @@ use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 
 #[cfg(feature = "hs-service")]
 use {
-    crate::stream::{IncomingCmdChecker, IncomingStream},
     crate::client::reactor::StreamReqInfo,
+    crate::stream::{IncomingCmdChecker, IncomingStream},
 };
 
 #[cfg(feature = "send-control-msg")]

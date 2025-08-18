@@ -11,9 +11,9 @@ use tor_cell::relaycell::conflux::V1Nonce;
 use tor_cell::relaycell::{RelayCmd, StreamId, UnparsedRelayMsg};
 use tor_error::{Bug, internal};
 
-use crate::crypto::cell::HopNum;
 use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::reactor::{CircuitCmd, RemoveLegReason};
+use crate::crypto::cell::HopNum;
 
 use client::ClientConfluxMsgHandler;
 

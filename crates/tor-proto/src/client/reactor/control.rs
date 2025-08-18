@@ -7,16 +7,16 @@ use super::{
 };
 use crate::Result;
 use crate::circuit::HopSettings;
-use crate::crypto::binding::CircuitBinding;
-use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
-use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
-use crate::stream::queue::StreamQueueSender;
-use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
 use crate::client::circuit::celltypes::CreateResponse;
 use crate::client::circuit::path;
 use crate::client::reactor::circuit::circ_extensions_from_settings;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::client::{HopLocation, TargetHop, streammap};
+use crate::crypto::binding::CircuitBinding;
+use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
+use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
+use crate::stream::queue::StreamQueueSender;
+use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 #[cfg(test)]
@@ -30,8 +30,8 @@ use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage};
 use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
 use {
-    super::StreamReqSender, crate::stream::IncomingStreamRequestFilter,
-    crate::client::reactor::IncomingStreamRequestHandler,
+    super::StreamReqSender, crate::client::reactor::IncomingStreamRequestHandler,
+    crate::stream::IncomingStreamRequestFilter,
 };
 
 #[cfg(test)]
@@ -42,8 +42,8 @@ use super::{Circuit, ConfluxLinkResultChannel};
 
 use oneshot_fused_workaround as oneshot;
 
-use crate::crypto::handshake::ntor::NtorPublicKey;
 use crate::client::circuit::StreamMpscReceiver;
+use crate::crypto::handshake::ntor::NtorPublicKey;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;

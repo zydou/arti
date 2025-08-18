@@ -529,8 +529,8 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::{ClosedUnexpectedly, UniqId};
-    use crate::fake_mpsc;
     use crate::client::circuit::CircParameters;
+    use crate::fake_mpsc;
     use crate::util::fake_mq;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;

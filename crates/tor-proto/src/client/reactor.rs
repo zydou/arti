@@ -21,6 +21,10 @@ mod conflux;
 mod control;
 pub(super) mod syncview;
 
+use crate::client::circuit::CircuitRxReceiver;
+use crate::client::circuit::celltypes::ClientCircChanMsg;
+use crate::client::circuit::unique_id::UniqId;
+use crate::client::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, streammap};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
@@ -28,10 +32,6 @@ use crate::stream::queue::StreamQueueReceiver;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
 use crate::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
-use crate::client::circuit::CircuitRxReceiver;
-use crate::client::circuit::celltypes::ClientCircChanMsg;
-use crate::client::circuit::unique_id::UniqId;
-use crate::client::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, streammap};
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
@@ -58,8 +58,8 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 
 use crate::channel::Channel;
-use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::client::circuit::StreamMpscSender;
+use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use derive_deftly::Deftly;
 use derive_more::From;
 use tor_cell::chancell::CircId;
