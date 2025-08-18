@@ -566,7 +566,7 @@ mod test {
     use super::*;
     use crate::client::circuit::test::fake_mpsc;
     use crate::client::stream::queue::fake_stream_queue;
-    use crate::{congestion::sendme::StreamSendWindow, stream::DataCmdChecker};
+    use crate::{congestion::sendme::StreamSendWindow, client::stream::DataCmdChecker};
 
     #[test]
     fn test_wrapping_next_stream_id() {

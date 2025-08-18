@@ -100,7 +100,7 @@ mod test {
     use super::*;
     use crate::{
         congestion::sendme::{StreamRecvWindow, StreamSendWindow},
-        stream::DataCmdChecker,
+        client::stream::DataCmdChecker,
     };
     use rand::{CryptoRng, Rng};
     use tor_basic_utils::test_rng::testing_rng;
