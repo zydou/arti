@@ -43,8 +43,7 @@
 //! As with the other tor-netdoc types, I'm deferring those till I know what
 //! they should be.
 
-// pub(crate) for the benefit of rustdocs of the species macros
-pub(crate) mod rs;
+mod rs;
 
 #[cfg(feature = "build_docs")]
 mod build;

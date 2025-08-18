@@ -5,9 +5,6 @@ use super::*;
 
 ns_do_species_md! {}
 
-// for the benefit of rustdocs of the species macros
-pub(crate) use ns_ty_name;
-
 use crate::doc::microdesc::{MdDigest as DocDigest, DOC_DIGEST_LEN};
 
 /// The flavor

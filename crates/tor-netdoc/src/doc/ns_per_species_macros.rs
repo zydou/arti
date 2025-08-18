@@ -41,7 +41,7 @@
 //! the following macros are defined for use in `per_species.rs`
 //! for species-dependent elements:
 //!
-//! * **[`ns_ty_name!`](crate::doc::netstatus::rs::md::ns_ty_name)`( BaseTtypeName )`**:
+//! * **`ns_ty_name!( BaseTtypeName )`**:
 //!
 //!   Expands to `NsBaseTypeName`, `MdBaseTypeName`, or `VoteBaseTypeName`.
 // XXXX should be PlainBaseTypeName not Ns_
@@ -49,8 +49,6 @@
 //!   Cannot be used to *define* a type.
 //!   (Define the type with an unqualified name, and
 //!   re-export it with the qualified name, using `ns_export_per_species`.)
-//
-// There are two copies of this doc - one in the macro definition, below, and, one here.
 //!
 //! * **`ns_const_name!( BASE_CONST_NAME )`**:
 //!
@@ -135,16 +133,6 @@ macro_rules! ns_do_one_species { {
             ( compile_error!("missing definition of what to do for the vote variety") )
         } }
     }
-
-    /// Expands to `VoteBaseTypeName`, `NsBaseTypeName`, or `MdBaseTypeName`.
-    ///
-    /// Cannot be used to *define* a type.
-    /// (Define the type with an unqualified name, and
-    /// re-export it with the qualified name, using `ns_export_per_species`.)
-    ///
-    /// See [`ns_per_species_macros`](crate::doc::ns_per_species_macros).
-    //
-    // There are two copies of this doc - one at the module toplevel, and this one here.
     #[allow(unused)] // Each of these macros is redefined per-call site, so may be unused
     macro_rules! ns_ty_name {
         { $d base:ident } => { paste::paste!( [< $prefix:camel_case   $d base >] ) }
