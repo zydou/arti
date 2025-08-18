@@ -27,7 +27,7 @@ each corresponding roughly to an application-level request.
 
 This crate implements the logic, protocols, and cryptography that
 implement these [`channel::Channel`]s, [`circuit::ClientCirc`]s, and
-[`stream::DataStream`]s.  It uses rust async code and future-related
+[`client::stream::DataStream`]s.  It uses rust async code and future-related
 traits, and is intended to work with (nearly) any executor
 implementation that complies with the futures API.  It should also
 work with nearly any TLS implementation that exposes AsyncRead and
