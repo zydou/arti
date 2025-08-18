@@ -167,12 +167,14 @@ macro_rules! ns_do_one_species { {
 ///
 /// Use within `plain.rs`.
 macro_rules! ns_do_species_plain { {} => { ns_do_one_species! { plain : plain md vote $ } } }
+#[cfg(doc)]
 use ns_do_species_plain;
 
 /// Include species-agnostic items, for an md consensus, from `per_species.rs`.
 ///
 /// Use within `md.rs`.
 macro_rules! ns_do_species_md   { {} => { ns_do_one_species! { md   : plain md vote $ } } }
+#[cfg(doc)]
 use ns_do_species_md;
 
 /// Include species-agnostic items, for a vote, from `per_species.rs`.
@@ -180,6 +182,7 @@ use ns_do_species_md;
 /// Use within `vote.rs`.
 #[allow(unused)] // TODO feature = "ns-vote"
 macro_rules! ns_do_species_vote { {} => { ns_do_one_species! { vote : plain md vote $ } } }
+#[cfg(doc)]
 use ns_do_species_vote;
 
 /// Export species-specific names from each module.
