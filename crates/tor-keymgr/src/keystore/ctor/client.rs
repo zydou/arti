@@ -175,7 +175,7 @@ impl CTorClientKeystore {
             let content = match self.read_key(path) {
                 Ok(c) => c,
                 Err(e) => {
-                    debug_report!(e.clone(), "failed to read {}", path.display_lossy());
+                    debug_report!(&e, "failed to read {}", path.display_lossy());
                     return Some(Err(e));
                 }
             }?;

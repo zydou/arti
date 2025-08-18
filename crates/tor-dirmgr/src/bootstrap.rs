@@ -636,8 +636,7 @@ pub(crate) async fn download<R: Runtime>(
                 futures::select_biased! {
                     outcome = download_attempt(&dirmgr, state, parallelism.into(), attempt_id).fuse() => {
                         if let Err(e) = outcome {
-                            // TODO: get warn_report! to support `attempt=%attempt_id`?
-                            warn_report!(e, "Error while downloading (attempt {})", attempt_id);
+                            warn_report!(e, attempt=%attempt_id, "Error while downloading.");
                             propagate_fatal_errors!(Err(e));
                             continue 'next_attempt;
                         } else {

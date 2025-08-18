@@ -1805,7 +1805,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     // to do a traffic tagging attack via hsdir inflation.
                     // (See proposal 360.)
                     warn_report!(
-                        &e.clone(),
+                        e,
                         "Suspicious error while uploading descriptor to {}/{}",
                         ed_id,
                         rsa_id

@@ -201,8 +201,8 @@ impl<S: SleepProvider> Reactor<S> {
         // May log at a higher level depending on the error kind.
         const MSG: &str = "Reactor stopped";
         match &result {
-            Ok(()) => debug!("{self}: {MSG}"),
-            Err(e) => debug_report!(e, "{}: {}", self, MSG),
+            Ok(()) => debug!(channel_id = %self, "{MSG}"),
+            Err(e) => debug_report!(e, channel_id = %self, "{MSG}"),
         }
 
         // Inform any waiters that the channel has closed.
