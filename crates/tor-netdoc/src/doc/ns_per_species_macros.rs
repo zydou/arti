@@ -136,7 +136,8 @@
 //  * Generics: `NetworkStatus<Species>`.
 //
 //    The generics get everywhere, and they seriously mess up the
-//    ad-hoc specialisation used for type-based multiplicity dispatch.
+//    ad-hoc specialisation used for type-based multiplicity dispatch
+//    (see tor-netdoc/src/parse2/multiplicity.rs).
 //    We used this scheme for consensuses vs microdescriptor consensuses,
 //    but it's not workable for votes, so we are switching.
 //
