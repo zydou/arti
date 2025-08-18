@@ -257,6 +257,9 @@ use ns_do_species_vote;
 //
 // Should prefix items with Plain/PLAIN_, rather than Ns/NS_
 // XXXX rename to ns_export_each_vareity
+//
+// TODO consider instead making the species-specific module names public.
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3139#note_3239852
 macro_rules! ns_export_per_species {
     {
         $kind:ident: $( $ty:ident ),* $(,)?
