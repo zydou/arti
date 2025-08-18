@@ -18,15 +18,15 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::congestion::sendme::StreamRecvWindow;
-use crate::crypto::cell::HopNum;
-use crate::memquota::{SpecificAccount as _, StreamAccount};
 use crate::client::stream::queue::stream_queue;
 use crate::client::stream::xon_xoff::XonXoffReaderCtrl;
 use crate::client::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamRateLimit, StreamReceiver,
 };
+use crate::congestion::sendme::StreamRecvWindow;
+use crate::crypto::cell::HopNum;
+use crate::memquota::{SpecificAccount as _, StreamAccount};
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
 use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path, StreamMpscSender, UniqId};

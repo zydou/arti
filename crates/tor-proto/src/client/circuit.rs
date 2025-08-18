@@ -1112,13 +1112,13 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{CodecError, test::new_reactor};
+    use crate::client::stream::DataStream;
+    #[cfg(feature = "hs-service")]
+    use crate::client::stream::IncomingStreamRequestFilter;
     use crate::congestion::test_utils::params::build_cc_vegas_params;
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
     use crate::memquota::SpecificAccount as _;
-    use crate::client::stream::DataStream;
-    #[cfg(feature = "hs-service")]
-    use crate::client::stream::IncomingStreamRequestFilter;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};

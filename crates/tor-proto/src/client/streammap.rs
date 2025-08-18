@@ -3,9 +3,9 @@
 use crate::client::circuit::StreamMpscReceiver;
 use crate::client::halfstream::HalfStream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
-use crate::congestion::sendme;
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::stream::{AnyCmdChecker, StreamFlowControl};
+use crate::congestion::sendme;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;

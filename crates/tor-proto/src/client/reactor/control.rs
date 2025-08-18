@@ -11,12 +11,12 @@ use crate::client::circuit::celltypes::CreateResponse;
 use crate::client::circuit::path;
 use crate::client::reactor::circuit::circ_extensions_from_settings;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
+use crate::client::stream::queue::StreamQueueSender;
+use crate::client::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
 use crate::client::{HopLocation, TargetHop, streammap};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
-use crate::client::stream::queue::StreamQueueSender;
-use crate::client::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 #[cfg(test)]
