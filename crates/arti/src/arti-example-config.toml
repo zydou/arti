@@ -472,20 +472,24 @@
 # to Arti when we launch?
 #max_files = 16384
 
-# Are we limiting memory use and if so to how much?
-#
-# Maximum memory use, after which reclamation starts.
+## Are we limiting memory use, and if so to how much?
+
+# Maximum tracked memory use, after which reclamation starts.
 #
 # The default is "auto", which uses a value derived from the total system
 # memory. It should not be assumed that the value used for "auto" will remain
 # stable across different versions of arti. The value used for "auto" may also
 # take into account other OS-specific features, such as cgroups on Linux.
 #
+# Note that not all memory usage is tracked: Arti can actually
+# use more memory than is listed here for various kinds of overhead.
+#
 # If `system.memory.low_water` is given as an explicit value,
 # `system.memory.max` must also be given as an explicit value.
 #
 #    memory.max = "8 GiB"
-#
+
+# Low-water mark for tracked memory:
 # When reclaiming memory, we stop when we reach this amount.
 #
 # The default is "auto", which uses 3/4 of `system.memory.max`. It should not be
