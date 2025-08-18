@@ -11,7 +11,7 @@ use tor_protover::Protocols;
 use std::net::SocketAddr;
 
 #[cfg(feature = "ns-consensus")]
-use super::NsConsensusRouterStatus;
+use super::PlainConsensusRouterStatus;
 #[cfg(feature = "ns-consensus")]
 use crate::doc::routerdesc::RdDigest;
 
@@ -164,13 +164,13 @@ impl RouterStatusBuilder<RdDigest> {
     /// provided ConsensusBuilder.
     pub fn build_into(
         &self,
-        builder: &mut ConsensusBuilder<NsConsensusRouterStatus>,
+        builder: &mut ConsensusBuilder<PlainConsensusRouterStatus>,
     ) -> Result<()> {
         builder.add_rs(self.build()?);
         Ok(())
     }
     /// Return a router status built by this object.
-    pub fn build(&self) -> Result<NsConsensusRouterStatus> {
+    pub fn build(&self) -> Result<PlainConsensusRouterStatus> {
         Ok(self.finish()?.into())
     }
 }

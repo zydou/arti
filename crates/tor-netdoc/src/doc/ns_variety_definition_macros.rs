@@ -108,8 +108,7 @@
 //!
 //! * **`ns_ty_name!( BaseTypeName )`**:
 //!
-//!   Expands to `NsBaseTypeName`, `MdBaseTypeName`, or `VoteBaseTypeName`.
-// TODO should be PlainBaseTypeName not Ns, needs incompatible change.
+//!   Expands to `PlainBaseTypeName`, `MdBaseTypeName`, or `VoteBaseTypeName`.
 //!
 //!   Cannot be used to *define* a type.
 //!   (Define the type with an unqualified name, and
@@ -117,8 +116,7 @@
 //!
 //! * **`ns_const_name!( BASE_CONST_NAME )`**:
 //!
-//!   Expands to `NS_BASE_CONST_NAME`, `VOTE_BASE_CONST_NAME`, or `MD_BASE_CONST_NAME`.
-// TODO should be PLAIN_BASE_CONST_NAME not NS_ (see above)
+//!   Expands to `PLAIN_BASE_CONST_NAME`, `VOTE_BASE_CONST_NAME`, or `MD_BASE_CONST_NAME`.
 //!
 //! * **`ns_type!( TypeForPlainConsensus, TypeForMdConsensus, [TypeForVote] )`**:
 //!
@@ -267,8 +265,6 @@ use ns_do_variety_vote;
 /// All three modules `vote`, `plain`, and `md` must exist,
 /// and must contain the same items.
 //
-// Should prefix items with Plain/PLAIN_, rather than Ns/NS_
-//
 // TODO consider instead making the variety-specific module names public.
 // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3139#note_3239852
 macro_rules! ns_export_each_variety {
@@ -287,7 +283,7 @@ macro_rules! ns_export_each_variety {
     } => { paste::paste!{
         #[cfg(feature = "ns-consensus")]
         #[cfg_attr(docsrs, doc(cfg(feature = "ns-consensus")))]
-        pub use { plain ::$id as [<ns   $($case)* $($infix)* $id>] };
+        pub use { plain ::$id as [<plain   $($case)* $($infix)* $id>] };
         // unconditional
         pub use { md  ::$id as [<md   $($case)* $($infix)* $id>] };
         #[cfg(feature = "ns-vote")] // TODO ns-vote this feature doesn't exist yet
