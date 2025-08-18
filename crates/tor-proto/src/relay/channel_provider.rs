@@ -4,7 +4,7 @@
 
 use crate::Result;
 use crate::channel::Channel;
-use crate::tunnel::TunnelId;
+use crate::client::TunnelId;
 
 use futures::channel::mpsc;
 

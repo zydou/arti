@@ -52,8 +52,8 @@ use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::CircuitAccount;
-use crate::tunnel::circuit::celltypes::*;
-use crate::tunnel::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
+use crate::client::circuit::celltypes::*;
+use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use cfg_if::cfg_if;
@@ -68,7 +68,7 @@ use tor_rtcompat::DynTimeProvider;
 
 pub use crate::crypto::binding::CircuitBinding;
 pub use crate::memquota::StreamAccount;
-pub use crate::tunnel::circuit::unique_id::UniqId;
+pub use crate::client::circuit::unique_id::UniqId;
 
 use super::{ClientTunnel, TargetHop};
 
@@ -87,7 +87,7 @@ pub use path::{Path, PathEntry};
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
-pub use crate::tunnel::reactor::syncview::ClientCircSyncView;
+pub use crate::client::reactor::syncview::ClientCircSyncView;
 
 /// MPSC queue relating to a stream (either inbound or outbound), sender
 pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
@@ -921,7 +921,7 @@ impl PendingClientTunnel {
         unique_id: UniqId,
         runtime: DynTimeProvider,
         memquota: CircuitAccount,
-    ) -> (PendingClientTunnel, crate::tunnel::reactor::Reactor) {
+    ) -> (PendingClientTunnel, crate::client::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel, id, unique_id, input, runtime, memquota.clone());
@@ -1145,7 +1145,7 @@ pub(crate) mod test {
 
     #[cfg(feature = "conflux")]
     use {
-        crate::tunnel::reactor::ConfluxHandshakeResult,
+        crate::client::reactor::ConfluxHandshakeResult,
         crate::util::err::ConfluxHandshakeError,
         futures::future::FusedFuture,
         futures::lock::Mutex as AsyncMutex,
@@ -2286,7 +2286,7 @@ pub(crate) mod test {
         fn disposition(
             &mut self,
             _ctx: &crate::stream::IncomingStreamRequestContext<'_>,
-            _circ: &crate::tunnel::reactor::syncview::ClientCircSyncView<'_>,
+            _circ: &crate::client::reactor::syncview::ClientCircSyncView<'_>,
         ) -> Result<crate::stream::IncomingStreamRequestDisposition> {
             Ok(crate::stream::IncomingStreamRequestDisposition::Accept)
         }

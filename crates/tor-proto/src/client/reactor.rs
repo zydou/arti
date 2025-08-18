@@ -28,10 +28,10 @@ use crate::stream::queue::StreamQueueReceiver;
 use crate::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
 use crate::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
-use crate::tunnel::circuit::CircuitRxReceiver;
-use crate::tunnel::circuit::celltypes::ClientCircChanMsg;
-use crate::tunnel::circuit::unique_id::UniqId;
-use crate::tunnel::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, streammap};
+use crate::client::circuit::CircuitRxReceiver;
+use crate::client::circuit::celltypes::ClientCircChanMsg;
+use crate::client::circuit::unique_id::UniqId;
+use crate::client::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, streammap};
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
@@ -59,7 +59,7 @@ use std::sync::Arc;
 
 use crate::channel::Channel;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
-use crate::tunnel::circuit::StreamMpscSender;
+use crate::client::circuit::StreamMpscSender;
 use derive_deftly::Deftly;
 use derive_more::From;
 use tor_cell::chancell::CircId;
@@ -1515,5 +1515,5 @@ impl CellHandlers {
 
 #[cfg(test)]
 mod test {
-    // Tested in [`crate::tunnel::circuit::test`].
+    // Tested in [`crate::client::circuit::test`].
 }

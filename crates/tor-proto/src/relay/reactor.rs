@@ -4,8 +4,8 @@ use crate::DynTimeProvider;
 use crate::Result;
 use crate::channel::Channel;
 use crate::memquota::CircuitAccount;
-use crate::tunnel::circuit::unique_id::UniqId;
-use crate::tunnel::{TunnelId, TunnelScopedCircId};
+use crate::client::circuit::unique_id::UniqId;
+use crate::client::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 
 use tor_cell::chancell::CircId;
@@ -20,7 +20,7 @@ use tracing::trace;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 
-use crate::tunnel::reactor::unwrap_or_shutdown;
+use crate::client::reactor::unwrap_or_shutdown;
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 
 /// A message telling the reactor to do something.

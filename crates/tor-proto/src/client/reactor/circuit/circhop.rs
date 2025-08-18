@@ -10,9 +10,9 @@ use crate::stream::queue::StreamQueueSender;
 use crate::stream::{
     AnyCmdChecker, DrainRateRequest, StreamFlowControl, StreamRateLimit, StreamStatus,
 };
-use crate::tunnel::TunnelScopedCircId;
-use crate::tunnel::circuit::StreamMpscReceiver;
-use crate::tunnel::streammap::{
+use crate::client::TunnelScopedCircId;
+use crate::client::circuit::StreamMpscReceiver;
+use crate::client::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
 use crate::util::notify::NotifySender;

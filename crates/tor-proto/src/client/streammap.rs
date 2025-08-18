@@ -3,9 +3,9 @@
 use crate::congestion::sendme;
 use crate::stream::queue::StreamQueueSender;
 use crate::stream::{AnyCmdChecker, StreamFlowControl};
-use crate::tunnel::circuit::StreamMpscReceiver;
-use crate::tunnel::halfstream::HalfStream;
-use crate::tunnel::reactor::circuit::RECV_WINDOW_INIT;
+use crate::client::circuit::StreamMpscReceiver;
+use crate::client::halfstream::HalfStream;
+use crate::client::reactor::circuit::RECV_WINDOW_INIT;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;
@@ -536,7 +536,7 @@ pub(super) enum TerminateReason {
     /// corresponding senders were all dropped.
     StreamTargetClosed,
     /// Closing a stream because we were explicitly told to end it via
-    /// [`StreamTarget::close_pending`](crate::tunnel::StreamTarget::close_pending).
+    /// [`StreamTarget::close_pending`](crate::client::StreamTarget::close_pending).
     ExplicitEnd,
 }
 
@@ -565,7 +565,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::stream::queue::fake_stream_queue;
-    use crate::tunnel::circuit::test::fake_mpsc;
+    use crate::client::circuit::test::fake_mpsc;
     use crate::{congestion::sendme::StreamSendWindow, stream::DataCmdChecker};
 
     #[test]

@@ -9,7 +9,7 @@ use tor_cell::relaycell::{AnyRelayMsgOuter, RelayMsg, UnparsedRelayMsg};
 
 use crate::{Error, Result};
 
-use crate::tunnel::reactor::MetaCellDisposition;
+use crate::client::reactor::MetaCellDisposition;
 
 use super::HopLocation;
 

@@ -22,14 +22,14 @@ use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::queue::{StreamQueueSender, stream_queue};
 use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
-use crate::tunnel::TunnelScopedCircId;
-use crate::tunnel::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
-use crate::tunnel::circuit::handshake::{BoxedClientLayer, HandshakeRole};
-use crate::tunnel::circuit::path;
-use crate::tunnel::circuit::unique_id::UniqId;
-use crate::tunnel::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
-use crate::tunnel::reactor::MetaCellDisposition;
-use crate::tunnel::streammap;
+use crate::client::TunnelScopedCircId;
+use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
+use crate::client::circuit::path;
+use crate::client::circuit::unique_id::UniqId;
+use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
+use crate::client::reactor::MetaCellDisposition;
+use crate::client::streammap;
 use crate::util::SinkExt as _;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
@@ -81,8 +81,8 @@ use {
 use {
     super::conflux::ConfluxMsgHandler,
     super::conflux::{ConfluxAction, OooRelayMsg},
-    crate::tunnel::TunnelId,
-    crate::tunnel::reactor::RemoveLegReason,
+    crate::client::TunnelId,
+    crate::client::reactor::RemoveLegReason,
 };
 
 pub(super) use circhop::{CircHop, CircHopList};
@@ -339,7 +339,7 @@ impl Circuit {
     ) {
         use tor_protover::{Protocols, named};
 
-        use crate::tunnel::circuit::test::DummyCrypto;
+        use crate::client::circuit::test::DummyCrypto;
 
         assert!(matches!(format, RelayCellFormat::V0));
         let _ = format; // TODO-CGO: remove this once we have CGO+hs implemented.
@@ -798,7 +798,7 @@ impl Circuit {
         use tor_error::into_internal;
         use tor_log_ratelim::log_ratelim;
 
-        use crate::{circuit::CIRCUIT_BUFFER_SIZE, tunnel::reactor::StreamReqInfo};
+        use crate::{circuit::CIRCUIT_BUFFER_SIZE, client::reactor::StreamReqInfo};
 
         // We need to construct this early so that we don't double-borrow &mut self
 

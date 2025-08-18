@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::tunnel::ClientTunnel;
+use crate::client::ClientTunnel;
 
 /// An object that lets the owner "control" a client stream.
 ///

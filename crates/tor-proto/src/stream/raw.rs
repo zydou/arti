@@ -12,7 +12,7 @@ use tracing::debug;
 
 use crate::congestion::sendme;
 use crate::stream::queue::StreamQueueReceiver;
-use crate::tunnel::StreamTarget;
+use crate::client::StreamTarget;
 use crate::{Error, Result};
 
 /// The read part of a stream on a particular circuit.

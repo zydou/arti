@@ -29,7 +29,7 @@
 //!
 //! One you have a running channel, you can create circuits on it with
 //! its [Channel::new_tunnel] method.  See
-//! [crate::tunnel::circuit::PendingClientTunnel] for information on how to
+//! [crate::client::circuit::PendingClientTunnel] for information on how to
 //! proceed from there.
 //!
 //! # Design
@@ -72,7 +72,7 @@ use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
-use crate::{ClockSkew, tunnel};
+use crate::{ClockSkew, client};
 use crate::{Error, Result};
 use reactor::BoxedChannelStreamOps;
 use safelog::sensitive as sv;
@@ -96,7 +96,7 @@ use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider, StreamOps
 mod testing_exports {
     #![allow(unreachable_pub)]
     pub use super::reactor::CtrlMsg;
-    pub use crate::tunnel::circuit::celltypes::CreateResponse;
+    pub use crate::client::circuit::celltypes::CreateResponse;
 }
 #[cfg(feature = "testing")]
 pub use testing_exports::*;
@@ -673,10 +673,10 @@ impl Channel {
     ///
     /// To use the results of this method, call Reactor::run() in a
     /// new task, then use the methods of
-    /// [crate::tunnel::circuit::PendingClientTunnel] to build the circuit.
+    /// [crate::client::circuit::PendingClientTunnel] to build the circuit.
     pub async fn new_tunnel(
         self: &Arc<Self>,
-    ) -> Result<(PendingClientTunnel, tunnel::reactor::Reactor)> {
+    ) -> Result<(PendingClientTunnel, client::reactor::Reactor)> {
         if self.is_closing() {
             return Err(ChannelClosed.into());
         }

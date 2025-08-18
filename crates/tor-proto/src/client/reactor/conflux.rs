@@ -25,8 +25,8 @@ use tor_linkspec::HasRelayIds as _;
 use crate::circuit::path::HopDetail;
 use crate::circuit::{TunnelMutableState, UniqId};
 use crate::crypto::cell::HopNum;
-use crate::tunnel::reactor::circuit::ConfluxStatus;
-use crate::tunnel::{TunnelId, streammap};
+use crate::client::reactor::circuit::ConfluxStatus;
+use crate::client::{TunnelId, streammap};
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
@@ -1195,5 +1195,5 @@ fn cmd_counts_towards_seqno(cmd: RelayCmd) -> bool {
 
 #[cfg(test)]
 mod test {
-    // Tested in [`crate::tunnel::circuit::test`].
+    // Tested in [`crate::client::circuit::test`].
 }

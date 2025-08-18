@@ -9,9 +9,9 @@ use tor_error::{Bug, internal, warn_report};
 use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 
 use crate::Error;
-use crate::tunnel::HopNum;
-use crate::tunnel::reactor::circuit::{ConfluxStatus, unsupported_client_cell};
-use crate::tunnel::reactor::{CircuitCmd, SendRelayCell};
+use crate::client::HopNum;
+use crate::client::reactor::circuit::{ConfluxStatus, unsupported_client_cell};
+use crate::client::reactor::{CircuitCmd, SendRelayCell};
 
 use super::AbstractConfluxMsgHandler;
 

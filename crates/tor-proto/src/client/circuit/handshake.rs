@@ -32,7 +32,7 @@ pub use crate::crypto::handshake::KeyGenerator;
 pub use crate::crypto::handshake::hs_ntor;
 
 /// The relay protocol to use when extending a circuit manually with
-/// [`Circuit::extend_virtual`](crate::tunnel::circuit::ClientCirc::extend_virtual).
+/// [`Circuit::extend_virtual`](crate::client::circuit::ClientCirc::extend_virtual).
 //
 // NOTE: These correspond internally to implementations of
 // crate::crypto::cell::ClientLayer.
@@ -45,7 +45,7 @@ pub enum RelayProtocol {
 }
 
 /// Internal counterpart of RelayProtocol; includes variants that can't be
-/// negotiated from [`extend_virtual`](crate::tunnel::circuit::ClientCirc::extend_virtual).
+/// negotiated from [`extend_virtual`](crate::client::circuit::ClientCirc::extend_virtual).
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum RelayCryptLayerProtocol {
     /// The original Tor cell encryption protocol, using AES-128 and SHA-1.

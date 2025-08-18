@@ -2,7 +2,7 @@
 
 use super::circuit::CircHopList;
 
-/// A view of a [`ClientCirc`](crate::tunnel::circuit::ClientCirc)'s internals, usable in a
+/// A view of a [`ClientCirc`](crate::client::circuit::ClientCirc)'s internals, usable in a
 /// synchronous callback.
 //
 // TODO: I would rather have this type have a mutable reference to the reactor itself,

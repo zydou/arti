@@ -22,7 +22,7 @@ pub(crate) enum HopDetail {
     /// backward-compatible way, so it doesn't need to happen right now.
     Relay(OwnedChanTarget),
     /// A hop built using
-    /// [`extend_virtual`](crate::tunnel::circuit::ClientCirc::extend_virtual).
+    /// [`extend_virtual`](crate::client::circuit::ClientCirc::extend_virtual).
     ///
     /// TODO: Perhaps we'd like to remember something about what the virtual hop
     /// represents?

@@ -35,7 +35,7 @@ use educe::Educe;
 use crate::memquota::StreamAccount;
 use crate::stream::xon_xoff::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
 use crate::stream::{StreamRateLimit, StreamReceiver};
-use crate::tunnel::{ClientTunnel, StreamTarget};
+use crate::client::{ClientTunnel, StreamTarget};
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
 use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
 use tor_basic_utils::skip_fmt;

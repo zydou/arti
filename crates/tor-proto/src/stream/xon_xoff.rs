@@ -13,7 +13,7 @@ use tor_basic_utils::assert_val_impl_trait;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 
 use crate::stream::DrainRateRequest;
-use crate::tunnel::StreamTarget;
+use crate::client::StreamTarget;
 use crate::util::notify::NotifyReceiver;
 
 /// A wrapper for an [`AsyncRead`] to support XON/XOFF flow control.

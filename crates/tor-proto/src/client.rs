@@ -1,5 +1,4 @@
-//! Tunnel module that will encompass a generic tunnel wrapping around a circuit reactor that can
-//! be single or multi path.
+//! Client-specific types and implementation.
 
 pub mod circuit;
 mod halfstream;
@@ -46,7 +45,7 @@ use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 #[cfg(feature = "hs-service")]
 use {
     crate::stream::{IncomingCmdChecker, IncomingStream},
-    crate::tunnel::reactor::StreamReqInfo,
+    crate::client::reactor::StreamReqInfo,
 };
 
 #[cfg(feature = "send-control-msg")]
