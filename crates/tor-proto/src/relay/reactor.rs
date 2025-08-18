@@ -56,7 +56,7 @@ pub(crate) enum RelayCtrlCmd {
 //
 // NOTE: the reactor is currently a bit awkward, because it's generic over
 // the target relay `BuildSpec`. This will become slightly less awkward when
-// we refactor this and the client tunnel reactor to be based on an abstract
+// we refactor this and the client circuit reactor to be based on an abstract
 // reactor type.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
@@ -96,7 +96,7 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: oneshot::Sender<void::Void>,
-    /// An identifier for logging about this tunnel reactor.
+    /// An identifier for logging about this reactor.
     tunnel_id: TunnelId,
     /// The time provider.
     runtime: DynTimeProvider,
@@ -181,7 +181,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
 
         // Log that the reactor stopped, possibly with the associated error as a report.
         // May log at a higher level depending on the error kind.
-        const MSG: &str = "Tunnel reactor stopped";
+        const MSG: &str = "Relay circuit reactor stopped";
         match &result {
             Ok(()) => trace!("{}: {MSG}", self.tunnel_id),
             Err(e) => trace_report!(e, "{}: {}", self.tunnel_id, MSG),
