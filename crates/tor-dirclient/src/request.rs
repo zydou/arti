@@ -245,7 +245,7 @@ impl sealed::RequestableInner for ConsensusRequest {
         // Build the URL.
         let mut uri = "/tor/status-vote/current/consensus".to_string();
         match self.flavor {
-            ConsensusFlavor::Ns => {}
+            ConsensusFlavor::Plain => {}
             flav => {
                 uri.push('-');
                 uri.push_str(flav.name());

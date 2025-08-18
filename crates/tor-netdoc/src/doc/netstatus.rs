@@ -326,25 +326,25 @@ pub enum ConsensusFlavor {
     /// historical and network-health purposes.  Instead of listing
     /// microdescriptor digests, it lists digests of full relay
     /// descriptors.
-    Ns,
+    Plain,
 }
 
 impl ConsensusFlavor {
     /// Return the name of this consensus flavor.
     pub fn name(&self) -> &'static str {
         match self {
-            ConsensusFlavor::Ns => "ns",
+            ConsensusFlavor::Plain => "ns", // spec bug, now baked in
             ConsensusFlavor::Microdesc => "microdesc",
         }
     }
     /// Try to find the flavor whose name is `name`.
     ///
-    /// For historical reasons, an unnamed flavor indicates an "Ns"
+    /// For historical reasons, an unnamed flavor indicates an "Plain"
     /// document.
     pub fn from_opt_name(name: Option<&str>) -> Result<Self> {
         match name {
             Some("microdesc") => Ok(ConsensusFlavor::Microdesc),
-            Some("ns") | None => Ok(ConsensusFlavor::Ns),
+            Some("ns") | None => Ok(ConsensusFlavor::Plain),
             Some(other) => {
                 Err(EK::BadDocumentType.with_msg(format!("unrecognized flavor {:?}", other)))
             }
@@ -1564,7 +1564,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
 
         let rules = match RS::flavor() {
             ConsensusFlavor::Microdesc => &NS_ROUTERSTATUS_RULES_MDCON,
-            ConsensusFlavor::Ns => &NS_ROUTERSTATUS_RULES_PLAIN,
+            ConsensusFlavor::Plain => &NS_ROUTERSTATUS_RULES_PLAIN,
         };
 
         let rs_sec = rules.parse(&mut p)?;
@@ -1652,7 +1652,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
         let signed_str = &r.str()[start_pos..end_pos];
         let remainder = &r.str()[end_pos..];
         let (sha256, sha1) = match RS::flavor() {
-            ConsensusFlavor::Ns => (
+            ConsensusFlavor::Plain => (
                 None,
                 Some(ll::d::Sha1::digest(signed_str.as_bytes()).into()),
             ),

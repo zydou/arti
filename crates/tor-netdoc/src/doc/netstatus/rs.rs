@@ -134,7 +134,7 @@ where
         // Fields to skip in the "r" line.
         let n_skip = match consensus_flavor {
             ConsensusFlavor::Microdesc => 0,
-            ConsensusFlavor::Ns => 1,
+            ConsensusFlavor::Plain => 1,
         };
         // We check that the published time is well-formed, but we never use it
         // for anything in a consensus document.
@@ -196,7 +196,7 @@ where
                 let m_item = sec.required(RS_M)?;
                 D::decode(m_item.required_arg(0)?)?
             }
-            ConsensusFlavor::Ns => D::decode(r_item.required_arg(2)?)?,
+            ConsensusFlavor::Plain => D::decode(r_item.required_arg(2)?)?,
         };
 
         Ok(GenericRouterStatus {
