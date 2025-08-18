@@ -31,6 +31,9 @@
 
 use crate::util::intern::InternCache;
 
+#[macro_use]
+mod ns_variety_definition_macros;
+
 pub mod authcert;
 #[cfg(feature = "hs-common")]
 pub mod hsdesc;

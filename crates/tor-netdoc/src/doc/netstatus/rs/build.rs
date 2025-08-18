@@ -10,9 +10,9 @@ use tor_protover::Protocols;
 
 use std::net::SocketAddr;
 
-#[cfg(feature = "ns_consensus")]
+#[cfg(feature = "ns-consensus")]
 use super::NsConsensusRouterStatus;
-#[cfg(feature = "ns_consensus")]
+#[cfg(feature = "ns-consensus")]
 use crate::doc::routerdesc::RdDigest;
 
 /// A Builder object for creating a RouterStatus and adding it to a
@@ -158,7 +158,7 @@ impl<D: Clone> RouterStatusBuilder<D> {
     }
 }
 
-#[cfg(feature = "ns_consensus")]
+#[cfg(feature = "ns-consensus")]
 impl RouterStatusBuilder<RdDigest> {
     /// Try to finish this builder and add its RouterStatus to a
     /// provided ConsensusBuilder.

@@ -19,6 +19,7 @@ full = [
     "hs-service",
     "routerdesc",
     "ns_consensus",
+    "ns-consensus",
     "tor-basic-utils/full",
     "tor-bytes/full",
     "tor-cert/full",
@@ -52,7 +53,8 @@ routerdesc = []
 testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
 
 # Enable the "ns consensus" document type, which some relays cache and serve.
-ns_consensus = []
+ns-consensus = []
+ns_consensus = ["ns-consensus"] # deprecated name
 
 # Enable the `parse` derive-based netdoc parser
 parse2 = []
