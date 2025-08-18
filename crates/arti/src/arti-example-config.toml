@@ -481,6 +481,9 @@
 # stable across different versions of arti. The value used for "auto" may also
 # take into account other OS-specific features, such as cgroups on Linux.
 #
+# Note that not all memory usage is tracked: Arti can actually
+# use more memory than is listed here for various kinds of overhead.
+#
 # If `system.memory.low_water` is given as an explicit value,
 # `system.memory.max` must also be given as an explicit value.
 #
