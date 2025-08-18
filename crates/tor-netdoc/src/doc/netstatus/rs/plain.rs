@@ -9,7 +9,7 @@ use super::*;
 // Import `each_variety.rs`, appropriately variegated
 ns_do_variety_plain! {}
 
-use crate::doc::routerdesc::{RdDigest as DocDigest, DOC_DIGEST_LEN};
+use crate::doc::routerdesc::{DOC_DIGEST_LEN, RdDigest as DocDigest};
 
 /// The flavor
 const FLAVOR: ConsensusFlavor = ConsensusFlavor::Ns;
