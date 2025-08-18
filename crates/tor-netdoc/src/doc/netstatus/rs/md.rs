@@ -1,10 +1,16 @@
 //! Implementation for the style of router descriptors used in
 //! microdesc consensus documents.
+//
+// Read this file in conjunction with `each_variety.rs`.
+// See "module scope" ns_variety_definition_macros.rs.
 
 use super::*;
 
+// Import `each_variety.rs`, appropriately variegated
 ns_do_species_md! {}
 
+// We bind some variety-agnostic names for the benefit of `each_variety.rs`,
+// which reimports the contents of this module with `use super::*`.
 use crate::doc::microdesc::{MdDigest as DocDigest, DOC_DIGEST_LEN};
 
 /// The flavor

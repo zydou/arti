@@ -88,6 +88,21 @@
 //! Re-export them in the overall parent module,
 //! using `ns_export_per_species`.
 //!
+//! # Module scope for `..::VARIETY` and `..::VARIETY::each_variety`
+//!
+//! Whether to put a particular item in `each_variety.rs`, or `VARIETY.rs`,
+//! depends just on how similar the source code is for the different varieties.
+//!
+//! Accordingly there is no real principled distinction between
+//! the namespace of each of the (per-variety) `each_variety` modules,
+//! and their (also per-variety) parents.
+//!
+//! So `each_variety.rs` should `use super::*`.
+//! Whenever convenient, fields or private items can be `pub(super)`.
+//! `VARIETY.rs` can contain impl blocks for types in `each_variety.rs` and vice versa.
+//!
+//! `VARIETY.rs` can and should use variety-agnostic names for internal types.
+//!
 //! # Macros for across-species-variation
 //!
 //! Within `per_species.rs`,
