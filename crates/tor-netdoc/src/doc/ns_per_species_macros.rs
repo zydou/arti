@@ -94,7 +94,7 @@
 //! the following macros are defined for use in `per_species.rs`
 //! for species-dependent elements:
 //!
-//! * **`ns_ty_name!( BaseTtypeName )`**:
+//! * **`ns_ty_name!( BaseTypeName )`**:
 //!
 //!   Expands to `NsBaseTypeName`, `MdBaseTypeName`, or `VoteBaseTypeName`.
 // XXXX should be PlainBaseTypeName not Ns_
