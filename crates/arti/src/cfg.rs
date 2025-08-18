@@ -1608,7 +1608,7 @@ example config file {which:?}, uncommented={uncommented:?}
             eprintln!("parsing\n  --\n{}\n  --", &s);
             let mut sources = tor_config::ConfigurationSources::new_empty();
             sources.push_source(
-                tor_config::ConfigurationSource::from_verbatim(s.to_string()),
+                tor_config::ConfigurationSource::from_verbatim(s.clone()),
                 tor_config::sources::MustRead::MustRead,
             );
             sources.load().expect(&s)

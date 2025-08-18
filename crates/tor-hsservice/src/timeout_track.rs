@@ -627,8 +627,6 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    #![allow(clippy::needless_pass_by_value)] // TODO hoist into standard lint block
-
     use super::*;
     use futures::poll;
     use oneshot_fused_workaround as oneshot;
