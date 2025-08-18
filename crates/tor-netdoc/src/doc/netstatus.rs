@@ -10,8 +10,8 @@
 //! authorities' votes, and signed by multiple authorities.
 //!
 //! A consensus document can itself come in two different flavors: a
-//! "ns"-flavored consensus has references to router descriptors, and
-//! a "microdesc"-flavored consensus has references to
+//! plain (unflavoured) consensus has references to router descriptors, and
+//! a "microdesc"-flavored consensus ("md") has references to
 //! microdescriptors.
 //!
 //! To keep an up-to-date view of the network, clients download
@@ -35,7 +35,7 @@
 //!
 //! TODO: This module doesn't implement vote parsing at all yet.
 //!
-//! TODO: This module doesn't implement ns-flavored consensuses.
+//! TODO: This module doesn't implement plain consensuses.
 //!
 //! TODO: More testing is needed!
 //!
@@ -949,7 +949,7 @@ static NS_ROUTERSTATUS_RULES_COMMON_: LazyLock<SectionRulesBuilder<NetstatusKwd>
     });
 
 /// Rules for parsing a single routerstatus in an NS consensus
-static NS_ROUTERSTATUS_RULES_NSCON: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
+static NS_ROUTERSTATUS_RULES_PLAIN: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = NS_ROUTERSTATUS_RULES_COMMON_.clone();
     rules.add(RS_R.rule().required().args(8..));
@@ -1564,7 +1564,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
 
         let rules = match RS::flavor() {
             ConsensusFlavor::Microdesc => &NS_ROUTERSTATUS_RULES_MDCON,
-            ConsensusFlavor::Ns => &NS_ROUTERSTATUS_RULES_NSCON,
+            ConsensusFlavor::Ns => &NS_ROUTERSTATUS_RULES_PLAIN,
         };
 
         let rs_sec = rules.parse(&mut p)?;
