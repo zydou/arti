@@ -12,7 +12,7 @@
 //! So a species is either "vote", or a consensus flavour.
 //!
 //! # Overwview
-//1
+//!
 //! Network status documents, including consensuses (of various flavours) and votes,
 //! have a lot of similarity.
 //! But they also have a lot of fiddly ad-hoc differences.
