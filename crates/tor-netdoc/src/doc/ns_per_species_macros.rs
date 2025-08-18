@@ -194,7 +194,7 @@ macro_rules! ns_do_one_species { {
             $d( $d $abbrev )*
         };
         {
-            ( $d( $d plain:tt )* )
+            ( $d( $d $plain:tt )* )
             ( $d( $d $md  :tt )* )
         } => { ns_choose! {
             ( $d( $d vote    )* )
