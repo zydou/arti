@@ -6,7 +6,8 @@
 //!  * Microdescriptor consensuses, and parts thereof
 //!
 //! We call these three kinds of document "species".
-// Change "species" to "variety" everywhere.
+// XXXX Change "species" to "variety" everywhere.
+// XXXX Rename `per_species` to `each_variety`.
 //! So a species is either "vote", or a consensus flavour.
 //!
 //! # Usage
