@@ -109,7 +109,7 @@
 //! * **`ns_ty_name!( BaseTypeName )`**:
 //!
 //!   Expands to `NsBaseTypeName`, `MdBaseTypeName`, or `VoteBaseTypeName`.
-// XXXX should be PlainBaseTypeName not Ns_
+// TODO should be PlainBaseTypeName not Ns, needs incompatible change.
 //!
 //!   Cannot be used to *define* a type.
 //!   (Define the type with an unqualified name, and
@@ -118,7 +118,7 @@
 //! * **`ns_const_name!( BASE_CONST_NAME )`**:
 //!
 //!   Expands to `NS_BASE_CONST_NAME`, `VOTE_BASE_CONST_NAME`, or `MD_BASE_CONST_NAME`.
-// XXXX should be PLAIN_BASE_CONST_NAME not NS_
+// TODO should be PLAIN_BASE_CONST_NAME not NS_ (see above)
 //!
 //! * **`ns_type!( TypeForPlainConsensus, TypeForMdConsensus, [TypeForVote] )`**:
 //!
