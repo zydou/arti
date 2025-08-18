@@ -239,7 +239,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-util",
- "toml",
+ "toml 0.9.5",
  "tor-async-utils",
  "tor-basic-utils",
  "tor-config",
@@ -316,7 +316,7 @@ dependencies = [
  "thiserror 2.0.12",
  "time",
  "tokio",
- "toml",
+ "toml 0.9.5",
  "tor-async-utils",
  "tor-basic-utils",
  "tor-chanmgr",
@@ -1641,7 +1641,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "357422a457ccb850dc8f1c1680e0670079560feaad6c2e247e3f345c4fab8a3f"
 dependencies = [
  "heck",
- "indexmap 2.10.0",
+ "indexmap 1.9.3",
  "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
@@ -1659,7 +1659,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea41269bd490d251b9eca50ccb43117e641cc68b129849757c15ece88fe0574"
 dependencies = [
  "heck",
- "indexmap 2.10.0",
+ "indexmap 1.9.3",
  "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
@@ -2115,7 +2115,7 @@ checksum = "8cb01cd46b0cf372153850f4c6c272d9cbea2da513e07538405148f95bd789f3"
 dependencies = [
  "atomic 0.6.1",
  "serde",
- "toml",
+ "toml 0.8.23",
  "uncased",
  "version_check",
 ]
@@ -2233,7 +2233,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.12",
- "toml",
+ "toml 0.9.5",
  "walkdir",
 ]
 
@@ -5660,6 +5660,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75129e1dc5000bfbaa9fee9d1b21f974f9fbad9daec557a521ee6e080825f6e8"
+dependencies = [
+ "indexmap 2.10.0",
+ "serde",
+ "serde_spanned 1.0.0",
+ "toml_datetime 0.7.0",
+ "toml_parser",
+ "toml_writer",
+ "winnow",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5708,9 +5723,9 @@ dependencies = [
 
 [[package]]
 name = "toml_parser"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97200572db069e74c512a14117b296ba0a80a30123fbbb5aa1f4a348f639ca30"
+checksum = "b551886f449aa90d4fe2bdaa9f4a2577ad2dde302c61ecf262d80b116db95c10"
 dependencies = [
  "winnow",
 ]
@@ -5960,7 +5975,7 @@ dependencies = [
  "tempfile",
  "test-temp-dir",
  "thiserror 2.0.12",
- "toml",
+ "toml 0.9.5",
  "tor-basic-utils",
  "tor-error",
  "tor-rtcompat",
@@ -5982,7 +5997,7 @@ dependencies = [
  "serde_json",
  "shellexpand",
  "thiserror 2.0.12",
- "toml",
+ "toml 0.9.5",
  "tor-config",
  "tor-error",
  "tor-general-addr",
@@ -6164,7 +6179,7 @@ dependencies = [
  "strum",
  "tempfile",
  "thiserror 2.0.12",
- "toml",
+ "toml 0.9.5",
  "tor-async-utils",
  "tor-basic-utils",
  "tor-config",
@@ -6282,7 +6297,7 @@ dependencies = [
  "serde_with",
  "strum",
  "thiserror 2.0.12",
- "toml",
+ "toml 0.9.5",
  "tor-async-utils",
  "tor-cell",
  "tor-config",
@@ -6826,7 +6841,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.12",
  "tiny-keccak",
- "toml",
+ "toml 0.9.5",
  "tor-basic-utils",
  "tor-config-path",
  "tor-general-addr",
