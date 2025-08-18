@@ -6,7 +6,7 @@
 //!
 //! 1. Is the message contextually appropriate? (e.g., no more than one
 //!    `CONNECTED` message per stream.) This is handled by calling
-//!    [`CmdChecker::check_msg`](crate::stream::CmdChecker::check_msg).
+//!    [`CmdChecker::check_msg`](crate::client::stream::CmdChecker::check_msg).
 //! 2. Does the message comply with flow-control rules? (e.g., no more data than
 //!    we've gotten SENDMEs for.) For open streams, the stream itself handles
 //!    this; for half-closed streams, the reactor handles it using the
@@ -28,10 +28,10 @@ use crate::client::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, stream
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
-use crate::stream::queue::StreamQueueReceiver;
-use crate::stream::{AnyCmdChecker, StreamRateLimit};
+use crate::client::stream::queue::StreamQueueReceiver;
+use crate::client::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
-use crate::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
+use crate::client::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;

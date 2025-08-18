@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tor_error::into_internal;
-use tor_proto::stream::ClientDataStreamCtrl;
+use tor_proto::client::stream::ClientDataStreamCtrl;
 use tor_rpcbase::{self as rpc, templates::*};
 
 use crate::RpcSession;

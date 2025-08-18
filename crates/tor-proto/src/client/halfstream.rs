@@ -5,7 +5,7 @@
 
 use crate::Result;
 use crate::congestion::sendme::{StreamRecvWindow, cmd_counts_towards_windows};
-use crate::stream::{AnyCmdChecker, StreamFlowControl, StreamStatus};
+use crate::client::stream::{AnyCmdChecker, StreamFlowControl, StreamStatus};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
 /// Type to track state of half-closed streams.

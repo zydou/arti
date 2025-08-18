@@ -1,7 +1,7 @@
 //! Declare a type for streams that do hostname lookups
 
+use crate::client::stream::StreamReceiver;
 use crate::memquota::StreamAccount;
-use crate::stream::StreamReceiver;
 use crate::{Error, Result};
 
 use futures::StreamExt;

@@ -28,8 +28,8 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::queue::{StreamQueueSender, stream_queue};
-use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
+use crate::client::stream::queue::{StreamQueueSender, stream_queue};
+use crate::client::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
 use crate::util::SinkExt as _;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
@@ -73,7 +73,7 @@ use extender::HandshakeAuxDataHandler;
 
 #[cfg(feature = "hs-service")]
 use {
-    crate::stream::{DataCmdChecker, IncomingStreamRequest},
+    crate::client::stream::{DataCmdChecker, IncomingStreamRequest},
     tor_cell::relaycell::msg::Begin,
 };
 
@@ -842,9 +842,9 @@ impl Circuit {
         let req = IncomingStreamRequest::Begin(begin);
 
         {
-            use crate::stream::IncomingStreamRequestDisposition::*;
+            use crate::client::stream::IncomingStreamRequestDisposition::*;
 
-            let ctx = crate::stream::IncomingStreamRequestContext { request: &req };
+            let ctx = crate::client::stream::IncomingStreamRequestContext { request: &req };
             // IMPORTANT: ClientCircSyncView::n_open_streams() (called via disposition() below)
             // accesses the stream map mutexes!
             //

@@ -1,6 +1,8 @@
 //! Client-specific types and implementation.
 
 pub mod circuit;
+pub mod stream;
+
 mod halfstream;
 #[cfg(feature = "send-control-msg")]
 pub(crate) mod msghandler;
@@ -19,9 +21,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};
-use crate::stream::queue::stream_queue;
-use crate::stream::xon_xoff::XonXoffReaderCtrl;
-use crate::stream::{
+use crate::client::stream::queue::stream_queue;
+use crate::client::stream::xon_xoff::XonXoffReaderCtrl;
+use crate::client::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamRateLimit, StreamReceiver,
 };
@@ -45,7 +47,7 @@ use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 #[cfg(feature = "hs-service")]
 use {
     crate::client::reactor::StreamReqInfo,
-    crate::stream::{IncomingCmdChecker, IncomingStream},
+    crate::client::stream::{IncomingCmdChecker, IncomingStream},
 };
 
 #[cfg(feature = "send-control-msg")]
@@ -279,7 +281,7 @@ impl ClientTunnel {
         filter: FILT,
     ) -> Result<impl futures::Stream<Item = IncomingStream> + use<'a, FILT>>
     where
-        FILT: crate::stream::IncomingStreamRequestFilter + 'a,
+        FILT: crate::client::stream::IncomingStreamRequestFilter + 'a,
     {
         use futures::stream::StreamExt;
 

@@ -11,7 +11,7 @@ use tor_linkspec::{CircTarget, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::{
     ClockSkew, TargetHop,
     circuit::{CircParameters, CircuitBinding, ClientCirc, UniqId},
-    stream::{DataStream, StreamParameters},
+    client::stream::{DataStream, StreamParameters},
 };
 
 use crate::{Error, Result};
@@ -465,9 +465,9 @@ impl ServiceOnionServiceDataTunnel {
         allow_commands: &'a [tor_cell::relaycell::RelayCmd],
         hop: TargetHop,
         filter: FILT,
-    ) -> Result<impl futures::Stream<Item = tor_proto::stream::IncomingStream> + use<'a, FILT>>
+    ) -> Result<impl futures::Stream<Item = tor_proto::client::stream::IncomingStream> + use<'a, FILT>>
     where
-        FILT: tor_proto::stream::IncomingStreamRequestFilter,
+        FILT: tor_proto::client::stream::IncomingStreamRequestFilter,
     {
         self.tunnel_ref()
             .allow_stream_requests(allow_commands, hop, filter)

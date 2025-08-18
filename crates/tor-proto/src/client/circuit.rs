@@ -1116,9 +1116,9 @@ pub(crate) mod test {
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
     use crate::memquota::SpecificAccount as _;
-    use crate::stream::DataStream;
+    use crate::client::stream::DataStream;
     #[cfg(feature = "hs-service")]
-    use crate::stream::IncomingStreamRequestFilter;
+    use crate::client::stream::IncomingStreamRequestFilter;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -2285,10 +2285,10 @@ pub(crate) mod test {
     impl IncomingStreamRequestFilter for AllowAllStreamsFilter {
         fn disposition(
             &mut self,
-            _ctx: &crate::stream::IncomingStreamRequestContext<'_>,
+            _ctx: &crate::client::stream::IncomingStreamRequestContext<'_>,
             _circ: &crate::client::reactor::syncview::ClientCircSyncView<'_>,
-        ) -> Result<crate::stream::IncomingStreamRequestDisposition> {
-            Ok(crate::stream::IncomingStreamRequestDisposition::Accept)
+        ) -> Result<crate::client::stream::IncomingStreamRequestDisposition> {
+            Ok(crate::client::stream::IncomingStreamRequestDisposition::Accept)
         }
     }
 

@@ -67,7 +67,7 @@ pub use config::TorClientConfig;
 pub use tor_circmgr::IsolationToken;
 pub use tor_circmgr::isolation;
 pub use tor_error::{ErrorKind, HasKind};
-pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
+pub use tor_proto::client::stream::{DataReader, DataStream, DataWriter};
 
 mod err;
 pub use err::{Error, ErrorHint, HintableError};

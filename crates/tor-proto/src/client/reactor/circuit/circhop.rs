@@ -11,8 +11,8 @@ use crate::client::streammap::{
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
-use crate::stream::queue::StreamQueueSender;
-use crate::stream::{
+use crate::client::stream::queue::StreamQueueSender;
+use crate::client::stream::{
     AnyCmdChecker, DrainRateRequest, StreamFlowControl, StreamRateLimit, StreamStatus,
 };
 use crate::util::notify::NotifySender;

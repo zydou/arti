@@ -58,7 +58,7 @@ use ureq::{
 
 use educe::Educe;
 use thiserror::Error;
-use tor_proto::stream::{DataReader, DataWriter};
+use tor_proto::client::stream::{DataReader, DataWriter};
 use tor_rtcompat::{Runtime, ToplevelBlockOn};
 
 #[cfg(feature = "rustls")]
@@ -618,7 +618,7 @@ pub fn get_default_tls_provider() -> UreqTlsProvider {
 /// ```rust,no_run
 /// let rt = tor_rtcompat::PreferredRuntime::create().expect("Failed to create runtime.");
 /// let tls_provider = arti_ureq::get_default_tls_provider();
-///    
+///
 /// let client = arti_client::TorClient::with_runtime(rt.clone())
 ///     .create_unbootstrapped()
 ///     .expect("Error creating Tor Client.");

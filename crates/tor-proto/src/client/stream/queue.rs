@@ -2,7 +2,7 @@
 //!
 //! While these are technically "channels", we call them "queues" to indicate that they're mostly
 //! just dumb pipes. They do some tracking (memquota and size), but nothing else. The higher-level
-//! object is [`StreamReceiver`](crate::stream::raw::StreamReceiver) which tracks SENDME and END
+//! object is [`StreamReceiver`](crate::client::stream::raw::StreamReceiver) which tracks SENDME and END
 //! messages. So the idea is that the "queue" (ex: [`StreamQueueReceiver`]) just holds data and the
 //! "channel" (ex: `StreamReceiver`) adds the Tor logic.
 //!

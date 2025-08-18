@@ -15,8 +15,8 @@ use crate::client::{HopLocation, TargetHop, streammap};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
-use crate::stream::queue::StreamQueueSender;
-use crate::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
+use crate::client::stream::queue::StreamQueueSender;
+use crate::client::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 #[cfg(test)]
@@ -31,7 +31,7 @@ use tracing::{debug, trace};
 #[cfg(feature = "hs-service")]
 use {
     super::StreamReqSender, crate::client::reactor::IncomingStreamRequestHandler,
-    crate::stream::IncomingStreamRequestFilter,
+    crate::client::stream::IncomingStreamRequestFilter,
 };
 
 #[cfg(test)]

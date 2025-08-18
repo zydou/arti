@@ -30,7 +30,7 @@ use tor_netdir::{NetDirProvider, params::NetParameters};
 #[cfg(feature = "onion-service-service")]
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
-use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
+use tor_proto::client::stream::{DataStream, IpVersionPreference, StreamParameters};
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
     any(feature = "async-std", feature = "tokio")

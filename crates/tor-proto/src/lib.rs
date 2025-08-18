@@ -56,11 +56,10 @@
 #[cfg(feature = "bench")]
 pub mod bench_utils;
 pub mod channel;
-pub(crate) mod client;
+pub mod client;
 mod congestion;
 mod crypto;
 pub mod memquota;
-pub mod stream;
 mod util;
 
 #[cfg(feature = "relay")]

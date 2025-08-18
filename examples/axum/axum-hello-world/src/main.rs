@@ -13,7 +13,7 @@ use safelog::{DisplayRedacted as _, sensitive};
 use tor_cell::relaycell::msg::Connected;
 use tor_hsservice::StreamRequest;
 use tor_hsservice::config::OnionServiceConfigBuilder;
-use tor_proto::stream::IncomingStreamRequest;
+use tor_proto::client::stream::IncomingStreamRequest;
 
 #[tokio::main]
 async fn main() {

@@ -15,7 +15,7 @@ use safelog::{DisplayRedacted, sensitive};
 use tor_cell::relaycell::msg::Connected;
 use tor_hsservice::StreamRequest;
 use tor_hsservice::config::OnionServiceConfigBuilder;
-use tor_proto::stream::IncomingStreamRequest;
+use tor_proto::client::stream::IncomingStreamRequest;
 
 struct WebHandler {
     shutdown: CancellationToken,
