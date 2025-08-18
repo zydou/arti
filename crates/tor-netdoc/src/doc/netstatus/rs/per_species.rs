@@ -51,7 +51,7 @@ impl From<GenericRouterStatus<DocDigest>> for ConsensusRouterStatus {
 impl ConsensusRouterStatus {
     /// Return an iterator of ORPort addresses for this routerstatus
     pub fn orport_addrs(&self) -> impl Iterator<Item = &net::SocketAddr> {
-        self.rs.addrs.iter()
+        self.addrs().iter()
     }
     /// Return the declared weight of this routerstatus in the directory.
     pub fn weight(&self) -> &RelayWeight {
