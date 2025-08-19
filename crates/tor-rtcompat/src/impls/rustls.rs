@@ -1,4 +1,6 @@
 //! Implementation for using Rustls with a runtime.
+//!
+//! #
 
 use crate::StreamOps;
 use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
@@ -21,9 +23,25 @@ use std::{
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
 ///
-/// The application is responsible for calling `CryptoProvider::install_default_provider()`
-/// before constructing one of these providers.  If they do not, we will issue a warning,
-/// and install a default (ring) provider.
+/// # Cryptographic providers
+///
+/// The application is responsible for calling [`CryptoProvider::install_default()`]
+/// before constructing [`TlsProvider`].  If they do not, we will issue a warning,
+/// and install a default ([ring]) provider.
+///
+/// We choose ring because, of the two builtin providers that ship with rustls,
+/// it has the best license.
+/// We _could_ instead use [aws-lc-rs] (for its early MLKEM768 support),
+/// but it is [still under the old OpenSSL license][aws-lc-license], which is GPL-incompatible.
+/// (Although Arti isn't under the GPL itself, we are trying to stay compatible with it.)
+///
+/// See the [rustls documentation][all-providers] for a list of other rustls
+/// cryptography providcers.
+///
+/// [ring]: https://crates.io/crates/ring
+/// [aws-lc-rs]: https://github.com/aws/aws-lc-rs
+/// [aws-lc-license]: https://github.com/aws/aws-lc/issues/2203
+/// [all-providers]: https://docs.rs/rustls/latest/rustls/#cryptography-providers
 #[cfg_attr(
     docsrs,
     doc(cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std"))))

@@ -136,6 +136,8 @@ fn create_runtime() -> std::io::Result<impl ToplevelRuntime> {
             use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
         } else if #[cfg(all(feature="tokio", feature="rustls"))] {
             use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            // Note: See comments in tor_rtcompate::impls::rustls::RustlsProvider
+            // about choice of default crypto provider.
             let _idempotent_ignore = rustls_crate::crypto::CryptoProvider::install_default(
                 rustls_crate::crypto::ring::default_provider(),
 
@@ -144,6 +146,8 @@ fn create_runtime() -> std::io::Result<impl ToplevelRuntime> {
             use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
         } else if #[cfg(all(feature="async-std", feature="rustls"))] {
             use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
+            // Note: See comments in tor_rtcompate::impls::rustls::RustlsProvider
+            // about choice of default crypto provider.
             let _idempotent_ignore = rustls_crate::crypto::CryptoProvider::install_default(
                 rustls_crate::crypto::ring::default_provider(),
             );
