@@ -46,7 +46,7 @@ pub(crate) use {
     async_trait::async_trait,
     derive_builder::Builder,
     derive_deftly::{Deftly, define_derive_deftly},
-    derive_more::{Constructor, Deref, DerefMut, From, Into},
+    derive_more::{Constructor, Deref, DerefMut, Into},
     educe::Educe,
     futures::channel::mpsc,
     futures::future::{self, Either},

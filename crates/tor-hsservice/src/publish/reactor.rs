@@ -88,6 +88,7 @@ use crate::config::restricted_discovery::{
 use crate::status::{DescUploadRetryError, Problem};
 
 use super::*;
+use derive_more::From;
 
 // TODO-CLIENT-AUTH: perhaps we should add a separate CONFIG_CHANGE_REPUBLISH_DEBOUNCE_INTERVAL
 // for rate-limiting the publish jobs triggered by a change in the config?

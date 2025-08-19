@@ -100,6 +100,7 @@ pub use key_provider::{
 };
 
 use crate::internal_prelude::*;
+use derive_more::From;
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
