@@ -78,10 +78,10 @@ additional_required["tor-proto"] = [
 # This is detected two times, but only on cfg_attr(docsrs) is enough
 additional_provided["tor-netdoc"] = [
     ("PlainConsensusRouterStatus", 'feature = "plain-consensus"'),
-    ('NsConsensus', 'feature = "ns_consensus"'),
-    ('NsConsensusRouterStatus', 'feature = "ns_consensus"'),
-    ('UncheckedNsConsensus', 'feature = "ns_consensus"'),
-    ('UnvalidatedNsConsensus', 'feature = "ns_consensus"'),
+    ("NsConsensus", 'feature = "ns_consensus"'),
+    ("NsConsensusRouterStatus", 'feature = "ns_consensus"'),
+    ("UncheckedNsConsensus", 'feature = "ns_consensus"'),
+    ("UnvalidatedNsConsensus", 'feature = "ns_consensus"'),
 ]
 
 
