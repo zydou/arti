@@ -12,7 +12,7 @@ ns_do_variety_plain! {}
 use crate::doc::routerdesc::{DOC_DIGEST_LEN, RdDigest as DocDigest};
 
 /// The flavor
-const FLAVOR: ConsensusFlavor = ConsensusFlavor::Ns;
+const FLAVOR: ConsensusFlavor = ConsensusFlavor::Plain;
 
 impl ConsensusRouterStatus {
     /// Return the expected router descriptor digest for this routerstatus

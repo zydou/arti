@@ -10,8 +10,8 @@
 //! authorities' votes, and signed by multiple authorities.
 //!
 //! A consensus document can itself come in two different flavors: a
-//! "ns"-flavored consensus has references to router descriptors, and
-//! a "microdesc"-flavored consensus has references to
+//! plain (unflavoured) consensus has references to router descriptors, and
+//! a "microdesc"-flavored consensus ("md") has references to
 //! microdescriptors.
 //!
 //! To keep an up-to-date view of the network, clients download
@@ -35,7 +35,7 @@
 //!
 //! TODO: This module doesn't implement vote parsing at all yet.
 //!
-//! TODO: This module doesn't implement ns-flavored consensuses.
+//! TODO: This module doesn't implement plain consensuses.
 //!
 //! TODO: More testing is needed!
 //!
@@ -78,9 +78,22 @@ pub use build::ConsensusBuilder;
 pub use rs::build::RouterStatusBuilder;
 
 pub use rs::MdConsensusRouterStatus;
-#[cfg(feature = "ns-consensus")]
-pub use rs::NsConsensusRouterStatus;
+#[cfg(feature = "plain-consensus")]
+pub use rs::PlainConsensusRouterStatus;
 use void::ResultVoidExt as _;
+
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use PlainConsensus as NsConsensus;
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use PlainConsensusRouterStatus as NsConsensusRouterStatus;
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use UncheckedPlainConsensus as UncheckedNsConsensus;
+#[deprecated]
+#[cfg(feature = "ns_consensus")]
+pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
 /// The lifetime of a networkstatus document.
 ///
@@ -326,25 +339,25 @@ pub enum ConsensusFlavor {
     /// historical and network-health purposes.  Instead of listing
     /// microdescriptor digests, it lists digests of full relay
     /// descriptors.
-    Ns,
+    Plain,
 }
 
 impl ConsensusFlavor {
     /// Return the name of this consensus flavor.
     pub fn name(&self) -> &'static str {
         match self {
-            ConsensusFlavor::Ns => "ns",
+            ConsensusFlavor::Plain => "ns", // spec bug, now baked in
             ConsensusFlavor::Microdesc => "microdesc",
         }
     }
     /// Try to find the flavor whose name is `name`.
     ///
-    /// For historical reasons, an unnamed flavor indicates an "Ns"
+    /// For historical reasons, an unnamed flavor indicates an "Plain"
     /// document.
     pub fn from_opt_name(name: Option<&str>) -> Result<Self> {
         match name {
             Some("microdesc") => Ok(ConsensusFlavor::Microdesc),
-            Some("ns") | None => Ok(ConsensusFlavor::Ns),
+            Some("ns") | None => Ok(ConsensusFlavor::Plain),
             Some(other) => {
                 Err(EK::BadDocumentType.with_msg(format!("unrecognized flavor {:?}", other)))
             }
@@ -729,20 +742,20 @@ pub type UnvalidatedMdConsensus = UnvalidatedConsensus<MdConsensusRouterStatus>;
 /// and timeliness.
 pub type UncheckedMdConsensus = UncheckedConsensus<MdConsensusRouterStatus>;
 
-#[cfg(feature = "ns-consensus")]
+#[cfg(feature = "plain-consensus")]
 /// A consensus document that lists relays along with their
 /// router descriptor documents.
-pub type NsConsensus = Consensus<NsConsensusRouterStatus>;
+pub type PlainConsensus = Consensus<PlainConsensusRouterStatus>;
 
-#[cfg(feature = "ns-consensus")]
-/// An NsConsensus that has been parsed and checked for timeliness,
+#[cfg(feature = "plain-consensus")]
+/// An PlainConsensus that has been parsed and checked for timeliness,
 /// but not for signatures.
-pub type UnvalidatedNsConsensus = UnvalidatedConsensus<NsConsensusRouterStatus>;
+pub type UnvalidatedPlainConsensus = UnvalidatedConsensus<PlainConsensusRouterStatus>;
 
-#[cfg(feature = "ns-consensus")]
-/// An NsConsensus that has been parsed but not checked for signatures
+#[cfg(feature = "plain-consensus")]
+/// An PlainConsensus that has been parsed but not checked for signatures
 /// and timeliness.
-pub type UncheckedNsConsensus = UncheckedConsensus<NsConsensusRouterStatus>;
+pub type UncheckedPlainConsensus = UncheckedConsensus<PlainConsensusRouterStatus>;
 
 impl<RS> Consensus<RS> {
     /// Return the Lifetime for this consensus.
@@ -949,7 +962,7 @@ static NS_ROUTERSTATUS_RULES_COMMON_: LazyLock<SectionRulesBuilder<NetstatusKwd>
     });
 
 /// Rules for parsing a single routerstatus in an NS consensus
-static NS_ROUTERSTATUS_RULES_NSCON: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
+static NS_ROUTERSTATUS_RULES_PLAIN: LazyLock<SectionRules<NetstatusKwd>> = LazyLock::new(|| {
     use NetstatusKwd::*;
     let mut rules = NS_ROUTERSTATUS_RULES_COMMON_.clone();
     rules.add(RS_R.rule().required().args(8..));
@@ -1564,7 +1577,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
 
         let rules = match RS::flavor() {
             ConsensusFlavor::Microdesc => &NS_ROUTERSTATUS_RULES_MDCON,
-            ConsensusFlavor::Ns => &NS_ROUTERSTATUS_RULES_NSCON,
+            ConsensusFlavor::Plain => &NS_ROUTERSTATUS_RULES_PLAIN,
         };
 
         let rs_sec = rules.parse(&mut p)?;
@@ -1652,7 +1665,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
         let signed_str = &r.str()[start_pos..end_pos];
         let remainder = &r.str()[end_pos..];
         let (sha256, sha1) = match RS::flavor() {
-            ConsensusFlavor::Ns => (
+            ConsensusFlavor::Plain => (
                 None,
                 Some(ll::d::Sha1::digest(signed_str.as_bytes()).into()),
             ),
@@ -1913,10 +1926,10 @@ mod test {
     const CERTS: &str = include_str!("../../testdata/authcerts2.txt");
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
 
-    #[cfg(feature = "ns-consensus")]
-    const NS_CERTS: &str = include_str!("../../testdata2/cached-certs");
-    #[cfg(feature = "ns-consensus")]
-    const NS_CONSENSUS: &str = include_str!("../../testdata2/cached-consensus");
+    #[cfg(feature = "plain-consensus")]
+    const PLAIN_CERTS: &str = include_str!("../../testdata2/cached-certs");
+    #[cfg(feature = "plain-consensus")]
+    const PLAIN_CONSENSUS: &str = include_str!("../../testdata2/cached-consensus");
 
     fn read_bad(fname: &str) -> String {
         use std::fs;
@@ -1996,18 +2009,18 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "ns-consensus")]
+    #[cfg(feature = "plain-consensus")]
     fn parse_and_validate_ns() -> Result<()> {
         use tor_checkable::{SelfSigned, Timebound};
         let mut certs = Vec::new();
-        for cert in AuthCert::parse_multiple(NS_CERTS)? {
+        for cert in AuthCert::parse_multiple(PLAIN_CERTS)? {
             let cert = cert?.check_signature()?.dangerously_assume_timely();
             certs.push(cert);
         }
         let auth_ids: Vec<_> = certs.iter().map(|c| &c.key_ids().id_fingerprint).collect();
         assert_eq!(certs.len(), 4);
 
-        let (_, _, consensus) = NsConsensus::parse(NS_CONSENSUS)?;
+        let (_, _, consensus) = PlainConsensus::parse(PLAIN_CONSENSUS)?;
         let consensus = consensus.dangerously_assume_timely().set_n_authorities(3);
         // The set of authorities we know _could_ validate this cert.
         assert!(consensus.authorities_are_correct(&auth_ids));
