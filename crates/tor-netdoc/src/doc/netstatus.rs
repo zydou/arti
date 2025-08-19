@@ -45,6 +45,10 @@
 
 mod rs;
 
+#[cfg(feature = "plain-consensus")]
+pub mod plain;
+pub mod md;
+
 #[cfg(feature = "build_docs")]
 mod build;
 

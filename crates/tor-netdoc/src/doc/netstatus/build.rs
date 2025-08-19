@@ -18,6 +18,10 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+#[cfg(feature = "plain-consensus")]
+pub(crate) mod plain;
+pub(crate) mod md;
+
 /// A builder object used to construct a consensus.
 ///
 /// Create one of these with the [`Consensus::builder`] method.

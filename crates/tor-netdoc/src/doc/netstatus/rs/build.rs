@@ -15,6 +15,10 @@ use super::PlainConsensusRouterStatus;
 #[cfg(feature = "plain-consensus")]
 use crate::doc::routerdesc::RdDigest;
 
+#[cfg(feature = "plain-consensus")]
+pub(crate) mod plain;
+pub(crate) mod md;
+
 /// A Builder object for creating a RouterStatus and adding it to a
 /// consensus.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
