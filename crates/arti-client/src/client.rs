@@ -2161,6 +2161,19 @@ mod test {
                 .create_unbootstrapped()
                 .unwrap();
         });
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let state_dir = tempfile::tempdir().unwrap();
+            let cache_dir = tempfile::tempdir().unwrap();
+            let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
+                .build()
+                .unwrap();
+            let _ = TorClient::with_runtime(rt)
+                .config(cfg)
+                .bootstrap_behavior(BootstrapBehavior::Manual)
+                .create_unbootstrapped_async()
+                .await
+                .unwrap();
+        });
     }
 
     #[test]
@@ -2171,10 +2184,30 @@ mod test {
             let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
                 .build()
                 .unwrap();
+            // Test sync
             let client = TorClient::with_runtime(rt)
                 .config(cfg)
                 .bootstrap_behavior(BootstrapBehavior::Manual)
                 .create_unbootstrapped()
+                .unwrap();
+            let result = client.connect("example.com:80").await;
+            assert!(result.is_err());
+            assert_eq!(result.err().unwrap().kind(), ErrorKind::BootstrapRequired);
+        });
+        // Need a separate test for async because Runtime and TorClientConfig are consumed by the
+        // builder
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let state_dir = tempfile::tempdir().unwrap();
+            let cache_dir = tempfile::tempdir().unwrap();
+            let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
+                .build()
+                .unwrap();
+            // Test sync
+            let client = TorClient::with_runtime(rt)
+                .config(cfg)
+                .bootstrap_behavior(BootstrapBehavior::Manual)
+                .create_unbootstrapped_async()
+                .await
                 .unwrap();
             let result = client.connect("example.com:80").await;
             assert!(result.is_err());
@@ -2271,6 +2304,22 @@ mod test {
                 .config(cfg.clone())
                 .bootstrap_behavior(BootstrapBehavior::Manual)
                 .create_unbootstrapped()
+                .unwrap();
+            tor_client
+                .reconfigure(&cfg, Reconfigure::AllOrNothing)
+                .unwrap();
+        });
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let state_dir = tempfile::tempdir().unwrap();
+            let cache_dir = tempfile::tempdir().unwrap();
+            let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
+                .build()
+                .unwrap();
+            let tor_client = TorClient::with_runtime(rt)
+                .config(cfg.clone())
+                .bootstrap_behavior(BootstrapBehavior::Manual)
+                .create_unbootstrapped_async()
+                .await
                 .unwrap();
             tor_client
                 .reconfigure(&cfg, Reconfigure::AllOrNothing)
