@@ -5,7 +5,7 @@
 
 use super::rs::build::RouterStatusBuilder;
 use super::{
-    CommonHeader, Consensus, ConsensusFlavor, ConsensusHeader, ConsensusVoterInfo, DirSource,
+    Consensus, ConsensusFlavor, ConsensusHeader, ConsensusVoterInfo, DirSource,
     Footer, Lifetime, NetParams, ProtoStatus, ProtoStatuses, RouterStatus, SharedRandStatus,
     SharedRandVal,
 };
@@ -26,21 +26,21 @@ use std::time::SystemTime;
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct ConsensusBuilder<RS> {
-    /// See [`CommonHeader::flavor`]
+    /// See [`ConsensusHeader::flavor`]
     flavor: ConsensusFlavor,
-    /// See [`CommonHeader::lifetime`]
+    /// See [`ConsensusHeader::lifetime`]
     lifetime: Option<Lifetime>,
-    /// See [`CommonHeader::client_versions`]
+    /// See [`ConsensusHeader::client_versions`]
     client_versions: Vec<String>,
-    /// See [`CommonHeader::relay_versions`]
+    /// See [`ConsensusHeader::relay_versions`]
     relay_versions: Vec<String>,
-    /// See [`CommonHeader::proto_statuses`]
+    /// See [`ConsensusHeader::proto_statuses`]
     client_protos: ProtoStatus,
-    /// See [`CommonHeader::proto_statuses`]
+    /// See [`ConsensusHeader::proto_statuses`]
     relay_protos: ProtoStatus,
-    /// See [`CommonHeader::params`]
+    /// See [`ConsensusHeader::params`]
     params: NetParams<i32>,
-    /// See [`CommonHeader::voting_delay`]
+    /// See [`ConsensusHeader::voting_delay`]
     voting_delay: Option<(u32, u32)>,
     /// See [`ConsensusHeader::consensus_method`]
     consensus_method: Option<u32>,
@@ -232,7 +232,11 @@ impl<RS: RouterStatus + Clone> ConsensusBuilder<RS> {
             relay: self.relay_protos.clone(),
         });
 
-        let hdr = CommonHeader {
+        let consensus_method = self
+            .consensus_method
+            .ok_or(Error::CannotBuild("Missing consensus method."))?;
+
+        let header = ConsensusHeader {
             flavor: self.flavor,
             lifetime,
             client_versions: self.client_versions.clone(),
@@ -240,14 +244,6 @@ impl<RS: RouterStatus + Clone> ConsensusBuilder<RS> {
             proto_statuses,
             params: self.params.clone(),
             voting_delay: self.voting_delay,
-        };
-
-        let consensus_method = self
-            .consensus_method
-            .ok_or(Error::CannotBuild("Missing consensus method."))?;
-
-        let header = ConsensusHeader {
-            hdr,
             consensus_method,
             shared_rand_prev: self.shared_rand_prev.clone(),
             shared_rand_cur: self.shared_rand_cur.clone(),

@@ -446,10 +446,7 @@ pub struct SharedRandStatus {
     timestamp: Option<time::SystemTime>,
 }
 
-/// Parts of the networkstatus header that are present in every networkstatus.
-///
-/// NOTE: this type is separate from the header parts that are only in
-/// votes or only in consensuses, even though we don't implement votes yet.
+/// The header of a networkstatus.
 #[allow(dead_code)]
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
@@ -458,7 +455,7 @@ pub struct SharedRandStatus {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct CommonHeader {
+struct ConsensusHeader {
     /// What kind of consensus document is this?  Absent in votes and
     /// in ns-flavored consensuses.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
@@ -485,21 +482,6 @@ struct CommonHeader {
     /// signatures (respectively) to propagate?
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     voting_delay: Option<(u32, u32)>,
-}
-
-/// The header of a consensus networkstatus.
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    visibility::make(pub),
-    non_exhaustive
-)]
-#[derive(Debug, Clone)]
-struct ConsensusHeader {
-    /// Header fields common to votes and consensuses
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    hdr: CommonHeader,
     /// What "method" was used to produce this consensus?  (A
     /// consensus method is a version number used by authorities to
     /// upgrade the consensus algorithm.)
@@ -760,7 +742,7 @@ pub type UncheckedPlainConsensus = UncheckedConsensus<PlainConsensusRouterStatus
 impl<RS> Consensus<RS> {
     /// Return the Lifetime for this consensus.
     pub fn lifetime(&self) -> &Lifetime {
-        &self.header.hdr.lifetime
+        &self.header.lifetime
     }
 
     /// Return a slice of all the routerstatus entries in this consensus.
@@ -776,7 +758,7 @@ impl<RS> Consensus<RS> {
 
     /// Return the map of network parameters that this consensus advertises.
     pub fn params(&self) -> &NetParams<i32> {
-        &self.header.hdr.params
+        &self.header.params
     }
 
     /// Return the latest shared random value, if the consensus
@@ -794,18 +776,18 @@ impl<RS> Consensus<RS> {
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every relay must implement.  
     pub fn relay_protocol_status(&self) -> &ProtoStatus {
-        &self.header.hdr.proto_statuses.relay
+        &self.header.proto_statuses.relay
     }
 
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every client must implement.
     pub fn client_protocol_status(&self) -> &ProtoStatus {
-        &self.header.hdr.proto_statuses.client
+        &self.header.proto_statuses.client
     }
 
     /// Return a set of all known [`ProtoStatus`] values.
     pub fn protocol_statuses(&self) -> &Arc<ProtoStatuses> {
-        &self.header.hdr.proto_statuses
+        &self.header.proto_statuses
     }
 }
 
@@ -1080,9 +1062,9 @@ where
     }
 }
 
-impl CommonHeader {
+impl ConsensusHeader {
     /// Extract the CommonHeader members from a single header section.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<CommonHeader> {
+    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusHeader> {
         use NetstatusKwd::*;
 
         {
@@ -1153,6 +1135,25 @@ impl CommonHeader {
 
         let params = sec.maybe(PARAMS).args_as_str().unwrap_or("").parse()?;
 
+        let status: &str = sec.required(VOTE_STATUS)?.arg(0).unwrap_or("");
+        if status != "consensus" {
+            return Err(EK::BadDocumentType.err());
+        }
+
+        // We're ignoring KNOWN_FLAGS in the consensus.
+
+        let consensus_method: u32 = sec.required(CONSENSUS_METHOD)?.parse_arg(0)?;
+
+        let shared_rand_prev = sec
+            .get(SHARED_RAND_PREVIOUS_VALUE)
+            .map(SharedRandStatus::from_item)
+            .transpose()?;
+
+        let shared_rand_cur = sec
+            .get(SHARED_RAND_CURRENT_VALUE)
+            .map(SharedRandStatus::from_item)
+            .transpose()?;
+
         let voting_delay = if let Some(tok) = sec.get(VOTING_DELAY) {
             let n1 = tok.parse_arg(0)?;
             let n2 = tok.parse_arg(1)?;
@@ -1161,7 +1162,7 @@ impl CommonHeader {
             None
         };
 
-        Ok(CommonHeader {
+        Ok(ConsensusHeader {
             flavor,
             lifetime,
             client_versions,
@@ -1169,6 +1170,9 @@ impl CommonHeader {
             proto_statuses,
             params,
             voting_delay,
+            consensus_method,
+            shared_rand_prev,
+            shared_rand_cur,
         })
     }
 }
@@ -1209,41 +1213,6 @@ impl SharedRandStatus {
     /// Return the timestamp (if any) associated with this `SharedRandValue`.
     pub fn timestamp(&self) -> Option<std::time::SystemTime> {
         self.timestamp
-    }
-}
-
-impl ConsensusHeader {
-    /// Parse the ConsensusHeader members from a provided section.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusHeader> {
-        use NetstatusKwd::*;
-
-        let status: &str = sec.required(VOTE_STATUS)?.arg(0).unwrap_or("");
-        if status != "consensus" {
-            return Err(EK::BadDocumentType.err());
-        }
-
-        // We're ignoring KNOWN_FLAGS in the consensus.
-
-        let hdr = CommonHeader::from_section(sec)?;
-
-        let consensus_method: u32 = sec.required(CONSENSUS_METHOD)?.parse_arg(0)?;
-
-        let shared_rand_prev = sec
-            .get(SHARED_RAND_PREVIOUS_VALUE)
-            .map(SharedRandStatus::from_item)
-            .transpose()?;
-
-        let shared_rand_cur = sec
-            .get(SHARED_RAND_CURRENT_VALUE)
-            .map(SharedRandStatus::from_item)
-            .transpose()?;
-
-        Ok(ConsensusHeader {
-            hdr,
-            consensus_method,
-            shared_rand_prev,
-            shared_rand_cur,
-        })
     }
 }
 
@@ -1602,11 +1571,11 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
             let pos = header_sec.first_item().unwrap().offset_in(r.str()).unwrap();
             (ConsensusHeader::from_section(&header_sec)?, pos)
         };
-        if RS::flavor() != header.hdr.flavor {
+        if RS::flavor() != header.flavor {
             return Err(EK::BadDocumentType.with_msg(format!(
                 "Expected {:?}, got {:?}",
                 RS::flavor(),
-                header.hdr.flavor
+                header.flavor
             )));
         }
 
@@ -1685,8 +1654,8 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
             siggroup,
             n_authorities: None,
         };
-        let lifetime = unval.consensus.header.hdr.lifetime.clone();
-        let delay = unval.consensus.header.hdr.voting_delay.unwrap_or((0, 0));
+        let lifetime = unval.consensus.header.lifetime.clone();
+        let delay = unval.consensus.header.voting_delay.unwrap_or((0, 0));
         let dist_interval = time::Duration::from_secs(delay.1.into());
         let starting_time = lifetime.valid_after - dist_interval;
         let timebound = TimerangeBound::new(unval, starting_time..lifetime.valid_until);
