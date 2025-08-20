@@ -14,7 +14,7 @@ use super::*;
 
 use super::{FromRsString};
 use crate::doc::netstatus::{
-    ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,
+    ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight,
 };
 use crate::{Error, Result};
 use crate::{parse::parser::Section, util::private::Sealed};
@@ -158,14 +158,15 @@ impl ConsensusRouterStatus {
 
 impl Sealed for ConsensusRouterStatus {}
 
-impl RouterStatus for ConsensusRouterStatus {
-    type DocumentDigest = DocDigest;
-
-    fn rsa_identity(&self) -> &RsaIdentity {
+impl ConsensusRouterStatus {
+    /// Return RSA identity for the relay described by this RouterStatus
+    pub fn rsa_identity(&self) -> &RsaIdentity {
         &self.rs.identity
     }
 
-    fn doc_digest(&self) -> &DocDigest {
+    /// Return the digest of the document identified by this
+    /// routerstatus.
+    pub fn doc_digest(&self) -> &DocDigest {
         &self.rs.doc_digest
     }
 }

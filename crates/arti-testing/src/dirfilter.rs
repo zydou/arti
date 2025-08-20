@@ -8,7 +8,7 @@ use tor_dirmgr::filter::DirFilter;
 use tor_netdoc::{
     doc::{
         microdesc::Microdesc,
-        netstatus::{RouterStatus, UncheckedMdConsensus},
+        netstatus::{UncheckedMdConsensus},
     },
     types::{family::RelayFamily, policy::PortPolicy},
 };

@@ -69,7 +69,7 @@ use tor_linkspec::{
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
-use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
+use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus};
 #[cfg(feature = "hs-common")]
 use {hsdir_ring::HsDirRing, std::iter};
 
@@ -1701,7 +1701,7 @@ impl NetDir {
     ///
     /// Note: because this function is used to assess the total
     /// properties of the consensus, the `usable` predicate takes a
-    /// [`RouterStatus`] rather than a [`Relay`].
+    /// [`MdConsensusRouterStatus`] rather than a [`Relay`].
     pub fn total_weight<P>(&self, role: WeightRole, usable: P) -> RelayWeight
     where
         P: Fn(&UncheckedRelay<'_>) -> bool,

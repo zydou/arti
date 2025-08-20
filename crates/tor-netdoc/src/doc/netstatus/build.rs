@@ -5,7 +5,7 @@
 
 use super::{
     ConsensusFlavor, ConsensusHeader, ConsensusVoterInfo, DirSource,
-    Footer, Lifetime, NetParams, ProtoStatus, ProtoStatuses, RouterStatus, SharedRandStatus,
+    Footer, Lifetime, NetParams, ProtoStatus, ProtoStatuses, SharedRandStatus,
     SharedRandVal,
 };
 

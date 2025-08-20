@@ -15,7 +15,7 @@ ns_export_each_variety! {
     ty: ConsensusRouterStatus;
 }
 
-use super::{ConsensusFlavor, RouterStatus};
+use super::{ConsensusFlavor};
 use crate::doc;
 use crate::types::misc::*;
 use crate::types::version::TorVersion;

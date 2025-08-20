@@ -675,21 +675,6 @@ pub trait ParseRouterStatus: Sized + Sealed {
     fn flavor() -> ConsensusFlavor;
 }
 
-/// Represents a single relay as listed in a consensus document.
-///
-/// Not implementable outside of the `tor-netdoc` crate.
-pub trait RouterStatus: Sealed {
-    /// A digest of the document that's identified by this RouterStatus.
-    type DocumentDigest: Clone;
-
-    /// Return RSA identity for the relay described by this RouterStatus
-    fn rsa_identity(&self) -> &RsaIdentity;
-
-    /// Return the digest of the document identified by this
-    /// routerstatus.
-    fn doc_digest(&self) -> &Self::DocumentDigest;
-}
-
 /// A consensus document that lists relays along with their
 /// microdescriptor documents.
 pub type MdConsensus = md::Consensus;
