@@ -14,7 +14,7 @@ use crate::{Error, channel::ChannelType};
 /// Subprotocol LINK version 4.
 ///
 /// Increases circuit ID width to 4 bytes.
-pub(crate) mod linkv4 {
+pub(super) mod linkv4 {
     use bytes::BytesMut;
     use tor_cell::{
         chancell::{AnyChanCell, codec},
@@ -34,7 +34,7 @@ pub(crate) mod linkv4 {
         /// Handshake messages of a relay that initiates a connection. They are sent by the
         /// initiator and thus received by the responder.
         #[derive(Clone, Debug)]
-        pub(crate) enum HandshakeRelayInitiatorMsg: ChanMsg {
+        pub(super) enum HandshakeRelayInitiatorMsg: ChanMsg {
             Authenticate,
             Certs,
             Netinfo
@@ -45,7 +45,7 @@ pub(crate) mod linkv4 {
         /// Handshake messages of a relay that responds to a connection. They are received by the
         /// initiator and thus sent by the responder.
         #[derive(Clone, Debug)]
-        pub(crate) enum HandshakeRelayResponderMsg: ChanMsg {
+        pub(super) enum HandshakeRelayResponderMsg: ChanMsg {
             AuthChallenge,
             Certs,
             Netinfo
@@ -61,7 +61,7 @@ pub(crate) mod linkv4 {
         /// This MUST be a subset of HandshakeRelayResponderMsg because the relay responder doesn't
         /// know what the other side will send depending if it wants to authenticate or not.
         #[derive(Clone, Debug)]
-        pub(crate) enum HandshakeClientInitiatorMsg: ChanMsg {
+        pub(super) enum HandshakeClientInitiatorMsg: ChanMsg {
             Netinfo
         }
     }
@@ -73,7 +73,7 @@ pub(crate) mod linkv4 {
         /// A channel message that we allow to be sent from a Client to a Relay on
         /// an open channel.
         #[derive(Clone, Debug)]
-        pub(crate) enum OpenChanMsgC2R: ChanMsg {
+        pub(super) enum OpenChanMsgC2R: ChanMsg {
             // No Create*, it is obsolete (TAP).
             Create2,
             CreateFast,
@@ -91,7 +91,7 @@ pub(crate) mod linkv4 {
         ///
         /// (An Open channel here is one on which we have received a NETINFO cell.)
         #[derive(Clone, Debug)]
-        pub(crate) enum OpenChanMsgR2C : ChanMsg {
+        pub(super) enum OpenChanMsgR2C : ChanMsg {
             // No Create*, we are not a client and it is obsolete (TAP).
             // No Created*, it is obsolete (TAP).
             CreatedFast,
@@ -106,7 +106,7 @@ pub(crate) mod linkv4 {
         /// A channel message that we allow to be sent (bidirectionally) from a Relay to a Relay on
         /// an open channel.
         #[derive(Clone, Debug)]
-        pub(crate) enum OpenChanMsgR2R : ChanMsg {
+        pub(super) enum OpenChanMsgR2R : ChanMsg {
             // No Vpadding, only sent during handshake.
             // No Create/Created, it is obsolete (TAP).
             Create2,
@@ -122,7 +122,7 @@ pub(crate) mod linkv4 {
     }
 
     /// Decode cell using the given channel type, message stage, codec and byte source.
-    pub(crate) fn decode_cell(
+    pub(super) fn decode_cell(
         chan_type: ChannelType,
         stage: &MessageStage,
         codec: &mut codec::ChannelCodec,
@@ -165,7 +165,7 @@ pub(crate) mod linkv4 {
     /// restricted message set at encoding time.
     ///
     /// Return an error if encoding fails or if cell is disallowed.
-    pub(crate) fn encode_cell(
+    pub(super) fn encode_cell(
         chan_type: ChannelType,
         stage: &MessageStage,
         cell: AnyChanCell,
@@ -206,7 +206,7 @@ pub(crate) mod linkv4 {
 /// Subprotocol LINK version 5.
 ///
 /// Adds support for padding and negotiation.
-pub(crate) mod linkv5 {
+pub(super) mod linkv5 {
     use bytes::BytesMut;
     use tor_cell::{
         chancell::{AnyChanCell, codec},
@@ -226,7 +226,7 @@ pub(crate) mod linkv5 {
         /// Handshake messages of a relay that initiates a connection. They are sent by the
         /// initiator and thus received by the responder.
         #[derive(Clone,Debug)]
-        pub(crate) enum HandshakeRelayInitiatorMsg: ChanMsg {
+        pub(super) enum HandshakeRelayInitiatorMsg: ChanMsg {
             Authenticate,
             Certs,
             Netinfo,
@@ -238,7 +238,7 @@ pub(crate) mod linkv5 {
         /// Handshake messages of a relay that responds to a connection. They are received by the
         /// initiator and thus sent by the responder.
         #[derive(Clone,Debug)]
-        pub(crate) enum HandshakeRelayResponderMsg: ChanMsg {
+        pub(super) enum HandshakeRelayResponderMsg: ChanMsg {
             AuthChallenge,
             Certs,
             Netinfo,
@@ -252,7 +252,7 @@ pub(crate) mod linkv5 {
         /// The Versions message is not in this set as it is a special case as the very first cell
         /// being negotiated in order to learn the link protocol version.
         #[derive(Clone,Debug)]
-        pub(crate) enum HandshakeClientInitiatorMsg: ChanMsg {
+        pub(super) enum HandshakeClientInitiatorMsg: ChanMsg {
             Netinfo,
             Vpadding,
         }
@@ -265,7 +265,7 @@ pub(crate) mod linkv5 {
         /// A channel message that we allow to be sent from a Client to a Relay on
         /// an open channel.
         #[derive(Clone, Debug)]
-        pub(crate) enum OpenChanMsgC2R: ChanMsg {
+        pub(super) enum OpenChanMsgC2R: ChanMsg {
             // No Create*, it is obsolete (TAP).
             Create2,
             CreateFast,
@@ -283,7 +283,7 @@ pub(crate) mod linkv5 {
         ///
         /// (An Open channel here is one on which we have received a NETINFO cell.)
         #[derive(Clone, Debug)]
-        pub(crate) enum OpenChanMsgR2C : ChanMsg {
+        pub(super) enum OpenChanMsgR2C : ChanMsg {
             // No Create/d*, only clients and it is obsolete (TAP).
             CreatedFast,
             Created2,
@@ -300,7 +300,7 @@ pub(crate) mod linkv5 {
         /// A channel message that we allow to be sent (bidirectionally) from a Relay to a Relay on
         /// an open channel.
         #[derive(Clone, Debug)]
-        pub(crate) enum OpenChanMsgR2R : ChanMsg {
+        pub(super) enum OpenChanMsgR2R : ChanMsg {
             // No Create/Created, it is obsolete (TAP).
             Create2,
             Created2,
@@ -316,7 +316,7 @@ pub(crate) mod linkv5 {
     }
 
     /// Decode cell using the given channel type, message stage, codec and byte source.
-    pub(crate) fn decode_cell(
+    pub(super) fn decode_cell(
         chan_type: ChannelType,
         stage: &MessageStage,
         codec: &mut codec::ChannelCodec,
@@ -356,7 +356,7 @@ pub(crate) mod linkv5 {
     /// restricted message set at encoding time.
     ///
     /// Return an error if encoding fails or if cell is disallowed.
-    pub(crate) fn encode_cell(
+    pub(super) fn encode_cell(
         chan_type: ChannelType,
         stage: &MessageStage,
         cell: AnyChanCell,
@@ -446,7 +446,7 @@ where
 
 /// Channel protocol version negotiated.
 #[derive(Copy, Clone, Debug)]
-pub(crate) enum LinkVersion {
+pub(super) enum LinkVersion {
     /// Version 4 that need to use linkv4:: messages.
     V4,
     /// Version 5 that need to use linkv5:: messages.
@@ -456,7 +456,7 @@ pub(crate) enum LinkVersion {
 impl LinkVersion {
     /// Return the value of this link version as a u16. Useful for lower level crates that require
     /// the value for which we can't export this enum.
-    pub(crate) fn value(&self) -> u16 {
+    pub(super) fn value(&self) -> u16 {
         match self {
             Self::V4 => 4,
             Self::V5 => 5,
@@ -485,7 +485,7 @@ impl TryFrom<u16> for LinkVersion {
 ///
 /// Notice that we don't have the "New" stage and this is because we only learn the link protocol
 /// version once we enter the Handshake stage.
-pub(crate) enum MessageStage {
+pub(super) enum MessageStage {
     /// Handshaking as in the channel is working to become open.
     Handshake,
     /// Open as the channel is now open.
@@ -508,7 +508,7 @@ impl MessageStage {
 /// channel.
 ///
 /// It is pinned to a link protocol version, a channel type and a channel message stage.
-pub(crate) struct MessageFilter {
+pub(super) struct MessageFilter {
     /// For what link protocol version this filter applies for.
     link_version: LinkVersion,
     /// For which channel type this filter applies for.
@@ -519,7 +519,7 @@ pub(crate) struct MessageFilter {
 
 impl MessageFilter {
     /// Constructor
-    pub(crate) fn new(
+    pub(super) fn new(
         link_version: LinkVersion,
         channel_type: ChannelType,
         stage: MessageStage,
@@ -533,7 +533,7 @@ impl MessageFilter {
 
     /// Decode a cell from the given bytes for the right link version, channel type and message
     /// stage using the codec given.
-    pub(crate) fn decode_cell(
+    pub(super) fn decode_cell(
         &self,
         codec: &mut codec::ChannelCodec,
         src: &mut BytesMut,
@@ -546,7 +546,7 @@ impl MessageFilter {
 
     /// Decode a cell from the given bytes for the right link version, channel type and message
     /// stage using the codec given.
-    pub(crate) fn encode_cell(
+    pub(super) fn encode_cell(
         &self,
         cell: AnyChanCell,
         codec: &mut codec::ChannelCodec,
