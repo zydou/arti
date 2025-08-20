@@ -10,6 +10,9 @@ pub(crate) mod build;
 pub mod plain;
 #[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
 pub mod md;
+#[cfg(feature = "ns-vote")]
+#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
+pub mod vote;
 
 ns_export_each_flavor! {
     ty: RouterStatus;

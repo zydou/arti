@@ -21,6 +21,6 @@ use std::time::SystemTime;
 pub(crate) mod plain;
 pub(crate) mod md;
 
-ns_export_each_variety! {
+ns_export_each_flavor! {
     ty: ConsensusBuilder;
 }

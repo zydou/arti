@@ -48,6 +48,8 @@ mod rs;
 #[cfg(feature = "plain-consensus")]
 pub mod plain;
 pub mod md;
+#[cfg(feature = "ns-vote")]
+pub mod vote;
 
 #[cfg(feature = "build_docs")]
 mod build;
@@ -80,7 +82,7 @@ pub use build::MdConsensusBuilder;
 #[cfg(all(feature = "build_docs", feature = "plain-consensus"))]
 pub use build::PlainConsensusBuilder;
 #[cfg(feature = "build_docs")]
-ns_export_each_variety! {
+ns_export_each_flavor! {
     ty: RouterStatusBuilder;
 }
 
