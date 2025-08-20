@@ -14,7 +14,7 @@ use super::*;
 
 use super::{FromRsString};
 use crate::doc::netstatus::{
-    ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight,
+    ConsensusFlavor, NetstatusKwd, RelayFlags, RelayWeight,
 };
 use crate::{Error, Result};
 use crate::{parse::parser::Section, util::private::Sealed};
@@ -145,27 +145,19 @@ impl RouterStatus {
     pub fn doc_digest(&self) -> &DocDigest {
         &self.doc_digest
     }
-}
 
-impl ParseRouterStatus for RouterStatus {
-    fn flavor() -> ConsensusFlavor {
+    /// Return the networkstatus consensus flavor in which this
+    /// routerstatus appears.
+    pub(crate) fn flavor() -> ConsensusFlavor {
         FLAVOR
     }
 
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<RouterStatus> {
-        let rs = RouterStatus::from_section(sec, FLAVOR)?;
-        Ok(rs)
-    }
-}
-
-impl RouterStatus {
     /// Parse a generic routerstatus from a section.
     ///
     /// Requires that the section obeys the right SectionRules,
     /// matching `consensus_flavor`.
-    fn from_section(
+    pub(crate) fn from_section(
         sec: &Section<'_, NetstatusKwd>,
-        consensus_flavor: ConsensusFlavor,
     ) -> Result<RouterStatus> {
         use NetstatusKwd::*;
         // R line
@@ -178,7 +170,7 @@ impl RouterStatus {
                 .with_msg("Wrong identity length")
         })?;
         // Fields to skip in the "r" line.
-        let n_skip = match consensus_flavor {
+        let n_skip = match FLAVOR {
             ConsensusFlavor::Microdesc => 0,
             ConsensusFlavor::Plain => 1,
         };
@@ -236,7 +228,7 @@ impl RouterStatus {
 
         // Try to find the document digest.  This is in different
         // places depending on the kind of consensus we're in.
-        let doc_digest: DocDigest = match consensus_flavor {
+        let doc_digest: DocDigest = match FLAVOR {
             ConsensusFlavor::Microdesc => {
                 // M line
                 let m_item = sec.required(RS_M)?;

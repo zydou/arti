@@ -58,7 +58,6 @@ use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::PeekableIterator;
-use crate::util::private::Sealed;
 use crate::{Error, NetdocErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
 use std::result::Result as StdResult;
@@ -659,20 +658,6 @@ pub(crate) struct Footer {
     /// roles when overall the proportion of exits is small.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     weights: NetParams<i32>,
-}
-
-/// Trait to parse a single relay as listed in a consensus document.
-///
-/// TODO(nickm): I'd rather not have this trait be public, but I haven't yet
-/// figured out how to make it private.
-pub trait ParseRouterStatus: Sized + Sealed {
-    /// Parse this object from a `Section` object containing its
-    /// elements.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<Self>;
-
-    /// Return the networkstatus consensus flavor in which this
-    /// routerstatus appears.
-    fn flavor() -> ConsensusFlavor;
 }
 
 /// A consensus document that lists relays along with their
