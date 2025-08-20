@@ -12,18 +12,6 @@
 
 use super::*;
 
-use super::{FromRsString};
-use crate::doc::netstatus::{
-    ConsensusFlavor, NetstatusKwd, RelayFlags, RelayWeight,
-};
-use crate::{Error, Result};
-use crate::{parse::parser::Section, util::private::Sealed};
-use std::net;
-
-use tor_error::internal;
-use tor_llcrypto::pk::rsa::RsaIdentity;
-use tor_protover::Protocols;
-
 /// A single relay's status, in a network status document.
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",

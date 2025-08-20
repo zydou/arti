@@ -19,13 +19,20 @@ ns_export_each_flavor! {
 }
 
 use super::{ConsensusFlavor};
+use tor_error::internal;
+use tor_llcrypto::pk::rsa::RsaIdentity;
 use crate::doc;
+use crate::doc::netstatus::{Protocols, RelayFlags, RelayWeight};
 use crate::types::misc::*;
 use crate::types::version::TorVersion;
 use crate::util::intern::InternCache;
 use crate::{Error, NetdocErrorKind as EK, Result};
 use std::sync::Arc;
-use std::{time};
+use std::{net, time};
+use crate::doc::netstatus::{
+    NetstatusKwd,
+};
+use crate::{parse::parser::Section, util::private::Sealed};
 
 /// A version as presented in a router status.
 ///
