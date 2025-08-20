@@ -202,8 +202,13 @@ impl futures_codec::Decoder for NewChannelHandler {
     type Error = ChanError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        // See tor-spec, VERSIONS are considered a variable length cell and thus the first 5 bytes
-        // are: CircId as u16, Command as u8, Length as u16.
+        // NOTE: Until the body can be extracted from src buffer, it MUST NOT be modified as in
+        // advanced with the Buf trait or modified in any ways. Reason is that we can realize we
+        // don't have enough bytes in the src buffer for the expected body length from the header
+        // so we have to leave the src buffer untouched and wait for more bytes.
+
+        // See tor-spec, starting a handshake, all cells are variable length so the first 5 bytes
+        // are: CircId as u16, Command as u8, Length as u16 totalling 5 bytes.
         const HEADER_SIZE: usize = 5;
 
         // Below this amount, this is not a valid cell we can decode. This is important because we
@@ -255,7 +260,7 @@ impl futures_codec::Decoder for NewChannelHandler {
             // We don't haven't received enough data to decode the expected length from the header
             // so return no Item.
             //
-            // IMPORTANT: The src buffer here can't be advanced before reaching this check.
+            // IMPORTANT: The src buffer here can't be advance before reaching this check.
             return Ok(None);
         }
         // Extract the exact data we will be looking at.
