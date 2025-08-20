@@ -1178,6 +1178,20 @@ impl Circuit {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
+    ///
+    /// NOTE(prop349): this is part of Arti's "Base Circuit Hop Handler".
+    /// This function returns a `CircProto` error if `msg` is an unsupported,
+    /// unexpected, or otherwise invalid message:
+    ///
+    ///   * unexpected messages are rejected by returning an error using
+    ///   [`unsupported_client_cell`]
+    ///   * SENDME/TRUNCATED messages are rejected if they don't parse
+    ///   * SENDME authentication tags are validated inside [`Circuit::handle_sendme`]
+    ///   * conflux cells are handled in the client [`ConfluxMsgHandler`]
+    ///
+    /// The error is propagated all the way up to [`Circuit::handle_cell`],
+    /// and eventually ends up being returned from the reactor's `run_once` function,
+    /// causing it to shut down.
     #[allow(clippy::cognitive_complexity)]
     fn handle_meta_cell(
         &mut self,
