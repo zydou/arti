@@ -45,9 +45,9 @@
 
 mod rs;
 
+pub mod md;
 #[cfg(feature = "plain-consensus")]
 pub mod plain;
-pub mod md;
 #[cfg(feature = "ns-vote")]
 pub mod vote;
 

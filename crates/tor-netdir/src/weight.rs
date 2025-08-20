@@ -425,7 +425,7 @@ mod test {
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, MdRouterStatusBuilder};
+    use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayFlags};
 
     #[test]
     fn t_clamp() {

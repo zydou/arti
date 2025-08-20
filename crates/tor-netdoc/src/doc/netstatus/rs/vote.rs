@@ -9,4 +9,4 @@ use super::*;
 // Import `each_variety.rs`, appropriately variegated
 ns_do_variety_vote! {}
 
-pub(crate) use crate::doc::routerdesc::{RdDigest as DocDigest};
+pub(crate) use crate::doc::routerdesc::RdDigest as DocDigest;

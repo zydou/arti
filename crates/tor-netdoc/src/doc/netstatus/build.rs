@@ -4,9 +4,8 @@
 //! support signing or encoding.)
 
 use super::{
-    ConsensusFlavor, ConsensusVoterInfo, DirSource,
-    Footer, Lifetime, NetParams, ProtoStatus, ProtoStatuses, SharedRandStatus,
-    SharedRandVal,
+    ConsensusFlavor, ConsensusVoterInfo, DirSource, Footer, Lifetime, NetParams, ProtoStatus,
+    ProtoStatuses, SharedRandStatus, SharedRandVal,
 };
 
 use crate::{BuildError as Error, BuildResult as Result};
@@ -17,9 +16,9 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+pub(crate) mod md;
 #[cfg(feature = "plain-consensus")]
 pub(crate) mod plain;
-pub(crate) mod md;
 
 ns_export_each_flavor! {
     ty: ConsensusBuilder;

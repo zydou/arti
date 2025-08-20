@@ -19,8 +19,8 @@ use std::time::{Duration, SystemTime};
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
-use tor_netdoc::doc::netstatus::{MdConsensusBuilder, MdConsensus};
-use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RelayWeight, MdRouterStatusBuilder};
+use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayFlags, RelayWeight};
+use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
 
 pub use tor_netdoc::{BuildError, BuildResult};
 
@@ -47,12 +47,7 @@ pub struct NodeBuilders {
 }
 
 /// Helper: a customization function that does nothing.
-pub fn simple_net_func(
-    _idx: usize,
-    _nb: &mut NodeBuilders,
-    _bld: &mut MdConsensusBuilder,
-) {
-}
+pub fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders, _bld: &mut MdConsensusBuilder) {}
 
 /// As [`construct_network()`], but return a [`PartialNetDir`].
 pub fn construct_netdir() -> PartialNetDir {

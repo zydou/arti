@@ -5,30 +5,28 @@
 
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
+#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
+pub mod md;
 #[cfg(feature = "plain-consensus")]
 #[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
 pub mod plain;
-#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
-pub mod md;
 #[cfg(feature = "ns-vote")]
 #[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
 pub mod vote;
 
-use super::{ConsensusFlavor};
-use tor_error::internal;
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use super::ConsensusFlavor;
 use crate::doc;
+use crate::doc::netstatus::NetstatusKwd;
 use crate::doc::netstatus::{Protocols, RelayFlags, RelayWeight};
 use crate::types::misc::*;
 use crate::types::version::TorVersion;
 use crate::util::intern::InternCache;
 use crate::{Error, NetdocErrorKind as EK, Result};
+use crate::{parse::parser::Section, util::private::Sealed};
 use std::sync::Arc;
 use std::{net, time};
-use crate::doc::netstatus::{
-    NetstatusKwd,
-};
-use crate::{parse::parser::Section, util::private::Sealed};
+use tor_error::internal;
+use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// A version as presented in a router status.
 ///

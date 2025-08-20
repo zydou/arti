@@ -297,7 +297,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
-    use tor_netdoc::doc::netstatus::{MdConsensusBuilder, Lifetime};
+    use tor_netdoc::doc::netstatus::{Lifetime, MdConsensusBuilder};
 
     /// Helper: parse an rfc3339 time.
     ///
