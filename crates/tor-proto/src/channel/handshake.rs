@@ -3,7 +3,6 @@
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use tor_cell::chancell::msg::AnyChanMsg;
 use tor_error::internal;
 
 use crate::channel::{ChannelType, UniqId, new_frame};
@@ -175,19 +174,48 @@ impl<
         let versions_flushed_wallclock = now_fn();
 
         // Get versions cell.
+        //
+        // The specification mentions that the very first cell can either be a VERSIONS, VPADDING
+        // or AUTHORIZE. However, after that, we can only get VPADDING before or even after a
+        // VERSIONS. In other words, AUTHORIZE can only be the first cell else we have a protocol
+        // violation.
+        let mut authorize_is_first_cell = false;
+        let mut versions_cell = None;
         trace!(stream_id = %self.unique_id, "waiting for versions");
-        // Receive the VERSIONS.
-        let Some(cell) = framed_tls.next().await.transpose()? else {
+        while let Some(cell) = framed_tls.next().await.transpose()? {
+            use super::AnyChanMsg::{Authorize, Versions, Vpadding};
+            let (_, m) = cell.into_circid_and_msg();
+            trace!(stream_id = %self.unique_id, "received a {} cell.", m.cmd());
+            match m {
+                Versions(v) => {
+                    versions_cell = Some(v);
+                    break;
+                }
+                Authorize(_) => {
+                    if authorize_is_first_cell {
+                        return Err(Error::HandshakeProto(
+                            "Received AUTHORIZE cell out of order".into(),
+                        ));
+                    }
+                    authorize_is_first_cell = true;
+                }
+                Vpadding(_) => (), // Silent drop. Allowed anywhere during the handshake.
+                _ => {
+                    return Err(Error::from(internal!(
+                        "Unexpected cell before VERSIONS: {}",
+                        m.cmd()
+                    )));
+                }
+            };
+        }
+        // This can be None if we've reached EOF or any type of I/O error on the underlying TCP or
+        // TLS stream. Either case, it is unexpected.
+        let Some(their_versions) = versions_cell else {
             return Err(Error::ChanIoErr(Arc::new(std::io::Error::from(
                 std::io::ErrorKind::UnexpectedEof,
             ))));
         };
-        let AnyChanMsg::Versions(their_versions) = cell.into_circid_and_msg().1 else {
-            return Err(Error::HandshakeProto(
-                "Unexpected cell, expecting a VERSIONS cell".into(),
-            ));
-        };
-        trace!(stream_id = %self.unique_id, "received {:?}", their_versions);
+        trace!(stream_id = %self.unique_id, "received their VERSIONS {:?}", their_versions);
 
         // Determine which link protocol we negotiated.
         let link_protocol = their_versions
