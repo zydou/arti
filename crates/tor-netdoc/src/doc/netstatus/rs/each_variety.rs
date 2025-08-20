@@ -1,4 +1,4 @@
-//! router status entries - items that vary by document variety
+//! router status entries - items for all varieties, that vary
 //!
 //! **This file is reincluded multiple times**,
 //! by the macros in [`crate::doc::ns_variety_definition_macros`],

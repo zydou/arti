@@ -1,4 +1,4 @@
-//! network status documents - items that vary by document variety
+//! network status documents - items for all varieties, that vary
 //!
 //! **This file is reincluded multiple times**,
 //! by the macros in [`crate::doc::ns_variety_definition_macros`],

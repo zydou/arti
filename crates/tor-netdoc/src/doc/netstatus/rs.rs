@@ -11,7 +11,7 @@ pub mod plain;
 #[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
 pub mod md;
 
-ns_export_each_variety! {
+ns_export_each_flavor! {
     ty: RouterStatus;
 }
 

@@ -1,4 +1,4 @@
-//! consensus document builders - items that vary by document variety
+//! consensus document builders - items for all varieties, that vary
 //!
 //! **This file is reincluded multiple times**,
 //! by the macros in [`crate::doc::ns_variety_definition_macros`],
@@ -9,8 +9,8 @@
 //! the `ns_***` macros (such as `ns_const_name!`) may expand to different values.
 //!
 //! See [`crate::doc::ns_variety_definition_macros`].
-//
-// We won't be using a Builder for votes.  We'll just use the fields directly.
+//!
+//! There are none of these planned, because we do not intend to provide builders for votes.
 
 ns_use_this_variety! {
     use [crate::doc::netstatus::rs::build]::?::{RouterStatusBuilder};
