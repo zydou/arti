@@ -106,7 +106,7 @@ warning_threshold = 0.9
 # Add a row for each crate...
 for crate, (numerator, denominator) in crate_lines.items():
     if denominator == 0:
-        frac = 0
+        frac = 0.0
         pct = "n/a"
     else:
         frac = numerator / denominator
