@@ -127,6 +127,7 @@ impl RouterStatusBuilder {
         self
     }
     /// Try to build a GenericRouterStatus from this builder.
+    // TODO this function is identical to `build`; decide which one to keep
     pub(super) fn finish(&self) -> Result<RouterStatus> {
         let nickname = self.nickname.as_deref().unwrap_or("Unnamed").parse()?;
         let identity = self
@@ -157,5 +158,21 @@ impl RouterStatusBuilder {
             flags: self.flags,
             weight,
         })
+    }
+
+    /// Try to finish this builder and add its RouterStatus to a
+    /// provided ConsensusBuilder.x
+    pub fn build_into(
+        &self,
+        builder: &mut ConsensusBuilder,
+    ) -> Result<()> {
+        builder.add_rs(self.build()?);
+        Ok(())
+    }
+
+    /// Return a router status built by this object.
+    // TODO this function is identical to `build`; decide which one to keep
+    pub fn build(&self) -> Result<RouterStatus> {
+        self.finish()
     }
 }

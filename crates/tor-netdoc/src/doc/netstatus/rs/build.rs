@@ -1,6 +1,5 @@
 //! Provide builder functionality for routerstatuses.
 
-use super::{MdRouterStatus};
 use crate::doc;
 use crate::doc::netstatus::{RelayFlags, RelayWeight};
 use crate::{BuildError as Error, BuildResult as Result};
@@ -12,6 +11,3 @@ use std::net::SocketAddr;
 #[cfg(feature = "plain-consensus")]
 pub(crate) mod plain;
 pub(crate) mod md;
-
-#[cfg(feature = "plain-consensus")]
-use super::PlainRouterStatus;
