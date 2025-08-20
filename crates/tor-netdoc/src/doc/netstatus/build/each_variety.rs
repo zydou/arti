@@ -1,4 +1,4 @@
-//! consensus document builders - types that vary by document variety
+//! consensus document builders - items that vary by document variety
 //!
 //! **This file is reincluded multiple times**,
 //! by the macros in [`crate::doc::ns_variety_definition_macros`],

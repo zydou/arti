@@ -1,4 +1,4 @@
-//! router status entry builders - types that vary by document variety
+//! router status entry builders - items that vary by document variety
 //!
 //! **This file is reincluded multiple times**,
 //! by the macros in [`crate::doc::ns_variety_definition_macros`],
