@@ -131,34 +131,24 @@ pub(super) mod linkv4 {
         use ChannelType::*;
         use MessageStage::*;
 
-        match (chan_type, stage) {
-            (ClientInitiator, Handshake) => {
-                decode_as_any::<HandshakeRelayResponderMsg>(stage, codec, src)
-            }
-            (ClientInitiator, Open) => decode_as_any::<OpenChanMsgR2C>(stage, codec, src),
-            (RelayInitiator, Handshake) => {
-                decode_as_any::<HandshakeRelayResponderMsg>(stage, codec, src)
-            }
-            (RelayInitiator, Open) => decode_as_any::<OpenChanMsgR2R>(stage, codec, src),
+        let decode_fn = match (chan_type, stage) {
+            (ClientInitiator, Handshake) => decode_as_any::<HandshakeRelayResponderMsg>,
+            (ClientInitiator, Open) => decode_as_any::<OpenChanMsgR2C>,
+            (RelayInitiator, Handshake) => decode_as_any::<HandshakeRelayResponderMsg>,
+            (RelayInitiator, Open) => decode_as_any::<OpenChanMsgR2R>,
             (RelayResponder { authenticated: _ }, Handshake) => {
                 // We don't know if the other side is a client or relay. However, this message set
                 // is a superset of the HandshakeClientInitiatorMsg and so we cover the client as
                 // well.
-                decode_as_any::<HandshakeRelayInitiatorMsg>(stage, codec, src)
+                decode_as_any::<HandshakeRelayInitiatorMsg>
             }
-            (
-                RelayResponder {
-                    authenticated: false,
-                },
-                Open,
-            ) => decode_as_any::<OpenChanMsgC2R>(stage, codec, src),
-            (
-                RelayResponder {
-                    authenticated: true,
-                },
-                Open,
-            ) => decode_as_any::<OpenChanMsgR2R>(stage, codec, src),
-        }
+            (RelayResponder { authenticated }, Open) => match authenticated {
+                false => decode_as_any::<OpenChanMsgC2R>,
+                true => decode_as_any::<OpenChanMsgR2R>,
+            },
+        };
+
+        decode_fn(stage, codec, src)
     }
 
     /// Encode a given cell which can contains any type of messages. It is filtered through its
@@ -175,31 +165,21 @@ pub(super) mod linkv4 {
         use ChannelType::*;
         use MessageStage::*;
 
-        match (chan_type, stage) {
-            (ClientInitiator, Handshake) => {
-                encode_as_any::<HandshakeClientInitiatorMsg>(stage, cell, codec, dst)
-            }
-            (ClientInitiator, Open) => encode_as_any::<OpenChanMsgC2R>(stage, cell, codec, dst),
-            (RelayInitiator, Handshake) => {
-                encode_as_any::<HandshakeRelayInitiatorMsg>(stage, cell, codec, dst)
-            }
-            (RelayInitiator, Open) => encode_as_any::<OpenChanMsgR2R>(stage, cell, codec, dst),
+        let encode_fn = match (chan_type, stage) {
+            (ClientInitiator, Handshake) => encode_as_any::<HandshakeClientInitiatorMsg>,
+            (ClientInitiator, Open) => encode_as_any::<OpenChanMsgC2R>,
+            (RelayInitiator, Handshake) => encode_as_any::<HandshakeRelayInitiatorMsg>,
+            (RelayInitiator, Open) => encode_as_any::<OpenChanMsgR2R>,
             (RelayResponder { authenticated: _ }, Handshake) => {
-                encode_as_any::<HandshakeRelayResponderMsg>(stage, cell, codec, dst)
+                encode_as_any::<HandshakeRelayResponderMsg>
             }
-            (
-                RelayResponder {
-                    authenticated: false,
-                },
-                Open,
-            ) => encode_as_any::<OpenChanMsgR2C>(stage, cell, codec, dst),
-            (
-                RelayResponder {
-                    authenticated: true,
-                },
-                Open,
-            ) => encode_as_any::<OpenChanMsgR2R>(stage, cell, codec, dst),
-        }
+            (RelayResponder { authenticated }, Open) => match authenticated {
+                false => encode_as_any::<OpenChanMsgR2C>,
+                true => encode_as_any::<OpenChanMsgR2R>,
+            },
+        };
+
+        encode_fn(stage, cell, codec, dst)
     }
 }
 
