@@ -587,6 +587,18 @@ impl Eq for ConfluxHeapEntry {}
 /// Cell handlers, shared between the Reactor and its underlying `Circuit`s.
 struct CellHandlers {
     /// A handler for a meta cell, together with a result channel to notify on completion.
+    ///
+    /// NOTE(prop349): this is part of Arti's "Base Circuit Hop Handler".
+    ///
+    /// Upon sending an EXTEND cell, the [`ControlHandler`] sets this handler
+    /// to [`CircuitExtender`](circuit::extender::CircuitExtender).
+    /// The handler is then used in [`Circuit::handle_meta_cell`] for handling
+    /// all the meta cells received on the circuit that are not SENDMEs or TRUNCATE
+    /// (which are handled separately) or conflux cells
+    /// (which are handled by the conflux handlers).
+    ///
+    /// The handler is uninstalled after the receipt of the EXTENDED cell,
+    /// so any subsequent EXTENDED cells will cause the circuit to be torn down.
     meta_handler: Option<Box<dyn MetaCellHandler + Send>>,
     /// A handler for incoming stream requests.
     #[cfg(feature = "hs-service")]
