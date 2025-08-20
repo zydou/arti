@@ -1110,8 +1110,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::channel::OpenChanCellS2C;
-    use crate::channel::{CodecError, test::new_reactor};
+    use crate::channel::test::{CodecResult, new_reactor};
     use crate::client::stream::DataStream;
     #[cfg(feature = "hs-service")]
     use crate::client::stream::IncomingStreamRequestFilter;
@@ -1241,11 +1240,7 @@ pub(crate) mod test {
 
     fn working_fake_channel<R: Runtime>(
         rt: &R,
-    ) -> (
-        Arc<Channel>,
-        Receiver<AnyChanCell>,
-        Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
-    ) {
+    ) -> (Arc<Channel>, Receiver<AnyChanCell>, Sender<CodecResult>) {
         let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
         rt.spawn(async {
             let _ignore = chan_reactor.run().await;
@@ -1963,7 +1958,7 @@ pub(crate) mod test {
         Option<StreamId>,
         usize,
         Receiver<AnyChanCell>,
-        Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
+        Sender<CodecResult>,
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (tunnel, mut sink) = newtunnel(rt, chan).await;
@@ -2592,7 +2587,7 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     struct TestCircuitCtx {
         chan_rx: Receiver<AnyChanCell>,
-        chan_tx: Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
+        chan_tx: Sender<std::result::Result<AnyChanCell, Error>>,
         circ_tx: CircuitRxSender,
         unique_id: UniqId,
     }

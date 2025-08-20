@@ -190,15 +190,6 @@ impl Error {
         Error::CellEncodeErr { object, err }
     }
 
-    /// Create an error from a tor_cell error that has occurred while trying to
-    /// decode something of type `object`
-    pub(crate) fn from_cell_dec(err: tor_cell::Error, object: &'static str) -> Error {
-        match err {
-            tor_cell::Error::ChanProto(msg) => Error::ChanProto(msg),
-            _ => Error::CellDecodeErr { err, object },
-        }
-    }
-
     /// Create an error for a tor_bytes error that occurred while parsing
     /// something of type `object`.
     pub(crate) fn from_bytes_err(err: tor_bytes::Error, object: &'static str) -> Error {
@@ -209,6 +200,12 @@ impl Error {
     /// something of type `object`.
     pub(crate) fn from_bytes_enc(err: tor_bytes::EncodeError, object: &'static str) -> Error {
         Error::EncodeErr { err, object }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self::ChanIoErr(Arc::new(err))
     }
 }
 

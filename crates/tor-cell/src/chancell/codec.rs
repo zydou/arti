@@ -47,6 +47,11 @@ impl ChannelCodec {
         ChannelCodec { link_version }
     }
 
+    /// Return the link protocol version of this codec.
+    pub fn link_version(&self) -> u16 {
+        self.link_version
+    }
+
     /// Write the given cell into the provided BytesMut object.
     pub fn write_cell<M: ChanMsg>(
         &mut self,
