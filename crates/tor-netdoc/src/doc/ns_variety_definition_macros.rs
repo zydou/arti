@@ -140,6 +140,19 @@
 //!
 //!   When defining whole items, prefer to put the variety-specific items directly
 //!   in each of the variety-specific modules.
+//!
+//! * **`ns_use_this_variety! { use [LHS]::?::{RHS}; }`**:
+//!
+//!   For importing names from variety-specific sibling modules.
+//!
+//!   In the `use` statement, literal `[ ]` are needed around LHS, and are removed.
+//!   `?` is replaced with the variety abbreviation (`plain`, `md` or `vote).
+//!
+//!   Multiple `use` within the same `ns_use_this_variety!` are allowed.
+//!   Visibility (`pub use` etc.) is supported.
+//!
+//!   Attributes are not currently supported.
+//!   Unfortunately, only the form with RHS inside `{ }` is permitted.
 //
 // Other ways we could have done this:
 //
@@ -212,6 +225,11 @@ macro_rules! ns_do_one_variety { {
     #[allow(unused)]
     macro_rules! ns_expr {
         { $d( $d option:expr ),* $d(,)? } => { ns_choose!( $d( ( $d option ) )* ) }
+    }
+    #[allow(unused)]
+    macro_rules! ns_use_this_variety {
+        { $d( $d v:vis use [ $d( $d lhs:tt )* ] :: ?       :: { $d( $d rhs:tt )* }; )* } =>
+        { $d( $d v     use   $d( $d lhs    )*   :: $abbrev :: { $d( $d rhs    )* }; )* }
     }
 
     // ----- Now read each_variety.rs in the context with *these* macro definitions -----
