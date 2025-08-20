@@ -61,7 +61,6 @@ impl std::str::FromStr for Version {
 
 /// Helper to decode a document digest in the format in which it
 /// appears in a given kind of routerstatus.
-#[cfg_attr(feature = "dangerous-expose-struct-fields", visibility::make(pub))]
 trait FromRsString: Sized {
     /// Try to decode the given object.
     fn decode(s: &str) -> Result<Self>;
