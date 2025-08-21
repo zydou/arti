@@ -3,8 +3,26 @@
 // Read this file in conjunction with `each_variety.rs`.
 // See "module scope" ns_variety_definition_macros.rs.
 
-#[allow(unused)] // XXXX
 use super::*;
 
 // Import `each_variety.rs`, appropriately variegated
 ns_do_variety_md! {}
+
+use crate::doc::netstatus::MdConsensusBuilder as ConsensusBuilder;
+
+impl RouterStatusBuilder<MdDigest> {
+    /// Try to finish this builder and add its RouterStatus to a
+    /// provided ConsensusBuilder.x
+    pub fn build_into(
+        &self,
+        builder: &mut ConsensusBuilder<MdConsensusRouterStatus>,
+    ) -> Result<()> {
+        builder.add_rs(self.build()?);
+        Ok(())
+    }
+
+    /// Return a router status built by this object.
+    pub fn build(&self) -> Result<MdConsensusRouterStatus> {
+        Ok(self.finish()?.into())
+    }
+}

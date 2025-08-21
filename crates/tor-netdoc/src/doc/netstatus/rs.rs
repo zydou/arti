@@ -5,11 +5,12 @@
 
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
-mod md;
 #[cfg(feature = "plain-consensus")]
-mod plain;
+#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
+pub mod plain;
+#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
+pub mod md;
 
-// Export md::ConsensusRouterStatus as MdConsensusRouterStatus, etc.
 ns_export_each_variety! {
     ty: ConsensusRouterStatus;
 }
@@ -35,7 +36,7 @@ use tor_protover::Protocols;
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct GenericRouterStatus<D> {
+pub(crate) struct GenericRouterStatus<D> {
     /// The nickname for this relay.
     ///
     /// Nicknames can be used for convenience purpose, but no more:

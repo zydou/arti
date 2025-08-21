@@ -19,8 +19,8 @@ use std::time::{Duration, SystemTime};
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
-use tor_netdoc::doc::netstatus::{ConsensusBuilder, MdConsensus, MdConsensusRouterStatus};
-use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RelayWeight, RouterStatusBuilder};
+use tor_netdoc::doc::netstatus::{MdConsensusBuilder, MdConsensus, MdConsensusRouterStatus};
+use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RelayWeight, MdRouterStatusBuilder};
 
 pub use tor_netdoc::{BuildError, BuildResult};
 
@@ -31,7 +31,7 @@ pub struct NodeBuilders {
     /// Builds a routerstatus for a single node.
     ///
     /// Adjust fields in this builder to change the node's properties.
-    pub rs: RouterStatusBuilder<MdDigest>,
+    pub rs: MdRouterStatusBuilder<MdDigest>,
 
     /// Builds a microdescriptor for a single node.
     ///
@@ -50,7 +50,7 @@ pub struct NodeBuilders {
 pub fn simple_net_func(
     _idx: usize,
     _nb: &mut NodeBuilders,
-    _bld: &mut ConsensusBuilder<MdConsensusRouterStatus>,
+    _bld: &mut MdConsensusBuilder<MdConsensusRouterStatus>,
 ) {
 }
 
@@ -67,7 +67,7 @@ pub fn construct_custom_netdir_with_params<F, P, PK>(
     lifetime: Option<Lifetime>,
 ) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder<MdConsensusRouterStatus>),
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
@@ -89,7 +89,7 @@ fn construct_custom_netdir_with_params_inner<F, P, PK>(
     #[cfg(feature = "geoip")] geoip_db: Option<&GeoipDb>,
 ) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder<MdConsensusRouterStatus>),
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
@@ -112,7 +112,7 @@ where
 /// As [`construct_custom_network()`], but return a [`PartialNetDir`].
 pub fn construct_custom_netdir<F>(func: F) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder<MdConsensusRouterStatus>),
 {
     construct_custom_netdir_with_params(func, iter::empty::<(&str, _)>(), None)
 }
@@ -121,7 +121,7 @@ where
 /// As [`construct_custom_netdir()`], but with a `GeoipDb`.
 pub fn construct_custom_netdir_with_geoip<F>(func: F, db: &GeoipDb) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder<MdConsensusRouterStatus>),
 {
     construct_custom_netdir_with_params_inner(func, iter::empty::<(&str, _)>(), None, Some(db))
 }
@@ -167,7 +167,7 @@ pub fn construct_network() -> BuildResult<(MdConsensus, Vec<Microdesc>)> {
 /// Before each relay is added to the consensus or the network, it is
 /// passed through the provided filtering function.  This function
 /// receives as its arguments the current index (in range 0..40), a
-/// [`RouterStatusBuilder`], and a [`MicrodescBuilder`].  If it
+/// [`MdRouterStatusBuilder`], and a [`MicrodescBuilder`].  If it
 /// returns a `RouterStatusBuilder`, the corresponding router status
 /// is added to the consensus.  If it returns a `MicrodescBuilder`,
 /// the corresponding microdescriptor is added to the vector of
@@ -190,7 +190,7 @@ pub fn construct_custom_network<F>(
     lifetime: Option<Lifetime>,
 ) -> BuildResult<(MdConsensus, Vec<Microdesc>)>
 where
-    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
+    F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder<MdConsensusRouterStatus>),
 {
     let f = RelayFlags::RUNNING
         | RelayFlags::VALID

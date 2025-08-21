@@ -425,7 +425,7 @@ mod test {
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RouterStatusBuilder};
+    use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, MdRouterStatusBuilder};
 
     #[test]
     fn t_clamp() {
@@ -607,7 +607,7 @@ mod test {
 
     /// Return a routerstatus builder set up to deliver a routerstatus
     /// with most features disabled.
-    fn rs_builder() -> RouterStatusBuilder<[u8; 32]> {
+    fn rs_builder() -> MdRouterStatusBuilder<[u8; 32]> {
         MdConsensus::builder()
             .rs()
             .identity([9; 20].into())
