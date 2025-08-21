@@ -22,7 +22,7 @@ impl RouterStatusBuilder {
         Ok(())
     }
     /// Return a router status built by this object.
-    pub fn build(&self) -> Result<PlainConsensusRouterStatus> {
-        Ok(self.finish()?.into())
+    pub fn build(&self) -> Result<PlainRouterStatus> {
+        self.finish()
     }
 }

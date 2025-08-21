@@ -13,7 +13,7 @@
 use super::*;
 
 ns_use_this_variety! {
-    use [crate::doc::netstatus::rs]::?::{ConsensusRouterStatus};
+    use [crate::doc::netstatus::rs]::?::{RouterStatus};
 }
 #[cfg(feature = "build_docs")]
 ns_use_this_variety! {
@@ -45,7 +45,7 @@ pub struct Consensus {
     /// These are currently ordered by the router's RSA identity, but this is not
     /// to be relied on, since we may want to even abolish RSA at some point!
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) relays: Vec<ConsensusRouterStatus>,
+    pub(crate) relays: Vec<RouterStatus>,
     /// Footer for the consensus object.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     pub(crate) footer: Footer,
@@ -58,7 +58,7 @@ impl Consensus {
     }
 
     /// Return a slice of all the routerstatus entries in this consensus.
-    pub fn relays(&self) -> &[ConsensusRouterStatus] {
+    pub fn relays(&self) -> &[RouterStatus] {
         &self.relays[..]
     }
 
@@ -110,7 +110,7 @@ impl Consensus {
     /// been enabled.
     #[cfg(feature = "build_docs")]
     pub fn builder() -> ConsensusBuilder {
-        ConsensusBuilder::new(ConsensusRouterStatus::flavor())
+        ConsensusBuilder::new(RouterStatus::flavor())
     }
 
     /// Try to parse a single networkstatus document from a string.
@@ -165,7 +165,7 @@ impl Consensus {
 
     /// Extract a routerstatus from the reader.  Return Ok(None) if we're
     /// out of routerstatus entries.
-    fn take_routerstatus(r: &mut NetDocReader<'_, NetstatusKwd>) -> Result<Option<(Pos, ConsensusRouterStatus)>> {
+    fn take_routerstatus(r: &mut NetDocReader<'_, NetstatusKwd>) -> Result<Option<(Pos, RouterStatus)>> {
         use NetstatusKwd::*;
         match r.peek() {
             None => return Ok(None),
@@ -190,13 +190,13 @@ impl Consensus {
             }
         });
 
-        let rules = match ConsensusRouterStatus::flavor() {
+        let rules = match RouterStatus::flavor() {
             ConsensusFlavor::Microdesc => &NS_ROUTERSTATUS_RULES_MDCON,
             ConsensusFlavor::Plain => &NS_ROUTERSTATUS_RULES_PLAIN,
         };
 
         let rs_sec = rules.parse(&mut p)?;
-        let rs = ConsensusRouterStatus::from_section(&rs_sec)?;
+        let rs = RouterStatus::from_section(&rs_sec)?;
         Ok(Some((pos, rs)))
     }
 
@@ -217,10 +217,10 @@ impl Consensus {
             let pos = header_sec.first_item().unwrap().offset_in(r.str()).unwrap();
             (ConsensusHeader::from_section(&header_sec)?, pos)
         };
-        if ConsensusRouterStatus::flavor() != header.flavor {
+        if RouterStatus::flavor() != header.flavor {
             return Err(EK::BadDocumentType.with_msg(format!(
                 "Expected {:?}, got {:?}",
-                ConsensusRouterStatus::flavor(),
+                RouterStatus::flavor(),
                 header.flavor
             )));
         }
@@ -231,7 +231,7 @@ impl Consensus {
             voters.push(voter);
         }
 
-        let mut relays: Vec<ConsensusRouterStatus> = Vec::new();
+        let mut relays: Vec<RouterStatus> = Vec::new();
         while let Some((pos, routerstatus)) = Self::take_routerstatus(r)? {
             if let Some(prev) = relays.last() {
                 if prev.rsa_identity() >= routerstatus.rsa_identity() {
@@ -279,7 +279,7 @@ impl Consensus {
         // Find the appropriate digest.
         let signed_str = &r.str()[start_pos..end_pos];
         let remainder = &r.str()[end_pos..];
-        let (sha256, sha1) = match ConsensusRouterStatus::flavor() {
+        let (sha256, sha1) = match RouterStatus::flavor() {
             ConsensusFlavor::Plain => (
                 None,
                 Some(ll::d::Sha1::digest(signed_str.as_bytes()).into()),
@@ -394,7 +394,7 @@ impl UnvalidatedConsensus {
     #[cfg(feature = "experimental-api")]
     pub fn modify_relays<F>(&mut self, func: F)
     where
-        F: FnOnce(&mut Vec<ConsensusRouterStatus>),
+        F: FnOnce(&mut Vec<RouterStatus>),
     {
         func(&mut self.consensus.relays);
     }

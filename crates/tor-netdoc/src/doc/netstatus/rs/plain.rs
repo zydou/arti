@@ -14,7 +14,7 @@ pub(crate) use crate::doc::routerdesc::{DOC_DIGEST_LEN, RdDigest as DocDigest};
 /// The flavor
 const FLAVOR: ConsensusFlavor = ConsensusFlavor::Plain;
 
-impl ConsensusRouterStatus {
+impl RouterStatus {
     /// Return the expected router descriptor digest for this routerstatus
     pub fn rd_digest(&self) -> &DocDigest {
         self.doc_digest()

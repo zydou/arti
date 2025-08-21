@@ -15,7 +15,7 @@
 use super::*;
 
 ns_use_this_variety! {
-    use [crate::doc::netstatus::rs]::?::{DocDigest, GenericRouterStatus};
+    use [crate::doc::netstatus::rs]::?::{DocDigest, RouterStatus};
 }
 
 /// A Builder object for creating a RouterStatus and adding it to a
@@ -23,21 +23,21 @@ ns_use_this_variety! {
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 #[derive(Debug, Clone)]
 pub struct RouterStatusBuilder {
-    /// See [`GenericRouterStatus::nickname`].
+    /// See [`RouterStatus::nickname`].
     nickname: Option<String>,
-    /// See [`GenericRouterStatus::identity`].
+    /// See [`RouterStatus::identity`].
     identity: Option<RsaIdentity>,
-    /// See [`GenericRouterStatus::addrs`].
+    /// See [`RouterStatus::addrs`].
     addrs: Vec<SocketAddr>,
-    /// See [`GenericRouterStatus::doc_digest`].
+    /// See [`RouterStatus::doc_digest`].
     doc_digest: Option<DocDigest>,
-    /// See [`GenericRouterStatus::flags`].
+    /// See [`RouterStatus::flags`].
     flags: RelayFlags,
-    /// See [`GenericRouterStatus::version`].
+    /// See [`RouterStatus::version`].
     version: Option<String>,
-    /// See [`GenericRouterStatus::protos`].
+    /// See [`RouterStatus::protos`].
     protos: Option<Protocols>,
-    /// See [`GenericRouterStatus::weight`].
+    /// See [`RouterStatus::weight`].
     weight: Option<RelayWeight>,
 }
 
@@ -127,7 +127,7 @@ impl RouterStatusBuilder {
         self
     }
     /// Try to build a GenericRouterStatus from this builder.
-    pub(super) fn finish(&self) -> Result<GenericRouterStatus> {
+    pub(super) fn finish(&self) -> Result<RouterStatus> {
         let nickname = self.nickname.as_deref().unwrap_or("Unnamed").parse()?;
         let identity = self
             .identity
@@ -147,7 +147,7 @@ impl RouterStatusBuilder {
         let weight = self.weight.unwrap_or(RelayWeight::Unmeasured(0));
         let version = self.version.as_deref().map(str::parse).transpose()?;
 
-        Ok(GenericRouterStatus {
+        Ok(RouterStatus {
             nickname,
             identity,
             addrs: self.addrs.clone(),

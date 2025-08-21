@@ -12,7 +12,7 @@ pub mod plain;
 pub mod md;
 
 ns_export_each_variety! {
-    ty: ConsensusRouterStatus;
+    ty: RouterStatus;
 }
 
 use super::{ConsensusFlavor};

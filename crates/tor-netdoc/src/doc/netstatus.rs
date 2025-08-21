@@ -85,9 +85,9 @@ ns_export_each_variety! {
     ty: RouterStatusBuilder;
 }
 
-pub use rs::MdConsensusRouterStatus;
+pub use rs::MdRouterStatus;
 #[cfg(feature = "plain-consensus")]
-pub use rs::PlainConsensusRouterStatus;
+pub use rs::PlainRouterStatus;
 use void::ResultVoidExt as _;
 
 #[deprecated]
@@ -95,7 +95,7 @@ use void::ResultVoidExt as _;
 pub use PlainConsensus as NsConsensus;
 #[deprecated]
 #[cfg(feature = "ns_consensus")]
-pub use PlainConsensusRouterStatus as NsConsensusRouterStatus;
+pub use PlainRouterStatus as NsRouterStatus;
 #[deprecated]
 #[cfg(feature = "ns_consensus")]
 pub use UncheckedPlainConsensus as UncheckedNsConsensus;

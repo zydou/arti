@@ -14,7 +14,7 @@
 
 ns_use_this_variety! {
     use [crate::doc::netstatus::rs::build]::?::{RouterStatusBuilder};
-    use [crate::doc::netstatus::rs]::?::{ConsensusRouterStatus};
+    use [crate::doc::netstatus::rs]::?::{RouterStatus};
 }
 #[cfg(not(doc))]
 ns_use_this_variety! {
@@ -60,7 +60,7 @@ pub struct ConsensusBuilder {
     /// See [`Consensus::voters`]
     voters: Vec<ConsensusVoterInfo>,
     /// See [`Consensus::relays`]
-    relays: Vec<ConsensusRouterStatus>,
+    relays: Vec<RouterStatus>,
     /// See [`Footer::weights`]
     weights: NetParams<i32>,
 }
@@ -209,7 +209,7 @@ impl ConsensusBuilder {
     }
 
     /// Insert a single routerstatus into this builder.
-    pub(crate) fn add_rs(&mut self, rs: ConsensusRouterStatus) -> &mut Self {
+    pub(crate) fn add_rs(&mut self, rs: RouterStatus) -> &mut Self {
         self.relays.push(rs);
         self
     }

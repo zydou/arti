@@ -16,7 +16,7 @@ pub(crate) use crate::doc::microdesc::{DOC_DIGEST_LEN, MdDigest as DocDigest};
 /// The flavor
 const FLAVOR: ConsensusFlavor = ConsensusFlavor::Microdesc;
 
-impl ConsensusRouterStatus {
+impl RouterStatus {
     /// Return the expected microdescriptor digest for this routerstatus
     pub fn md_digest(&self) -> &DocDigest {
         self.doc_digest()

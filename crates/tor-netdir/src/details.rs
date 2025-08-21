@@ -195,7 +195,7 @@ impl<'a> UncheckedRelayDetails<'a> {
 }
 
 /// Return true if `rs` is usable as a directory cache.
-fn rs_is_dir_cache(rs: &netstatus::MdConsensusRouterStatus) -> bool {
+fn rs_is_dir_cache(rs: &netstatus::MdRouterStatus) -> bool {
     use tor_protover::named::DIRCACHE_CONSDIFF;
     rs.is_flagged_v2dir() && rs.protovers().supports_named_subver(DIRCACHE_CONSDIFF)
 }
