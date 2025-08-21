@@ -1184,7 +1184,7 @@ impl Circuit {
     /// unexpected, or otherwise invalid message:
     ///
     ///   * unexpected messages are rejected by returning an error using
-    ///   [`unsupported_client_cell`]
+    ///     [`unsupported_client_cell`]
     ///   * SENDME/TRUNCATED messages are rejected if they don't parse
     ///   * SENDME authentication tags are validated inside [`Circuit::handle_sendme`]
     ///   * conflux cells are handled in the client [`ConfluxMsgHandler`]
