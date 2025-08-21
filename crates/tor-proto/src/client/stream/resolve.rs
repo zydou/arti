@@ -66,6 +66,20 @@ impl ResolveStream {
 
 /// A `CmdChecker` that enforces correctness for incoming commands on an
 /// outbound resolve stream.
+///
+/// NOTE(prop349): this implements the "Resolve Stream Handler".
+/// This is set via [crate::ClientTunnel::begin_stream_impl],
+/// which installs the checker on the last hop in the circuit.
+///
+/// This is called via `CircHop::deliver_msg_to_stream`.
+/// Errors are propagated all the way up to
+/// [`Circuit::handle_cell`](crate::client::reactor::circuit::Circuit),
+/// and eventually end up being returned from the reactor's `run_once`
+/// function, causing it to shut down.
+///
+/// [`super::StreamStatus::Closed`] is handled in the `CircHop`'s
+/// stream map (by marking the stream as closed, or returning
+/// a CircProto error, as appropriate).
 #[derive(Debug, Default)]
 pub(crate) struct ResolveCmdChecker {}
 
