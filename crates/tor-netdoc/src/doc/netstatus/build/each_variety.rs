@@ -14,6 +14,7 @@
 
 ns_use_this_variety! {
     use [crate::doc::netstatus::rs::build]::?::{RouterStatusBuilder};
+    use [crate::doc::netstatus::rs]::?::{ConsensusRouterStatus};
 }
 #[cfg(not(doc))]
 ns_use_this_variety! {
@@ -33,7 +34,7 @@ use super::*;
 /// This facility is only enabled when the crate is built with
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
-pub struct ConsensusBuilder<RS> {
+pub struct ConsensusBuilder {
     /// See [`ConsensusHeader::flavor`]
     flavor: ConsensusFlavor,
     /// See [`ConsensusHeader::lifetime`]
@@ -59,14 +60,14 @@ pub struct ConsensusBuilder<RS> {
     /// See [`Consensus::voters`]
     voters: Vec<ConsensusVoterInfo>,
     /// See [`Consensus::relays`]
-    relays: Vec<RS>,
+    relays: Vec<ConsensusRouterStatus>,
     /// See [`Footer::weights`]
     weights: NetParams<i32>,
 }
 
-impl<RS> ConsensusBuilder<RS> {
+impl ConsensusBuilder {
     /// Construct a new ConsensusBuilder object.
-    pub(crate) fn new(flavor: ConsensusFlavor) -> ConsensusBuilder<RS> {
+    pub(crate) fn new(flavor: ConsensusFlavor) -> ConsensusBuilder {
         ConsensusBuilder {
             flavor,
             lifetime: None,
@@ -208,18 +209,18 @@ impl<RS> ConsensusBuilder<RS> {
     }
 
     /// Insert a single routerstatus into this builder.
-    pub(crate) fn add_rs(&mut self, rs: RS) -> &mut Self {
+    pub(crate) fn add_rs(&mut self, rs: ConsensusRouterStatus) -> &mut Self {
         self.relays.push(rs);
         self
     }
 }
 
-impl<RS: RouterStatus + Clone> ConsensusBuilder<RS> {
+impl ConsensusBuilder {
     /// Create a RouterStatusBuilder to add a RouterStatus to this builder.
     ///
     /// You can make a consensus with no RouterStatus entries, but it
     /// won't actually be good for anything.
-    pub fn rs(&self) -> RouterStatusBuilder<RS::DocumentDigest> {
+    pub fn rs(&self) -> RouterStatusBuilder {
         RouterStatusBuilder::new()
     }
 
@@ -228,7 +229,7 @@ impl<RS: RouterStatus + Clone> ConsensusBuilder<RS> {
     /// This object might not have all of the data that a valid
     /// consensus would have. Therefore, it should only be used for
     /// testing.
-    pub fn testing_consensus(&self) -> Result<Consensus<RS>> {
+    pub fn testing_consensus(&self) -> Result<Consensus> {
         let lifetime = self
             .lifetime
             .as_ref()
@@ -360,7 +361,7 @@ impl VoterInfoBuilder {
 
     /// Add the voter that we've been building into the in-progress
     /// consensus of `builder`.
-    pub fn build<RS>(&self, builder: &mut ConsensusBuilder<RS>) -> Result<()> {
+    pub fn build(&self, builder: &mut ConsensusBuilder) -> Result<()> {
         let nickname = self
             .nickname
             .as_ref()

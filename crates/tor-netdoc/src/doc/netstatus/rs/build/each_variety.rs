@@ -15,14 +15,14 @@
 use super::*;
 
 ns_use_this_variety! {
-    use [crate::doc::netstatus::rs]::?::{GenericRouterStatus};
+    use [crate::doc::netstatus::rs]::?::{DocDigest, GenericRouterStatus};
 }
 
 /// A Builder object for creating a RouterStatus and adding it to a
 /// consensus.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 #[derive(Debug, Clone)]
-pub struct RouterStatusBuilder<D> {
+pub struct RouterStatusBuilder {
     /// See [`GenericRouterStatus::nickname`].
     nickname: Option<String>,
     /// See [`GenericRouterStatus::identity`].
@@ -30,7 +30,7 @@ pub struct RouterStatusBuilder<D> {
     /// See [`GenericRouterStatus::addrs`].
     addrs: Vec<SocketAddr>,
     /// See [`GenericRouterStatus::doc_digest`].
-    doc_digest: Option<D>,
+    doc_digest: Option<DocDigest>,
     /// See [`GenericRouterStatus::flags`].
     flags: RelayFlags,
     /// See [`GenericRouterStatus::version`].
@@ -41,7 +41,7 @@ pub struct RouterStatusBuilder<D> {
     weight: Option<RelayWeight>,
 }
 
-impl<D: Clone> RouterStatusBuilder<D> {
+impl RouterStatusBuilder {
     /// Construct a new RouterStatusBuilder.
     pub(crate) fn new() -> Self {
         RouterStatusBuilder {
@@ -83,7 +83,7 @@ impl<D: Clone> RouterStatusBuilder<D> {
     /// Set the document digest for this routerstatus.
     ///
     /// This value is required.
-    pub fn doc_digest(&mut self, doc_digest: D) -> &mut Self {
+    pub fn doc_digest(&mut self, doc_digest: DocDigest) -> &mut Self {
         self.doc_digest = Some(doc_digest);
         self
     }
@@ -127,7 +127,7 @@ impl<D: Clone> RouterStatusBuilder<D> {
         self
     }
     /// Try to build a GenericRouterStatus from this builder.
-    pub(super) fn finish(&self) -> Result<GenericRouterStatus<D>> {
+    pub(super) fn finish(&self) -> Result<GenericRouterStatus> {
         let nickname = self.nickname.as_deref().unwrap_or("Unnamed").parse()?;
         let identity = self
             .identity
@@ -135,11 +135,10 @@ impl<D: Clone> RouterStatusBuilder<D> {
         if self.addrs.is_empty() {
             return Err(Error::CannotBuild("No addresses"));
         }
-        let doc_digest = self
+        let doc_digest = *self
             .doc_digest
             .as_ref()
-            .ok_or(Error::CannotBuild("Missing document digest"))?
-            .clone();
+            .ok_or(Error::CannotBuild("Missing document digest"))?;
         let protos = self
             .protos
             .as_ref()

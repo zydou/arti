@@ -692,30 +692,30 @@ pub trait RouterStatus: Sealed {
 
 /// A consensus document that lists relays along with their
 /// microdescriptor documents.
-pub type MdConsensus = md::Consensus<MdConsensusRouterStatus>;
+pub type MdConsensus = md::Consensus;
 
 /// An MdConsensus that has been parsed and checked for timeliness,
 /// but not for signatures.
-pub type UnvalidatedMdConsensus = md::UnvalidatedConsensus<MdConsensusRouterStatus>;
+pub type UnvalidatedMdConsensus = md::UnvalidatedConsensus;
 
 /// An MdConsensus that has been parsed but not checked for signatures
 /// and timeliness.
-pub type UncheckedMdConsensus = md::UncheckedConsensus<MdConsensusRouterStatus>;
+pub type UncheckedMdConsensus = md::UncheckedConsensus;
 
 #[cfg(feature = "plain-consensus")]
 /// A consensus document that lists relays along with their
 /// router descriptor documents.
-pub type PlainConsensus = plain::Consensus<PlainConsensusRouterStatus>;
+pub type PlainConsensus = plain::Consensus;
 
 #[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed and checked for timeliness,
 /// but not for signatures.
-pub type UnvalidatedPlainConsensus = plain::UnvalidatedConsensus<PlainConsensusRouterStatus>;
+pub type UnvalidatedPlainConsensus = plain::UnvalidatedConsensus;
 
 #[cfg(feature = "plain-consensus")]
 /// An PlainConsensus that has been parsed but not checked for signatures
 /// and timeliness.
-pub type UncheckedPlainConsensus = plain::UncheckedConsensus<PlainConsensusRouterStatus>;
+pub type UncheckedPlainConsensus = plain::UncheckedConsensus;
 
 decl_keyword! {
     /// Keywords that can be used in votes and consensuses.

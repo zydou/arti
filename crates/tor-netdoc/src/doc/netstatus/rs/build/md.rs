@@ -10,12 +10,12 @@ ns_do_variety_md! {}
 
 use crate::doc::netstatus::MdConsensusBuilder as ConsensusBuilder;
 
-impl RouterStatusBuilder<MdDigest> {
+impl RouterStatusBuilder {
     /// Try to finish this builder and add its RouterStatus to a
     /// provided ConsensusBuilder.x
     pub fn build_into(
         &self,
-        builder: &mut ConsensusBuilder<MdConsensusRouterStatus>,
+        builder: &mut ConsensusBuilder,
     ) -> Result<()> {
         builder.add_rs(self.build()?);
         Ok(())

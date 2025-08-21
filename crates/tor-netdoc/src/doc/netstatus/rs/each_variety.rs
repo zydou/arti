@@ -37,11 +37,11 @@ pub struct ConsensusRouterStatus {
     /// This is private because we don't want to leak that these two
     /// types have the same implementation "under the hood".
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    rs: GenericRouterStatus<DocDigest>,
+    rs: GenericRouterStatus,
 }
 
-impl From<GenericRouterStatus<DocDigest>> for ConsensusRouterStatus {
-    fn from(rs: GenericRouterStatus<DocDigest>) -> Self {
+impl From<GenericRouterStatus> for ConsensusRouterStatus {
+    fn from(rs: GenericRouterStatus) -> Self {
         ConsensusRouterStatus { rs }
     }
 }
@@ -55,7 +55,7 @@ impl From<GenericRouterStatus<DocDigest>> for ConsensusRouterStatus {
 )]
 #[derive(Debug, Clone)]
 // XXXX get rid of this type entirely!
-struct GenericRouterStatus<D> {
+struct GenericRouterStatus {
     /// The nickname for this relay.
     ///
     /// Nicknames can be used for convenience purpose, but no more:
@@ -70,7 +70,7 @@ struct GenericRouterStatus<D> {
     pub(crate) addrs: Vec<net::SocketAddr>,
     /// Digest of the document for this relay.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) doc_digest: D,
+    pub(crate) doc_digest: DocDigest,
     /// Flags applied by the authorities to this relay.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     pub(crate) flags: RelayFlags,
@@ -181,10 +181,7 @@ impl ParseRouterStatus for ConsensusRouterStatus {
     }
 }
 
-impl<D> GenericRouterStatus<D>
-where
-    D: FromRsString,
-{
+impl GenericRouterStatus {
     /// Parse a generic routerstatus from a section.
     ///
     /// Requires that the section obeys the right SectionRules,
@@ -192,7 +189,7 @@ where
     fn from_section(
         sec: &Section<'_, NetstatusKwd>,
         consensus_flavor: ConsensusFlavor,
-    ) -> Result<GenericRouterStatus<D>> {
+    ) -> Result<GenericRouterStatus> {
         use NetstatusKwd::*;
         // R line
         let r_item = sec.required(RS_R)?;
@@ -262,13 +259,13 @@ where
 
         // Try to find the document digest.  This is in different
         // places depending on the kind of consensus we're in.
-        let doc_digest: D = match consensus_flavor {
+        let doc_digest: DocDigest = match consensus_flavor {
             ConsensusFlavor::Microdesc => {
                 // M line
                 let m_item = sec.required(RS_M)?;
-                D::decode(m_item.required_arg(0)?)?
+                DocDigest::decode(m_item.required_arg(0)?)?
             }
-            ConsensusFlavor::Plain => D::decode(r_item.required_arg(2)?)?,
+            ConsensusFlavor::Plain => DocDigest::decode(r_item.required_arg(2)?)?,
         };
 
         Ok(GenericRouterStatus {

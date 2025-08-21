@@ -607,7 +607,7 @@ mod test {
 
     /// Return a routerstatus builder set up to deliver a routerstatus
     /// with most features disabled.
-    fn rs_builder() -> MdRouterStatusBuilder<[u8; 32]> {
+    fn rs_builder() -> MdRouterStatusBuilder {
         MdConsensus::builder()
             .rs()
             .identity([9; 20].into())

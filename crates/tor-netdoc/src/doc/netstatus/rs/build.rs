@@ -2,7 +2,6 @@
 
 use super::{MdConsensusRouterStatus};
 use crate::doc;
-use crate::doc::microdesc::MdDigest;
 use crate::doc::netstatus::{RelayFlags, RelayWeight};
 use crate::{BuildError as Error, BuildResult as Result};
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -16,5 +15,3 @@ pub(crate) mod md;
 
 #[cfg(feature = "plain-consensus")]
 use super::PlainConsensusRouterStatus;
-#[cfg(feature = "plain-consensus")]
-use crate::doc::routerdesc::RdDigest;

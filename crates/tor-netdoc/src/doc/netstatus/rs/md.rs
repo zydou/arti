@@ -11,7 +11,7 @@ ns_do_variety_md! {}
 
 // We bind some variety-agnostic names for the benefit of `each_variety.rs`,
 // which reimports the contents of this module with `use super::*`.
-use crate::doc::microdesc::{DOC_DIGEST_LEN, MdDigest as DocDigest};
+pub(crate) use crate::doc::microdesc::{DOC_DIGEST_LEN, MdDigest as DocDigest};
 
 /// The flavor
 const FLAVOR: ConsensusFlavor = ConsensusFlavor::Microdesc;

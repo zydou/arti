@@ -12,6 +12,9 @@
 
 use super::*;
 
+ns_use_this_variety! {
+    use [crate::doc::netstatus::rs]::?::{ConsensusRouterStatus};
+}
 #[cfg(feature = "build_docs")]
 ns_use_this_variety! {
     pub(crate) use [crate::doc::netstatus::build]::?::{ConsensusBuilder};
@@ -29,7 +32,7 @@ ns_use_this_variety! {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-pub struct Consensus<RS> {
+pub struct Consensus {
     /// Part of the header shared by all consensus types.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     pub(crate) header: ConsensusHeader,
@@ -42,20 +45,20 @@ pub struct Consensus<RS> {
     /// These are currently ordered by the router's RSA identity, but this is not
     /// to be relied on, since we may want to even abolish RSA at some point!
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) relays: Vec<RS>,
+    pub(crate) relays: Vec<ConsensusRouterStatus>,
     /// Footer for the consensus object.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     pub(crate) footer: Footer,
 }
 
-impl<RS> Consensus<RS> {
+impl Consensus {
     /// Return the Lifetime for this consensus.
     pub fn lifetime(&self) -> &Lifetime {
         &self.header.lifetime
     }
 
     /// Return a slice of all the routerstatus entries in this consensus.
-    pub fn relays(&self) -> &[RS] {
+    pub fn relays(&self) -> &[ConsensusRouterStatus] {
         &self.relays[..]
     }
 
@@ -100,18 +103,18 @@ impl<RS> Consensus<RS> {
     }
 }
 
-impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
+impl Consensus {
     /// Return a new ConsensusBuilder for building test consensus objects.
     ///
     /// This function is only available when the `build_docs` feature has
     /// been enabled.
     #[cfg(feature = "build_docs")]
-    pub fn builder() -> ConsensusBuilder<RS> {
-        ConsensusBuilder::new(RS::flavor())
+    pub fn builder() -> ConsensusBuilder {
+        ConsensusBuilder::new(ConsensusRouterStatus::flavor())
     }
 
     /// Try to parse a single networkstatus document from a string.
-    pub fn parse(s: &str) -> Result<(&str, &str, UncheckedConsensus<RS>)> {
+    pub fn parse(s: &str) -> Result<(&str, &str, UncheckedConsensus)> {
         let mut reader = NetDocReader::new(s)?;
         Self::parse_from_reader(&mut reader).map_err(|e| e.within(s))
     }
@@ -162,7 +165,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
 
     /// Extract a routerstatus from the reader.  Return Ok(None) if we're
     /// out of routerstatus entries.
-    fn take_routerstatus(r: &mut NetDocReader<'_, NetstatusKwd>) -> Result<Option<(Pos, RS)>> {
+    fn take_routerstatus(r: &mut NetDocReader<'_, NetstatusKwd>) -> Result<Option<(Pos, ConsensusRouterStatus)>> {
         use NetstatusKwd::*;
         match r.peek() {
             None => return Ok(None),
@@ -187,13 +190,13 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
             }
         });
 
-        let rules = match RS::flavor() {
+        let rules = match ConsensusRouterStatus::flavor() {
             ConsensusFlavor::Microdesc => &NS_ROUTERSTATUS_RULES_MDCON,
             ConsensusFlavor::Plain => &NS_ROUTERSTATUS_RULES_PLAIN,
         };
 
         let rs_sec = rules.parse(&mut p)?;
-        let rs = RS::from_section(&rs_sec)?;
+        let rs = ConsensusRouterStatus::from_section(&rs_sec)?;
         Ok(Some((pos, rs)))
     }
 
@@ -203,7 +206,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
     /// string, and an UncheckedConsensus.
     fn parse_from_reader<'a>(
         r: &mut NetDocReader<'a, NetstatusKwd>,
-    ) -> Result<(&'a str, &'a str, UncheckedConsensus<RS>)> {
+    ) -> Result<(&'a str, &'a str, UncheckedConsensus)> {
         use NetstatusKwd::*;
         let (header, start_pos) = {
             let mut h = r.pause_at(|i| i.is_ok_with_kwd_in(&[DIR_SOURCE]));
@@ -214,10 +217,10 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
             let pos = header_sec.first_item().unwrap().offset_in(r.str()).unwrap();
             (ConsensusHeader::from_section(&header_sec)?, pos)
         };
-        if RS::flavor() != header.flavor {
+        if ConsensusRouterStatus::flavor() != header.flavor {
             return Err(EK::BadDocumentType.with_msg(format!(
                 "Expected {:?}, got {:?}",
-                RS::flavor(),
+                ConsensusRouterStatus::flavor(),
                 header.flavor
             )));
         }
@@ -228,7 +231,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
             voters.push(voter);
         }
 
-        let mut relays: Vec<RS> = Vec::new();
+        let mut relays: Vec<ConsensusRouterStatus> = Vec::new();
         while let Some((pos, routerstatus)) = Self::take_routerstatus(r)? {
             if let Some(prev) = relays.last() {
                 if prev.rsa_identity() >= routerstatus.rsa_identity() {
@@ -276,7 +279,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
         // Find the appropriate digest.
         let signed_str = &r.str()[start_pos..end_pos];
         let remainder = &r.str()[end_pos..];
-        let (sha256, sha1) = match RS::flavor() {
+        let (sha256, sha1) = match ConsensusRouterStatus::flavor() {
             ConsensusFlavor::Plain => (
                 None,
                 Some(ll::d::Sha1::digest(signed_str.as_bytes()).into()),
@@ -318,11 +321,11 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-pub struct UnvalidatedConsensus<RS> {
+pub struct UnvalidatedConsensus {
     /// The consensus object. We don't want to expose this until it's
     /// validated.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    consensus: Consensus<RS>,
+    consensus: Consensus,
     /// The signatures that need to be validated before we can call
     /// this consensus valid.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
@@ -334,7 +337,7 @@ pub struct UnvalidatedConsensus<RS> {
     n_authorities: Option<u16>,
 }
 
-impl<RS> UnvalidatedConsensus<RS> {
+impl UnvalidatedConsensus {
     /// Tell the unvalidated consensus how many authorities we believe in.
     ///
     /// Without knowing this number, we can't validate the signature.
@@ -348,7 +351,7 @@ impl<RS> UnvalidatedConsensus<RS> {
 
     /// Return an iterator of all the certificate IDs that we might use
     /// to validate this consensus.
-    pub fn signing_cert_ids(&self) -> impl Iterator<Item = AuthCertKeyIds> + use<RS> {
+    pub fn signing_cert_ids(&self) -> impl Iterator<Item = AuthCertKeyIds> {
         match self.key_is_correct(&[]) {
             Ok(()) => Vec::new(),
             Err(missing) => missing,
@@ -391,13 +394,13 @@ impl<RS> UnvalidatedConsensus<RS> {
     #[cfg(feature = "experimental-api")]
     pub fn modify_relays<F>(&mut self, func: F)
     where
-        F: FnOnce(&mut Vec<RS>),
+        F: FnOnce(&mut Vec<ConsensusRouterStatus>),
     {
         func(&mut self.consensus.relays);
     }
 }
 
-impl<RS> ExternallySigned<Consensus<RS>> for UnvalidatedConsensus<RS> {
+impl ExternallySigned<Consensus> for UnvalidatedConsensus {
     type Key = [AuthCert];
     type KeyHint = Vec<AuthCertKeyIds>;
     type Error = Error;
@@ -423,12 +426,12 @@ impl<RS> ExternallySigned<Consensus<RS>> for UnvalidatedConsensus<RS> {
             }
         }
     }
-    fn dangerously_assume_wellsigned(self) -> Consensus<RS> {
+    fn dangerously_assume_wellsigned(self) -> Consensus {
         self.consensus
     }
 }
 
 /// A Consensus object that has been parsed, but not checked for
 /// signatures and timeliness.
-pub type UncheckedConsensus<RS> = TimerangeBound<UnvalidatedConsensus<RS>>;
+pub type UncheckedConsensus = TimerangeBound<UnvalidatedConsensus>;
 
