@@ -12,7 +12,10 @@ use std::io::{Error as IoError, Result as IoResult};
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
 #[cfg_attr(
     docsrs,
-    doc(cfg(all(feature = "native-tls", any(feature = "tokio", feature = "async-std"))))
+    doc(cfg(all(
+        feature = "native-tls",
+        any(feature = "tokio", feature = "async-std", feature = "smol")
+    )))
 )]
 #[derive(Default, Clone)]
 #[non_exhaustive]

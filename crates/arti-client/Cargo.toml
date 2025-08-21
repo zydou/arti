@@ -65,6 +65,7 @@ full = [
 #   * Features which may introduce unnecessary licensing restrictions.
 
 async-std = ["tor-rtcompat/async-std"]
+smol = ["tor-rtcompat/smol", "__is_experimental"]
 bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
 # the "memquota" feature is now a no-op as the functionality is always-enabled,
 # but the feature is kept for backwards compatibility
@@ -136,6 +137,7 @@ experimental = [
     "onion-service-cli-extra",
     "flowctl-cc",
     "counter-galois-onion",
+    "smol",
 ]
 
 # Enable experimental APIs that are not yet officially supported.

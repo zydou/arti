@@ -44,7 +44,10 @@ use std::{
 /// [all-providers]: https://docs.rs/rustls/latest/rustls/#cryptography-providers
 #[cfg_attr(
     docsrs,
-    doc(cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std"))))
+    doc(cfg(all(
+        feature = "rustls",
+        any(feature = "tokio", feature = "async-std", feature = "smol")
+    )))
 )]
 #[derive(Clone)]
 #[non_exhaustive]
