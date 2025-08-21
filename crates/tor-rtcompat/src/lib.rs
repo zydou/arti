@@ -49,7 +49,7 @@
 
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
-    any(feature = "async-std", feature = "tokio")
+    any(feature = "async-std", feature = "tokio", feature = "smol")
 ))]
 pub(crate) mod impls;
 pub mod task;
@@ -65,7 +65,7 @@ mod traits;
 pub mod unimpl;
 pub mod unix;
 
-#[cfg(any(feature = "async-std", feature = "tokio"))]
+#[cfg(any(feature = "async-std", feature = "tokio", feature = "smol"))]
 use std::io;
 pub use traits::{
     Blocking, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider,
@@ -82,9 +82,15 @@ pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 pub mod tls {
     pub use crate::traits::{CertifiedConn, TlsConnector};
 
-    #[cfg(all(feature = "native-tls", any(feature = "tokio", feature = "async-std")))]
+    #[cfg(all(
+        feature = "native-tls",
+        any(feature = "tokio", feature = "async-std", feature = "smol")
+    ))]
     pub use crate::impls::native_tls::NativeTlsProvider;
-    #[cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std")))]
+    #[cfg(all(
+        feature = "rustls",
+        any(feature = "tokio", feature = "async-std", feature = "smol")
+    ))]
     pub use crate::impls::rustls::RustlsProvider;
 }
 
@@ -93,6 +99,9 @@ pub mod tokio;
 
 #[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "async-std"))]
 pub mod async_std;
+
+#[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "smol"))]
+pub mod smol;
 
 pub use compound::{CompoundRuntime, RuntimeSubstExt};
 
@@ -301,6 +310,16 @@ pub mod cond {
         #[doc(hidden)]
         macro if_async_std_rustls_present = ("async-std", "rustls")
     }
+    declare_conditional_macro! {
+        /// Expand a token tree if the SmolNativeTlsRuntime is available.
+        #[doc(hidden)]
+        macro if_smol_native_tls_present = ("smol", "native-tls")
+    }
+    declare_conditional_macro! {
+        /// Expand a token tree if the SmolRustlsRuntime is available.
+        #[doc(hidden)]
+        macro if_smol_rustls_present = ("smol", "rustls")
+    }
 }
 
 /// Run a test closure, passing as argument every supported runtime.
@@ -321,7 +340,7 @@ pub mod cond {
 #[macro_export]
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
-    any(feature = "tokio", feature = "async-std"),
+    any(feature = "tokio", feature = "async-std", feature = "smol"),
 ))]
 macro_rules! test_with_all_runtimes {
     ( $fn:expr ) => {{
@@ -342,6 +361,12 @@ macro_rules! test_with_all_runtimes {
         }}
         if_async_std_rustls_present! {{
             $crate::async_std::AsyncStdRustlsRuntime::run_test($fn).check_ok();
+        }}
+        if_smol_native_tls_present! {{
+            $crate::smol::SmolNativeTlsRuntime::run_test($fn).check_ok();
+        }}
+        if_smol_rustls_present! {{
+            $crate::smol::SmolRustlsRuntime::run_test($fn).check_ok();
         }}
     }};
 }
@@ -369,8 +394,8 @@ macro_rules! test_with_one_runtime {
 #[cfg(all(
     test,
     any(feature = "native-tls", feature = "rustls"),
-    any(feature = "async-std", feature = "tokio"),
-    not(miri), // Many of these tests use real sockets or SystemTime
+    any(feature = "async-std", feature = "tokio", feature = "smol"),
+    not(miri), // Many of these tests use real sockets or SystemTime.
 ))]
 mod test {
     #![allow(clippy::unwrap_used, clippy::unnecessary_wraps)]
@@ -652,6 +677,10 @@ mod test {
             mod async_std_runtime_tests {
                 tests_with_runtime! { &crate::async_std::PreferredRuntime::create()? => $($id),* }
             }
+            #[cfg(feature="smol")]
+            mod smol_runtime_tests {
+                tests_with_runtime! { &crate::smol::PreferredRuntime::create()? => $($id),* }
+            }
             mod default_runtime_tests {
                 tests_with_runtime! { &crate::PreferredRuntime::create()? => $($id),* }
             }
@@ -669,6 +698,10 @@ mod test {
             mod async_std_native_tls_tests {
                 tests_with_runtime! { &crate::async_std::AsyncStdNativeTlsRuntime::create()? => $($id),* }
             }
+            #[cfg(all(feature="smol", feature = "native-tls"))]
+            mod smol_native_tls_tests {
+                tests_with_runtime! { &crate::smol::SmolNativeTlsRuntime::create()? => $($id),* }
+            }
             #[cfg(all(feature="tokio", feature="rustls"))]
             mod tokio_rustls_tests {
                 tests_with_runtime! {  &crate::tokio::TokioRustlsRuntime::create()? => $($id),* }
@@ -676,6 +709,10 @@ mod test {
             #[cfg(all(feature="async-std", feature="rustls"))]
             mod async_std_rustls_tests {
                 tests_with_runtime! {  &crate::async_std::AsyncStdRustlsRuntime::create()? => $($id),* }
+            }
+            #[cfg(all(feature="smol", feature="rustls"))]
+            mod smol_rustls_tests {
+                tests_with_runtime! {  &crate::smol::SmolRustlsRuntime::create()? => $($id),* }
             }
             mod default_runtime_tls_tests {
                 tests_with_runtime! { &crate::PreferredRuntime::create()? => $($id),* }

@@ -23,6 +23,9 @@ full = [
     "tor-general-addr/full",
 ]
 
+experimental = ["smol"]
+__is_experimental = []
+
 async-std = ["async-std-crate", "async-io", "async_executors/async_std"]
 tokio = [
     "tokio-crate",
@@ -31,6 +34,7 @@ tokio = [
     "async_executors/tokio_timer",
     "async_executors/tokio_io",
 ]
+smol = ["dep:smol", "async-io", "blocking", "__is_experimental"]
 static = ["native-tls-crate?/vendored", "__is_nonadditive"]
 native-tls = ["native-tls-crate", "async-native-tls"]
 
@@ -54,6 +58,7 @@ async-std-crate = { package = "async-std", version = "1.7.0", optional = true }
 async-trait = "0.1.54"
 async_executors = { version = "0.7.0", default-features = false }
 asynchronous-codec = "0.7.0"
+blocking = { version = "1.6.2", optional = true }
 coarsetime = "0.1.20"
 derive_more = { version = "2.0.1", features = ["full"] }
 dyn-clone = "1.0.17"
@@ -72,6 +77,7 @@ paste = "1"
 pin-project = "1"
 rustls-pki-types = { version = "1.8", optional = true }
 rustls-webpki = { version = "0.103.1", optional = true }
+smol = { version = "2.0.2", optional = true }
 thiserror = "2"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = [
     "rt",

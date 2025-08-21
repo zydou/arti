@@ -26,7 +26,10 @@ use std::{
 /// and install a default (ring) provider.
 #[cfg_attr(
     docsrs,
-    doc(cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std"))))
+    doc(cfg(all(
+        feature = "rustls",
+        any(feature = "tokio", feature = "async-std", feature = "smol")
+    )))
 )]
 #[derive(Clone)]
 #[non_exhaustive]

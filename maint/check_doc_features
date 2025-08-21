@@ -25,16 +25,10 @@ additional_provided["equix"] = [
 additional_provided["tor-rtcompat"] = [
     ("PreferredRuntime", 'feature = "native-tls"'),
     ("PreferredRuntime", 'feature = "native-tls"'),
+    ("PreferredRuntime", 'feature = "native-tls"'),
     ("PreferredRuntime", 'all(feature = "rustls", not(feature = "native-tls"))'),
     ("PreferredRuntime", 'all(feature = "rustls", not(feature = "native-tls"))'),
-    (
-        "NativeTlsProvider",
-        'all(feature = "native-tls", any(feature = "tokio", feature = "async-std"))',
-    ),
-    (
-        "RustlsProvider",
-        'all(feature = "rustls", any(feature = "tokio", feature = "async-std"))',
-    ),
+    ("PreferredRuntime", 'all(feature = "rustls", not(feature = "native-tls"))'),
 ]
 # "unix::SocketAddr" is present unconditionally,
 # though it has different definitions.
