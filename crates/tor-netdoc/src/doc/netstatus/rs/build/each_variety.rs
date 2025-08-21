@@ -14,6 +14,10 @@
 
 use super::*;
 
+ns_use_this_variety! {
+    use [crate::doc::netstatus::rs]::?::{GenericRouterStatus};
+}
+
 /// A Builder object for creating a RouterStatus and adding it to a
 /// consensus.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]

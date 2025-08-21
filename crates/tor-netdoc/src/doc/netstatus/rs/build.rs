@@ -1,6 +1,6 @@
 //! Provide builder functionality for routerstatuses.
 
-use super::{GenericRouterStatus, MdConsensusRouterStatus};
+use super::{MdConsensusRouterStatus};
 use crate::doc;
 use crate::doc::microdesc::MdDigest;
 use crate::doc::netstatus::{RelayFlags, RelayWeight};
