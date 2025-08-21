@@ -459,44 +459,44 @@ pub struct SharedRandStatus {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct ConsensusHeader {
+pub(crate) struct ConsensusHeader {
     /// What kind of consensus document is this?  Absent in votes and
     /// in ns-flavored consensuses.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    flavor: ConsensusFlavor,
+    pub(crate) flavor: ConsensusFlavor,
     /// Over what time is this consensus valid?  (For votes, this is
     /// the time over which the voted-upon consensus should be valid.)
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    lifetime: Lifetime,
+    pub(crate) lifetime: Lifetime,
     /// List of recommended Tor client versions.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    client_versions: Vec<String>,
+    pub(crate) client_versions: Vec<String>,
     /// List of recommended Tor relay versions.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    relay_versions: Vec<String>,
+    pub(crate) relay_versions: Vec<String>,
     /// Lists of recommended and required subprotocols.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    proto_statuses: Arc<ProtoStatuses>,
+    pub(crate) proto_statuses: Arc<ProtoStatuses>,
     /// Declared parameters for tunable settings about how to the
     /// network should operator. Some of these adjust timeouts and
     /// whatnot; some features things on and off.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    params: NetParams<i32>,
+    pub(crate) params: NetParams<i32>,
     /// How long in seconds should voters wait for votes and
     /// signatures (respectively) to propagate?
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    voting_delay: Option<(u32, u32)>,
+    pub(crate) voting_delay: Option<(u32, u32)>,
     /// What "method" was used to produce this consensus?  (A
     /// consensus method is a version number used by authorities to
     /// upgrade the consensus algorithm.)
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    consensus_method: u32,
+    pub(crate) consensus_method: u32,
     /// Global shared-random value for the previous shared-random period.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    shared_rand_prev: Option<SharedRandStatus>,
+    pub(crate) shared_rand_prev: Option<SharedRandStatus>,
     /// Global shared-random value for the current shared-random period.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    shared_rand_cur: Option<SharedRandStatus>,
+    pub(crate) shared_rand_cur: Option<SharedRandStatus>,
 }
 
 /// Description of an authority's identity and address.
@@ -625,7 +625,7 @@ impl RelayWeight {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct ConsensusVoterInfo {
+pub(crate) struct ConsensusVoterInfo {
     /// Contents of the dirsource line about an authority
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     dir_source: DirSource,
@@ -647,7 +647,7 @@ struct ConsensusVoterInfo {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct Footer {
+pub(crate) struct Footer {
     /// Weights to be applied to certain classes of relays when choosing
     /// for different roles.
     ///
@@ -700,20 +700,20 @@ pub trait RouterStatus: Sealed {
 pub struct Consensus<RS> {
     /// Part of the header shared by all consensus types.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    header: ConsensusHeader,
+    pub(crate) header: ConsensusHeader,
     /// List of voters whose votes contributed to this consensus.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    voters: Vec<ConsensusVoterInfo>,
+    pub(crate) voters: Vec<ConsensusVoterInfo>,
     /// A list of routerstatus entries for the relays on the network,
     /// with one entry per relay.
     ///
     /// These are currently ordered by the router's RSA identity, but this is not
     /// to be relied on, since we may want to even abolish RSA at some point!
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    relays: Vec<RS>,
+    pub(crate) relays: Vec<RS>,
     /// Footer for the consensus object.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    footer: Footer,
+    pub(crate) footer: Footer,
 }
 
 /// A consensus document that lists relays along with their
