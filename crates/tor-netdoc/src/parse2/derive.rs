@@ -219,7 +219,7 @@ define_derive_deftly! {
     ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_SUBDOC))}
 
     // Field keyword as `&str`
-    ${define F_KEYWORD_STR {
+    ${define F_KEYWORD_STR { ${concat
         ${if F_SUBDOC {
             // Sub-documents have their own keywords; if we ask for the field-based
             // keyword name of a sub-document, then that's a bug.
@@ -227,7 +227,7 @@ define_derive_deftly! {
         }}
         ${fmeta(netdoc(keyword)) as str,
           default ${concat ${kebab_case $fname}}}
-    }}
+    }}}
     // Field keyword as `&str` for debugging and error reporting
     ${define F_KEYWORD_REPORT {
         ${if F_SUBDOC { ${concat $fname} }
@@ -238,7 +238,8 @@ define_derive_deftly! {
 
     impl<$tgens> $P::NetdocParseable for $ttype {
         fn doctype_for_error() -> &'static str {
-            ${tmeta(netdoc(doctype_for_error)) as expr, default ${concat $tname}}
+            ${tmeta(netdoc(doctype_for_error)) as expr,
+              default ${concat ${for fields { ${when F_INTRO} $F_KEYWORD_STR }}}}
         }
 
         fn is_intro_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
