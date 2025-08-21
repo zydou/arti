@@ -146,9 +146,7 @@ Features supported by this crate:
   crate for TLS support.
 * `static` -- link the native TLS library statically (enables the `vendored` feature of the
   `native-tls` crate).
-* `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support. Note that `rustls` uses the `ring` crate, which uses
-   the old (3BSD/SSLEay) OpenSSL license, which may introduce licensing
-   compatibility issues.
+* `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support.
 
 ### Experimental and unstable features
 * `smol` -- build with [smol](https://github.com/smol-rs/smol) support.
