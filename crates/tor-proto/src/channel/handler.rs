@@ -232,7 +232,7 @@ impl futures_codec::Decoder for NewChannelHandler {
         let cmd = ChanCmd::from(src[2]);
         match cmd {
             // We accept those.
-            ChanCmd::AUTHORIZE | ChanCmd::VERSIONS | ChanCmd::VPADDING => (),
+            ChanCmd::VERSIONS | ChanCmd::VPADDING => (),
             _ => {
                 return Err(Self::Error::HandshakeProto(format!(
                     "Invalid command {cmd} variable cell"
@@ -283,9 +283,6 @@ impl futures_codec::Decoder for NewChannelHandler {
 
         // Handle the VERSIONS.
         let cell = match cmd {
-            ChanCmd::AUTHORIZE => msg::Authorize::decode_from_reader(cmd, &mut reader)
-                .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?
-                .into(),
             ChanCmd::VERSIONS => msg::Versions::decode_from_reader(cmd, &mut reader)
                 .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?
                 .into(),

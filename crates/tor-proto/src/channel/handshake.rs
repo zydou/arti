@@ -174,30 +174,16 @@ impl<
         let versions_flushed_wallclock = now_fn();
 
         // Get versions cell.
-        //
-        // The specification mentions that the very first cell can either be a VERSIONS, VPADDING
-        // or AUTHORIZE. However, after that, we can only get VPADDING before or even after a
-        // VERSIONS. In other words, AUTHORIZE can only be the first cell else we have a protocol
-        // violation.
-        let mut authorize_is_first_cell = false;
         let mut versions_cell = None;
         trace!(stream_id = %self.unique_id, "waiting for versions");
         while let Some(cell) = framed_tls.next().await.transpose()? {
-            use super::AnyChanMsg::{Authorize, Versions, Vpadding};
+            use super::AnyChanMsg::{Versions, Vpadding};
             let (_, m) = cell.into_circid_and_msg();
             trace!(stream_id = %self.unique_id, "received a {} cell.", m.cmd());
             match m {
                 Versions(v) => {
                     versions_cell = Some(v);
                     break;
-                }
-                Authorize(_) => {
-                    if authorize_is_first_cell {
-                        return Err(Error::HandshakeProto(
-                            "Received AUTHORIZE cell out of order".into(),
-                        ));
-                    }
-                    authorize_is_first_cell = true;
                 }
                 Vpadding(_) => (), // Silent drop. Allowed anywhere during the handshake.
                 _ => {

@@ -364,11 +364,12 @@ impl ChannelSender {
                 "Can't send {} cell on client channel",
                 msg.cmd()
             ))),
-            Certs(_) | Versions(_) | Authenticate(_) | Authorize(_) | AuthChallenge(_)
-            | Netinfo(_) => Err(Error::from(internal!(
-                "Can't send {} cell after handshake is done",
-                msg.cmd()
-            ))),
+            Certs(_) | Versions(_) | Authenticate(_) | AuthChallenge(_) | Netinfo(_) => {
+                Err(Error::from(internal!(
+                    "Can't send {} cell after handshake is done",
+                    msg.cmd()
+                )))
+            }
             _ => Ok(()),
         }
     }
