@@ -4,7 +4,7 @@
 use digest::Digest;
 use tor_bytes::Reader;
 use tor_cell::chancell::{
-    AnyChanCell, ChanCell, ChanCmd, ChanMsg, codec,
+    AnyChanCell, ChanCmd, ChanMsg, codec,
     msg::{self, AnyChanMsg},
 };
 use tor_error::internal;
@@ -129,9 +129,7 @@ impl futures_codec::Decoder for ChannelCellHandler {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         match self {
-            Self::New(c) => c
-                .decode(src)
-                .map(|opt| opt.map(|msg| ChanCell::new(None, msg.into()))),
+            Self::New(c) => c.decode(src),
             Self::Handshake(c) => c.decode(src),
             Self::Open(c) => c.decode(src),
         }
@@ -200,12 +198,17 @@ impl From<ChannelType> for NewChannelHandler {
 }
 
 impl futures_codec::Decoder for NewChannelHandler {
-    type Item = msg::Versions;
+    type Item = AnyChanCell;
     type Error = ChanError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        // See tor-spec, VERSIONS are considered a variable length cell and thus the first 5 bytes
-        // are: CircId as u16, Command as u8, Length as u16.
+        // NOTE: Until the body can be extracted from src buffer, it MUST NOT be modified as in
+        // advanced with the Buf trait or modified in any ways. Reason is that we can realize we
+        // don't have enough bytes in the src buffer for the expected body length from the header
+        // so we have to leave the src buffer untouched and wait for more bytes.
+
+        // See tor-spec, starting a handshake, all cells are variable length so the first 5 bytes
+        // are: CircId as u16, Command as u8, Length as u16 totalling 5 bytes.
         const HEADER_SIZE: usize = 5;
 
         // Below this amount, this is not a valid cell we can decode. This is important because we
@@ -229,7 +232,7 @@ impl futures_codec::Decoder for NewChannelHandler {
         let cmd = ChanCmd::from(src[2]);
         match cmd {
             // We accept those.
-            ChanCmd::AUTHORIZE | ChanCmd::VERSIONS | ChanCmd::VPADDING => (),
+            ChanCmd::VERSIONS | ChanCmd::VPADDING => (),
             _ => {
                 return Err(Self::Error::HandshakeProto(format!(
                     "Invalid command {cmd} variable cell"
@@ -257,12 +260,11 @@ impl futures_codec::Decoder for NewChannelHandler {
             // We don't haven't received enough data to decode the expected length from the header
             // so return no Item.
             //
-            // IMPORTANT: The src buffer here can't be advanced before reaching this check.
+            // IMPORTANT: The src buffer here can't be advance before reaching this check.
             return Ok(None);
         }
         // Extract the exact data we will be looking at.
         let mut data = src.split_to(wanted_bytes);
-        let mut versions = None;
 
         // Update the SLOG digest with the entire cell up to the end of the payload hence the data
         // we are looking at (and not the whole source). Even on error, this doesn't matter because
@@ -271,17 +273,30 @@ impl futures_codec::Decoder for NewChannelHandler {
             slog.update(&data);
         }
 
-        // Handle the VERSIONS.
-        if cmd == ChanCmd::VERSIONS {
-            let body = data.split_off(HEADER_SIZE).freeze();
-            let mut reader = Reader::from_bytes(&body);
-            versions = Some(
-                msg::Versions::decode_from_reader(ChanCmd::VERSIONS, &mut reader)
-                    .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?,
-            );
-        }
+        // Get the actual boddy from the data.
+        let body = data.split_off(HEADER_SIZE).freeze();
+        let mut reader = Reader::from_bytes(&body);
 
-        Ok(versions)
+        // NOTE: It would be great to have a more generic way here to decode these like we do with
+        // MessageFilter with a restricted message set. We would need to adapt it to work without a
+        // link protocol version and do the following in a generic way for all versions.
+
+        // Handle the VERSIONS.
+        let cell = match cmd {
+            ChanCmd::VERSIONS => msg::Versions::decode_from_reader(cmd, &mut reader)
+                .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?
+                .into(),
+            ChanCmd::VPADDING => msg::Vpadding::decode_from_reader(cmd, &mut reader)
+                .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?
+                .into(),
+            _ => {
+                return Err(Self::Error::from(internal!(
+                    "Uncatched bad command {cmd} at the start of an handshake"
+                )));
+            }
+        };
+
+        Ok(Some(cell))
     }
 }
 

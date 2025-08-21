@@ -116,7 +116,7 @@ caret_int! {
         AUTH_CHALLENGE = 130,
         /// Response material used in relay-to-relay handshake.
         AUTHENTICATE = 131,
-        /// Indicates client permission to use relay.  Not currently used.
+        /// Indicates client permission to use relay.  Not currently used. RESERVED.
         AUTHORIZE = 132,
     }
 }

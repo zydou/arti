@@ -73,8 +73,6 @@ pub enum AnyChanMsg : ChanMsg {
     /// Part of channel negotiation: used to authenticate relays when they
     /// initiate the channel.
     Authenticate,
-    /// Not yet used
-    Authorize,
     _ =>
     /// Any cell whose command we don't recognize
     Unrecognized,
@@ -1102,37 +1100,6 @@ impl Readable for Authenticate {
     }
 }
 
-/// The Authorize message type is not yet used.
-#[derive(Clone, Debug, Deftly)]
-#[derive_deftly(HasMemoryCost)]
-pub struct Authorize {
-    /// The cell's content, which isn't really specified yet.
-    content: Vec<u8>,
-}
-impl Authorize {
-    /// Construct a new Authorize cell.
-    pub fn new<B>(content: B) -> Self
-    where
-        B: Into<Vec<u8>>,
-    {
-        let content = content.into();
-        Authorize { content }
-    }
-}
-impl Body for Authorize {
-    fn encode_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        w.write_all(&self.content[..]);
-        Ok(())
-    }
-}
-impl Readable for Authorize {
-    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        Ok(Authorize {
-            content: r.take(r.remaining())?.into(),
-        })
-    }
-}
-
 /// Holds any message whose command we don't recognize.
 ///
 /// Well-behaved Tor implementations are required to ignore commands
@@ -1207,7 +1174,6 @@ msg_into_cell!(PaddingNegotiate);
 msg_into_cell!(Certs);
 msg_into_cell!(AuthChallenge);
 msg_into_cell!(Authenticate);
-msg_into_cell!(Authorize);
 
 /// Helper: declare a ChanMsg implementation for a message type that has a
 /// fixed command.
@@ -1258,7 +1224,6 @@ msg_impl_chanmsg!(
     Certs,
     AuthChallenge,
     Authenticate,
-    Authorize,
 );
 
 #[cfg(test)]

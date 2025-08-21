@@ -37,7 +37,8 @@ pub(super) mod linkv4 {
         pub(super) enum HandshakeRelayInitiatorMsg: ChanMsg {
             Authenticate,
             Certs,
-            Netinfo
+            Netinfo,
+            Vpadding,
         }
     }
 
@@ -48,7 +49,8 @@ pub(super) mod linkv4 {
         pub(super) enum HandshakeRelayResponderMsg: ChanMsg {
             AuthChallenge,
             Certs,
-            Netinfo
+            Netinfo,
+            Vpadding,
         }
     }
 
@@ -62,7 +64,8 @@ pub(super) mod linkv4 {
         /// know what the other side will send depending if it wants to authenticate or not.
         #[derive(Clone, Debug)]
         pub(super) enum HandshakeClientInitiatorMsg: ChanMsg {
-            Netinfo
+            Netinfo,
+            Vpadding,
         }
     }
 
@@ -79,6 +82,7 @@ pub(super) mod linkv4 {
             CreateFast,
             Destroy,
             Padding,
+            Vpadding,
             // No PaddingNegotiate, it is v5+ only.
             Relay,
             RelayEarly,
@@ -99,6 +103,8 @@ pub(super) mod linkv4 {
             Relay,
             // No RelayEarly, only for client.
             Destroy,
+            Padding,
+            Vpadding,
         }
     }
 
@@ -113,6 +119,7 @@ pub(super) mod linkv4 {
             Created2,
             Destroy,
             Padding,
+            Vpadding,
             Relay,
             RelayEarly,
             // No PaddingNegotiate, only client sends this.
@@ -252,6 +259,7 @@ pub(super) mod linkv5 {
             Destroy,
             Padding,
             PaddingNegotiate,
+            Vpadding,
             Relay,
             RelayEarly,
         }
@@ -269,6 +277,7 @@ pub(super) mod linkv5 {
             Created2,
             Destroy,
             Padding,
+            Vpadding,
             Relay,
             // No PaddingNegotiate, only clients.
             // No Versions, Certs, AuthChallenge, Authenticate: they are for handshakes.
@@ -286,6 +295,7 @@ pub(super) mod linkv5 {
             Created2,
             Destroy,
             Padding,
+            Vpadding,
             // No Vpadding, only sent during handshake.
             Relay,
             RelayEarly,
