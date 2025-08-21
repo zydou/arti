@@ -18,11 +18,11 @@ ns_use_this_variety! {
 }
 #[cfg(not(doc))]
 ns_use_this_variety! {
-    use [crate::doc::netstatus]::?::{Consensus};
+    use [crate::doc::netstatus]::?::{Consensus, Header};
 }
 #[cfg(doc)]
 ns_use_this_variety! {
-    pub use [crate::doc::netstatus]::?::{Consensus};
+    pub use [crate::doc::netstatus]::?::{Consensus, Header};
 }
 
 use super::*;
@@ -35,27 +35,27 @@ use super::*;
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct ConsensusBuilder {
-    /// See [`ConsensusHeader::flavor`]
+    /// See [`Header::flavor`]
     flavor: ConsensusFlavor,
-    /// See [`ConsensusHeader::lifetime`]
+    /// See [`Header::lifetime`]
     lifetime: Option<Lifetime>,
-    /// See [`ConsensusHeader::client_versions`]
+    /// See [`Header::client_versions`]
     client_versions: Vec<String>,
-    /// See [`ConsensusHeader::relay_versions`]
+    /// See [`Header::relay_versions`]
     relay_versions: Vec<String>,
-    /// See [`ConsensusHeader::proto_statuses`]
+    /// See [`Header::proto_statuses`]
     client_protos: ProtoStatus,
-    /// See [`ConsensusHeader::proto_statuses`]
+    /// See [`Header::proto_statuses`]
     relay_protos: ProtoStatus,
-    /// See [`ConsensusHeader::params`]
+    /// See [`Header::params`]
     params: NetParams<i32>,
-    /// See [`ConsensusHeader::voting_delay`]
+    /// See [`Header::voting_delay`]
     voting_delay: Option<(u32, u32)>,
-    /// See [`ConsensusHeader::consensus_method`]
+    /// See [`Header::consensus_method`]
     consensus_method: Option<u32>,
-    /// See [`ConsensusHeader::shared_rand_prev`]
+    /// See [`Header::shared_rand_prev`]
     shared_rand_prev: Option<SharedRandStatus>,
-    /// See [`ConsensusHeader::shared_rand_cur`]
+    /// See [`Header::shared_rand_cur`]
     shared_rand_cur: Option<SharedRandStatus>,
     /// See [`Consensus::voters`]
     voters: Vec<ConsensusVoterInfo>,
@@ -245,7 +245,7 @@ impl ConsensusBuilder {
             .consensus_method
             .ok_or(Error::CannotBuild("Missing consensus method."))?;
 
-        let header = ConsensusHeader {
+        let header = Header {
             flavor: self.flavor,
             lifetime,
             client_versions: self.client_versions.clone(),

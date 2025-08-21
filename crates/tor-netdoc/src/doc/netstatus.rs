@@ -453,55 +453,6 @@ pub struct SharedRandStatus {
     timestamp: Option<time::SystemTime>,
 }
 
-/// The header of a networkstatus.
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    visibility::make(pub),
-    non_exhaustive
-)]
-#[derive(Debug, Clone)]
-pub(crate) struct ConsensusHeader {
-    /// What kind of consensus document is this?  Absent in votes and
-    /// in ns-flavored consensuses.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) flavor: ConsensusFlavor,
-    /// Over what time is this consensus valid?  (For votes, this is
-    /// the time over which the voted-upon consensus should be valid.)
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) lifetime: Lifetime,
-    /// List of recommended Tor client versions.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) client_versions: Vec<String>,
-    /// List of recommended Tor relay versions.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) relay_versions: Vec<String>,
-    /// Lists of recommended and required subprotocols.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) proto_statuses: Arc<ProtoStatuses>,
-    /// Declared parameters for tunable settings about how to the
-    /// network should operator. Some of these adjust timeouts and
-    /// whatnot; some features things on and off.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) params: NetParams<i32>,
-    /// How long in seconds should voters wait for votes and
-    /// signatures (respectively) to propagate?
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) voting_delay: Option<(u32, u32)>,
-    /// What "method" was used to produce this consensus?  (A
-    /// consensus method is a version number used by authorities to
-    /// upgrade the consensus algorithm.)
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) consensus_method: u32,
-    /// Global shared-random value for the previous shared-random period.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) shared_rand_prev: Option<SharedRandStatus>,
-    /// Global shared-random value for the current shared-random period.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) shared_rand_cur: Option<SharedRandStatus>,
-}
-
 /// Description of an authority's identity and address.
 ///
 /// (Corresponds to a dir-source line.)
@@ -513,7 +464,7 @@ pub(crate) struct ConsensusHeader {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct DirSource {
+pub(crate) struct DirSource {
     /// human-readable nickname for this authority.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     nickname: String,
@@ -631,14 +582,14 @@ impl RelayWeight {
 pub(crate) struct ConsensusVoterInfo {
     /// Contents of the dirsource line about an authority
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    dir_source: DirSource,
+    pub(crate) dir_source: DirSource,
     /// Human-readable contact information about the authority
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    contact: String,
+    pub(crate) contact: String,
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    vote_digest: Vec<u8>,
+    pub(crate) vote_digest: Vec<u8>,
 }
 
 /// The signed footer of a consensus netstatus.
@@ -955,121 +906,6 @@ where
             .map(parse_pair)
             .collect::<Result<HashMap<_, _>>>()?;
         Ok(NetParams { params })
-    }
-}
-
-impl ConsensusHeader {
-    /// Extract the CommonHeader members from a single header section.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusHeader> {
-        use NetstatusKwd::*;
-
-        {
-            // this unwrap is safe because if there is not at least one
-            // token in the section, the section is unparsable.
-            #[allow(clippy::unwrap_used)]
-            let first = sec.first_item().unwrap();
-            if first.kwd() != NETWORK_STATUS_VERSION {
-                return Err(EK::UnexpectedToken
-                    .with_msg(first.kwd().to_str())
-                    .at_pos(first.pos()));
-            }
-        }
-
-        let ver_item = sec.required(NETWORK_STATUS_VERSION)?;
-
-        let version: u32 = ver_item.parse_arg(0)?;
-        if version != 3 {
-            return Err(EK::BadDocumentVersion.with_msg(version.to_string()));
-        }
-        let flavor = ConsensusFlavor::from_opt_name(ver_item.arg(1))?;
-
-        let valid_after = sec
-            .required(VALID_AFTER)?
-            .args_as_str()
-            .parse::<Iso8601TimeSp>()?
-            .into();
-        let fresh_until = sec
-            .required(FRESH_UNTIL)?
-            .args_as_str()
-            .parse::<Iso8601TimeSp>()?
-            .into();
-        let valid_until = sec
-            .required(VALID_UNTIL)?
-            .args_as_str()
-            .parse::<Iso8601TimeSp>()?
-            .into();
-        let lifetime = Lifetime::new(valid_after, fresh_until, valid_until)?;
-
-        let client_versions = sec
-            .maybe(CLIENT_VERSIONS)
-            .args_as_str()
-            .unwrap_or("")
-            .split(',')
-            .map(str::to_string)
-            .collect();
-        let relay_versions = sec
-            .maybe(SERVER_VERSIONS)
-            .args_as_str()
-            .unwrap_or("")
-            .split(',')
-            .map(str::to_string)
-            .collect();
-
-        let proto_statuses = {
-            let client = ProtoStatus::from_section(
-                sec,
-                RECOMMENDED_CLIENT_PROTOCOLS,
-                REQUIRED_CLIENT_PROTOCOLS,
-            )?;
-            let relay = ProtoStatus::from_section(
-                sec,
-                RECOMMENDED_RELAY_PROTOCOLS,
-                REQUIRED_RELAY_PROTOCOLS,
-            )?;
-            Arc::new(ProtoStatuses { client, relay })
-        };
-
-        let params = sec.maybe(PARAMS).args_as_str().unwrap_or("").parse()?;
-
-        let status: &str = sec.required(VOTE_STATUS)?.arg(0).unwrap_or("");
-        if status != "consensus" {
-            return Err(EK::BadDocumentType.err());
-        }
-
-        // We're ignoring KNOWN_FLAGS in the consensus.
-
-        let consensus_method: u32 = sec.required(CONSENSUS_METHOD)?.parse_arg(0)?;
-
-        let shared_rand_prev = sec
-            .get(SHARED_RAND_PREVIOUS_VALUE)
-            .map(SharedRandStatus::from_item)
-            .transpose()?;
-
-        let shared_rand_cur = sec
-            .get(SHARED_RAND_CURRENT_VALUE)
-            .map(SharedRandStatus::from_item)
-            .transpose()?;
-
-        let voting_delay = if let Some(tok) = sec.get(VOTING_DELAY) {
-            let n1 = tok.parse_arg(0)?;
-            let n2 = tok.parse_arg(1)?;
-            Some((n1, n2))
-        } else {
-            None
-        };
-
-        Ok(ConsensusHeader {
-            flavor,
-            lifetime,
-            client_versions,
-            relay_versions,
-            proto_statuses,
-            params,
-            voting_delay,
-            consensus_method,
-            shared_rand_prev,
-            shared_rand_cur,
-        })
     }
 }
 
