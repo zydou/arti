@@ -464,7 +464,7 @@ pub struct SharedRandStatus {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-pub(crate) struct DirSource {
+struct DirSource {
     /// human-readable nickname for this authority.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     nickname: String,
@@ -582,14 +582,14 @@ impl RelayWeight {
 pub(crate) struct ConsensusVoterInfo {
     /// Contents of the dirsource line about an authority
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) dir_source: DirSource,
+    dir_source: DirSource,
     /// Human-readable contact information about the authority
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) contact: String,
+    contact: String,
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) vote_digest: Vec<u8>,
+    vote_digest: Vec<u8>,
 }
 
 /// The signed footer of a consensus netstatus.
