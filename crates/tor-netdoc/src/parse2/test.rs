@@ -88,6 +88,53 @@ where
     Ok(())
 }
 
+#[allow(clippy::unnecessary_wraps)] // Result for consistency
+fn t_err_raw<D>(exp_lno: usize, exp_err: &str, doc: &str) -> TestResult
+where
+    D: NetdocParseable + Debug,
+{
+    let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
+    assert_eq!(got.lno, exp_lno);
+    let got_err = got.problem.to_string();
+    assert_eq!(got_err, exp_err);
+    Ok(())
+}
+
+/// Test an error case with embedded error message
+///
+/// `case` should be the input document, but exactly one line should
+/// contain `" # "`, with the expected error message as a "comment".
+///
+/// `t_err` will check that that error is reported, at that line.
+fn t_err<D>(mut case: &str) -> TestResult
+where
+    D: NetdocParseable + Debug,
+{
+    let mut exp = None;
+    let mut doc = String::new();
+    let mut lno = 0;
+    while let Some((l, r)) = case.split_once('\n') {
+        lno += 1;
+        case = r;
+        if let Some((l, r)) = l.split_once(" # ") {
+            assert!(exp.is_none());
+            exp = Some((lno, r.trim()));
+            let l = l.trim_end();
+            doc += l;
+        } else {
+            doc += l;
+        }
+        doc += "\n";
+    }
+    if !case.is_empty() {
+        panic!("missing final newline");
+    }
+    let (exp_lno, exp_err) = exp.expect("missing # error indication in test case");
+    println!("---- 8<- ----\n{doc}---- ->8 ----");
+    t_err_raw::<D>(exp_lno, exp_err, &doc)?;
+    Ok(())
+}
+
 #[test]
 fn various() -> TestResult<()> {
     let val = |s: &str| (s.to_owned(),);
@@ -173,6 +220,43 @@ sub4-field D
             },
             ..default()
         }],
+    )?;
+
+    t_err_raw::<Top>(0, "empty document", r#""#)?;
+
+    t_err::<Top>(
+        r#"wrong-keyword # wrong document type
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+sub4-intro # missing item needed
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+sub1-intro
+sub4-intro # missing item needed
+"#,
+    )?;
+
+    t_err::<Top>(
+        // XXXX this is wrong, `sub1` isn't an Item; it's a Rust type
+        r#"top-intro
+needed N
+sub3-intro
+sub4-intro # missing item sub1
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+needed N
+sub1-intro
+sub1-intro # item repeated when not allowed
+"#,
     )?;
 
     Ok(())
