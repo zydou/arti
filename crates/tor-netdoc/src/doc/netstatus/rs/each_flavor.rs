@@ -12,44 +12,6 @@
 
 use super::*;
 
-/// A single relay's status, in a network status document.
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    non_exhaustive
-)]
-#[derive(Debug, Clone)]
-pub struct RouterStatus {
-    /// The nickname for this relay.
-    ///
-    /// Nicknames can be used for convenience purpose, but no more:
-    /// there is no mechanism to enforce their uniqueness.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) nickname: Nickname,
-    /// Fingerprint of the old-style RSA identity for this relay.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) identity: RsaIdentity,
-    /// A list of address:port values where this relay can be reached.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) addrs: Vec<net::SocketAddr>,
-    /// Digest of the document for this relay.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) doc_digest: DocDigest,
-    /// Flags applied by the authorities to this relay.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) flags: RelayFlags,
-    /// Version of the software that this relay is running.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) version: Option<Version>,
-    /// List of subprotocol versions supported by this relay.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) protos: Arc<Protocols>,
-    /// Information about how to weight this relay when choosing a
-    /// relay at random.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) weight: RelayWeight,
-}
-
 // TODO: These methods should probably become, in whole or in part,
 // methods on the RouterStatus trait.
 impl RouterStatus {

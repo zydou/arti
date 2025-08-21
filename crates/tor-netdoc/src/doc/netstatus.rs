@@ -86,9 +86,14 @@ ns_export_each_flavor! {
     ty: RouterStatusBuilder;
 }
 
-pub use rs::MdRouterStatus;
-#[cfg(feature = "plain-consensus")]
-pub use rs::PlainRouterStatus;
+ns_export_each_variety! {
+    ty: RouterStatus;
+}
+#[cfg(feature = "dangerous-expose-struct-fields")]
+ns_export_each_variety! {
+    ty: Header;
+}
+
 use void::ResultVoidExt as _;
 
 #[deprecated]

@@ -273,7 +273,6 @@ macro_rules! ns_do_one_variety { {
 /// Select token streams for votes vs conensuses
 ///
 /// See the module-level documentation.
-#[allow(unused)]
 macro_rules! ns_if_vote { {
         ( $( $vote :tt )* )
         ( $( $other:tt )* )

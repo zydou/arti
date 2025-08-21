@@ -14,10 +14,6 @@ pub mod md;
 #[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
 pub mod vote;
 
-ns_export_each_flavor! {
-    ty: RouterStatus;
-}
-
 use super::{ConsensusFlavor};
 use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
