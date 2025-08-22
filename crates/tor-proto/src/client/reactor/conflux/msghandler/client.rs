@@ -12,6 +12,7 @@ use crate::Error;
 use crate::client::HopNum;
 use crate::client::reactor::circuit::{ConfluxStatus, unsupported_client_cell};
 use crate::client::reactor::{CircuitCmd, SendRelayCell};
+use crate::congestion::params::CongestionWindowParams;
 
 use super::AbstractConfluxMsgHandler;
 
@@ -47,6 +48,10 @@ pub(super) struct ClientConfluxMsgHandler {
     /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::note_cell_sent)
     /// each time a cell that counts towards sequence numbers is sent on this leg.
     last_seq_sent: u64,
+    /// The congestion window parameters.
+    ///
+    /// Used for SWITCH cell validation.
+    cwnd_params: CongestionWindowParams,
 }
 
 /// The state of a client circuit from a conflux set.
@@ -153,7 +158,12 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
 
 impl ClientConfluxMsgHandler {
     /// Create a new client conflux message handler.
-    pub(super) fn new(join_point: HopNum, nonce: V1Nonce, runtime: DynTimeProvider) -> Self {
+    pub(super) fn new(
+        join_point: HopNum,
+        nonce: V1Nonce,
+        cwnd_params: CongestionWindowParams,
+        runtime: DynTimeProvider,
+    ) -> Self {
         Self {
             state: ConfluxState::Unlinked,
             nonce,
@@ -163,6 +173,7 @@ impl ClientConfluxMsgHandler {
             init_rtt: None,
             last_seq_recv: 0,
             last_seq_sent: 0,
+            cwnd_params,
         }
     }
 
