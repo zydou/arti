@@ -57,6 +57,8 @@ pub(super) struct ClientConfluxMsgHandler {
     /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::inc_last_seq_delivered)
     /// upon delivering the cell to its corresponding stream.
     last_seq_delivered: Arc<AtomicU64>,
+    /// Whether we have processed any SWITCH cells on the leg this handler is installed on.
+    have_seen_switch: bool,
     /// The congestion window parameters.
     ///
     /// Used for SWITCH cell validation.
@@ -184,6 +186,7 @@ impl ClientConfluxMsgHandler {
             init_rtt: None,
             last_seq_recv: 0,
             last_seq_sent: 0,
+            have_seen_switch: false,
             cwnd_params,
         }
     }
@@ -314,6 +317,8 @@ impl ClientConfluxMsgHandler {
         // absolute sequence numbers. We only increment the sequence
         // numbers for multiplexed cells. Hence there is no +1 here.
         self.last_seq_recv += u64::from(rel_seqno);
+        // Note that we've received at least one SWITCH on this leg.
+        self.have_seen_switch = true;
 
         Ok(None)
     }
@@ -327,6 +332,18 @@ impl ClientConfluxMsgHandler {
         if rel_seqno == 0 {
             return Err(Error::CircProto(
                 "Received SWITCH cell with seqno = 0".into(),
+            ));
+        }
+
+        let no_data = self.last_seq_delivered.load(atomic::Ordering::Acquire) == 0;
+        let is_first_switch = !self.have_seen_switch;
+
+        // If we haven't received any DATA cells on this tunnel,
+        // the seqno delta from the first SWITCH can't possibly
+        // exceed the initial congestion window.
+        if no_data && is_first_switch && rel_seqno > self.cwnd_params.cwnd_init() {
+            return Err(Error::CircProto(
+                "SWITCH cell seqno exceeds initial cwnd".into(),
             ));
         }
 
