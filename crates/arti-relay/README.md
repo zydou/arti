@@ -27,7 +27,5 @@ There is even no guarantee at this point that the binary will keep this
   feature has no effect unless building with `--no-default-features` to
   disable tokio.
 * `rustls` (default) -- Build with the [rustls](https://github.com/rustls/rustls)
-  TLS backend.  This is not included in `full`, since it uses the `ring`
-  crate, which uses the old (3BSD/SSLEay) OpenSSL license, which may
-  introduce licensing compatibility issues.
+  TLS backend.  This is not currently included in `full`.
 * `tokio` (default): Use the tokio runtime library as our backend.

@@ -143,9 +143,7 @@ work.
   flag.)
 
 * `rustls` -- build with the [rustls](https://github.com/rustls/rustls)
-  TLS backend.  This is not included in `full`, since it uses the
-  `ring` crate, which uses the old (3BSD/SSLEay) OpenSSL license, which may
-  introduce licensing compatibility issues.
+  TLS backend.  This is not currently included in `full`.
 
 ### Build-flag related features
 

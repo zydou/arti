@@ -242,9 +242,7 @@ match tor_client.connect(("example.com", 80)).await {
   flag.)
 
 * `rustls` -- build with the [rustls](https://github.com/rustls/rustls)
-  crate for TLS support.  This is not included in `full`, since it uses the
-  `ring` crate, which uses the old (3BSD/SSLEay) OpenSSL license, which may
-  introduce licensing compatibility issues.
+  crate for TLS support.  This is not currently included in `full`.
 
 Note that flags `tokio`, `native-tls`, `async-std`, `smol`, `rustls` and `static`
 will enable the flags of the same name on the [`tor_rtcompat`] crate.
