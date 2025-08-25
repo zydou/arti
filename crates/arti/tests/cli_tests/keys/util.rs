@@ -15,7 +15,7 @@ const CLIENT_KEY: &str = " Keystore ID: arti
  KeystoreItemType: X25519StaticKeypair
  Location: client/mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad/ks_hsc_desc_enc.x25519_private
  Extra info:
- - hs_id: ???tad.onion
+ - hs_id: […]tad.onion
 ";
 
 /// An unrecognized entry of an `ArtiNativeKeystore`

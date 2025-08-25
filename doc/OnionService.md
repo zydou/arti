@@ -69,10 +69,10 @@ Just start arti as usual, as in
 When you start arti, look for a log message like this:
 
 ```
-2023-12-12T17:25:42Z  INFO tor_hsservice::svc: Generated a new identity for service allium-cepa: [scrubbed]
+2025-08-25T01:07:59Z  INFO tor_hsservice: Generated a new identity for service allium-cepa: […]2qd.onion
 ```
 
-(If it includes a .onion address instead of `[scrubbed]`,
+(If it includes the full .onion address instead of `[…]`,
 you have disabled safe logging.)
 
 Once this has appeared, 

@@ -139,7 +139,7 @@ impl safelog::DisplayRedacted for HsId {
         // 8 of those bits are the version, which is currently always 0x03.
         // So we are showing 7 bits derived from the site key.
 
-        write!(f, "???{}", &unredacted[DATA - 3..])
+        write!(f, "[…]{}", &unredacted[DATA - 3..])
     }
 }
 
@@ -809,7 +809,7 @@ mod test {
             assert_eq!(format!("{:?}", &hsid), format!("HsId({})", onion));
         });
 
-        assert_eq!(format!("{}", hsid.display_redacted()), "???sid.onion");
+        assert_eq!(format!("{}", hsid.display_redacted()), "[…]sid.onion");
     }
 
     #[test]
