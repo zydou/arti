@@ -136,6 +136,8 @@ impl KeysListCmd {
     /// Given a path to the state directory, this function returns a formatted string
     /// in the form `storage.state_dir="<path>"`, which can be passed directly as an
     /// `-o <VALUE>` argument.
+    ///
+    /// NOTE: This function will become obsolete or require refactoring once #2132 is resolved.
     fn create_state_dir_entry(state_dir_path: &str) -> String {
         let mut table = toml::Table::new();
         table.insert("storage.state_dir".to_string(), state_dir_path.into());
