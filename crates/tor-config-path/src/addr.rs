@@ -42,6 +42,7 @@ impl CfgAddr {
     }
 
     /// Return the [`general::SocketAddr`] produced by expanding this `CfgAddr`.
+    #[cfg_attr(not(unix), expect(unused_variables))]
     pub fn address(
         &self,
         path_resolver: &crate::CfgPathResolver,
