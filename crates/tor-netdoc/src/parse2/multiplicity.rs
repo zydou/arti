@@ -69,8 +69,14 @@ pub trait ItemSetMethods: Copy + Sized {
     /// The output type: the type of the field in the netdoc struct.
     type Field: Sized;
 
+    /// Can we accumulate another item ?
+    ///
+    /// Can be used to help predict whether `accumulate` will throw.
+    fn can_accumulate(self, acc: &Option<Self::Field>) -> Result<(), EP>;
+
     /// Accumulate one value into the accumulator.
     fn accumulate(self, acc: &mut Option<Self::Field>, one: Self::Each) -> Result<(), EP>;
+
     /// Resolve the accumulator into the output.
     fn finish(
         self,
@@ -100,6 +106,9 @@ impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
     type Each = T;
     type Field = Vec<T>;
     // We always have None, or Some(nonempty)
+    fn can_accumulate(self, _acc: &Option<Vec<T>>) -> Result<(), EP> {
+        Ok(())
+    }
     fn accumulate(self, acc: &mut Option<Vec<T>>, item: T) -> Result<(), EP> {
         acc.get_or_insert_default().push(item);
         Ok(())
@@ -112,10 +121,15 @@ impl<T> ItemSetMethods for ItemSetSelector<Option<T>> {
     type Each = T;
     type Field = Option<T>;
     // We always have None, or Some(Some(_))
-    fn accumulate(self, acc: &mut Option<Option<T>>, item: T) -> Result<(), EP> {
+    fn can_accumulate(self, acc: &Option<Option<T>>) -> Result<(), EP> {
         if acc.is_some() {
             Err(EP::ItemRepeated)?;
         }
+        Ok(())
+    }
+    // We always have None, or Some(Some(_))
+    fn accumulate(self, acc: &mut Option<Option<T>>, item: T) -> Result<(), EP> {
+        self.can_accumulate(acc)?;
         *acc = Some(Some(item));
         Ok(())
     }
@@ -126,10 +140,14 @@ impl<T> ItemSetMethods for ItemSetSelector<Option<T>> {
 impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
     type Each = T;
     type Field = T;
-    fn accumulate(self, acc: &mut Option<T>, item: T) -> Result<(), EP> {
+    fn can_accumulate(self, acc: &Option<T>) -> Result<(), EP> {
         if acc.is_some() {
             Err(EP::ItemRepeated)?;
         }
+        Ok(())
+    }
+    fn accumulate(self, acc: &mut Option<T>, item: T) -> Result<(), EP> {
+        self.can_accumulate(acc)?;
         *acc = Some(item);
         Ok(())
     }
