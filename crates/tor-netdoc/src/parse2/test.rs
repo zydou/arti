@@ -243,11 +243,10 @@ sub4-intro # missing item needed
     )?;
 
     t_err::<Top>(
-        // XXXX this is wrong, `sub1` isn't an Item; it's a Rust type
         r#"top-intro
 needed N
 sub3-intro
-sub4-intro # missing item sub1
+sub4-intro # missing item sub1-intro
 "#,
     )?;
 

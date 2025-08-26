@@ -83,6 +83,16 @@ pub trait ItemSetMethods: Copy + Sized {
     {
         Self::Each::is_intro_item_keyword(kw)
     }
+
+    /// `finish` for if the contained type is a wsub-document
+    ///
+    /// Obtain the sub-document's intro keyword from its `doctype_for_error`.
+    fn finish_subdoc(self, acc: Self::Accumulate) -> Result<Self::Field, EP>
+    where
+        Self::Each: NetdocParseable,
+    {
+        self.finish(acc, Self::Each::doctype_for_error())
+    }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
     type Accumulate = Vec<T>;

@@ -457,9 +457,15 @@ define_derive_deftly! {
             dtrace!("reached end, resolving");
 
           $(
-            ${when not(F_INTRO)}
+            ${when not(any(F_INTRO, F_SUBDOC))}
             let $fpatname = $<selector_ $fname>.finish($fpatname, $F_KEYWORD_REPORT)?;
-
+          )
+          $(
+            ${when F_SUBDOC}
+            let $fpatname = $<selector_ $fname>.finish_subdoc($fpatname)?;
+          )
+          $(
+            ${when not(F_INTRO)}
           ${if fmeta(netdoc(default)) {
             let $fpatname = Option::unwrap_or_default($fpatname);
           }}
