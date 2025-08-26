@@ -1,4 +1,4 @@
-//! network status documents - items that vary by consensus flavor
+//! consensus documents - items that vary by consensus flavor
 //!
 //! **This file is reincluded multiple times**,
 //! by the macros in [`crate::doc::ns_variety_definition_macros`],

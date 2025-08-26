@@ -1,4 +1,4 @@
-//! consensus document builders - items for all varieties, that vary
+//! network status document builders - items for all varieties, that vary
 //!
 //! **This file is reincluded multiple times**,
 //! by the macros in [`crate::doc::ns_variety_definition_macros`],
