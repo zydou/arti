@@ -520,7 +520,7 @@ define_derive_deftly! {
     //
     // We don't make this a generic struct because the defining module (crate)
     // will want to add verification methods, which means they must define the struct.
-    export NetdocSigned expect items, beta_deftly:
+    export NetdocSigned for struct, expect items, beta_deftly:
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
