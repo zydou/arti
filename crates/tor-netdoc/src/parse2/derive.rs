@@ -473,6 +473,8 @@ define_derive_deftly! {
                     break;
                 };
 
+                $<selector_ $fname>.can_accumulate(&mut $fpatname)?;
+
                 dtrace!("is this subdoc", kw);
                 let item = NetdocParseable::from_items(input, inner_stop);
                 dtrace!("parsed this subdoc", item.as_ref().map(|_| ()));

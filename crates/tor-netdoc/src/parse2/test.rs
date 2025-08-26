@@ -289,13 +289,13 @@ sub4-intro # missing item sub1-intro
 "#,
     )?;
 
-    t_err::<Top>( // XXXX this error is on the wrong line
+    t_err::<Top>(
         r#"top-intro
 needed N
 sub1-intro
 flat-needed FN1
-sub1-intro
-flat-needed FN2 # item repeated when not allowed
+sub1-intro # item repeated when not allowed
+flat-needed FN2
 "#,
     )?;
 
