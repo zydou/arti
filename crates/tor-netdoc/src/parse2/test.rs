@@ -14,6 +14,7 @@
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
 use super::*;
+use anyhow::Context as _;
 use testresult::TestResult;
 
 fn default<T: Default>() -> T {
@@ -79,12 +80,12 @@ where
     D: NetdocParseable + Debug + PartialEq,
 {
     if exp.len() == 1 {
-        let got = parse_netdoc::<D>(doc, "<literal>")?;
-        assert_eq!(got, exp[0]);
+        let got = parse_netdoc::<D>(doc, "<literal>").context(doc.to_owned())?;
+        assert_eq!(got, exp[0], "doc={doc}");
     }
 
     let got = parse_netdoc_multiple::<D>(doc, "<literal>")?;
-    assert_eq!(got, exp);
+    assert_eq!(got, exp, "doc={doc}");
     Ok(())
 }
 
@@ -94,9 +95,9 @@ where
     D: NetdocParseable + Debug,
 {
     let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
-    assert_eq!(got.lno, exp_lno);
+    assert_eq!(got.lno, exp_lno, "doc={doc}");
     let got_err = got.problem.to_string();
-    assert_eq!(got_err, exp_err);
+    assert_eq!(got_err, exp_err, "doc={doc}");
     Ok(())
 }
 
