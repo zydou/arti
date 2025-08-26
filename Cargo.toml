@@ -86,7 +86,7 @@ members = [
     "examples/ureq-examples",
 ]
 
-resolver = "2"
+resolver = "3"
 
 [profile.release]
 # For release builds, we want the most tuned Arti we can get;
