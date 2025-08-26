@@ -2723,14 +2723,17 @@ pub(crate) mod test {
     }
 
     #[cfg(feature = "conflux")]
-    async fn setup_good_conflux_tunnel(rt: &MockRuntime) -> TestTunnelCtx {
+    async fn setup_good_conflux_tunnel(
+        rt: &MockRuntime,
+        cc_params: CongestionControlParams,
+    ) -> TestTunnelCtx {
         // Our 2 test circuits are identical, so they both have the same guards,
         // which technically violates the conflux set rule mentioned in prop354.
         // For testing purposes this is fine, but in production we'll need to ensure
         // the calling code prevents guard reuse (except in the case where
         // one of the guards happens to be Guard + Exit)
         let same_hops = true;
-        let params = CircParameters::new(true, build_cc_vegas_params());
+        let params = CircParameters::new(true, cc_params);
         setup_conflux_tunnel(rt, same_hops, params).await
     }
 
@@ -2772,7 +2775,7 @@ pub(crate) mod test {
                 tunnel: _tunnel,
                 circs,
                 conflux_link_rx,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             let [mut circ1, _circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -2844,7 +2847,7 @@ pub(crate) mod test {
                     tunnel,
                     circs,
                     conflux_link_rx,
-                } = setup_good_conflux_tunnel(&rt).await;
+                } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
                 let [mut _circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -2913,7 +2916,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx: _,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -2954,8 +2957,6 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     fn conflux_bad_switch() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
-            // TODO: pass these params as an arg to setup_good_conflux_tunnel
-            // instead of duplicating the call here.
             let cc_vegas_params = build_cc_vegas_params();
             let cwnd_init = cc_vegas_params.cwnd_params().cwnd_init();
             let bad_switch = [
@@ -2971,7 +2972,7 @@ pub(crate) mod test {
                     tunnel,
                     circs,
                     conflux_link_rx,
-                } = setup_good_conflux_tunnel(&rt).await;
+                } = setup_good_conflux_tunnel(&rt, cc_vegas_params.clone()).await;
 
                 let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -3015,7 +3016,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx: _,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             rt.progress_until_stalled().await;
 
@@ -3550,7 +3551,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
             let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
             // The stream data we're going to send over the conflux tunnel
@@ -3942,7 +3943,7 @@ pub(crate) mod test {
             let tests = [simple_switch, multiple_switches];
 
             for cells_to_send in tests {
-                let tunnel = setup_good_conflux_tunnel(&rt).await;
+                let tunnel = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
                 assert_eq!(tunnel.circs.len(), 2);
                 let circ_ids = [tunnel.circs[0].unique_id, tunnel.circs[1].unique_id];
                 let cells_to_send = cells_to_send
@@ -3981,7 +3982,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
