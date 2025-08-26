@@ -51,7 +51,7 @@
 //! Within `each_variety.rs` and `each_flavor.rs` macros are available
 //! (provided by the machinery here in `ns_variety_definition_macros`)
 //! which can be used to define individual fields, or code fragments,
-//! which vary between varietiess.
+//! which vary between varieties.
 //!
 //! Inclusion of the `each_variety.rs` and `each_flavor.rs` files,
 //! as adapted for the particular variety,
