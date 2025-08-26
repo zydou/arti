@@ -1,5 +1,7 @@
 //! Client-side conflux message handling.
 
+use std::sync::Arc;
+use std::sync::atomic::{self, AtomicU64};
 use std::time::{Duration, SystemTime};
 
 use tor_cell::relaycell::conflux::V1Nonce;
@@ -48,6 +50,13 @@ pub(super) struct ClientConfluxMsgHandler {
     /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::note_cell_sent)
     /// each time a cell that counts towards sequence numbers is sent on this leg.
     last_seq_sent: u64,
+    /// The absolute sequence number of the last message delivered to a stream.
+    ///
+    /// This is shared by all the circuits in a conflux set,
+    ///
+    /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::inc_last_seq_delivered)
+    /// upon delivering the cell to its corresponding stream.
+    last_seq_delivered: Arc<AtomicU64>,
     /// The congestion window parameters.
     ///
     /// Used for SWITCH cell validation.
@@ -161,12 +170,14 @@ impl ClientConfluxMsgHandler {
     pub(super) fn new(
         join_point: HopNum,
         nonce: V1Nonce,
+        last_seq_delivered: Arc<AtomicU64>,
         cwnd_params: CongestionWindowParams,
         runtime: DynTimeProvider,
     ) -> Self {
         Self {
             state: ConfluxState::Unlinked,
             nonce,
+            last_seq_delivered,
             join_point,
             link_sent: None,
             runtime,

@@ -51,6 +51,7 @@ impl ConfluxMsgHandler {
             handler: Box::new(ClientConfluxMsgHandler::new(
                 hop,
                 nonce,
+                Arc::clone(&last_seq_delivered),
                 cwnd_params,
                 runtime,
             )),
