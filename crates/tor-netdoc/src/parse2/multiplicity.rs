@@ -42,7 +42,7 @@ use super::*;
 /// use tor_netdoc::parse2::multiplicity::{ItemSetSelector, ItemSetMethods as _};
 ///
 /// let selector = ItemSetSelector::<Vec<i32>>::default();
-/// let mut accum = selector.start();
+/// let mut accum = None;
 /// selector.accumulate(&mut accum, 12).unwrap();
 /// let out = selector.finish(accum, "item-set").unwrap();
 ///

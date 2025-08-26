@@ -386,7 +386,7 @@ define_derive_deftly! {
 
           } else {
 
-            let mut $fpatname = $<selector_ $fname>.start();
+            let mut $fpatname: Option<$F_EFFECTIVE_TYPE> = None;
 
           }})
 
