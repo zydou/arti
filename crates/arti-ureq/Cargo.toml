@@ -19,7 +19,12 @@ tokio = { version = "1.7", optional = true }
 tor-error = { path = "../tor-error", version = "0.33.0" }
 tor-proto = { path = "../tor-proto", features = [ "stream-ctrl" ], version = "0.33.0" }
 tor-rtcompat = { path = "../tor-rtcompat", default-features = false, version = "0.33.0" }
-ureq = { version = "~3.0.11", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
+# We rely on some of the APIs in ureq::unversioned, which are allowed to have semver
+# breaks between minor releases of ureq.  Therefore, we we use a tilde here, so that
+# we will only get patchlevel updates.
+#
+# See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2724#note_3162496
+ureq = { version = "~3.1.0", default-features = false, features = ["rustls-no-provider", "platform-verifier"] }
 
 [dev-dependencies]
 serde_json = "1.0.104"
