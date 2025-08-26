@@ -5,14 +5,11 @@
 
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
-#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
-pub mod md;
+pub(crate) mod md;
 #[cfg(feature = "plain-consensus")]
-#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
-pub mod plain;
+pub(crate) mod plain;
 #[cfg(feature = "ns-vote")]
-#[allow(unreachable_pub)] // reachable with dangerous-expose-struct-fields
-pub mod vote;
+pub(crate) mod vote;
 
 use super::ConsensusFlavor;
 use crate::doc;
