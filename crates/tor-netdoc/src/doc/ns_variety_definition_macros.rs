@@ -357,7 +357,7 @@ macro_rules! ns_export_each_variety {
 /// The two modules `plain`, and `md` must exist,
 /// and must contain the same items.
 //
-// TODO deduplicate with ns_export_each_variety
+// TODO maybe deduplicate with ns_export_each_variety
 macro_rules! ns_export_each_flavor {
     {
         $kind:ident: $( $ty:ident ),* $(,)?
