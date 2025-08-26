@@ -59,6 +59,9 @@ pub(super) struct ClientConfluxMsgHandler {
     last_seq_delivered: Arc<AtomicU64>,
     /// Whether we have processed any SWITCH cells on the leg this handler is installed on.
     have_seen_switch: bool,
+    /// The number of cells that count towards the conflux seqnos
+    /// received on this leg since the last SWITCH.
+    cells_since_switch: usize,
     /// The congestion window parameters.
     ///
     /// Used for SWITCH cell validation.
@@ -160,6 +163,7 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
 
     fn inc_last_seq_recv(&mut self) {
         self.last_seq_recv += 1;
+        self.cells_since_switch += 1;
     }
 
     fn inc_last_seq_sent(&mut self) {
@@ -187,6 +191,7 @@ impl ClientConfluxMsgHandler {
             last_seq_recv: 0,
             last_seq_sent: 0,
             have_seen_switch: false,
+            cells_since_switch: 0,
             cwnd_params,
         }
     }
@@ -303,6 +308,12 @@ impl ClientConfluxMsgHandler {
             ));
         }
 
+        if self.have_seen_switch && self.cells_since_switch == 0 {
+            return Err(Error::CircProto(
+                "Received consecutive SWITCH cells on circuit?!".into(),
+            ));
+        }
+
         let switch = msg
             .decode::<ConfluxSwitch>()
             .map_err(|e| Error::from_bytes_err(e, "switch message"))?
@@ -319,6 +330,9 @@ impl ClientConfluxMsgHandler {
         self.last_seq_recv += u64::from(rel_seqno);
         // Note that we've received at least one SWITCH on this leg.
         self.have_seen_switch = true;
+        // Reset our counter for the number of relevant (DATA, etc.) cells
+        // received since the last SWITCH
+        self.cells_since_switch = 0;
 
         Ok(None)
     }
