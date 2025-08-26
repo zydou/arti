@@ -208,6 +208,7 @@ pub struct CongestionControlParams {
     fixed_window_params: FixedWindowParams,
     /// Congestion window parameters.
     #[getter(as_mut)]
+    #[getter(as_copy)]
     cwnd_params: CongestionWindowParams,
     /// RTT calculation parameters.
     rtt_params: RoundTripEstimatorParams,

@@ -142,10 +142,10 @@ pub(crate) struct CongestionWindow {
 
 impl CongestionWindow {
     /// Constructor taking consensus parameters.
-    fn new(params: &CongestionWindowParams) -> Self {
+    fn new(params: CongestionWindowParams) -> Self {
         Self {
             value: params.cwnd_init(),
-            params: params.clone(),
+            params,
             is_full: false,
         }
     }
