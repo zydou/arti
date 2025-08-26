@@ -462,14 +462,16 @@ define_derive_deftly! {
             // Resolve all the fields
             dtrace!("reached end, resolving");
 
-          $(
-            ${when not(any(F_INTRO, F_SUBDOC))}
-            let $fpatname = $<selector_ $fname>.finish($fpatname, $F_KEYWORD_REPORT)?;
-          )
-          $(
-            ${when F_SUBDOC}
-            let $fpatname = $<selector_ $fname>.finish_subdoc($fpatname)?;
-          )
+          ${for fields {
+            ${select1
+              F_INTRO {}
+              any(F_NORMAL, F_SIGNATURE) {
+                  let $fpatname = $<selector_ $fname>.finish($fpatname, $F_KEYWORD_REPORT)?;
+              }
+              F_SUBDOC {
+                  let $fpatname = $<selector_ $fname>.finish_subdoc($fpatname)?;
+              }
+          }}}
           $(
             ${when not(F_INTRO)}
           ${if fmeta(netdoc(default)) {
