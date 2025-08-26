@@ -2990,13 +2990,10 @@ pub(crate) mod test {
                 let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
                 assert!(conflux_hs_res.iter().all(|res| res.is_ok()));
 
-                // Now send a bad SWITCH cell on *both* legs.
-                // This will cause both legs to be removed from the conflux set,
-                // which causes the tunnel reactor to shut down
-                for circ in [&mut circ1, &mut circ2] {
-                    let msg = rmsg_to_ccmsg(None, bad_cell.clone().into());
-                    circ.circ_tx.send(msg).await.unwrap();
-                }
+                // Now send a bad SWITCH cell on the first leg.
+                // This will cause the tunnel reactor to shut down.
+                let msg = rmsg_to_ccmsg(None, bad_cell.clone().into());
+                circ1.circ_tx.send(msg).await.unwrap();
 
                 // The tunnel should be shutting down
                 rt.advance_until_stalled().await;
