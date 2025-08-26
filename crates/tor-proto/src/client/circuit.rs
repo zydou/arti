@@ -2954,17 +2954,16 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     fn conflux_bad_switch() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            // TODO: pass these params as an arg to setup_good_conflux_tunnel
+            // instead of duplicating the call here.
+            let cc_vegas_params = build_cc_vegas_params();
+            let cwnd_init = cc_vegas_params.cwnd_params().cwnd_init();
             let bad_switch = [
                 // SWITCH cells with seqno = 0 are not allowed
                 relaymsg::ConfluxSwitch::new(0),
-                // TODO(#2031): from c-tor:
-                //
-                // We have to make sure that the switch command is truly
-                // incrementing the sequence number, or else it becomes
-                // a side channel that can be spammed for traffic analysis.
-                //
-                // We should figure out what this check is supposed to look like,
-                // and have a test for it
+                // SWITCH cells with seqno > cc_init_cwnd are not allowed
+                // on tunnels that have not received any data
+                relaymsg::ConfluxSwitch::new(cwnd_init + 1),
             ];
 
             for bad_cell in bad_switch {
