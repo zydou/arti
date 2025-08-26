@@ -805,7 +805,7 @@ pub(super) mod test {
             // No timestamp in the NETINFO, so no skew.
             assert_eq!(unverified.clock_skew(), ClockSkew::None);
 
-            // Try again with an authchallenge cell and some padding.
+            // Try again with some padding.
             let mut buf = Vec::new();
             buf.extend_from_slice(VERSIONS);
             buf.extend_from_slice(NOCERTS);
@@ -885,7 +885,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Duplicate certs cell"
+                "Handshake protocol violation: Duplicate CERTS cell"
             );
 
             let mut buf = Vec::new();
@@ -898,7 +898,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Duplicate authchallenge cell"
+                "Handshake protocol violation: Duplicate AUTH_CHALLENGE cell"
             );
         });
     }
@@ -913,7 +913,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Missing certs cell"
+                "Handshake protocol violation: Missing CERTS cell"
             );
         });
     }
@@ -928,7 +928,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "Handshake protocol violation: Missing netinfo or closed stream"
+                "Handshake protocol violation: Missing NETINFO cell"
             );
         });
     }
