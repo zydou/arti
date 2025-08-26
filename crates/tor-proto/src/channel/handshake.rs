@@ -31,6 +31,83 @@ use tracing::{debug, trace};
 /// A list of the link protocols that we support.
 static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
+/// Base trait that all handshake type must implement.
+///
+/// This trait contains the basics of an handshake that is a getter for the underlying channel
+/// frame and the handshake unique ID for logging and channel identification.
+///
+/// It has both a recv() and send() function for the VERSIONS cell since every handshake must start
+/// with this cell to negotiate the link protocol version.
+trait ChannelBaseHandshake<T>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+{
+    /// Return a mutable reference to the channel frame.
+    fn framed_tls(&mut self) -> &mut ChannelFrame<T>;
+    /// Return a reference to the unique ID of this handshake.
+    fn unique_id(&self) -> &UniqId;
+
+    /// Send a [msg::Versions] cell.
+    ///
+    /// A tuple is returned that is respectively the instant and wallclock of the send.
+    async fn send_versions_cell<F>(
+        &mut self,
+        now_fn: F,
+    ) -> Result<(coarsetime::Instant, SystemTime)>
+    where
+        F: FnOnce() -> SystemTime,
+    {
+        trace!(stream_id = %self.unique_id(), "sending versions");
+        // Send versions cell
+        let version_cell = AnyChanCell::new(
+            None,
+            msg::Versions::new(LINK_PROTOCOLS)
+                .map_err(|e| Error::from_cell_enc(e, "versions message"))?
+                .into(),
+        );
+        self.framed_tls().send(version_cell).await?;
+        Ok((
+            coarsetime::Instant::now(), // Flushed at instant
+            now_fn(),                   // Flushed at wallclock
+        ))
+    }
+
+    /// Receive a [msg::Versions] cell.
+    ///
+    /// The link protocol negotiated is returned. It is also set in the underlying channel frame
+    /// which will transition it to the handshake state.
+    async fn recv_versions_cell(&mut self) -> Result<u16> {
+        // Get versions cell.
+        // Get versions cell.
+        trace!(stream_id = %self.unique_id(), "waiting for versions");
+        // This can be None if we've reached EOF or any type of I/O error on the underlying TCP or
+        // TLS stream. Either case, it is unexpected.
+        let Some(cell) = self.framed_tls().next().await.transpose()? else {
+            return Err(Error::ChanIoErr(Arc::new(std::io::Error::from(
+                std::io::ErrorKind::UnexpectedEof,
+            ))));
+        };
+        let AnyChanMsg::Versions(their_versions) = cell.into_circid_and_msg().1 else {
+            return Err(Error::from(internal!(
+                "Unexpected cell, expecting a VERSIONS cell",
+            )));
+        };
+        trace!(stream_id = %self.unique_id(), "received their VERSIONS {:?}", their_versions);
+
+        // Determine which link protocol we negotiated.
+        let link_protocol = their_versions
+            .best_shared_link_protocol(LINK_PROTOCOLS)
+            .ok_or_else(|| Error::HandshakeProto("No shared link protocols".into()))?;
+        trace!(stream_id = %self.unique_id(), "negotiated version {}", link_protocol);
+
+        // Set the link protocol into our channel frame.
+        self.framed_tls()
+            .codec_mut()
+            .set_link_version(link_protocol)?;
+        Ok(link_protocol)
+    }
+}
+
 /// A raw client channel on which nothing has been done.
 pub struct ClientInitiatorHandshake<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
@@ -53,6 +130,20 @@ pub struct ClientInitiatorHandshake<
 
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
+}
+
+/// Implement the base channel handshake trait.
+impl<T, S> ChannelBaseHandshake<T> for ClientInitiatorHandshake<T, S>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+{
+    fn framed_tls(&mut self) -> &mut ChannelFrame<T> {
+        &mut self.framed_tls
+    }
+    fn unique_id(&self) -> &UniqId {
+        &self.unique_id
+    }
 }
 
 /// A client channel on which versions have been negotiated and the
@@ -159,44 +250,12 @@ impl<
             ),
             None => debug!(stream_id = %self.unique_id, "starting Tor handshake"),
         }
-        trace!(stream_id = %self.unique_id, "sending versions");
-        // Send versions cell
-        let version_cell = AnyChanCell::new(
-            None,
-            msg::Versions::new(LINK_PROTOCOLS)
-                .map_err(|e| Error::from_cell_enc(e, "versions message"))?
-                .into(),
-        );
-        self.framed_tls.send(version_cell).await?;
-        let versions_flushed_at = coarsetime::Instant::now();
-        let versions_flushed_wallclock = now_fn();
+        // Send versions cell.
+        let (versions_flushed_at, versions_flushed_wallclock) =
+            self.send_versions_cell(now_fn).await?;
 
-        // Get versions cell.
-        trace!(stream_id = %self.unique_id, "waiting for versions");
-        // This can be None if we've reached EOF or any type of I/O error on the underlying TCP or
-        // TLS stream. Either case, it is unexpected.
-        let Some(cell) = self.framed_tls.next().await.transpose()? else {
-            return Err(Error::ChanIoErr(Arc::new(std::io::Error::from(
-                std::io::ErrorKind::UnexpectedEof,
-            ))));
-        };
-        let AnyChanMsg::Versions(their_versions) = cell.into_circid_and_msg().1 else {
-            return Err(Error::from(internal!(
-                "Unexpected cell, expecting a VERSIONS cell",
-            )));
-        };
-        trace!(stream_id = %self.unique_id, "received their VERSIONS {:?}", their_versions);
-
-        // Determine which link protocol we negotiated.
-        let link_protocol = their_versions
-            .best_shared_link_protocol(LINK_PROTOCOLS)
-            .ok_or_else(|| Error::HandshakeProto("No shared link protocols".into()))?;
-        trace!(stream_id = %self.unique_id, "negotiated version {}", link_protocol);
-
-        // Set the link protocol into our channel frame.
-        self.framed_tls
-            .codec_mut()
-            .set_link_version(link_protocol)?;
+        // Receive versions cell.
+        let link_protocol = self.recv_versions_cell().await?;
 
         // Read until we have the netinfo cells.
         let mut certs: Option<msg::Certs> = None;
