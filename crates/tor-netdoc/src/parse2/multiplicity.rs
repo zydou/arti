@@ -81,7 +81,11 @@ pub trait ItemSetMethods: Copy + Sized {
     /// Accumulate one value into the accumulator.
     fn accumulate(self, acc: &mut Option<Self::Field>, one: Self::Each) -> Result<(), EP>;
     /// Resolve the accumulator into the output.
-    fn finish(self, acc: Option<Self::Field>, item_keyword: &'static str) -> Result<Self::Field, EP>;
+    fn finish(
+        self,
+        acc: Option<Self::Field>,
+        item_keyword: &'static str,
+    ) -> Result<Self::Field, EP>;
 
     /// If the contained type is a sub-document, call its `is_intro_item_keyword`.
     fn is_intro_item_keyword(self, kw: KeywordRef<'_>) -> bool
