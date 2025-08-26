@@ -236,6 +236,18 @@ define_derive_deftly! {
     // Field keyword as `KeywordRef`
     ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
 
+    // The effective field type for parsing.
+    //
+    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
+    // and substitute in the default at the end.
+    ${define F_EFFECTIVE_TYPE {
+        ${if all(fmeta(netdoc(default)), not(F_INTRO)) {
+            Option::<$ftype>
+        } else {
+            $ftype
+        }}
+    }}
+
     impl<$tgens> $P::NetdocParseable for $ttype {
         fn doctype_for_error() -> &'static str {
             ${tmeta(netdoc(doctype_for_error)) as expr,
@@ -292,13 +304,7 @@ define_derive_deftly! {
             ${when not(F_INTRO)}
 
             // See `mod multiplicity`.
-            let $<selector_ $fname> = ItemSetSelector::<
-                  ${if fmeta(netdoc(default)) {
-                      Option::<$ftype>
-                  } else {
-                      $ftype
-                  }}
-            >::default();
+            let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
           )
 
             // Is this an intro item keyword ?
