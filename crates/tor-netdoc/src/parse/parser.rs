@@ -76,7 +76,7 @@ impl<'a, K: Keyword> TokVal<'a, K> {
 ///
 /// TODO: I'd rather have this be pub(crate), but I haven't figured out
 /// how to make that work.
-pub struct Section<'a, T: Keyword> {
+pub(crate) struct Section<'a, T: Keyword> {
     /// Map from Keyword index to TokVal
     v: Vec<TokVal<'a, T>>,
     /// The keyword that appeared first in this section.  This will

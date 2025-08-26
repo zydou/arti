@@ -18,16 +18,13 @@ use std::hash::Hash;
 ///
 /// See macro::decl_keyword! for help defining a Keyword type for a
 /// network document.
-///
-/// TODO: I'd rather have this be pub(crate), but I haven't figured out
-/// how to make that work; there is a cascading change of other stuff that
-/// would need to be more hidden.
-pub trait Keyword: Hash + Eq + PartialEq + Copy + Clone {
+pub(crate) trait Keyword: Hash + Eq + PartialEq + Copy + Clone {
     /// Find a Keyword corresponding to a string that appears in a
     /// network document.
     fn from_str(s: &str) -> Self;
     /// Try to find the keyword corresponding to a given index value,
     /// as used in Section and SectionRules.
+    #[allow(unused)] // TODO keep Keyword::from_idx ?
     fn from_idx(i: usize) -> Option<Self>;
     /// Find a string corresponding to this keyword.  This may not be the
     /// actual string from the document; it is intended for reporting errors.
@@ -43,6 +40,7 @@ pub trait Keyword: Hash + Eq + PartialEq + Copy + Clone {
     /// Return true iff this keyword denotes an annotation.
     fn is_annotation(self) -> bool;
     /// Convert from an index to a human-readable string.
+    #[allow(unused)] // TODO keep Keyword::idx_to_str ?
     fn idx_to_str(i: usize) -> &'static str {
         Self::from_idx(i)
             .map(|x| x.to_str())

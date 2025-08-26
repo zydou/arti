@@ -39,6 +39,7 @@ experimental = [
     "hsdesc-inner-docs",
     "hs-dir",
     "hs-pow-full",
+    "ns-vote",
     "parse2",
 ]
 
@@ -55,6 +56,8 @@ testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
 # Enable the "ns consensus" document type, which some relays cache and serve.
 plain-consensus = []
 ns_consensus = ["plain-consensus"] # deprecated
+# Enable support for votes.  Very very experimental!
+ns-vote = []
 
 # Enable the `parse` derive-based netdoc parser
 parse2 = []

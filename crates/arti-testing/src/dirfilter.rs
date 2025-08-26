@@ -6,10 +6,7 @@ use rand::Rng;
 use std::sync::{Arc, Mutex};
 use tor_dirmgr::filter::DirFilter;
 use tor_netdoc::{
-    doc::{
-        microdesc::Microdesc,
-        netstatus::{RouterStatus, UncheckedMdConsensus},
-    },
+    doc::{microdesc::Microdesc, netstatus::UncheckedMdConsensus},
     types::{family::RelayFamily, policy::PortPolicy},
 };
 
@@ -189,7 +186,7 @@ impl DirFilter for BadMicrodescDigestsFilter {
         let (mut consensus, (start_time, end_time)) = consensus.dangerously_into_parts();
         let mut rng = rand::rng();
         for rs in consensus.consensus.relays.iter_mut() {
-            rs.rs.doc_digest = rng.random();
+            rs.doc_digest = rng.random();
         }
 
         Ok(UncheckedMdConsensus::new_from_start_end(

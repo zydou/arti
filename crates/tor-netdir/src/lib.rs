@@ -69,7 +69,7 @@ use tor_linkspec::{
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
-use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
+use tor_netdoc::doc::netstatus::{self, MdConsensus, MdRouterStatus};
 #[cfg(feature = "hs-common")]
 use {hsdir_ring::HsDirRing, std::iter};
 
@@ -132,15 +132,15 @@ pub(crate) struct RouterStatusIdx(usize);
 pub(crate) trait ConsensusRelays {
     /// Obtain the list of relays in the consensus
     //
-    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus>;
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdRouterStatus>;
 }
 impl ConsensusRelays for MdConsensus {
-    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdRouterStatus> {
         TiSlice::from_ref(MdConsensus::relays(self))
     }
 }
 impl ConsensusRelays for NetDir {
-    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdConsensusRouterStatus> {
+    fn c_relays(&self) -> &TiSlice<RouterStatusIdx, MdRouterStatus> {
         self.consensus.c_relays()
     }
 }
@@ -799,7 +799,7 @@ pub struct PartialNetDir {
 #[derive(Clone)]
 pub struct Relay<'a> {
     /// A router descriptor for this relay.
-    rs: &'a netstatus::MdConsensusRouterStatus,
+    rs: &'a netstatus::MdRouterStatus,
     /// A microdescriptor for this relay.
     md: &'a Microdesc,
     /// The country code this relay is in, if we know one.
@@ -812,7 +812,7 @@ pub struct Relay<'a> {
 #[derive(Debug)]
 pub struct UncheckedRelay<'a> {
     /// A router descriptor for this relay.
-    rs: &'a netstatus::MdConsensusRouterStatus,
+    rs: &'a netstatus::MdRouterStatus,
     /// A microdescriptor for this relay, if there is one.
     md: Option<&'a Microdesc>,
     /// The country code this relay is in, if we know one.
@@ -1057,7 +1057,7 @@ impl NetDir {
     /// index within the consensus.
     fn relay_from_rs_and_rsidx<'a>(
         &'a self,
-        rs: &'a netstatus::MdConsensusRouterStatus,
+        rs: &'a netstatus::MdRouterStatus,
         rsidx: RouterStatusIdx,
     ) -> UncheckedRelay<'a> {
         debug_assert_eq!(self.c_relays()[rsidx].rsa_identity(), rs.rsa_identity());
@@ -1212,7 +1212,7 @@ impl NetDir {
     /// Obtain a `Relay` given a `RouterStatusIdx`
     ///
     /// Differs from `relay_from_rs_and_rsi` as follows:
-    ///  * That function expects the caller to already have an `MdConsensusRouterStatus`;
+    ///  * That function expects the caller to already have an `MdRouterStatus`;
     ///    it checks with `debug_assert` that the relay in the netdir matches.
     ///  * That function panics if the `RouterStatusIdx` is invalid; this one returns `None`.
     ///  * That function returns an `UncheckedRelay`; this one a `Relay`.
@@ -1701,7 +1701,7 @@ impl NetDir {
     ///
     /// Note: because this function is used to assess the total
     /// properties of the consensus, the `usable` predicate takes a
-    /// [`RouterStatus`] rather than a [`Relay`].
+    /// [`MdRouterStatus`] rather than a [`Relay`].
     pub fn total_weight<P>(&self, role: WeightRole, usable: P) -> RelayWeight
     where
         P: Fn(&UncheckedRelay<'_>) -> bool,
@@ -2073,7 +2073,7 @@ impl<'a> Relay<'a> {
     /// This function is only available if the crate was built with
     /// its `experimental-api` feature.
     #[cfg(feature = "experimental-api")]
-    pub fn rs(&self) -> &netstatus::MdConsensusRouterStatus {
+    pub fn rs(&self) -> &netstatus::MdRouterStatus {
         self.rs
     }
     /// Return a reference to this relay's "microdescriptor" entry in

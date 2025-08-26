@@ -15,7 +15,7 @@
 use crate::ConsensusRelays;
 use crate::params::NetParameters;
 use bitflags::bitflags;
-use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, NetParams};
+use tor_netdoc::doc::netstatus::{self, MdConsensus, MdRouterStatus, NetParams};
 
 /// Helper: Calculate the function we should use to find initial relay
 /// bandwidths.
@@ -184,7 +184,7 @@ bitflags! {
 
 impl WeightKind {
     /// Return the appropriate WeightKind for a relay.
-    fn for_rs(rs: &MdConsensusRouterStatus) -> Self {
+    fn for_rs(rs: &MdRouterStatus) -> Self {
         let mut r = WeightKind::empty();
         if rs.is_flagged_guard() {
             r |= WeightKind::GUARD;
@@ -236,7 +236,7 @@ impl WeightSet {
     /// NOTE: This function _does not_ consider whether the relay in question
     /// actually matches the given role.  For example, if `role` is Guard
     /// we don't check whether or not `rs` actually has the Guard flag.
-    pub(crate) fn weight_rs_for_role(&self, rs: &MdConsensusRouterStatus, role: WeightRole) -> u64 {
+    pub(crate) fn weight_rs_for_role(&self, rs: &MdRouterStatus, role: WeightRole) -> u64 {
         self.weight_bw_for_role(WeightKind::for_rs(rs), rs.weight(), role)
     }
 
@@ -425,7 +425,7 @@ mod test {
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RouterStatusBuilder};
+    use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayFlags};
 
     #[test]
     fn t_clamp() {
@@ -607,7 +607,7 @@ mod test {
 
     /// Return a routerstatus builder set up to deliver a routerstatus
     /// with most features disabled.
-    fn rs_builder() -> RouterStatusBuilder<[u8; 32]> {
+    fn rs_builder() -> MdRouterStatusBuilder {
         MdConsensus::builder()
             .rs()
             .identity([9; 20].into())

@@ -297,7 +297,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
-    use tor_netdoc::doc::netstatus::{ConsensusBuilder, Lifetime, MdConsensusRouterStatus};
+    use tor_netdoc::doc::netstatus::{Lifetime, MdConsensusBuilder};
 
     /// Helper: parse an rfc3339 time.
     ///
@@ -328,7 +328,7 @@ mod test {
     const SRV1: [u8; 32] = *b"next saturday night were sending";
     const SRV2: [u8; 32] = *b"you......... back to the future!";
 
-    fn example_consensus_builder() -> ConsensusBuilder<MdConsensusRouterStatus> {
+    fn example_consensus_builder() -> MdConsensusBuilder {
         let mut bld = MdConsensus::builder();
 
         bld.consensus_method(34)

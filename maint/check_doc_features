@@ -69,13 +69,17 @@ additional_required["tor-proto"] = [
     ("Conversation", 'feature = "send-control-msg"'),
 ]
 
-# This is detected two times, but only on cfg_attr(docsrs) is enough
+additional_required["tor-netdoc"] = [
+    ('ConsensusBuilder', 'feature = "build_docs"'),
+    ('RouterStatusBuilder', 'feature = "build_docs"'),
+]
 additional_provided["tor-netdoc"] = [
-    ("PlainConsensusRouterStatus", 'feature = "plain-consensus"'),
-    ("NsConsensus", 'feature = "ns_consensus"'),
-    ("NsConsensusRouterStatus", 'feature = "ns_consensus"'),
-    ("UncheckedNsConsensus", 'feature = "ns_consensus"'),
-    ("UnvalidatedNsConsensus", 'feature = "ns_consensus"'),
+    ('NsConsensus', 'feature = "ns_consensus"'),
+    ('NsRouterStatus', 'feature = "ns_consensus"'),
+    ('MdConsensusBuilder', 'feature = "build_docs"'),
+    ('PlainConsensusBuilder', 'all(feature = "build_docs", feature = "plain-consensus")'),
+    ('UncheckedNsConsensus', 'feature = "ns_consensus"'),
+    ('UnvalidatedNsConsensus', 'feature = "ns_consensus"'),
 ]
 
 
