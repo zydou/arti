@@ -339,8 +339,12 @@ impl ClientConfluxMsgHandler {
 
     /// Validate the relative sequence number specified in a switch command.
     ///
-    /// TODO(#2031): the exact validation logic will presumably depend on
-    /// the configured UX?
+    /// Returns an error if
+    ///
+    ///   * `rel_seqno` is 0 (i.e. the SWITCH cell does not actually increment
+    ///     the `last_seq_recv` seqno on this leg)
+    ///   * the tunnel has not yet received any data and `rel_seqno` is greater
+    ///     than the initial congestion window,
     fn validate_switch_seqno(&self, rel_seqno: u32) -> crate::Result<()> {
         // The sequence number from the switch must be non-zero.
         if rel_seqno == 0 {
@@ -360,12 +364,6 @@ impl ClientConfluxMsgHandler {
                 "SWITCH cell seqno exceeds initial cwnd".into(),
             ));
         }
-
-        // TODO(#2031): from c-tor:
-        //
-        // We have to make sure that the switch command is truly
-        // incrementing the sequence number, or else it becomes
-        // a side channel that can be spammed for traffic analysis.
 
         Ok(())
     }
