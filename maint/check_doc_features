@@ -70,16 +70,19 @@ additional_required["tor-proto"] = [
 ]
 
 additional_required["tor-netdoc"] = [
-    ('ConsensusBuilder', 'feature = "build_docs"'),
-    ('RouterStatusBuilder', 'feature = "build_docs"'),
+    ("ConsensusBuilder", 'feature = "build_docs"'),
+    ("RouterStatusBuilder", 'feature = "build_docs"'),
 ]
 additional_provided["tor-netdoc"] = [
-    ('NsConsensus', 'feature = "ns_consensus"'),
-    ('NsRouterStatus', 'feature = "ns_consensus"'),
-    ('MdConsensusBuilder', 'feature = "build_docs"'),
-    ('PlainConsensusBuilder', 'all(feature = "build_docs", feature = "plain-consensus")'),
-    ('UncheckedNsConsensus', 'feature = "ns_consensus"'),
-    ('UnvalidatedNsConsensus', 'feature = "ns_consensus"'),
+    ("NsConsensus", 'feature = "ns_consensus"'),
+    ("NsRouterStatus", 'feature = "ns_consensus"'),
+    ("MdConsensusBuilder", 'feature = "build_docs"'),
+    (
+        "PlainConsensusBuilder",
+        'all(feature = "build_docs", feature = "plain-consensus")',
+    ),
+    ("UncheckedNsConsensus", 'feature = "ns_consensus"'),
+    ("UnvalidatedNsConsensus", 'feature = "ns_consensus"'),
 ]
 
 
