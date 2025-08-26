@@ -380,7 +380,7 @@ define_derive_deftly! {
 
           } else {
 
-            let mut $fpatname = ItemSetSelector::<$ftype>::default().start();
+            let mut $fpatname = $<selector_ $fname>.start();
 
           }})
 
