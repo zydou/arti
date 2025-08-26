@@ -6,8 +6,8 @@
 
 use crate::keys::util::{
     KeysListCmdBuilder, KeysListKeystoreCmdBuilder, LIST_OUTPUT_ARTI, LIST_OUTPUT_CTOR,
-    assert_log_message,
 };
+use crate::util::assert_log_message;
 mod util;
 
 #[test]

@@ -204,6 +204,7 @@ dependencies = [
 name = "arti"
 version = "1.5.0"
 dependencies = [
+ "amplify",
  "anyhow",
  "arti-client",
  "arti-rpcserver",
@@ -262,6 +263,7 @@ dependencies = [
  "tracing-subscriber",
  "trycmd",
  "visibility",
+ "walkdir",
  "winapi",
 ]
 

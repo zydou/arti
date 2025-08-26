@@ -274,9 +274,9 @@ fn migrate_ctor_keys(
     let arti_keystore_id = KeystoreId::from_str("arti")
         .map_err(|_| anyhow!("Default arti keystore ID is not valid?!"))?;
 
-    let mut confirm = true;
+    let is_empty = arti_entries.is_empty();
 
-    if !arti_entries.is_empty() {
+    if !is_empty {
         let arti_id_entry_opt = arti_entries.iter().find(|k| {
             // TODO: this relies on the stringly-typed info.role()
             // to find the identity key. We should consider exporting
@@ -300,10 +300,9 @@ fn migrate_ctor_keys(
                 return Err(anyhow!("Service {nickname} was already migrated."));
             }
         }
-        confirm = prompt(&build_prompt(&arti_entries))?;
     }
 
-    if migrate_args.batch || confirm {
+    if is_empty || migrate_args.batch || prompt(&build_prompt(&arti_entries))? {
         remove_arti_entries(keymgr, &arti_entries);
         keymgr.insert(ctor_id_key, &id_key_spec, (&arti_keystore_id).into(), true)?;
     } else {
