@@ -193,7 +193,7 @@ sub4-field D
 "#,
         &[Top {
             needed: val("N"),
-            optional: Some(val("O")),
+            optional: sval("O"),
             several: ["1", "2"].map(val).into(),
             defaulted: val("D"),
             t4_renamed: sval("R"),
