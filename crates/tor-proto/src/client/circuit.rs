@@ -3002,6 +3002,54 @@ pub(crate) mod test {
         });
     }
 
+    #[traced_test]
+    #[test]
+    #[cfg(feature = "conflux")]
+    fn conflux_consecutive_switch() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let TestTunnelCtx {
+                tunnel,
+                circs,
+                conflux_link_rx,
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
+
+            let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
+
+            let link = await_link_payload(&mut circ1.chan_rx).await;
+
+            // Send a LINKED cell on both legs
+            for circ in [&mut circ1, &mut circ2] {
+                let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
+                circ.circ_tx
+                    .send(rmsg_to_ccmsg(None, linked))
+                    .await
+                    .unwrap();
+            }
+
+            let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
+            assert!(conflux_hs_res.iter().all(|res| res.is_ok()));
+
+            // Send a valid SWITCH cell on the first leg.
+            let switch1 = relaymsg::ConfluxSwitch::new(10);
+            let msg = rmsg_to_ccmsg(None, switch1.into());
+            circ1.circ_tx.send(msg).await.unwrap();
+
+            // The tunnel should not be shutting down
+            rt.advance_until_stalled().await;
+            assert!(!tunnel.is_closed());
+
+            // Send another valid SWITCH cell on the same leg.
+            let switch2 = relaymsg::ConfluxSwitch::new(12);
+            let msg = rmsg_to_ccmsg(None, switch2.into());
+            circ1.circ_tx.send(msg).await.unwrap();
+
+            // The tunnel should now be shutting down
+            // (consecutive switches are not allowed)
+            rt.advance_until_stalled().await;
+            assert!(tunnel.is_closed());
+        });
+    }
+
     // This test ensures CtrlMsg::ShutdownAndReturnCircuit returns an
     // error when called on a multi-path tunnel
     #[traced_test]
