@@ -48,6 +48,6 @@ pub(crate) mod private {
     ///
     /// For more information on this pattern, see [the Rust API
     /// guidelines](https://rust-lang.github.io/api-guidelines/future-proofing.html#c-sealed).
-    #[allow(unused, unreachable_pub)] // TODO keep this Sealed trait in case we want it again?
+    #[expect(unreachable_pub)] // TODO keep this Sealed trait in case we want it again?
     pub trait Sealed {}
 }
