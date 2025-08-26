@@ -3,6 +3,7 @@
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
+use tor_cell::chancell::msg::AnyChanMsg;
 use tor_error::internal;
 
 use crate::channel::{ChannelType, UniqId, new_frame};
@@ -174,32 +175,18 @@ impl<
         let versions_flushed_wallclock = now_fn();
 
         // Get versions cell.
-        let mut versions_cell = None;
         trace!(stream_id = %self.unique_id, "waiting for versions");
-        while let Some(cell) = framed_tls.next().await.transpose()? {
-            use super::AnyChanMsg::{Versions, Vpadding};
-            let (_, m) = cell.into_circid_and_msg();
-            trace!(stream_id = %self.unique_id, "received a {} cell.", m.cmd());
-            match m {
-                Versions(v) => {
-                    versions_cell = Some(v);
-                    break;
-                }
-                Vpadding(_) => (), // Silent drop. Allowed anywhere during the handshake.
-                _ => {
-                    return Err(Error::from(internal!(
-                        "Unexpected cell before VERSIONS: {}",
-                        m.cmd()
-                    )));
-                }
-            };
-        }
         // This can be None if we've reached EOF or any type of I/O error on the underlying TCP or
         // TLS stream. Either case, it is unexpected.
-        let Some(their_versions) = versions_cell else {
+        let Some(cell) = framed_tls.next().await.transpose()? else {
             return Err(Error::ChanIoErr(Arc::new(std::io::Error::from(
                 std::io::ErrorKind::UnexpectedEof,
             ))));
+        };
+        let AnyChanMsg::Versions(their_versions) = cell.into_circid_and_msg().1 else {
+            return Err(Error::from(internal!(
+                "Unexpected cell, expecting a VERSIONS cell",
+            )));
         };
         trace!(stream_id = %self.unique_id, "received their VERSIONS {:?}", their_versions);
 

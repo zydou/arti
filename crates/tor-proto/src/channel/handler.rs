@@ -4,7 +4,7 @@
 use digest::Digest;
 use tor_bytes::Reader;
 use tor_cell::chancell::{
-    AnyChanCell, ChanCmd, ChanMsg, codec,
+    AnyChanCell, ChanCell, ChanCmd, ChanMsg, codec,
     msg::{self, AnyChanMsg},
 };
 use tor_error::internal;
@@ -129,7 +129,9 @@ impl futures_codec::Decoder for ChannelCellHandler {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         match self {
-            Self::New(c) => c.decode(src),
+            Self::New(c) => c
+                .decode(src)
+                .map(|opt| opt.map(|msg| ChanCell::new(None, msg.into()))),
             Self::Handshake(c) => c.decode(src),
             Self::Open(c) => c.decode(src),
         }
@@ -198,7 +200,7 @@ impl From<ChannelType> for NewChannelHandler {
 }
 
 impl futures_codec::Decoder for NewChannelHandler {
-    type Item = AnyChanCell;
+    type Item = msg::Versions;
     type Error = ChanError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -230,14 +232,10 @@ impl futures_codec::Decoder for NewChannelHandler {
         // We are only expecting these specific commands. We have to do this by hand here as after
         // that we can use a proper codec.
         let cmd = ChanCmd::from(src[2]);
-        match cmd {
-            // We accept those.
-            ChanCmd::VERSIONS | ChanCmd::VPADDING => (),
-            _ => {
-                return Err(Self::Error::HandshakeProto(format!(
-                    "Invalid command {cmd} variable cell"
-                )));
-            }
+        if cmd != ChanCmd::VERSIONS {
+            return Err(Self::Error::HandshakeProto(format!(
+                "Invalid command {cmd} variable cell, expected a VERSIONS."
+            )));
         }
 
         // Get the body length now from the next two bytes. This is still safe due to the first
@@ -248,7 +246,7 @@ impl futures_codec::Decoder for NewChannelHandler {
         // version numbers are u16, an odd payload would mean we have a trailing byte that is
         // unused which shouldn't be and because we don't expect not controlled that byte, as maxi
         // precaution, we don't allow.
-        if matches!(cmd, ChanCmd::VERSIONS) && (body_len % 2) == 1 {
+        if body_len % 2 == 1 {
             return Err(Self::Error::HandshakeProto(
                 "VERSIONS cell body length is odd. Rejecting.".into(),
             ));
@@ -277,25 +275,9 @@ impl futures_codec::Decoder for NewChannelHandler {
         let body = data.split_off(HEADER_SIZE).freeze();
         let mut reader = Reader::from_bytes(&body);
 
-        // NOTE: It would be great to have a more generic way here to decode these like we do with
-        // MessageFilter with a restricted message set. We would need to adapt it to work without a
-        // link protocol version and do the following in a generic way for all versions.
-
-        // Handle the VERSIONS.
-        let cell = match cmd {
-            ChanCmd::VERSIONS => msg::Versions::decode_from_reader(cmd, &mut reader)
-                .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?
-                .into(),
-            ChanCmd::VPADDING => msg::Vpadding::decode_from_reader(cmd, &mut reader)
-                .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?
-                .into(),
-            _ => {
-                return Err(Self::Error::from(internal!(
-                    "Uncatched bad command {cmd} at the start of an handshake"
-                )));
-            }
-        };
-
+        // Decode the VERSIONS.
+        let cell = msg::Versions::decode_from_reader(cmd, &mut reader)
+            .map_err(|e| Self::Error::from_bytes_err(e, "new cell handler"))?;
         Ok(Some(cell))
     }
 }
