@@ -117,7 +117,10 @@ pub use signatures::{
     SignatureHashInputs, SignatureItemParseable, check_validity_time, sig_hash_methods,
 };
 pub use structural::{StopAt, StopPredicate};
-pub use traits::{ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable};
+pub use traits::{
+    ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable,
+    NetdocParseableFields,
+};
 
 #[doc(hidden)]
 pub use derive::netdoc_parseable_derive_debug;
