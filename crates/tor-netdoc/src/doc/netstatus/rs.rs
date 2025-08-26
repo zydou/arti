@@ -19,7 +19,7 @@ use crate::types::misc::*;
 use crate::types::version::TorVersion;
 use crate::util::intern::InternCache;
 use crate::{Error, NetdocErrorKind as EK, Result};
-use crate::{parse::parser::Section, util::private::Sealed};
+use crate::parse::parser::Section;
 use std::sync::Arc;
 use std::{net, time};
 use tor_error::internal;

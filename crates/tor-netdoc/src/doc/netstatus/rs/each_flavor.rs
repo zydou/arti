@@ -82,8 +82,6 @@ impl RouterStatus {
     }
 }
 
-impl Sealed for RouterStatus {}
-
 impl RouterStatus {
     /// Return RSA identity for the relay described by this RouterStatus
     pub fn rsa_identity(&self) -> &RsaIdentity {
