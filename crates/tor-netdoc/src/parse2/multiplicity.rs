@@ -63,21 +63,12 @@ pub struct ItemSetSelector<Field>(PhantomData<fn() -> Field>);
 ///
 /// See [`ItemSetSelector`] and the [module-level docs](multiplicity).
 pub trait ItemSetMethods: Copy + Sized {
-    /// During parsing, we maintain a value of this type.  It starts as `Default`.
-    // XXXX Now, always Option<Self::Field>' abolish!
-    type Accumulate: Default;
-
     /// The value for each Item.
     type Each: Sized;
 
     /// The output type: the type of the field in the netdoc struct.
     type Field: Sized;
 
-    /// Initialise the accumulator.
-    // XXXX remove this, it's not needed
-    fn start(self) -> Self::Accumulate {
-        Self::Accumulate::default()
-    }
     /// Accumulate one value into the accumulator.
     fn accumulate(self, acc: &mut Option<Self::Field>, one: Self::Each) -> Result<(), EP>;
     /// Resolve the accumulator into the output.
@@ -106,7 +97,6 @@ pub trait ItemSetMethods: Copy + Sized {
     }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
-    type Accumulate = Option<Vec<T>>;
     type Each = T;
     type Field = Vec<T>;
     // We always have None, or Some(nonempty)
@@ -119,7 +109,6 @@ impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
     }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Option<T>> {
-    type Accumulate = Option<Option<T>>;
     type Each = T;
     type Field = Option<T>;
     // We always have None, or Some(Some(_))
@@ -135,7 +124,6 @@ impl<T> ItemSetMethods for ItemSetSelector<Option<T>> {
     }
 }
 impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
-    type Accumulate = Option<T>;
     type Each = T;
     type Field = T;
     fn accumulate(self, acc: &mut Option<T>, item: T) -> Result<(), EP> {
