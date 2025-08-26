@@ -350,19 +350,16 @@ impl<
         // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell, we don't need it.
         let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at)) = self.recv_responder_cells().await?;
 
+        // Get the clock skew.
+        let clock_skew = unauthenticated_clock_skew(
+            &netinfo_cell,
+            netinfo_rcvd_at,
+            versions_flushed_at,
+            versions_flushed_wallclock,
+        );
+
         trace!(stream_id = %self.unique_id, "received handshake, ready to verify.");
-        // Try to compute our clock skew.  It won't be authenticated
-        // yet, since we haven't checked the certificates.
-        let clock_skew = if let Some(netinfo_timestamp) = netinfo_cell.timestamp() {
-            let delay = netinfo_rcvd_at - versions_flushed_at;
-            ClockSkew::from_handshake_timestamps(
-                versions_flushed_wallclock,
-                netinfo_timestamp,
-                delay.into(),
-            )
-        } else {
-            ClockSkew::None
-        };
+
         Ok(UnverifiedChannel {
             channel_type: ChannelType::ClientInitiator,
             link_protocol,
@@ -714,6 +711,30 @@ impl<
             self.sleep_prov,
             self.memquota,
         )
+    }
+}
+
+/// Helper: Calculate a clock skew from the [msg::Netinfo] cell data and the time at which we sent the
+/// [msg::Versions] cell.
+///
+/// This is unauthenticated as in not validated with the certificates.
+fn unauthenticated_clock_skew(
+    netinfo_cell: &msg::Netinfo,
+    netinfo_rcvd_at: coarsetime::Instant,
+    versions_flushed_at: coarsetime::Instant,
+    versions_flushed_wallclock: SystemTime,
+) -> ClockSkew {
+    // Try to compute our clock skew.  It won't be authenticated yet, since we haven't checked
+    // the certificates.
+    if let Some(netinfo_timestamp) = netinfo_cell.timestamp() {
+        let delay = netinfo_rcvd_at - versions_flushed_at;
+        ClockSkew::from_handshake_timestamps(
+            versions_flushed_wallclock,
+            netinfo_timestamp,
+            delay.into(),
+        )
+    } else {
+        ClockSkew::None
     }
 }
 
