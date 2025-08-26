@@ -139,24 +139,13 @@ impl KeysListCmd {
     ///
     /// NOTE: This function will become obsolete or require refactoring once #2132 is resolved.
     fn create_state_dir_entry(state_dir_path: &str) -> String {
-        let mut table = toml::Table::new();
-        table.insert("storage.state_dir".to_string(), state_dir_path.into());
-        let mut s = toml::to_string(&table).unwrap();
-        let mut spaces = 0;
-        let mut quotes = 0;
-        s.retain(|c| {
-            if c == ' ' && spaces < 2 {
-                spaces += 1;
-                false
-            } else if c == '"' && quotes < 2 {
-                quotes += 1;
-                false
-            } else {
-                true
-            }
-        });
-
-        s
+        let table: toml::Table = [("state_dir".to_string(), state_dir_path.into())]
+            .into_iter()
+            .collect();
+        let table: toml::Table = [("storage".to_string(), table.into())]
+            .into_iter()
+            .collect();
+        toml::to_string(&table).unwrap()
     }
 }
 
