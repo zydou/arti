@@ -2768,7 +2768,7 @@ dependencies = [
  "tor-hsservice",
  "tor-proto",
  "tracing-subscriber",
- "webpki-roots 0.26.11",
+ "webpki-roots 1.0.2",
 ]
 
 [[package]]
