@@ -44,10 +44,8 @@ pub mod handshake;
 pub(crate) mod handshake;
 
 pub(super) mod path;
-pub(crate) mod unique_id;
 
 use crate::channel::Channel;
-use crate::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::celltypes::*;
 use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::congestion::params::CongestionControlParams;
@@ -58,6 +56,7 @@ use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use cfg_if::cfg_if;
 use educe::Educe;
+use handshake::RelayCryptLayerProtocol;
 use path::HopDetail;
 use tor_cell::chancell::CircId;
 use tor_cell::relaycell::RelayCellFormat;
@@ -66,9 +65,7 @@ use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
 use tor_rtcompat::DynTimeProvider;
 
-pub use crate::client::circuit::unique_id::UniqId;
-pub use crate::crypto::binding::CircuitBinding;
-pub use crate::memquota::StreamAccount;
+use crate::circuit::UniqId;
 
 use super::{ClientTunnel, TargetHop};
 
@@ -82,6 +79,7 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 
+pub use crate::crypto::binding::CircuitBinding;
 pub use path::{Path, PathEntry};
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.

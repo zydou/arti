@@ -21,9 +21,9 @@ mod conflux;
 mod control;
 pub(super) mod syncview;
 
+use crate::circuit::UniqId;
 use crate::client::circuit::CircuitRxReceiver;
 use crate::client::circuit::celltypes::ClientCircChanMsg;
-use crate::client::circuit::unique_id::UniqId;
 use crate::client::stream::queue::StreamQueueReceiver;
 use crate::client::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]

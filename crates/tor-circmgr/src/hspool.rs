@@ -28,7 +28,7 @@ use tor_linkspec::{
     CircTarget, HasRelayIds as _, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget,
 };
 use tor_netdir::{NetDir, NetDirProvider, Relay};
-use tor_proto::circuit::{self, CircParameters};
+use tor_proto::client::circuit::{self, CircParameters};
 use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
 use tor_rtcompat::{
     Runtime, SleepProviderExt,

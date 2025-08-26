@@ -71,7 +71,7 @@ pub enum CtrlMsg {
         /// Channel to send other messages from this circuit down.
         sender: CircuitRxSender,
         /// Oneshot channel to send the new circuit's identifiers down.
-        tx: ReactorResultChannel<(CircId, crate::client::circuit::UniqId)>,
+        tx: ReactorResultChannel<(CircId, crate::circuit::UniqId)>,
     },
     /// Enable/disable/reconfigure channel padding
     ///

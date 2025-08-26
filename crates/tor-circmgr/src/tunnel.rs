@@ -10,14 +10,15 @@ use tor_error::internal;
 use tor_linkspec::{CircTarget, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::{
     ClockSkew, TargetHop,
-    circuit::{CircParameters, CircuitBinding, ClientCirc, UniqId},
+    circuit::UniqId,
+    client::circuit::{CircParameters, CircuitBinding, ClientCirc},
     client::stream::{DataStream, StreamParameters},
 };
 
 use crate::{Error, Result};
 
 #[cfg(feature = "hs-common")]
-use tor_proto::circuit::handshake;
+use tor_proto::client::circuit::handshake;
 
 // The tunnel base methods. This MUST be derived on all tunnel types.
 define_derive_deftly! {

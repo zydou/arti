@@ -6,7 +6,8 @@ use tor_guardmgr::vanguards::VanguardMgr;
 use tor_guardmgr::{GuardMgr, TestConfig, VanguardConfig};
 use tor_linkspec::CircTarget;
 use tor_persist::StateMgr;
-use tor_proto::circuit::{CircParameters, Path, UniqId};
+use tor_proto::circuit::UniqId;
+use tor_proto::client::circuit::{CircParameters, Path};
 use tor_rtcompat::Runtime;
 
 use async_trait::async_trait;

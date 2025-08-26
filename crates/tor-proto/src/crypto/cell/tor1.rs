@@ -8,7 +8,7 @@
 //! I am calling this design `tor1`; it does not have a generally recognized
 //! name.
 
-use crate::{Error, Result, circuit::CircuitBinding, crypto::binding::CIRC_BINDING_LEN};
+use crate::{Error, Result, client::circuit::CircuitBinding, crypto::binding::CIRC_BINDING_LEN};
 
 use cipher::{KeyIvInit, StreamCipher};
 use digest::Digest;
