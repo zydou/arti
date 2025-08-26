@@ -46,7 +46,7 @@ pub struct ClientInitiatorHandshake<
     ///
     /// (We don't enforce that this is actually TLS, but if it isn't, the
     /// connection won't be secure.)
-    tls: T,
+    framed_tls: ChannelFrame<T>,
 
     /// Declared target method for this channel, if any.
     target_method: Option<ChannelMethod>,
@@ -134,7 +134,7 @@ impl<
         memquota: ChannelAccount,
     ) -> Self {
         Self {
-            tls,
+            framed_tls: new_frame(tls, ChannelType::ClientInitiator),
             target_method,
             unique_id: UniqId::new(),
             sleep_prov,
@@ -151,9 +151,6 @@ impl<
     where
         F: FnOnce() -> SystemTime,
     {
-        // New channel frame as a Client Initiator.
-        let mut framed_tls = new_frame(self.tls, ChannelType::ClientInitiator);
-
         match &self.target_method {
             Some(method) => debug!(
                 stream_id = %self.unique_id,
@@ -170,7 +167,7 @@ impl<
                 .map_err(|e| Error::from_cell_enc(e, "versions message"))?
                 .into(),
         );
-        framed_tls.send(version_cell).await?;
+        self.framed_tls.send(version_cell).await?;
         let versions_flushed_at = coarsetime::Instant::now();
         let versions_flushed_wallclock = now_fn();
 
@@ -178,7 +175,7 @@ impl<
         trace!(stream_id = %self.unique_id, "waiting for versions");
         // This can be None if we've reached EOF or any type of I/O error on the underlying TCP or
         // TLS stream. Either case, it is unexpected.
-        let Some(cell) = framed_tls.next().await.transpose()? else {
+        let Some(cell) = self.framed_tls.next().await.transpose()? else {
             return Err(Error::ChanIoErr(Arc::new(std::io::Error::from(
                 std::io::ErrorKind::UnexpectedEof,
             ))));
@@ -197,7 +194,9 @@ impl<
         trace!(stream_id = %self.unique_id, "negotiated version {}", link_protocol);
 
         // Set the link protocol into our channel frame.
-        framed_tls.codec_mut().set_link_version(link_protocol)?;
+        self.framed_tls
+            .codec_mut()
+            .set_link_version(link_protocol)?;
 
         // Read until we have the netinfo cells.
         let mut certs: Option<msg::Certs> = None;
@@ -206,7 +205,7 @@ impl<
 
         // Loop: reject duplicate and unexpected cells
         trace!(stream_id = %self.unique_id, "waiting for rest of handshake.");
-        while let Some(cell) = framed_tls.next().await.transpose()? {
+        while let Some(cell) = self.framed_tls.next().await.transpose()? {
             use super::AnyChanMsg::*;
             let (_, m) = cell.into_circid_and_msg();
             trace!("{}: received a {} cell.", self.unique_id, m.cmd());
@@ -264,7 +263,7 @@ impl<
                 Ok(UnverifiedChannel {
                     channel_type: ChannelType::ClientInitiator,
                     link_protocol,
-                    framed_tls,
+                    framed_tls: self.framed_tls,
                     certs_cell,
                     netinfo_cell,
                     clock_skew,
