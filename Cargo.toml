@@ -59,6 +59,7 @@ members = [
     "crates/tor-dirclient",
     "crates/tor-dircommon",
     "crates/tor-dirmgr",
+    "crates/tor-dirserver",
     "crates/tor-hsclient",
     "crates/tor-hsservice",
     "crates/tor-hsrproxy",
