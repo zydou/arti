@@ -123,6 +123,12 @@ pub trait ItemSetMethods: Copy + Sized {
         Self::Each: NetdocParseable,
     {
     }
+    /// Check that the element type is an argument
+    fn check_item_argument_parseable(self)
+    where
+        Self::Each: ItemArgumentParseable,
+    {
+    }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
     type Each = T;

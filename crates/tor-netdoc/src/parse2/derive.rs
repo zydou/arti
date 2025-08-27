@@ -126,6 +126,12 @@ define_derive_deftly! {
     ///
     ///   Use `STR` as the Keyword for this Item.
     ///
+    /// * **`#[deftly(netdoc(single_arg))]`**:
+    ///
+    ///   The field type implements `ItemArgumentParseable`,
+    ///   instead of `ItemValueParseable`,
+    ///   and is parsed as if `(FIELD_TYPE,)` had been written.
+    ///
     /// * **`#[deftly(netdoc(default))]`**:
     ///
     ///   This field is optional ("at most once");
@@ -325,10 +331,13 @@ define_derive_deftly! {
             // Without this, we just get a report that `item` doesn't implement the required
             // trait - but `item` is a local variable here, so the error points into the macro
             $<selector_ $fname> . ${paste_spanned $fname ${select1
-                    any(F_INTRO, F_NORMAL) {
+                    any(F_INTRO, F_NORMAL){
                         // For the intro item, this is not completely precise, because the
                         // it will allow Option<> and Vec<> which aren't allowed there.
-                        check_item_value_parseable
+                        ${if
+                          fmeta(netdoc(single_arg)) { check_item_argument_parseable }
+                          else { check_item_value_parseable }
+                        }
                     }
                     F_SIGNATURE { check_signature_item_parseable }
                     F_SUBDOC    { check_subdoc_parseable         }
@@ -368,7 +377,13 @@ define_derive_deftly! {
             }}
 
             ${define ITEM_VALUE_FROM_UNPARSED {
+              ${if fmeta(netdoc(single_arg)) { {
+                let item = ItemValueParseable::from_unparsed(item)?;
+                let (item,) = item;
+                item
+              } } else {
                 ItemValueParseable::from_unparsed(item)?
+              }}
             }}
 
             // Accumulates `item` (which must be DataSet::Value) into `Putnam`
@@ -552,6 +567,7 @@ define_derive_deftly! {
     ///  * The only attributes supported are the field attributes
     ///    `#[deftly(netdoc(keyword = STR))]`
     ///    `#[deftly(netdoc(default))]`
+    ///    `#[deftly(netdoc(single_arg))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
     // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
@@ -607,8 +623,14 @@ define_derive_deftly! {
           $(
             if item.keyword() == $F_KEYWORD {
                 let selector = $F_ITEM_SET_SELECTOR;
+              ${if fmeta(netdoc(single_arg)) {
+                selector.${paste_spanned $fname check_item_argument_parseable}();
+                let item = ItemValueParseable::from_unparsed(item)?;
+                let (item,) = item;
+              } else {
                 selector.${paste_spanned $fname check_item_value_parseable}();
                 let item = ItemValueParseable::from_unparsed(item)?;
+              }}
                 selector.accumulate(&mut acc.$fname, item)
             } else
           )
