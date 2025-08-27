@@ -103,6 +103,9 @@ mod traits;
 
 pub mod poc;
 
+#[cfg(test)]
+mod test;
+
 use internal_prelude::*;
 
 pub use error::{ErrorProblem, ParseError, VerifyFailed};

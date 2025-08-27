@@ -42,7 +42,7 @@ use super::*;
 /// use tor_netdoc::parse2::multiplicity::{ItemSetSelector, ItemSetMethods as _};
 ///
 /// let selector = ItemSetSelector::<Vec<i32>>::default();
-/// let mut accum = selector.start();
+/// let mut accum = None;
 /// selector.accumulate(&mut accum, 12).unwrap();
 /// let out = selector.finish(accum, "item-set").unwrap();
 ///
@@ -56,25 +56,27 @@ pub struct ItemSetSelector<Field>(PhantomData<fn() -> Field>);
 ///
 /// **For use by macros**.
 ///
+/// During parsing, we accumulate into a value of type `Option<Self::Field>`.
+/// The semantics of this are item-set-implementation-dependent;
+/// using a type which is generic over the field type in a simple way
+/// allows the partially-parsed accumulation state for a whole netdoc to have a concrete type.
+///
 /// See [`ItemSetSelector`] and the [module-level docs](multiplicity).
 pub trait ItemSetMethods: Copy + Sized {
-    /// During parsing, we maintain a value of this type.  It starts as `Default`.
-    type Accumulate: Default;
-
     /// The value for each Item.
     type Each: Sized;
 
     /// The output type: the type of the field in the netdoc struct.
     type Field: Sized;
 
-    /// Initialise the accumulator.
-    fn start(self) -> Self::Accumulate {
-        Self::Accumulate::default()
-    }
     /// Accumulate one value into the accumulator.
-    fn accumulate(self, acc: &mut Self::Accumulate, one: Self::Each) -> Result<(), EP>;
+    fn accumulate(self, acc: &mut Option<Self::Field>, one: Self::Each) -> Result<(), EP>;
     /// Resolve the accumulator into the output.
-    fn finish(self, acc: Self::Accumulate, item_keyword: &'static str) -> Result<Self::Field, EP>;
+    fn finish(
+        self,
+        acc: Option<Self::Field>,
+        item_keyword: &'static str,
+    ) -> Result<Self::Field, EP>;
 
     /// If the contained type is a sub-document, call its `is_intro_item_keyword`.
     fn is_intro_item_keyword(self, kw: KeywordRef<'_>) -> bool
@@ -83,36 +85,45 @@ pub trait ItemSetMethods: Copy + Sized {
     {
         Self::Each::is_intro_item_keyword(kw)
     }
+
+    /// `finish` for if the contained type is a wsub-document
+    ///
+    /// Obtain the sub-document's intro keyword from its `doctype_for_error`.
+    fn finish_subdoc(self, acc: Option<Self::Field>) -> Result<Self::Field, EP>
+    where
+        Self::Each: NetdocParseable,
+    {
+        self.finish(acc, Self::Each::doctype_for_error())
+    }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
-    type Accumulate = Vec<T>;
     type Each = T;
     type Field = Vec<T>;
-    fn accumulate(self, acc: &mut Vec<T>, item: T) -> Result<(), EP> {
-        acc.push(item);
+    // We always have None, or Some(nonempty)
+    fn accumulate(self, acc: &mut Option<Vec<T>>, item: T) -> Result<(), EP> {
+        acc.get_or_insert_default().push(item);
         Ok(())
     }
-    fn finish(self, acc: Vec<T>, _keyword: &'static str) -> Result<Vec<T>, EP> {
-        Ok(acc)
+    fn finish(self, acc: Option<Vec<T>>, _keyword: &'static str) -> Result<Vec<T>, EP> {
+        Ok(acc.unwrap_or_default())
     }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Option<T>> {
-    type Accumulate = Option<T>;
     type Each = T;
     type Field = Option<T>;
-    fn accumulate(self, acc: &mut Option<T>, item: T) -> Result<(), EP> {
+    // We always have None, or Some(Some(_))
+    fn accumulate(self, acc: &mut Option<Option<T>>, item: T) -> Result<(), EP> {
         if acc.is_some() {
             Err(EP::ItemRepeated)?;
         }
-        *acc = Some(item);
+        *acc = Some(Some(item));
         Ok(())
     }
-    fn finish(self, acc: Option<T>, _keyword: &'static str) -> Result<Option<T>, EP> {
-        Ok(acc)
+    fn finish(self, acc: Option<Option<T>>, _keyword: &'static str) -> Result<Option<T>, EP> {
+        Ok(acc.flatten())
     }
 }
 impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
-    type Accumulate = Option<T>;
     type Each = T;
     type Field = T;
     fn accumulate(self, acc: &mut Option<T>, item: T) -> Result<(), EP> {
