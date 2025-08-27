@@ -74,8 +74,12 @@ impl MacKey {
 impl GlobalId {
     /// The number of bytes used to encode a `GlobalId` in binary form.
     const ENCODED_LEN: usize = MAC_LEN + ConnectionId::LEN + GenIdx::BYTE_LEN;
-    /// The number of bytes used to encode a `GlobalId` in base-64 form.
-    pub(crate) const B64_ENCODED_LEN: usize = (Self::ENCODED_LEN * 8).div_ceil(6);
+
+    /// A prefix we use when encoding global IDs in base64.
+    ///
+    /// Since this isn't a valid base 64 character, we can't confuse it with
+    /// a base64 string.
+    const TAG_CHAR: char = '$';
 
     /// Create a new GlobalId from its parts.
     pub(crate) fn new(connection: ConnectionId, local_id: GenIdx) -> GlobalId {
@@ -92,7 +96,8 @@ impl GlobalId {
     pub(crate) fn encode(&self, key: &MacKey) -> ObjectId {
         use base64ct::{Base64Unpadded as B64, Encoding};
         let bytes = self.encode_as_bytes(key, &mut rand::rng());
-        B64::encode_string(&bytes[..]).into()
+        let string = format!("{}{}", GlobalId::TAG_CHAR, B64::encode_string(&bytes[..]));
+        ObjectId::from(string)
     }
 
     /// As `encode`, but do not base64-encode the result.
@@ -110,12 +115,19 @@ impl GlobalId {
     }
 
     /// Try to decode and validate `s` as a [`GlobalId`].
-    pub(crate) fn try_decode(key: &MacKey, s: &ObjectId) -> Result<Self, LookupError> {
+    ///
+    /// Returns `Ok(None)` if `s` is not tagged as an identifier for a `GlobalId`.
+    pub(crate) fn try_decode(key: &MacKey, s: &ObjectId) -> Result<Option<Self>, LookupError> {
         use base64ct::{Base64Unpadded as B64, Encoding};
+        if !s.as_ref().starts_with(GlobalId::TAG_CHAR) {
+            return Ok(None);
+        }
         let mut bytes = [0_u8; Self::ENCODED_LEN];
-        let byte_slice = B64::decode(s.as_ref(), &mut bytes[..])
+        let byte_slice = B64::decode(&s.as_ref()[1..], &mut bytes[..])
             .map_err(|_| LookupError::NoObject(s.clone()))?;
-        Self::try_decode_from_bytes(key, byte_slice).ok_or_else(|| LookupError::NoObject(s.clone()))
+        Self::try_decode_from_bytes(key, byte_slice)
+            .ok_or_else(|| LookupError::NoObject(s.clone()))
+            .map(Some)
     }
 
     /// As `try_decode`, but expect a byte slice rather than a base64-encoded string.
@@ -164,6 +176,8 @@ mod test {
 
     use super::*;
 
+    const GLOBAL_ID_B64_ENCODED_LEN: usize = (GlobalId::ENCODED_LEN * 8).div_ceil(6) + 1;
+
     #[test]
     fn roundtrip() {
         use crate::objmap::{StrongIdx, WeakIdx};
@@ -186,16 +200,29 @@ mod test {
 
         let mac_key = MacKey::new(&mut rng);
         let enc1 = gid1.encode(&mac_key);
-        let gid1_decoded = GlobalId::try_decode(&mac_key, &enc1).unwrap();
+        let gid1_decoded = GlobalId::try_decode(&mac_key, &enc1).unwrap().unwrap();
         assert_eq!(gid1, gid1_decoded);
+        assert!(enc1.as_ref().starts_with(GlobalId::TAG_CHAR));
 
         let enc2 = gid2.encode(&mac_key);
-        let gid2_decoded = GlobalId::try_decode(&mac_key, &enc2).unwrap();
+        let gid2_decoded = GlobalId::try_decode(&mac_key, &enc2).unwrap().unwrap();
         assert_eq!(gid2, gid2_decoded);
         assert_ne!(gid1_decoded, gid2_decoded);
+        assert!(enc1.as_ref().starts_with(GlobalId::TAG_CHAR));
 
-        assert_eq!(enc1.as_ref().len(), GlobalId::B64_ENCODED_LEN);
-        assert_eq!(enc2.as_ref().len(), GlobalId::B64_ENCODED_LEN);
+        assert_eq!(enc1.as_ref().len(), GLOBAL_ID_B64_ENCODED_LEN);
+        assert_eq!(enc2.as_ref().len(), GLOBAL_ID_B64_ENCODED_LEN);
+    }
+
+    #[test]
+    fn not_a_global_id() {
+        let mut rng = tor_basic_utils::test_rng::testing_rng();
+        let mac_key = MacKey::new(&mut rng);
+        let decoded = GlobalId::try_decode(&mac_key, &ObjectId::from("helloworld"));
+        assert!(matches!(decoded, Ok(None)));
+
+        let decoded = GlobalId::try_decode(&mac_key, &ObjectId::from("$helloworld"));
+        assert!(matches!(decoded, Err(LookupError::NoObject(_))));
     }
 
     #[test]
