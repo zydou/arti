@@ -41,9 +41,11 @@ define_derive_deftly! {
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
 #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
-#[derive(Debug)]
+#[derive(Debug, Deftly)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
 #[allow(clippy::exhaustive_enums)]
+#[derive_deftly(ChanMsgSubclass)]
+#[deftly(usage = "in response to circuit creation")]
 pub enum CreateResponse {
     /// Destroy cell: the CREATE failed.
     Destroy(chanmsg::Destroy),
@@ -64,27 +66,13 @@ impl Display for CreateResponse {
     }
 }
 
-impl TryFrom<AnyChanMsg> for CreateResponse {
-    type Error = crate::Error;
-
-    fn try_from(m: AnyChanMsg) -> Result<CreateResponse> {
-        match m {
-            AnyChanMsg::Destroy(m) => Ok(CreateResponse::Destroy(m)),
-            AnyChanMsg::CreatedFast(m) => Ok(CreateResponse::CreatedFast(m)),
-            AnyChanMsg::Created2(m) => Ok(CreateResponse::Created2(m)),
-            _ => Err(Error::ChanProto(format!(
-                "Got a {} in response to circuit creation",
-                m.cmd()
-            ))),
-        }
-    }
-}
-
 /// A subclass of ChanMsg that can correctly arrive on a live client
 /// circuit (one where a CREATED* has been received).
 #[derive(Debug, Deftly)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
 #[derive_deftly(HasMemoryCost)]
+#[derive_deftly(ChanMsgSubclass)]
+#[deftly(usage = "on an open client circuit")]
 pub enum ClientCircChanMsg {
     /// A relay cell telling us some kind of remote command from some
     /// party on the circuit.
@@ -92,21 +80,6 @@ pub enum ClientCircChanMsg {
     /// A cell telling us to destroy the circuit.
     Destroy(chanmsg::Destroy),
     // Note: RelayEarly is not valid for clients!
-}
-
-impl TryFrom<AnyChanMsg> for ClientCircChanMsg {
-    type Error = crate::Error;
-
-    fn try_from(m: AnyChanMsg) -> Result<ClientCircChanMsg> {
-        match m {
-            AnyChanMsg::Destroy(m) => Ok(ClientCircChanMsg::Destroy(m)),
-            AnyChanMsg::Relay(m) => Ok(ClientCircChanMsg::Relay(m)),
-            _ => Err(Error::ChanProto(format!(
-                "Got a {} cell on an open circuit",
-                m.cmd()
-            ))),
-        }
-    }
 }
 
 #[cfg(test)]
