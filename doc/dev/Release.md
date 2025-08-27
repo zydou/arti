@@ -146,7 +146,7 @@ release?" above.
    The script `maint/changelog-syntax-fiddle`
    can be helpful to write the cross-references more easily.
 
-   See below for our current [changelog style guide](#changelog-style).
+   See below for our current [changelog style guide](#changelog-style-guide).
 
 4. [ ] Finish the changelog.
 
@@ -447,12 +447,7 @@ since the last release.)
 
 8. Consider whether to make a blog post about the patch release.
 
-
-<div id="changelog-style">
-
 # Changelog style guide
-
-</div>
 
 > This guide is fairly rough;
 > it is mainly here to ensure that we get similar changelogs
