@@ -217,7 +217,20 @@ impl StreamFlowControl {
                     return Err(Error::CircProto("Unrecognized XOFF version".into()));
                 }
 
-                *control.rate_limit_updater.borrow_mut() = StreamRateLimit::ZERO;
+                // update the rate limit and notify the `DataWriter`
+                let old_rate_limit = std::mem::replace(
+                    &mut *control.rate_limit_updater.borrow_mut(),
+                    StreamRateLimit::ZERO,
+                );
+
+                // if the old rate limit is zero,
+                // then the last XON or XOFF message we received was an XOFF
+                if old_rate_limit == StreamRateLimit::ZERO {
+                    // we don't expect to receive consecutive XOFFs, so we want to close the circuit
+                    // as a sidechannel mitigation
+                    return Err(Error::CircProto("Consecutive XOFF messages".into()));
+                }
+
                 Ok(())
             }
         }
