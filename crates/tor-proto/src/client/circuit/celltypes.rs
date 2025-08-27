@@ -82,6 +82,26 @@ pub enum ClientCircChanMsg {
     // Note: RelayEarly is not valid for clients!
 }
 
+/// A subclass of ChanMsg that can correctly arrive on a live relay
+/// circuit (one where a CREATE* has been received).
+#[derive(Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+#[derive_deftly(ChanMsgSubclass)]
+#[deftly(usage = "on an open relay circuit")]
+#[cfg(feature = "relay")]
+#[cfg_attr(not(test), expect(unused))] // TODO(relay)
+pub(crate) enum RelayCircChanMsg {
+    /// A relay cell telling us some kind of remote command from some
+    /// party on the circuit.
+    Relay(chanmsg::Relay),
+    /// A relay early cell that is allowed to contain a CREATE message.
+    RelayEarly(chanmsg::RelayEarly),
+    /// A cell telling us to destroy the circuit.
+    Destroy(chanmsg::Destroy),
+    /// A cell telling us to enable/disable channel padding.
+    PaddingNegotiate(chanmsg::PaddingNegotiate),
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -134,5 +154,28 @@ mod test {
             msg::Relay::new(&b"for the world and its mother"[..]).into(),
         ));
         bad(msg::Versions::new([1, 2, 3]).unwrap().into());
+    }
+
+    #[test]
+    #[cfg(feature = "relay")]
+    fn relay_circ_chan_msg() {
+        use tor_cell::chancell::msg::{self, AnyChanMsg};
+        fn good(m: AnyChanMsg) {
+            assert!(RelayCircChanMsg::try_from(m).is_ok());
+        }
+        fn bad(m: AnyChanMsg) {
+            assert!(RelayCircChanMsg::try_from(m).is_err());
+        }
+
+        good(msg::Destroy::new(2.into()).into());
+        bad(msg::CreatedFast::new(&b"The great globular mass"[..]).into());
+        bad(msg::Created2::new(&b"of protoplasmic slush"[..]).into());
+        good(msg::Relay::new(&b"undulated slightly,"[..]).into());
+        good(msg::AnyChanMsg::RelayEarly(
+            msg::Relay::new(&b"as if aware of him"[..]).into(),
+        ));
+        bad(msg::Versions::new([1, 2, 3]).unwrap().into());
+        good(msg::PaddingNegotiate::start_default().into());
+        good(msg::RelayEarly::from(msg::Relay::new(b"snail-like unipedular organism")).into());
     }
 }
