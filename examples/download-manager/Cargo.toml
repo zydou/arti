@@ -27,3 +27,6 @@ tokio-native-tls = "0.3.1"
 tor-rtcompat = { path = "../../crates/tor-rtcompat" }
 tracing = { version = "0.1.41" }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+[features]
+full = ["arti-client/full", "tor-rtcompat/full"]

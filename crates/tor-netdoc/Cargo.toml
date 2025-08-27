@@ -57,10 +57,10 @@ testing = ["hex-literal", "hsdesc-inner-docs", "visibility"]
 plain-consensus = []
 ns_consensus = ["plain-consensus"] # deprecated
 # Enable support for votes.  Very very experimental!
-ns-vote = []
+ns-vote = ["__is_experimental"]
 
 # Enable the `parse` derive-based netdoc parser
-parse2 = []
+parse2 = ["__is_experimental"]
 
 # Client-side, directory-side, and service-side support for onion services.
 # Experimental: not covered by semver guarantees.
