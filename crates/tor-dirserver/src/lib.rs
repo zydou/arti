@@ -5,3 +5,4 @@
 
 pub mod err;
 pub mod mirror;
+mod schema;
