@@ -57,12 +57,28 @@ struct Flat1 {
     flat_optional: Option<(String,)>,
     flat_several: Vec<(String,)>,
     flat_defaulted: Option<(String,)>,
+    #[deftly(netdoc(single_arg))]
+    flat_arg_needed: String,
+    #[deftly(netdoc(single_arg))]
+    flat_arg_optional: Option<String>,
+    #[deftly(netdoc(single_arg))]
+    flat_arg_several: Vec<String>,
+    #[deftly(netdoc(single_arg, default))]
+    flat_arg_defaulted: String,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocParseable)]
 struct Sub2 {
     sub2_intro: (),
     sub2_field: Option<(String,)>,
+    #[deftly(netdoc(single_arg))]
+    arg_needed: String,
+    #[deftly(netdoc(single_arg))]
+    arg_optional: Option<String>,
+    #[deftly(netdoc(single_arg))]
+    arg_several: Vec<String>,
+    #[deftly(netdoc(single_arg, default))]
+    arg_defaulted: String,
     #[deftly(netdoc(subdoc))]
     subsub: SubSub,
 }
@@ -81,7 +97,8 @@ struct Sub4 {
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocParseable)]
 struct SubSub {
-    subsub_intro: (),
+    #[deftly(netdoc(single_arg))]
+    subsub_intro: String,
     subsub_field: Option<(String,)>,
 }
 
@@ -162,8 +179,18 @@ fn various_docs() -> TestResult<()> {
     let sub1_minimal = Sub1 {
         flatten: Flat1 {
             flat_needed: val("FN"),
+            flat_arg_needed: "FAN".into(),
             ..default()
         },
+        ..default()
+    };
+    let subsub_minimal = SubSub {
+        subsub_intro: "SSI".into(),
+        ..default()
+    };
+    let sub2_minimal = Sub2 {
+        arg_needed: "AN".into(),
+        subsub: subsub_minimal.clone(),
         ..default()
     };
 
@@ -172,6 +199,7 @@ fn various_docs() -> TestResult<()> {
 needed N
 sub1-intro
 flat-needed FN
+flat-arg-needed FAN
 "#,
         &[Top {
             needed: val("N"),
@@ -185,8 +213,10 @@ flat-needed FN
 needed N
 sub1-intro
 flat-needed FN
+flat-arg-needed FAN
 sub2-intro
-subsub-intro
+arg-needed AN
+subsub-intro SSI
 sub3-intro
 sub3-intro
 sub4-intro
@@ -194,7 +224,7 @@ sub4-intro
         &[Top {
             needed: val("N"),
             sub1: sub1_minimal.clone(),
-            sub2: Some(default()),
+            sub2: Some(sub2_minimal.clone()),
             sub3: vec![default(); 2],
             ..default()
         }],
@@ -213,11 +243,21 @@ flat-several FS1
 flat-needed FN
 sub1-field A
 flat-optional FO
+flat-arg-needed FAN
 flat-several FS2
 flat-defaulted FD
+flat-arg-optional FAO
+flat-arg-several FAS1 ignored
+flat-arg-several FAS2
+flat-arg-defaulted FAD
 sub2-intro
 sub2-field B
-subsub-intro
+arg-needed AN
+arg-optional AO
+arg-defaulted AD
+arg-several A1
+arg-several A2
+subsub-intro SSI
 subsub-field BS
 sub3-intro
 sub3-field C1
@@ -239,16 +279,23 @@ sub4-field D
                     flat_optional: sval("FO"),
                     flat_several: ["FS1", "FS2"].map(val).into(),
                     flat_defaulted: sval("FD"),
+                    flat_arg_needed: "FAN".into(),
+                    flat_arg_several: ["FAS1", "FAS2"].map(Into::into).into(),
+                    flat_arg_optional: Some("FAO".into()),
+                    flat_arg_defaulted: "FAD".into(),
                 },
                 ..default()
             },
             sub2: Some(Sub2 {
                 sub2_field: sval("B"),
+                arg_optional: Some("AO".into()),
+                arg_defaulted: "AD".into(),
+                arg_several: ["A1", "A2"].map(Into::into).into(),
                 subsub: SubSub {
                     subsub_field: sval("BS"),
-                    ..default()
+                    ..subsub_minimal.clone()
                 },
-                ..default()
+                ..sub2_minimal.clone()
             }),
             sub3: ["C1", "C2"]
                 .map(|s| Sub3 {
@@ -287,6 +334,7 @@ sub4-intro # missing item flat-needed
     t_err::<Top>(
         r#"top-intro
 sub1-intro
+flat-arg-needed FAN
 flat-needed FN
 sub4-intro # missing item needed
 "#,
@@ -305,6 +353,7 @@ sub4-intro # missing item sub1-intro
 needed N
 sub1-intro
 flat-needed FN1
+flat-arg-needed FAN
 sub1-intro # item repeated when not allowed
 flat-needed FN2
 "#,
