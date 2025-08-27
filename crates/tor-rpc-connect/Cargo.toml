@@ -31,7 +31,7 @@ rpc-server = ["fslock-guard", "tor-rtcompat"]
 [dependencies]
 # NOTE: This crate is a dependency of our RPC client library;
 # Try to avoid introducing big unconditional dependencies!
-base16ct = { version = "0.2", features = ["alloc"] }
+base16ct = { version = "0.3", features = ["alloc"] }
 cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }

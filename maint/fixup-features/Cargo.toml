@@ -13,7 +13,7 @@ description = "Tool used by arti to enforce certain properties in our Cargo feat
 anyhow = "1.0.69"
 itertools = "0.14.0"
 pico-args = "0.5.0"
-toml_edit = "0.22.9"
+toml_edit = "0.23.4"
 
 [features]
 full = []

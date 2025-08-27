@@ -23,4 +23,4 @@ tor-cell = { path = "../../crates/tor-cell" }
 tor-hsservice = { path = "../../crates/tor-hsservice" }
 tor-proto = { path = "../../crates/tor-proto" }
 tracing-subscriber = "0.3.3"
-webpki-roots = "0.26.8"
+webpki-roots = "1.0.2"
