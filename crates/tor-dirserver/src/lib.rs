@@ -4,5 +4,6 @@
 #![allow(dead_code)]
 
 pub mod err;
+mod http;
 pub mod mirror;
 mod schema;
