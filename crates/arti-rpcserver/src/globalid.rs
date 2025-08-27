@@ -75,6 +75,12 @@ impl GlobalId {
     /// The number of bytes used to encode a `GlobalId` in binary form.
     const ENCODED_LEN: usize = MAC_LEN + ConnectionId::LEN + GenIdx::BYTE_LEN;
 
+    /// A prefix we use when encoding global IDs in base64.
+    ///
+    /// Since this isn't a valid base 64 character, we can't confuse it with
+    /// a base64 string.
+    pub(crate) const TAG_CHAR: char = '$';
+
     /// Create a new GlobalId from its parts.
     pub(crate) fn new(connection: ConnectionId, local_id: GenIdx) -> GlobalId {
         GlobalId {
@@ -90,9 +96,8 @@ impl GlobalId {
     pub(crate) fn encode(&self, key: &MacKey) -> ObjectId {
         use base64ct::{Base64Unpadded as B64, Encoding};
         let bytes = self.encode_as_bytes(key, &mut rand::rng());
-        let mut b64: String = "$".into();
-        b64.push_str(&B64::encode_string(&bytes[..]));
-        b64.into()
+        let string = format!("{}{}", GlobalId::TAG_CHAR, B64::encode_string(&bytes[..]));
+        ObjectId::from(string)
     }
 
     /// As `encode`, but do not base64-encode the result.
@@ -112,6 +117,7 @@ impl GlobalId {
     /// Try to decode and validate `s` as a [`GlobalId`].
     pub(crate) fn try_decode(key: &MacKey, s: &ObjectId) -> Result<Self, LookupError> {
         use base64ct::{Base64Unpadded as B64, Encoding};
+        // XXXX: doesn't validate first byte.
         let mut bytes = [0_u8; Self::ENCODED_LEN];
         let byte_slice = B64::decode(&s.as_ref()[1..], &mut bytes[..])
             .map_err(|_| LookupError::NoObject(s.clone()))?;
@@ -164,7 +170,7 @@ mod test {
 
     use super::*;
 
-    const B64_ENCODED_LEN: usize = (GlobalId::ENCODED_LEN * 8).div_ceil(6) + 1;
+    const GLOBAL_ID_B64_ENCODED_LEN: usize = (GlobalId::ENCODED_LEN * 8).div_ceil(6) + 1;
 
     #[test]
     fn roundtrip() {
@@ -190,14 +196,16 @@ mod test {
         let enc1 = gid1.encode(&mac_key);
         let gid1_decoded = GlobalId::try_decode(&mac_key, &enc1).unwrap();
         assert_eq!(gid1, gid1_decoded);
+        assert!(enc1.as_ref().starts_with(GlobalId::TAG_CHAR));
 
         let enc2 = gid2.encode(&mac_key);
         let gid2_decoded = GlobalId::try_decode(&mac_key, &enc2).unwrap();
         assert_eq!(gid2, gid2_decoded);
         assert_ne!(gid1_decoded, gid2_decoded);
+        assert!(enc1.as_ref().starts_with(GlobalId::TAG_CHAR));
 
-        assert_eq!(enc1.as_ref().len(), B64_ENCODED_LEN);
-        assert_eq!(enc2.as_ref().len(), B64_ENCODED_LEN);
+        assert_eq!(enc1.as_ref().len(), GLOBAL_ID_B64_ENCODED_LEN);
+        assert_eq!(enc2.as_ref().len(), GLOBAL_ID_B64_ENCODED_LEN);
     }
 
     #[test]

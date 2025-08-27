@@ -173,7 +173,7 @@ impl Connection {
     fn id_into_local_idx(&self, id: &rpc::ObjectId) -> Result<GenIdx, rpc::LookupError> {
         // For the global IDs, we use a tag byte prefix of `$`. This is
         // followed by a base64 string.
-        if *id.as_ref().as_bytes().first().unwrap_or(&b'#') == b'$' {
+        if id.as_ref().starts_with(GlobalId::TAG_CHAR) {
             // Design note: It's not really necessary from a security POV to
             // check the MAC here; any possible GenIdx we return will either
             // refer to some object we're allowed to name in this session, or to
