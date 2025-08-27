@@ -33,8 +33,8 @@ static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
 /// Base trait that all handshake type must implement.
 ///
-/// This trait contains the basics of an handshake that is a getter for the underlying channel
-/// frame and the handshake unique ID for logging and channel identification.
+/// It has common code that all handshake share including getters for the channel frame for cell
+/// decoding/encoding and the unique ID used for logging.
 ///
 /// It has both a recv() and send() function for the VERSIONS cell since every handshake must start
 /// with this cell to negotiate the link protocol version.
@@ -46,6 +46,8 @@ where
     fn framed_tls(&mut self) -> &mut ChannelFrame<T>;
     /// Return a reference to the unique ID of this handshake.
     fn unique_id(&self) -> &UniqId;
+    /// Return true iff this handshake is authenticating.
+    fn is_authenticating(&self) -> bool;
 
     /// Send a [msg::Versions] cell.
     ///
@@ -74,8 +76,10 @@ where
 
     /// Receive a [msg::Versions] cell.
     ///
-    /// The link protocol negotiated is returned. It is also set in the underlying channel frame
-    /// which will transition it to the handshake state.
+    /// The negotiated link protocol is returned, and also recorded in the underlying channel
+    /// frame. This automatically transitions the frame into the "Handshake" state of the
+    /// underlying cell handler. In other words, once the link protocol version is negotiated, the
+    /// handler can encode and decode cells for that version in order to continue the handshake.
     async fn recv_versions_cell(&mut self) -> Result<u16> {
         // Get versions cell.
         // Get versions cell.
@@ -119,11 +123,14 @@ where
     /// As an initiator, we are expecting the responder's cells which are (not in that order):
     ///     - [msg::AuthChallenge], [msg::Certs], [msg::Netinfo]
     ///
-    /// Any duplicate or missing cell results in a protocol level error.
-    async fn recv_responder_cells(
+    /// Any duplicate, missing cell or unexpected results in a protocol level error.
+    ///
+    /// This returns the [msg::AuthChallenge], [msg::Certs] and [msg::Netinfo] cells along the
+    /// instant when the netinfo cell was received. This is needed for the clock skew calculation.
+    async fn recv_cells_from_responder(
         &mut self,
     ) -> Result<(
-        msg::AuthChallenge,
+        Option<msg::AuthChallenge>,
         msg::Certs,
         (msg::Netinfo, coarsetime::Instant),
     )> {
@@ -134,7 +141,7 @@ where
         // IMPORTANT: Protocol wise, we MUST only allow one single cell of each type for a valid
         // handshake. Any duplicates lead to a failure. They can arrive in any order unfortunately.
 
-        // Read until we have the netinfo cells.
+        // Read until we have the netinfo cell.
         while let Some(cell) = self.framed_tls().next().await.transpose()? {
             use super::AnyChanMsg::*;
             let (_, m) = cell.into_circid_and_msg();
@@ -144,18 +151,16 @@ where
                 Vpadding(_) => (),
                 // Clients don't care about AuthChallenge
                 AuthChallenge(ac) => {
-                    if auth_challenge_cell.is_some() {
+                    if auth_challenge_cell.replace(ac).is_some() {
                         return Err(Error::HandshakeProto(
                             "Duplicate AUTH_CHALLENGE cell".into(),
                         ));
                     }
-                    auth_challenge_cell = Some(ac);
                 }
                 Certs(c) => {
-                    if certs_cell.is_some() {
+                    if certs_cell.replace(c).is_some() {
                         return Err(Error::HandshakeProto("Duplicate CERTS cell".into()));
                     }
-                    certs_cell = Some(c);
                 }
                 Netinfo(n) => {
                     if netinfo_cell.is_some() {
@@ -170,7 +175,11 @@ where
                 }
                 // This should not happen because the ChannelFrame makes sure that only allowed cell on
                 // the channel are decoded. However, Rust wants us to consider all AnyChanMsg.
-                _ => return Err(Error::HandshakeProto("Unexpected cell".into())),
+                _ => {
+                    return Err(Error::from(internal!(
+                        "Unexpected cell during initiator handshake: {m:?}"
+                    )));
+                }
             }
         }
 
@@ -182,11 +191,12 @@ where
         let Some(certs) = certs_cell else {
             return Err(Error::HandshakeProto("Missing CERTS cell".into()));
         };
-        let Some(auth_challenge) = auth_challenge_cell else {
+        // If we plan to authenticate, we require an AUTH_CHALLENGE cell from the responder.
+        if self.is_authenticating() && auth_challenge_cell.is_none() {
             return Err(Error::HandshakeProto("Missing AUTH_CHALLENGE cell".into()));
         };
 
-        Ok((auth_challenge, certs, (netinfo, netinfo_rcvd_at)))
+        Ok((auth_challenge_cell, certs, (netinfo, netinfo_rcvd_at)))
     }
 }
 
@@ -201,7 +211,7 @@ pub struct ClientInitiatorHandshake<
     /// Memory quota account
     memquota: ChannelAccount,
 
-    /// Underlying TLS stream.
+    /// Cell encoder/decoder wrapping the underlying TLS stream
     ///
     /// (We don't enforce that this is actually TLS, but if it isn't, the
     /// connection won't be secure.)
@@ -225,6 +235,10 @@ where
     }
     fn unique_id(&self) -> &UniqId {
         &self.unique_id
+    }
+    fn is_authenticating(&self) -> bool {
+        // Client never authenticate with a responder, only relay do.
+        false
     }
 }
 
@@ -347,8 +361,10 @@ impl<
         // Receive versions cell.
         let link_protocol = self.recv_versions_cell().await?;
 
-        // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell, we don't need it.
-        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at)) = self.recv_responder_cells().await?;
+        // Receive the relay responder cells. Ignore the AUTH_CHALLENGE cell, we don't need it as
+        // we are not authenticating with our responder because we are a client.
+        let (_, certs_cell, (netinfo_cell, netinfo_rcvd_at)) =
+            self.recv_cells_from_responder().await?;
 
         // Get the clock skew.
         let clock_skew = unauthenticated_clock_skew(
@@ -714,10 +730,11 @@ impl<
     }
 }
 
-/// Helper: Calculate a clock skew from the [msg::Netinfo] cell data and the time at which we sent the
-/// [msg::Versions] cell.
+/// Helper: Calculate a clock skew from the [msg::Netinfo] cell data and the time at which we sent
+/// the [msg::Versions] cell.
 ///
-/// This is unauthenticated as in not validated with the certificates.
+/// This is unauthenticated as in not validated with the certificates. Before using it, make sure
+/// that you have authenticated the other party.
 fn unauthenticated_clock_skew(
     netinfo_cell: &msg::Netinfo,
     netinfo_rcvd_at: coarsetime::Instant,
