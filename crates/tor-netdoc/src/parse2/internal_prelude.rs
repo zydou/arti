@@ -8,6 +8,7 @@ pub use std::io::Write as _;
 pub use std::marker::PhantomData;
 pub use std::mem;
 pub use std::ops::RangeInclusive;
+pub use std::result::Result;
 pub use std::slice;
 pub use std::str::FromStr;
 pub use std::time::{Duration, SystemTime};

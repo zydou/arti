@@ -277,7 +277,7 @@ define_derive_deftly! {
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
-        ) -> Result<$ttype, $P::ErrorProblem> {
+        ) -> $P::Result<$ttype, $P::ErrorProblem> {
             use $P::*;
 
             //----- compile-time check that fields are in the right order in the struct -----
@@ -594,7 +594,7 @@ define_derive_deftly! {
         fn accumulate_item(
             acc: &mut Self::Accumulator,
             item: $P::UnparsedItem<'_>,
-        ) -> Result<(), $P::ErrorProblem> {
+        ) -> $P::Result<(), $P::ErrorProblem> {
           $(
             if item.keyword() == $F_KEYWORD {
                 let selector = $F_ITEM_SET_SELECTOR;
@@ -608,7 +608,7 @@ define_derive_deftly! {
             }
         }
 
-        fn finish(acc: Self::Accumulator) -> Result<Self, $P::ErrorProblem> {
+        fn finish(acc: Self::Accumulator) -> $P::Result<Self, $P::ErrorProblem> {
             Ok($tname {
               $(
                 $fname: $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?,
@@ -697,7 +697,7 @@ define_derive_deftly! {
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
-        ) -> Result<$<$ttype Signed>, $P::ErrorProblem> {
+        ) -> $P::Result<$<$ttype Signed>, $P::ErrorProblem> {
             input.parse_signed(outer_stop)
         }
     }
@@ -795,7 +795,7 @@ define_derive_deftly! {
           ${if T_IS_SIGNATURE {
             document_body: &SignatureHashInputs<'_>,
           }}
-        ) -> Result<Self, $P::EP>
+        ) -> $P::Result<Self, $P::EP>
         {
             #[allow(unused_imports)] // false positive when macro is used with prelude in scope
             use $P::*;
