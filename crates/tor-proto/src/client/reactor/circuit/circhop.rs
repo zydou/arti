@@ -2,7 +2,7 @@
 
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
-use crate::client::TunnelScopedCircId;
+use crate::tunnel::TunnelScopedCircId;
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::stream::{

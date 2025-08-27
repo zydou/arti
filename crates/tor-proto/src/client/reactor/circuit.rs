@@ -6,7 +6,6 @@ pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
 use crate::circuit::UniqId;
-use crate::client::TunnelScopedCircId;
 use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 #[cfg(feature = "counter-galois-onion")]
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
@@ -29,6 +28,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
+use crate::tunnel::TunnelScopedCircId;
 use crate::util::SinkExt as _;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
@@ -80,7 +80,7 @@ use {
 use {
     super::conflux::ConfluxMsgHandler,
     super::conflux::{ConfluxAction, OooRelayMsg},
-    crate::client::TunnelId,
+    crate::tunnel::TunnelId,
     crate::client::reactor::RemoveLegReason,
 };
 

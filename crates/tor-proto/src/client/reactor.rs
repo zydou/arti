@@ -28,7 +28,8 @@ use crate::client::stream::queue::StreamQueueReceiver;
 use crate::client::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
 use crate::client::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
-use crate::client::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, streammap};
+use crate::client::{HopLocation, TargetHop, streammap};
+use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};

@@ -61,6 +61,7 @@ pub mod client;
 mod congestion;
 mod crypto;
 pub mod memquota;
+pub(crate) mod tunnel;
 mod util;
 
 #[cfg(feature = "relay")]

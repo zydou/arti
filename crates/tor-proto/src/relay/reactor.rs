@@ -4,7 +4,7 @@ use crate::DynTimeProvider;
 use crate::Result;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
-use crate::client::{TunnelId, TunnelScopedCircId};
+use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
 

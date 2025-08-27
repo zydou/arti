@@ -26,7 +26,8 @@ use crate::circuit::UniqId;
 use crate::client::circuit::TunnelMutableState;
 use crate::client::circuit::path::HopDetail;
 use crate::client::reactor::circuit::ConfluxStatus;
-use crate::client::{TunnelId, streammap};
+use crate::client::streammap;
+use crate::tunnel::TunnelId;
 use crate::crypto::cell::HopNum;
 use crate::util::err::ReactorError;
 
