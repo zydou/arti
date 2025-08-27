@@ -15,13 +15,13 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 define_derive_deftly! {
     /// Derives a `TryFrom<AnyChanMsg>` implementation for enums
-    /// that represent subclasses of ChanMsgs
+    /// that represent restricted subsets of ChanMsgs
     ///
     /// # Limitations
     ///
     /// The variants of the enum this is derived for *must* be a
     /// subset of the variants of [`AnyChanMsg`].
-    ChanMsgSubclass:
+    RestrictedChanMsgSet:
 
     impl TryFrom<AnyChanMsg> for $ttype {
         type Error = crate::Error;
@@ -44,7 +44,7 @@ define_derive_deftly! {
 #[derive(Debug, Deftly)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
 #[allow(clippy::exhaustive_enums)]
-#[derive_deftly(ChanMsgSubclass)]
+#[derive_deftly(RestrictedChanMsgSet)]
 #[deftly(usage = "in response to circuit creation")]
 pub enum CreateResponse {
     /// Destroy cell: the CREATE failed.
@@ -71,7 +71,7 @@ impl Display for CreateResponse {
 #[derive(Debug, Deftly)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
 #[derive_deftly(HasMemoryCost)]
-#[derive_deftly(ChanMsgSubclass)]
+#[derive_deftly(RestrictedChanMsgSet)]
 #[deftly(usage = "on an open client circuit")]
 pub enum ClientCircChanMsg {
     /// A relay cell telling us some kind of remote command from some
@@ -86,7 +86,7 @@ pub enum ClientCircChanMsg {
 /// circuit (one where a CREATE* has been received).
 #[derive(Debug, Deftly)]
 #[derive_deftly(HasMemoryCost)]
-#[derive_deftly(ChanMsgSubclass)]
+#[derive_deftly(RestrictedChanMsgSet)]
 #[deftly(usage = "on an open relay circuit")]
 #[cfg(feature = "relay")]
 #[cfg_attr(not(test), expect(unused))] // TODO(relay)
