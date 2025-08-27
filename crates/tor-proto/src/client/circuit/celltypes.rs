@@ -5,13 +5,38 @@
 //! so that Rust's typesafety can help enforce protocol properties.
 
 use crate::{Error, Result};
-use derive_deftly::Deftly;
+use derive_deftly::{Deftly, define_derive_deftly};
 use std::fmt::{self, Display};
 use tor_cell::chancell::{
     ChanMsg,
     msg::{self as chanmsg, AnyChanMsg},
 };
 use tor_memquota::derive_deftly_template_HasMemoryCost;
+
+define_derive_deftly! {
+    /// Derives a `TryFrom<AnyChanMsg>` implementation for enums
+    /// that represent subclasses of ChanMsgs
+    ///
+    /// # Limitations
+    ///
+    /// The variants of the enum this is derived for *must* be a
+    /// subset of the variants of [`AnyChanMsg`].
+    ChanMsgSubclass:
+
+    impl TryFrom<AnyChanMsg> for $ttype {
+        type Error = crate::Error;
+
+        fn try_from(m: AnyChanMsg) -> Result<$ttype> {
+            match m {
+                $( AnyChanMsg::$vname(m) => Ok($ttype::$vname(m)), )
+                _ => Err(Error::ChanProto(format!(
+                    "Got a {} {}",
+                    m.cmd(), ${tmeta(usage) as str},
+                ))),
+            }
+        }
+    }
+}
 
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
