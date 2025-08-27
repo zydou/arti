@@ -418,41 +418,23 @@ mod fingerprint {
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct SpFingerprint(pub RsaIdentity);
 
     /// A hex-encoded fingerprint with no spaces.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Fingerprint(pub RsaIdentity);
 
     /// A "long identity" in the format used for Family members.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
     #[allow(clippy::exhaustive_structs)]
     pub(crate) struct LongIdent(pub RsaIdentity);
-
-    impl From<SpFingerprint> for RsaIdentity {
-        fn from(f: SpFingerprint) -> RsaIdentity {
-            f.0
-        }
-    }
-
-    impl From<LongIdent> for RsaIdentity {
-        fn from(f: LongIdent) -> RsaIdentity {
-            f.0
-        }
-    }
-
-    impl From<Fingerprint> for RsaIdentity {
-        fn from(f: Fingerprint) -> RsaIdentity {
-            f.0
-        }
-    }
 
     /// Helper: parse an identity from a hexadecimal string
     fn parse_hex_ident(s: &str) -> Result<RsaIdentity> {
