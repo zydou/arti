@@ -27,8 +27,8 @@ use crate::client::circuit::TunnelMutableState;
 use crate::client::circuit::path::HopDetail;
 use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::streammap;
-use crate::tunnel::TunnelId;
 use crate::crypto::cell::HopNum;
+use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;

@@ -80,8 +80,8 @@ use {
 use {
     super::conflux::ConfluxMsgHandler,
     super::conflux::{ConfluxAction, OooRelayMsg},
-    crate::tunnel::TunnelId,
     crate::client::reactor::RemoveLegReason,
+    crate::tunnel::TunnelId,
 };
 
 pub(super) use circhop::{CircHop, CircHopList};
