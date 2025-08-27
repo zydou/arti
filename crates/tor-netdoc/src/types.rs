@@ -15,4 +15,4 @@ pub mod version;
 
 pub use misc::Nickname;
 
-pub use misc::{Fingerprint, Ignored};
+pub use misc::{Base64Fingerprint, Fingerprint, Ignored};

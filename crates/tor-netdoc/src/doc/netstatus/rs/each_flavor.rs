@@ -111,12 +111,8 @@ impl RouterStatus {
         // R line
         let r_item = sec.required(RS_R)?;
         let nickname = r_item.required_arg(0)?.parse()?;
-        let ident = r_item.required_arg(1)?.parse::<B64>()?;
-        let identity = RsaIdentity::from_bytes(ident.as_bytes()).ok_or_else(|| {
-            EK::BadArgument
-                .at_pos(r_item.pos())
-                .with_msg("Wrong identity length")
-        })?;
+        let ident = r_item.required_arg(1)?;
+        let identity = ident.parse::<Base64Fingerprint>()?.0;
         // Fields to skip in the "r" line.
         let n_skip = match FLAVOR {
             ConsensusFlavor::Microdesc => 0,

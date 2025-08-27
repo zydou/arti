@@ -20,7 +20,7 @@ use derive_deftly::Deftly;
 
 pub use nickname::Nickname;
 
-pub use fingerprint::Fingerprint;
+pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
 /// Describes a value that van be decoded from a bunch of bytes.
 ///
@@ -429,6 +429,13 @@ mod fingerprint {
     #[allow(clippy::exhaustive_structs)]
     pub struct Fingerprint(pub RsaIdentity);
 
+    /// A base64-encoded fingerprint (unpadded)
+    ///
+    /// Netdoc parsing adapter for [`RsaIdentity`]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Base64Fingerprint(pub RsaIdentity);
+
     /// A "long identity" in the format used for Family members.
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
@@ -450,6 +457,19 @@ mod fingerprint {
         fn from_str(s: &str) -> Result<SpFingerprint> {
             let ident = parse_hex_ident(&s.replace(' ', "")).map_err(|e| e.at_pos(Pos::at(s)))?;
             Ok(SpFingerprint(ident))
+        }
+    }
+
+    impl std::str::FromStr for Base64Fingerprint {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Base64Fingerprint> {
+            let b = s.parse::<super::B64>()?;
+            let ident = RsaIdentity::from_bytes(b.as_bytes()).ok_or_else(|| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("Wrong identity length")
+            })?;
+            Ok(Base64Fingerprint(ident))
         }
     }
 
