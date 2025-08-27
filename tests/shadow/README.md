@@ -23,25 +23,28 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
   `/usr/bin/obfs4proxy`. Typically you can install it using your host system's
   package manager.
 
-* Build an `arti` client with some extra features enabled such that the binary
-  ends up at `../../target/x86_64-unknown-linux-gnu/debug/arti-extra`. In the CI
-  this done in job `rust-latest-arti-extra-features` with the invocation:
+* Build an `arti` client. This test assumes that `arti` has been built with the
+  `quicktest` profile, putting it at
+`../../target/x86_64-unknown-linux-gnu/quicktest/arti`. In the CI this is done
+in job `rust-latest` with the invocation:
+
+  ```shell
+  $ cargo build --locked --verbose --profile quicktest --target x86_64-unknown-linux-gnu -p arti
+  ```
+
+* Build an `arti` client with some extra features enabled, and again using the
+  `quicktest` profile, such that the binary ends up at
+  `../../target/x86_64-unknown-linux-gnu/quicktest/arti-extra`. In the CI this
+  done in job `rust-latest-arti-extra-features` with the invocation:
 
   ```shell
   $ cargo build --locked --verbose \
+      --profile quicktest \
       --target x86_64-unknown-linux-gnu \
       -p arti -p tor-circmgr \
       --bin arti \
       --features full,restricted-discovery,arti-client/keymgr,onion-service-service,vanguards,ctor-keystore
-  $ mv target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/debug/arti-extra
-  ```
-
-* Build a "vanilla" `arti` client so that the binary is at:
-  `../../target/x86_64-unknown-linux-gnu/debug/arti`. In the CI this is done in
-  job `rust-latest` with the invocation:
-
-  ```shell
-  $ cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
+  $ mv target/x86_64-unknown-linux-gnu/quicktest/arti target/x86_64-unknown-linux-gnu/quicktest/arti-extra
   ```
 
 Once those are installed, you can invoke the [`run`](./run) script from

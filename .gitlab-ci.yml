@@ -17,6 +17,13 @@ variables:
   # Pinned chutney version.
   # main @ 2025-07-16
   CHUTNEY_COMMIT: "f9435e45f826a265dd3b7d341356cb04f1aa7b09"
+  # Profile to use when building the arti bins that we use for integration tests.
+  # When changing this, also update ARTI_CI_PROFILE_PATH, below.
+  ARTI_CI_PROFILE: quicktest
+  # The *path* under `target/<platform>/` where cargo puts builds of profile
+  # `ARTI_CI_PROFILE`.  This is *usually* the same as name of the profile, but
+  # for profile `dev` is `debug`.
+  ARTI_CI_PROFILE_PATH: quicktest
 
 default:
   image:
@@ -206,7 +213,7 @@ cargo-audit:
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
 
     - section_start "build arti"
-    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
+    - cargo build --profile $ARTI_CI_PROFILE --locked --verbose --target x86_64-unknown-linux-gnu -p arti
 
     - section_start "build docs"
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
@@ -217,7 +224,7 @@ rust-recent:
   image: $RECENT_RUST_IMAGE
   script:
     - *rust-recent-script
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti target/x86_64-unknown-linux-gnu/release/arti-bench
   artifacts:
     paths:
       - artifacts
@@ -249,6 +256,7 @@ rust-latest:
     # we'll get the union of all features needed by anything in the workspace,
     # including examples.
     - cargo build --verbose
+      --profile $ARTI_CI_PROFILE
       --target x86_64-unknown-linux-gnu
       -p arti -p tor-circmgr
       --bin arti
@@ -259,10 +267,10 @@ rust-recent-arti-extra-features:
   image: $RECENT_RUST_IMAGE
   script:
     - *rust-recent-arti-extra-features-script
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
-    - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - mv artifacts/target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti artifacts/target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti-extra
   artifacts:
     paths:
       - artifacts

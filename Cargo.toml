@@ -129,11 +129,12 @@ opt-level = 2
 # This profile is meant to be a compromise between "release" (which
 # takes a long time to build) and "dev" (which can be too slow to actually
 # use when connecting over the Tor network).
-inherits = "release"
-lto = "thin"
-codegen-units = 16
-opt-level = 2
-incremental = true
+
+# Start from dev. In particular we want debug assertions etc enabled.
+inherits = "dev"
+# Enable just enough optimization to avoid huge performance penalties
+# for integration tests, usage on the real network, etc.
+opt-level = 1
 
 [profile.bench]
 # For "cargo bench", which is only used by some crates.

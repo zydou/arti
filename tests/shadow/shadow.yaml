@@ -1,3 +1,10 @@
+# Some light templatization.
+# See <https://shadow.github.io/docs/guide/shadow_config_complex.html>
+x-constants:
+ # Where to find arti bins
+ - &Arti "../../target/x86_64-unknown-linux-gnu/quicktest/arti"
+ - &ArtiExtra "../../target/x86_64-unknown-linux-gnu/quicktest/arti-extra"
+
 general:
   stop_time: 30 min
   model_unblocked_syscall_latency: True
@@ -74,7 +81,7 @@ hosts:
       start_time: 1
       expected_final_state: running
       # Currently need the arti-extra binary for HS-server functionality
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -103,7 +110,7 @@ hosts:
       start_time: 1
       expected_final_state: running
       # Currently need the arti-extra binary for HS-server functionality
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -134,7 +141,7 @@ hosts:
       start_time: 1
       expected_final_state: running
       # Currently need the arti-extra binary for HS-server functionality
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -166,7 +173,7 @@ hosts:
       start_time: 1
       expected_final_state: running
       # Currently need the arti-extra binary for HS-server functionality
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -278,7 +285,7 @@ hosts:
     network_node_id: 0
     host_options:
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+    - path: *Arti
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -303,7 +310,7 @@ hosts:
     network_node_id: 0
     host_options:
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -332,7 +339,7 @@ hosts:
       # Collect enough data for the IP fixed header
       pcap_capture_size: "40 B"
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+    - path: *Arti
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -361,7 +368,7 @@ hosts:
       # Collect enough data for the IP fixed header
       pcap_capture_size: "40 B"
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+    - path: *Arti
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -386,7 +393,7 @@ hosts:
   articlient-onion:
     network_node_id: 0
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+    - path: *Arti
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -410,7 +417,7 @@ hosts:
   articlient-onion-artiserver:
     network_node_id: 0
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+    - path: *Arti
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -434,7 +441,7 @@ hosts:
   articlient-onion-artiserver-full-vanguards:
     network_node_id: 0
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+    - path: *Arti
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -465,7 +472,7 @@ hosts:
   articlient-onion-artiserver-auth:
     network_node_id: 0
     processes:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -498,7 +505,7 @@ hosts:
     network_node_id: 0
     processes:
     # Use the version of arti built with keymgr and experimental-api support:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -523,7 +530,7 @@ hosts:
     network_node_id: 0
     processes:
     # Use the version of arti built with keymgr and experimental-api support:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
@@ -549,7 +556,7 @@ hosts:
     network_node_id: 0
     processes:
     # Use the version of arti built with keymgr and experimental-api support:
-    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+    - path: *ArtiExtra
       args:
       - proxy
       - -c=./arti.d/arti.common.toml

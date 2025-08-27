@@ -87,8 +87,12 @@ echo "export CHUTNEY_DATA_DIR=\"$CHUTNEY_DATA_DIR\"" >> tests/chutney/arti.run
 # Try the platform triple build directory first, and then the usual build directory.
 # It's possible we may choose a stale binary, but there's not much else we can
 # do here other than maybe comparing timestamps.
-if [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
+if [ -x ./target/x86_64-unknown-linux-gnu/quicktest/arti ]; then
+	CHUTNEY_ARTI=./target/x86_64-unknown-linux-gnu/quicktest/arti
+elif [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
 	CHUTNEY_ARTI=./target/x86_64-unknown-linux-gnu/debug/arti
+elif [ -x ./target/quicktest/arti ]; then
+	CHUTNEY_ARTI=./target/quicktest/arti
 elif [ -x ./target/debug/arti ]; then
 	CHUTNEY_ARTI=./target/debug/arti
 else
