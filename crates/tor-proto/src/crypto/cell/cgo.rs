@@ -31,7 +31,7 @@ use tor_error::internal;
 use zeroize::Zeroizing;
 
 use super::{CryptInit, RelayCellBody};
-use crate::{circuit::CircuitBinding, util::ct};
+use crate::{client::circuit::CircuitBinding, util::ct};
 
 /// Size of CGO tag, in bytes.
 const CGO_TAG_LEN: usize = 16;

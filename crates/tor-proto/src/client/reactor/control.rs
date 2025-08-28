@@ -6,9 +6,8 @@ use super::{
     RunOnceCmdInner, SendRelayCell,
 };
 use crate::Result;
-use crate::circuit::HopSettings;
 use crate::client::circuit::celltypes::CreateResponse;
-use crate::client::circuit::path;
+use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::circuit::circ_extensions_from_settings;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::client::stream::queue::StreamQueueSender;
@@ -20,7 +19,7 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 #[cfg(test)]
-use crate::{circuit::CircParameters, circuit::UniqId, crypto::cell::HopNum};
+use crate::{circuit::UniqId, client::circuit::CircParameters, crypto::cell::HopNum};
 use postage::watch;
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;

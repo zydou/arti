@@ -15,7 +15,8 @@ use tor_error::{bad_api_usage, internal};
 use tor_guardmgr::vanguards::VanguardMgr;
 use tor_linkspec::CircTarget;
 use tor_proto::ClientTunnel;
-use tor_proto::circuit::{CircParameters, Path, UniqId};
+use tor_proto::circuit::UniqId;
+use tor_proto::client::circuit::{CircParameters, Path};
 use tor_rtcompat::Runtime;
 
 #[async_trait]

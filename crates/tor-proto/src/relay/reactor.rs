@@ -3,9 +3,9 @@
 use crate::DynTimeProvider;
 use crate::Result;
 use crate::channel::Channel;
-use crate::client::circuit::unique_id::UniqId;
-use crate::client::{TunnelId, TunnelScopedCircId};
+use crate::circuit::UniqId;
 use crate::memquota::CircuitAccount;
+use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 
 use tor_cell::chancell::CircId;

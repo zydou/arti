@@ -21,17 +21,18 @@ mod conflux;
 mod control;
 pub(super) mod syncview;
 
+use crate::circuit::UniqId;
 use crate::client::circuit::CircuitRxReceiver;
 use crate::client::circuit::celltypes::ClientCircChanMsg;
-use crate::client::circuit::unique_id::UniqId;
 use crate::client::stream::queue::StreamQueueReceiver;
 use crate::client::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
 use crate::client::stream::{DrainRateRequest, IncomingStreamRequest, IncomingStreamRequestFilter};
-use crate::client::{HopLocation, TargetHop, TunnelId, TunnelScopedCircId, streammap};
+use crate::client::{HopLocation, TargetHop, streammap};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
+use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;

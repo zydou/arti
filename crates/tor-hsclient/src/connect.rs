@@ -25,7 +25,7 @@ use tor_dirclient::SourceInfo;
 use tor_error::{Bug, debug_report, warn_report};
 use tor_hscrypto::Subcredential;
 use tor_proto::TargetHop;
-use tor_proto::circuit::handshake::hs_ntor;
+use tor_proto::client::circuit::handshake::hs_ntor;
 use tracing::{debug, trace};
 
 use retry_error::RetryError;
@@ -46,7 +46,7 @@ use tor_linkspec::{CircTarget, HasRelayIds, OwnedCircTarget, RelayId};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdir::{NetDir, Relay};
 use tor_netdoc::doc::hsdesc::{HsDesc, IntroPointDesc};
-use tor_proto::circuit::CircParameters;
+use tor_proto::client::circuit::CircParameters;
 use tor_proto::{MetaCellDisposition, MsgHandler};
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
@@ -1280,7 +1280,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         rendezvous: Rendezvous<'c, R, M>,
         introduced: Introduced<R, M>,
     ) -> Result<DataTunnel!(R, M), FAE> {
-        use tor_proto::circuit::handshake;
+        use tor_proto::client::circuit::handshake;
 
         let rend_pt = rend_pt_identity_for_error(&rendezvous.rend_relay);
         let intro_index = ipt.intro_index;
@@ -1480,9 +1480,9 @@ trait MockableClientData: Debug {
     /// Add a virtual hop to the circuit.
     async fn m_extend_virtual(
         &self,
-        protocol: tor_proto::circuit::handshake::RelayProtocol,
-        role: tor_proto::circuit::handshake::HandshakeRole,
-        handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
+        protocol: tor_proto::client::circuit::handshake::RelayProtocol,
+        role: tor_proto::client::circuit::handshake::HandshakeRole,
+        handshake: impl tor_proto::client::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
         capabilities: &tor_protover::Protocols,
     ) -> tor_circmgr::Result<()>;
@@ -1569,9 +1569,9 @@ impl MockableClientData for ClientOnionServiceDataTunnel {
 
     async fn m_extend_virtual(
         &self,
-        protocol: tor_proto::circuit::handshake::RelayProtocol,
-        role: tor_proto::circuit::handshake::HandshakeRole,
-        handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
+        protocol: tor_proto::client::circuit::handshake::RelayProtocol,
+        role: tor_proto::client::circuit::handshake::HandshakeRole,
+        handshake: impl tor_proto::client::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
         capabilities: &tor_protover::Protocols,
     ) -> tor_circmgr::Result<()> {
@@ -1757,9 +1757,9 @@ mod test {
 
         async fn m_extend_virtual(
             &self,
-            protocol: tor_proto::circuit::handshake::RelayProtocol,
-            role: tor_proto::circuit::handshake::HandshakeRole,
-            handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
+            protocol: tor_proto::client::circuit::handshake::RelayProtocol,
+            role: tor_proto::client::circuit::handshake::HandshakeRole,
+            handshake: impl tor_proto::client::circuit::handshake::KeyGenerator + Send,
             params: CircParameters,
             capabilities: &tor_protover::Protocols,
         ) -> tor_circmgr::Result<()> {

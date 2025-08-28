@@ -22,11 +22,13 @@ use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd};
 use tor_error::{Bug, bad_api_usage, internal};
 use tor_linkspec::HasRelayIds as _;
 
-use crate::circuit::path::HopDetail;
-use crate::circuit::{TunnelMutableState, UniqId};
+use crate::circuit::UniqId;
+use crate::client::circuit::TunnelMutableState;
+use crate::client::circuit::path::HopDetail;
 use crate::client::reactor::circuit::ConfluxStatus;
-use crate::client::{TunnelId, streammap};
+use crate::client::streammap;
 use crate::crypto::cell::HopNum;
+use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;

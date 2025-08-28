@@ -5,15 +5,13 @@ pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::{Channel, ChannelSender};
-use crate::circuit::HopSettings;
-#[cfg(feature = "counter-galois-onion")]
-use crate::circuit::handshake::RelayCryptLayerProtocol;
-use crate::client::TunnelScopedCircId;
+use crate::circuit::UniqId;
 use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+#[cfg(feature = "counter-galois-onion")]
+use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
-use crate::client::circuit::path;
-use crate::client::circuit::unique_id::UniqId;
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
+use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::stream::queue::{StreamQueueSender, stream_queue};
 use crate::client::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
@@ -30,6 +28,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
+use crate::tunnel::TunnelScopedCircId;
 use crate::util::SinkExt as _;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
@@ -81,8 +80,8 @@ use {
 use {
     super::conflux::ConfluxMsgHandler,
     super::conflux::{ConfluxAction, OooRelayMsg},
-    crate::client::TunnelId,
     crate::client::reactor::RemoveLegReason,
+    crate::tunnel::TunnelId,
 };
 
 pub(super) use circhop::{CircHop, CircHopList};
@@ -334,7 +333,7 @@ impl Circuit {
         // TODO-CGO: Take HopSettings instead of CircParams.
         // (Do this after we've got the virtual-hop refactorings done for
         // virtual extending.)
-        params: &crate::circuit::CircParameters,
+        params: &crate::client::circuit::CircParameters,
         done: ReactorResultChannel<()>,
     ) {
         use tor_protover::{Protocols, named};
@@ -350,7 +349,7 @@ impl Circuit {
 
         let settings = HopSettings::from_params_and_caps(
             // This is for testing only, so we'll assume full negotiation took place.
-            crate::circuit::HopNegotiationType::Full,
+            crate::client::circuit::HopNegotiationType::Full,
             params,
             &[named::FLOWCTRL_CC].into_iter().collect::<Protocols>(),
         )
@@ -798,7 +797,7 @@ impl Circuit {
         use tor_error::into_internal;
         use tor_log_ratelim::log_ratelim;
 
-        use crate::{circuit::CIRCUIT_BUFFER_SIZE, client::reactor::StreamReqInfo};
+        use crate::client::{circuit::CIRCUIT_BUFFER_SIZE, reactor::StreamReqInfo};
 
         // We need to construct this early so that we don't double-borrow &mut self
 

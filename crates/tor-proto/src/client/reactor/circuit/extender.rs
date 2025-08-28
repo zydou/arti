@@ -1,13 +1,13 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{Circuit, ReactorResultChannel};
-use crate::circuit::HopSettings;
-use crate::circuit::handshake::HandshakeRole;
-use crate::client::TunnelScopedCircId;
+use crate::client::circuit::HopSettings;
+use crate::client::circuit::handshake::HandshakeRole;
 use crate::client::reactor::MetaCellDisposition;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::NtorV3Client;
+use crate::tunnel::TunnelScopedCircId;
 use crate::{Error, Result};
 use crate::{HopLocation, congestion};
 use oneshot_fused_workaround as oneshot;

@@ -2,9 +2,7 @@
 
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
-use crate::circuit::HopSettings;
-use crate::client::TunnelScopedCircId;
-use crate::client::circuit::StreamMpscReceiver;
+use crate::client::circuit::{HopSettings, StreamMpscReceiver};
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::stream::{
     AnyCmdChecker, DrainRateRequest, StreamFlowControl, StreamRateLimit, StreamStatus,
@@ -15,6 +13,7 @@ use crate::client::streammap::{
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
+use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 

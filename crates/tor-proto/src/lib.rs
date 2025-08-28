@@ -56,10 +56,12 @@
 #[cfg(feature = "bench")]
 pub mod bench_utils;
 pub mod channel;
+pub mod circuit;
 pub mod client;
 mod congestion;
 mod crypto;
 pub mod memquota;
+pub(crate) mod tunnel;
 mod util;
 
 #[cfg(feature = "relay")]
@@ -69,7 +71,7 @@ pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
 pub use channel::params::ChannelPaddingInstructions;
-pub use client::{ClientTunnel, HopLocation, TargetHop, circuit};
+pub use client::{ClientTunnel, HopLocation, TargetHop};
 pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
 #[cfg(feature = "send-control-msg")]
