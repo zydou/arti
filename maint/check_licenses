@@ -29,9 +29,6 @@ RECOGNIZED_LICENSES=(
     "MIT AND BSD-3-Clause"
     "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
     "MIT AND (MIT OR Apache-2.0)"
-    # cargo-license appears to break on the OR inside () and then sort!
-    # https://github.com/onur/cargo-license/issues/78
-    "Apache-2.0) OR MIT AND (MIT"
     # Used by unicode-ident
     "(MIT OR Apache-2.0) AND Unicode-3.0"
     "(Apache-2.0 OR MIT) AND Unicode-3.0"
@@ -39,23 +36,11 @@ RECOGNIZED_LICENSES=(
     "Apache-2.0 AND ISC"
     # Used by aws-lc-rs
     "ISC AND (Apache-2.0 OR ISC)"
-    # Used by aws-lc-sys
-    #
-    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/493 for
-    # our related ticket on OpenSSL license here.
-    "ISC AND (Apache-2.0 OR ISC) AND OpenSSL"
     "(Apache-2.0 OR MIT) AND BSD-3-Clause"
 )
 
 # List of packages that don't list a license.
 NO_LICENSE=(
-    # The license for "ring" < v0.17.10 is something like "ISC AND openssl AND
-    # ssleay AND MIT"; the openssl license is not up-to-date with
-    # modern openssl.  It includes an advertising clause. :P
-    #
-    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/493 for
-    # our related ticket.
-    ring
 )
 
 # List of packages which we allow to use the MPL-2.0 license.
@@ -92,6 +77,31 @@ LGPL_30_OK=(
     equix
     hashx
 )
+
+######
+# Exceptions for specific crates only.
+#
+# We use these when a license would otherwise not be allowed,
+# but we want to allow it for just one crate.
+#
+# If you expect that a specific license will be allowed for _several_ crates,
+# make a new thing like LGPL_30_OK above.
+declare -A PERMIT_LICENSE
+
+# awc-ls-sys hasn't updated their license from OpenSSL to Apache;
+# their ticket is https://github.com/aws/aws-lc/issues/2203.
+#
+# The OpenSSL license is GPL-incompatible, but we tolerate it,
+# since never use aws-lc-sys by default.
+PERMIT_LICENSE["aws-lc-sys"]="ISC AND (Apache-2.0 OR ISC) AND OpenSSL"
+
+# priority-queue has some paperwork trouble
+#  - MPL but missing Exhibit A
+# We are using this in tor-rtmock, where it's IMO fine to have LGPL.
+# Upstream conversation here
+#   https://github.com/garro95/priority-queue/pull/48
+# (or maybe followup tickets)
+PERMIT_LICENSE["priority-queue"]="LGPL-3.0-or-later OR MPL-2.0"
 
 containsElement () {
   local e match="$1"
@@ -150,15 +160,12 @@ for line in $output; do
 	continue
     fi
 
-    if test "$licenses" = "LGPL-3.0-or-later OR MPL-2.0"; then
-        # priority-queue has some paperwork trouble
-        #  - MPL but missing Exhibit A
-        # We are using this in tor-rtmock, where it's IMO fine to have LGPL.
-	# Upstream conversation here
-        #   https://github.com/garro95/priority-queue/pull/48
-	# (or maybe followup tickets)
-	if ! containsElement "$package" "priority-queue"; then
-	    echo "$package uses wrong SPDX and isn't priority-queue."
+    if [[ -v PERMIT_LICENSE[$package] ]]; then
+	if test "$licenses" = "${PERMIT_LICENSE[$package]}"; then
+	    # We've made an exception for this package.
+	    :
+	else
+	    echo "$package has an exception listed, but its license does not match that exception."
 	    problems=1
 	fi
 	continue
