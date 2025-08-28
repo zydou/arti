@@ -15,7 +15,7 @@ including [Counter Galois Onion][cgo] encryption,
 and onion service [proof of work][prop362].
 It also includes significant preliminary work for Arti relay support.
 
-Additionally, this release [mitigates][!3141] a [longstanding bug][#2095]
+Additionally, this release [mitigates][!3141] a [longstanding bug][#2079]
 that could prevent Arti clients from bootstrapping.
 
 Arti 1.4.7 increases our MSRV (Minimum Supported Rust Version)
