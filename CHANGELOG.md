@@ -63,11 +63,26 @@ which are documented below.
   A tunnel may be either a Conflux multi-path bundle, or a single circuit.
   A tunnel no longer has a _single_ path, but rather a collection of paths.
   ([!3082])
+- Major API changes to consensus parsing and access APIs and types in
+  `tor-netdoc`. ([!3139], [!3164], [!3172])
 - Refactor some client-specific `tor-proto` APIs to have client-related names.
   ([ebb97da7a209af06])
 - Move most functionality from `tor-proto::circuit` and `tor-proto::stream`
   into `tor-proto::client`.
   ([1ee26f2168ee2ded], [702e7276898d3f31], [!3193])
+- In `tor-cell`, remove the never-implemented `AUTHORIZE` cell type. ([8e9e5a2f6ff2036])
+- In `tor-cell`, remove the `ProofOfWorkV1::cap_effort()` method. ([eabd0c0bfe70333])
+- In `tor-chanmgr`, the `ChanBuilder::new()` API now takes an optional
+  key-manager argument. ([a187a2fef281d7da])
+- In `tor-circmgr`, the `get_or_launch_specific` API has been replaced with
+  tunnel-specific type launcher APIs, and
+  `CircuitBuilder` has been replaced with `TunnelBuilder`.
+  ([8333a2d7c9e48427])
+- In `tor-dirclient`, `SourceInfo::from_circuit` has been renamed to
+  `from_tunnel`. ([f89c0b38df232e5c8aa])
+- In `tor-hsclient`, `get_or_launch_circuit` has been renamed to
+  `get_or_launch_tunnel`, and the deprecated `get_or_launch_connection`
+  alias has been removed. ([8333a2d7c9e48427])
 
 ### Key manager development
 
@@ -276,6 +291,8 @@ for funding the development of Arti!
 [49fab4945e515dc9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/49fab4945e515dc92e30bca3883d2e9606a0d47d
 [4b9b53541feb8bb0]: https://gitlab.torproject.org/tpo/core/arti/-/commit/4b9b53541feb8bb04f7891055a0d56a6b742fbc6
 [702e7276898d3f31]: https://gitlab.torproject.org/tpo/core/arti/-/commit/702e7276898d3f31e22033c5b64fea91703f3701
+[8333a2d7c9e48427]: https://gitlab.torproject.org/tpo/core/arti/-/commit/8333a2d7c9e4842753e65d978087e54a8ad43789
+[8e9e5a2f6ff2036]: https://gitlab.torproject.org/tpo/core/arti/-/commit/8e9e5a2f6ff20360816896b971408e8bf1b5c7ea
 [9289c00cb5a97943]: https://gitlab.torproject.org/tpo/core/arti/-/commit/9289c00cb5a97943702544ce4c569250ae475f9d
 [Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [Chutney]: https://gitlab.torproject.org/tpo/core/chutney
@@ -287,11 +304,14 @@ for funding the development of Arti!
 [`slab`]: https://crates.io/crates/slab
 [`smol`]: https://crates.io/crates/smol
 [`tokio`]: https://crates.io/crates/tokio
+[a187a2fef281d7da]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a187a2fef281d7daae2fb6f503168cf48cfc0b99
 [a2d06cf94f2d0907]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a2d06cf94f2d09077bb86f1b7b62e7e22c4a34f1
 [bb3a2c99db37271e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bb3a2c99db37271e5f22f80778dd89787162ab9f
 [bc5b3130283f0699]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bc5b3130283f06996cf9f84adc5dbe5721e13a1c
 [cgo]: https://eprint.iacr.org/2025/583
+[eabd0c0bfe70333]: https://gitlab.torproject.org/tpo/core/arti/-/commit/eabd0c0bfe703337e338403949721ce57c87f32e
 [ebb97da7a209af06]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ebb97da7a209af06e69a5477b8379a76a776e42e
+[f89c0b38df232e5c8aa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f89c0b38df232e5c8aa87195fb075e528e883706
 [flowctl-cc]: https://spec.torproject.org/proposals/324-rtt-congestion-control.txt
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [prop349]: https://spec.torproject.org/proposals/349-command-state-validation.html
