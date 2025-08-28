@@ -178,7 +178,7 @@ which are documented below.
   to use fields in `tracing` messages. ([#2096], [#2116], [!3142])
 - Fix a few python linter warnings. ([!3168], [!3147])
 - Change format of redacted onion service IDs from `???xyz.onion`
-  to `[…].onion`. ([#2126], [!3177])
+  to `[…]xyz.onion`. ([#2126], [!3177])
 - Distinguish RPC object identity types through a more sensible system.
   ([!3191])
 - The "quicktest" profile now builds more quickly,
