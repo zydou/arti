@@ -668,7 +668,7 @@ mod test {
             let demand_efbig = |e| match e {
                 // TODO MSRV 1.83: replace with io::ErrorKind::FileTooLarge?
                 ReplayError::Log(e) if e.raw_os_error() == Some(libc::EFBIG) => {}
-                other => panic!("expected EFBUG, got {other:?}"),
+                other => panic!("expected EFBIG, got {other:?}"),
             };
 
             // Generate a distinct message given a phase and a counter
