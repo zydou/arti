@@ -52,7 +52,7 @@ which are documented below.
 - Experimental support for [proof-of-work][prop362] in onion services,
   for resistance to denial-of-service attacks. ([!3106], [!3132])
 - Experimental support for negotiating [Counter Galois Onion][cgo]
-  cryptography versions of Tor that support it.
+  cryptography with versions of Tor that support it.
   ([!3133], [prop359])
 
 ### Breaking changes in lower-level crates
@@ -95,8 +95,8 @@ which are documented below.
   ([!3162])
 - Major refactoring to channel cell types and handling to prepare
   for relay channel authentication. ([!3158], [!3173], [!3178], [!3198])
-- Revise `tor-proto` code to match correct behaviors of channel negotiation
-  cells. ([!3174], [!3184])
+- Revise `tor-proto` code to match correct behaviors with respect to
+  channel negotiation cells. ([!3174], [!3184])
 
 ### Directory authority development
 
