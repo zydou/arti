@@ -33,13 +33,6 @@ which are documented below.
   guards were failing due to a mismatch in expected circuit
   construction times. ([!3141])
 
-### Major features
-
-- Arti now supports using the [`smol`] async runtime implementation.
-  It is an improved replacement for [`async-std`], which will soon be
-  deprecated.  We still recommend the [`tokio`] runtime for most users.
-  ([!2986], [!3194])
-
 ### Major features (experimental)
 
 - `tor-proto` now includes experimental backend support (unused, so far) for
@@ -54,6 +47,10 @@ which are documented below.
 - Experimental support for negotiating [Counter Galois Onion][cgo]
   cryptography with versions of Tor that support it.
   ([!3133], [prop359])
+- Arti now has experimental, incomplete support for the [`smol`] async runtime.
+  It is an improved replacement for [`async-std`], which will soon be
+  deprecated in Arti.  We still recommend the [`tokio`] runtime for most users.
+  ([!2986], [!3194])
 
 ### Breaking changes in lower-level crates
 
