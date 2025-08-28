@@ -49,7 +49,6 @@
 // this lint and instead produces another lint about a useless clippy attribute.
 #![allow(clippy::single_component_path_imports)]
 
-pub mod authority;
 mod bootstrap;
 pub mod config;
 mod docid;
@@ -100,7 +99,6 @@ use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
 use crate::state::{DirState, NetDirChange};
-pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
     DirMgrConfig, DirTolerance, DirToleranceBuilder, DownloadScheduleConfig,
     DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,

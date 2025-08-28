@@ -9,11 +9,11 @@
 //! here must be reflected in the version of `arti-client`.
 
 use crate::Result;
-use crate::authority::{Authority, AuthorityBuilder, AuthorityList, AuthorityListBuilder};
 use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
 use tor_checkable::timed::TimerangeBound;
 use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
+use tor_dircommon::authority::{Authority, AuthorityBuilder, AuthorityList, AuthorityListBuilder};
 use tor_guardmgr::fallback::FallbackDirBuilder;
 use tor_netdoc::doc::netstatus::{self, Lifetime};
 

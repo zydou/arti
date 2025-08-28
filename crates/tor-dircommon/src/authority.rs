@@ -23,21 +23,16 @@ pub struct Authority {
     /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
     /// this authority.
     // TODO: It would be lovely to use a better hash for these identities.
-    #[cfg(not(feature = "experimental-api"))]
-    pub(crate) v3ident: RsaIdentity,
-    #[cfg(feature = "experimental-api")]
-    /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
-    /// this authority.
-    pub v3ident: RsaIdentity,
+    v3ident: RsaIdentity,
 }
 
 impl_standard_builder! { Authority: !Default }
 
 /// Authority list, built
-pub(crate) type AuthorityList = Vec<Authority>;
+pub type AuthorityList = Vec<Authority>;
 
 define_list_builder_helper! {
-    pub(crate) struct AuthorityListBuilder {
+    pub struct AuthorityListBuilder {
         authorities: [AuthorityBuilder],
     }
     built: AuthorityList = authorities;
@@ -45,7 +40,7 @@ define_list_builder_helper! {
 }
 
 /// Return a vector of the default directory authorities.
-pub(crate) fn default_authorities() -> Vec<AuthorityBuilder> {
+pub fn default_authorities() -> Vec<AuthorityBuilder> {
     /// Build an authority; panic if input is bad.
     fn auth(name: &str, key: &str) -> AuthorityBuilder {
         let v3ident =
@@ -67,6 +62,18 @@ pub(crate) fn default_authorities() -> Vec<AuthorityBuilder> {
         auth("moria1", "F533C81CEF0BC0267857C99B2F471ADF249FA232"),
         auth("tor26", "2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C"),
     ]
+}
+
+impl Authority {
+    /// Returns the nickname of the authority.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the directory specific [`RsaIdentity`] of the authority.
+    pub fn v3ident(&self) -> RsaIdentity {
+        self.v3ident
+    }
 }
 
 impl AuthorityBuilder {
