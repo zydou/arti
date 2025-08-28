@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#
+# This script finds all files indexes by git which have the same name when
+# looking at them in a case-insensitive manner.
+
+cmd=$(git ls-files | uniq -id)
+
+if [ -z "$cmd" ];
+then
+	exit 0
+else
+	echo "The following files will cause problems on a case-insensitive filesystem"
+	echo "$cmd"
+	exit 1
+fi
