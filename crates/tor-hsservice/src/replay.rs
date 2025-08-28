@@ -666,8 +666,7 @@ mod test {
             }
 
             let demand_efbig = |e| match e {
-                // TODO MSRV 1.83: replace with io::ErrorKind::FileTooLarge?
-                ReplayError::Log(e) if e.raw_os_error() == Some(libc::EFBIG) => {}
+                ReplayError::Log(e) if e.kind() == io::ErrorKind::FileTooLarge => {}
                 other => panic!("expected EFBIG, got {other:?}"),
             };
 
