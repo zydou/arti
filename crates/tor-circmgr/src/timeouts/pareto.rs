@@ -570,6 +570,7 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
             self.timeouts.take();
         }
         if is_last {
+            tracing::trace!(%hop, ?delay, "Circuit creation success");
             self.history.add_success(true);
         }
     }
@@ -590,6 +591,7 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
         if hop > 0 && have_seen_recent_activity {
             self.history.add_success(false);
             if self.history.n_recent_timeouts() > self.p.reset_after_timeouts {
+                tracing::debug!("Multiple connections failed, resetting timeouts...");
                 let base_timeouts = self.base_timeouts();
                 self.history.clear();
                 self.timeouts.take();
