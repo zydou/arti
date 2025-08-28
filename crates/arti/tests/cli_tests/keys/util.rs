@@ -21,8 +21,8 @@ const CLIENT_KEY: &str = " Keystore ID: arti
 /// An unrecognized entry of an `ArtiNativeKeystore`
 const UNRECOGNIZED_ENTRY: &str = " Unrecognized entry
  Keystore ID: arti
- Location: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
- Error: Key has invalid path: hss/allium-cepa/Ks_hs_id.ed25519_expanded_private
+ Location: hss/allium-cepa/herba-spontanea
+ Error: Key has invalid path: hss/allium-cepa/herba-spontanea
 ";
 
 /// The long term identity of an `ArtiNativeKeystore`
