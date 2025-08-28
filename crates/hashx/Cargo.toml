@@ -1,6 +1,6 @@
 [package]
 name = "hashx"
-version = "0.3.4"
+version = "0.4.0"
 authors = ["The Tor Project, Inc.", "Micah Elizabeth Scott <beth@torproject.org>"]
 edition = "2024"
 rust-version = "1.85"

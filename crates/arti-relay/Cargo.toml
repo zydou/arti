@@ -1,6 +1,6 @@
 [package]
 name = "arti-relay"
-version = "0.33.0"
+version = "0.34.0"
 authors = ["The Tor Project, Inc."]
 edition = "2024"
 rust-version = "1.85"
@@ -35,24 +35,24 @@ clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 directories = "6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.10.0", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.11.0", features = ["serde"] }
 rand = "0.9.1"
-safelog = { path = "../safelog", version = "0.4.8" }
+safelog = { path = "../safelog", version = "0.5.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.33.0" }
-tor-config = { path = "../tor-config", version = "0.33.0" }
-tor-config-path = { path = "../tor-config-path", version = "0.33.0" }
-tor-error = { path = "../tor-error", version = "0.33.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.33.0", features = ["keymgr", "ephemeral-keystore"] }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0" }
-tor-memquota = { version = "0.33.0", path = "../tor-memquota" }
-tor-netdir = { path = "../tor-netdir", version = "0.33.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.33.0" }
-tor-proto = { path = "../tor-proto", version = "0.33.0", features = ["tokio"] }
-tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.33.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.33.0", features = ["rustls", "tokio"] }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.34.0" }
+tor-config = { path = "../tor-config", version = "0.34.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.34.0" }
+tor-error = { path = "../tor-error", version = "0.34.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.34.0", features = ["keymgr", "ephemeral-keystore"] }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.34.0" }
+tor-memquota = { version = "0.34.0", path = "../tor-memquota" }
+tor-netdir = { path = "../tor-netdir", version = "0.34.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.34.0" }
+tor-proto = { path = "../tor-proto", version = "0.34.0", features = ["tokio"] }
+tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.34.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.34.0", features = ["rustls", "tokio"] }
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 

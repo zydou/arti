@@ -1,6 +1,6 @@
 [package]
 name = "tor-bytes"
-version = "0.33.0"
+version = "0.34.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.85"
@@ -16,10 +16,10 @@ bytes = "1"
 derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 digest = { version = "0.10.0", features = ["subtle", "mac"] }
 educe = "0.4.22"
-safelog = { path = "../safelog", version = "0.4.8" }
+safelog = { path = "../safelog", version = "0.5.0" }
 thiserror = "2"
-tor-error = { path = "../tor-error", version = "0.33.0", default-features = false }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0", optional = true }
+tor-error = { path = "../tor-error", version = "0.34.0", default-features = false }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.34.0", optional = true }
 zeroize = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
