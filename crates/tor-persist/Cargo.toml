@@ -1,6 +1,6 @@
 [package]
 name = "tor-persist"
-version = "0.33.0"
+version = "0.34.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.85"
@@ -35,20 +35,20 @@ amplify = { version = "4", default-features = false, features = ["derive"], opti
 derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 derive_more = { version = "2.0.1", features = ["full"] }
 filetime = { version = "0.2", default-features = false }
-fs-mistrust = { path = "../fs-mistrust", version = "0.10.0", features = ["walkdir"] }
-fslock-guard = { path = "../fslock-guard", version = "0.2.4", optional = true }
+fs-mistrust = { path = "../fs-mistrust", version = "0.11.0", features = ["walkdir"] }
+fslock-guard = { path = "../fslock-guard", version = "0.3.0", optional = true }
 futures = "0.3.14"
 itertools = "0.14.0"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.3" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.3.0" }
 paste = "1"
 sanitize-filename = "0.6.0"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "2"
 time = { version = "0.3", features = ["std", "parsing", "macros", "formatting"] }
-tor-async-utils = { path = "../tor-async-utils", version = "0.33.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.33.0" }
-tor-error = { path = "../tor-error", version = "0.33.0", features = ["tracing"] }
+tor-async-utils = { path = "../tor-async-utils", version = "0.34.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.34.0" }
+tor-error = { path = "../tor-error", version = "0.34.0", features = ["tracing"] }
 tracing = "0.1.36"
 void = "1"
 
@@ -58,7 +58,7 @@ derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 humantime = "2"
 itertools = "0.14.0"
 tempfile = "3"
-test-temp-dir = { version = "0.3.5", path = "../test-temp-dir" }
+test-temp-dir = { version = "0.4.0", path = "../test-temp-dir" }
 tracing-test = "0.2.4"
 
 [package.metadata.docs.rs]

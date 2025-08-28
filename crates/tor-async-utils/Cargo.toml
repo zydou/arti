@@ -1,6 +1,6 @@
 [package]
 name = "tor-async-utils"
-version = "0.33.0"
+version = "0.34.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.85"
@@ -16,7 +16,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 derive-deftly = { version = "~1.2.0", features = ["full", "beta"] }
 educe = "0.4.22"
 futures = "0.3.14"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.3" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.3.0" }
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 thiserror = "2"
@@ -25,9 +25,9 @@ void = "1"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 tokio = { version = "1.7", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
-tor-error = { path = "../tor-error", version = "0.33.0" }
-tor-rtcompat = { version = "0.33.0", path = "../tor-rtcompat" }
-tor-rtmock = { path = "../tor-rtmock", version = "0.33.0" }
+tor-error = { path = "../tor-error", version = "0.34.0" }
+tor-rtcompat = { version = "0.34.0", path = "../tor-rtcompat" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.34.0" }
 
 [features]
 full = ["oneshot-fused-workaround/full"]
