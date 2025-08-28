@@ -181,7 +181,8 @@ which are documented below.
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-<!-- (output of ./maint/thanks goes here) -->.
+hashcatHitman, Jérôme Charaoui, luciole, Neel Chauhan,
+Niel Duysters, thesw4rm, Omar Gorni, and Tobias Stoeckmann.
 
 Also, our deep thanks to
 the [Bureau of Democracy, Human Rights and Labor],
