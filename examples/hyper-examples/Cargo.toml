@@ -7,6 +7,15 @@ license = "MIT OR Apache-2.0"
 description = "Examples demonstrating the usage of Arti with hyper"
 publish = false
 
+[features]
+full = [
+    "arti-client/full",
+    "safelog/full",
+    "tor-cell/full",
+    "tor-hsservice/full",
+    "tor-proto/full",
+]
+
 [dependencies]
 anyhow = "1.0.97"
 arti-client = { path = "../../crates/arti-client", features = ["onion-service-service"] }

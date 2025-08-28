@@ -58,6 +58,7 @@ full = [
     "tor-protover/full",
     "tor-relay-selection/full",
     "tor-rtcompat/full",
+    "equix?/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
