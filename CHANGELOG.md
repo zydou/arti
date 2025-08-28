@@ -107,7 +107,7 @@ which are documented below.
   We'll use this to parse and generate vote documents, and eventually
   more types of object. ([!3135], [!3180])
 - Refactor handling of different network-status types and flavors
-  (now called "species"), for better interaction
+  (now collectively called "variants"), for better interaction
   with future directory authority code.
   ([!3139], [!3164], [!3172])
 
