@@ -5,9 +5,9 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 
 
-# Arti 1.4.7 — 28 August 2025
+# Arti 1.5.0 — 28 August 2025
 
-Arti 1.4.7 continues development on important client features,
+Arti 1.5.0 continues development on important client features,
 including [Counter Galois Onion][cgo] encryption,
 [Conflux], [flow control and congestion control][flowctl-cc],
 and onion service [proof of work][prop362].
@@ -16,7 +16,7 @@ It also includes significant preliminary work for Arti relay support.
 Additionally, this release [mitigates][!3141] a [longstanding bug][#2079]
 that could prevent Arti clients from bootstrapping.
 
-Arti 1.4.7 increases our MSRV (Minimum Supported Rust Version)
+Arti 1.5.0 increases our MSRV (Minimum Supported Rust Version)
 to 1.85, in accordance with our [MSRV policy].
 
 As usual, there are also various under-the-hood improvements and bug fixes,
