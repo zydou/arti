@@ -5,9 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 
 
-# Arti 1.4.7 — 2 September 2025
-
-UP TO DATE AS OF [dda4c72faabc993af9be4f91b66bdd2109481e33](do-not-link)
+# Arti 1.4.7 — 28 August 2025
 
 Arti 1.4.7 continues development on important client features,
 including [Counter Galois Onion][cgo] encryption,
