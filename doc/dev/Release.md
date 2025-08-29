@@ -343,7 +343,7 @@ before you continue!
    are present in the tagged commit,
    and easy to find for reference.)
 
-2. [ ] Write a blog post.
+2. [ ] Write and publish a blog post.
 
 3. [ ] If new crates published, add appropriate owners.
 
