@@ -31,6 +31,7 @@ use crate::congestion::params::CongestionWindowParams;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
+use msghandler::client::ClientConfluxMsgHandler;
 
 use super::circuit::CircHop;
 use super::{Circuit, CircuitAction, RemoveLegReason, SendRelayCell};
@@ -559,13 +560,15 @@ impl ConfluxSet {
             // conflux message handler, and have their join point fixed up
             // to share a stream map with the join point on all the other circuits.
             if circ.conflux_status().is_none() {
-                let conflux_handler = ConfluxMsgHandler::new_client(
+                let handler = Box::new(ClientConfluxMsgHandler::new(
                     join_point.hop,
                     self.nonce,
                     Arc::clone(&self.last_seq_delivered),
                     cwnd_params,
                     runtime.clone(),
-                );
+                ));
+                let conflux_handler =
+                    ConfluxMsgHandler::new(handler, Arc::clone(&self.last_seq_delivered));
 
                 circ.add_to_conflux_tunnel(self.tunnel_id, conflux_handler);
 

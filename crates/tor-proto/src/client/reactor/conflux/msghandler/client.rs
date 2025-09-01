@@ -19,7 +19,7 @@ use crate::congestion::params::CongestionWindowParams;
 use super::AbstractConfluxMsgHandler;
 
 /// Client-side implementation of a conflux message handler.
-pub(super) struct ClientConfluxMsgHandler {
+pub(crate) struct ClientConfluxMsgHandler {
     /// The current state this leg is in.
     state: ConfluxState,
     /// The nonce associated with the circuits from this set.
@@ -173,7 +173,7 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
 
 impl ClientConfluxMsgHandler {
     /// Create a new client conflux message handler.
-    pub(super) fn new(
+    pub(crate) fn new(
         join_point: HopNum,
         nonce: V1Nonce,
         last_seq_delivered: Arc<AtomicU64>,

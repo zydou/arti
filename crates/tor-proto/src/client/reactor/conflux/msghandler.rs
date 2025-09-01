@@ -1,22 +1,18 @@
 //! A conflux-aware message handler.
 
-mod client;
+pub(super) mod client;
 
 use std::cmp::Ordering;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicU64};
 use std::time::{Duration, SystemTime};
 
-use tor_cell::relaycell::conflux::V1Nonce;
 use tor_cell::relaycell::{RelayCmd, StreamId, UnparsedRelayMsg};
 use tor_error::{Bug, internal};
 
 use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::reactor::{CircuitCmd, RemoveLegReason};
-use crate::congestion::params::CongestionWindowParams;
 use crate::crypto::cell::HopNum;
-
-use client::ClientConfluxMsgHandler;
 
 /// Cell handler for conflux cells.
 ///
@@ -39,22 +35,17 @@ pub(crate) struct ConfluxMsgHandler {
 }
 
 impl ConfluxMsgHandler {
-    /// Create a new message handler for client circuits.
-    pub(super) fn new_client(
-        hop: HopNum,
-        nonce: V1Nonce,
+    /// Create a new message handler using the specified [`AbstractConfluxMsgHandler`].
+    ///
+    /// Clients and relays both use this function.
+    ///
+    // TODO(relay): exits will need to implement their own AbstractConfluxMsgHandler
+    pub(super) fn new(
+        handler: Box<dyn AbstractConfluxMsgHandler + Send + Sync>,
         last_seq_delivered: Arc<AtomicU64>,
-        cwnd_params: CongestionWindowParams,
-        runtime: tor_rtcompat::DynTimeProvider,
     ) -> Self {
         Self {
-            handler: Box::new(ClientConfluxMsgHandler::new(
-                hop,
-                nonce,
-                Arc::clone(&last_seq_delivered),
-                cwnd_params,
-                runtime,
-            )),
+            handler,
             last_seq_delivered,
         }
     }
@@ -235,7 +226,7 @@ pub(crate) enum ConfluxAction {
 ///
 /// This is indirectly used by the circuit reactor (via `ConfluxSet`)
 /// for conflux handling.
-trait AbstractConfluxMsgHandler {
+pub(crate) trait AbstractConfluxMsgHandler {
     /// Validate the specified source hop of a conflux cell.
     fn validate_source_hop(&self, msg: &UnparsedRelayMsg, hop: HopNum) -> crate::Result<()>;
 
