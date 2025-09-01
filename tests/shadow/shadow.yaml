@@ -6,7 +6,7 @@ x-constants:
  - &ArtiExtra "../../target/x86_64-unknown-linux-gnu/quicktest/arti-extra"
 
 general:
-  stop_time: 30 min
+  stop_time: 60 min
   model_unblocked_syscall_latency: True
 experimental:
   # shadow only actually increments simulated time (and potentially

@@ -48,7 +48,7 @@ chmod 700 shadow.data.template/hosts/articlient-onion-artiserver-auth-ctor/ctor-
 
 # Run the simulation
 shadow \
-  --log-level=debug \
+  --log-level=info \
   --template-directory=./shadow.data.template \
   --progress=true \
   --use-memory-manager=false \
