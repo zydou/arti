@@ -38,15 +38,11 @@ use super::{Circuit, CircuitAction, SendRelayCell};
 
 #[cfg(feature = "conflux")]
 use {
+    crate::conflux::msghandler::ConfluxMsgHandler,
+    msghandler::ClientConfluxMsgHandler,
     tor_cell::relaycell::conflux::{V1DesiredUx, V1LinkPayload, V1Nonce},
     tor_cell::relaycell::msg::{ConfluxLink, ConfluxSwitch},
 };
-
-#[cfg(feature = "conflux")]
-use crate::conflux::msghandler::ConfluxMsgHandler;
-
-#[cfg(feature = "conflux")]
-use msghandler::ClientConfluxMsgHandler;
 
 /// The maximum number of conflux legs to store in the conflux set SmallVec.
 ///
