@@ -557,7 +557,7 @@ define_derive_deftly! {
     // Field keyword as `&str`
     ${define F_KEYWORD_STR { ${concat
         ${fmeta(netdoc(keyword)) as str,
-          default ${concat ${kebab_case $fname}}}
+          default ${kebab_case $fname}}
     }}}
     // Field keyword as `KeywordRef`
     ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
