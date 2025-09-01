@@ -132,13 +132,14 @@ struct DocumentBody(VecDeque<Arc<[u8]>>);
 type Endpoint = (Method, Vec<&'static str>, Box<Callback>);
 
 /// Representation of the core HTTP server.
-pub struct HttpServer {
+pub(crate) struct HttpServer {
+    /// The [`HttpServerBuilder`] used to generate this [`HttpServer`].
     builder: HttpServerBuilder,
 }
 
 /// A builder for [`HttpServer`].
 #[derive(Default)]
-pub struct HttpServerBuilder {
+pub(crate) struct HttpServerBuilder {
     /// The [`Pool`] from deapool to manage database connections.
     pool: Option<Pool<Manager>>,
     /// The HTTP endpoints.
@@ -161,7 +162,7 @@ pub struct HttpServerBuilder {
 /// interface, because it will automatically select them from the database in
 /// case they are missing.
 #[derive(Debug, Clone)]
-pub struct StoreCache {
+pub(crate) struct StoreCache {
     /// The actual data of the cache.
     ///
     /// We use a [`Mutex`] instead of an [`RwLock`], because we want to assure
@@ -216,7 +217,7 @@ impl Body for DocumentBody {
 
 impl HttpServer {
     /// Creates a new [`HttpServerBuilder`].
-    pub fn builder() -> HttpServerBuilder {
+    pub(crate) fn builder() -> HttpServerBuilder {
         HttpServerBuilder::default()
     }
 
@@ -225,14 +226,17 @@ impl HttpServer {
     /// This function does not fail, because all errors that could potentially
     /// occur, occur in further sub-tasks spawned by it and handled appropriately,
     /// that is ususally logging the error and continuing the exeuction.
-    pub async fn serve<I, S, E>(self, mut listener: I) -> Result<(), Infallible>
+    pub(crate) async fn serve<I, S, E>(self, mut listener: I) -> Result<(), Infallible>
     where
         I: Stream<Item = Result<S, E>> + Unpin,
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         E: std::error::Error,
     {
         let cache = StoreCache::new();
-        let endpoints = Arc::new(self.builder.endpoints);
+        let endpoints: Arc<[Endpoint]> = self.builder.endpoints.into();
+        // Use of unwrap is okay because the builder has ensured the presence
+        // of the field.
+        #[allow(clippy::unwrap_used)]
         let pool = self.builder.pool.unwrap();
 
         // We operate exclusively in JoinSets so that everything gets aborted
@@ -287,7 +291,7 @@ impl HttpServer {
     /// Dispatches a new [`Stream`] into an existing [`JoinSet`].
     fn dispatch_stream<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
         cache: &StoreCache,
-        endpoints: &Arc<Vec<Endpoint>>,
+        endpoints: &Arc<[Endpoint]>,
         pool: &Pool<Manager>,
         tasks: &mut JoinSet<Result<(), hyper::Error>>,
         stream: S,
@@ -327,7 +331,7 @@ impl HttpServer {
     /// 6. Compose the [`Response`].
     async fn handler(
         mut cache: StoreCache,
-        endpoints: Arc<Vec<Endpoint>>,
+        endpoints: Arc<[Endpoint]>,
         pool: Pool<Manager>,
         requ: Request<Incoming>,
     ) -> Result<Response<DocumentBody>, Infallible> {
@@ -367,6 +371,7 @@ impl HttpServer {
             task.spawn(cb(cache.clone(), pool.clone(), requ.clone()));
 
             // Calling unwrap below is fine because there *IS* a task in the set.
+            #[allow(clippy::unwrap_used)]
             match task.join_next().await.unwrap() {
                 // Everything went successful.
                 Ok(Ok(r)) => r,
@@ -425,6 +430,9 @@ impl HttpServer {
             // Add the Content-Encoding header, if necessary.
             resp.headers_mut().insert(
                 header::CONTENT_ENCODING,
+                // The use of unwrap is okay because the possible values are
+                // known at compile-time to make up valid header values.
+                #[allow(clippy::unwrap_used)]
                 encoding.to_string().try_into().unwrap(),
             );
         }
@@ -613,6 +621,7 @@ impl HttpServer {
 
     /// Generates an empty response with a given [`StatusCode`].
     fn empty_response(status: StatusCode) -> Response<DocumentBody> {
+        #[allow(clippy::unwrap_used)]
         Response::builder()
             .status(status)
             .body(DocumentBody(VecDeque::new()))
@@ -622,12 +631,12 @@ impl HttpServer {
 
 impl HttpServerBuilder {
     /// Creates a new [`HttpServerBuilder`] with default values.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Sets the database pool which is mandatory.
-    pub fn pool(mut self, pool: Pool<Manager>) -> Self {
+    pub(crate) fn pool(mut self, pool: Pool<Manager>) -> Self {
         self.pool = Some(pool);
         self
     }
@@ -660,7 +669,7 @@ impl HttpServerBuilder {
     /// * `/tor/status-vote/current/*/diff/*/*`
     /// * `[Some(""), Some("tor"), Some("status-vote"), Some("current"), None, ...]`
     ///   Maybe a macro could help here though ...
-    pub fn get<F, T>(mut self, path: &'static str, cb: F) -> Self
+    pub(crate) fn get<F, T>(mut self, path: &'static str, cb: F) -> Self
     where
         // TODO: It is a bit unfortunate that we have to specify this here
         // redundantly, despite having already done so in [`Callback`].
@@ -678,7 +687,7 @@ impl HttpServerBuilder {
     }
 
     /// Consumes the [`HttpServerBuilder`] to build an [`HttpServer`].
-    pub fn build(self) -> Result<HttpServer, BuilderError> {
+    pub(crate) fn build(self) -> Result<HttpServer, BuilderError> {
         // Check the presence of mandatory fields.
         if self.pool.is_none() {
             return Err(BuilderError::MissingField("pool"));
@@ -690,7 +699,7 @@ impl HttpServerBuilder {
 
 impl StoreCache {
     /// Creates a new empty [`StoreCache`].
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             data: Arc::new(Mutex::new(WeakValueHashMap::new())),
         }
@@ -699,7 +708,7 @@ impl StoreCache {
     /// Removes all mappings whose values have expired.
     ///
     /// Takes O(n) time.
-    pub async fn gc(&mut self) {
+    pub(crate) async fn gc(&mut self) {
         self.data.lock().await.remove_expired();
     }
 
@@ -707,7 +716,7 @@ impl StoreCache {
     ///
     /// If we got a cache miss, this function automatically queries the database
     /// and inserts the result into the cache, before returning it.
-    pub async fn get(&mut self, pool: &Pool<Manager>, sha256: &Sha256) -> Option<Arc<[u8]>> {
+    pub(crate) async fn get(&mut self, pool: &Pool<Manager>, sha256: &Sha256) -> Option<Arc<[u8]>> {
         let mut lock = self.data.lock().await;
 
         // Query the cache for the relevant document.

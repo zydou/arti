@@ -9,8 +9,9 @@ use crate::err::DatabaseError;
 
 /// Representation of a Sha256 hash in hexadecimal (upper-case)
 // TODO: Make this a real type that actually enforces the constraints.
-pub type Sha256 = String;
+pub(crate) type Sha256 = String;
 
+/// Version 1 of the database schema.
 const V1_SCHEMA: &str = "
 PRAGMA foreign_keys=ON;
 PRAGMA journal_mode=WAL;
@@ -160,7 +161,7 @@ COMMIT;
 
 /// Prepares a database for operation that is, initializing and upgrading it
 /// if neccessary.
-pub fn prepare_db(conn: &mut Connection) -> Result<(), DatabaseError> {
+pub(crate) fn prepare_db(conn: &mut Connection) -> Result<(), DatabaseError> {
     let schema_version = init_db(conn)?;
     match schema_version.as_str() {
         "1" => Ok(()),

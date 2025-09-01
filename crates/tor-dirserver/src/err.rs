@@ -9,6 +9,7 @@ use thiserror::Error;
 
 /// An error while building a builder struct to the target structure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum BuilderError {
     /// Some builders have mandatory fields (i.e. fields that must be set before
     /// calling `.build()`).  In those cases, we need to yield a semantic error.
@@ -18,6 +19,7 @@ pub enum BuilderError {
 
 /// An error while interacting with the database.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DatabaseError {
     /// The interaction with the [`Pool`] object returned from [`Pool::get()`]
     /// failed, meaning we were unable to interact with the low-level SQLite
@@ -49,6 +51,7 @@ pub enum DatabaseError {
 
 /// An error related around the HTTP protocol.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum HttpError {
     /// The `Content-Encoding` and/or `Accept-Encoding` header are (partially)
     /// invalid.

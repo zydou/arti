@@ -10,6 +10,7 @@ pub struct DirMirror {
     builder: DirMirrorBuilder,
 }
 
+/// Builder type for [`DirMirror`].
 #[derive(Debug, Default)]
 pub struct DirMirrorBuilder {
     /// The path to the SQLite database.
