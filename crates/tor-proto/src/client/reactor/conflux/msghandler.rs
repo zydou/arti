@@ -12,6 +12,7 @@ use tor_error::{Bug, internal};
 
 use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::reactor::{CircuitCmd, RemoveLegReason};
+use crate::conflux::cmd_counts_towards_seqno;
 use crate::crypto::cell::HopNum;
 
 /// Cell handler for conflux cells.
@@ -151,7 +152,7 @@ impl ConfluxMsgHandler {
         streamid: StreamId,
         msg: UnparsedRelayMsg,
     ) -> Result<ConfluxAction, Bug> {
-        if !super::cmd_counts_towards_seqno(msg.cmd()) {
+        if !cmd_counts_towards_seqno(msg.cmd()) {
             return Ok(ConfluxAction::Deliver(msg));
         }
 
@@ -175,7 +176,7 @@ impl ConfluxMsgHandler {
     /// Increment the absolute "delivered" seqno for this conflux set
     /// if the specified message counts towards sequence numbers.
     pub(crate) fn inc_last_seq_delivered(&self, msg: &UnparsedRelayMsg) {
-        if super::cmd_counts_towards_seqno(msg.cmd()) {
+        if cmd_counts_towards_seqno(msg.cmd()) {
             self.last_seq_delivered
                 .fetch_add(1, atomic::Ordering::AcqRel);
         }
@@ -205,7 +206,7 @@ impl ConfluxMsgHandler {
     ///
     /// Updates the internal sequence numbers.
     pub(crate) fn note_cell_sent(&mut self, cmd: RelayCmd) {
-        if super::cmd_counts_towards_seqno(cmd) {
+        if cmd_counts_towards_seqno(cmd) {
             self.handler.inc_last_seq_sent();
         }
     }
