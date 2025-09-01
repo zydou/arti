@@ -89,7 +89,7 @@ pub enum ClientCircChanMsg {
 #[derive_deftly(RestrictedChanMsgSet)]
 #[deftly(usage = "on an open relay circuit")]
 #[cfg(feature = "relay")]
-#[cfg_attr(not(test), expect(unused))] // TODO(relay)
+#[cfg_attr(not(test), allow(unused))] // TODO(relay)
 pub(crate) enum RelayCircChanMsg {
     /// A relay cell telling us some kind of remote command from some
     /// party on the circuit.
