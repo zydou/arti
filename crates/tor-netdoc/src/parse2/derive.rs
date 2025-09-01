@@ -525,7 +525,7 @@ define_derive_deftly! {
     /// but:
     ///
     ///  * Derives [`NetdocParseableFields`]
-    ///  * The input struct can contain only normal non-structural fields
+    ///  * The input struct can contain only normal non-structural items
     ///    (so it's not a sub-document with an intro item).
     ///  * The only attribute supported is the field attribute
     ///    `#[deftly(netdoc(keyword = STR))]`
