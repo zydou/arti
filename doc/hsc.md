@@ -29,6 +29,14 @@ descriptor:x25519:RWWKYMW5EXDUZ2ESDDC7FQJCG6ROAR34LXNSTXFSY6JMQOWNDVNQ
 
 ```
 
+If you are running this command non-interactively, you can suppress the prompt
+with `--batch`:
+
+```ignore
+$ echo "mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion" | arti -c hsc.toml hsc key get --output - --batch
+descriptor:x25519:RWWKYMW5EXDUZ2ESDDC7FQJCG6ROAR34LXNSTXFSY6JMQOWNDVNQ
+```
+
 > NOTE: the public part of the generated keypair must be shared with the
 > service, and the service must be configured to allow the client that owns it
 > to discover its introduction points. The caller is responsible for sharing the
