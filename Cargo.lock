@@ -5979,7 +5979,6 @@ dependencies = [
  "retry-error",
  "safelog",
  "serde",
- "static_assertions",
  "thiserror 2.0.16",
  "tor-async-utils",
  "tor-basic-utils",
