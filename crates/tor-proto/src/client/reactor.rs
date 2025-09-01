@@ -38,7 +38,7 @@ use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
-use circuit::{Circuit, CircuitCmd};
+use circuit::Circuit;
 use conflux::ConfluxSet;
 use control::ControlHandler;
 use postage::watch;
@@ -72,8 +72,13 @@ use tracing::{debug, info, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
 
+pub(crate) use circuit::CircuitCmd; // XXX remove export
+
 #[cfg(feature = "conflux")]
-use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
+use {
+    crate::conflux::msghandler::{OooRelayMsg, RemoveLegReason},
+    crate::util::err::ConfluxHandshakeError,
+};
 
 pub(super) use control::{CtrlCmd, CtrlMsg, FlowCtrlMsg};
 
@@ -388,23 +393,6 @@ enum CircuitAction {
         /// handshake to indicate the reason the handshake failed.
         reason: RemoveLegReason,
     },
-}
-
-/// The reason for removing a circuit leg from the conflux set.
-#[derive(Debug, derive_more::Display)]
-enum RemoveLegReason {
-    /// The conflux handshake timed out.
-    ///
-    /// On the client-side, this means we didn't receive
-    /// the CONFLUX_LINKED response in time.
-    #[display("conflux handshake timed out")]
-    ConfluxHandshakeTimeout,
-    /// An error occurred during conflux handshake.
-    #[display("{}", _0)]
-    ConfluxHandshakeErr(Error),
-    /// The channel was closed.
-    #[display("channel closed")]
-    ChannelClosed,
 }
 
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make

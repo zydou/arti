@@ -79,9 +79,9 @@ use {
 
 #[cfg(feature = "conflux")]
 use {
-    super::conflux::ConfluxMsgHandler,
-    super::conflux::{ConfluxAction, OooRelayMsg},
-    crate::client::reactor::RemoveLegReason,
+    crate::conflux::msghandler::{
+        ConfluxAction, ConfluxMsgHandler, ConfluxStatus, OooRelayMsg, RemoveLegReason,
+    },
     crate::tunnel::TunnelId,
 };
 
@@ -153,7 +153,8 @@ pub(crate) struct Circuit {
 ///
 /// This type gets mapped to a `RunOnceCmdInner` in the circuit reactor.
 #[derive(Debug)]
-pub(super) enum CircuitCmd {
+pub(crate) enum CircuitCmd {
+    // XXX: this should not be crate-public
     /// Send a RELAY cell on the circuit leg this command originates from.
     Send(SendRelayCell),
     /// Handle a SENDME message received on the circuit leg this command originates from.
@@ -1550,17 +1551,6 @@ impl Circuit {
             .as_ref()
             .map(|handler| handler.init_rtt())?
     }
-}
-
-/// The conflux status of a conflux [`Circuit`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(super) enum ConfluxStatus {
-    /// Circuit has not begun the conflux handshake yet.
-    Unlinked,
-    /// Conflux handshake is in progress.
-    Pending,
-    /// A linked conflux circuit.
-    Linked,
 }
 
 /// Return the stream ID of `msg`, if it has one.

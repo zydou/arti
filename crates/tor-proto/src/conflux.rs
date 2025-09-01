@@ -1,5 +1,7 @@
 //! Conflux-related functionality
 
+pub(crate) mod msghandler;
+
 use tor_cell::relaycell::RelayCmd;
 
 /// Whether the specified `cmd` counts towards the conflux sequence numbers.

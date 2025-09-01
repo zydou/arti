@@ -1,7 +1,7 @@
 //! Conflux-related functionality
 
 #[cfg(feature = "conflux")]
-mod msghandler;
+pub(crate) mod msghandler;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -25,16 +25,16 @@ use tor_linkspec::HasRelayIds as _;
 use crate::circuit::UniqId;
 use crate::client::circuit::TunnelMutableState;
 use crate::client::circuit::path::HopDetail;
-use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::streammap;
 use crate::congestion::params::CongestionWindowParams;
 use crate::conflux::cmd_counts_towards_seqno;
+use crate::conflux::msghandler::{ConfluxStatus, RemoveLegReason};
 use crate::crypto::cell::HopNum;
 use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
 
 use super::circuit::CircHop;
-use super::{Circuit, CircuitAction, RemoveLegReason, SendRelayCell};
+use super::{Circuit, CircuitAction, SendRelayCell};
 
 #[cfg(feature = "conflux")]
 use {
@@ -43,10 +43,9 @@ use {
 };
 
 #[cfg(feature = "conflux")]
-pub(crate) use msghandler::{ConfluxAction, ConfluxMsgHandler, OooRelayMsg};
-
+pub(crate) use crate::conflux::msghandler::ConfluxMsgHandler;
 #[cfg(feature = "conflux")]
-use msghandler::client::ClientConfluxMsgHandler;
+use msghandler::ClientConfluxMsgHandler;
 
 /// The maximum number of conflux legs to store in the conflux set SmallVec.
 ///
