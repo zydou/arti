@@ -61,7 +61,6 @@ pub mod testprovider;
 use async_trait::async_trait;
 #[cfg(feature = "hs-service")]
 use itertools::chain;
-use static_assertions::const_assert;
 use tor_error::warn_report;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
@@ -1374,7 +1373,7 @@ impl NetDir {
 
         // TODO: If we later support more identity key types, this will
         // become incorrect.  This assertion might help us recognize that case.
-        const_assert!(RelayIdType::COUNT == 2);
+        const _: () = assert!(RelayIdType::COUNT == 2);
 
         match (rsa_id, ed25519_id) {
             (Some(r), Some(e)) => self.id_pair_listed(e, r),
