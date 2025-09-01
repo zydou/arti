@@ -5,12 +5,10 @@ use std::sync::Arc;
 use std::sync::atomic::{self, AtomicU64};
 use std::time::{Duration, SystemTime};
 
-use tor_cell::relaycell::{RelayCmd, StreamId, UnparsedRelayMsg};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd, StreamId, UnparsedRelayMsg};
 use tor_error::{Bug, internal};
 
 use crate::Error;
-// XXX this module shouldn't be importing from client
-use crate::client::reactor::CircuitCmd;
 use crate::crypto::cell::HopNum;
 
 /// Cell handler for conflux cells.
@@ -64,7 +62,7 @@ impl ConfluxMsgHandler {
         &mut self,
         msg: UnparsedRelayMsg,
         hop: HopNum,
-    ) -> Option<CircuitCmd> {
+    ) -> Option<ConfluxCmd> {
         let res = (|| {
             // Ensure the conflux cell came from the expected hop
             // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329).
@@ -73,7 +71,7 @@ impl ConfluxMsgHandler {
         })();
 
         // Returning an error here would cause the reactor to shut down,
-        // so we return a CircuitCmd::ConfluxRemove command instead.
+        // so we return a ConfluxCmd::RemoveLeg command instead.
         //
         // After removing the leg, the reactor will decide whether it needs
         // to shut down or not.
@@ -82,9 +80,9 @@ impl ConfluxMsgHandler {
             Err(e) => {
                 // Tell the reactor to remove this leg from the conflux set,
                 // and to notify the handshake initiator of the error
-                Some(CircuitCmd::ConfluxRemove(
-                    RemoveLegReason::ConfluxHandshakeErr(e),
-                ))
+                Some(ConfluxCmd::RemoveLeg(RemoveLegReason::ConfluxHandshakeErr(
+                    e,
+                )))
             }
         }
     }
@@ -230,13 +228,11 @@ pub(crate) trait AbstractConfluxMsgHandler {
     fn validate_source_hop(&self, msg: &UnparsedRelayMsg, hop: HopNum) -> crate::Result<()>;
 
     /// Handle the specified conflux `msg`.
-    ///
-    // XXX: replace client-specific return type with something else
     fn handle_msg(
         &mut self,
         msg: UnparsedRelayMsg,
         hop: HopNum,
-    ) -> crate::Result<Option<CircuitCmd>>;
+    ) -> crate::Result<Option<ConfluxCmd>>;
 
     /// Returns the conflux status of this handler.
     fn status(&self) -> ConfluxStatus;
@@ -305,6 +301,31 @@ impl PartialEq for OooRelayMsg {
 }
 
 impl Eq for OooRelayMsg {}
+
+/// The outcome of [`AbstractConfluxMsgHandler::handle_msg`].
+#[derive(Debug)]
+pub(crate) enum ConfluxCmd {
+    /// Remove this circuit from the conflux set.
+    ///
+    /// Returned by `ConfluxMsgHandler::handle_conflux_msg` for invalid messages
+    /// (originating from wrong hop), and for messages that are rejected
+    /// by its inner `AbstractMsgHandler`.
+    RemoveLeg(RemoveLegReason),
+
+    /// This circuit has completed the conflux handshake,
+    /// and wants to send the specified cell.
+    ///
+    /// Returned by an `AbstractMsgHandler` to signal to the reactor that
+    /// the conflux handshake is complete.
+    HandshakeComplete {
+        /// The hop number.
+        hop: HopNum,
+        /// Whether to use a RELAY_EARLY cell.
+        early: bool,
+        /// The cell to send.
+        cell: AnyRelayMsgOuter,
+    },
+}
 
 /// The reason for removing a circuit leg from the conflux set.
 #[derive(Debug, derive_more::Display)]

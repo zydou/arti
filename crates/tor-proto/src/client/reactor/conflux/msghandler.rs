@@ -13,10 +13,9 @@ use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 use crate::Error;
 use crate::client::HopNum;
 use crate::client::reactor::circuit::unsupported_client_cell;
-use crate::client::reactor::{CircuitCmd, SendRelayCell};
 use crate::congestion::params::CongestionWindowParams;
 
-use crate::conflux::msghandler::{AbstractConfluxMsgHandler, ConfluxStatus};
+use crate::conflux::msghandler::{AbstractConfluxMsgHandler, ConfluxCmd, ConfluxStatus};
 
 /// Client-side implementation of a conflux message handler.
 pub(crate) struct ClientConfluxMsgHandler {
@@ -96,7 +95,7 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
         &mut self,
         msg: UnparsedRelayMsg,
         hop: HopNum,
-    ) -> crate::Result<Option<CircuitCmd>> {
+    ) -> crate::Result<Option<ConfluxCmd>> {
         match msg.cmd() {
             RelayCmd::CONFLUX_LINK => self.handle_conflux_link(msg, hop),
             RelayCmd::CONFLUX_LINKED => self.handle_conflux_linked(msg, hop),
@@ -202,7 +201,7 @@ impl ClientConfluxMsgHandler {
         &mut self,
         msg: UnparsedRelayMsg,
         hop: HopNum,
-    ) -> crate::Result<Option<CircuitCmd>> {
+    ) -> crate::Result<Option<ConfluxCmd>> {
         unsupported_client_cell!(msg, hop)
     }
 
@@ -221,7 +220,7 @@ impl ClientConfluxMsgHandler {
         &mut self,
         msg: UnparsedRelayMsg,
         hop: HopNum,
-    ) -> crate::Result<Option<CircuitCmd>> {
+    ) -> crate::Result<Option<ConfluxCmd>> {
         // See [SIDE_CHANNELS] for rules for when to reject unexpected handshake cells.
 
         let Some(link_sent) = self.link_sent else {
@@ -274,16 +273,11 @@ impl ClientConfluxMsgHandler {
         let linked_ack = ConfluxLinkedAck::default();
         let cell = AnyRelayMsgOuter::new(None, linked_ack.into());
 
-        let cell = SendRelayCell {
+        Ok(Some(ConfluxCmd::HandshakeComplete {
             hop,
             early: false,
             cell,
-        };
-
-        // We use ConfluxHandshakeComplete and not CircuitCmd::Send,
-        // because in addition to sending the cell,
-        // the reactor will need to also make note of handshake completion
-        Ok(Some(CircuitCmd::ConfluxHandshakeComplete(cell)))
+        }))
     }
 
     /// Handle a conflux LINKED acknowledgment coming from the specified hop.
@@ -292,7 +286,7 @@ impl ClientConfluxMsgHandler {
         &mut self,
         msg: UnparsedRelayMsg,
         hop: HopNum,
-    ) -> crate::Result<Option<CircuitCmd>> {
+    ) -> crate::Result<Option<ConfluxCmd>> {
         unsupported_client_cell!(msg, hop)
     }
 
@@ -301,7 +295,7 @@ impl ClientConfluxMsgHandler {
         &mut self,
         msg: UnparsedRelayMsg,
         _hop: HopNum,
-    ) -> crate::Result<Option<CircuitCmd>> {
+    ) -> crate::Result<Option<ConfluxCmd>> {
         if self.state != ConfluxState::Linked {
             return Err(Error::CircProto(
                 "Received CONFLUX_SWITCH on unlinked circuit?!".into(),

@@ -43,7 +43,8 @@ use {
 };
 
 #[cfg(feature = "conflux")]
-pub(crate) use crate::conflux::msghandler::ConfluxMsgHandler;
+use crate::conflux::msghandler::ConfluxMsgHandler;
+
 #[cfg(feature = "conflux")]
 use msghandler::ClientConfluxMsgHandler;
 

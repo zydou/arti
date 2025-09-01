@@ -61,7 +61,9 @@ use std::sync::Arc;
 
 use crate::channel::Channel;
 use crate::client::circuit::StreamMpscSender;
+use crate::conflux::msghandler::RemoveLegReason;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
+use circuit::CircuitCmd;
 use derive_deftly::Deftly;
 use derive_more::From;
 use tor_cell::chancell::CircId;
@@ -72,11 +74,9 @@ use tracing::{debug, info, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
 
-pub(crate) use circuit::CircuitCmd; // XXX remove export
-
 #[cfg(feature = "conflux")]
 use {
-    crate::conflux::msghandler::{OooRelayMsg, RemoveLegReason},
+    crate::conflux::msghandler::{ConfluxCmd, OooRelayMsg},
     crate::util::err::ConfluxHandshakeError,
 };
 
@@ -324,9 +324,10 @@ impl RunOnceCmdInner {
                 done: None,
             },
             #[cfg(feature = "conflux")]
-            CircuitCmd::ConfluxRemove(reason) => Self::RemoveLeg { leg, reason },
+            CircuitCmd::Conflux(ConfluxCmd::RemoveLeg(reason)) => Self::RemoveLeg { leg, reason },
             #[cfg(feature = "conflux")]
-            CircuitCmd::ConfluxHandshakeComplete(cell) => {
+            CircuitCmd::Conflux(ConfluxCmd::HandshakeComplete { hop, early, cell }) => {
+                let cell = SendRelayCell { hop, early, cell };
                 Self::ConfluxHandshakeComplete { leg, cell }
             }
             #[cfg(feature = "conflux")]
