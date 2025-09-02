@@ -1,6 +1,6 @@
 [package]
 name = "tor-dircommon"
-version = "0.33.0"
+version = "0.34.0"
 authors = [
     "The Tor Project, Inc.",
     "Nick Mathewson <nickm@torproject.org>",
@@ -18,6 +18,6 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 serde = { version = "1.0.103", features = ["derive"] }
-tor-config = { path = "../tor-config", version = "0.33.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.33.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.33.0" }
+tor-config = { path = "../tor-config", version = "0.34.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.34.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.34.0" }
