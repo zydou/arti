@@ -107,6 +107,7 @@ maint-checks:
     - ./maint/common/forbid-script-extensions
     - ./maint/common/update-shell-includes --check --all
     - ./maint/cargo-check-publishable
+    - ./maint/check_case_sensitive
 
 maint-check-changelog:
   stage: test
