@@ -209,6 +209,9 @@ struct PaddingShared<S: SleepProvider> {
     /// When will the currently pending sleep future next expire?
     ///
     /// We keep track of this so that we know when we need to reset the sleep future.
+    /// It gets updated by `PaddingStream::schedule_next_wakeup`,
+    /// which we call in `<PaddingStream as Stream>::poll_next` immediately
+    /// before we create a timer.
     next_scheduled_wakeup: Option<Instant>,
 }
 
