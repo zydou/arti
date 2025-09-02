@@ -749,6 +749,21 @@ impl StoreCache {
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
     use std::io::{Cursor, Write};
 
     use deadpool_sqlite::Config;
@@ -768,8 +783,6 @@ mod test {
 
     use crate::schema::prepare_db;
 
-    use super::*;
-
     const IDENTITY: &str = "Lorem ipsum dolor sit amet.";
     const IDENTITY_SHA256: &str =
         "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
@@ -787,7 +800,7 @@ mod test {
         pool.get()
             .await
             .unwrap()
-            .interact(|conn| init_test_db(conn))
+            .interact(init_test_db)
             .await
             .unwrap();
 
@@ -1016,6 +1029,8 @@ mod test {
 
     #[tokio::test]
     async fn basic_http_server() {
+        // This is a stupid clippy false positive.
+        #[allow(clippy::unnecessary_wraps)]
         fn identity(
             _tx: &Transaction<'_>,
             _requ: &Request<Incoming>,
