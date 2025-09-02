@@ -10,7 +10,7 @@ use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 #[cfg(feature = "counter-galois-onion")]
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
-use crate::client::circuit::padding::{self, PaddingController, QueuedCellPaddingInfo};
+use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::MetaCellDisposition;
@@ -225,6 +225,7 @@ pub(super) use unsupported_client_cell;
 
 impl Circuit {
     /// Create a new non-multipath circuit.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         runtime: DynTimeProvider,
         channel: Arc<Channel>,
@@ -233,10 +234,9 @@ impl Circuit {
         input: CircuitRxReceiver,
         memquota: CircuitAccount,
         mutable: Arc<MutableState>,
+        padding_ctrl: PaddingController,
     ) -> Self {
         let chan_sender = SometimesUnboundedSink::new(channel.sender());
-        let (padding_ctrl, _padding_stream) = padding::new_padding(runtime.clone());
-        // TODO circpad: Use _padding_stream!
 
         let crypto_out = OutboundClientCrypt::new();
         Circuit {

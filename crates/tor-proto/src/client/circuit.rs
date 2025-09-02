@@ -49,6 +49,7 @@ pub(super) mod path;
 
 use crate::channel::Channel;
 use crate::client::circuit::celltypes::*;
+use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
@@ -911,8 +912,7 @@ impl PendingClientTunnel {
     /// Instantiate a new circuit object: used from Channel::new_tunnel().
     ///
     /// Does not send a CREATE* cell on its own.
-    ///
-    ///
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: CircId,
         channel: Arc<Channel>,
@@ -921,10 +921,20 @@ impl PendingClientTunnel {
         unique_id: UniqId,
         runtime: DynTimeProvider,
         memquota: CircuitAccount,
+        padding_ctrl: PaddingController,
+        padding_stream: PaddingEventStream,
     ) -> (PendingClientTunnel, crate::client::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
-        let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) =
-            Reactor::new(channel, id, unique_id, input, runtime, memquota.clone());
+        let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) = Reactor::new(
+            channel,
+            id,
+            unique_id,
+            input,
+            runtime,
+            memquota.clone(),
+            padding_ctrl,
+            padding_stream,
+        );
 
         let circuit = ClientCirc {
             mutable,
@@ -1111,6 +1121,7 @@ pub(crate) mod test {
 
     use super::*;
     use crate::channel::test::{CodecResult, new_reactor};
+    use crate::client::circuit::padding::new_padding;
     use crate::client::stream::DataStream;
     #[cfg(feature = "hs-service")]
     use crate::client::stream::IncomingStreamRequestFilter;
@@ -1268,6 +1279,7 @@ pub(crate) mod test {
         let (created_send, created_recv) = oneshot::channel();
         let (_circmsg_send, circmsg_recv) = fake_mpsc(64);
         let unique_id = UniqId::new(23, 17);
+        let (padding_ctrl, padding_stream) = new_padding(DynTimeProvider::new(rt.clone()));
 
         let (pending, reactor) = PendingClientTunnel::new(
             circid,
@@ -1277,6 +1289,8 @@ pub(crate) mod test {
             unique_id,
             DynTimeProvider::new(rt.clone()),
             CircuitAccount::new_noop(),
+            padding_ctrl,
+            padding_stream,
         );
 
         rt.spawn(async {
@@ -1477,6 +1491,7 @@ pub(crate) mod test {
         let circid = CircId::new(128).unwrap();
         let (_created_send, created_recv) = oneshot::channel();
         let (circmsg_send, circmsg_recv) = fake_mpsc(64);
+        let (padding_ctrl, padding_stream) = new_padding(DynTimeProvider::new(rt.clone()));
 
         let (pending, reactor) = PendingClientTunnel::new(
             circid,
@@ -1486,6 +1501,8 @@ pub(crate) mod test {
             unique_id,
             DynTimeProvider::new(rt.clone()),
             CircuitAccount::new_noop(),
+            padding_ctrl,
+            padding_stream,
         );
 
         rt.spawn(async {

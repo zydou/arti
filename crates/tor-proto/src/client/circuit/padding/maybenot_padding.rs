@@ -195,12 +195,13 @@ const MAX_HOPS: usize = 64;
 /// A handle to the padding state of a single circuit.
 ///
 /// Used to tell the padders about events that they need to react to.
-#[derive(Clone)]
+#[derive(Clone, derive_more::Debug)]
 pub(crate) struct PaddingController<S = DynTimeProvider>
 where
     S: SleepProvider,
 {
     /// The underlying shared state.
+    #[debug(skip)]
     shared: Arc<Mutex<PaddingShared<S>>>,
 }
 

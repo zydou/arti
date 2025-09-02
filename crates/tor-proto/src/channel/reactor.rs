@@ -8,7 +8,9 @@
 
 use super::circmap::{CircEnt, CircMap};
 use crate::client::circuit::halfcirc::HalfCirc;
-use crate::client::circuit::padding::QueuedCellPaddingInfo;
+use crate::client::circuit::padding::{
+    PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
+};
 use crate::util::err::ReactorError;
 use crate::util::oneshot_broadcast;
 use crate::{Error, Result};
@@ -18,7 +20,7 @@ use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::{AnyChanCell, CircId, msg::AnyChanMsg};
 use tor_error::debug_report;
 use tor_memquota::mq_queue;
-use tor_rtcompat::SleepProvider;
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 #[cfg_attr(not(target_os = "linux"), allow(unused))]
 use tor_error::error_report;
@@ -58,7 +60,7 @@ pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #[derive(Debug)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
-#[allow(clippy::exhaustive_enums)]
+#[allow(clippy::exhaustive_enums, private_interfaces)]
 pub enum CtrlMsg {
     /// Shut down the reactor.
     Shutdown,
@@ -72,7 +74,12 @@ pub enum CtrlMsg {
         /// Channel to send other messages from this circuit down.
         sender: CircuitRxSender,
         /// Oneshot channel to send the new circuit's identifiers down.
-        tx: ReactorResultChannel<(CircId, crate::circuit::UniqId)>,
+        tx: ReactorResultChannel<(
+            CircId,
+            crate::circuit::UniqId,
+            PaddingController,
+            PaddingEventStream,
+        )>,
     },
     /// Enable/disable/reconfigure channel padding
     ///
@@ -96,7 +103,9 @@ pub enum CtrlMsg {
 /// This type is returned when you finish a channel; you need to spawn a
 /// new task that calls `run()` on it.
 #[must_use = "If you don't call run() on a reactor, the channel won't work."]
-pub struct Reactor<S: SleepProvider> {
+pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
+    /// Underlying runtime we use for generating sleep futures and telling time.
+    pub(super) runtime: S,
     /// A receiver for control messages from `Channel` objects.
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
@@ -162,13 +171,13 @@ impl SpecialOutgoing {
 ///
 /// There is no risk of confusion because no-one would try to print a
 /// Reactor for some other reason.
-impl<S: SleepProvider> fmt::Display for Reactor<S> {
+impl<S: SleepProvider + CoarseTimeProvider> fmt::Display for Reactor<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.unique_id, f)
     }
 }
 
-impl<S: SleepProvider> Reactor<S> {
+impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
     /// Launch the reactor, and run until the channel closes or we
     /// encounter an error.
     ///
@@ -285,10 +294,18 @@ impl<S: SleepProvider> Reactor<S> {
                 let mut rng = rand::rng();
                 let my_unique_id = self.unique_id;
                 let circ_unique_id = self.circ_unique_id_ctx.next(my_unique_id);
+                // TODO/NOTE: This is a very weird place to be calling new_padding, but:
+                //  - we need to do it here or earlier, so we can add it as part of the CircEnt to
+                //    our map.
+                //  - We need to do it at some point where we have a runtime, which implies in a reactor.
+                let (padding_ctrl, padding_stream) = crate::client::circuit::padding::new_padding(
+                    // TODO: avoid using DynTimeProvider at some point, and re-parameterize for efficiency.
+                    DynTimeProvider::new(self.runtime.clone()),
+                );
                 let ret: Result<_> = self
                     .circs
-                    .add_ent(&mut rng, created_sender, sender)
-                    .map(|id| (id, circ_unique_id));
+                    .add_ent(&mut rng, created_sender, sender, padding_ctrl.clone())
+                    .map(|id| (id, circ_unique_id, padding_ctrl, padding_stream));
                 let _ = tx.send(ret); // don't care about other side going away
                 self.update_disused_since();
             }
@@ -371,7 +388,7 @@ impl<S: SleepProvider> Reactor<S> {
             .ok_or_else(|| Error::ChanProto("Relay cell on nonexistent circuit".into()))?;
 
         match &mut *ent {
-            CircEnt::Open { cell_sender: s } => {
+            CircEnt::Open { cell_sender: s, .. } => {
                 // There's an open circuit; we can give it the RELAY cell.
                 if s.send(msg.try_into()?).await.is_err() {
                     drop(ent);
@@ -432,7 +449,9 @@ impl<S: SleepProvider> Reactor<S> {
                     })
             }
             // It's an open circuit: tell it that it got a DESTROY cell.
-            Some(CircEnt::Open { mut cell_sender }) => {
+            Some(CircEnt::Open {
+                mut cell_sender, ..
+            }) => {
                 trace!(channel_id = %self, "Passing destroy to open circuit {}", circid);
                 cell_sender
                     .send(msg.try_into()?)
@@ -522,6 +541,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::{ChannelType, ClosedUnexpectedly, UniqId};
     use crate::client::circuit::CircParameters;
+    use crate::client::circuit::padding::new_padding;
     use crate::fake_mpsc;
     use crate::util::fake_mq;
     use futures::sink::SinkExt;
@@ -529,7 +549,7 @@ pub(crate) mod test {
     use futures::task::SpawnExt;
     use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
-    use tor_rtcompat::{NoOpStreamOpsHandle, Runtime};
+    use tor_rtcompat::{DynTimeProvider, NoOpStreamOpsHandle, Runtime};
 
     pub(crate) type CodecResult = std::result::Result<AnyChanCell, Error>;
 
@@ -743,7 +763,9 @@ pub(crate) mod test {
             use crate::client::circuit::celltypes::ClientCircChanMsg;
             use oneshot_fused_workaround as oneshot;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
+            let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());
+
+            let (padding_ctrl, _padding_stream) = new_padding(DynTimeProvider::new(rt));
 
             let (_circ_stream_7, mut circ_stream_13) = {
                 let (snd1, _rcv1) = oneshot::channel();
@@ -753,13 +775,17 @@ pub(crate) mod test {
                     CircEnt::Opening {
                         create_response_sender: snd1,
                         cell_sender: snd2,
+                        padding_ctrl: padding_ctrl.clone(),
                     },
                 );
 
                 let (snd3, rcv3) = fake_mpsc(64);
                 reactor.circs.put_unchecked(
                     CircId::new(13).unwrap(),
-                    CircEnt::Open { cell_sender: snd3 },
+                    CircEnt::Open {
+                        cell_sender: snd3,
+                        padding_ctrl,
+                    },
                 );
 
                 reactor.circs.put_unchecked(
@@ -833,7 +859,9 @@ pub(crate) mod test {
             use crate::client::circuit::celltypes::*;
             use oneshot_fused_workaround as oneshot;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
+            let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());
+
+            let (padding_ctrl, _padding_stream) = new_padding(DynTimeProvider::new(rt));
 
             let (circ_oneshot_7, mut circ_stream_13) = {
                 let (snd1, rcv1) = oneshot::channel();
@@ -843,13 +871,17 @@ pub(crate) mod test {
                     CircEnt::Opening {
                         create_response_sender: snd1,
                         cell_sender: snd2,
+                        padding_ctrl: padding_ctrl.clone(),
                     },
                 );
 
                 let (snd3, rcv3) = fake_mpsc(64);
                 reactor.circs.put_unchecked(
                     CircId::new(13).unwrap(),
-                    CircEnt::Open { cell_sender: snd3 },
+                    CircEnt::Open {
+                        cell_sender: snd3,
+                        padding_ctrl: padding_ctrl.clone(),
+                    },
                 );
 
                 reactor.circs.put_unchecked(

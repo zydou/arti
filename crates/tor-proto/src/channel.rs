@@ -548,9 +548,10 @@ impl Channel {
         });
 
         // We start disabled; the channel manager will `reconfigure` us soon after creation.
-        let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov, None)?);
+        let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov.clone(), None)?);
 
         let reactor = Reactor {
+            runtime: sleep_prov,
             control: control_rx,
             cells: cell_rx,
             reactor_closed_tx,
@@ -752,7 +753,8 @@ impl Channel {
             sender,
             tx,
         })?;
-        let (id, circ_unique_id) = rx.await.map_err(|_| ChannelClosed)??;
+        let (id, circ_unique_id, padding_ctrl, padding_stream) =
+            rx.await.map_err(|_| ChannelClosed)??;
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
@@ -764,6 +766,8 @@ impl Channel {
             circ_unique_id,
             time_prov,
             memquota,
+            padding_ctrl,
+            padding_stream,
         ))
     }
 
