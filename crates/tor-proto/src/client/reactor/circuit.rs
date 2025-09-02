@@ -1366,10 +1366,12 @@ impl Circuit {
     /// Return the congestion signals for this reactor. This is used by congestion control module.
     ///
     /// Note: This is only async because we need a Context to check the sink for readiness.
+    /// This will register a new waker (or overwrite any existing waker).
     pub(super) async fn congestion_signals(&mut self) -> CongestionSignals {
         futures::future::poll_fn(|cx| -> Poll<CongestionSignals> {
+            let channel_is_ready = self.chan_sender.poll_ready_unpin_bool(cx).unwrap_or(false);
             Poll::Ready(CongestionSignals::new(
-                self.chan_sender.poll_ready_unpin_bool(cx).unwrap_or(false),
+                /* channel_blocked= */ !channel_is_ready,
                 self.chan_sender.n_queued(),
             ))
         })
