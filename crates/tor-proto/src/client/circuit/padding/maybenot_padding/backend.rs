@@ -256,13 +256,13 @@ impl<const N: usize> PadderState<N> {
 /// we just keep track of the one that will expire next.)
 #[derive(Clone, Debug)]
 struct Timer {
-    /// The next time at which any of the padding machines' timer will expire.
+    /// The next time at which any of this padding machines' timer will expire.
     ///
     /// (None means "no timers are set.")
     next_expiration: Option<Instant>,
 
-    /// A [`Waker`] that we must wake whenever `next_expiration` becomes sooner than
-    /// `waker_given_expiration`.
+    /// A [`Waker`] that we must wake whenever `self.next_expiration` becomes sooner than
+    /// our next scheduled wakeup (as passed as an argument to `set_expiration`).
     waker: Waker,
 }
 
@@ -276,7 +276,12 @@ impl Timer {
     }
 
     /// Return the next expiration time, and schedule `waker` to be alerted whenever
-    /// the expiration time becomes earlier than the time until which we've decided to sleep.
+    /// the expiration time becomes earlier than the time at which we've actually decided to sleep
+    /// (passed as an argument to `set_expiration()`).
+    ///
+    /// (There are two separate expiration times at work here because, in higher-level code,
+    /// we combine _all_ the timer expirations for all padding machines on a circuit
+    /// into a single expiration, and track only that expiration.)
     fn get_expiration(&mut self, waker: &Waker) -> Option<Instant> {
         // TODO: Perhaps this should instead return and/or manipulate a sleep future.
         // TODO: Perhaps there should be a shared AtomicWaker?
