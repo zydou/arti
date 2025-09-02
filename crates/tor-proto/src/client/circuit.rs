@@ -43,6 +43,8 @@ pub mod handshake;
 #[cfg(not(feature = "hs-common"))]
 pub(crate) mod handshake;
 
+pub(crate) mod padding;
+
 pub(super) mod path;
 
 use crate::channel::Channel;
