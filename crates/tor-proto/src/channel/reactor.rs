@@ -251,8 +251,17 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 }
             }) => {
                 let (queued, sendable) = ret?;
-                // XXXX circpadding: use _cell_padding_info!
-                let (msg, _cell_padding_info) = queued.ok_or(ReactorError::Shutdown)?;
+                let (msg, cell_padding_info) = queued.ok_or(ReactorError::Shutdown)?;
+                // Tell the relevant circuit padder that this cell is getting flushed.
+                // Note that, technically, it won't go onto the network for a while longer:
+                // it has to go through the TLS buffer, and the kernel TCP buffer.
+                // We've got to live with that.
+                // TODO: conceivably we could defer this even longer, but it would take
+                // some tricky hacking!
+                if let Some(cell_padding_info) = cell_padding_info &&
+                    let Some(circid) = msg.circid() {
+                    self.circs.note_cell_flushed(circid, cell_padding_info);
+                }
                 sendable.send(msg)?;
             }
 

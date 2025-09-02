@@ -3,7 +3,7 @@
 // NOTE: This is a work in progress and I bet I'll refactor it a lot;
 // it needs to stay opaque!
 
-use crate::client::circuit::padding::PaddingController;
+use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
@@ -192,6 +192,16 @@ impl CircMap {
             was_open: !matches!(ent, CircEnt::DestroySent(_)),
             value: ent,
         })
+    }
+
+    /// Inform the relevant circuit's padding subsystem that a given cell has been flushed.
+    pub(super) fn note_cell_flushed(&mut self, id: CircId, info: QueuedCellPaddingInfo) {
+        let padding_ctrl = match self.m.get(&id) {
+            Some(CircEnt::Opening { padding_ctrl, .. }) => padding_ctrl,
+            Some(CircEnt::Open { padding_ctrl, .. }) => padding_ctrl,
+            Some(CircEnt::DestroySent(..)) | None => return,
+        };
+        padding_ctrl.flushed_relay_cell(info);
     }
 
     /// See whether 'id' is an opening circuit.  If so, mark it "open" and
