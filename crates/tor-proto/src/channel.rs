@@ -69,6 +69,7 @@ pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
 use crate::client::circuit::PendingClientTunnel;
+use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::oneshot_broadcast;
@@ -189,6 +190,9 @@ impl ChannelType {
 /// lifetime.
 pub(crate) type ChannelFrame<T> = asynchronous_codec::Framed<T, handler::ChannelCellHandler>;
 
+/// An entry in a channel's queue of cells to be flushed.
+pub(crate) type ChanCellQueueEntry = (AnyChanCell, Option<QueuedCellPaddingInfo>);
+
 /// Helper: Return a new channel frame [ChannelFrame] from an object implementing AsyncRead + AsyncWrite. In the
 /// tor context, it is always a TLS stream.
 ///
@@ -239,7 +243,7 @@ pub struct Channel {
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
-    cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
+    cell_tx: mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>,
 
     /// A receiver that indicates whether the channel is closed.
     ///
@@ -346,7 +350,7 @@ use PaddingControlState as PCS;
 #[derive(Debug)]
 pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
-    cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
+    cell_tx: mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>,
     /// A receiver used to check if the channel is closed.
     reactor_closed_rx: oneshot_broadcast::Receiver<Result<CloseInfo>>,
     /// Unique ID for this channel. For logging.
@@ -383,7 +387,7 @@ impl ChannelSender {
     }
 }
 
-impl Sink<AnyChanCell> for ChannelSender {
+impl Sink<ChanCellQueueEntry> for ChannelSender {
     type Error = Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -393,21 +397,21 @@ impl Sink<AnyChanCell> for ChannelSender {
             .map_err(|_| ChannelClosed.into())
     }
 
-    fn start_send(self: Pin<&mut Self>, cell: AnyChanCell) -> Result<()> {
+    fn start_send(self: Pin<&mut Self>, cell: ChanCellQueueEntry) -> Result<()> {
         let this = self.get_mut();
         if this.reactor_closed_rx.is_ready() {
             return Err(ChannelClosed.into());
         }
-        this.check_cell(&cell)?;
+        this.check_cell(&cell.0)?;
         {
             use tor_cell::chancell::msg::AnyChanMsg::*;
-            match cell.msg() {
+            match cell.0.msg() {
                 Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
                 _ => trace!(
                     channel_id = %this.unique_id,
                     "Sending {} for {}",
-                    cell.msg().cmd(),
-                    CircId::get_or_zero(cell.circid())
+                    cell.0.msg().cmd(),
+                    CircId::get_or_zero(cell.0.circid())
                 ),
             }
         }
@@ -918,8 +922,8 @@ fn fake_channel_details() -> Arc<ChannelDetails> {
 /// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
 #[cfg(any(test, feature = "testing"))] // Used by Channel::new_fake which is also feature=testing
 pub(crate) fn fake_mpsc() -> (
-    mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
-    mq_queue::Receiver<AnyChanCell, mq_queue::MpscSpec>,
+    mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>,
+    mq_queue::Receiver<ChanCellQueueEntry, mq_queue::MpscSpec>,
 ) {
     crate::fake_mpsc(CHANNEL_BUFFER_SIZE)
 }

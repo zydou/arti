@@ -8,6 +8,7 @@
 
 use super::circmap::{CircEnt, CircMap};
 use crate::client::circuit::halfcirc::HalfCirc;
+use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use crate::util::err::ReactorError;
 use crate::util::oneshot_broadcast;
 use crate::{Error, Result};
@@ -104,7 +105,8 @@ pub struct Reactor<S: SleepProvider> {
     /// A receiver for cells to be sent on this reactor's sink.
     ///
     /// `Channel` objects have a sender that can send cells here.
-    pub(super) cells: mq_queue::Receiver<AnyChanCell, mq_queue::MpscSpec>,
+    pub(super) cells:
+        mq_queue::Receiver<(AnyChanCell, Option<QueuedCellPaddingInfo>), mq_queue::MpscSpec>,
     /// A Stream from which we can read `ChanCell`s.
     ///
     /// This should be backed by a TLS connection if you want it to be secure.
@@ -209,7 +211,7 @@ impl<S: SleepProvider> Reactor<S> {
                     // See reasoning below.
                     // eprintln!("PADDING - SENDING NEOGIATION: {:?}", &l);
                     self.padding_timer.as_mut().note_cell_sent();
-                    return Some(l)
+                    return Some((l, None));
                 }
 
                 select_biased! {
@@ -235,12 +237,13 @@ impl<S: SleepProvider> Reactor<S> {
                     },
                     p = self.padding_timer.as_mut().next() => {
                         // eprintln!("PADDING - SENDING PADDING: {:?}", &p);
-                        Some(p.into())
+                        Some((p.into(), None))
                     },
                 }
             }) => {
-                let (msg, sendable) = ret?;
-                let msg = msg.ok_or(ReactorError::Shutdown)?;
+                let (queued, sendable) = ret?;
+                // XXXX circpadding: use _cell_padding_info!
+                let (msg, _cell_padding_info) = queued.ok_or(ReactorError::Shutdown)?;
                 sendable.send(msg)?;
             }
 

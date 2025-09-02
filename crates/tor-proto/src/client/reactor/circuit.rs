@@ -4,12 +4,13 @@ pub(crate) mod circhop;
 pub(super) mod create;
 pub(super) mod extender;
 
-use crate::channel::{Channel, ChannelSender};
+use crate::channel::{ChanCellQueueEntry, Channel, ChannelSender};
 use crate::circuit::UniqId;
 use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 #[cfg(feature = "counter-galois-onion")]
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
+use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::MetaCellDisposition;
@@ -110,7 +111,7 @@ pub(crate) struct Circuit {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    pub(super) chan_sender: SometimesUnboundedSink<AnyChanCell, ChannelSender>,
+    pub(super) chan_sender: SometimesUnboundedSink<ChanCellQueueEntry, ChannelSender>,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
     ///
@@ -454,7 +455,8 @@ impl Circuit {
             circhop.ccontrol_mut().note_data_sent(&runtime, &tag)?;
         }
 
-        self.send_msg(msg).await?;
+        // XXXX circpadding: Provide real padding information.
+        self.send_msg(msg, None).await?;
 
         #[cfg(feature = "conflux")]
         if let Some(conflux) = self.conflux_handler.as_mut() {
@@ -1037,7 +1039,7 @@ impl Circuit {
             create = %create_cell.cmd(),
             "Extending to hop 1",
         );
-        self.send_msg(create_cell).await?;
+        self.send_msg(create_cell, None).await?;
 
         let reply = recvcreated
             .await
@@ -1337,10 +1339,17 @@ impl Circuit {
     /// check whether the channel is ready to receive messages (`self.channel.poll_ready`), and
     /// ideally use this to implement backpressure (such that you do not read from other sources
     /// that would send here while you know you're unable to forward the messages on).
-    async fn send_msg(&mut self, msg: AnyChanMsg) -> Result<()> {
+    async fn send_msg(
+        &mut self,
+        msg: AnyChanMsg,
+        info: Option<QueuedCellPaddingInfo>,
+    ) -> Result<()> {
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
         // Note: this future is always `Ready`, so await won't block.
-        Pin::new(&mut self.chan_sender).send_unbounded(cell).await?;
+        // XXXX circpadding: we ought to know the hop here, so we can pass it in!
+        Pin::new(&mut self.chan_sender)
+            .send_unbounded((cell, info))
+            .await?;
         Ok(())
     }
 
