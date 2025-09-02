@@ -14,6 +14,7 @@
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
 use super::*;
+use anyhow::Context as _;
 use testresult::TestResult;
 
 fn default<T: Default>() -> T {
@@ -46,6 +47,15 @@ struct Top {
 struct Sub1 {
     sub1_intro: (),
     sub1_field: Option<(String,)>,
+    #[deftly(netdoc(flatten))]
+    flatten: Flat1,
+}
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(NetdocParseableFields)]
+struct Flat1 {
+    flat_needed: (String,),
+    flat_optional: Option<(String,)>,
+    flat_several: Vec<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocParseable)]
@@ -79,12 +89,12 @@ where
     D: NetdocParseable + Debug + PartialEq,
 {
     if exp.len() == 1 {
-        let got = parse_netdoc::<D>(doc, "<literal>")?;
-        assert_eq!(got, exp[0]);
+        let got = parse_netdoc::<D>(doc, "<literal>").context(doc.to_owned())?;
+        assert_eq!(got, exp[0], "doc={doc}");
     }
 
     let got = parse_netdoc_multiple::<D>(doc, "<literal>")?;
-    assert_eq!(got, exp);
+    assert_eq!(got, exp, "doc={doc}");
     Ok(())
 }
 
@@ -94,9 +104,9 @@ where
     D: NetdocParseable + Debug,
 {
     let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
-    assert_eq!(got.lno, exp_lno);
+    assert_eq!(got.lno, exp_lno, "doc={doc}");
     let got_err = got.problem.to_string();
-    assert_eq!(got_err, exp_err);
+    assert_eq!(got_err, exp_err, "doc={doc}");
     Ok(())
 }
 
@@ -140,13 +150,23 @@ fn various() -> TestResult<()> {
     let val = |s: &str| (s.to_owned(),);
     let sval = |s: &str| Some(val(s));
 
+    let sub1_minimal = Sub1 {
+        flatten: Flat1 {
+            flat_needed: val("FN"),
+            ..default()
+        },
+        ..default()
+    };
+
     t_ok(
         r#"top-intro
 needed N
 sub1-intro
+flat-needed FN
 "#,
         &[Top {
             needed: val("N"),
+            sub1: sub1_minimal.clone(),
             ..default()
         }],
     )?;
@@ -155,6 +175,7 @@ sub1-intro
         r#"top-intro
 needed N
 sub1-intro
+flat-needed FN
 sub2-intro
 subsub-intro
 sub3-intro
@@ -163,6 +184,7 @@ sub4-intro
 "#,
         &[Top {
             needed: val("N"),
+            sub1: sub1_minimal.clone(),
             sub2: Some(default()),
             sub3: vec![default(); 2],
             ..default()
@@ -178,7 +200,11 @@ several 2
 defaulted D
 renamed R
 sub1-intro
+flat-several FS1
+flat-needed FN
 sub1-field A
+flat-optional FO
+flat-several FS2
 sub2-intro
 sub2-field B
 subsub-intro
@@ -192,12 +218,17 @@ sub4-field D
 "#,
         &[Top {
             needed: val("N"),
-            optional: Some(val("O")),
+            optional: sval("O"),
             several: ["1", "2"].map(val).into(),
             defaulted: val("D"),
             t4_renamed: sval("R"),
             sub1: Sub1 {
                 sub1_field: sval("A"),
+                flatten: Flat1 {
+                    flat_needed: val("FN"),
+                    flat_optional: sval("FO"),
+                    flat_several: ["FS1", "FS2"].map(val).into(),
+                },
                 ..default()
             },
             sub2: Some(Sub2 {
@@ -238,6 +269,14 @@ sub4-intro # missing item needed
     t_err::<Top>(
         r#"top-intro
 sub1-intro
+sub4-intro # missing item flat-needed
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+sub1-intro
+flat-needed FN
 sub4-intro # missing item needed
 "#,
     )?;
@@ -254,7 +293,9 @@ sub4-intro # missing item sub1-intro
         r#"top-intro
 needed N
 sub1-intro
+flat-needed FN1
 sub1-intro # item repeated when not allowed
+flat-needed FN2
 "#,
     )?;
 

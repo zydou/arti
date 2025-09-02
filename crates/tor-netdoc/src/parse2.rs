@@ -10,6 +10,13 @@
 //! Its parser will also be told other of structural items that it should not consume.
 //! The structural lines can then be used to pass control to the appropriate parser.
 //!
+//! A "structural item" is a netdoc item that is defines the structure of the document.
+//! This includes the intro items for whole documents,
+//! the items that introduce document sections
+//! (which we model by treating the section as a sub-document)
+//! and signature items (which introduce the signatures at the end of the document,
+//! and after which no non-signature items may appear).
+//!
 //! # Ordering
 //!
 //! We don't parse things into a sorted order.
@@ -117,7 +124,10 @@ pub use signatures::{
     SignatureHashInputs, SignatureItemParseable, check_validity_time, sig_hash_methods,
 };
 pub use structural::{StopAt, StopPredicate};
-pub use traits::{ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable};
+pub use traits::{
+    ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable,
+    NetdocParseableFields,
+};
 
 #[doc(hidden)]
 pub use derive::netdoc_parseable_derive_debug;

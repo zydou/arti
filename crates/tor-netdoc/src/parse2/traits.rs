@@ -33,6 +33,33 @@ pub trait NetdocParseable: Sized {
     fn from_items(input: &mut ItemStream<'_>, stop_at: stop_at!()) -> Result<Self, ErrorProblem>;
 }
 
+/// A collection of fields that can be parsed within a section
+///
+/// None of the items can be structural.
+///
+/// Normally [derived](derive_deftly_template_NetdocParseableFields).
+pub trait NetdocParseableFields: Sized {
+    /// The partially-parsed set of items.
+    type Accumulator: Sized + Debug + Send + Sync + 'static;
+
+    /// Is this one of the keywords in this struct
+    fn is_item_keyword(kw: KeywordRef<'_>) -> bool;
+
+    /// Accumulate an item in this struct
+    ///
+    /// # Panics
+    ///
+    /// The caller must have first checked the `item`'s keyword with `is_item_keyword`.
+    /// If this *isn't* an item for this structure, may panic.
+    fn accumulate_item(acc: &mut Self::Accumulator, item: UnparsedItem<'_>) -> Result<(), EP>;
+
+    /// Finish
+    ///
+    /// Resolves the `Accumulator` into the output type.
+    /// Generally, this means throwing an error if expected fields were not present.
+    fn finish(acc: Self::Accumulator) -> Result<Self, EP>;
+}
+
 /// A network document with (unverified) signatures
 ///
 /// Typically implemented automatically, for `FooSigned` structs, as defined by

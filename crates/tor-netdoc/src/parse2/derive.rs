@@ -135,6 +135,14 @@ define_derive_deftly! {
     ///   With `netdoc(default)`, the field value doesn't need unwrapping.
     ///   With `Option` it is possible to see if the field was provided.
     ///
+    /// * **`#[deftly(netdoc(flatten))]`**:
+    ///
+    ///   This field is a struct containing further individual normal fields.
+    ///   The Items for those individual fields can appear in *this*
+    ///   outer document in any order, interspersed with other normal fields.
+    ///
+    ///   The field type must implement [`NetdocParseableFields`].
+    ///
     /// * **`#[deftly(netdoc(subdoc))]`**:
     ///
     ///   This field is a sub-document.
@@ -214,15 +222,16 @@ define_derive_deftly! {
 
     // Predicates for the field kinds
     ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
+    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
-    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_SUBDOC))}
+    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
 
     // Field keyword as `&str`
     ${define F_KEYWORD_STR { ${concat
-        ${if F_SUBDOC {
-            // Sub-documents have their own keywords; if we ask for the field-based
-            // keyword name of a sub-document, then that's a bug.
+        ${if any(F_FLATTEN, F_SUBDOC) {
+            // Sub-documents and flattened fields have their keywords inside;
+            // if we ask for the field-based keyword name for one of those then that's a bug.
             ${error "internal error, subdoc KeywordRef"}
         }}
         ${fmeta(netdoc(keyword)) as str,
@@ -279,6 +288,7 @@ define_derive_deftly! {
                     ${select1
                       F_INTRO     { intro     }
                       F_NORMAL    { normal    }
+                      F_FLATTEN   { normal    }
                       F_SUBDOC    { subdoc    }
                     }
                     $fname
@@ -301,7 +311,7 @@ define_derive_deftly! {
             //----- prepare item set selectors for every field -----
 
           $(
-            ${when not(F_INTRO)}
+            ${when not(any(F_INTRO, F_FLATTEN))}
 
             // See `mod multiplicity`.
             let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
@@ -384,6 +394,10 @@ define_derive_deftly! {
             }
             let $fpatname: $ftype = <$ftype as ItemValueParseable>::from_unparsed(item)?;
 
+          } F_FLATTEN {
+
+            let mut $fpatname = <$ftype as NetdocParseableFields>::Accumulator::default();
+
           } else {
 
             let mut $fpatname: Option<$F_EFFECTIVE_TYPE> = None;
@@ -400,7 +414,7 @@ define_derive_deftly! {
                     break;
                 };
               ${for fields {
-                ${when not(F_SUBDOC)}
+                ${when not(any(F_FLATTEN, F_SUBDOC))}
 
                 if kw == $F_KEYWORD {
                   ${select1
@@ -428,6 +442,15 @@ define_derive_deftly! {
                   }
                 } else
               }}
+              ${for fields {
+                ${when F_FLATTEN}
+
+                if $ftype::is_item_keyword(kw) {
+                    dtrace!(${concat "is flatten in " $fname}, kw);
+                    let item = $THIS_ITEM;
+                    $ftype::accumulate_item(&mut $fpatname, item)?;
+                } else
+              }}
                 {
                     dtrace!("is unknown (in normal)");
                     let _: UnparsedItem = $THIS_ITEM;
@@ -450,6 +473,8 @@ define_derive_deftly! {
                     break;
                 };
 
+                $<selector_ $fname>.can_accumulate(&mut $fpatname)?;
+
                 dtrace!("is this subdoc", kw);
                 let item = NetdocParseable::from_items(input, inner_stop);
                 dtrace!("parsed this subdoc", item.as_ref().map(|_| ()));
@@ -462,14 +487,19 @@ define_derive_deftly! {
             // Resolve all the fields
             dtrace!("reached end, resolving");
 
-          $(
-            ${when not(any(F_INTRO, F_SUBDOC))}
-            let $fpatname = $<selector_ $fname>.finish($fpatname, $F_KEYWORD_REPORT)?;
-          )
-          $(
-            ${when F_SUBDOC}
-            let $fpatname = $<selector_ $fname>.finish_subdoc($fpatname)?;
-          )
+          ${for fields {
+            ${select1
+              F_INTRO {}
+              any(F_NORMAL, F_SIGNATURE) {
+                  let $fpatname = $<selector_ $fname>.finish($fpatname, $F_KEYWORD_REPORT)?;
+              }
+              F_FLATTEN {
+                  let $fpatname = <$ftype as NetdocParseableFields>::finish($fpatname)?;
+              }
+              F_SUBDOC {
+                  let $fpatname = $<selector_ $fname>.finish_subdoc($fpatname)?;
+              }
+          }}}
           $(
             ${when not(F_INTRO)}
           ${if fmeta(netdoc(default)) {
@@ -480,6 +510,94 @@ define_derive_deftly! {
             let r = $vpat;
 
             Ok(r)
+        }
+    }
+}
+
+define_derive_deftly! {
+    /// Derive [`NetdocParseableFields`] for a struct with individual items
+    ///
+    /// Defines a struct `FooNetdocParseAccumulator` to be the
+    /// `NetdocParseableFields::Accumulator`.
+    ///
+    /// Similar to
+    /// [`#[derive_deftly(NetdocParseable)]`](derive_deftly_template_NetdocParseable),
+    /// but:
+    ///
+    ///  * Derives [`NetdocParseableFields`]
+    ///  * The input struct can contain only normal non-structural items
+    ///    (so it's not a sub-document with an intro item).
+    ///  * The only attribute supported is the field attribute
+    ///    `#[deftly(netdoc(keyword = STR))]`
+    export NetdocParseableFields for struct , expect items, beta_deftly:
+
+    // TODO deduplicate with copy in NetdocParseableafter after rust-derive-deftly#39
+
+    // Convenience alias for our prelude
+    ${define P { $crate::parse2::internal_prelude }}
+
+    // The effective field type for parsing.
+    //
+    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
+    // and substitute in the default at the end.
+    //
+    ${define F_EFFECTIVE_TYPE {
+        ${if all(fmeta(netdoc(default)), not(F_INTRO)) {
+            Option::<$ftype>
+        } else {
+            $ftype
+        }}
+    }}
+    ${define F_ITEM_SET_SELECTOR {
+        ItemSetSelector::<$F_EFFECTIVE_TYPE>::default()
+    }}
+
+    // NOTE! These keyword defines are simpler than the ones for NetdocParseable.
+    // Care must be taken if they are deduplicated as noted above.
+    // Field keyword as `&str`
+    ${define F_KEYWORD_STR { ${concat
+        ${fmeta(netdoc(keyword)) as str,
+          default ${kebab_case $fname}}
+    }}}
+    // Field keyword as `KeywordRef`
+    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
+
+    #[derive(Default, Debug)]
+    $tvis struct $<$tname NetdocParseAccumulator><$tdefgens> { $(
+        $fname: Option<$F_EFFECTIVE_TYPE>,
+    ) }
+
+    impl<$tgens> $P::NetdocParseableFields for $ttype {
+        type Accumulator = $<$ttype NetdocParseAccumulator>;
+
+        fn is_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
+          ${for fields {
+            kw == $F_KEYWORD ||
+          }}
+            false
+        }
+
+        fn accumulate_item(
+            acc: &mut Self::Accumulator,
+            item: $P::UnparsedItem<'_>,
+        ) -> Result<(), $P::ErrorProblem> {
+          $(
+            if item.keyword() == $F_KEYWORD {
+                let item = ItemValueParseable::from_unparsed(item)?;
+                $F_ITEM_SET_SELECTOR.accumulate(&mut acc.$fname, item)
+            } else
+          )
+            {
+                panic!("accumulate_item called though is_intro_item_keyword returns false");
+            }
+        }
+
+        fn finish(acc: Self::Accumulator) -> Result<Self, $P::ErrorProblem> {
+            Ok($tname {
+              $(
+                $fname: $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?,
+              )
+            })
         }
     }
 }
@@ -520,7 +638,7 @@ define_derive_deftly! {
     //
     // We don't make this a generic struct because the defining module (crate)
     // will want to add verification methods, which means they must define the struct.
-    export NetdocSigned expect items, beta_deftly:
+    export NetdocSigned for struct, expect items, beta_deftly:
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}

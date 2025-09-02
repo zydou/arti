@@ -36,7 +36,10 @@ pub use super::{
         SignatureHashInputs, SignatureItemParseable, SignedDocumentBody, sig_hash_methods,
     },
     structural::{StopAt, StopPredicate},
-    traits::{ItemArgumentParseable, ItemValueParseable, NetdocParseable, NetdocSigned},
+    traits::{
+        ItemArgumentParseable, ItemValueParseable, NetdocParseable, NetdocParseableFields,
+        NetdocSigned,
+    },
 };
 pub use crate::{netdoc_ordering_check, stop_at};
 
