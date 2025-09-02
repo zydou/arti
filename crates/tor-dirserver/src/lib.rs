@@ -44,7 +44,7 @@
 #![allow(mismatched_lifetime_syntaxes)] // temporary workaround for arti#2060
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-// TODO: Remove this before release.
+// TODO DIRMIRROR: Remove this before release.
 #![allow(dead_code)]
 
 pub mod err;

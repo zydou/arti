@@ -177,6 +177,7 @@ pub(crate) fn prepare_db(conn: &mut Connection) -> Result<(), DatabaseError> {
 ///
 /// Always returns database schema version.
 fn init_db(conn: &mut Connection) -> Result<String, DatabaseError> {
+    // TODO DIRMIRROR: The error handling here is quite poor.
     let version: Option<String> = conn
         .query_one(
             "SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1",

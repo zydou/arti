@@ -65,6 +65,8 @@ use crate::{
 /// Changes to the database within the [`Transaction`] will (for now) get rolled
 /// back, thereby giving the endpoint functions just read-only access to the
 /// database.
+///
+/// TODO DIRMIRROR: Document the responsibilities here.
 type EndpointFn = fn(
     &Transaction,
     &Request<Incoming>,
@@ -95,6 +97,8 @@ struct DocumentBody(VecDeque<Arc<[u8]>>);
 
 /// Representation of an endpoint, uniquely identified by a [`Method`] and path
 /// pair followed by an appropriate [`EndpointFn`].
+///
+/// TODO: Replace the [`Vec`] with a [`str`] and do splitting in the core code.
 type Endpoint = (Method, Vec<&'static str>, EndpointFn);
 
 /// Representation of the core HTTP server.
@@ -104,6 +108,10 @@ pub(crate) struct HttpServer {
 }
 
 /// A builder for [`HttpServer`].
+///
+/// TODO DIRMIRROR: Get rid of this structure and just access the stuff in
+/// [`HttpServer`] directly, which is fine given that this is an internal module
+/// anyways.
 #[derive(Default)]
 pub(crate) struct HttpServerBuilder {
     /// The [`Pool`] from deapool to manage database connections.
@@ -210,6 +218,7 @@ impl HttpServer {
                     }
 
                     // This should not happen due to ownership.
+                    // TODO DIRMIRROR: Replace this with an error by all means.
                     None => unreachable!("listener was closed externally?"),
                 },
 
@@ -316,6 +325,8 @@ impl HttpServer {
     ///    to store the document ref
     /// 6. Compose the [`Response`]
     /// 7. Commit or drop the transaction, based on the [`Method`]
+    ///
+    /// TODO DIRMIRROR: Implement [`Method::HEAD`].
     fn handler_tx(
         mut cache: StoreCache,
         endpoints: &[Endpoint],
@@ -409,6 +420,7 @@ impl HttpServer {
                 header::CONTENT_ENCODING,
                 // The use of unwrap is okay because the possible values are
                 // known at compile-time to make up valid header values.
+                // TODO DIRMIRROR: Statically assert this.
                 #[allow(clippy::unwrap_used)]
                 encoding.to_string().try_into().unwrap(),
             );
@@ -600,6 +612,7 @@ impl HttpServer {
 
     /// Generates an empty response with a given [`StatusCode`].
     fn empty_response(status: StatusCode) -> Response<DocumentBody> {
+        // TODO DIRMIRROR: Statically assert that.
         #[allow(clippy::unwrap_used)]
         Response::builder()
             .status(status)

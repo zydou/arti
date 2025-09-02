@@ -1,4 +1,6 @@
 //! Error module for `tor-dirserver`
+//!
+//! TODO DIRMIRROR: The way on how we structure errors needs further discussion.
 
 #[allow(unused_imports)]
 use deadpool::managed::Pool;
