@@ -13,7 +13,6 @@ pub(crate) type Sha256 = String;
 
 /// Version 1 of the database schema.
 const V1_SCHEMA: &str = "
-PRAGMA foreign_keys=ON;
 PRAGMA journal_mode=WAL;
 
 BEGIN TRANSACTION;
@@ -161,7 +160,12 @@ COMMIT;
 
 /// Prepares a database for operation that is, initializing and upgrading it
 /// if neccessary.
+///
+/// This function also enables the `PRAGMA foreign_keys=ON` because it is,
+/// unfortuantely, connection specific.
 pub(crate) fn prepare_db(conn: &mut Connection) -> Result<(), DatabaseError> {
+    conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+
     let schema_version = init_db(conn)?;
     match schema_version.as_str() {
         "1" => Ok(()),
