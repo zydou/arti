@@ -22,7 +22,7 @@ pub enum BuilderError {
 /// An error while interacting with the database.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum DatabaseError {
+pub(crate) enum DatabaseError {
     /// The interaction with the [`Pool`] object returned from [`Pool::get()`]
     /// failed, meaning we were unable to interact with the low-level SQLite
     /// database.
@@ -54,7 +54,7 @@ pub enum DatabaseError {
 /// An error related around the HTTP protocol.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum HttpError {
+pub(crate) enum HttpError {
     /// The `Content-Encoding` and/or `Accept-Encoding` header are (partially)
     /// invalid.
     #[error("invalid encoding: {0}")]
