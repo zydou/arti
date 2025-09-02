@@ -5,14 +5,15 @@
 
 #[allow(unused_imports)]
 use std::pin::Pin;
+use strum::EnumString;
 #[allow(unused_imports)]
 use tokio::sync::RwLock;
 
 use std::{
     collections::VecDeque,
     convert::Infallible,
-    fmt::{Display, Formatter},
     panic::{catch_unwind, AssertUnwindSafe},
+    str::FromStr,
     sync::{Arc, Mutex, Weak},
     task::{Context, Poll},
     time::Duration,
@@ -40,7 +41,7 @@ use tracing::warn;
 use weak_table::WeakValueHashMap;
 
 use crate::{
-    err::{BuilderError, DatabaseError, HttpError, StoreCacheError},
+    err::{BuilderError, DatabaseError, StoreCacheError},
     schema::Sha256,
 };
 
@@ -70,7 +71,8 @@ type EndpointFn = fn(
 ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>;
 
 /// Representation of the encoding of the network document the client has requested.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, strum::Display)]
+#[strum(serialize_all = "kebab-case", ascii_case_insensitive)]
 enum ContentEncoding {
     /// RFC2616 section 3.5.
     Identity,
@@ -133,34 +135,6 @@ pub(crate) struct StoreCache {
     /// that a concurrent cache miss does not lead into two simultanous database
     /// reads and copies into memory.
     data: Arc<Mutex<WeakValueHashMap<Sha256, Weak<[u8]>>>>,
-}
-
-impl TryFrom<&str> for ContentEncoding {
-    type Error = HttpError;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let value = value.to_lowercase();
-        match value.as_ref() {
-            "identity" => Ok(Self::Identity),
-            "deflate" => Ok(Self::Deflate),
-            "gzip" => Ok(Self::Gzip),
-            "x-zstd" => Ok(Self::XZstd),
-            "x-tor-lzma" => Ok(Self::XTorLzma),
-            unknown => Err(HttpError::InvalidEncoding(unknown.to_string())),
-        }
-    }
-}
-
-impl Display for ContentEncoding {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::Identity => "identity",
-            Self::Deflate => "deflate",
-            Self::Gzip => "gzip",
-            Self::XZstd => "x-zstd",
-            Self::XTorLzma => "x-tor-lzma",
-        };
-        write!(f, "{s}")
-    }
 }
 
 impl Body for DocumentBody {
@@ -481,7 +455,7 @@ impl HttpServer {
                 .to_str()
                 .unwrap_or("")
                 .split(",")
-                .filter_map(|encoding| ContentEncoding::try_from(encoding.trim()).ok())
+                .filter_map(|encoding| ContentEncoding::from_str(encoding.trim()).ok())
                 .collect::<Vec<_>>();
 
             if z_suffix {
@@ -764,7 +738,10 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    use std::io::{Cursor, Write};
+    use std::{
+        io::{Cursor, Write},
+        str::FromStr,
+    };
 
     use deadpool_sqlite::Config;
     use flate2::{
@@ -881,6 +858,38 @@ mod test {
                 params![identity_sha256, deflate_sha256, gzip_sha256, xz_std_sha256, x_tor_lzma_sha256]).unwrap();
 
         tx.commit().unwrap();
+    }
+
+    #[test]
+    fn content_encoding() {
+        assert_eq!(ContentEncoding::Identity.to_string(), "identity");
+        assert_eq!(
+            ContentEncoding::from_str("identity").unwrap(),
+            ContentEncoding::Identity
+        );
+
+        assert_eq!(ContentEncoding::Deflate.to_string(), "deflate");
+        assert_eq!(
+            ContentEncoding::from_str("DeFlaTe").unwrap(),
+            ContentEncoding::Deflate
+        );
+
+        assert_eq!(ContentEncoding::Gzip.to_string(), "gzip");
+        assert_eq!(
+            ContentEncoding::from_str("GzIP").unwrap(),
+            ContentEncoding::Gzip
+        );
+        assert_eq!(ContentEncoding::XZstd.to_string(), "x-zstd");
+        assert_eq!(
+            ContentEncoding::from_str("x-zStD").unwrap(),
+            ContentEncoding::XZstd
+        );
+
+        assert_eq!(ContentEncoding::XTorLzma.to_string(), "x-tor-lzma");
+        assert_eq!(
+            ContentEncoding::from_str("x-tOr-lzMa").unwrap(),
+            ContentEncoding::XTorLzma
+        );
     }
 
     #[test]
