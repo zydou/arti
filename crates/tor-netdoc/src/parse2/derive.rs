@@ -29,7 +29,7 @@ macro_rules! netdoc_ordering_check {
     { <=? subdoc    subdoc     $f1:ident } => {};
     // Not in the allowed list, must be an error:
     { <=? $k0:ident $k1:ident  $f1:ident } => {
-        compile_error(concat!(
+        compile_error!(concat!(
             "in netdoc, ", stringify!($k1)," field ", stringify!($f1),
             " may not come after ", stringify!($k0),
         ));
