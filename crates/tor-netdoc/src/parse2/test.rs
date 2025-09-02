@@ -69,7 +69,8 @@ struct Flat1 {
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocParseable)]
 struct Sub2 {
-    sub2_intro: (),
+    #[deftly(netdoc(with = "needs_with_intro"))]
+    sub2_intro: NeedsWith,
     sub2_field: Option<(String,)>,
     #[deftly(netdoc(single_arg))]
     arg_needed: String,
@@ -100,6 +101,43 @@ struct SubSub {
     #[deftly(netdoc(single_arg))]
     subsub_intro: String,
     subsub_field: Option<(String,)>,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+struct NeedsWith;
+
+impl NeedsWith {
+    fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, EP> {
+        let field = "in needs with";
+        let got = args.next().ok_or(EP::MissingArgument { field })?;
+        (got == exp)
+            .then_some(NeedsWith)
+            .ok_or(EP::InvalidArgument { field })
+    }
+}
+
+mod needs_with_parse {
+    use super::*;
+    #[allow(dead_code)] // XXXX
+    pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
+        NeedsWith::parse_expecting("normal", item.args_mut())
+    }
+}
+mod needs_with_intro {
+    use super::*;
+    pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
+        NeedsWith::parse_expecting("intro", item.args_mut())
+    }
+}
+mod needs_with_arg {
+    use super::*;
+    #[allow(dead_code)] // XXXX
+    pub(super) fn from_args(
+        args: &mut ArgumentStream,
+        _field: &'static str,
+    ) -> Result<NeedsWith, EP> {
+        NeedsWith::parse_expecting("arg", args)
+    }
 }
 
 fn t_ok<D>(doc: &str, exp: &[D]) -> TestResult<()>
@@ -214,7 +252,7 @@ needed N
 sub1-intro
 flat-needed FN
 flat-arg-needed FAN
-sub2-intro
+sub2-intro intro
 arg-needed AN
 subsub-intro SSI
 sub3-intro
@@ -250,7 +288,7 @@ flat-arg-optional FAO
 flat-arg-several FAS1 ignored
 flat-arg-several FAS2
 flat-arg-defaulted FAD
-sub2-intro
+sub2-intro intro
 sub2-field B
 arg-needed AN
 arg-optional AO
@@ -356,6 +394,20 @@ flat-needed FN1
 flat-arg-needed FAN
 sub1-intro # item repeated when not allowed
 flat-needed FN2
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+needed N
+sub2-intro # missing argument in needs with
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+needed N
+sub2-intro wrong-value # invalid value for argument in needs with
 "#,
     )?;
 
