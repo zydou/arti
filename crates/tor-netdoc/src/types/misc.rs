@@ -15,6 +15,9 @@ pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
 pub(crate) use timeimpl::*;
 
+#[cfg(feature = "parse2")]
+use derive_deftly::Deftly;
+
 pub use nickname::Nickname;
 
 pub use fingerprint::Fingerprint;
@@ -192,6 +195,21 @@ mod ed25519impl {
         }
     }
 }
+
+// ============================================================
+
+/// Ignored part of a network document.
+///
+/// With `parse2`, can be used as an item, argument, object, or even flattened-fields.
+///
+/// If an optional item, argument or object is wanted, use `Option<Ignore>`.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[cfg_attr(
+    feature = "parse2",
+    derive(Deftly),
+    derive_deftly(ItemValueParseable, NetdocParseableFields)
+)]
+pub struct Ignored;
 
 // ============================================================
 

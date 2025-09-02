@@ -91,3 +91,25 @@ pub mod raw_data_object {
         Ok(data)
     }
 }
+
+/// Useful placeholder helper type
+pub(crate) mod ignored {
+    use super::*;
+    use crate::types::Ignored;
+
+    impl FromStr for Ignored {
+        type Err = Void;
+        fn from_str(_s: &str) -> Result<Ignored, Void> {
+            Ok(Ignored)
+        }
+    }
+    impl ItemObjectParseable for Ignored {
+        fn check_label(_label: &str) -> Result<(), ErrorProblem> {
+            // allow any label
+            Ok(())
+        }
+        fn from_bytes(_input: &[u8]) -> Result<Self, ErrorProblem> {
+            Ok(Ignored)
+        }
+    }
+}
