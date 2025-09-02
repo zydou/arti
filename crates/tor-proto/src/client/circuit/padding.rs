@@ -55,6 +55,7 @@ cfg_if::cfg_if! {
 
 pub(crate) use padding_impl::{
     PaddingController, PaddingEventStream, QueuedCellPaddingInfo, SendPadding, StartBlocking,
+    new_padding,
 };
 
 /// An instruction from the padding machine to the circuit.

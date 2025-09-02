@@ -10,7 +10,7 @@ use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 #[cfg(feature = "counter-galois-onion")]
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
-use crate::client::circuit::padding::QueuedCellPaddingInfo;
+use crate::client::circuit::padding::{self, PaddingController, QueuedCellPaddingInfo};
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::MetaCellDisposition;
@@ -138,6 +138,8 @@ pub(crate) struct Circuit {
     /// using [`Reactor::handle_link_circuits`](super::Reactor::handle_link_circuits).
     #[cfg(feature = "conflux")]
     conflux_handler: Option<ConfluxMsgHandler>,
+    /// A padding controller to which padding-related events should be reported.
+    padding_ctrl: PaddingController,
     /// Memory quota account
     #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
     memquota: CircuitAccount,
@@ -233,6 +235,8 @@ impl Circuit {
         mutable: Arc<MutableState>,
     ) -> Self {
         let chan_sender = SometimesUnboundedSink::new(channel.sender());
+        let (padding_ctrl, _padding_stream) = padding::new_padding(runtime.clone());
+        // TODO circpad: Use _padding_stream!
 
         let crypto_out = OutboundClientCrypt::new();
         Circuit {
@@ -248,6 +252,7 @@ impl Circuit {
             mutable,
             #[cfg(feature = "conflux")]
             conflux_handler: None,
+            padding_ctrl,
             memquota,
         }
     }
@@ -455,8 +460,11 @@ impl Circuit {
             circhop.ccontrol_mut().note_data_sent(&runtime, &tag)?;
         }
 
-        // XXXX circpadding: Provide real padding information.
-        self.send_msg(msg, None).await?;
+        // Remember that we've enqueued this cell.
+        // TODO circpad: If this is non-padding cell, we need to call a different method on self.padding_ctrl.
+        let padding_info = self.padding_ctrl.queued_data(hop);
+
+        self.send_msg(msg, padding_info).await?;
 
         #[cfg(feature = "conflux")]
         if let Some(conflux) = self.conflux_handler.as_mut() {
@@ -1333,6 +1341,9 @@ impl Circuit {
     /// If the channel is ready to accept messages, it will be sent immediately. If not, the message
     /// will be enqueued for sending at a later iteration of the reactor loop.
     ///
+    /// `info` is the status returned from the padding controller when we told it we were queueing
+    /// this data.  It should be provided whenever possible.
+    ///
     /// # Note
     ///
     /// Making use of the enqueuing capabilities of this function is discouraged! You should first
@@ -1346,7 +1357,6 @@ impl Circuit {
     ) -> Result<()> {
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
         // Note: this future is always `Ready`, so await won't block.
-        // XXXX circpadding: we ought to know the hop here, so we can pass it in!
         Pin::new(&mut self.chan_sender)
             .send_unbounded((cell, info))
             .await?;

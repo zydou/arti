@@ -541,7 +541,7 @@ impl rand::RngCore for ThisThreadRng {
 /// to parameterize it differently, or maybe even to replace it with something else.)
 //
 // TODO circpad: Decide whether this optimization/flexibility makes any sense.
-pub(super) trait PaddingBackend {
+pub(super) trait PaddingBackend: Send + Sync {
     /// Report one or more TriggerEvents to the padder.
     ///
     /// Alert any registered `Waker` if these events cause us to need to take action
