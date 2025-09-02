@@ -371,7 +371,7 @@ impl<S: SleepProvider> Reactor<S> {
             .ok_or_else(|| Error::ChanProto("Relay cell on nonexistent circuit".into()))?;
 
         match &mut *ent {
-            CircEnt::Open(s) => {
+            CircEnt::Open { cell_sender: s } => {
                 // There's an open circuit; we can give it the RELAY cell.
                 if s.send(msg.try_into()?).await.is_err() {
                     drop(ent);
@@ -380,7 +380,7 @@ impl<S: SleepProvider> Reactor<S> {
                 }
                 Ok(())
             }
-            CircEnt::Opening(_, _) => Err(Error::ChanProto(
+            CircEnt::Opening { .. } => Err(Error::ChanProto(
                 "Relay cell on pending circuit before CREATED* received".into(),
             )),
             CircEnt::DestroySent(hs) => hs.receive_cell(),
@@ -418,9 +418,12 @@ impl<S: SleepProvider> Reactor<S> {
         match entry {
             // If the circuit is waiting for CREATED, tell it that it
             // won't get one.
-            Some(CircEnt::Opening(oneshot, _)) => {
+            Some(CircEnt::Opening {
+                create_response_sender,
+                ..
+            }) => {
                 trace!(channel_id = %self, "Passing destroy to pending circuit {}", circid);
-                oneshot
+                create_response_sender
                     .send(msg.try_into()?)
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
@@ -429,9 +432,10 @@ impl<S: SleepProvider> Reactor<S> {
                     })
             }
             // It's an open circuit: tell it that it got a DESTROY cell.
-            Some(CircEnt::Open(mut sink)) => {
+            Some(CircEnt::Open { mut cell_sender }) => {
                 trace!(channel_id = %self, "Passing destroy to open circuit {}", circid);
-                sink.send(msg.try_into()?)
+                cell_sender
+                    .send(msg.try_into()?)
                     .await
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
@@ -627,7 +631,7 @@ pub(crate) mod test {
             let id = pending.peek_circid();
 
             let ent = reactor.circs.get_mut(id);
-            assert!(matches!(*ent.unwrap(), CircEnt::Opening(_, _)));
+            assert!(matches!(*ent.unwrap(), CircEnt::Opening { .. }));
             assert!(chan.duration_unused().is_none()); // in use
 
             // Now drop the circuit; this should tell the reactor to remove
@@ -667,7 +671,7 @@ pub(crate) mod test {
             let id = pending.peek_circid();
 
             let ent = reactor.circs.get_mut(id);
-            assert!(matches!(*ent.unwrap(), CircEnt::Opening(_, _)));
+            assert!(matches!(*ent.unwrap(), CircEnt::Opening { .. }));
 
             #[allow(clippy::clone_on_copy)]
             let rtc = rt.clone();
@@ -744,14 +748,19 @@ pub(crate) mod test {
             let (_circ_stream_7, mut circ_stream_13) = {
                 let (snd1, _rcv1) = oneshot::channel();
                 let (snd2, rcv2) = fake_mpsc(64);
-                reactor
-                    .circs
-                    .put_unchecked(CircId::new(7).unwrap(), CircEnt::Opening(snd1, snd2));
+                reactor.circs.put_unchecked(
+                    CircId::new(7).unwrap(),
+                    CircEnt::Opening {
+                        create_response_sender: snd1,
+                        cell_sender: snd2,
+                    },
+                );
 
                 let (snd3, rcv3) = fake_mpsc(64);
-                reactor
-                    .circs
-                    .put_unchecked(CircId::new(13).unwrap(), CircEnt::Open(snd3));
+                reactor.circs.put_unchecked(
+                    CircId::new(13).unwrap(),
+                    CircEnt::Open { cell_sender: snd3 },
+                );
 
                 reactor.circs.put_unchecked(
                     CircId::new(23).unwrap(),
@@ -829,14 +838,19 @@ pub(crate) mod test {
             let (circ_oneshot_7, mut circ_stream_13) = {
                 let (snd1, rcv1) = oneshot::channel();
                 let (snd2, _rcv2) = fake_mpsc(64);
-                reactor
-                    .circs
-                    .put_unchecked(CircId::new(7).unwrap(), CircEnt::Opening(snd1, snd2));
+                reactor.circs.put_unchecked(
+                    CircId::new(7).unwrap(),
+                    CircEnt::Opening {
+                        create_response_sender: snd1,
+                        cell_sender: snd2,
+                    },
+                );
 
                 let (snd3, rcv3) = fake_mpsc(64);
-                reactor
-                    .circs
-                    .put_unchecked(CircId::new(13).unwrap(), CircEnt::Open(snd3));
+                reactor.circs.put_unchecked(
+                    CircId::new(13).unwrap(),
+                    CircEnt::Open { cell_sender: snd3 },
+                );
 
                 reactor.circs.put_unchecked(
                     CircId::new(23).unwrap(),

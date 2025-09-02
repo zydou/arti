@@ -60,10 +60,20 @@ pub(super) enum CircEnt {
     ///
     /// Once that's done, the `CircuitRxSender` mpsc sender will be used to send subsequent
     /// cells to the circuit.
-    Opening(oneshot::Sender<CreateResponse>, CircuitRxSender),
+    Opening {
+        /// The oneshot sender on which to report a create response
+        create_response_sender: oneshot::Sender<CreateResponse>,
+        /// A sink which should receive all the relay cells for this circuit
+        /// from this channel
+        cell_sender: CircuitRxSender,
+    },
 
     /// A circuit that is open and can be given relay cells.
-    Open(CircuitRxSender),
+    Open {
+        /// A sink which should receive all the relay cells for this circuit
+        /// from this channel
+        cell_sender: CircuitRxSender,
+    },
 
     /// A circuit where we have sent a DESTROY, but the other end might
     /// not have gotten a DESTROY yet.
@@ -145,7 +155,10 @@ impl CircMap {
         /// TODO: C tor does 64, but that is probably overkill with 4-byte circuit IDs.
         const N_ATTEMPTS: usize = 16;
         let iter = self.range.sample_iter(rng).take(N_ATTEMPTS);
-        let circ_ent = CircEnt::Opening(createdsink, sink);
+        let circ_ent = CircEnt::Opening {
+            create_response_sender: createdsink,
+            cell_sender: sink,
+        };
         for id in iter {
             let ent = self.m.entry(id);
             if let Entry::Vacant(_) = &ent {
@@ -184,10 +197,20 @@ impl CircMap {
         // this. hash_map::Entry seems like it could be better, but
         // there seems to be no way to replace the object in-place as
         // a consuming function of itself.
-        let ok = matches!(self.m.get(&id), Some(CircEnt::Opening(_, _)));
+        let ok = matches!(
+            self.m.get(&id),
+            Some(CircEnt::Opening {
+                create_response_sender: _,
+                cell_sender: _
+            })
+        );
         if ok {
-            if let Some(CircEnt::Opening(oneshot, sink)) = self.m.remove(&id) {
-                self.m.insert(id, CircEnt::Open(sink));
+            if let Some(CircEnt::Opening {
+                create_response_sender: oneshot,
+                cell_sender: sink,
+            }) = self.m.remove(&id)
+            {
+                self.m.insert(id, CircEnt::Open { cell_sender: sink });
                 Ok(oneshot)
             } else {
                 panic!("internal error: inconsistent circuit state");
@@ -270,7 +293,10 @@ mod test {
 
             assert!(matches!(
                 *map_low.get_mut(id_low).unwrap(),
-                CircEnt::Opening(_, _)
+                CircEnt::Opening {
+                    create_response_sender: _,
+                    cell_sender: _
+                }
             ));
 
             let (csnd, _) = oneshot::channel();
@@ -301,13 +327,16 @@ mod test {
         assert!(map_high.get_mut(ids_high[0]).is_some());
         assert!(matches!(
             *map_high.get_mut(ids_high[0]).unwrap(),
-            CircEnt::Opening(_, _)
+            CircEnt::Opening {
+                create_response_sender: _,
+                cell_sender: _
+            }
         ));
         let adv = map_high.advance_from_opening(ids_high[0]);
         assert!(adv.is_ok());
         assert!(matches!(
             *map_high.get_mut(ids_high[0]).unwrap(),
-            CircEnt::Open(_)
+            CircEnt::Open { cell_sender: _ }
         ));
 
         // Can't double-advance.
