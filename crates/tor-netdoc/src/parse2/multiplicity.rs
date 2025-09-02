@@ -106,11 +106,23 @@ pub trait ItemSetMethods: Copy + Sized {
     ///
     /// For providing better error messages when struct fields don't implement the right trait.
     /// See `derive.rs`, and search for this method name.
-    fn check_item_value_parseable(self) where Self::Each: ItemValueParseable {}
+    fn check_item_value_parseable(self)
+    where
+        Self::Each: ItemValueParseable,
+    {
+    }
     /// Check that the element type is a Signature
-    fn check_signature_item_parseable(self) where Self::Each: SignatureItemParseable {}
+    fn check_signature_item_parseable(self)
+    where
+        Self::Each: SignatureItemParseable,
+    {
+    }
     /// Check that the element type is a sub-document
-    fn check_subdoc_parseable(self) where Self::Each: NetdocParseable {}
+    fn check_subdoc_parseable(self)
+    where
+        Self::Each: NetdocParseable,
+    {
+    }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
     type Each = T;

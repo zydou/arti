@@ -323,7 +323,7 @@ define_derive_deftly! {
             // to point to the field name, so that's where the error is reported.
             //
             // Without this, we just get a report that `item` doesn't implement the required
-            // trait - but `item` is a local variable here, so the error points into the macreo.
+            // trait - but `item` is a local variable here, so the error points into the macro
             $<selector_ $fname> . ${paste_spanned $fname ${select1
                     F_NORMAL    { check_item_value_parseable     }
                     F_SIGNATURE { check_signature_item_parseable }
