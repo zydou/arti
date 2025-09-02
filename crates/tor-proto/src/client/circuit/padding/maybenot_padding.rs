@@ -249,7 +249,7 @@ impl BlockingState {
 impl<S: SleepProvider> PaddingController<S> {
     /// Report that we've enqueued a non-padding cell for a given hop.
     pub(crate) fn queued_data(&self, hop: HopNum) {
-        // Every hop up to the final one will see this as normal data.
+        // Every hop up to and including the target hop will see this as normal data.
         self.trigger_events(hop, &[maybenot::TriggerEvent::NormalSent]);
     }
 
@@ -264,7 +264,7 @@ impl<S: SleepProvider> PaddingController<S> {
             hop,
             // Each intermediate hop sees this as normal data.
             &[maybenot::TriggerEvent::NormalSent],
-            // For the final hop, we treat this both as normal, _and_ as padding.
+            // For the target hop, we treat this both as normal, _and_ as padding.
             &[
                 maybenot::TriggerEvent::NormalSent,
                 sendpadding.into_sent_event(),
@@ -279,7 +279,7 @@ impl<S: SleepProvider> PaddingController<S> {
             hop,
             // Each intermediate hop sees this as normal data.
             &[maybenot::TriggerEvent::NormalSent],
-            // The final hop sees this as padding.
+            // The target hop sees this as padding.
             &[sendpadding.into_sent_event()],
         );
     }
@@ -319,7 +319,7 @@ impl<S: SleepProvider> PaddingController<S> {
                 maybenot::TriggerEvent::TunnelRecv,
                 maybenot::TriggerEvent::NormalRecv,
             ],
-            // But from the final hop, it counts as padding.
+            // But from the target hop, it counts as padding.
             &[
                 maybenot::TriggerEvent::TunnelRecv,
                 maybenot::TriggerEvent::PaddingRecv,
@@ -344,6 +344,8 @@ impl<S: SleepProvider> PaddingController<S> {
     /// Trigger `intermediate_hop_events` on every hop up to but _not_ including `hop`.
     ///
     /// Trigger `final_hop_events` on `hop`.
+    ///
+    /// (Don't trigger anything on any hops _after_ `hop`.)
     fn trigger_events_mixed(
         &self,
         hop: HopNum,
