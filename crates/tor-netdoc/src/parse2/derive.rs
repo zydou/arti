@@ -583,8 +583,9 @@ define_derive_deftly! {
         ) -> Result<(), $P::ErrorProblem> {
           $(
             if item.keyword() == $F_KEYWORD {
+                let selector = $F_ITEM_SET_SELECTOR;
                 let item = ItemValueParseable::from_unparsed(item)?;
-                $F_ITEM_SET_SELECTOR.accumulate(&mut acc.$fname, item)
+                selector.accumulate(&mut acc.$fname, item)
             } else
           )
             {
