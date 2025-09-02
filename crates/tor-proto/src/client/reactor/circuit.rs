@@ -547,6 +547,12 @@ impl Circuit {
     ) -> Result<Vec<CircuitCmd>> {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
 
+        if decode_res.is_padding() {
+            self.padding_ctrl.decrypted_padding(hopnum);
+        } else {
+            self.padding_ctrl.decrypted_data(hopnum);
+        }
+
         // Check whether we are allowed to receive more data for this circuit hop.
         self.hop_mut(hopnum)
             .ok_or_else(|| internal!("nonexistent hop {:?}", hopnum))?

@@ -713,7 +713,8 @@ impl Reactor {
             Arc::clone(&mutable),
             padding_ctrl,
         );
-        // TODO circpad: Use this stream!
+        // TODO circpad: Use this stream! (attn gabi wrt where to put it.  Each circuit will have
+        // its own such stream.)
         drop(padding_stream);
 
         let (circuits, mutable) = ConfluxSet::new(tunnel_id, circuit_leg);

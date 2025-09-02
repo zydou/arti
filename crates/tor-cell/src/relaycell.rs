@@ -364,6 +364,17 @@ impl RelayCellDecoderResult {
     pub fn incomplete_info(&self) -> Option<IncompleteRelayMsgInfo> {
         self.incomplete.clone()
     }
+
+    /// Return true if this consists of nothing but padding.
+    pub fn is_padding(&self) -> bool {
+        // If all the messages we have are padding...
+        self.msgs.iter().all(|m| m.cmd() == RelayCmd::DROP) &&
+            // ... and any pending incomplete message is either absent or is padding...
+            self.incomplete
+                .as_ref()
+                .is_none_or(|incomplete| incomplete.cmd() == RelayCmd::DROP)
+        // ... then this is padding.
+    }
 }
 
 /// Information about a relay message for which we don't yet have the complete body.
