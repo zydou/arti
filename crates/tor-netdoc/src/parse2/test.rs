@@ -154,7 +154,7 @@ where
 }
 
 #[test]
-fn various() -> TestResult<()> {
+fn various_docs() -> TestResult<()> {
     let val = |s: &str| (s.to_owned(),);
     let sval = |s: &str| Some(val(s));
 
@@ -304,6 +304,81 @@ sub1-intro
 flat-needed FN1
 sub1-intro # item repeated when not allowed
 flat-needed FN2
+"#,
+    )?;
+
+    Ok(())
+}
+
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(NetdocParseable)]
+struct TopMinimal {
+    test_item0: TestItem0,
+    test_item: Option<TestItem>,
+}
+
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(ItemValueParseable)]
+#[deftly(netdoc(no_extra_args))]
+struct TestItem0 {
+}
+
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(ItemValueParseable)]
+struct TestItem {
+    needed: String,
+}
+
+#[test]
+fn various_items() -> TestResult<()> {
+    let test_item_minimal = TestItem {
+        needed: "N".into(),
+        ..default()
+    };
+
+    t_ok(
+        r#"test-item0
+"#,
+        &[TopMinimal { ..default() }],
+    )?;
+
+    t_ok(
+        r#"test-item0
+test-item N
+"#,
+        &[TopMinimal {
+            test_item: Some(test_item_minimal.clone()),
+            ..default()
+        }],
+    )?;
+
+    t_ok(
+        r#"test-item0
+test-item N
+"#,
+        &[TopMinimal {
+            test_item: Some(TestItem {
+                ..test_item_minimal.clone()
+            }),
+            ..default()
+        }],
+    )?;
+
+    t_ok(
+        r#"test-item0
+test-item N
+"#,
+        &[TopMinimal {
+            test_item0: TestItem0 {},
+            test_item: Some(TestItem {
+                ..test_item_minimal.clone()
+            }),
+            ..default()
+        }],
+    )?;
+
+    t_err::<TopMinimal>(
+        r#"test-item0 wrong # too many arguments
 "#,
     )?;
 
