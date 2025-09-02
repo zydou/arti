@@ -72,7 +72,7 @@ enum PerHopPaddingEvent {
 pub(crate) enum Replace {
     /// The padding can be replaced
     /// either by packaging data in a regular data cell,
-    /// or with data currently queued by not yet sent.
+    /// or with data currently queued but not yet sent.
     Replaceable,
     /// The padding must be queued; it can't be replaced with data.
     NotReplaceable,
@@ -93,12 +93,12 @@ impl Replace {
 /// This is an enum to avoid confusing it with `Release`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Bypass {
-    /// This padding may bypass the padding, if the padding is bypassable.
+    /// This padding may bypass the block, if the block is bypassable.
     ///
     /// Note that this case has complicated interactions with `Replace`; see the
     /// `maybenot` documentation.
     BypassBlocking,
-    /// The padding may not bypass the padding.
+    /// The padding may not bypass the block.
     DoNotBypass,
 }
 
@@ -111,6 +111,7 @@ impl Bypass {
         }
     }
 }
+
 /// An indication that we should send a padding cell.
 ///
 /// Don't drop this: instead, once the cell is queued,
@@ -126,7 +127,7 @@ pub(crate) struct SendPadding {
     /// The hop to which we need to send the padding.
     pub(crate) hop: HopNum,
 
-    /// Whether then this padding can be replaced by regular data.
+    /// Whether this padding can be replaced by regular data.
     pub(crate) replace: Replace,
 
     /// Whether this padding cell should bypass any current blocking.
@@ -392,7 +393,7 @@ impl<S: SleepProvider> PaddingShared<S> {
         self.blocking.set_unblocked(hop_idx);
     }
 
-    /// Transform a [`Pe[rHopPaddingEvent`] for a single hop with index `idx` into a [`PaddingEvent`],
+    /// Transform a [`PerHopPaddingEvent`] for a single hop with index `idx` into a [`PaddingEvent`],
     /// updating our state as appropriate.
     fn process_per_hop_event(
         blocking: &mut BlockingState,

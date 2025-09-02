@@ -79,7 +79,7 @@ struct MachineState {
     /// The current state for the machine's "internal timer".
     ///
     /// Each machine has a single internal timer,
-    /// and manages the timer itself via machine itself via the `UpdateTimer` and `Cancel`
+    /// and manages the timer itself via the `UpdateTimer` and `Cancel`
     /// [`TriggerAction`] variants.
     internal_timer_expires: Option<Instant>,
 
@@ -285,7 +285,7 @@ impl Timer {
     }
 
     /// Change the expiration time to `new_expiration`, alerting the [`Waker`] if that time
-    /// has become earlier than `next_scheduled_wakeup`.
+    /// is earlier than `next_scheduled_wakeup`.
     fn set_expiration(
         &mut self,
         new_expiration: Option<Instant>,

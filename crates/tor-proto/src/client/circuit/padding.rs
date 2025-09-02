@@ -23,7 +23,7 @@
 //!
 //! For each of these cases, the circuit/tunnnel reactor
 //! needs to call an appropriate method on [`PaddingController`]
-//! to inform the each hop's padding machines about the event.
+//! to inform each hop's padding machines about the event.
 //!
 //! See the [`maybenot`] documentation for more information about when,
 //! exactly, each method needs to be invoked.

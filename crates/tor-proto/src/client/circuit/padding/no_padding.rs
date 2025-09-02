@@ -50,9 +50,11 @@ impl<S: SleepProvider> PaddingController<S> {
     }
     /// Report that we've flushed a cell from the queue for the given hop.
     pub(crate) fn flushed_relay_cell(&self, _hop: HopNum) {}
+
     /// Report that we have decrypted a non-padding cell from our queue
     /// from a given hop.
     pub(crate) fn decrypted_data(&self, _hop: HopNum) {}
+
     /// Report that we have decrypted a non-padding cell from our queue.
     //
     // See note above.
