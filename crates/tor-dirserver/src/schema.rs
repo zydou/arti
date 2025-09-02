@@ -113,7 +113,7 @@ CREATE TABLE authority_key_certificate(
 
 -- Content addressable storage, storing all contents.
 CREATE TABLE store(
-    rowid   INTEGER PRIMARY KEY AUTOINCREMENT,
+    rowid   INTEGER PRIMARY KEY AUTOINCREMENT, -- hex uppercase
     sha256  TEXT NOT NULL UNIQUE,
     content BLOB NOT NULL,
     CHECK(LENGTH(sha256) == 64)
