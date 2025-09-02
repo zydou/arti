@@ -475,8 +475,9 @@ impl<const N: usize> MaybenotPadder<N> {
                         } => {
                             let new_expiry = now + duration;
                             if self.blocking.is_none() {
-                                return_events
-                                    .push(PerHopPaddingEvent::StartBlocking { can_bypass: bypass });
+                                return_events.push(PerHopPaddingEvent::StartBlocking {
+                                    is_bypassable: bypass,
+                                });
                             }
                             let replace = match &self.blocking {
                                 None => true,

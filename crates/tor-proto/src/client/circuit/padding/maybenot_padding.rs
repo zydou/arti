@@ -59,7 +59,7 @@ enum PerHopPaddingEvent {
         ///
         /// (Note that this is _not_ a `Bypass`, since that enum notes whether
         /// or not a _padding_ cell can bypass blocking)
-        can_bypass: bool,
+        is_bypassable: bool,
     },
     /// An instruction to stop blocking.
     StopBlocking,
@@ -173,7 +173,7 @@ pub(crate) struct StartBlocking {
     ///
     /// (All traffic can be sent to earlier hops as normal.
     /// No traffic may be sent to later hops.)
-    pub(crate) can_bypass: bool,
+    pub(crate) is_bypassable: bool,
 }
 
 /// Estimated upper bound for the likely number of hops.
@@ -223,9 +223,9 @@ struct BlockingState {
 
 impl BlockingState {
     /// Set the hop at position `idx` to blocked.
-    fn set_blocked(&mut self, idx: usize, can_bypass: bool) {
+    fn set_blocked(&mut self, idx: usize, is_bypassable: bool) {
         self.hop_blocked.set(idx, true);
-        self.blocking_bypassable.set(idx, can_bypass);
+        self.blocking_bypassable.set(idx, is_bypassable);
     }
     /// Set the hop at position `idx` to unblocked.
     fn set_unblocked(&mut self, idx: usize) {
@@ -238,7 +238,7 @@ impl BlockingState {
                 let hop = hopnum_from_hop_idx(hop_idx);
                 PaddingEvent::StartBlocking(StartBlocking {
                     hop,
-                    can_bypass: self.blocking_bypassable[hop_idx],
+                    is_bypassable: self.blocking_bypassable[hop_idx],
                 })
             }
             None => PaddingEvent::StopBlocking,
@@ -414,9 +414,9 @@ impl<S: SleepProvider> PaddingShared<S> {
                 replace,
                 bypass,
             }),
-            PHPE::StartBlocking { can_bypass } => {
-                blocking.set_blocked(hop_idx, can_bypass);
-                // TODO circpad-trafficblock: by design, "can_bypass" only works for the first hop
+            PHPE::StartBlocking { is_bypassable } => {
+                blocking.set_blocked(hop_idx, is_bypassable);
+                // TODO circpad-trafficblock: by design, "is_bypassable" only works for the first hop
                 // that is blocking; Is this as intended?
                 blocking.blocking_update_paddingevent()
             }
