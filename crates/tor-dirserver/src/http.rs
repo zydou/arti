@@ -12,19 +12,16 @@ use std::{
     collections::VecDeque,
     convert::Infallible,
     fmt::{Display, Formatter},
-    future::Future,
-    sync::{Arc, Weak},
+    panic::{catch_unwind, AssertUnwindSafe},
+    sync::{Arc, Mutex, Weak},
     task::{Context, Poll},
     time::Duration,
 };
 
 use bytes::Bytes;
-use deadpool::managed::{Pool, PoolError};
+use deadpool::managed::Pool;
 use deadpool_sqlite::Manager;
-use futures::{
-    future::{self, BoxFuture},
-    Stream, StreamExt,
-};
+use futures::{Stream, StreamExt};
 use http::{header, Method, Request, Response, StatusCode};
 use http_body::{Body, Frame};
 use hyper::{
@@ -33,10 +30,9 @@ use hyper::{
     service::service_fn,
 };
 use hyper_util::rt::TokioIo;
-use rusqlite::params;
+use rusqlite::{params, Transaction};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    sync::Mutex,
     task::JoinSet,
     time,
 };
@@ -44,66 +40,34 @@ use tracing::warn;
 use weak_table::WeakValueHashMap;
 
 use crate::{
-    err::{BuilderError, DatabaseError, HttpError},
+    err::{BuilderError, DatabaseError, HttpError, StoreCacheError},
     schema::Sha256,
 };
 
-/// A type alias for the callback function of endpoints.
+/// A type alias for the functions implementing endpoint logic.
 ///
-/// A callback is an asynchronous function of the following form:
+/// An endpoint function is a function of the following form:
 /// ```rust,ignore
-/// async fn get_consensus(
-///     cache: StoreCache,
-///     pool: Pool<Manager>,
-///     requ: Arc<Request<Incoming>>
-/// ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>
+/// fn get_consensus(
+///     tx: &Transaction<'_>,
+///     requ: &Request<Incoming>
+/// ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>;
 /// ```
 ///
-/// The arguments give the callback access to the [`StoreCache`], the database
-/// and the incoming [`Request`].  The return type is a [`Result`] with an
-/// arbitrary error that implements [`Send`] and gets logged but not returned
-/// to the client, which will just receive an `Internal Server Error` reply.
+/// The arguments give the endpoint function access to fixed state of the
+/// database ([`Transaction`]) and the incoming [`Request`].  The return type is
+/// a [`Result`] with an arbitrary error that implements [`Send`] and gets logged
+/// but not returned to the client, which will just receive an `Internal Server Error`.
 /// The [`Ok`] type of the [`Result`] is a [`Vec`] consisting of [`Sha256`]
-/// sums identifying objects in the store table.
+/// hashsums identifying (uncompressed) objects in the `store` table.
 ///
-/// The actual formal definition of the type alias you see below is a bit cryptic
-/// for reasons outlined below.  Please use the example provided above for an
-/// accurate example of a valid callback function signature.
-///
-/// ## Developer Information
-///
-/// A good explanation on how we do callbacks can be found in the following post:
-/// <https://users.rust-lang.org/t/how-to-store-async-functions/89207>
-///
-/// The entire formal definition is fairly difficult, mostly because we have to
-/// represent an asynchronous function using the [`Fn`] trait, as [`AsyncFn`]
-/// is not dyn-compatible, hence why this function returns a [`Future`] instead.
-///
-/// The use of [`BoxFuture`] as the top-level return type is to have a wrapper
-/// that puts the actual return type behind a [`Pin<Box<dyn Future<Output = _> + Send>>`].
-///
-/// The inner [`Box`] is obviously required because we need to use a dynamic trait,
-/// namely [`Future`], as well as [`Send`], as [`hyper`] needs to [`Send`] this
-/// piece of data across its own thread boundaries.  A similar [`Send`] requirement
-/// is also imposed on the [`Err`] of the result, because each callback is executed
-/// in its own task, in order to catch potential panics, which should not happen,
-/// in the first place.
-///
-/// The outer [`Pin`] (in combination with the [`Box`]) is a common requirement
-/// when working with asynchronous applications, hence why we include it here.
-///
-/// TODO: The callback function(s) should not receive access to the [`StoreCache`]
-/// and [`Pool`] directly, but rather the raw rusqlite function in a synchronous
-/// fashion.  This would not only reduce complexity but also eliminate a potential
-/// bug for callbacks returning a hash that gets deleted before the wrapper
-/// function can even query it any further.
-type Callback = dyn Fn(
-        StoreCache,
-        Pool<Manager>,
-        Arc<Request<Incoming>>,
-    ) -> BoxFuture<'static, Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>>
-    + Sync
-    + Send;
+/// Changes to the database within the [`Transaction`] will (for now) get rolled
+/// back, thereby giving the endpoint functions just read-only access to the
+/// database.
+type EndpointFn = fn(
+    &Transaction,
+    &Request<Incoming>,
+) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>;
 
 /// Representation of the encoding of the network document the client has requested.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -128,8 +92,8 @@ enum ContentEncoding {
 struct DocumentBody(VecDeque<Arc<[u8]>>);
 
 /// Representation of an endpoint, uniquely identified by a [`Method`] and path
-/// pair followed by an appropriate [`Callback`].
-type Endpoint = (Method, Vec<&'static str>, Box<Callback>);
+/// pair followed by an appropriate [`EndpointFn`].
+type Endpoint = (Method, Vec<&'static str>, EndpointFn);
 
 /// Representation of the core HTTP server.
 pub(crate) struct HttpServer {
@@ -250,7 +214,10 @@ impl HttpServer {
             let mut cache = cache.clone();
             async move {
                 loop {
-                    cache.gc().await;
+                    match cache.gc() {
+                        Ok(()) => {}
+                        Err(e) => warn!("gc failed: {e}"),
+                    };
                     time::sleep(Duration::from_secs(60)).await;
                 }
             }
@@ -319,85 +286,112 @@ impl HttpServer {
         tasks.spawn(http1::Builder::new().serve_connection(stream, service));
     }
 
-    /// A big monolithic function passed to [`hyper`] as the entry point for incoming requests.
-    ///
-    /// The function works in seven steps which are documented in more detail within the code:
-    /// 1. Preliminary parameter wrapping and extraction
-    /// 2. Determine the compression algorithm
-    /// 3. Select callback by matching the path component.
-    /// 3. Call callback to obtain [`Sha256`] hashsums
-    /// 4. Map the [`Sha256`] hashsums to their compressed counterpart
-    /// 5. Query the [`StoreCache`] with the [`Sha256`] hashsums and store document refs.
-    /// 6. Compose the [`Response`].
+    /// A small wrapper function that creates a [`Transaction`] and continues
+    /// execution in [`Self::handler_tx`].
     async fn handler(
-        mut cache: StoreCache,
+        cache: StoreCache,
         endpoints: Arc<[Endpoint]>,
         pool: Pool<Manager>,
         requ: Request<Incoming>,
     ) -> Result<Response<DocumentBody>, Infallible> {
-        // (1) Preliminary parameter wrapping and extraction
-        //
-        // This step is required because certain parameters need to be wrapper
-        // behind a shared reference.
-        let requ = Arc::new(requ);
+        // Obtain a database pool object (database connection).
+        let conn = match pool.get().await {
+            Ok(conn) => conn,
+            Err(e) => {
+                warn!("database pool error: {e}");
+                return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
+            }
+        };
 
-        // (2) Determine the compression algorithm
+        // Create a transaction and pass it to `handler_tx`.
+        let res = conn
+            .interact(move |conn| {
+                let tx = match conn.transaction() {
+                    Ok(tx) => tx,
+                    Err(e) => {
+                        warn!("transaction creation error: {e}");
+                        return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
+                    }
+                };
+
+                let res = Self::handler_tx(cache, &endpoints, tx, &requ);
+                Ok(res)
+            })
+            .await;
+
+        // Compose the result.
+        match res {
+            Ok(res) => res,
+            Err(e) => {
+                warn!("endpoint function error: {e}");
+                Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR))
+            }
+        }
+    }
+
+    /// A big monolithic function that handles incoming request with a consist
+    /// view upon the database.
+    ///
+    /// The function works in eight steps which are documented with more detail
+    /// within the code:
+    /// 1. Determine the compression algorithm
+    /// 2. Select an [`EndpointFn`] by matching the path component
+    /// 3. Call the [`EndpointFn`] to obtain various [`Sha256`] hashsums
+    /// 4. Map the [`Sha256`] hashsums to their compressed counterpart
+    /// 5. Query the [`StoreCache`] with the [`Sha256`] and [`Transaction`] handle
+    ///    to store the document ref
+    /// 6. Compose the [`Response`]
+    /// 7. Commit or drop the transaction, based on the [`Method`]
+    fn handler_tx(
+        mut cache: StoreCache,
+        endpoints: &[Endpoint],
+        tx: Transaction,
+        requ: &Request<Incoming>,
+    ) -> Response<DocumentBody> {
+        // (1) Determine the compression algorithm
         //
         // This step determines the compression algorithm, according to:
         // https://spec.torproject.org/dir-spec/standards-compliance.html#http-headers.
-        let (encoding, advertise_encoding) = Self::determine_encoding(&requ);
+        let (encoding, advertise_encoding) = Self::determine_encoding(requ);
 
-        // (3) Select callback by matching the path component
-        let cb = match Self::match_endpoint(&endpoints, &requ) {
+        // (2) Select an `EndpointFn` by matching the path component
+        let cb = match Self::match_endpoint(endpoints, requ) {
             Some((_, _, cb)) => cb,
-            None => return Ok(Self::empty_response(StatusCode::NOT_FOUND)),
+            None => return Self::empty_response(StatusCode::NOT_FOUND),
         };
 
-        // (4) Call callback to obtain the sha256 hashsums
-        //
-        // We execute the callback in its own task in its own JoinSet for various
-        // reasons.
-        //
-        // The reason for using a separate task is to not crash ourselves in the
-        // case that the callback function crashes.
-        //
-        // The reason for using a JoinSet is to provide a gurantee that if this
-        // function exits early or gets aborted or something, the spawned task
-        // will get terminated immediately.  JoinSet offers such a gurantee
-        // whereas JoinHandle unfortunately does not, potentially resulting in
-        // a leak.
-        let cb_resp = {
-            let mut task = JoinSet::new();
-            task.spawn(cb(cache.clone(), pool.clone(), requ.clone()));
+        // (3) Call the `EndpointFn` to obtain various `Sha256` hashsums
+        let cb_resp = match catch_unwind(AssertUnwindSafe(|| cb(&tx, requ))) {
+            // Everything went successful.
+            Ok(Ok(r)) => r,
 
-            // Calling unwrap below is fine because there *IS* a task in the set.
-            #[allow(clippy::unwrap_used)]
-            match task.join_next().await.unwrap() {
-                // Everything went successful.
-                Ok(Ok(r)) => r,
+            // The endpoint function gracefully failed with an error.
+            Ok(Err(e)) => {
+                warn!(
+                    "{} {}: endpoint function failed: {e}",
+                    requ.method(),
+                    requ.uri()
+                );
+                return Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR);
+            }
 
-                // The callback gracefully failed with an error.
-                Ok(Err(e)) => {
-                    warn!("{} {}: callback failed: {e}", requ.method(), requ.uri());
-                    return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
-                }
-
-                // The callback unexpectedly crashed.
-                Err(e) => {
-                    warn!("{} {}: callback crashed: {e}", requ.method(), requ.uri());
-                    return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
-                }
+            // The endpoint function unexpectedly crashed.
+            Err(_) => {
+                warn!(
+                    "{} {}: endpoint function crashed",
+                    requ.method(),
+                    requ.uri()
+                );
+                return Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR);
             }
         };
         let (cb_parts, sha256sums) = cb_resp.into_parts();
 
-        // (5) Map the sha256sums to their compressed counterpart
-        let sha256sums = future::try_join_all(
-            sha256sums
-                .iter()
-                .map(|sha256| Self::map_encoding(&pool, sha256, encoding)),
-        )
-        .await;
+        // (4) Map the sha256sums to their compressed counterpart
+        let sha256sums = sha256sums
+            .iter()
+            .map(|sha256| Self::map_encoding(&tx, sha256, encoding))
+            .collect::<Result<Vec<_>, _>>();
         let sha256sums = match sha256sums {
             Ok(s) => s,
             Err(e) => {
@@ -406,21 +400,30 @@ impl HttpServer {
                     requ.method(),
                     requ.uri()
                 );
-                return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
+                return Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR);
             }
         };
 
-        // (6) Query the cache with the sha256 sums and store document refs.
+        // (5) Query the [`StoreCache`] with the [`Sha256`] and [`Transaction`] handle
+        //     to store the document ref
         let mut documents = VecDeque::new();
         for sha256 in &sha256sums {
-            let document = match cache.get(&pool, sha256).await {
-                Some(document) => document,
-                None => return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR)),
+            let document = match cache.get(&tx, sha256) {
+                Ok(document) => document,
+                Err(e) => {
+                    warn!(
+                        "{} {}: unable to access the cache: {e}",
+                        requ.method(),
+                        requ.uri()
+                    );
+                    return Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR);
+                }
             };
+
             documents.push_back(document);
         }
 
-        // (7) Compose result
+        // (6) Compose the `Response`.
         //
         // The composing primarily consists of building a response from the parts
         // of the intermediate response plus optionally adding a Content-Encoding
@@ -437,7 +440,15 @@ impl HttpServer {
             );
         }
 
-        Ok(resp)
+        // (7) Commit or drop the transaction, based on the `Method`
+        //
+        // For now, we just drop it.
+        match tx.rollback() {
+            Ok(()) => {}
+            Err(e) => warn!("rollback error: {e}"),
+        }
+
+        resp
     }
 
     /// Determines the [`ContentEncoding`] based on the path and the value of [`header::ACCEPT_ENCODING`].
@@ -589,8 +600,8 @@ impl HttpServer {
     }
 
     /// Looks up the corresponding [`Sha256`] for a given [`Sha256`] and a [`ContentEncoding`].
-    async fn map_encoding(
-        pool: &Pool<Manager>,
+    fn map_encoding(
+        tx: &Transaction,
         sha256: &Sha256,
         encoding: ContentEncoding,
     ) -> Result<Sha256, DatabaseError> {
@@ -601,21 +612,15 @@ impl HttpServer {
             return Ok(sha256);
         }
 
-        let compressed_sha256: String = pool
-            .get()
-            .await?
-            .interact(move |conn| {
-                let mut stmt = conn.prepare_cached(
-                    "
-                SELECT compressed_sha256
-                FROM compressed_document
-                WHERE identity_sha256 = ?1 AND algorithm = ?2",
-                )?;
-                let res =
-                    stmt.query_one(params![sha256, encoding.to_string()], |row| row.get(0))?;
-                Ok::<_, PoolError<rusqlite::Error>>(res)
-            })
-            .await??;
+        let mut stmt = tx.prepare_cached(
+            "
+        SELECT compressed_sha256
+        FROM compressed_document
+        WHERE identity_sha256 = ?1 AND algorithm = ?2",
+        )?;
+        let compressed_sha256 =
+            stmt.query_one(params![sha256, encoding.to_string()], |row| row.get(0))?;
+
         Ok(compressed_sha256)
     }
 
@@ -669,20 +674,9 @@ impl HttpServerBuilder {
     /// * `/tor/status-vote/current/*/diff/*/*`
     /// * `[Some(""), Some("tor"), Some("status-vote"), Some("current"), None, ...]`
     ///   Maybe a macro could help here though ...
-    pub(crate) fn get<F, T>(mut self, path: &'static str, cb: F) -> Self
-    where
-        // TODO: It is a bit unfortunate that we have to specify this here
-        // redundantly, despite having already done so in [`Callback`].
-        F: Fn(StoreCache, Pool<Manager>, Arc<Request<Incoming>>) -> T + Sync + Send + 'static,
-        T: Future<Output = Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>>>
-            + Send
-            + 'static,
-    {
-        self.endpoints.push((
-            Method::GET,
-            path.split('/').collect(),
-            Box::new(move |cache, pool, requ| Box::pin(cb(cache, pool, requ))),
-        ));
+    pub(crate) fn get(mut self, path: &'static str, endpoint_fn: EndpointFn) -> Self {
+        self.endpoints
+            .push((Method::GET, path.split('/').collect(), endpoint_fn));
         self
     }
 
@@ -708,48 +702,47 @@ impl StoreCache {
     /// Removes all mappings whose values have expired.
     ///
     /// Takes O(n) time.
-    pub(crate) async fn gc(&mut self) {
-        self.data.lock().await.remove_expired();
+    pub(crate) fn gc(&mut self) -> Result<(), StoreCacheError> {
+        self.data
+            .lock()
+            .map_err(|_| StoreCacheError::Poison)?
+            .remove_expired();
+        Ok(())
     }
 
     /// Looks up a [`Sha256`] in the cache or the database.
     ///
     /// If we got a cache miss, this function automatically queries the database
     /// and inserts the result into the cache, before returning it.
-    pub(crate) async fn get(&mut self, pool: &Pool<Manager>, sha256: &Sha256) -> Option<Arc<[u8]>> {
-        let mut lock = self.data.lock().await;
+    pub(crate) fn get(
+        &mut self,
+        tx: &Transaction,
+        sha256: &Sha256,
+    ) -> Result<Arc<[u8]>, StoreCacheError> {
+        let mut lock = self.data.lock().map_err(|_| StoreCacheError::Poison)?;
 
         // Query the cache for the relevant document.
         if let Some(document) = lock.get(sha256) {
-            return Some(document);
+            return Ok(document);
         }
 
         // Cache miss, let us query the database.
-        let document = match Self::get_db(pool, sha256).await {
-            Ok(document) => document,
-            Err(e) => {
-                warn!("store query error: {e}");
-                return None;
-            }
-        };
+        let document = Self::get_db(tx, sha256)?;
 
         // Insert it into the cache.
         lock.insert(sha256.clone(), document.clone());
 
-        Some(document)
+        Ok(document)
     }
 
     /// Obtains a [`Sha256`] from the database without consulting the cache first.
-    async fn get_db(pool: &Pool<Manager>, sha256: &Sha256) -> Result<Arc<[u8]>, DatabaseError> {
-        let sha256 = sha256.clone();
-        let db = pool.get().await?;
-        let document = db
-            .interact(move |conn| -> Result<Vec<u8>, rusqlite::Error> {
-                let mut stmt =
-                    conn.prepare_cached("SELECT content FROM store WHERE sha256 = ?1")?;
-                stmt.query_one(params![sha256], |row| row.get(0))
-            })
-            .await??;
+    fn get_db(tx: &Transaction, sha256: &Sha256) -> Result<Arc<[u8]>, StoreCacheError> {
+        let mut stmt = tx
+            .prepare_cached("SELECT content FROM store WHERE sha256 = ?1")
+            .map_err(DatabaseError::from)?;
+        let document: Vec<u8> = stmt
+            .query_one(params![sha256], |row| row.get(0))
+            .map_err(DatabaseError::from)?;
         Ok(Arc::from(document))
     }
 }
@@ -765,6 +758,7 @@ mod test {
     };
     use http::Version;
     use http_body_util::{BodyExt, Empty};
+    use rusqlite::Connection;
     use sha2::{digest::Update, Digest};
     use tokio::{
         net::{TcpListener, TcpStream},
@@ -785,19 +779,29 @@ mod test {
     const X_TOR_LZMA_SHA256: &str =
         "B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239";
 
-    async fn create_test_db() -> Pool<Manager> {
+    async fn create_test_db_pool() -> Pool<Manager> {
         let pool = Config::new("")
             .create_pool(deadpool::Runtime::Tokio1)
             .unwrap();
 
-        // Initialize the database.
         pool.get()
             .await
             .unwrap()
-            .interact(prepare_db)
+            .interact(|conn| init_test_db(conn))
             .await
-            .unwrap()
             .unwrap();
+
+        pool
+    }
+
+    fn create_test_db_connection() -> Connection {
+        let mut conn = Connection::open_in_memory().unwrap();
+        init_test_db(&mut conn);
+        conn
+    }
+
+    fn init_test_db(conn: &mut Connection) {
+        prepare_db(conn).unwrap();
 
         // Create a document and compressed versions of it.
         let identity_sha256 = hex::encode_upper(sha2::Sha256::new().chain(IDENTITY).finalize());
@@ -829,15 +833,9 @@ mod test {
             hex::encode_upper(sha2::Sha256::new().chain(&x_tor_lzma).finalize());
         assert_eq!(x_tor_lzma_sha256, X_TOR_LZMA_SHA256);
 
-        // Insert them into the database.
-        pool.get()
-            .await
-            .unwrap()
-            .interact(move |conn| {
-                let tx = conn.transaction().unwrap();
-
-                tx.execute(
-                    "
+        let tx = conn.transaction().unwrap();
+        tx.execute(
+            "
                         INSERT INTO store(sha256, content) VALUES
                         (?1, ?2), -- identity
                         (?3, ?4), -- deflate
@@ -845,22 +843,22 @@ mod test {
                         (?7, ?8), -- xzstd
                         (?9, ?10); -- lzma
                     ",
-                    params![
-                        identity_sha256,
-                        IDENTITY.as_bytes().to_vec(),
-                        deflate_sha256,
-                        deflate,
-                        gzip_sha256,
-                        gzip,
-                        xz_std_sha256,
-                        xz_std,
-                        x_tor_lzma_sha256,
-                        x_tor_lzma
-                    ],
-                )
-                .unwrap();
+            params![
+                identity_sha256,
+                IDENTITY.as_bytes().to_vec(),
+                deflate_sha256,
+                deflate,
+                gzip_sha256,
+                gzip,
+                xz_std_sha256,
+                xz_std,
+                x_tor_lzma_sha256,
+                x_tor_lzma
+            ],
+        )
+        .unwrap();
 
-                tx.execute("
+        tx.execute("
                 INSERT INTO compressed_document(algorithm, identity_sha256, compressed_sha256) VALUES
                 ('deflate', ?1, ?2),
                 ('gzip', ?1, ?3),
@@ -869,12 +867,7 @@ mod test {
                 ",
                 params![identity_sha256, deflate_sha256, gzip_sha256, xz_std_sha256, x_tor_lzma_sha256]).unwrap();
 
-                tx.commit().unwrap();
-            })
-            .await
-            .unwrap();
-
-        pool
+        tx.commit().unwrap();
     }
 
     #[test]
@@ -944,26 +937,18 @@ mod test {
     #[test]
     fn match_endpoint() {
         /// Dummy call back that does nothing and is not even called.
-        async fn dummy(
-            _: StoreCache,
-            _: Pool<Manager>,
-            _: Arc<Request<Incoming>>,
+        fn dummy(
+            _: &Transaction,
+            _: &Request<Incoming>,
         ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>> {
             todo!()
         }
 
-        /// Helper macro to wrap cb similarly to [`HttpServerBuilder::get`].
-        macro_rules! wrap_dummy {
-            () => {
-                Box::new(move |a, b, c| Box::pin(dummy(a, b, c)))
-            };
-        }
-
         let endpoints: Vec<Endpoint> = vec![
-            (Method::GET, vec!["", "foo", "bar", "baz"], wrap_dummy!()),
-            (Method::GET, vec!["", "foo", "*", "baz"], wrap_dummy!()),
-            (Method::GET, vec!["", "bar", "*"], wrap_dummy!()),
-            (Method::GET, vec!["", ""], wrap_dummy!()),
+            (Method::GET, vec!["", "foo", "bar", "baz"], dummy),
+            (Method::GET, vec!["", "foo", "*", "baz"], dummy),
+            (Method::GET, vec!["", "bar", "*"], dummy),
+            (Method::GET, vec!["", ""], dummy),
         ];
 
         /// Basically a domain specific [`assert_eq`] that works by comparing
@@ -1007,9 +992,9 @@ mod test {
         check_match!("/.z", 3);
     }
 
-    #[tokio::test]
-    async fn map_encoding() {
-        let pool = create_test_db().await;
+    #[test]
+    fn map_encoding() {
+        let mut conn = create_test_db_connection();
 
         let data = [
             (ContentEncoding::Identity, IDENTITY_SHA256),
@@ -1019,12 +1004,11 @@ mod test {
             (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
         ];
 
+        let tx = conn.transaction().unwrap();
         for (encoding, compressed_sha256) in data {
             println!("{encoding}");
             assert_eq!(
-                HttpServer::map_encoding(&pool, &IDENTITY_SHA256.to_string(), encoding)
-                    .await
-                    .unwrap(),
+                HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
                 compressed_sha256
             );
         }
@@ -1032,15 +1016,14 @@ mod test {
 
     #[tokio::test]
     async fn basic_http_server() {
-        async fn identity(
-            _cache: StoreCache,
-            _pool: Pool<Manager>,
-            _requ: Arc<Request<Incoming>>,
+        fn identity(
+            _tx: &Transaction<'_>,
+            _requ: &Request<Incoming>,
         ) -> Result<Response<Vec<Sha256>>, Box<dyn std::error::Error + Send>> {
             Ok(Response::new(vec![IDENTITY_SHA256.into()]))
         }
 
-        let pool = create_test_db().await;
+        let pool = create_test_db_pool().await;
         let server = HttpServer::builder()
             .pool(pool)
             .get("/tor/status-vote/current/consensus", identity)
@@ -1097,24 +1080,20 @@ mod test {
         assert_eq!(IDENTITY, String::from_utf8_lossy(&decoded_resp));
     }
 
-    #[tokio::test]
-    async fn store_cache() {
-        let pool = create_test_db().await;
+    #[test]
+    fn store_cache() {
+        let mut conn = create_test_db_connection();
         let mut cache = StoreCache::new();
 
+        let tx = conn.transaction().unwrap();
+
         // Obtain the lipsum entry.
-        let entry = cache
-            .get(&pool, &String::from(IDENTITY_SHA256))
-            .await
-            .unwrap();
+        let entry = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
         assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
         assert_eq!(Arc::strong_count(&entry), 1);
 
         // Obtain the lipsum entry again but ensure it is not copied in memory.
-        let entry2 = cache
-            .get(&pool, &String::from(IDENTITY_SHA256))
-            .await
-            .unwrap();
+        let entry2 = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
         assert_eq!(Arc::strong_count(&entry), 2);
         assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
         assert_eq!(entry, entry2);
@@ -1123,13 +1102,13 @@ mod test {
         assert!(cache
             .data
             .lock()
-            .await
+            .unwrap()
             .contains_key(&String::from(IDENTITY_SHA256)));
-        cache.gc().await;
+        cache.gc().unwrap();
         assert!(cache
             .data
             .lock()
-            .await
+            .unwrap()
             .contains_key(&String::from(IDENTITY_SHA256)));
 
         // Now drop entry and entry2 and perform the gc again.
@@ -1143,12 +1122,12 @@ mod test {
         assert!(!cache
             .data
             .lock()
-            .await
+            .unwrap()
             .contains_key(&String::from(IDENTITY_SHA256)));
         // ... but it should not reduce the total size of the hash map ...
-        assert_eq!(cache.data.lock().await.len(), 1);
-        cache.gc().await;
+        assert_eq!(cache.data.lock().unwrap().len(), 1);
+        cache.gc().unwrap();
         // ... however, the garbage collection should actually do.
-        assert_eq!(cache.data.lock().await.len(), 0);
+        assert_eq!(cache.data.lock().unwrap().len(), 0);
     }
 }

@@ -2,6 +2,8 @@
 
 #[allow(unused_imports)]
 use deadpool::managed::Pool;
+#[allow(unused_imports)]
+use std::sync::PoisonError;
 
 use deadpool::managed::PoolError;
 use deadpool_sqlite::InteractError;
@@ -57,4 +59,17 @@ pub enum HttpError {
     /// invalid.
     #[error("invalid encoding: {0}")]
     InvalidEncoding(String),
+}
+
+/// An error related around the StoreCache.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum StoreCacheError {
+    /// An interaction with the database failed.
+    #[error("database error: {0}")]
+    Database(#[from] DatabaseError),
+    /// This is a wrapper around [`PoisonError`] which can happen every time
+    /// with the underlying mutex.
+    #[error("the mutex for the StoreCache has been poisoned?")]
+    Poison,
 }
