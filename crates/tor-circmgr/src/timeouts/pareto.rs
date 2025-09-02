@@ -48,15 +48,14 @@ impl MsecDuration {
     }
 }
 
-/// Module to hold calls to const_assert.
+/// Module to hold const assertions.
 ///
 /// This is a separate module so we can change the clippy warnings on it.
 #[allow(clippy::checked_conversions)]
 mod assertion {
-    use static_assertions::const_assert;
     // If this assertion is untrue, then we can't safely use u16 fields in
     // time_histogram.
-    const_assert!(super::TIME_HISTORY_LEN <= u16::MAX as usize);
+    const _: () = assert!(super::TIME_HISTORY_LEN <= u16::MAX as usize);
 }
 
 /// A history of circuit timeout observations, used to estimate our

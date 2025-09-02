@@ -22,7 +22,6 @@ use aes::{Aes128, Aes128Dec, Aes128Enc, Aes256, Aes256Dec, Aes256Enc};
 use cipher::{BlockCipher, BlockDecrypt, BlockEncrypt, BlockSizeUser, StreamCipher as _};
 use digest::KeyInit;
 use polyval::{Polyval, universal_hash::UniversalHash};
-use static_assertions::const_assert;
 use tor_cell::{
     chancell::{CELL_DATA_LEN, ChanCmd},
     relaycell::msg::SendmeTag,
@@ -200,7 +199,7 @@ mod prf {
     const PRF_N0_LEN: usize = CGO_PAYLOAD_LEN;
     /// Offset of the PRF's output when used with t=1.
     const PRF_N1_OFFSET: usize = 31 * 16;
-    const_assert!(PRF_N1_OFFSET >= PRF_N0_LEN);
+    const _: () = assert!(PRF_N1_OFFSET >= PRF_N0_LEN);
 
     /// Pseudorandom function based on CTR128, Polyval, and an underlying block cipher.
     //
