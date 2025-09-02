@@ -165,7 +165,7 @@ pub(crate) fn prepare_db(conn: &mut Connection) -> Result<(), DatabaseError> {
     let schema_version = init_db(conn)?;
     match schema_version.as_str() {
         "1" => Ok(()),
-        _ => Err(DatabaseError::UnrecognizedSchema(schema_version)),
+        _ => Err(DatabaseError::IncompatibleSchema(schema_version)),
     }
 }
 

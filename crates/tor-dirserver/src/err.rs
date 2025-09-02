@@ -48,7 +48,7 @@ pub(crate) enum DatabaseError {
     /// Future versions of this crate should continue with this promise in order
     /// to ensure forward compatability.
     #[error("unrecognized schema version: {0}")]
-    UnrecognizedSchema(String),
+    IncompatibleSchema(String),
 }
 
 /// An error related around the HTTP protocol.
