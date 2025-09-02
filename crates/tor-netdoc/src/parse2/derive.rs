@@ -132,6 +132,13 @@ define_derive_deftly! {
     ///   instead of `ItemValueParseable`,
     ///   and is parsed as if `(FIELD_TYPE,)` had been written.
     ///
+    /// * **`#[deftly(netdoc(with = "MODULE"))]`**:
+    ///
+    ///   Instead of `ItemValueParseable`, the item is parsed with `MODULE::from_unparsed`,
+    ///   which must have the same signature as [`ItemValueParseable::from_unparsed`].
+    ///
+    ///   (Not supported for sub-documents, signature items, or field collections.)
+    ///
     /// * **`#[deftly(netdoc(default))]`**:
     ///
     ///   This field is optional ("at most once");
@@ -320,7 +327,10 @@ define_derive_deftly! {
             ${when not(any(F_FLATTEN))}
 
             // See `mod multiplicity`.
+          ${if not(all(F_INTRO, fmeta(netdoc(with)))) {
+            // If the intro it has `with`, we don't check its trait impl, and this ends up unused
             let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
+          }}
 
             // Expands to `selector_FIELD.check_SOMETHING();`
             //
@@ -330,6 +340,7 @@ define_derive_deftly! {
             //
             // Without this, we just get a report that `item` doesn't implement the required
             // trait - but `item` is a local variable here, so the error points into the macro
+          ${if not(all(any(F_INTRO, F_NORMAL), fmeta(netdoc(with)))) {
             $<selector_ $fname> . ${paste_spanned $fname ${select1
                     any(F_INTRO, F_NORMAL){
                         // For the intro item, this is not completely precise, because the
@@ -342,6 +353,7 @@ define_derive_deftly! {
                     F_SIGNATURE { check_signature_item_parseable }
                     F_SUBDOC    { check_subdoc_parseable         }
             }} ();
+          }}
           )
 
             // Is this an intro item keyword ?
@@ -377,7 +389,11 @@ define_derive_deftly! {
             }}
 
             ${define ITEM_VALUE_FROM_UNPARSED {
-              ${if fmeta(netdoc(single_arg)) { {
+              ${if fmeta(netdoc(with)) {
+                ${fmeta(netdoc(with)) as path}
+                    ::${paste_spanned $fname from_unparsed}
+                    (item)?
+              } else if fmeta(netdoc(single_arg)) { {
                 let item = ItemValueParseable::from_unparsed(item)?;
                 let (item,) = item;
                 item
@@ -568,6 +584,7 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(keyword = STR))]`
     ///    `#[deftly(netdoc(default))]`
     ///    `#[deftly(netdoc(single_arg))]`
+    ///    `#[deftly(netdoc(with = "MODULE"))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
     // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
@@ -623,7 +640,11 @@ define_derive_deftly! {
           $(
             if item.keyword() == $F_KEYWORD {
                 let selector = $F_ITEM_SET_SELECTOR;
-              ${if fmeta(netdoc(single_arg)) {
+              ${if fmeta(netdoc(with)) {
+                let item = ${fmeta(netdoc(with)) as path}
+                    ::${paste_spanned $fname from_unparsed}
+                    (item)?;
+              } else if fmeta(netdoc(single_arg)) {
                 selector.${paste_spanned $fname check_item_argument_parseable}();
                 let item = ItemValueParseable::from_unparsed(item)?;
                 let (item,) = item;
