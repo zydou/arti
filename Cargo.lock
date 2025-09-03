@@ -323,6 +323,7 @@ dependencies = [
  "tor-circmgr",
  "tor-config",
  "tor-config-path",
+ "tor-dircommon",
  "tor-dirmgr",
  "tor-error",
  "tor-geoip",
@@ -6135,6 +6136,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-dircommon"
+version = "0.34.0"
+dependencies = [
+ "derive_builder_fork_arti",
+ "serde",
+ "tor-config",
+ "tor-llcrypto",
+ "tor-netdoc",
+]
+
+[[package]]
 name = "tor-dirmgr"
 version = "0.34.0"
 dependencies = [
@@ -6179,6 +6191,7 @@ dependencies = [
  "tor-config",
  "tor-consdiff",
  "tor-dirclient",
+ "tor-dircommon",
  "tor-error",
  "tor-geoip",
  "tor-guardmgr",

@@ -224,7 +224,7 @@ impl<R: Runtime> GetConsensusState<R> {
         let authority_ids = config
             .authorities()
             .iter()
-            .map(|auth| auth.v3ident)
+            .map(|auth| auth.v3ident())
             .collect();
         let after = prev_netdir
             .as_ref()
@@ -1299,11 +1299,12 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::cognitive_complexity)]
     use super::*;
-    use crate::{Authority, AuthorityBuilder, DownloadScheduleConfig};
+    use crate::DownloadScheduleConfig;
     use std::convert::TryInto;
     use std::sync::Arc;
     use tempfile::TempDir;
     use time::macros::datetime;
+    use tor_dircommon::authority::{Authority, AuthorityBuilder};
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
     use tor_rtcompat::RuntimeSubstExt as _;
     #[allow(deprecated)] // TODO #1885

@@ -43,10 +43,11 @@ pub mod circ {
 
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
+    pub use tor_dircommon::authority::{Authority, AuthorityBuilder};
     pub use tor_dirmgr::{
-        Authority, AuthorityBuilder, DirMgrConfig, DirTolerance, DirToleranceBuilder,
-        DownloadSchedule, DownloadScheduleConfig, DownloadScheduleConfigBuilder, FallbackDir,
-        FallbackDirBuilder, NetworkConfig, NetworkConfigBuilder,
+        DirMgrConfig, DirTolerance, DirToleranceBuilder, DownloadSchedule, DownloadScheduleConfig,
+        DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder, NetworkConfig,
+        NetworkConfigBuilder,
     };
 }
 
@@ -894,6 +895,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+
     use super::*;
 
     #[test]
@@ -908,10 +911,22 @@ mod test {
     fn builder() {
         let sec = std::time::Duration::from_secs(1);
 
-        let auth = dir::Authority::builder()
+        let auth1 = dir::Authority::builder()
             .name("Fred")
             .v3ident([22; 20].into())
             .clone();
+        let mut auth2 = dir::Authority::builder();
+        auth2.name("Mercury");
+        auth2.v3ident([44; 20].into());
+        auth2
+            .dirports()
+            .push(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 80)));
+        auth2.dirports().push(SocketAddr::V6(SocketAddrV6::new(
+            Ipv6Addr::LOCALHOST,
+            80,
+            0,
+            0,
+        )));
         let mut fallback = dir::FallbackDir::builder();
         fallback
             .rsa_identity([23; 20].into())
@@ -920,7 +935,7 @@ mod test {
             .push("127.0.0.7:7".parse().unwrap());
 
         let mut bld = TorClientConfig::builder();
-        bld.tor_network().set_authorities(vec![auth]);
+        bld.tor_network().set_authorities(vec![auth1, auth2]);
         bld.tor_network().set_fallback_caches(vec![fallback]);
         bld.storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
