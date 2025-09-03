@@ -183,10 +183,7 @@ impl HttpServer {
     {
         let cache = StoreCache::new();
         let endpoints: Arc<[Endpoint]> = self.builder.endpoints.into();
-        // Use of unwrap is okay because the builder has ensured the presence
-        // of the field.
-        #[allow(clippy::unwrap_used)]
-        let pool = self.builder.pool.unwrap();
+        let pool = self.builder.pool.expect("builder ensured this is Some");
 
         // We operate exclusively in JoinSets so that everything gets aborted
         // nicely in order without causing any sort of leaks.
@@ -421,11 +418,10 @@ impl HttpServer {
             // Add the Content-Encoding header, if necessary.
             resp.headers_mut().insert(
                 header::CONTENT_ENCODING,
-                // The use of unwrap is okay because the possible values are
-                // known at compile-time to make up valid header values.
-                // TODO DIRMIRROR: Statically assert this.
-                #[allow(clippy::unwrap_used)]
-                encoding.to_string().try_into().unwrap(),
+                encoding
+                    .to_string()
+                    .try_into()
+                    .expect("strum serialized a non-valid header?!?"),
             );
         }
 
@@ -616,11 +612,10 @@ impl HttpServer {
     /// Generates an empty response with a given [`StatusCode`].
     fn empty_response(status: StatusCode) -> Response<DocumentBody> {
         // TODO DIRMIRROR: Statically assert that.
-        #[allow(clippy::unwrap_used)]
         Response::builder()
             .status(status)
             .body(DocumentBody(VecDeque::new()))
-            .unwrap()
+            .expect("response builder for empty response failed?!?")
     }
 }
 
