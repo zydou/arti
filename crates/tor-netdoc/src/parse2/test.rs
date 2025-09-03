@@ -140,7 +140,7 @@ where
         panic!("missing final newline");
     }
     let (exp_lno, exp_err) = exp.expect("missing # error indication in test case");
-    println!("---- 8<- ----\n{doc}---- ->8 ----");
+    println!("==== 8<- ====\n{doc}==== ->8 ====");
     t_err_raw::<D>(exp_lno, exp_err, &doc)?;
     Ok(())
 }
