@@ -340,13 +340,13 @@ impl HttpServer {
         let (encoding, advertise_encoding) = Self::determine_encoding(requ);
 
         // (2) Select an `EndpointFn` by matching the path component
-        let cb = match Self::match_endpoint(endpoints, requ) {
-            Some((_, _, cb)) => cb,
+        let endpoint_fn = match Self::match_endpoint(endpoints, requ) {
+            Some((_, _, endpoint_fn)) => endpoint_fn,
             None => return Self::empty_response(StatusCode::NOT_FOUND),
         };
 
         // (3) Call the `EndpointFn` to obtain various `Sha256` hashsums
-        let cb_resp = match catch_unwind(AssertUnwindSafe(|| cb(&tx, requ))) {
+        let endpoint_fn_resp = match catch_unwind(AssertUnwindSafe(|| endpoint_fn(&tx, requ))) {
             // Everything went successful.
             Ok(Ok(r)) => r,
 
@@ -370,7 +370,7 @@ impl HttpServer {
                 return Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR);
             }
         };
-        let (cb_parts, sha256sums) = cb_resp.into_parts();
+        let (endpoint_fn_parts, sha256sums) = endpoint_fn_resp.into_parts();
 
         // (4) Map the sha256sums to their compressed counterpart
         let sha256sums = sha256sums
@@ -413,7 +413,7 @@ impl HttpServer {
         // The composing primarily consists of building a response from the parts
         // of the intermediate response plus optionally adding a Content-Encoding
         // header.
-        let mut resp = Response::from_parts(cb_parts, DocumentBody(documents));
+        let mut resp = Response::from_parts(endpoint_fn_parts, DocumentBody(documents));
         if advertise_encoding {
             // Add the Content-Encoding header, if necessary.
             resp.headers_mut().insert(
@@ -532,7 +532,7 @@ impl HttpServer {
         let requ_path = requ_path.split('/').collect::<Vec<_>>();
         let mut res = None;
         for tuple in endpoints.iter() {
-            let (method, path, _cb) = tuple;
+            let (method, path, _endpoint_fn) = tuple;
 
             // Filter the method out first.
             if requ.method() != method {
