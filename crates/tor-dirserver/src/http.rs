@@ -705,6 +705,7 @@ impl StoreCache {
         tx: &Transaction,
         sha256: &Sha256,
     ) -> Result<Arc<[u8]>, StoreCacheError> {
+        // TODO DIRMIRROR: Do we want to keep the lock while doing db queries?
         let mut lock = self.data.lock().map_err(|_| internal!("poisoned lock"))?;
 
         // Query the cache for the relevant document.
@@ -722,6 +723,10 @@ impl StoreCache {
     }
 
     /// Obtains a [`Sha256`] from the database without consulting the cache first.
+    ///
+    /// TODO DIRMIRROR: This function is only intended for use in [`StoreCache::get`].
+    /// Consider to either remove it entirely or move [`StoreCache`] into its own
+    /// module.
     fn get_db(tx: &Transaction, sha256: &Sha256) -> Result<Arc<[u8]>, StoreCacheError> {
         let mut stmt = tx
             .prepare_cached("SELECT content FROM store WHERE sha256 = ?1")
