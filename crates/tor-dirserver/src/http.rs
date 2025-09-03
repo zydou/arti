@@ -67,6 +67,9 @@ use crate::{
 /// database.
 ///
 /// TODO DIRMIRROR: Document the responsibilities here.
+///
+/// TODO DIRMIRROR: The error handling of endpoint functions may need further
+/// discussions.  Maybe take a look at what other frameworks do?
 type EndpointFn = fn(
     &Transaction,
     &Request<Incoming>,
