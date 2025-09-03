@@ -31,7 +31,7 @@ use super::*;
 
 /// Error encountered when parsing a document, including its location
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
-#[error("failed to parse network document, type {doctype}: {file}:{lno}: {problem}")]
+#[error("failed to parse network document, type {doctype}: {file}:{lno}")]
 #[non_exhaustive]
 pub struct ParseError {
     /// What the problem was
