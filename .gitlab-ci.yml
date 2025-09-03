@@ -586,7 +586,11 @@ integration-chutney-shadow:
     - maint/common/apt-install libglib2.0-0
     - stow -d opt -t $HOME/.local shadow
 
-    - tests/chutney/integration-e2e-shadow
+    # Select a random simulation seed to avoid "dooming"
+    # an unlucky MR that hits a low-probability bug.
+    - SEED=$(date +%s)
+
+    - tests/chutney/integration-e2e-shadow --seed="$SEED"
   artifacts:
     paths:
       - benchmark_results.json
@@ -652,9 +656,13 @@ integration-shadow:
     # Ensure newly installed executables can be found
     - hash -r
 
+    # Select a random simulation seed to avoid "dooming"
+    # an unlucky MR that hits a low-probability bug.
+    - SEED=$(date +%s)
+
     - section_start "Run shadow test"
     - pushd tests/shadow
-    - ./run
+    - ./run -s "$SEED"
     - section_end
   artifacts:
     paths:
