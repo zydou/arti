@@ -256,8 +256,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 // We've got to live with that.
                 // TODO: conceivably we could defer this even longer, but it would take
                 // some tricky hacking!
-                if let Some(cell_padding_info) = cell_padding_info &&
-                    let Some(circid) = msg.circid() {
+                if let (Some(cell_padding_info), Some(circid)) = (cell_padding_info, msg.circid()) {
                     self.circs.note_cell_flushed(circid, cell_padding_info);
                 }
                 sendable.send(msg)?;
