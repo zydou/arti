@@ -15,7 +15,7 @@ use crate::HopNum;
 /// Used to report padding events.
 ///
 /// When the `circ-padding` feature is disabled, this type does nothing.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PaddingController<S: SleepProvider = DynTimeProvider> {
     /// Marker, to pretend that we use a runtime.
     _phantom: PhantomData<S>,
@@ -93,4 +93,19 @@ impl futures::Stream for PaddingEventStream {
         // TODO circpad: Might it be more efficient to return Ready(None)?
         Poll::Pending
     }
+}
+
+/// Initialize a new PaddingController and PaddingEventStream.
+///
+/// When the `circ-padding` feature is disabled, these do nothing.
+pub(crate) fn new_padding<S: SleepProvider>(runtime: S) -> (PaddingController, PaddingEventStream) {
+    drop(runtime);
+    (
+        PaddingController {
+            _phantom: PhantomData,
+        },
+        PaddingEventStream {
+            _phantom: PhantomData,
+        },
+    )
 }
