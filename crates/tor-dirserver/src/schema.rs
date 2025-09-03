@@ -30,6 +30,8 @@ CREATE TABLE arti_dirmirror_schema_version(
 CREATE TABLE consensus(
     rowid               INTEGER PRIMARY KEY AUTOINCREMENT,
     sha256              TEXT NOT NULL UNIQUE,
+    -- Required for consensus diffs.
+    -- https://spec.torproject.org/dir-spec/directory-cache-operation.html#diff-format
     unsigned_sha3_256   TEXT NOT NULL UNIQUE,
     flavor              TEXT NOT NULL,
     valid_after         INTEGER NOT NULL,
