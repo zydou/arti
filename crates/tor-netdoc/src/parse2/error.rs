@@ -86,7 +86,7 @@ pub enum ErrorProblem {
     #[error("no keyword when item keyword line expected")]
     MissingKeyword,
     /// No keyword when item keyword line expected
-    #[error("no keyword when item keyword line expected")]
+    #[error("no keyword when item keyword line expected: {0}")]
     InvalidKeyword(#[from] keyword::InvalidKeyword),
     /// Missing item {keyword}
     #[error("missing item {keyword}")]
