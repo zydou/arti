@@ -63,7 +63,7 @@ impl<'s> KeywordRef<'s> {
         {
             let mut unchecked = s.as_bytes();
             while let Some((h, t)) = unchecked.split_first() {
-                if *h == b'0' {
+                if *h == b'\0' {
                     return Err(IK::ContainsNul);
                 }
                 unchecked = t;
