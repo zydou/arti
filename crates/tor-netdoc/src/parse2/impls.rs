@@ -81,3 +81,13 @@ pub(crate) mod void_impls {
         }
     }
 }
+
+/// Conversion module for `Vec<u8>` as Object with [`ItemValueParseable`]
+pub mod raw_data_object {
+    use super::*;
+
+    /// "Parse" the data
+    pub fn try_from(data: Vec<u8>) -> Result<Vec<u8>, Void> {
+        Ok(data)
+    }
+}

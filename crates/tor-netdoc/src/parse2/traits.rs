@@ -135,33 +135,9 @@ pub trait ItemObjectParseable: Sized {
     ///
     /// `input` has been base64-decoded.
     fn from_bytes(input: &[u8]) -> Result<Self, ErrorProblem>;
-
-    /// Convert the bytes of the Object, if any, into the actual value
-    ///
-    /// If there was an Object, `input` has been base64-decoded.
-    /// If there was no Object, `input` is `None`.
-    ///
-    /// The provided implementation considers a missing object to be an error.
-    fn from_bytes_option(input: Option<&[u8]>) -> Result<Self, ErrorProblem> {
-        Self::from_bytes(input.ok_or(EP::MissingObject)?)
-    }
 }
 
 //---------- provided blanket impls ----------
-
-impl<T: ItemObjectParseable> ItemObjectParseable for Option<T> {
-    fn check_label(label: &str) -> Result<(), EP> {
-        T::check_label(label)
-    }
-
-    fn from_bytes(input: &[u8]) -> Result<Self, EP> {
-        Ok(Some(T::from_bytes(input)?))
-    }
-    fn from_bytes_option(input: Option<&[u8]>) -> Result<Self, EP> {
-        let Some(input) = input else { return Ok(None) };
-        Self::from_bytes(input)
-    }
-}
 
 impl<T: FromStr> ItemArgumentParseable for T {
     fn from_args<'s>(args: &mut ArgumentStream<'s>, field: &'static str) -> Result<Self, EP> {

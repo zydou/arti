@@ -767,11 +767,31 @@ define_derive_deftly! {
     ///
     ///    The field is the Object.
     ///    It must implement [`ItemObjectParseable`]
-    ///    (so it can be be `Option<impl ItemObjectParseable>`
-    ///    for an optional item.)
+    ///    (or be `Option<impl ItemObjectParseable>`).
     ///
     ///    Only allowed once.
     ///    If omittted, any object is rejected.
+    ///
+    ///  * **`#[deftly(netdoc(object(label = "LABEL")))]**:
+    ///
+    ///    Sets the expected label for an Object.
+    ///    If not supplied, uses [`ItemObjectParseable::check_label`].
+    ///
+    ///  * **`#[deftly(netdoc(with = "MODULE")]**:
+    ///
+    ///    Instead of `ItemArgumentParseable`, the item is parsed with `MODULE::from_args`,
+    ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
+    // XXXX this ^ is not yet implemented
+    ///
+    // XXXX should be implemented for `rest` too
+    ///
+    ///    With `#[deftly(netdoc(objecte))]`, uses `MODULE::try_from`
+    ///    must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
+    ///    like `TryFrom::<Vec<u8>>>::try_from`.
+    ///    LABEL must also be specified
+    ///    unless the object also implements `ItemObjectParseable`.
+    ///    Errors from parsing will be discarded and replaced with
+    ///    [`ErrorProblem::ObjectInvalidData`].
     ///
     ///  * **`#[deftly(netdoc(sig_hash = "HASH_METHOD"))]**:
     ///
@@ -783,7 +803,7 @@ define_derive_deftly! {
     ///    which will be resolved with `sig_hash_methods::*` in scope.
     ///
     ///    `fn HASH_METHOD(body: &SignatureHashInputs) -> HASH_FIELD_VALUE`.
-    export ItemValueParseable for struct, expect items:
+    export ItemValueParseable for struct, expect items, beta_deftly:
 
     ${define P { $crate::parse2::internal_prelude }}
 
@@ -816,19 +836,27 @@ define_derive_deftly! {
                   let selector = ArgumentSetSelector::<$ftype>::default();
                   selector.parse(&mut args, stringify!($fname))?
               } }
-              all(F_OBJECT, not(fmeta(netdoc(object(label))))) {
-                  <$ftype as ItemObjectParseable>::from_bytes_option(
-                      object
-                          .map(|object| object.decode_data()).transpose()?
-                          .as_deref()
-                  )?
-              }
-              all(F_OBJECT, fmeta(netdoc(object(label)))) { {
-                  let object = object.ok_or_else(|| EP::MissingObject)?;
-                  if object.label() != ${fmeta(netdoc(object(label))) as str} {
-                      return Err(EP::ObjectIncorrectLabel)
-                  }
-                  object.decode_data()?
+              F_OBJECT { {
+                  let selector = ObjectSetSelector::<$ftype>::default();
+                  let object = object.map(|object| {
+                      let data = object.decode_data()?;
+                      ${if fmeta(netdoc(object(label))) {
+                          if object.label() != ${fmeta(netdoc(object(label))) as str} {
+                              return Err(EP::ObjectIncorrectLabel)
+                          }
+                      } else {
+                          selector.check_label(object.label())?;
+                      }}
+                      ${if fmeta(netdoc(with)) {
+                          ${fmeta(netdoc(with)) as path}::${paste_spanned $fname try_from}
+                              (data)
+                              .map_err(|_| EP::ObjectInvalidData)
+                      } else {
+                          selector.${paste_spanned $fname check_object_parseable}();
+                          ItemObjectParseable::from_bytes(&data)
+                      }}
+                  }).transpose()?;
+                  selector.resolve_option(object)?
               } }
               F_REST { {
                   // consumes `args`, leading to compile error if the rest field

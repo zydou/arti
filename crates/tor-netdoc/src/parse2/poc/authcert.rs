@@ -72,7 +72,7 @@ pub enum NdaDirKeyCertificateVersion {
 #[non_exhaustive]
 pub struct DirAuthCertRsaSignature {
     /// The bytes of the signature (base64-decoded)
-    #[deftly(netdoc(object(label = "SIGNATURE")))]
+    #[deftly(netdoc(object(label = "SIGNATURE"), with = "crate::parse2::raw_data_object"))]
     pub signature: Vec<u8>,
 
     /// The hash of the document

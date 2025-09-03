@@ -245,3 +245,78 @@ impl<T: ItemArgumentParseable> ArgumentSetMethods for &ArgumentSetSelector<T> {
         T::from_args(args, f)
     }
 }
+
+/// Helper type that allows us to select an impl of `ObjectSetMethods`
+///
+/// **For use by macros**.
+///
+/// See the [module-level docs](multiplicity), and
+/// [Field type in `ItemValueParseable`](derive_deftly_template_ItemValueParseable#field-type).
+///
+/// # Example
+///
+/// The code in the (derive) macro output is roughly like this:
+///
+/// ```
+/// use tor_netdoc::parse2::multiplicity::{ObjectSetSelector, ObjectSetMethods as _};
+/// use tor_netdoc::parse2::ItemStream;
+/// let doc = "intro-item\n-----BEGIN OBJECT-----\naGVsbG8=\n-----END OBJECT-----\n";
+/// let mut items = ItemStream::new(doc).unwrap();
+/// let mut item = items.next().unwrap().unwrap();
+///
+/// let selector = ObjectSetSelector::<Option<String>>::default();
+/// let obj = item.object().map(|obj| {
+///     let data = obj.decode_data().unwrap();
+///     TryFrom::try_from(data)
+/// }).transpose().unwrap();
+/// let obj = selector.resolve_option(obj).unwrap();
+/// assert_eq!(obj, Some("hello".to_owned()));
+/// ```
+#[derive(Educe)]
+#[educe(Clone, Copy, Default)]
+pub struct ObjectSetSelector<Field>(PhantomData<fn() -> Field>);
+
+/// Method for handling some multiplicity of Objects
+///
+/// **For use by macros**.
+///
+/// See [`ObjectSetSelector`] and the [module-level docs](multiplicity).
+pub trait ObjectSetMethods: Copy + Sized {
+    /// The value for each Item.
+    type Each: Sized;
+
+    /// The output type: the type of the field in the Item struct.
+    type Field: Sized;
+
+    /// Parse zero or more argument(s) into `Self::Field`.
+    fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP>;
+
+    /// If the contained type is `ItemObjectParseable`, call its `check_label`
+    fn check_label(self, label: &str) -> Result<(), EP>
+    where
+        Self::Each: ItemObjectParseable,
+    {
+        Self::Each::check_label(label)
+    }
+
+    /// Check that the contained type can be parsed as an object
+    fn check_object_parseable(self)
+    where
+        Self::Each: ItemObjectParseable,
+    {
+    }
+}
+impl<T> ObjectSetMethods for ObjectSetSelector<Option<T>> {
+    type Field = Option<T>;
+    type Each = T;
+    fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP> {
+        Ok(found)
+    }
+}
+impl<T> ObjectSetMethods for &ObjectSetSelector<T> {
+    type Field = T;
+    type Each = T;
+    fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP> {
+        found.ok_or(EP::MissingObject)
+    }
+}
