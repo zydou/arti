@@ -315,6 +315,20 @@ define_derive_deftly! {
 
             // See `mod multiplicity`.
             let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
+
+            // Expands to `selector_FIELD.check_SOMETHING();`
+            //
+            // If the relevant trait isn't implemented, rustc reports the error by
+            // pointing at the `check-something` call.  We re-span that identifier
+            // to point to the field name, so that's where the error is reported.
+            //
+            // Without this, we just get a report that `item` doesn't implement the required
+            // trait - but `item` is a local variable here, so the error points into the macro
+            $<selector_ $fname> . ${paste_spanned $fname ${select1
+                    F_NORMAL    { check_item_value_parseable     }
+                    F_SIGNATURE { check_signature_item_parseable }
+                    F_SUBDOC    { check_subdoc_parseable         }
+            }} ();
           )
 
             // Is this an intro item keyword ?
@@ -583,8 +597,10 @@ define_derive_deftly! {
         ) -> Result<(), $P::ErrorProblem> {
           $(
             if item.keyword() == $F_KEYWORD {
+                let selector = $F_ITEM_SET_SELECTOR;
+                selector.${paste_spanned $fname check_item_value_parseable}();
                 let item = ItemValueParseable::from_unparsed(item)?;
-                $F_ITEM_SET_SELECTOR.accumulate(&mut acc.$fname, item)
+                selector.accumulate(&mut acc.$fname, item)
             } else
           )
             {
