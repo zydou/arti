@@ -11,8 +11,9 @@
       <data key="d7">localhost:9000</data>
     </node>
     <node id="stream">
-      <data key="d2">5 MB</data>
-      <data key="d3">5 MB</data>
+      <!-- TODO: Increase to 5 MB once arti#2109 is addressed -->
+      <data key="d2">1 MiB</data>
+      <data key="d3">1 KiB</data>
     </node>
     <node id="pause">
       <data key="d0">1,2,3,4,5,6,7,8,9,10</data>
