@@ -70,8 +70,7 @@ pub(crate) enum StoreCacheError {
     /// An interaction with the database failed.
     #[error("database error: {0}")]
     Database(#[from] DatabaseError),
-    /// This is a wrapper around [`PoisonError`] which can happen every time
-    /// with the underlying mutex.
-    #[error("the mutex for the StoreCache has been poisoned?")]
-    Poison,
+    /// An underlying programming problem.
+    #[error("internal problem")]
+    Bug(#[from] tor_error::Bug),
 }
