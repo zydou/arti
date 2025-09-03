@@ -36,6 +36,7 @@ CREATE TABLE consensus(
     fresh_until         INTEGER NOT NULL,
     valid_until         INTEGER NOT NULL,
     FOREIGN KEY(sha256) REFERENCES store(sha256),
+    CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
     CHECK(LENGTH(unsigned_sha3_256) == 64),
     CHECK(flavor IN ('ns', 'md')),
     CHECK(valid_after < fresh_until),
@@ -70,6 +71,8 @@ CREATE TABLE router_descriptor(
     router_extra_info_rowid  INTEGER,
     FOREIGN KEY(sha256) REFERENCES store(sha256),
     FOREIGN KEY(router_extra_info_rowid) REFERENCES router_extra_info(rowid),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
     CHECK(LENGTH(sha1) == 40),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40),
     CHECK(flavor IN ('ns', 'md'))
@@ -87,6 +90,8 @@ CREATE TABLE router_extra_info(
     sha1                    TEXT NOT NULL UNIQUE,
     kp_relay_id_rsa_sha1    TEXT NOT NULL,
     FOREIGN KEY(sha256) REFERENCES store(sha256),
+    CHECK(GLOB('*[^0-9A-F]*', sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', kp_relay_id_rsa_sha1) == 0),
     CHECK(LENGTH(kp_relay_id_rsa_sha1) == 40)
 ) STRICT;
 
@@ -105,6 +110,8 @@ CREATE TABLE authority_key_certificate(
     kp_auth_sign_rsa_sha1   TEXT NOT NULL,
     dir_key_expires         INTEGER NOT NULL,
     FOREIGN KEY(sha256) REFERENCES store(sha256),
+    CHECK(GLOB('*[^0-9A-F]*', kp_auth_id_rsa_sha1) == 0),
+    CHECK(GLOB('*[^0-9A-F]*', kp_auth_sign_rsa_sha1) == 0),
     CHECK(LENGTH(kp_auth_id_rsa_sha1) == 40),
     CHECK(LENGTH(kp_auth_sign_rsa_sha1) == 40)
 
@@ -115,6 +122,7 @@ CREATE TABLE store(
     rowid   INTEGER PRIMARY KEY AUTOINCREMENT, -- hex uppercase
     sha256  TEXT NOT NULL UNIQUE,
     content BLOB NOT NULL,
+    CHECK(GLOB('*[^0-9A-F]*', sha256) == 0),
     CHECK(LENGTH(sha256) == 64)
 ) STRICT;
 
