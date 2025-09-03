@@ -8,7 +8,7 @@ use std::pin::Pin;
 use strum::EnumString;
 #[allow(unused_imports)]
 use tokio::sync::RwLock;
-use tor_error::ErrorKind;
+use tor_error::internal;
 
 use std::{
     collections::VecDeque,
@@ -691,9 +691,7 @@ impl StoreCache {
     pub(crate) fn gc(&mut self) -> Result<(), StoreCacheError> {
         self.data
             .lock()
-            .map_err(|_| {
-                StoreCacheError::Bug(tor_error::Bug::new(ErrorKind::Internal, "thread poison"))
-            })?
+            .map_err(|_| internal!("thread poison"))?
             .remove_expired();
         Ok(())
     }
@@ -707,9 +705,7 @@ impl StoreCache {
         tx: &Transaction,
         sha256: &Sha256,
     ) -> Result<Arc<[u8]>, StoreCacheError> {
-        let mut lock = self.data.lock().map_err(|_| {
-            StoreCacheError::Bug(tor_error::Bug::new(ErrorKind::Internal, "thread poison"))
-        })?;
+        let mut lock = self.data.lock().map_err(|_| internal!("thread poison"))?;
 
         // Query the cache for the relevant document.
         if let Some(document) = lock.get(sha256) {
