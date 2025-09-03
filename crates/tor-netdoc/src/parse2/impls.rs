@@ -20,7 +20,7 @@ mod rsa {
     impl ItemObjectParseable for PublicKey {
         fn check_label(label: &str) -> Result<(), EP> {
             match label {
-                "SIGNATURE" => Ok(()),
+                "RSA PUBLIC KEY" => Ok(()),
                 _ => Err(EP::ObjectIncorrectLabel),
             }
         }
