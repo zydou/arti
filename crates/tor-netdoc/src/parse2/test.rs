@@ -56,6 +56,7 @@ struct Flat1 {
     flat_needed: (String,),
     flat_optional: Option<(String,)>,
     flat_several: Vec<(String,)>,
+    flat_defaulted: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocParseable)]
@@ -213,6 +214,7 @@ flat-needed FN
 sub1-field A
 flat-optional FO
 flat-several FS2
+flat-defaulted FD
 sub2-intro
 sub2-field B
 subsub-intro
@@ -236,6 +238,7 @@ sub4-field D
                     flat_needed: val("FN"),
                     flat_optional: sval("FO"),
                     flat_several: ["FS1", "FS2"].map(val).into(),
+                    flat_defaulted: sval("FD"),
                 },
                 ..default()
             },

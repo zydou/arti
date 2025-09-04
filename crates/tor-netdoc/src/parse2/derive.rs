@@ -545,8 +545,9 @@ define_derive_deftly! {
     ///  * Derives [`NetdocParseableFields`]
     ///  * The input struct can contain only normal non-structural items
     ///    (so it's not a sub-document with an intro item).
-    ///  * The only attribute supported is the field attribute
+    ///  * The only attributes supported are the field attributes
     ///    `#[deftly(netdoc(keyword = STR))]`
+    ///    `#[deftly(netdoc(default))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
     // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
@@ -560,7 +561,7 @@ define_derive_deftly! {
     // and substitute in the default at the end.
     //
     ${define F_EFFECTIVE_TYPE {
-        ${if all(fmeta(netdoc(default)), not(F_INTRO)) {
+        ${if all(fmeta(netdoc(default))) {
             Option::<$ftype>
         } else {
             $ftype
@@ -615,6 +616,9 @@ define_derive_deftly! {
         fn finish(acc: Self::Accumulator) -> $P::Result<Self, $P::ErrorProblem> {
           $(
             let $fpatname = $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
+          ${if fmeta(netdoc(default)) {
+            let $fpatname = Option::unwrap_or_default($fpatname);
+          }}
           )
             Ok($vpat)
         }
