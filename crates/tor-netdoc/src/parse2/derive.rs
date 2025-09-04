@@ -613,11 +613,10 @@ define_derive_deftly! {
         }
 
         fn finish(acc: Self::Accumulator) -> $P::Result<Self, $P::ErrorProblem> {
-            Ok($tname {
-              $(
-                $fname: $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?,
-              )
-            })
+          $(
+            let $fpatname = $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
+          )
+            Ok($vpat)
         }
     }
 }
