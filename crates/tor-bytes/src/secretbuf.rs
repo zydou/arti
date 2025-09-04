@@ -47,9 +47,9 @@ impl SecretBuf {
     pub fn extend_from_slice(&mut self, slice: &[u8]) {
         let new_len = self.0.len() + slice.len();
         if new_len >= self.0.capacity() {
-            // We will need to reallocate.  But in doing so we might reallocate,
-            // which neglects to zero the previous contents.  So instead,
-            // explicitly make a new vector and zeroize the old one.
+            // We will need to reallocate, which neglects to zeroize the
+            // previous contents.  So instead, explicitly make a new vector and
+            // zeroize the old one.
 
             // Make sure we always at least double our capacity.
             let new_capacity = std::cmp::max(self.0.capacity() * 2, new_len);
