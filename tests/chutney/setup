@@ -103,4 +103,3 @@ export CHUTNEY_ARTI
 echo "export CHUTNEY_ARTI=\"$CHUTNEY_ARTI\"" >> tests/chutney/arti.run
 
 CHUTNEY_START_TIME=300 "${CHUTNEY_BIN}" bootstrap "$target"
-"${CHUTNEY_BIN}" verify "$target"

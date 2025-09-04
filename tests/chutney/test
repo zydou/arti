@@ -2,8 +2,21 @@
 
 set -xeuo pipefail
 
+cd "$(git rev-parse --show-toplevel)"
+
+# Tell shellcheck that yes, we know that we're sourcing a file.
+# shellcheck disable=SC1091
+source tests/chutney/arti.run
+
+# Validate that these are set (from arti.run)
+[ -n "${CHUTNEY_BIN:?}" ]
+[ -n "${target:?}" ]
+
 # Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
 TEST_DOMAIN=example.com
+
+# Perform chutney's built-in "verify" test
+"${CHUTNEY_BIN}" verify "$target"
 
 arti_client_port=$(\
   jq -r \
