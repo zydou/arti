@@ -344,7 +344,7 @@ pub(crate) enum RemoveLegReason {
     ChannelClosed,
 }
 
-/// The conflux status of a conflux [`Circuit`].
+/// The conflux status of a conflux circuit.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ConfluxStatus {
     /// Circuit has not begun the conflux handshake yet.
