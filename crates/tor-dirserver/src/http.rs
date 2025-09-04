@@ -176,6 +176,7 @@ impl HttpServer {
     /// This function does not fail, because all errors that could potentially
     /// occur, occur in further sub-tasks spawned by it and handled appropriately,
     /// that is ususally logging the error and continuing the exeuction.
+    #[allow(clippy::cognitive_complexity)]
     pub(crate) async fn serve<I, S, E>(self, mut listener: I) -> Result<(), Infallible>
     where
         I: Stream<Item = Result<S, E>> + Unpin,
@@ -328,6 +329,7 @@ impl HttpServer {
     /// 7. Commit or drop the transaction, based on the [`Method`]
     ///
     /// TODO DIRMIRROR: Implement [`Method::HEAD`].
+    #[allow(clippy::cognitive_complexity)]
     fn handler_tx(
         mut cache: StoreCache,
         endpoints: &[Endpoint],
