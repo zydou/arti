@@ -322,6 +322,8 @@ struct TopMinimal {
 #[derive_deftly(ItemValueParseable)]
 #[deftly(netdoc(no_extra_args))]
 struct TestItem0 {
+    #[deftly(netdoc(object(label = "UTF-8 STRING"), with = "string_data_object"))]
+    object: Option<String>,
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
@@ -330,6 +332,8 @@ struct TestItem {
     needed: String,
     optional: Option<String>,
     rest: Vec<String>,
+    #[deftly(netdoc(object))]
+    object: TestObject,
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
@@ -340,10 +344,40 @@ struct TestItemRest {
     rest: String,
 }
 
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+struct TestObject(String);
+
+/// Conversion module for `String` as Object with [`ItemValueParseable`]
+mod string_data_object {
+    use super::*;
+
+    /// Parse the data
+    pub(super) fn try_from(data: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
+        data.try_into()
+    }
+}
+
+impl ItemObjectParseable for TestObject {
+    fn check_label(label: &str) -> Result<(), ErrorProblem> {
+        if label != "TEST OBJECT" {
+            return Err(EP::ObjectIncorrectLabel);
+        }
+        Ok(())
+    }
+    fn from_bytes(data: &[u8]) -> Result<Self, ErrorProblem> {
+        Ok(TestObject(
+            data.to_owned()
+                .try_into()
+                .map_err(|_| EP::ObjectInvalidData)?,
+        ))
+    }
+}
+
 #[test]
 fn various_items() -> TestResult<()> {
     let test_item_minimal = TestItem {
         needed: "N".into(),
+        object: TestObject("hello".into()),
         ..default()
     };
 
@@ -356,6 +390,9 @@ fn various_items() -> TestResult<()> {
     t_ok(
         r#"test-item0
 test-item N
+-----BEGIN TEST OBJECT-----
+aGVsbG8=
+-----END TEST OBJECT-----
 "#,
         &[TopMinimal {
             test_item: Some(test_item_minimal.clone()),
@@ -366,6 +403,9 @@ test-item N
     t_ok(
         r#"test-item0
 test-item N O
+-----BEGIN TEST OBJECT-----
+aGVsbG8=
+-----END TEST OBJECT-----
 "#,
         &[TopMinimal {
             test_item: Some(TestItem {
@@ -378,11 +418,19 @@ test-item N O
 
     t_ok(
         r#"test-item0
+-----BEGIN UTF-8 STRING-----
+aGVsbG8=
+-----END UTF-8 STRING-----
 test-item N O R1 R2
+-----BEGIN TEST OBJECT-----
+aGVsbG8=
+-----END TEST OBJECT-----
 test-item-rest O  and  the rest
 "#,
         &[TopMinimal {
-            test_item0: TestItem0 {},
+            test_item0: TestItem0 {
+                object: Some("hello".into()),
+            },
             test_item: Some(TestItem {
                 optional: Some("O".into()),
                 rest: ["R1", "R2"].map(Into::into).into(),
@@ -398,6 +446,42 @@ test-item-rest O  and  the rest
 
     t_err::<TopMinimal>(
         r#"test-item0 wrong # too many arguments
+"#,
+    )?;
+    t_err::<TopMinimal>(
+        r#"test-item0 # base64-encoded Object label is not as expected
+-----BEGIN WRONG LABEL-----
+aGVsbG8=
+-----END WRONG LABEL-----
+"#,
+    )?;
+    t_err::<TopMinimal>(
+        r#"test-item0 # base64-encoded Object END label does not match BEGIN
+-----BEGIN UTF-8 STRING-----
+aGVsbG8=
+-----END WRONG LABEL-----
+"#,
+    )?;
+    t_err::<TopMinimal>(
+        r#"test-item0 # base64-encoded Object has incorrectly formatted delimiter lines
+-----BEGIN UTF-8 STRING-----
+aGVsbG8=
+-----END UTF-8 STRING
+"#,
+    )?;
+    t_err::<TopMinimal>(
+        r#"test-item0 # base64-encoded Object contains invalid base64
+-----BEGIN UTF-8 STRING-----
+bad b64 !
+-----END UTF-8 STRING-----
+
+"#,
+    )?;
+    t_err::<TopMinimal>(
+        r#"test-item0 # base64-encoded Object contains invalid data
+-----BEGIN UTF-8 STRING-----
+hU6Qo2fW7+9PXkcrEyiB62ZDne/gwKPHXBo8lMeV8JCOfVBF5vT4BtKRLP+Jw66x
+-----END UTF-8 STRING-----
 "#,
     )?;
 
