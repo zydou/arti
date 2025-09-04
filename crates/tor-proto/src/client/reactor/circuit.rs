@@ -61,6 +61,8 @@ use super::{
     CellHandlers, CircuitHandshake, CloseStreamBehavior, ReactorResultChannel, SendRelayCell,
 };
 
+use crate::conflux::msghandler::ConfluxStatus;
+
 use std::borrow::Borrow;
 use std::pin::Pin;
 use std::result::Result as StdResult;
@@ -79,9 +81,7 @@ use {
 
 #[cfg(feature = "conflux")]
 use {
-    super::conflux::ConfluxMsgHandler,
-    super::conflux::{ConfluxAction, OooRelayMsg},
-    crate::client::reactor::RemoveLegReason,
+    crate::conflux::msghandler::{ConfluxAction, ConfluxCmd, ConfluxMsgHandler, OooRelayMsg},
     crate::tunnel::TunnelId,
 };
 
@@ -152,7 +152,7 @@ pub(crate) struct Circuit {
 /// of the circuit the `CircuitCmd` came from.
 ///
 /// This type gets mapped to a `RunOnceCmdInner` in the circuit reactor.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub(super) enum CircuitCmd {
     /// Send a RELAY cell on the circuit leg this command originates from.
     Send(SendRelayCell),
@@ -174,20 +174,9 @@ pub(super) enum CircuitCmd {
         /// The reason for closing the stream.
         reason: streammap::TerminateReason,
     },
-    /// Remove this circuit from the conflux set.
-    ///
-    /// Returned by `ConfluxMsgHandler::handle_conflux_msg` for invalid messages
-    /// (originating from wrong hop), and for messages that are rejected
-    /// by its inner `AbstractMsgHandler`.
+    /// Perform an action resulting from handling a conflux cell.
     #[cfg(feature = "conflux")]
-    ConfluxRemove(RemoveLegReason),
-    /// This circuit has completed the conflux handshake,
-    /// and wants to send the specified cell.
-    ///
-    /// Returned by an `AbstractMsgHandler` to signal to the reactor that
-    /// the conflux handshake is complete.
-    #[cfg(feature = "conflux")]
-    ConfluxHandshakeComplete(SendRelayCell),
+    Conflux(ConfluxCmd),
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
     /// Enqueue an out-of-order cell in the reactor.
@@ -742,7 +731,7 @@ impl Circuit {
         &mut self,
         hop: HopNum,
         msg: UnparsedRelayMsg,
-    ) -> Result<Option<CircuitCmd>> {
+    ) -> Result<Option<ConfluxCmd>> {
         let Some(conflux_handler) = self.conflux_handler.as_mut() else {
             // If conflux is not enabled, tear down the circuit
             // (see 4.2.1. Cell Injection Side Channel Mitigations in prop329)
@@ -1261,7 +1250,8 @@ impl Circuit {
                 | RelayCmd::CONFLUX_LINKED_ACK
                 | RelayCmd::CONFLUX_SWITCH
         ) {
-            return self.handle_conflux_msg(hopnum, msg);
+            let cmd = self.handle_conflux_msg(hopnum, msg)?;
+            return Ok(cmd.map(CircuitCmd::from));
         }
 
         if self.is_conflux_pending() {
@@ -1550,17 +1540,6 @@ impl Circuit {
             .as_ref()
             .map(|handler| handler.init_rtt())?
     }
-}
-
-/// The conflux status of a conflux [`Circuit`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(super) enum ConfluxStatus {
-    /// Circuit has not begun the conflux handshake yet.
-    Unlinked,
-    /// Conflux handshake is in progress.
-    Pending,
-    /// A linked conflux circuit.
-    Linked,
 }
 
 /// Return the stream ID of `msg`, if it has one.

@@ -58,6 +58,7 @@ pub mod bench_utils;
 pub mod channel;
 pub mod circuit;
 pub mod client;
+pub(crate) mod conflux;
 mod congestion;
 mod crypto;
 pub mod memquota;

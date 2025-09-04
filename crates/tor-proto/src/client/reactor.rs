@@ -38,7 +38,7 @@ use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
-use circuit::{Circuit, CircuitCmd};
+use circuit::Circuit;
 use conflux::ConfluxSet;
 use control::ControlHandler;
 use postage::watch;
@@ -61,7 +61,9 @@ use std::sync::Arc;
 
 use crate::channel::Channel;
 use crate::client::circuit::StreamMpscSender;
+use crate::conflux::msghandler::RemoveLegReason;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
+use circuit::CircuitCmd;
 use derive_deftly::Deftly;
 use derive_more::From;
 use tor_cell::chancell::CircId;
@@ -73,7 +75,10 @@ use tracing::{debug, info, trace, warn};
 use super::circuit::{MutableState, TunnelMutableState};
 
 #[cfg(feature = "conflux")]
-use {crate::util::err::ConfluxHandshakeError, conflux::OooRelayMsg};
+use {
+    crate::conflux::msghandler::{ConfluxCmd, OooRelayMsg},
+    crate::util::err::ConfluxHandshakeError,
+};
 
 pub(super) use control::{CtrlCmd, CtrlMsg, FlowCtrlMsg};
 
@@ -319,9 +324,10 @@ impl RunOnceCmdInner {
                 done: None,
             },
             #[cfg(feature = "conflux")]
-            CircuitCmd::ConfluxRemove(reason) => Self::RemoveLeg { leg, reason },
+            CircuitCmd::Conflux(ConfluxCmd::RemoveLeg(reason)) => Self::RemoveLeg { leg, reason },
             #[cfg(feature = "conflux")]
-            CircuitCmd::ConfluxHandshakeComplete(cell) => {
+            CircuitCmd::Conflux(ConfluxCmd::HandshakeComplete { hop, early, cell }) => {
+                let cell = SendRelayCell { hop, early, cell };
                 Self::ConfluxHandshakeComplete { leg, cell }
             }
             #[cfg(feature = "conflux")]
@@ -388,23 +394,6 @@ enum CircuitAction {
         /// handshake to indicate the reason the handshake failed.
         reason: RemoveLegReason,
     },
-}
-
-/// The reason for removing a circuit leg from the conflux set.
-#[derive(Debug, derive_more::Display)]
-enum RemoveLegReason {
-    /// The conflux handshake timed out.
-    ///
-    /// On the client-side, this means we didn't receive
-    /// the CONFLUX_LINKED response in time.
-    #[display("conflux handshake timed out")]
-    ConfluxHandshakeTimeout,
-    /// An error occurred during conflux handshake.
-    #[display("{}", _0)]
-    ConfluxHandshakeErr(Error),
-    /// The channel was closed.
-    #[display("channel closed")]
-    ChannelClosed,
 }
 
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
