@@ -12,7 +12,7 @@ pub(crate) fn new_rtt_estimator() -> RoundtripTimeEstimator {
 // Make a new congestion window.
 #[cfg(test)]
 pub(crate) fn new_cwnd() -> CongestionWindow {
-    CongestionWindow::new(&params::build_cwnd_params())
+    CongestionWindow::new(params::build_cwnd_params())
 }
 
 #[cfg(test)]

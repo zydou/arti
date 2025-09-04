@@ -1,5 +1,7 @@
 //! Client-side conflux message handling.
 
+use std::sync::Arc;
+use std::sync::atomic::{self, AtomicU64};
 use std::time::{Duration, SystemTime};
 
 use tor_cell::relaycell::conflux::V1Nonce;
@@ -12,6 +14,7 @@ use crate::Error;
 use crate::client::HopNum;
 use crate::client::reactor::circuit::{ConfluxStatus, unsupported_client_cell};
 use crate::client::reactor::{CircuitCmd, SendRelayCell};
+use crate::congestion::params::CongestionWindowParams;
 
 use super::AbstractConfluxMsgHandler;
 
@@ -47,6 +50,22 @@ pub(super) struct ClientConfluxMsgHandler {
     /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::note_cell_sent)
     /// each time a cell that counts towards sequence numbers is sent on this leg.
     last_seq_sent: u64,
+    /// The absolute sequence number of the last message delivered to a stream.
+    ///
+    /// This is shared by all the circuits in a conflux set,
+    ///
+    /// Incremented by the [`ConfluxMsgHandler`](super::ConfluxMsgHandler::inc_last_seq_delivered)
+    /// upon delivering the cell to its corresponding stream.
+    last_seq_delivered: Arc<AtomicU64>,
+    /// Whether we have processed any SWITCH cells on the leg this handler is installed on.
+    have_seen_switch: bool,
+    /// The number of cells that count towards the conflux seqnos
+    /// received on this leg since the last SWITCH.
+    cells_since_switch: usize,
+    /// The congestion window parameters.
+    ///
+    /// Used for SWITCH cell validation.
+    cwnd_params: CongestionWindowParams,
 }
 
 /// The state of a client circuit from a conflux set.
@@ -144,6 +163,7 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
 
     fn inc_last_seq_recv(&mut self) {
         self.last_seq_recv += 1;
+        self.cells_since_switch += 1;
     }
 
     fn inc_last_seq_sent(&mut self) {
@@ -153,16 +173,26 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
 
 impl ClientConfluxMsgHandler {
     /// Create a new client conflux message handler.
-    pub(super) fn new(join_point: HopNum, nonce: V1Nonce, runtime: DynTimeProvider) -> Self {
+    pub(super) fn new(
+        join_point: HopNum,
+        nonce: V1Nonce,
+        last_seq_delivered: Arc<AtomicU64>,
+        cwnd_params: CongestionWindowParams,
+        runtime: DynTimeProvider,
+    ) -> Self {
         Self {
             state: ConfluxState::Unlinked,
             nonce,
+            last_seq_delivered,
             join_point,
             link_sent: None,
             runtime,
             init_rtt: None,
             last_seq_recv: 0,
             last_seq_sent: 0,
+            have_seen_switch: false,
+            cells_since_switch: 0,
+            cwnd_params,
         }
     }
 
@@ -278,6 +308,12 @@ impl ClientConfluxMsgHandler {
             ));
         }
 
+        if self.have_seen_switch && self.cells_since_switch == 0 {
+            return Err(Error::CircProto(
+                "Received consecutive SWITCH cells on circuit?!".into(),
+            ));
+        }
+
         let switch = msg
             .decode::<ConfluxSwitch>()
             .map_err(|e| Error::from_bytes_err(e, "switch message"))?
@@ -292,14 +328,23 @@ impl ClientConfluxMsgHandler {
         // absolute sequence numbers. We only increment the sequence
         // numbers for multiplexed cells. Hence there is no +1 here.
         self.last_seq_recv += u64::from(rel_seqno);
+        // Note that we've received at least one SWITCH on this leg.
+        self.have_seen_switch = true;
+        // Reset our counter for the number of relevant (DATA, etc.) cells
+        // received since the last SWITCH
+        self.cells_since_switch = 0;
 
         Ok(None)
     }
 
     /// Validate the relative sequence number specified in a switch command.
     ///
-    /// TODO(#2031): the exact validation logic will presumably depend on
-    /// the configured UX?
+    /// Returns an error if
+    ///
+    ///   * `rel_seqno` is 0 (i.e. the SWITCH cell does not actually increment
+    ///     the `last_seq_recv` seqno on this leg)
+    ///   * the tunnel has not yet received any data and `rel_seqno` is greater
+    ///     than the initial congestion window,
     fn validate_switch_seqno(&self, rel_seqno: u32) -> crate::Result<()> {
         // The sequence number from the switch must be non-zero.
         if rel_seqno == 0 {
@@ -308,11 +353,17 @@ impl ClientConfluxMsgHandler {
             ));
         }
 
-        // TODO(#2031): from c-tor:
-        //
-        // We have to make sure that the switch command is truly
-        // incrementing the sequence number, or else it becomes
-        // a side channel that can be spammed for traffic analysis.
+        let no_data = self.last_seq_delivered.load(atomic::Ordering::Acquire) == 0;
+        let is_first_switch = !self.have_seen_switch;
+
+        // If we haven't received any DATA cells on this tunnel,
+        // the seqno delta from the first SWITCH can't possibly
+        // exceed the initial congestion window.
+        if no_data && is_first_switch && rel_seqno > self.cwnd_params.cwnd_init() {
+            return Err(Error::CircProto(
+                "SWITCH cell seqno exceeds initial cwnd".into(),
+            ));
+        }
 
         Ok(())
     }

@@ -2723,14 +2723,17 @@ pub(crate) mod test {
     }
 
     #[cfg(feature = "conflux")]
-    async fn setup_good_conflux_tunnel(rt: &MockRuntime) -> TestTunnelCtx {
+    async fn setup_good_conflux_tunnel(
+        rt: &MockRuntime,
+        cc_params: CongestionControlParams,
+    ) -> TestTunnelCtx {
         // Our 2 test circuits are identical, so they both have the same guards,
         // which technically violates the conflux set rule mentioned in prop354.
         // For testing purposes this is fine, but in production we'll need to ensure
         // the calling code prevents guard reuse (except in the case where
         // one of the guards happens to be Guard + Exit)
         let same_hops = true;
-        let params = CircParameters::new(true, build_cc_vegas_params());
+        let params = CircParameters::new(true, cc_params);
         setup_conflux_tunnel(rt, same_hops, params).await
     }
 
@@ -2772,7 +2775,7 @@ pub(crate) mod test {
                 tunnel: _tunnel,
                 circs,
                 conflux_link_rx,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             let [mut circ1, _circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -2844,7 +2847,7 @@ pub(crate) mod test {
                     tunnel,
                     circs,
                     conflux_link_rx,
-                } = setup_good_conflux_tunnel(&rt).await;
+                } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
                 let [mut _circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -2913,7 +2916,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx: _,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -2954,17 +2957,14 @@ pub(crate) mod test {
     #[cfg(feature = "conflux")]
     fn conflux_bad_switch() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let cc_vegas_params = build_cc_vegas_params();
+            let cwnd_init = cc_vegas_params.cwnd_params().cwnd_init();
             let bad_switch = [
                 // SWITCH cells with seqno = 0 are not allowed
                 relaymsg::ConfluxSwitch::new(0),
-                // TODO(#2031): from c-tor:
-                //
-                // We have to make sure that the switch command is truly
-                // incrementing the sequence number, or else it becomes
-                // a side channel that can be spammed for traffic analysis.
-                //
-                // We should figure out what this check is supposed to look like,
-                // and have a test for it
+                // SWITCH cells with seqno > cc_init_cwnd are not allowed
+                // on tunnels that have not received any data
+                relaymsg::ConfluxSwitch::new(cwnd_init + 1),
             ];
 
             for bad_cell in bad_switch {
@@ -2972,7 +2972,7 @@ pub(crate) mod test {
                     tunnel,
                     circs,
                     conflux_link_rx,
-                } = setup_good_conflux_tunnel(&rt).await;
+                } = setup_good_conflux_tunnel(&rt, cc_vegas_params.clone()).await;
 
                 let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
@@ -2990,18 +2990,63 @@ pub(crate) mod test {
                 let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
                 assert!(conflux_hs_res.iter().all(|res| res.is_ok()));
 
-                // Now send a bad SWITCH cell on *both* legs.
-                // This will cause both legs to be removed from the conflux set,
-                // which causes the tunnel reactor to shut down
-                for circ in [&mut circ1, &mut circ2] {
-                    let msg = rmsg_to_ccmsg(None, bad_cell.clone().into());
-                    circ.circ_tx.send(msg).await.unwrap();
-                }
+                // Now send a bad SWITCH cell on the first leg.
+                // This will cause the tunnel reactor to shut down.
+                let msg = rmsg_to_ccmsg(None, bad_cell.clone().into());
+                circ1.circ_tx.send(msg).await.unwrap();
 
                 // The tunnel should be shutting down
                 rt.advance_until_stalled().await;
                 assert!(tunnel.is_closed());
             }
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    #[cfg(feature = "conflux")]
+    fn conflux_consecutive_switch() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let TestTunnelCtx {
+                tunnel,
+                circs,
+                conflux_link_rx,
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
+
+            let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
+
+            let link = await_link_payload(&mut circ1.chan_rx).await;
+
+            // Send a LINKED cell on both legs
+            for circ in [&mut circ1, &mut circ2] {
+                let linked = relaymsg::ConfluxLinked::new(link.payload().clone()).into();
+                circ.circ_tx
+                    .send(rmsg_to_ccmsg(None, linked))
+                    .await
+                    .unwrap();
+            }
+
+            let conflux_hs_res = conflux_link_rx.await.unwrap().unwrap();
+            assert!(conflux_hs_res.iter().all(|res| res.is_ok()));
+
+            // Send a valid SWITCH cell on the first leg.
+            let switch1 = relaymsg::ConfluxSwitch::new(10);
+            let msg = rmsg_to_ccmsg(None, switch1.into());
+            circ1.circ_tx.send(msg).await.unwrap();
+
+            // The tunnel should not be shutting down
+            rt.advance_until_stalled().await;
+            assert!(!tunnel.is_closed());
+
+            // Send another valid SWITCH cell on the same leg.
+            let switch2 = relaymsg::ConfluxSwitch::new(12);
+            let msg = rmsg_to_ccmsg(None, switch2.into());
+            circ1.circ_tx.send(msg).await.unwrap();
+
+            // The tunnel should now be shutting down
+            // (consecutive switches are not allowed)
+            rt.advance_until_stalled().await;
+            assert!(tunnel.is_closed());
         });
     }
 
@@ -3016,7 +3061,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx: _,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             rt.progress_until_stalled().await;
 
@@ -3551,7 +3596,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
             let [circ1, circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 
             // The stream data we're going to send over the conflux tunnel
@@ -3943,7 +3988,7 @@ pub(crate) mod test {
             let tests = [simple_switch, multiple_switches];
 
             for cells_to_send in tests {
-                let tunnel = setup_good_conflux_tunnel(&rt).await;
+                let tunnel = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
                 assert_eq!(tunnel.circs.len(), 2);
                 let circ_ids = [tunnel.circs[0].unique_id, tunnel.circs[1].unique_id];
                 let cells_to_send = cells_to_send
@@ -3982,7 +4027,7 @@ pub(crate) mod test {
                 tunnel,
                 circs,
                 conflux_link_rx,
-            } = setup_good_conflux_tunnel(&rt).await;
+            } = setup_good_conflux_tunnel(&rt, build_cc_vegas_params()).await;
 
             let [mut circ1, mut circ2]: [TestCircuitCtx; 2] = circs.try_into().unwrap();
 

@@ -27,6 +27,7 @@ use crate::client::circuit::TunnelMutableState;
 use crate::client::circuit::path::HopDetail;
 use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::streammap;
+use crate::congestion::params::CongestionWindowParams;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
@@ -551,6 +552,7 @@ impl ConfluxSet {
             self.mutable.insert(unique_id, mutable);
         }
 
+        let cwnd_params = self.cwnd_params()?;
         for circ in self.legs.iter_mut() {
             // The circuits that have a None status don't know they're part of
             // a multi-path tunnel yet. They need to be initialized with a
@@ -561,6 +563,7 @@ impl ConfluxSet {
                     join_point.hop,
                     self.nonce,
                     Arc::clone(&self.last_seq_delivered),
+                    cwnd_params,
                     runtime.clone(),
                 );
 
@@ -575,6 +578,33 @@ impl ConfluxSet {
         }
 
         Ok(())
+    }
+
+    /// Get the [`CongestionWindowParams`] of the join point
+    /// on the first leg.
+    ///
+    /// Returns an error if the congestion control algorithm
+    /// doesn't have a congestion control window object,
+    /// or if the conflux set is empty, or the joint point hop
+    /// does not exist.
+    ///
+    // TODO: this function is a bit of a hack. In reality, we only
+    // need the cc_cwnd_init parameter (for SWITCH seqno validation).
+    // The fact that we obtain it from the cc params of the join point
+    // is an implementation detail (it's a workaround for the fact that
+    // at this point, these params can only obtained from a CircHop)
+    #[cfg(feature = "conflux")]
+    fn cwnd_params(&self) -> Result<CongestionWindowParams, Bug> {
+        let primary_leg = self
+            .leg(self.primary_id)
+            .ok_or_else(|| internal!("no primary leg?!"))?;
+        let join_point = self.join_point_hop(primary_leg)?;
+        let ccontrol = join_point.ccontrol();
+        let cwnd = ccontrol
+            .cwnd()
+            .ok_or_else(|| internal!("congestion control algorithm does not track the cwnd?!"))?;
+
+        Ok(*cwnd.params())
     }
 
     /// Try to update the primary leg based on the configured desired UX,

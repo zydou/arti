@@ -13,6 +13,7 @@ use tor_error::{Bug, internal};
 
 use crate::client::reactor::circuit::ConfluxStatus;
 use crate::client::reactor::{CircuitCmd, RemoveLegReason};
+use crate::congestion::params::CongestionWindowParams;
 use crate::crypto::cell::HopNum;
 
 use client::ClientConfluxMsgHandler;
@@ -43,10 +44,17 @@ impl ConfluxMsgHandler {
         hop: HopNum,
         nonce: V1Nonce,
         last_seq_delivered: Arc<AtomicU64>,
+        cwnd_params: CongestionWindowParams,
         runtime: tor_rtcompat::DynTimeProvider,
     ) -> Self {
         Self {
-            handler: Box::new(ClientConfluxMsgHandler::new(hop, nonce, runtime)),
+            handler: Box::new(ClientConfluxMsgHandler::new(
+                hop,
+                nonce,
+                Arc::clone(&last_seq_delivered),
+                cwnd_params,
+                runtime,
+            )),
             last_seq_delivered,
         }
     }
