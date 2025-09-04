@@ -836,7 +836,8 @@ define_derive_deftly! {
     ///    Instead of `ItemArgumentParseable`, the item is parsed with `MODULE::from_args`,
     ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
     ///
-    // XXXX should be implemented for `rest` too
+    ///    With `#[deftly(netdoc(rest))]`, FUNCTION replaces
+    ///    `<FIELD AS FromStr>::from_str`.
     ///
     ///    With `#[deftly(netdoc(objecte))]`, uses `MODULE::try_from`
     ///    must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
@@ -924,7 +925,9 @@ define_derive_deftly! {
                   // consumes `args`, leading to compile error if the rest field
                   // isn't last (or is combined with no_extra_args).
                   let args_consume = args;
-                  <$ftype as FromStr>::from_str(args_consume.into_remaining())
+                  ${fmeta(netdoc(with))
+                    as path,
+                    default { <$ftype as FromStr>::from_str }}(args_consume.into_remaining())
                       .map_err(|_| EP::InvalidArgument { field: stringify!($fname) })?
               } }
               F_SIG_HASH { {

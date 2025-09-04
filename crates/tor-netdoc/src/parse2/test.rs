@@ -150,6 +150,9 @@ mod needs_with_arg {
     ) -> Result<NeedsWith, EP> {
         NeedsWith::parse_expecting("arg", args)
     }
+    pub(super) fn from_rest(s: &str) -> Result<NeedsWith, ()> {
+        (s == "rest of line").then_some(NeedsWith).ok_or(())
+    }
 }
 
 fn t_ok<D>(doc: &str, exp: &[D]) -> TestResult<()>
@@ -484,6 +487,7 @@ struct TopMinimal {
     test_item0: TestItem0,
     test_item: Option<TestItem>,
     test_item_rest: Option<TestItemRest>,
+    test_item_rest_with: Option<TestItemRestWith>,
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
@@ -511,6 +515,13 @@ struct TestItemRest {
     optional: Option<String>,
     #[deftly(netdoc(rest))]
     rest: String,
+}
+
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(ItemValueParseable)]
+struct TestItemRestWith {
+    #[deftly(netdoc(rest, with = "needs_with_arg::from_rest"))]
+    rest: NeedsWith,
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -595,6 +606,7 @@ test-item N arg R1 R2
 aGVsbG8=
 -----END TEST OBJECT-----
 test-item-rest O  and  the rest
+test-item-rest-with   rest of line
 "#,
         &[TopMinimal {
             test_item0: TestItem0 {
@@ -609,6 +621,7 @@ test-item-rest O  and  the rest
                 optional: Some("O".into()),
                 rest: "and  the rest".into(),
             }),
+            test_item_rest_with: Some(TestItemRestWith { rest: NeedsWith }),
             ..default()
         }],
     )?;
