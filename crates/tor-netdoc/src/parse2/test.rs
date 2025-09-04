@@ -498,7 +498,8 @@ struct TestItem0 {
 #[derive_deftly(ItemValueParseable)]
 struct TestItem {
     needed: String,
-    optional: Option<String>,
+    #[deftly(netdoc(with = "needs_with_arg::from_args"))]
+    optional: Option<NeedsWith>,
     rest: Vec<String>,
     #[deftly(netdoc(object))]
     object: TestObject,
@@ -570,14 +571,14 @@ aGVsbG8=
 
     t_ok(
         r#"test-item0
-test-item N O
+test-item N arg
 -----BEGIN TEST OBJECT-----
 aGVsbG8=
 -----END TEST OBJECT-----
 "#,
         &[TopMinimal {
             test_item: Some(TestItem {
-                optional: Some("O".into()),
+                optional: Some(NeedsWith),
                 ..test_item_minimal.clone()
             }),
             ..default()
@@ -589,7 +590,7 @@ aGVsbG8=
 -----BEGIN UTF-8 STRING-----
 aGVsbG8=
 -----END UTF-8 STRING-----
-test-item N O R1 R2
+test-item N arg R1 R2
 -----BEGIN TEST OBJECT-----
 aGVsbG8=
 -----END TEST OBJECT-----
@@ -600,7 +601,7 @@ test-item-rest O  and  the rest
                 object: Some("hello".into()),
             },
             test_item: Some(TestItem {
-                optional: Some("O".into()),
+                optional: Some(NeedsWith),
                 rest: ["R1", "R2"].map(Into::into).into(),
                 ..test_item_minimal.clone()
             }),

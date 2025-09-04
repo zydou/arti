@@ -835,7 +835,6 @@ define_derive_deftly! {
     ///
     ///    Instead of `ItemArgumentParseable`, the item is parsed with `MODULE::from_args`,
     ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
-    // XXXX this ^ is not yet implemented
     ///
     // XXXX should be implemented for `rest` too
     ///
@@ -888,11 +887,15 @@ define_derive_deftly! {
             let $fpatname = ${select1
               F_NORMAL { {
                   let selector = ArgumentSetSelector::<$ftype>::default();
+                ${if not(fmeta(netdoc(with))) {
                   selector.${paste_spanned $fname check_argument_value_parseable}();
+                }}
                   selector.parse_with(
                       &mut args,
                       stringify!($fname),
-                      ItemArgumentParseable::from_args,
+                      ${fmeta(netdoc(with))
+                        as path,
+                        default { ItemArgumentParseable::from_args }},
                   )?
               } }
               F_OBJECT { {
