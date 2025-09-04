@@ -199,10 +199,10 @@ cargo-audit:
     - rustup show
 
     - section_start "cargo check"
-    - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
+    - cargo check --locked --target x86_64-unknown-linux-gnu
 
     - section_start "cargo test"
-    - cargo test --verbose --target x86_64-unknown-linux-gnu
+    - cargo test --target x86_64-unknown-linux-gnu
 
     - section_start "cargo clippy"
     - rustup component add clippy
@@ -211,10 +211,10 @@ cargo-audit:
     - cargo clippy --all-features --all-targets -- -D warnings
 
     - section_start "build arti-bench"
-    - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
+    - cargo build --release -p arti-bench --target x86_64-unknown-linux-gnu
 
     - section_start "build arti"
-    - cargo build --profile $ARTI_CI_PROFILE --locked --verbose --target x86_64-unknown-linux-gnu -p arti
+    - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti
 
     - section_start "build docs"
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
@@ -256,7 +256,7 @@ rust-latest:
     # Note: `-p arti` is *not* already implied by `--bin arti`. If we omit it,
     # we'll get the union of all features needed by anything in the workspace,
     # including examples.
-    - cargo build --verbose
+    - cargo build
       --profile $ARTI_CI_PROFILE
       --target x86_64-unknown-linux-gnu
       -p arti -p tor-circmgr
@@ -315,8 +315,8 @@ rust-nightly:
   allow_failure: true
   script:
     - rustup show
-    - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
-    - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
+    - cargo build --target x86_64-unknown-linux-gnu --all-features
+    - cargo test --target x86_64-unknown-linux-gnu --all-features
     - rustup component add clippy
     # We check these extra warnings on CI only, since we don't want to forbid them while developing.
 
@@ -415,7 +415,7 @@ coverage:
     - rustup component add llvm-tools
     - ./maint/common/via-cargo-install-in-ci grcov
     # Generate report
-    - ./maint/with_coverage -f cobertura -o coverage.xml cargo test --verbose --all-features
+    - ./maint/with_coverage -f cobertura -o coverage.xml cargo test --all-features
   cache:
     paths:
       - cache
@@ -435,7 +435,7 @@ minimal-versions:
   script:
     - rustup install nightly
     - ./maint/downgrade_dependencies
-    - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
+    - cargo test --target x86_64-unknown-linux-gnu --all-features
 
 .build-repro-template:
   stage: test
@@ -739,8 +739,8 @@ cli-test:
     # The rust-latest job runs the CLI tests with all features enabled.
     # This job runs the CLI tests with various feature combinations that aren't
     # covered by the other tests
-    - cargo test --verbose --target x86_64-unknown-linux-gnu -p arti cli_tests
-    - cargo test --verbose --target x86_64-unknown-linux-gnu -p arti --features experimental cli_tests
+    - cargo test --target x86_64-unknown-linux-gnu -p arti cli_tests
+    - cargo test --target x86_64-unknown-linux-gnu -p arti --features experimental cli_tests
 
 coverage-aggregated:
   rules:
