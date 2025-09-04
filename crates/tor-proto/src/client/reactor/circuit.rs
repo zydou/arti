@@ -1,10 +1,11 @@
 //! Module exposing types for representing circuits in the tunnel reactor.
 
+mod cell_sender;
 pub(crate) mod circhop;
 pub(super) mod create;
 pub(super) mod extender;
 
-use crate::channel::{ChanCellQueueEntry, Channel, ChannelSender};
+use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 #[cfg(feature = "counter-galois-onion")]
@@ -14,6 +15,7 @@ use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::MetaCellDisposition;
+use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
 use crate::client::stream::queue::{StreamQueueSender, stream_queue};
 use crate::client::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
 use crate::client::streammap;
@@ -33,7 +35,6 @@ use crate::tunnel::TunnelScopedCircId;
 use crate::util::SinkExt as _;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
-use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::{ClockSkew, Error, Result};
 
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
@@ -111,7 +112,7 @@ pub(crate) struct Circuit {
     ///
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
-    pub(super) chan_sender: SometimesUnboundedSink<ChanCellQueueEntry, ChannelSender>,
+    pub(super) chan_sender: CircuitCellSender,
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
     ///
@@ -225,7 +226,7 @@ impl Circuit {
         mutable: Arc<MutableState>,
         padding_ctrl: PaddingController,
     ) -> Self {
-        let chan_sender = SometimesUnboundedSink::new(channel.sender());
+        let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
 
         let crypto_out = OutboundClientCrypt::new();
         Circuit {
@@ -882,11 +883,11 @@ impl Circuit {
             #[cfg(not(feature = "flowctl-cc"))]
             STREAM_READER_BUFFER,
             &memquota,
-            self.chan_sender.as_inner().time_provider(),
+            self.chan_sender.time_provider(),
         )?;
 
         let (msg_tx, msg_rx) = MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(
-            self.chan_sender.as_inner().time_provider().clone(),
+            self.chan_sender.time_provider().clone(),
             memquota.as_raw_account(),
         )?;
 
