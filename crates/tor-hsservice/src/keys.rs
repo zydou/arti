@@ -11,7 +11,7 @@
 
 use tor_keymgr::{CTorPath, CTorServicePath};
 
-use crate::internal_prelude::*;
+use crate::{internal_prelude::*, list_expired_keys_for_service};
 
 /// Keys that are used by publisher, which relate to our HS and a TP
 ///
@@ -19,7 +19,7 @@ use crate::internal_prelude::*;
 /// the derive-deftly macro of the same name.
 // We'd like to link to crate::derive_deftly_template_HsTimePeriodKeySpecifier
 // but linking to a module-local macro doesn't work with rustdoc.
-trait HsTimePeriodKeySpecifier: Debug {
+pub(crate) trait HsTimePeriodKeySpecifier: Debug {
     /// Inspect the nickname
     fn nickname(&self) -> &HsNickname;
     /// Inspect the period
@@ -176,46 +176,11 @@ pub(crate) fn expire_publisher_keys(
     nickname: &HsNickname,
     relevant_periods: &[HsDirParams],
 ) -> tor_keymgr::Result<()> {
-    // Only remove the keys of the hidden service
-    // that concerns us
-    let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hss/{}/*", &nickname));
-    let possibly_relevant_keys = keymgr.list_matching(&arti_pat)?;
-
-    for entry in possibly_relevant_keys {
-        let key_path = entry.key_path();
-        // Remove the key identified by `spec` if it's no longer relevant
-        let remove_if_expired = |spec: &dyn HsTimePeriodKeySpecifier| {
-            if spec.nickname() != nickname {
-                return Err(internal!(
-                    "keymgr gave us key {spec:?} that doesn't match our pattern {arti_pat:?}"
-                )
-                .into());
-            }
-            let is_expired = relevant_periods
-                .iter()
-                .all(|p| &p.time_period() != spec.period());
-
-            if is_expired {
-                keymgr.remove_entry(&entry)?;
-            }
-
-            tor_keymgr::Result::Ok(())
-        };
-
-        /// Remove the specified key, if it's no longer relevant.
-        macro_rules! remove_if_expired {
-            ($K:ty) => {{
-                if let Ok(spec) = <$K>::try_from(key_path) {
-                    remove_if_expired(&spec)?;
-                }
-            }};
-        }
-
-        // TODO: any invalid/malformed keys are ignored (rather than
-        // removed).
-        remove_if_expired!(BlindIdPublicKeySpecifier);
-        remove_if_expired!(BlindIdKeypairSpecifier);
-        remove_if_expired!(DescSigningKeypairSpecifier);
+    // TODO: any invalid/malformed keys are ignored (rather than
+    // removed).
+    let keys_to_remove = list_expired_keys_for_service(relevant_periods, nickname, keymgr)?;
+    for entry in keys_to_remove {
+        keymgr.remove_entry(&entry)?;
     }
 
     Ok(())

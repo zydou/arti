@@ -65,9 +65,16 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "hs-pow-full", "restricted-discovery", "metrics"]
+experimental = [
+    "experimental-api",
+    "hs-pow-full",
+    "metrics",
+    "onion-service-cli-extra",
+    "restricted-discovery",
+]
 experimental-api = ["restricted-discovery", "__is_experimental"]
 
+onion-service-cli-extra = ["tor-keymgr/onion-service-cli-extra", "__is_experimental"]
 restricted-discovery = ["__is_experimental"]
 
 __is_experimental = []

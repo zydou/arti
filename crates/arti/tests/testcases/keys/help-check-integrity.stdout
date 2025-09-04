@@ -1,8 +1,10 @@
-List keys and certificates.
+Validate the integrity of keystores.
 
-Note: The output fields "Location" and "Keystore ID" represent, respectively, the raw identifier of an entry (e.g. <ARTI_PATH>.<ENTRY_TYPE> for `ArtiNativeKeystore`), and the identifier of the keystore that contains the entry.
+Detects and reports unrecognized entries and paths, as well as malformed or expired keys.
 
-Usage: arti keys list [OPTIONS]
+Such entries will be removed if this command is invoked with `--sweep`.
+
+Usage: arti keys check-integrity [OPTIONS]
 
 Options:
   -c, --config <FILE>
@@ -11,10 +13,16 @@ Options:
   -k, --keystore-id <KEYSTORE_ID>
           Identifier of the keystore.
           
-          If omitted, keys and certificates from all the keystores will be returned.
+          If omitted, keys and certificates from all the keystores will be checked.
 
   -o <KEY=VALUE>
           Override config file parameters, using TOML-like syntax.
+
+  -s, --sweep
+          Remove the detected invalid keystore entries
+
+  -b, --batch
+          With this flag active no prompt will be shown and no confirmation will be asked
 
   -l, --log-level <LEVEL>
           Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error').

@@ -1,0 +1,3 @@
+bin.name = "arti"
+args = "keys check-integrity --help"
+status.code = 0
