@@ -327,6 +327,8 @@ struct TestItem0 {
 #[derive_deftly(ItemValueParseable)]
 struct TestItem {
     needed: String,
+    optional: Option<String>,
+    rest: Vec<String>,
 }
 
 #[test]
@@ -354,10 +356,11 @@ test-item N
 
     t_ok(
         r#"test-item0
-test-item N
+test-item N O
 "#,
         &[TopMinimal {
             test_item: Some(TestItem {
+                optional: Some("O".into()),
                 ..test_item_minimal.clone()
             }),
             ..default()
@@ -366,11 +369,13 @@ test-item N
 
     t_ok(
         r#"test-item0
-test-item N
+test-item N O R1 R2
 "#,
         &[TopMinimal {
             test_item0: TestItem0 {},
             test_item: Some(TestItem {
+                optional: Some("O".into()),
+                rest: ["R1", "R2"].map(Into::into).into(),
                 ..test_item_minimal.clone()
             }),
             ..default()

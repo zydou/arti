@@ -805,9 +805,10 @@ define_derive_deftly! {
             let mut args = input.args_mut();
           $(
             let $fpatname = ${select1
-              F_NORMAL {
-                  <$ftype as ItemArgumentParseable>::from_args(&mut args, stringify!($fname))?
-              }
+              F_NORMAL { {
+                  let selector = ArgumentSetSelector::<$ftype>::default();
+                  selector.parse(&mut args, stringify!($fname))?
+              } }
               all(F_OBJECT, not(fmeta(netdoc(object(label))))) {
                   <$ftype as ItemObjectParseable>::from_bytes_option(
                       object

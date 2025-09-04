@@ -32,7 +32,7 @@ pub use super::{
     keyword::KeywordRef,
     lex::{ArgumentStream, ItemStream, UnparsedItem, WS},
     lines::{Lines, StrExt as _},
-    multiplicity::{ItemSetMethods, ItemSetSelector},
+    multiplicity::{ArgumentSetMethods, ArgumentSetSelector, ItemSetMethods, ItemSetSelector},
     signatures::{
         SignatureHashInputs, SignatureItemParseable, SignedDocumentBody, sig_hash_methods,
     },
