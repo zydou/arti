@@ -311,7 +311,7 @@ define_derive_deftly! {
             //----- prepare item set selectors for every field -----
 
           $(
-            ${when not(any(F_INTRO, F_FLATTEN))}
+            ${when not(any(F_FLATTEN))}
 
             // See `mod multiplicity`.
             let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
@@ -325,7 +325,11 @@ define_derive_deftly! {
             // Without this, we just get a report that `item` doesn't implement the required
             // trait - but `item` is a local variable here, so the error points into the macro
             $<selector_ $fname> . ${paste_spanned $fname ${select1
-                    F_NORMAL    { check_item_value_parseable     }
+                    any(F_INTRO, F_NORMAL) {
+                        // For the intro item, this is not completely precise, because the
+                        // it will allow Option<> and Vec<> which aren't allowed there.
+                        check_item_value_parseable
+                    }
                     F_SIGNATURE { check_signature_item_parseable }
                     F_SUBDOC    { check_subdoc_parseable         }
             }} ();
