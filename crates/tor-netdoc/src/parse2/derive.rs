@@ -626,7 +626,10 @@ define_derive_deftly! {
     impl<$tgens> $P::NetdocParseableFields for $ttype {
         type Accumulator = $<$ttype NetdocParseAccumulator>;
 
-        fn is_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
+        fn is_item_keyword(
+            #[allow(unused_variables)] // If there are no fields, this is unused
+            kw: $P::KeywordRef<'_>,
+        ) -> bool {
           ${for fields {
             kw == $F_KEYWORD ||
           }}
@@ -634,7 +637,9 @@ define_derive_deftly! {
         }
 
         fn accumulate_item(
+            #[allow(unused_variables)] // If there are no fields, this is unused
             acc: &mut Self::Accumulator,
+            #[allow(unused_variables)] // If there are no fields, this is unused
             item: $P::UnparsedItem<'_>,
         ) -> $P::Result<(), $P::ErrorProblem> {
           $(
@@ -660,7 +665,10 @@ define_derive_deftly! {
             }
         }
 
-        fn finish(acc: Self::Accumulator) -> $P::Result<Self, $P::ErrorProblem> {
+        fn finish(
+            #[allow(unused_variables)] // If there are no fields, this is unused
+            acc: Self::Accumulator
+        ) -> $P::Result<Self, $P::ErrorProblem> {
           $(
             let $fpatname = $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
           ${if fmeta(netdoc(default)) {
