@@ -531,7 +531,7 @@ mod string_data_object {
 
     /// Parse the data
     pub(super) fn try_from(data: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
-        data.try_into()
+        String::from_utf8(data)
     }
 }
 
