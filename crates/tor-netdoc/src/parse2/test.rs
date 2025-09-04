@@ -130,7 +130,6 @@ impl NeedsWith {
 
 mod needs_with_parse {
     use super::*;
-    #[allow(dead_code)] // XXXX
     pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
         NeedsWith::parse_expecting("normal", item.args_mut())
     }
@@ -143,7 +142,6 @@ mod needs_with_intro {
 }
 mod needs_with_arg {
     use super::*;
-    #[allow(dead_code)] // XXXX
     pub(super) fn from_args(
         args: &mut ArgumentStream,
         _field: &'static str,
