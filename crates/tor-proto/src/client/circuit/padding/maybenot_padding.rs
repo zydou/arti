@@ -9,6 +9,7 @@ use std::task::{Context, Poll, Waker};
 use bitvec::BitArr;
 use maybenot::MachineId;
 use smallvec::SmallVec;
+use tor_memquota::memory_cost_structural_copy;
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 use super::PaddingEvent;
@@ -102,6 +103,15 @@ pub(crate) enum Bypass {
     DoNotBypass,
 }
 
+/// Information about a queued cell that we need to feed back into the padding
+/// subsystem.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct QueuedCellPaddingInfo {
+    /// The hop that will receive this cell.
+    target_hop: HopNum,
+}
+memory_cost_structural_copy!(QueuedCellPaddingInfo);
+
 impl Bypass {
     /// Construct a [`Bypass`] from a bool.
     fn from_bool(replace: bool) -> Self {
@@ -185,12 +195,13 @@ const MAX_HOPS: usize = 64;
 /// A handle to the padding state of a single circuit.
 ///
 /// Used to tell the padders about events that they need to react to.
-#[derive(Clone)]
+#[derive(Clone, derive_more::Debug)]
 pub(crate) struct PaddingController<S = DynTimeProvider>
 where
     S: SleepProvider,
 {
     /// The underlying shared state.
+    #[debug(skip)]
     shared: Arc<Mutex<PaddingShared<S>>>,
 }
 
@@ -249,17 +260,29 @@ impl BlockingState {
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 impl<S: SleepProvider> PaddingController<S> {
     /// Report that we've enqueued a non-padding cell for a given hop.
-    pub(crate) fn queued_data(&self, hop: HopNum) {
+    ///
+    /// Return a QueuedCellPaddingInfo if we need to alert the padding subsystem
+    /// when this cell is flushed.
+    pub(crate) fn queued_data(&self, hop: HopNum) -> Option<QueuedCellPaddingInfo> {
         // Every hop up to and including the target hop will see this as normal data.
         self.trigger_events(hop, &[maybenot::TriggerEvent::NormalSent]);
+        self.info_for_hop(hop)
     }
 
     /// Report that we have enqueued a non-padding cell
     /// in place of a replaceable padding cell
     /// for a given hop.
-    pub(crate) fn queued_data_as_padding(&self, hop: HopNum, sendpadding: SendPadding) {
+    ///
+    /// Return a QueuedCellPaddingInfo if we need to alert the padding subsystem
+    /// when this cell is flushed.
+    pub(crate) fn queued_data_as_padding(
+        &self,
+        hop: HopNum,
+        sendpadding: SendPadding,
+    ) -> Option<QueuedCellPaddingInfo> {
         assert_eq!(hop, sendpadding.hop);
         assert_eq!(Replace::Replaceable, sendpadding.replace);
 
@@ -273,10 +296,18 @@ impl<S: SleepProvider> PaddingController<S> {
                 sendpadding.into_sent_event(),
             ],
         );
+        self.info_for_hop(hop)
     }
 
     /// Report that we have enqueued a padding cell to a given hop.
-    pub(crate) fn queued_padding(&self, hop: HopNum, sendpadding: SendPadding) {
+    ///
+    /// Return a QueuedCellPaddingInfo if we need to alert the padding subsystem
+    /// when this cell is flushed.
+    pub(crate) fn queued_padding(
+        &self,
+        hop: HopNum,
+        sendpadding: SendPadding,
+    ) -> Option<QueuedCellPaddingInfo> {
         assert_eq!(hop, sendpadding.hop);
         self.trigger_events_mixed(
             hop,
@@ -285,12 +316,13 @@ impl<S: SleepProvider> PaddingController<S> {
             // The target hop sees this as padding.
             &[sendpadding.into_sent_event()],
         );
+        self.info_for_hop(hop)
     }
 
     /// Report that we've flushed a cell from the queue for the given hop.
-    pub(crate) fn flushed_relay_cell(&self, hop: HopNum) {
+    pub(crate) fn flushed_relay_cell(&self, info: QueuedCellPaddingInfo) {
         // Every hop up to the last
-        self.trigger_events(hop, &[maybenot::TriggerEvent::TunnelSent]);
+        self.trigger_events(info.target_hop, &[maybenot::TriggerEvent::TunnelSent]);
     }
 
     /// Report that we have decrypted a non-padding cell from our queue
@@ -328,6 +360,15 @@ impl<S: SleepProvider> PaddingController<S> {
                 maybenot::TriggerEvent::PaddingRecv,
             ],
         );
+    }
+
+    /// Return the `QueuedCellPaddingInfo` to use when sending messages to `target_hop`
+    fn info_for_hop(&self, target_hop: HopNum) -> Option<QueuedCellPaddingInfo> {
+        // TODO circpad optimization: This is always Some for now, but we
+        // could someday avoid creating this object
+        // when padding is not enabled on the circuit,
+        // or if padding is not enabled on any hop of the circuit <= target_hop.
+        Some(QueuedCellPaddingInfo { target_hop })
     }
 
     /// Trigger a list of maybenot events on every hop up to and including `hop`.

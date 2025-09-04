@@ -3,6 +3,7 @@
 // NOTE: This is a work in progress and I bet I'll refactor it a lot;
 // it needs to stay opaque!
 
+use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
@@ -60,10 +61,24 @@ pub(super) enum CircEnt {
     ///
     /// Once that's done, the `CircuitRxSender` mpsc sender will be used to send subsequent
     /// cells to the circuit.
-    Opening(oneshot::Sender<CreateResponse>, CircuitRxSender),
+    Opening {
+        /// The oneshot sender on which to report a create response
+        create_response_sender: oneshot::Sender<CreateResponse>,
+        /// A sink which should receive all the relay cells for this circuit
+        /// from this channel
+        cell_sender: CircuitRxSender,
+        //// A padding controller we should use when reporting flushed cells.
+        padding_ctrl: PaddingController,
+    },
 
     /// A circuit that is open and can be given relay cells.
-    Open(CircuitRxSender),
+    Open {
+        /// A sink which should receive all the relay cells for this circuit
+        /// from this channel
+        cell_sender: CircuitRxSender,
+        //// A padding controller we should use when reporting flushed cells.
+        padding_ctrl: PaddingController,
+    },
 
     /// A circuit where we have sent a DESTROY, but the other end might
     /// not have gotten a DESTROY yet.
@@ -129,7 +144,7 @@ impl CircMap {
         }
     }
 
-    /// Add a new pair of elements (corresponding to a PendingClientCirc)
+    /// Add a new set of elements (corresponding to a PendingClientCirc)
     /// to this map.
     ///
     /// On success return the allocated circuit ID.
@@ -138,6 +153,7 @@ impl CircMap {
         rng: &mut R,
         createdsink: oneshot::Sender<CreateResponse>,
         sink: CircuitRxSender,
+        padding_ctrl: PaddingController,
     ) -> Result<CircId> {
         /// How many times do we probe for a random circuit ID before
         /// we assume that the range is fully populated?
@@ -145,7 +161,11 @@ impl CircMap {
         /// TODO: C tor does 64, but that is probably overkill with 4-byte circuit IDs.
         const N_ATTEMPTS: usize = 16;
         let iter = self.range.sample_iter(rng).take(N_ATTEMPTS);
-        let circ_ent = CircEnt::Opening(createdsink, sink);
+        let circ_ent = CircEnt::Opening {
+            create_response_sender: createdsink,
+            cell_sender: sink,
+            padding_ctrl,
+        };
         for id in iter {
             let ent = self.m.entry(id);
             if let Entry::Vacant(_) = &ent {
@@ -174,6 +194,16 @@ impl CircMap {
         })
     }
 
+    /// Inform the relevant circuit's padding subsystem that a given cell has been flushed.
+    pub(super) fn note_cell_flushed(&mut self, id: CircId, info: QueuedCellPaddingInfo) {
+        let padding_ctrl = match self.m.get(&id) {
+            Some(CircEnt::Opening { padding_ctrl, .. }) => padding_ctrl,
+            Some(CircEnt::Open { padding_ctrl, .. }) => padding_ctrl,
+            Some(CircEnt::DestroySent(..)) | None => return,
+        };
+        padding_ctrl.flushed_relay_cell(info);
+    }
+
     /// See whether 'id' is an opening circuit.  If so, mark it "open" and
     /// return a oneshot::Sender that is waiting for its create cell.
     pub(super) fn advance_from_opening(
@@ -184,10 +214,21 @@ impl CircMap {
         // this. hash_map::Entry seems like it could be better, but
         // there seems to be no way to replace the object in-place as
         // a consuming function of itself.
-        let ok = matches!(self.m.get(&id), Some(CircEnt::Opening(_, _)));
+        let ok = matches!(self.m.get(&id), Some(CircEnt::Opening { .. }));
         if ok {
-            if let Some(CircEnt::Opening(oneshot, sink)) = self.m.remove(&id) {
-                self.m.insert(id, CircEnt::Open(sink));
+            if let Some(CircEnt::Opening {
+                create_response_sender: oneshot,
+                cell_sender: sink,
+                padding_ctrl,
+            }) = self.m.remove(&id)
+            {
+                self.m.insert(
+                    id,
+                    CircEnt::Open {
+                        cell_sender: sink,
+                        padding_ctrl,
+                    },
+                );
                 Ok(oneshot)
             } else {
                 panic!("internal error: inconsistent circuit state");
@@ -246,8 +287,9 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::fake_mpsc;
+    use crate::{client::circuit::padding::new_padding, fake_mpsc};
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_rtcompat::DynTimeProvider;
 
     #[test]
     fn circmap_basics() {
@@ -256,68 +298,75 @@ mod test {
         let mut ids_low: Vec<CircId> = Vec::new();
         let mut ids_high: Vec<CircId> = Vec::new();
         let mut rng = testing_rng();
+        tor_rtcompat::test_with_one_runtime!(|runtime| async {
+            let (padding_ctrl, _padding_stream) = new_padding(DynTimeProvider::new(runtime));
 
-        assert!(map_low.get_mut(CircId::new(77).unwrap()).is_none());
+            assert!(map_low.get_mut(CircId::new(77).unwrap()).is_none());
 
-        for _ in 0..128 {
-            let (csnd, _) = oneshot::channel();
-            let (snd, _) = fake_mpsc(8);
-            let id_low = map_low.add_ent(&mut rng, csnd, snd).unwrap();
-            assert!(u32::from(id_low) > 0);
-            assert!(u32::from(id_low) < 0x80000000);
-            assert!(!ids_low.contains(&id_low));
-            ids_low.push(id_low);
+            for _ in 0..128 {
+                let (csnd, _) = oneshot::channel();
+                let (snd, _) = fake_mpsc(8);
+                let id_low = map_low
+                    .add_ent(&mut rng, csnd, snd, padding_ctrl.clone())
+                    .unwrap();
+                assert!(u32::from(id_low) > 0);
+                assert!(u32::from(id_low) < 0x80000000);
+                assert!(!ids_low.contains(&id_low));
+                ids_low.push(id_low);
 
+                assert!(matches!(
+                    *map_low.get_mut(id_low).unwrap(),
+                    CircEnt::Opening { .. }
+                ));
+
+                let (csnd, _) = oneshot::channel();
+                let (snd, _) = fake_mpsc(8);
+                let id_high = map_high
+                    .add_ent(&mut rng, csnd, snd, padding_ctrl.clone())
+                    .unwrap();
+                assert!(u32::from(id_high) >= 0x80000000);
+                assert!(!ids_high.contains(&id_high));
+                ids_high.push(id_high);
+            }
+
+            // Test open / opening entry counting
+            assert_eq!(128, map_low.open_ent_count());
+            assert_eq!(128, map_high.open_ent_count());
+
+            // Test remove
+            assert!(map_low.get_mut(ids_low[0]).is_some());
+            map_low.remove(ids_low[0]);
+            assert!(map_low.get_mut(ids_low[0]).is_none());
+            assert_eq!(127, map_low.open_ent_count());
+
+            // Test DestroySent doesn't count
+            map_low.destroy_sent(CircId::new(256).unwrap(), HalfCirc::new(1));
+            assert_eq!(127, map_low.open_ent_count());
+
+            // Test advance_from_opening.
+
+            // Good case.
+            assert!(map_high.get_mut(ids_high[0]).is_some());
             assert!(matches!(
-                *map_low.get_mut(id_low).unwrap(),
-                CircEnt::Opening(_, _)
+                *map_high.get_mut(ids_high[0]).unwrap(),
+                CircEnt::Opening { .. }
+            ));
+            let adv = map_high.advance_from_opening(ids_high[0]);
+            assert!(adv.is_ok());
+            assert!(matches!(
+                *map_high.get_mut(ids_high[0]).unwrap(),
+                CircEnt::Open { .. }
             ));
 
-            let (csnd, _) = oneshot::channel();
-            let (snd, _) = fake_mpsc(8);
-            let id_high = map_high.add_ent(&mut rng, csnd, snd).unwrap();
-            assert!(u32::from(id_high) >= 0x80000000);
-            assert!(!ids_high.contains(&id_high));
-            ids_high.push(id_high);
-        }
+            // Can't double-advance.
+            let adv = map_high.advance_from_opening(ids_high[0]);
+            assert!(adv.is_err());
 
-        // Test open / opening entry counting
-        assert_eq!(128, map_low.open_ent_count());
-        assert_eq!(128, map_high.open_ent_count());
-
-        // Test remove
-        assert!(map_low.get_mut(ids_low[0]).is_some());
-        map_low.remove(ids_low[0]);
-        assert!(map_low.get_mut(ids_low[0]).is_none());
-        assert_eq!(127, map_low.open_ent_count());
-
-        // Test DestroySent doesn't count
-        map_low.destroy_sent(CircId::new(256).unwrap(), HalfCirc::new(1));
-        assert_eq!(127, map_low.open_ent_count());
-
-        // Test advance_from_opening.
-
-        // Good case.
-        assert!(map_high.get_mut(ids_high[0]).is_some());
-        assert!(matches!(
-            *map_high.get_mut(ids_high[0]).unwrap(),
-            CircEnt::Opening(_, _)
-        ));
-        let adv = map_high.advance_from_opening(ids_high[0]);
-        assert!(adv.is_ok());
-        assert!(matches!(
-            *map_high.get_mut(ids_high[0]).unwrap(),
-            CircEnt::Open(_)
-        ));
-
-        // Can't double-advance.
-        let adv = map_high.advance_from_opening(ids_high[0]);
-        assert!(adv.is_err());
-
-        // Can't advance an entry that is not there.  We know "77"
-        // can't be in map_high, since we only added high circids to
-        // it.
-        let adv = map_high.advance_from_opening(CircId::new(77).unwrap());
-        assert!(adv.is_err());
+            // Can't advance an entry that is not there.  We know "77"
+            // can't be in map_high, since we only added high circids to
+            // it.
+            let adv = map_high.advance_from_opening(CircId::new(77).unwrap());
+            assert!(adv.is_err());
+        });
     }
 }

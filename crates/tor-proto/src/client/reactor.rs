@@ -24,6 +24,7 @@ pub(super) mod syncview;
 use crate::circuit::UniqId;
 use crate::client::circuit::CircuitRxReceiver;
 use crate::client::circuit::celltypes::ClientCircChanMsg;
+use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 use crate::client::stream::queue::StreamQueueReceiver;
 use crate::client::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
@@ -671,7 +672,7 @@ impl Reactor {
     /// [`CircId`] provided.
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
-    #[allow(clippy::type_complexity)] // TODO
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)] // TODO
     pub(super) fn new(
         channel: Arc<Channel>,
         channel_id: CircId,
@@ -679,6 +680,8 @@ impl Reactor {
         input: CircuitRxReceiver,
         runtime: DynTimeProvider,
         memquota: CircuitAccount,
+        padding_ctrl: PaddingController,
+        padding_stream: PaddingEventStream,
     ) -> (
         Self,
         mpsc::UnboundedSender<CtrlMsg>,
@@ -708,7 +711,11 @@ impl Reactor {
             input,
             memquota,
             Arc::clone(&mutable),
+            padding_ctrl,
         );
+        // TODO circpad: Use this stream! (attn gabi wrt where to put it.  Each circuit will have
+        // its own such stream.)
+        drop(padding_stream);
 
         let (circuits, mutable) = ConfluxSet::new(tunnel_id, circuit_leg);
 
