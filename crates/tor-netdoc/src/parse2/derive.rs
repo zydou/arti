@@ -545,7 +545,7 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(keyword = STR))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
-    // TODO deduplicate with copy in NetdocParseableafter after rust-derive-deftly#39
+    // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
