@@ -888,7 +888,12 @@ define_derive_deftly! {
             let $fpatname = ${select1
               F_NORMAL { {
                   let selector = ArgumentSetSelector::<$ftype>::default();
-                  selector.parse(&mut args, stringify!($fname))?
+                  selector.${paste_spanned $fname check_argument_value_parseable}();
+                  selector.parse_with(
+                      &mut args,
+                      stringify!($fname),
+                      ItemArgumentParseable::from_args,
+                  )?
               } }
               F_OBJECT { {
                   let selector = ObjectSetSelector::<$ftype>::default();
