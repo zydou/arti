@@ -315,6 +315,7 @@ flat-needed FN2
 struct TopMinimal {
     test_item0: TestItem0,
     test_item: Option<TestItem>,
+    test_item_rest: Option<TestItemRest>,
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
@@ -329,6 +330,14 @@ struct TestItem {
     needed: String,
     optional: Option<String>,
     rest: Vec<String>,
+}
+
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(ItemValueParseable)]
+struct TestItemRest {
+    optional: Option<String>,
+    #[deftly(netdoc(rest))]
+    rest: String,
 }
 
 #[test]
@@ -370,6 +379,7 @@ test-item N O
     t_ok(
         r#"test-item0
 test-item N O R1 R2
+test-item-rest O  and  the rest
 "#,
         &[TopMinimal {
             test_item0: TestItem0 {},
@@ -377,6 +387,10 @@ test-item N O R1 R2
                 optional: Some("O".into()),
                 rest: ["R1", "R2"].map(Into::into).into(),
                 ..test_item_minimal.clone()
+            }),
+            test_item_rest: Some(TestItemRest {
+                optional: Some("O".into()),
+                rest: "and  the rest".into(),
             }),
             ..default()
         }],

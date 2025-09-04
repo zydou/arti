@@ -756,6 +756,13 @@ define_derive_deftly! {
     ///
     /// ### Field-level attributes:
     ///
+    ///  * **`#[deftly(netdoc(rest))]**:
+    ///
+    ///    The field is the whole rest of the line.
+    ///    Must come after any other normal argument fields.
+    ///
+    ///    The field type must implement `FromStr`.
+    ///
     ///  * **`#[deftly(netdoc(object))]**:
     ///
     ///    The field is the Object.
@@ -823,11 +830,13 @@ define_derive_deftly! {
                   }
                   object.decode_data()?
               } }
-              F_REST {
+              F_REST { {
                   // consumes `args`, leading to compile error if the rest field
                   // isn't last (or is combined with no_extra_args).
-                  <$ftype as FromStr>::parse(args.into_rest())?
-              }
+                  let args_consume = args;
+                  <$ftype as FromStr>::from_str(args_consume.into_remaining())
+                      .map_err(|_| EP::InvalidArgument { field: stringify!($fname) })?
+              } }
               F_SIG_HASH { {
                   #[allow(unused_imports)]
                   use $P::sig_hash_methods::*;

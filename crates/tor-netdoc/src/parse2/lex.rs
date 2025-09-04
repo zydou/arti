@@ -302,7 +302,7 @@ impl<'s> ArgumentStream<'s> {
         ArgumentStream { rest }
     }
 
-    /// Unwrap this `ArgumnetStream`, giving the remaining arguments as a string
+    /// Consume this whole `ArgumnetStream`, giving the remaining arguments as a string
     ///
     /// The returned string won't start with whitespace.
     //
@@ -310,7 +310,7 @@ impl<'s> ArgumentStream<'s> {
     // (We don't take `self` by value because that makes use with `UnparsedItem` annoying.)
     pub fn into_remaining(&mut self) -> &'s str {
         self.trim_start();
-        self.rest
+        mem::take(&mut self.rest)
     }
 
     /// Trim leading WS from `rest`
