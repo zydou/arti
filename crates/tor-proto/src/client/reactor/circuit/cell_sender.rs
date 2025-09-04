@@ -2,10 +2,11 @@
 //! [channel](crate::channel).
 
 use std::{
-    pin::Pin,
+    pin::{Pin, pin},
     task::{Context, Poll},
 };
 
+use cfg_if::cfg_if;
 use futures::Sink;
 use pin_project::pin_project;
 use tor_rtcompat::DynTimeProvider;
@@ -14,6 +15,57 @@ use crate::{
     channel::{ChanCellQueueEntry, ChannelSender},
     util::sometimes_unbounded_sink::SometimesUnboundedSink,
 };
+
+cfg_if! {
+    if #[cfg(feature="circ-padding")] {
+        use crate::util::sink_blocker::{BooleanPolicy, CountingPolicy, SinkBlocker};
+        /// Inner type used to implement a [`CircuitCellSender`].
+        ///
+        /// When `circ-padding` feature is enabled, this is a multi-level wrapper around
+        /// a ChanSender:
+        /// - On the outermost layer, there is a [`SinkBlocker`] that we use
+        ///   to make this sink behave as if it were full
+        ///   when our [circuit padding](crate::client::circuit::padding) code
+        ///   tells us to block outbound traffic.
+        /// - Then there is a [`SometimesUnboundedSink`] that we use to queue control messages
+        ///   when the target `ChanSender` is full,
+        ///   or when we traffic is blocked.
+        /// - (TODO: At this point in the future, we might want to add
+        ///   an additional _bounded_ [`futures::sink::Buffer`]
+        ///   to queue cells before they are put onto the channel.)
+        /// - Then there is a second `SinkBlocker` that permits us to trickle messages from the
+        ///   queue to the ChanSender even traffic is blocked by our padding system.
+        /// - Finally, there is the [`ChannelSender`] itself.
+        ///
+        /// TODO: Ideally, this type would participate in the memory quota system.
+        ///
+        ///
+        type InnerSink = SinkBlocker<
+            SometimesUnbounded, BooleanPolicy,
+        >;
+        /// The type of our `SometimesUnboundedSink`, as instantiated.
+        ///
+        /// We use this to queue control cells.
+        type SometimesUnbounded = SometimesUnboundedSink<
+            ChanCellQueueEntry,
+            SinkBlocker<ChannelSender, CountingPolicy>
+        >;
+    } else {
+        /// Inner type used to implement a [`CircuitCellSender`].
+        ///
+        /// When the `circ-padding` is disabled, this only adds a [`SometimesUnboundedSink`].
+        ///
+        /// TODO: Ideally, this type would participate in the memory quota system.
+        /// TODO: At some point, we might want to add
+        /// an additional _bounded_ [`futures::sink::Buffer`]
+        /// to queue cells before they are put onto the channel.)
+        type InnerSink = SometimesUnboundedSink<ChanCellQueueEntry, ChannelSender>;
+        /// The type of our `SometimesUnboundedSink`, as instantiated.
+        ///
+        /// We use this to queue control cells.
+        type SometimesUnbounded = InnerSink;
+    }
+}
 
 /// A sink that a circuit uses to send cells onto a Channel.
 ///
@@ -33,27 +85,34 @@ use crate::{
 pub(in crate::client::reactor) struct CircuitCellSender {
     /// The actual inner sink on which we'll be sending cells.
     ///
-    /// This is a [`SometimesUnboundedSink`] because we need the ability
-    /// to queue control (non-data) cells even when the target channel is full.
-    ///
-    /// The `SometimesUnboundedSink` sits outside the ChannelSender,
-    /// since we want each circuit to have its own overflow queue.
+    /// See type alias documentation for full details.
     #[pin]
-    sink: SometimesUnboundedSink<ChanCellQueueEntry, ChannelSender>,
+    sink: InnerSink,
 }
 
 impl CircuitCellSender {
     /// Construct a new `CircuitCellSender` to deliver cells onto `inner`.
     pub(super) fn from_channel_sender(inner: ChannelSender) -> Self {
-        Self {
-            sink: SometimesUnboundedSink::new(inner),
+        cfg_if! {
+            if #[cfg(feature="circ-padding")] {
+                let sink = SinkBlocker::new(
+                    SometimesUnboundedSink::new(
+                        SinkBlocker::new(inner, CountingPolicy::new_unlimited())
+                    ),
+                    BooleanPolicy::Unblocked
+                );
+            } else {
+                let sink = SometimesUnboundedSink::new(inner);
+            }
         }
+
+        Self { sink }
     }
 
     /// Return the number of cells queued in this Sender
     /// that have not yet been flushed onto the channel.
     pub(super) fn n_queued(&self) -> usize {
-        self.sink.n_queued()
+        self.sometimes_unbounded().n_queued()
     }
 
     /// Send a cell on this sender,
@@ -65,7 +124,9 @@ impl CircuitCellSender {
     /// See note on [`CircuitCellSender`] type about polling:
     /// If you don't poll this sink, then queued items might never flush.
     pub(super) async fn send_unbounded(&mut self, entry: ChanCellQueueEntry) -> crate::Result<()> {
-        Pin::new(&mut self.sink).send_unbounded(entry).await
+        Pin::new(self.sometimes_unbounded_mut())
+            .send_unbounded(entry)
+            .await
     }
 
     /// Return the time provider used by the underlying channel sender
@@ -74,17 +135,59 @@ impl CircuitCellSender {
         self.chan_sender().time_provider()
     }
 
+    /// Helper: return a reference to the internal [`SometimesUnboundedSink`]
+    /// that this `CircuitCellSender` is based on.
+    fn sometimes_unbounded(&self) -> &SometimesUnbounded {
+        cfg_if! {
+            if #[cfg(feature="circ-padding")] {
+                self.sink.as_inner()
+            } else {
+                &self.sink
+            }
+        }
+    }
+
+    /// Helper: return a mutable reference to the internal [`SometimesUnboundedSink`]
+    /// that this `CircuitCellSender` is based on.
+    fn sometimes_unbounded_mut(&mut self) -> &mut SometimesUnbounded {
+        cfg_if! {
+            if #[cfg(feature="circ-padding")] {
+                self.sink.as_inner_mut()
+            } else {
+                &mut self.sink
+            }
+        }
+    }
+
     /// Helper: Return a reference to the internal [`ChannelSender`]
     /// that this `CircuitCellSender` is based on.
     fn chan_sender(&self) -> &ChannelSender {
-        self.sink.as_inner()
+        cfg_if! {
+            if #[cfg(feature="circ-padding")] {
+                self.sink.as_inner().as_inner().as_inner()
+            } else {
+                self.sink.as_inner()
+            }
+        }
     }
 }
 
 impl Sink<ChanCellQueueEntry> for CircuitCellSender {
     type Error = <ChannelSender as Sink<ChanCellQueueEntry>>::Error;
 
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        cfg_if! {
+            if #[cfg(feature = "circ-padding")] {
+                // In this case, our sink is _not_ the same as our SometimesUnboundedSink.
+                // But we need to ensure that SometimesUnboundedMut gets polled
+                // unconditionally, so that it can actually flush its members.
+                //
+                // We don't actually _care_ if it's ready;
+                // we just need to make sure that it gets polled.
+                // See the "You must poll this type" comment on SometimesUnboundedSink.
+                let _ignore = pin!(self.sometimes_unbounded_mut()).poll_ready(cx);
+            }
+        }
         self.project().sink.poll_ready(cx)
     }
 
