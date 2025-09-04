@@ -65,6 +65,12 @@ struct Flat1 {
     flat_arg_several: Vec<String>,
     #[deftly(netdoc(single_arg, default))]
     flat_arg_defaulted: String,
+    #[deftly(netdoc(with = "needs_with_parse"))]
+    flat_with_needed: NeedsWith,
+    #[deftly(netdoc(with = "needs_with_parse"))]
+    flat_with_optional: Option<NeedsWith>,
+    #[deftly(netdoc(with = "needs_with_parse"))]
+    flat_with_several: Vec<NeedsWith>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocParseable)]
@@ -80,6 +86,12 @@ struct Sub2 {
     arg_several: Vec<String>,
     #[deftly(netdoc(single_arg, default))]
     arg_defaulted: String,
+    #[deftly(netdoc(with = "needs_with_parse"))]
+    with_needed: NeedsWith,
+    #[deftly(netdoc(with = "needs_with_parse"))]
+    with_optional: Option<NeedsWith>,
+    #[deftly(netdoc(with = "needs_with_parse"))]
+    with_several: Vec<NeedsWith>,
     #[deftly(netdoc(subdoc))]
     subsub: SubSub,
 }
@@ -238,6 +250,7 @@ needed N
 sub1-intro
 flat-needed FN
 flat-arg-needed FAN
+flat-with-needed normal
 "#,
         &[Top {
             needed: val("N"),
@@ -252,7 +265,9 @@ needed N
 sub1-intro
 flat-needed FN
 flat-arg-needed FAN
+flat-with-needed normal
 sub2-intro intro
+with-needed normal
 arg-needed AN
 subsub-intro SSI
 sub3-intro
@@ -279,9 +294,13 @@ renamed R
 sub1-intro
 flat-several FS1
 flat-needed FN
+flat-with-needed normal
 sub1-field A
+flat-with-several normal
+flat-with-several normal
 flat-optional FO
 flat-arg-needed FAN
+flat-with-optional normal
 flat-several FS2
 flat-defaulted FD
 flat-arg-optional FAO
@@ -289,12 +308,17 @@ flat-arg-several FAS1 ignored
 flat-arg-several FAS2
 flat-arg-defaulted FAD
 sub2-intro intro
+with-several normal
+with-several normal
+with-several normal
 sub2-field B
 arg-needed AN
 arg-optional AO
+with-optional normal
 arg-defaulted AD
 arg-several A1
 arg-several A2
+with-needed normal
 subsub-intro SSI
 subsub-field BS
 sub3-intro
@@ -321,6 +345,9 @@ sub4-field D
                     flat_arg_several: ["FAS1", "FAS2"].map(Into::into).into(),
                     flat_arg_optional: Some("FAO".into()),
                     flat_arg_defaulted: "FAD".into(),
+                    flat_with_optional: Some(NeedsWith),
+                    flat_with_several: vec![NeedsWith; 2],
+                    ..Flat1::default()
                 },
                 ..default()
             },
@@ -329,6 +356,8 @@ sub4-field D
                 arg_optional: Some("AO".into()),
                 arg_defaulted: "AD".into(),
                 arg_several: ["A1", "A2"].map(Into::into).into(),
+                with_optional: Some(NeedsWith),
+                with_several: vec![NeedsWith; 3],
                 subsub: SubSub {
                     subsub_field: sval("BS"),
                     ..subsub_minimal.clone()
@@ -365,6 +394,8 @@ sub4-intro # missing item needed
     t_err::<Top>(
         r#"top-intro
 sub1-intro
+flat-arg-needed arg
+flat-with-needed normal
 sub4-intro # missing item flat-needed
 "#,
     )?;
@@ -372,7 +403,17 @@ sub4-intro # missing item flat-needed
     t_err::<Top>(
         r#"top-intro
 sub1-intro
+flat-needed flat
+flat-with-needed normal
+sub4-intro # missing item flat-arg-needed
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+sub1-intro
 flat-arg-needed FAN
+flat-with-needed normal
 flat-needed FN
 sub4-intro # missing item needed
 "#,
@@ -392,6 +433,7 @@ needed N
 sub1-intro
 flat-needed FN1
 flat-arg-needed FAN
+flat-with-needed normal
 sub1-intro # item repeated when not allowed
 flat-needed FN2
 "#,
@@ -408,6 +450,28 @@ sub2-intro # missing argument in needs with
         r#"top-intro
 needed N
 sub2-intro wrong-value # invalid value for argument in needs with
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+sub1-intro
+flat-needed FN
+flat-arg-needed arg
+sub4-intro # missing item flat-with-needed
+"#,
+    )?;
+
+    t_err::<Top>(
+        r#"top-intro
+sub1-intro
+flat-needed FN
+flat-arg-needed arg
+flat-with-needed normal
+sub2-intro intro
+arg-needed AN
+flat-arg-needed arg
+sub3-intro # missing item with-needed
 "#,
     )?;
 
