@@ -104,9 +104,9 @@ where
     D: NetdocParseable + Debug,
 {
     let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
-    assert_eq!(got.lno, exp_lno, "doc={doc}");
     let got_err = got.problem.to_string();
-    assert_eq!(got_err, exp_err, "doc={doc}");
+    assert_eq!(got.lno, exp_lno, "doc\n====\n{doc}====\n got={}\n exp={exp_err}", got_err);
+    assert_eq!(got_err, exp_err, "doc\n====\n{doc}====\n got={}\n exp={exp_err}", got_err);
     Ok(())
 }
 
