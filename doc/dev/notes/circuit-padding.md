@@ -98,6 +98,17 @@ We do this in a `QueuedCellPaddingInfo` struct.
 We do not have any _direct_ interaction
 between padding and congestion control.
 
+However, since our blocking design below
+allows a circuit's outbound cell queue to become blocked
+for reasons other than becoming full,
+we need to look at the blocking status of the inner MPSC sink
+(the one connected directly to the channel).
+
+> TODO: Do we actually want to do this?
+>
+> See discussion at
+> <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3252061>.
+
 ## Scope of blocking
 
 Maybenot defines the ability for padding machines
@@ -124,8 +135,7 @@ MPSC queue _will_ be sent.
 > padding machines will still receive some TunnelSent events,
 > since we have no way to stop per-circuit traffic
 > once it gets onto the channel queue.
->
-> TODO: is all of this okay? ^
+> (This is supported.)
 
 We also treat the per-circuit outbound queue as "full"
 with respect to adding more normal DATA messages to that circuit.
@@ -189,6 +199,10 @@ the client _should_ destroy the circuit with a warning.
 >
 > We'll need to specify these.
 > They might have to be future work.
+>
+> For one possible design, see
+> <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3251976>.
+
 
 ## Sets of padding machines
 
