@@ -544,8 +544,7 @@ impl ItemObjectParseable for TestObject {
     }
     fn from_bytes(data: &[u8]) -> Result<Self, ErrorProblem> {
         Ok(TestObject(
-            data.to_owned()
-                .try_into()
+            String::from_utf8(data.to_owned())
                 .map_err(|_| EP::ObjectInvalidData)?,
         ))
     }
