@@ -209,6 +209,7 @@ mod ed25519impl {
     derive(Deftly),
     derive_deftly(ItemValueParseable, NetdocParseableFields)
 )]
+#[allow(clippy::exhaustive_structs)]
 pub struct Ignored;
 
 // ============================================================

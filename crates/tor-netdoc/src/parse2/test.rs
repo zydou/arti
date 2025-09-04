@@ -622,7 +622,6 @@ test-item-rest-with   rest of line
                 rest: "and  the rest".into(),
             }),
             test_item_rest_with: Some(TestItemRestWith { rest: NeedsWith }),
-            ..default()
         }],
     )?;
 
