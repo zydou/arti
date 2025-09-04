@@ -367,6 +367,10 @@ define_derive_deftly! {
                 input.next_item()?.expect("peeked")
             }}
 
+            ${define ITEM_VALUE_FROM_UNPARSED {
+                ItemValueParseable::from_unparsed(item)?
+            }}
+
             // Accumulates `item` (which must be DataSet::Value) into `Putnam`
             ${define ACCUMULATE_ITEM_VALUE { {
                 $<selector_ $fname>.accumulate(&mut $fpatname, item)?;
@@ -410,7 +414,7 @@ define_derive_deftly! {
             if !Self::is_intro_item_keyword(item.keyword()) {
                 Err(EP::WrongDocumentType)?;
             }
-            let $fpatname: $ftype = <$ftype as ItemValueParseable>::from_unparsed(item)?;
+            let $fpatname: $ftype = $ITEM_VALUE_FROM_UNPARSED;
 
           } F_FLATTEN {
 
@@ -439,7 +443,7 @@ define_derive_deftly! {
                     F_NORMAL {
                       let item = $THIS_ITEM;
                       dtrace!("is normal", item);
-                      let item = ItemValueParseable::from_unparsed(item)?;
+                      let item = $ITEM_VALUE_FROM_UNPARSED;
                       $ACCUMULATE_ITEM_VALUE
                     }
                     F_SIGNATURE {
