@@ -3578,6 +3578,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "nonany"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6b8866ec53810a9a4b3d434a29801e78c707430a9ae11c2db4b8b62bb9675a0"
+
+[[package]]
 name = "normalize-line-endings"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6946,6 +6952,7 @@ dependencies = [
  "humantime",
  "itertools 0.14.0",
  "maybenot",
+ "nonany",
  "oneshot-fused-workaround",
  "pin-project",
  "polyval",

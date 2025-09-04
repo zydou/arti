@@ -5,6 +5,7 @@ pub(crate) mod err;
 pub(crate) mod keyed_futures_unordered;
 pub(crate) mod notify;
 pub(crate) mod oneshot_broadcast;
+pub(crate) mod sink_blocker;
 pub(crate) mod skew;
 pub(crate) mod sometimes_unbounded_sink;
 pub(crate) mod stream_poll_set;
