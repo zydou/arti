@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -xeuo pipefail
+
+# Tell shellcheck that yes, we know that we're sourcing a file.
+# shellcheck disable=SC1091
+source tests/chutney/arti.run
+
+# Validate that these are set (from arti.run)
+[ -n "${target:?}" ]
+[ -n "${CHUTNEY_BIN:?}" ]
+
+CHUTNEY_START_TIME=300 "${CHUTNEY_BIN}" bootstrap "$target"

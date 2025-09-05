@@ -3,9 +3,6 @@ set -xeuo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-# Try to ensure we tear down the network on exit, including failure, ctrl-c, etc.
-trap ./tests/chutney/teardown EXIT
-
 ./tests/chutney/setup
 
 # shellcheck disable=SC1091
@@ -13,6 +10,12 @@ source tests/chutney/arti.run
 # Validate that CHUTNEY_DATA_DIR is set.
 [ -n "${CHUTNEY_DATA_DIR:?}" ]
 
+# Try to ensure we tear down the network on exit, including failure, ctrl-c, etc.
+trap ./tests/chutney/teardown EXIT
+# bootstrap the network
+./tests/chutney/bootstrap
+
+# test the network
 ./tests/chutney/test
 
 # Get the socks port of a tor client to use for benchmarking comparison.
