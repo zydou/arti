@@ -178,6 +178,8 @@ impl<T, S: Sink<T>, P: Policy> Sink<T> for SinkBlocker<S, P> {
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // Note that we want to flush the inner sink,
+        // even we are blocking attempts to send onto it.
         self.project().inner.poll_flush(cx)
     }
 
