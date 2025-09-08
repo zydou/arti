@@ -5,81 +5,95 @@ import os
 import shutil
 import subprocess
 import sys
+
 from pathlib import Path
 
+_SCRIPT_NAME = Path(sys.argv[0]).name
+_SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
+_TOP_LEVEL = Path(
+    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+)
 
-def _main():
-    SCRIPT_NAME = Path(sys.argv[0]).name
-    SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
-    TOP_LEVEL = Path(
-        subprocess.check_output(
-            "git rev-parse --show-toplevel", shell=True, text=True
-        ).strip()
-    )
 
-    parser = argparse.ArgumentParser(
-        prog=SCRIPT_NAME, description="Configure a chutney testbed"
-    )
-    parser.add_argument(
-        "-n", "--network", default=SCRIPT_DIR.joinpath("networks", "arti-ci")
-    )
-    args = parser.parse_args()
-
+def find_jq() -> Path:
     # Verify jq is available. Generally it should just be on the PATH.
     # If needed we could add support for passing in a path to jq.
-    if not shutil.which("jq"):
+    jq = shutil.which("jq")
+    if not jq:
         print("It doesn't look like jq is installed.")
         print("On debian, install with:")
         print("apt install jq")
         sys.exit(1)
+    return Path(jq)
 
+
+def find_chutney_bin() -> Path:
     # Set and fully resolve chutney bin if not already set.
-    CHUTNEY_BIN = os.getenv("CHUTNEY_BIN")
-    if not CHUTNEY_BIN:
-        CHUTNEY_BIN = shutil.which("chutney")
-    if not CHUTNEY_BIN:
-        print("Couldn't locate chutney bin. Ensure it's on PATH or set CHUTNEY_BIN.")
+    chutney_bin = os.getenv("CHUTNEY_BIN")
+    if not chutney_bin:
+        chutney_bin = shutil.which("chutney")
+    if not chutney_bin:
+        print("Couldn't locate chutney bin. Ensure it's on PATH or set chutney_bin.")
         print("You can install with:")
         print(
             "python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git"
         )
         sys.exit(1)
-    if not os.access(CHUTNEY_BIN, os.X_OK):
-        print(f"CHUTNEY_BIN='{CHUTNEY_BIN}' doesn't exist or isn't executable")
+    if not os.access(chutney_bin, os.X_OK):
+        print(f"CHUTNEY_BIN='{chutney_bin}' doesn't exist or isn't executable")
         sys.exit(1)
-    # CHUTNEY_BIN is set; tell the user so.
-    print(f"Using chutney at '{CHUTNEY_BIN}'")
+    # chutney_bin is set; tell the user so.
+    print(f"Using chutney at '{chutney_bin}'")
+    return Path(chutney_bin)
 
-    # Set CHUTNEY_DATA_DIR
-    CHUTNEY_DATA_DIR = os.getenv("CHUTNEY_DATA_DIR", os.getcwd())
 
+def find_arti() -> Path:
     # It's not really possible to know where the user built the arti binary.
     # Was it a debug build, a release build, did they use '--target <triple>', etc?
     # Try the platform triple build directory first, and then the usual build directory.
     # It's possible we may choose a stale binary, but there's not much else we can
     # do here other than maybe comparing timestamps.
-    CHUTNEY_ARTI = None
+    arti = None
     for p in [
         Path("target/x86_64-unknown-linux-gnu/quicktest/arti"),
         Path("target/quicktest/arti"),
         Path("target/x86_64-unknown-linux-gnu/debug/arti"),
         Path("target/debug/arti"),
     ]:
-        p = TOP_LEVEL.joinpath(p)
+        p = _TOP_LEVEL.joinpath(p)
         if os.access(p, os.X_OK):
-            CHUTNEY_ARTI = p
+            arti = p
             break
-    if not CHUTNEY_ARTI:
+    if not arti:
         print(
             "Could not find a debug arti binary. You can build it with 'cargo build -p arti'."
         )
         sys.exit(1)
+    return Path(arti)
 
-    with Path(SCRIPT_DIR).joinpath("arti.run").open("w") as c:
+
+def _main():
+    parser = argparse.ArgumentParser(
+        prog=_SCRIPT_NAME, description="Configure a chutney testbed"
+    )
+    parser.add_argument(
+        "-n",
+        "--network",
+        default=str(_SCRIPT_DIR.joinpath("networks", "arti-ci")),
+        help="Name or path of a chutney network to launch",
+    )
+    args = parser.parse_args()
+
+    find_jq()
+    chutney_bin = find_chutney_bin()
+    chutney_data_dir = os.getenv("CHUTNEY_DATA_DIR", os.getcwd())
+    arti = find_arti()
+
+    with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
         print(f"target={args.network}", file=c)
-        print(f'export CHUTNEY_ARTI="{CHUTNEY_ARTI}"', file=c)
-        print(f'export CHUTNEY_BIN="{CHUTNEY_BIN}"', file=c)
-        print(f'export CHUTNEY_DATA_DIR="{CHUTNEY_DATA_DIR}"', file=c)
+        print(f'export CHUTNEY_ARTI="{arti}"', file=c)
+        print(f'export CHUTNEY_BIN="{chutney_bin}"', file=c)
+        print(f'export CHUTNEY_DATA_DIR="{chutney_data_dir}"', file=c)
 
 
 if __name__ == "__main__":
