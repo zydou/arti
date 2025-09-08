@@ -413,6 +413,19 @@ impl Circuit {
     /// [`ConfluxSet::send_relay_cell_on_leg`](super::conflux::ConfluxSet::send_relay_cell_on_leg),
     /// which will reroute the message, if necessary to the primary leg.
     pub(super) async fn send_relay_cell(&mut self, msg: SendRelayCell) -> Result<()> {
+        self.send_relay_cell_inner(msg, None).await
+    }
+
+    /// As [`send_relay_cell`](Self::send_relay_cell), but takes an optional
+    /// [`QueuedCellPaddingInfo`] in `padding_info`.
+    ///
+    /// If `padding_info` is None, `msg` must be non-padding: we report it as such to the
+    /// padding controller.
+    async fn send_relay_cell_inner(
+        &mut self,
+        msg: SendRelayCell,
+        padding_info: Option<QueuedCellPaddingInfo>,
+    ) -> Result<()> {
         let SendRelayCell {
             hop,
             early,
@@ -468,10 +481,7 @@ impl Circuit {
         }
 
         // Remember that we've enqueued this cell.
-        // TODO circpad: If this is non-padding cell, we need to call a different method on
-        // self.padding_ctrl.
-        // XXXX this is now incorrect!
-        let padding_info = self.padding_ctrl.queued_data(hop);
+        let padding_info = padding_info.or_else(|| self.padding_ctrl.queued_data(hop));
 
         self.send_msg(msg, padding_info).await?;
 
@@ -1682,10 +1692,7 @@ impl Circuit {
             early: false,
             cell: AnyRelayMsgOuter::new(None, DropMsg::default().into()),
         };
-        let _ = queue_info; // XXXX use this?
-        // TODO: When we someday allow packed-and-fragmented cells,
-        // we need to make sure that this call actually sends a cell.
-        self.send_relay_cell(msg).await
+        self.send_relay_cell_inner(msg, queue_info).await
     }
 
     /// Enable padding-based blocking,
