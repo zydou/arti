@@ -173,6 +173,17 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
     pub(crate) fn as_inner(&self) -> &S {
         &self.inner
     }
+
+    /// Obtain a mutable reference to the inner `Sink`, `S`
+    ///
+    /// This method should be used with extra care, since it bypasses the wrapper.
+    /// Before you call this method,
+    /// make sure you understand the internal invariants for `SometimesUnboundedSink`,
+    /// and make sure that you are not violating them.
+    /// In particular, do not queue anything onto the resulting `Sink` directly.
+    pub(crate) fn as_inner_mut(&mut self) -> &mut S {
+        &mut self.inner
+    }
 }
 
 // Waker invariant for all these impls:
