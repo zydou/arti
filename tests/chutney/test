@@ -49,3 +49,10 @@ fi
 ## This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
 ## sadly such a network can't run in CI because there is no IPv6 in docker (nor in shadow).
 #[ "$(dig @127.0.0.1 -p 35353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
+
+# Get the socks port of a tor client to use for benchmarking comparison.
+tor_client_port=$(\
+  jq -r \
+  'limit(1; .nodes[] | select(.is_client and .backend=="TOR") | .socksport)'\
+  "$CHUTNEY_DATA_DIR"/nodes/network.json)
+RUST_LOG=debug target/x86_64-unknown-linux-gnu/release/arti-bench -c "$CHUTNEY_DATA_DIR"/nodes/arti.toml --socks5 127.0.0.1:"$tor_client_port" -o benchmark_results.json
