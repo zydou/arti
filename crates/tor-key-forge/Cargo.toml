@@ -30,8 +30,9 @@ derive_more = { version = "2.0.1", features = ["full"] }
 downcast-rs = "2.0.1"
 paste = "1"
 rand = "0.9.1"
+rsa = "0.9.0"
 signature = "2"
-ssh-key = { version = "0.6.1", features = ["std"] }
+ssh-key = { version = "0.6.1", features = ["std", "rsa"] }
 thiserror = "2"
 tor-bytes = { path = "../tor-bytes", version = "0.34.0", default-features = false }
 tor-cert = { path = "../tor-cert", version = "0.34.0", features = ["encode", "experimental-api"] }

@@ -22,7 +22,7 @@ use subtle::{Choice, ConstantTimeEq};
 #[cfg(feature = "memquota-memcost")]
 use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
 
-use crate::util::ct::CtByteArray;
+use crate::util::{ct::CtByteArray, rng::RngCompat};
 
 /// How many bytes are in an "RSA ID"?  (This is a legacy tor
 /// concept, and refers to identifying a relay by a SHA1 digest
@@ -195,7 +195,7 @@ impl From<[u8; 20]> for RsaIdentity {
 ///
 /// This implementation is a simple wrapper so that we can define new
 /// methods and traits on the type.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PublicKey(rsa::RsaPublicKey);
 
 /// An RSA private key.
@@ -206,6 +206,24 @@ pub struct PublicKey(rsa::RsaPublicKey);
 pub struct PrivateKey(rsa::RsaPrivateKey);
 
 impl PrivateKey {
+    /// Generate a new random RSA keypair.
+    pub fn generate<R: rand_core::RngCore + rand_core::CryptoRng>(
+        csprng: &mut R,
+    ) -> Result<Self, tor_error::Bug> {
+        // It's maybe a bit strange to return tor_error::Bug here, but I think it makes sense: The
+        // only way this call can fail is if we choose invalid values for the size and exponent,
+        // and those values are fixed. Ideally the `rsa` crate would give us a way to check that at
+        // compile time and thus have a infallible call, but they don't. I don't think it's
+        // reasonable to bubble up the underlying rsa::Error type, because I don't expect a caller
+        // to be able to figure out what to do with a error that we expect to never happen.
+        // Returning tor_error::Bug clearly indicates that the caller won't be able to do anything
+        // in particular about this error, without hiding a panic anywhere unexpected.
+        Ok(Self(
+            rsa::RsaPrivateKey::new(&mut RngCompat::new(csprng), 1024).map_err(|_| {
+                tor_error::internal!("Generating RSA key failed, despite fixed exponent and size")
+            })?,
+        ))
+    }
     /// Return the public component of this key.
     pub fn to_public_key(&self) -> PublicKey {
         PublicKey(self.0.to_public_key())
@@ -214,7 +232,17 @@ impl PrivateKey {
     pub fn from_der(der: &[u8]) -> Option<Self> {
         Some(PrivateKey(rsa::RsaPrivateKey::from_pkcs1_der(der).ok()?))
     }
-    // ....
+    /// Return a reference to the underlying key type.
+    pub fn as_key(&self) -> &rsa::RsaPrivateKey {
+        &self.0
+    }
+    /// Sign a message using this keypair.
+    ///
+    /// This uses PKCS#1 v1.5 padding and SHA1. This is insecure in general, but we use this for
+    /// backwards-compatibility, not security.
+    pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rsa::Error> {
+        self.0.sign(rsa::Pkcs1v15Sign::new_unprefixed(), message)
+    }
 }
 impl PublicKey {
     /// Return true iff the exponent for this key is the same
@@ -279,6 +307,17 @@ impl PublicKey {
         use digest::Digest;
         let id: [u8; RSA_ID_LEN] = Sha1::digest(self.to_der()).into();
         RsaIdentity { id: id.into() }
+    }
+
+    /// Return a reference to the underlying key type.
+    pub fn as_key(&self) -> &rsa::RsaPublicKey {
+        &self.0
+    }
+}
+
+impl<'a> From<&'a PrivateKey> for PublicKey {
+    fn from(value: &'a PrivateKey) -> Self {
+        PublicKey(value.to_public_key().0)
     }
 }
 
