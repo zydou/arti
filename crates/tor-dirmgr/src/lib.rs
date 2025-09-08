@@ -55,7 +55,6 @@ mod docid;
 mod docmeta;
 mod err;
 mod event;
-mod retry;
 mod shared_ref;
 mod state;
 mod storage;
@@ -75,7 +74,6 @@ use crate::storage::{DynStore, Store};
 use bootstrap::AttemptId;
 use event::DirProgress;
 use postage::watch;
-pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use scopeguard::ScopeGuard;
 use tor_circmgr::CircMgr;
 use tor_dirclient::SourceInfo;
@@ -99,10 +97,7 @@ use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
 use crate::state::{DirState, NetDirChange};
-pub use config::{
-    DirMgrConfig, DirTolerance, DirToleranceBuilder, DownloadScheduleConfig,
-    DownloadScheduleConfigBuilder,
-};
+pub use config::{DirMgrConfig, DirTolerance, DirToleranceBuilder};
 pub use docid::DocId;
 pub use err::Error;
 pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};

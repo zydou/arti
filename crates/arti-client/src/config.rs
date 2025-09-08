@@ -44,10 +44,12 @@ pub mod circ {
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
     pub use tor_dircommon::authority::{Authority, AuthorityBuilder};
-    pub use tor_dircommon::config::{NetworkConfig, NetworkConfigBuilder};
+    pub use tor_dircommon::config::{
+        DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,
+    };
+    pub use tor_dircommon::retry::{DownloadSchedule, DownloadScheduleBuilder};
     pub use tor_dirmgr::{
-        DirMgrConfig, DirTolerance, DirToleranceBuilder, DownloadSchedule, DownloadScheduleConfig,
-        DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder,
+        DirMgrConfig, DirTolerance, DirToleranceBuilder, FallbackDir, FallbackDirBuilder,
     };
 }
 

@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
 use tor_basic_utils::RngExt as _;
+use tor_dircommon::retry::DownloadSchedule;
 use tor_error::{internal, warn_report};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::authcert::UncheckedAuthCert;
@@ -30,7 +31,6 @@ use crate::{
     CacheUsage, ClientRequest, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
     docmeta::{AuthCertMeta, ConsensusMeta},
     event,
-    retry::DownloadSchedule,
 };
 use crate::{DocSource, SharedMutArc};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
@@ -1299,14 +1299,13 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::cognitive_complexity)]
     use super::*;
-    use crate::DownloadScheduleConfig;
     use std::convert::TryInto;
     use std::sync::Arc;
     use tempfile::TempDir;
     use time::macros::datetime;
     use tor_dircommon::{
         authority::{Authority, AuthorityBuilder},
-        config::NetworkConfig,
+        config::{DownloadScheduleConfig, NetworkConfig},
     };
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
     use tor_rtcompat::RuntimeSubstExt as _;

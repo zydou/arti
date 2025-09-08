@@ -13,7 +13,10 @@ use serde::{Deserialize, Serialize};
 use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
 use tor_guardmgr::fallback::FallbackDirBuilder;
 
-use crate::authority::{AuthorityBuilder, AuthorityList, AuthorityListBuilder};
+use crate::{
+    authority::{AuthorityBuilder, AuthorityList, AuthorityListBuilder},
+    retry::{DownloadSchedule, DownloadScheduleBuilder},
+};
 
 /// Configuration information about the Tor network itself; used as
 /// part of Arti's configuration.
@@ -83,5 +86,104 @@ impl NetworkConfigBuilder {
         }
 
         Ok(())
+    }
+}
+
+/// Configuration information for how exactly we download documents from the
+/// Tor directory caches.
+///
+/// This type is immutable once constructed. To make one, use
+/// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+pub struct DownloadScheduleConfig {
+    /// Top-level configuration for how to retry our initial bootstrap attempt.
+    #[builder(
+        sub_builder,
+        field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
+    )]
+    #[builder_field_attr(serde(default))]
+    pub retry_bootstrap: DownloadSchedule,
+
+    /// Configuration for how to retry a consensus download.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub retry_consensus: DownloadSchedule,
+
+    /// Configuration for how to retry an authority cert download.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub retry_certs: DownloadSchedule,
+
+    /// Configuration for how to retry a microdescriptor download.
+    #[builder(
+        sub_builder,
+        field(build = "self.retry_microdescs.build_retry_microdescs()?")
+    )]
+    #[builder_field_attr(serde(default))]
+    pub retry_microdescs: DownloadSchedule,
+}
+
+impl_standard_builder! { DownloadScheduleConfig }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::unnecessary_wraps)]
+
+    use crate::authority::Authority;
+
+    use super::*;
+
+    #[test]
+    fn build_network() {
+        use tor_guardmgr::fallback::FallbackDir;
+
+        let dflt = NetworkConfig::default();
+
+        // with nothing set, we get the default.
+        let mut bld = NetworkConfig::builder();
+        let cfg = bld.build().unwrap();
+        assert_eq!(cfg.authorities.len(), dflt.authorities.len());
+        assert_eq!(cfg.fallback_caches.len(), dflt.fallback_caches.len());
+
+        // with any authorities set, the fallback list _must_ be set
+        // or the build fails.
+        bld.set_authorities(vec![
+            Authority::builder()
+                .name("Hello")
+                .v3ident([b'?'; 20].into())
+                .clone(),
+            Authority::builder()
+                .name("world")
+                .v3ident([b'!'; 20].into())
+                .clone(),
+        ]);
+        assert!(bld.build().is_err());
+
+        bld.set_fallback_caches(vec![{
+            let mut bld = FallbackDir::builder();
+            bld.rsa_identity([b'x'; 20].into())
+                .ed_identity([b'y'; 32].into());
+            bld.orports().push("127.0.0.1:99".parse().unwrap());
+            bld.orports().push("[::]:99".parse().unwrap());
+            bld
+        }]);
+        let cfg = bld.build().unwrap();
+        assert_eq!(cfg.authorities.len(), 2);
+        assert_eq!(cfg.fallback_caches.len(), 1);
     }
 }
