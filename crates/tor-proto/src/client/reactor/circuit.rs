@@ -11,7 +11,9 @@ use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 #[cfg(feature = "counter-galois-onion")]
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
-use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
+use crate::client::circuit::padding::{
+    PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
+};
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::MetaCellDisposition;
@@ -141,6 +143,14 @@ pub(crate) struct Circuit {
     conflux_handler: Option<ConfluxMsgHandler>,
     /// A padding controller to which padding-related events should be reported.
     padding_ctrl: PaddingController,
+    /// An event stream telling us about padding-related events.
+    //
+    // TODO: it would be nice to have all of these streams wrapped in a single
+    // SelectAll, but we can't really do that, since we need the ability to move them
+    // from one conflux set to another, and a SelectAll doesn't let you actually
+    // remove one of its constituent streams.  This issue might get solved along
+    // with the the rest of the next reactor refactoring.
+    pub(super) padding_event_stream: PaddingEventStream,
     /// Memory quota account
     #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
     memquota: CircuitAccount,
@@ -225,6 +235,7 @@ impl Circuit {
         memquota: CircuitAccount,
         mutable: Arc<MutableState>,
         padding_ctrl: PaddingController,
+        padding_event_stream: PaddingEventStream,
     ) -> Self {
         let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
 
@@ -243,6 +254,7 @@ impl Circuit {
             #[cfg(feature = "conflux")]
             conflux_handler: None,
             padding_ctrl,
+            padding_event_stream,
             memquota,
         }
     }

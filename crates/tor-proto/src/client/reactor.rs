@@ -24,7 +24,7 @@ pub(super) mod syncview;
 use crate::circuit::UniqId;
 use crate::client::circuit::CircuitRxReceiver;
 use crate::client::circuit::celltypes::ClientCircChanMsg;
-use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
+use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::stream::queue::StreamQueueReceiver;
 use crate::client::stream::{AnyCmdChecker, StreamRateLimit};
 #[cfg(feature = "hs-service")]
@@ -51,6 +51,7 @@ use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedR
 use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage, trace_report, warn_report};
 use tor_rtcompat::DynTimeProvider;
 
+use cfg_if::cfg_if;
 use futures::StreamExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, select_biased};
@@ -297,6 +298,14 @@ enum RunOnceCmdInner {
         /// The out-of-order message.
         msg: OooRelayMsg,
     },
+    /// Take a padding-related action on a circuit leg.
+    #[cfg(feature = "circ-padding")]
+    PaddingAction {
+        /// The leg to action on.
+        leg: UniqId,
+        /// The action to take.
+        padding_action: PaddingEvent,
+    },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
 }
@@ -393,6 +402,14 @@ enum CircuitAction {
         /// [`ConfluxHandshakeError`] that is sent to the initiator of the
         /// handshake to indicate the reason the handshake failed.
         reason: RemoveLegReason,
+    },
+    /// Take some action (blocking or unblocking a circuit, or sending padding)
+    /// based on the circuit padding backend code.
+    PaddingAction {
+        /// The leg on which to take the padding action.
+        leg: UniqId,
+        /// The action to take.
+        padding_action: PaddingEvent,
     },
 }
 
@@ -701,10 +718,8 @@ impl Reactor {
             memquota,
             Arc::clone(&mutable),
             padding_ctrl,
+            padding_stream,
         );
-        // TODO circpad: Use this stream! (attn gabi wrt where to put it.  Each circuit will have
-        // its own such stream.)
-        drop(padding_stream);
 
         let (circuits, mutable) = ConfluxSet::new(tunnel_id, circuit_leg);
 
@@ -780,6 +795,10 @@ impl Reactor {
         //
         // Note: if any of the messages are ready to be handled,
         // this will block the reactor until we are done processing them
+        //
+        // TODO circpad: If this is a problem, we might want to re-order things so that we
+        // prioritize padding instead.  On the other hand, this should be fixed by refactoring
+        // circuit and tunnel reactors, so we might do well to just leave it alone for now.
         #[cfg(feature = "conflux")]
         self.try_dequeue_ooo_msgs().await?;
 
@@ -835,6 +854,20 @@ impl Reactor {
             }
             CircuitAction::RemoveLeg { leg, reason } => {
                 Some(RunOnceCmdInner::RemoveLeg { leg, reason }.into())
+            }
+            CircuitAction::PaddingAction {
+                leg,
+                padding_action,
+            } => {
+                cfg_if! {
+                    if #[cfg(feature = "circ-padding")] {
+                        Some(RunOnceCmdInner::PaddingAction { leg, padding_action }.into())
+                    } else {
+                        // If padding isn't enabled, we never generate a padding action.
+                        // XXX: Use "void" for this, instead.
+                        unreachable!()
+                    }
+                }
             }
         };
 
@@ -1157,6 +1190,15 @@ impl Reactor {
             RunOnceCmdInner::Enqueue { leg, msg } => {
                 let entry = ConfluxHeapEntry { leg_id: leg, msg };
                 self.ooo_msgs.push(entry);
+            }
+            #[cfg(feature = "circ-padding")]
+            RunOnceCmdInner::PaddingAction {
+                leg,
+                padding_action,
+            } => {
+                // TODO: If we someday move back to having a per-circuit reactor,
+                // this action would logically belong there, not on the tunnel reactor.
+                self.circuits.run_padding_action(leg, padding_action)?;
             }
         }
 
