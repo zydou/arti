@@ -1,103 +1,86 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-set -xeuo pipefail
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
-SCRIPT_NAME=$(basename "$0")
-SCRIPT_DIR=$(realpath "$(dirname "$0")")
 
-function usage()
-{
-    cat <<EOF
-${SCRIPT_NAME}: Launch a chutney network to test arti
+def _main():
+    SCRIPT_NAME = Path(sys.argv[0]).name
+    SCRIPT_DIR = Path(sys.argv[0]).parent.resolve()
+    TOP_LEVEL = Path(
+        subprocess.check_output(
+            "git rev-parse --show-toplevel", shell=True, text=True
+        ).strip()
+    )
 
-Usage:
-  ${SCRIPT_NAME} [modules] : Launch chutney, and the provided modules.
+    parser = argparse.ArgumentParser(
+        prog=SCRIPT_NAME, description="Configure a chutney testbed"
+    )
+    parser.add_argument(
+        "-n", "--network", default=SCRIPT_DIR.joinpath("networks", "arti-ci")
+    )
+    args = parser.parse_args()
 
-Options:
-  -h: Print this message.
-  -n <network>: Name of the chutney network to launch (default: basic)
+    # Verify jq is available. Generally it should just be on the PATH.
+    # If needed we could add support for passing in a path to jq.
+    if not shutil.which("jq"):
+        print("It doesn't look like jq is installed.")
+        print("On debian, install with:")
+        print("apt install jq")
+        sys.exit(1)
 
-Modules:
-  <currently none>
-EOF
-}
-
-NETWORK="${SCRIPT_DIR}/networks/arti-ci"
-while getopts "hn:" opt ; do
-    case "$opt" in
-	h) usage
-	   exit 0
-	   ;;
-	n) NETWORK="$OPTARG"
-	   ;;
-	*) echo "Unknown option. (Run $0 -h for usage)"
-	   exit 1
-	   ;;
-    esac
-done
-
-# Remove the parsed flags
-shift $((OPTIND-1))
-
-for module in "$@"; do
-    case "$module" in
-	*) echo "Unrecognized module. (Run $0 -h for usage)"
-	   ;;
-    esac
-done
-
-target="$NETWORK"
-cd "$(git rev-parse --show-toplevel)"
-echo "target=$target" > tests/chutney/arti.run
-
-# Verify jq is available. Generally it should just be on the PATH.
-# If needed we could add support for passing in a path to jq.
-if ! type -p jq; then
-    echo "It doesn't look like jq is installed."
-    echo "On debian, install with:"
-    echo "apt install jq"
-    exit 1
-fi
-
-# Set and fully resolve chutney bin if not already set.
-: "${CHUTNEY_BIN:=$(type -P chutney)}"
-if [ -z "${CHUTNEY_BIN:-}" ]; then
-    echo "Couldn't locate chutney bin. Ensure it's on PATH or set CHUTNEY_BIN."
-    echo "You can install with:"
-    echo "python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git"
-    exit 1
-elif [ ! -x "$CHUTNEY_BIN" ]; then
-    echo "CHUTNEY_BIN='$CHUTNEY_BIN' doesn't exist or isn't executable"
-    exit 1
-else
+    # Set and fully resolve chutney bin if not already set.
+    CHUTNEY_BIN = os.getenv("CHUTNEY_BIN")
+    if not CHUTNEY_BIN:
+        CHUTNEY_BIN = shutil.which("chutney")
+    if not CHUTNEY_BIN:
+        print("Couldn't locate chutney bin. Ensure it's on PATH or set CHUTNEY_BIN.")
+        print("You can install with:")
+        print(
+            "python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git"
+        )
+        sys.exit(1)
+    if not os.access(CHUTNEY_BIN, os.X_OK):
+        print(f"CHUTNEY_BIN='{CHUTNEY_BIN}' doesn't exist or isn't executable")
+        sys.exit(1)
     # CHUTNEY_BIN is set; tell the user so.
-    echo "Using chutney at '${CHUTNEY_BIN}'"
-fi
+    print(f"Using chutney at '{CHUTNEY_BIN}'")
 
-# Use consistent CHUTNEY_BIN for all steps. We export it in case we end up
-# calling other tools/scripts that directly look for chutney there.
-echo "export CHUTNEY_BIN=\"$CHUTNEY_BIN\"" >> tests/chutney/arti.run
+    # Set CHUTNEY_DATA_DIR
+    CHUTNEY_DATA_DIR = os.getenv("CHUTNEY_DATA_DIR", os.getcwd())
 
-# Likewise use a consistent CHUTNEY_DATA_DIR
-export CHUTNEY_DATA_DIR="${CHUTNEY_DATA_DIR:-$(pwd)}"
-echo "export CHUTNEY_DATA_DIR=\"$CHUTNEY_DATA_DIR\"" >> tests/chutney/arti.run
+    # It's not really possible to know where the user built the arti binary.
+    # Was it a debug build, a release build, did they use '--target <triple>', etc?
+    # Try the platform triple build directory first, and then the usual build directory.
+    # It's possible we may choose a stale binary, but there's not much else we can
+    # do here other than maybe comparing timestamps.
+    CHUTNEY_ARTI = None
+    for p in [
+        Path("target/x86_64-unknown-linux-gnu/quicktest/arti"),
+        Path("target/quicktest/arti"),
+        Path("target/x86_64-unknown-linux-gnu/debug/arti"),
+        Path("target/debug/arti"),
+    ]:
+        p = TOP_LEVEL.joinpath(p)
+        if os.access(p, os.X_OK):
+            CHUTNEY_ARTI = p
+            break
+    if not CHUTNEY_ARTI:
+        print(
+            "Could not find a debug arti binary. You can build it with 'cargo build -p arti'."
+        )
+        sys.exit(1)
 
-# It's not really possible to know where the user built the arti binary.
-# Was it a debug build, a release build, did they use '--target <triple>', etc?
-# Try the platform triple build directory first, and then the usual build directory.
-# It's possible we may choose a stale binary, but there's not much else we can
-# do here other than maybe comparing timestamps.
-if [ -x ./target/x86_64-unknown-linux-gnu/quicktest/arti ]; then
-	CHUTNEY_ARTI=./target/x86_64-unknown-linux-gnu/quicktest/arti
-elif [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
-	CHUTNEY_ARTI=./target/x86_64-unknown-linux-gnu/debug/arti
-elif [ -x ./target/quicktest/arti ]; then
-	CHUTNEY_ARTI=./target/quicktest/arti
-elif [ -x ./target/debug/arti ]; then
-	CHUTNEY_ARTI=./target/debug/arti
-else
-	echo "Could not find a debug arti binary. You can build it with 'cargo build -p arti'."
-	exit 1
-fi
-export CHUTNEY_ARTI
-echo "export CHUTNEY_ARTI=\"$CHUTNEY_ARTI\"" >> tests/chutney/arti.run
+    with Path(SCRIPT_DIR).joinpath("arti.run").open("w") as c:
+        print(f"target={args.network}", file=c)
+        print(f'export CHUTNEY_ARTI="{CHUTNEY_ARTI}"', file=c)
+        print(f'export CHUTNEY_BIN="{CHUTNEY_BIN}"', file=c)
+        print(f'export CHUTNEY_DATA_DIR="{CHUTNEY_DATA_DIR}"', file=c)
+
+
+if __name__ == "__main__":
+    _main()
