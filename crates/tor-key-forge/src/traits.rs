@@ -350,16 +350,16 @@ impl EncodableItem for crate::EncodedEd25519Cert {
     }
 }
 
-impl Keygen for rsa::PrivateKey {
+impl Keygen for rsa::KeyPair {
     fn generate(mut rng: &mut dyn KeygenRng) -> Result<Self>
     where
         Self: Sized,
     {
-        Ok(rsa::PrivateKey::generate(&mut rng)?)
+        Ok(rsa::KeyPair::generate(&mut rng)?)
     }
 }
 
-impl ItemType for rsa::PrivateKey {
+impl ItemType for rsa::KeyPair {
     fn item_type() -> KeystoreItemType
     where
         Self: Sized,
@@ -368,7 +368,7 @@ impl ItemType for rsa::PrivateKey {
     }
 }
 
-impl EncodableItem for rsa::PrivateKey {
+impl EncodableItem for rsa::KeyPair {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let keypair = self.as_key().try_into().map_err(tor_error::into_internal!(
             "Error converting rsa::PrivateKey into ssh_key::private::RsaKeypair."

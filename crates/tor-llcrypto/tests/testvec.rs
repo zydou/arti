@@ -531,7 +531,7 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
 
     use tor_llcrypto::pk::{ValidatableSignature, rsa};
 
-    let secret = rsa::PrivateKey::from_der(&to_der(sk_pem)).unwrap();
+    let secret = rsa::KeyPair::from_der(&to_der(sk_pem)).unwrap();
     let expect_public = rsa::PublicKey::from_der(&to_der(pk_pem)).unwrap();
 
     let public = secret.to_public_key();

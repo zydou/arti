@@ -372,7 +372,7 @@ define_derive_deftly! {
 /// use tor_key_forge::Keygen;
 /// use tor_key_forge::define_rsa_keypair;
 /// use tor_llcrypto::pk::ValidatableSignature;
-/// use tor_llcrypto::pk::rsa::PrivateKey;
+/// use tor_llcrypto::pk::rsa::KeyPair;
 ///
 /// define_rsa_keypair!(
 ///     /// Our signing key.
@@ -399,13 +399,13 @@ macro_rules! define_rsa_keypair {
             #[deftly(kp(pubkey = $base_name "PublicKey"))]
             #[non_exhaustive]
             $(#[ $docs_and_attrs ])*
-            $vis struct [<$base_name "Keypair">]($crate::macro_deps::rsa::PrivateKey);
+            $vis struct [<$base_name "Keypair">]($crate::macro_deps::rsa::KeyPair);
         }
     };
 }
 
 define_derive_deftly! {
-    /// Implement set of helper functions around a type wrapping a rsa::PrivateKey.
+    /// Implement set of helper functions around a type wrapping a rsa::KeyPair.
     export RsaKeypair for struct:
 
     // Enforce that the object has a single field. We want to avoid the implementer to start
@@ -459,8 +459,8 @@ define_derive_deftly! {
         }
     }
 
-    impl From<$crate::macro_deps::rsa::PrivateKey> for $ttype {
-        fn from(kp: $crate::macro_deps::rsa::PrivateKey) -> Self {
+    impl From<$crate::macro_deps::rsa::KeyPair> for $ttype {
+        fn from(kp: $crate::macro_deps::rsa::KeyPair) -> Self {
             Self(kp)
         }
     }
@@ -481,7 +481,7 @@ define_derive_deftly! {
     }
 
     impl $crate::ToEncodableKey for $ttype {
-        type Key = $crate::macro_deps::rsa::PrivateKey;
+        type Key = $crate::macro_deps::rsa::KeyPair;
         type KeyPair = $ttype;
 
         fn to_encodable_key(self) -> Self::Key {
@@ -497,7 +497,7 @@ define_derive_deftly! {
         where
             Self: Sized
         {
-            Ok(Self { $KP_NAME: $crate::macro_deps::rsa::PrivateKey::generate(&mut rng)? })
+            Ok(Self { $KP_NAME: $crate::macro_deps::rsa::KeyPair::generate(&mut rng)? })
         }
     }
 }

@@ -203,9 +203,9 @@ pub struct PublicKey(rsa::RsaPublicKey);
 /// This is not so useful at present, since Arti currently only has
 /// client support, and Tor clients never actually need RSA private
 /// keys.
-pub struct PrivateKey(rsa::RsaPrivateKey);
+pub struct KeyPair(rsa::RsaPrivateKey);
 
-impl PrivateKey {
+impl KeyPair {
     /// Generate a new random RSA keypair.
     pub fn generate<R: rand_core::RngCore + rand_core::CryptoRng>(
         csprng: &mut R,
@@ -230,7 +230,7 @@ impl PrivateKey {
     }
     /// Construct a PrivateKey from DER pkcs1 encoding.
     pub fn from_der(der: &[u8]) -> Option<Self> {
-        Some(PrivateKey(rsa::RsaPrivateKey::from_pkcs1_der(der).ok()?))
+        Some(KeyPair(rsa::RsaPrivateKey::from_pkcs1_der(der).ok()?))
     }
     /// Return a reference to the underlying key type.
     pub fn as_key(&self) -> &rsa::RsaPrivateKey {
@@ -315,8 +315,8 @@ impl PublicKey {
     }
 }
 
-impl<'a> From<&'a PrivateKey> for PublicKey {
-    fn from(value: &'a PrivateKey) -> Self {
+impl<'a> From<&'a KeyPair> for PublicKey {
+    fn from(value: &'a KeyPair) -> Self {
         PublicKey(value.to_public_key().0)
     }
 }
