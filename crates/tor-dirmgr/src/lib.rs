@@ -101,7 +101,7 @@ use std::{fmt::Debug, time::SystemTime};
 use crate::state::{DirState, NetDirChange};
 pub use config::{
     DirMgrConfig, DirTolerance, DirToleranceBuilder, DownloadScheduleConfig,
-    DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,
+    DownloadScheduleConfigBuilder,
 };
 pub use docid::DocId;
 pub use err::Error;

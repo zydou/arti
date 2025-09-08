@@ -6250,6 +6250,7 @@ dependencies = [
  "derive_builder_fork_arti",
  "serde",
  "tor-config",
+ "tor-guardmgr",
  "tor-llcrypto",
  "tor-netdoc",
 ]

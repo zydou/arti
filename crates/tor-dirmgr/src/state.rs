@@ -1304,7 +1304,10 @@ mod test {
     use std::sync::Arc;
     use tempfile::TempDir;
     use time::macros::datetime;
-    use tor_dircommon::authority::{Authority, AuthorityBuilder};
+    use tor_dircommon::{
+        authority::{Authority, AuthorityBuilder},
+        config::NetworkConfig,
+    };
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
     use tor_rtcompat::RuntimeSubstExt as _;
     #[allow(deprecated)] // TODO #1885
@@ -1355,7 +1358,7 @@ mod test {
     }
 
     fn make_dirmgr_config(authorities: Option<Vec<AuthorityBuilder>>) -> Arc<DirMgrConfig> {
-        let mut netcfg = crate::NetworkConfig::builder();
+        let mut netcfg = NetworkConfig::builder();
         netcfg.set_fallback_caches(vec![]);
         if let Some(a) = authorities {
             netcfg.set_authorities(a);
