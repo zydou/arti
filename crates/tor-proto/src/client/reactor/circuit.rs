@@ -12,7 +12,7 @@ use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
-    PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
+    self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
 use crate::client::circuit::{HopSettings, path};
@@ -151,6 +151,9 @@ pub(crate) struct Circuit {
     // remove one of its constituent streams.  This issue might get solved along
     // with the the rest of the next reactor refactoring.
     pub(super) padding_event_stream: PaddingEventStream,
+    /// Current rules for blocking traffic, according to the padding controller.
+    #[cfg(feature = "circ-padding")]
+    padding_block: Option<padding::StartBlocking>,
     /// Memory quota account
     #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
     memquota: CircuitAccount,
@@ -255,6 +258,8 @@ impl Circuit {
             conflux_handler: None,
             padding_ctrl,
             padding_event_stream,
+            #[cfg(feature = "circ-padding")]
+            padding_block: None,
             memquota,
         }
     }
@@ -463,7 +468,9 @@ impl Circuit {
         }
 
         // Remember that we've enqueued this cell.
-        // TODO circpad: If this is non-padding cell, we need to call a different method on self.padding_ctrl.
+        // TODO circpad: If this is non-padding cell, we need to call a different method on
+        // self.padding_ctrl.
+        // XXXX this is now incorrect!
         let padding_info = self.padding_ctrl.queued_data(hop);
 
         self.send_msg(msg, padding_info).await?;
@@ -1553,6 +1560,163 @@ impl Circuit {
             .as_ref()
             .map(|handler| handler.init_rtt())?
     }
+
+    /// Determine how exactly to handle a request to handle padding.
+    ///
+    /// This is fairly complicated; see the maybenot documentation for more information.
+    ///
+    /// ## Limitations
+    ///
+    /// In our current padding implementation, a circuit is either blocked or not blocked:
+    /// we do not keep track of which hop is actually doing the blocking.
+    #[cfg(feature = "circ-padding")]
+    fn padding_disposition(&self, send_padding: &padding::SendPadding) -> CircPaddingDisposition {
+        use CircPaddingDisposition::*;
+        use padding::Bypass::*;
+        use padding::Replace::*;
+
+        // If true, and we are trying to send Replaceable padding,
+        // we should let the data in the queue count as the queued padding instead.
+        //
+        // TODO circpad: In addition to letting currently-queued data count as padding,
+        // maybenot also permits us to send currently pending data from our streams
+        // (or from our next hop, if we're a relay).  We don't have that implemented yet.
+        //
+        // TODO circpad: This will usually be false, since we try not to queue data
+        // when there isn't space to write it.  If we someday add internal per-circuit
+        // Buffers to chan_sender, this test is more likely to trigger.
+        let have_queued_data = self.chan_sender.n_queued() > 0;
+
+        match &self.padding_block {
+            Some(blocking) if blocking.is_bypassable => {
+                match (
+                    send_padding.may_replace_with_data(),
+                    send_padding.may_bypass_block(),
+                ) {
+                    (NotReplaceable, DoNotBypass) => QueuePaddingNormally,
+                    (NotReplaceable, BypassBlocking) => QueuePaddingAndBypass,
+                    (Replaceable, DoNotBypass) => {
+                        if have_queued_data {
+                            // The queued item will count as padding.
+                            NothingToDo
+                        } else {
+                            QueuePaddingNormally
+                        }
+                    }
+                    (Replaceable, BypassBlocking) => {
+                        if have_queued_data {
+                            BypassWithExistingQueue
+                        } else {
+                            QueuePaddingAndBypass
+                        }
+                    }
+                }
+            }
+            Some(_) | None => {
+                match send_padding.may_replace_with_data() {
+                    Replaceable => {
+                        if have_queued_data {
+                            // The queued item will count as padding.
+                            NothingToDo
+                        } else {
+                            QueuePaddingNormally
+                        }
+                    }
+                    NotReplaceable => QueuePaddingNormally,
+                }
+            }
+        }
+    }
+
+    /// Handle a request from our padding subsystem to send a padding packet.
+    #[cfg(feature = "circ-padding")]
+    pub(super) async fn send_padding(&mut self, send_padding: padding::SendPadding) -> Result<()> {
+        use CircPaddingDisposition::*;
+
+        let target_hop = send_padding.hop;
+
+        match self.padding_disposition(&send_padding) {
+            QueuePaddingNormally => {
+                let queue_info = self.padding_ctrl.queued_padding(target_hop, send_padding);
+                self.queue_padding_cell_for_hop(target_hop, queue_info)
+                    .await?;
+            }
+            QueuePaddingAndBypass => {
+                let queue_info = self.padding_ctrl.queued_padding(target_hop, send_padding);
+                self.chan_sender.bypass_blocking_once(); // TODO circpad: reverse these?
+                self.queue_padding_cell_for_hop(target_hop, queue_info)
+                    .await?;
+            }
+            BypassWithExistingQueue => {
+                // TODO circpad: Is this correct? We didn't really queue anything;
+                // we only took an already-queued cell (possibly padding, possibly not)
+                // and decided that it counts as padding.
+                let _queue_info = self
+                    .padding_ctrl
+                    .queued_data_as_padding(target_hop, send_padding);
+                self.chan_sender.bypass_blocking_once();
+            }
+            NothingToDo => {
+                // TODO circpad: Is this correct? We didn't really queue anything;
+                // we only took an already-queued cell (possibly padding, possibly not)
+                // and decided that it counts as padding.
+                let _queue_info = self
+                    .padding_ctrl
+                    .queued_data_as_padding(target_hop, send_padding);
+            }
+        }
+        Ok(())
+    }
+
+    /// Generate and encrypt a padding cell, and send it to a targeted hop.
+    #[cfg(feature = "circ-padding")]
+    async fn queue_padding_cell_for_hop(
+        &mut self,
+        target_hop: HopNum,
+        queue_info: Option<QueuedCellPaddingInfo>,
+    ) -> Result<()> {
+        use tor_cell::relaycell::msg::Drop as DropMsg;
+        let msg = SendRelayCell {
+            hop: target_hop,
+            // TODO circpad: we will probably want padding machines that can send EARLY cells.
+            early: false,
+            cell: AnyRelayMsgOuter::new(None, DropMsg::default().into()),
+        };
+        let _ = queue_info; // XXXX use this?
+        // TODO: When we someday allow packed-and-fragmented cells,
+        // we need to make sure that this call actually sends a cell.
+        self.send_relay_cell(msg).await
+    }
+
+    /// Enable padding-based blocking,
+    /// or change the rule for padding-based blocking to the one in `block`.
+    #[cfg(feature = "circ-padding")]
+    pub(super) fn start_blocking_for_padding(&mut self, block: padding::StartBlocking) {
+        self.chan_sender.start_blocking();
+        self.padding_block = Some(block);
+    }
+
+    /// Disable padding-based blocking.
+    #[cfg(feature = "circ-padding")]
+    pub(super) fn stop_blocking_for_padding(&mut self) {
+        self.chan_sender.stop_blocking();
+        self.padding_block = None;
+    }
+}
+
+/// A possible way to handle a request to send padding.
+#[derive(Copy, Clone, Debug)]
+enum CircPaddingDisposition {
+    /// Enqueue the padding normally.
+    QueuePaddingNormally,
+    /// Enqueue the padding, and allow one cell of data on our outbound queue
+    /// to bypass the current block.
+    QueuePaddingAndBypass,
+    /// Allow one cell of existing data on our outbound queue to bypass the current block.
+    BypassWithExistingQueue,
+    /// Do not take any actual padding action:
+    /// existing data on our outbound queue will count as padding.
+    NothingToDo,
 }
 
 /// Return the stream ID of `msg`, if it has one.

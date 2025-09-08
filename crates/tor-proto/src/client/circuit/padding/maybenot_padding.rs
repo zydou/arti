@@ -170,6 +170,11 @@ impl SendPadding {
     pub(crate) fn may_replace_with_data(&self) -> Replace {
         self.replace
     }
+
+    /// Return whether this padding cell is allowed to bypass any current blocking.
+    pub(crate) fn may_bypass_block(&self) -> Bypass {
+        self.bypass
+    }
 }
 
 /// An instruction to start blocking traffic to a given hop,

@@ -1155,15 +1155,30 @@ impl ConfluxSet {
 
     /// Perform some circuit-padding-based action on the specified circuit.
     #[cfg(feature = "circ-padding")]
-    pub(super) fn run_padding_action(
+    pub(super) async fn run_padding_action(
         &mut self,
         circ_id: UniqId,
         padding_action: PaddingEvent,
     ) -> crate::Result<()> {
-        // XXXX
-        let _ = circ_id;
-        let _ = padding_action;
-        todo!()
+        use PaddingEvent as E;
+        let Some(circ) = self.leg_mut(circ_id) else {
+            // No such circuit; it must have gone away after generating this event.
+            // Just ignore it.
+            return Ok(());
+        };
+
+        match padding_action {
+            E::SendPadding(send_padding) => {
+                circ.send_padding(send_padding).await?;
+            }
+            E::StartBlocking(start_blocking) => {
+                circ.start_blocking_for_padding(start_blocking);
+            }
+            E::StopBlocking => {
+                circ.stop_blocking_for_padding();
+            }
+        }
+        Ok(())
     }
 }
 

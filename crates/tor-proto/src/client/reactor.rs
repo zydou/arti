@@ -1198,7 +1198,9 @@ impl Reactor {
             } => {
                 // TODO: If we someday move back to having a per-circuit reactor,
                 // this action would logically belong there, not on the tunnel reactor.
-                self.circuits.run_padding_action(leg, padding_action)?;
+                self.circuits
+                    .run_padding_action(leg, padding_action)
+                    .await?;
             }
         }
 
