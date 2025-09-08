@@ -135,6 +135,32 @@ impl CircuitCellSender {
         self.chan_sender().time_provider()
     }
 
+    /// Circpadding only: Put this sink into a blocked state.
+    ///
+    /// When we are blocked, attempts to `send()` to this sink will fail.
+    /// You can still queue items with `send_unbounded()`,
+    /// but such items will not be flushed until this sink is unblocked,
+    /// or when allowed by [`bypass_blocking_once()`](Self::bypass_blocking_once).
+    #[cfg(feature = "circ-padding")]
+    pub(super) fn start_blocking(&mut self) {
+        self.pre_queue_blocker_mut().set_blocked();
+        self.post_queue_blocker_mut().set_blocked();
+    }
+
+    /// Circpadding only: Put this sink into an unblocked state.
+    #[cfg(feature = "circ-padding")]
+    pub(super) fn stop_blocking(&mut self) {
+        self.pre_queue_blocker_mut().set_unblocked();
+        self.post_queue_blocker_mut().set_unlimited();
+    }
+
+    /// Circpadding only: If this sink is currently blocked,
+    /// allow one queued item to bypass the block.
+    #[cfg(feature = "circ-padding")]
+    pub(super) fn bypass_blocking_once(&mut self) {
+        self.post_queue_blocker_mut().allow_n_additional_items(1);
+    }
+
     /// Helper: return a reference to the internal [`SometimesUnboundedSink`]
     /// that this `CircuitCellSender` is based on.
     fn sometimes_unbounded(&self) -> &SometimesUnbounded {
@@ -169,6 +195,21 @@ impl CircuitCellSender {
                 self.sink.as_inner()
             }
         }
+    }
+
+    /// Helper: Return a mutable reference to our outer [`SinkBlocker`]
+    #[cfg(feature = "circ-padding")]
+    fn pre_queue_blocker_mut(&mut self) -> &mut InnerSink {
+        &mut self.sink
+    }
+
+    /// Helper: Return a mutable reference to our inner [`SinkBlocker`].
+    ///
+    /// q.v. the dire warnings on [`SometimesUnboundedSink::as_inner_mut()`]:
+    /// We must not use this reference to enqueue anything onto the returned sink directly.
+    #[cfg(feature = "circ-padding")]
+    fn post_queue_blocker_mut(&mut self) -> &mut SinkBlocker<ChannelSender, CountingPolicy> {
+        self.sink.as_inner_mut().as_inner_mut()
     }
 }
 
