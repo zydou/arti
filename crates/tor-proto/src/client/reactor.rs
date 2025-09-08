@@ -863,9 +863,9 @@ impl Reactor {
                     if #[cfg(feature = "circ-padding")] {
                         Some(RunOnceCmdInner::PaddingAction { leg, padding_action }.into())
                     } else {
-                        // If padding isn't enabled, we never generate a padding action.
-                        // XXX: Use "void" for this, instead.
-                        unreachable!()
+                        // If padding isn't enabled, we never generate a padding action,
+                        // so we can be sure this case will never be called.
+                        void::unreachable(padding_action.0);
                     }
                 }
             }

@@ -54,22 +54,6 @@ cfg_if::cfg_if! {
 }
 
 pub(crate) use padding_impl::{
-    PaddingController, PaddingEventStream, QueuedCellPaddingInfo, SendPadding, StartBlocking,
-    new_padding,
+    PaddingController, PaddingEvent, PaddingEventStream, QueuedCellPaddingInfo, SendPadding,
+    StartBlocking, new_padding,
 };
-
-/// An instruction from the padding machine to the circuit.
-///
-/// These are returned from the [`PaddingEventStream`].
-///
-/// When the `circ-padding` feature is disabled, these won't actually be constructed.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum PaddingEvent {
-    /// An instruction to send padding.
-    SendPadding(SendPadding),
-    /// An instruction to start blocking outbound traffic,
-    /// or change the hop at which traffic is blocked.
-    StartBlocking(StartBlocking),
-    /// An instruction to stop all blocking.
-    StopBlocking,
-}
