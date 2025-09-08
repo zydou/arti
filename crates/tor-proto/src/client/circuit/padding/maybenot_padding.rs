@@ -599,6 +599,14 @@ impl futures::Stream for PaddingEventStream {
     }
 }
 
+impl futures::stream::FusedStream for PaddingEventStream {
+    fn is_terminated(&self) -> bool {
+        // This stream is _never_ terminated: even if it has no padding machines now,
+        // we might add some in the future.
+        false
+    }
+}
+
 /// Construct a HopNum from an index into the `hops` field of a [`PaddingShared`].
 ///
 /// # Panics

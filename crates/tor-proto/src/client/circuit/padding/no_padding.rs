@@ -95,6 +95,14 @@ impl futures::Stream for PaddingEventStream {
     }
 }
 
+impl futures::stream::FusedStream for PaddingEventStream {
+    fn is_terminated(&self) -> bool {
+        // TODO circpad: _if_ we have the above implementation return Ready(None),
+        // then we must change this to return true.
+        false
+    }
+}
+
 /// Initialize a new PaddingController and PaddingEventStream.
 ///
 /// When the `circ-padding` feature is disabled, these do nothing.
