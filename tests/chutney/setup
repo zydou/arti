@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 
+from argparse import Namespace
 from pathlib import Path
 
 _SCRIPT_NAME = Path(sys.argv[0]).name
@@ -27,13 +28,14 @@ def find_jq() -> Path:
     return Path(jq)
 
 
-def find_chutney_bin() -> Path:
-    # Set and fully resolve chutney bin if not already set.
-    chutney_bin = os.getenv("CHUTNEY_BIN")
+def find_chutney_bin(args: Namespace) -> Path:
+    chutney_bin = args.chutney_bin
+    if not chutney_bin:
+        chutney_bin = os.getenv("CHUTNEY_BIN")
     if not chutney_bin:
         chutney_bin = shutil.which("chutney")
     if not chutney_bin:
-        print("Couldn't locate chutney bin. Ensure it's on PATH or set chutney_bin.")
+        print("Couldn't locate chutney bin. Ensure it's on PATH or set --chutney-bin.")
         print("You can install with:")
         print(
             "python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git"
@@ -44,35 +46,39 @@ def find_chutney_bin() -> Path:
         sys.exit(1)
     # chutney_bin is set; tell the user so.
     print(f"Using chutney at '{chutney_bin}'")
-    return Path(chutney_bin)
+    return Path(chutney_bin).resolve()
 
 
-def find_arti() -> Path:
+def find_arti(args: Namespace) -> Path:
     # It's not really possible to know where the user built the arti binary.
     # Was it a debug build, a release build, did they use '--target <triple>', etc?
     # Try the platform triple build directory first, and then the usual build directory.
     # It's possible we may choose a stale binary, but there's not much else we can
     # do here other than maybe comparing timestamps.
-    arti = None
-    for p in [
-        Path("target/x86_64-unknown-linux-gnu/quicktest/arti"),
-        Path("target/quicktest/arti"),
-        Path("target/x86_64-unknown-linux-gnu/debug/arti"),
-        Path("target/debug/arti"),
-    ]:
-        p = _TOP_LEVEL.joinpath(p)
-        if os.access(p, os.X_OK):
-            arti = p
-            break
+    arti = args.arti_bin
+    if not arti:
+        for p in [
+            Path("target/x86_64-unknown-linux-gnu/quicktest/arti"),
+            Path("target/quicktest/arti"),
+            Path("target/x86_64-unknown-linux-gnu/debug/arti"),
+            Path("target/debug/arti"),
+        ]:
+            p = _TOP_LEVEL.joinpath(p)
+            if p.exists():
+                arti = p
+                break
     if not arti:
         print(
             "Could not find a debug arti binary. You can build it with 'cargo build -p arti'."
         )
         sys.exit(1)
+    if not os.access(arti, os.X_OK):
+        print(f"ARTI_BIN='{arti}' doesn't exist or isn't executable")
+        sys.exit(1)
     return Path(arti)
 
 
-def _main():
+def _main() -> None:
     parser = argparse.ArgumentParser(
         prog=_SCRIPT_NAME, description="Configure a chutney testbed"
     )
@@ -82,12 +88,22 @@ def _main():
         default=str(_SCRIPT_DIR.joinpath("networks", "arti-ci")),
         help="Name or path of a chutney network to launch",
     )
+    parser.add_argument(
+        "--chutney-bin",
+        type=Path,
+        help="Path to chutney executable",
+    )
+    parser.add_argument(
+        "--arti-bin",
+        type=Path,
+        help="Path to arti executable",
+    )
     args = parser.parse_args()
 
     find_jq()
-    chutney_bin = find_chutney_bin()
+    chutney_bin = find_chutney_bin(args)
     chutney_data_dir = os.getenv("CHUTNEY_DATA_DIR", os.getcwd())
-    arti = find_arti()
+    arti = find_arti(args)
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
         print(f"target={args.network}", file=c)
