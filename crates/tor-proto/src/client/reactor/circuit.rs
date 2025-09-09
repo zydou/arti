@@ -69,7 +69,6 @@ use std::borrow::Borrow;
 use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::Arc;
-use std::task::Poll;
 use std::time::{Duration, SystemTime};
 
 use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
@@ -1405,23 +1404,6 @@ impl Circuit {
         exclude: Option<HopNum>,
     ) -> impl Stream<Item = Result<CircuitCmd>> + use<> {
         self.hops.ready_streams_iterator(exclude)
-    }
-
-    /// Return the congestion signals for this reactor. This is used by congestion control module.
-    ///
-    /// Note: This is only async because we need a Context to check the sink for readiness.
-    /// This will register a new waker (or overwrite any existing waker).
-    //
-    // TODO: Perhaps we should move this into CircuitCellSender.
-    pub(super) async fn congestion_signals(&mut self) -> CongestionSignals {
-        futures::future::poll_fn(|cx| -> Poll<CongestionSignals> {
-            let channel_blocked = self.chan_sender.is_congested(cx);
-            Poll::Ready(CongestionSignals::new(
-                /* channel_blocked= */ channel_blocked,
-                self.chan_sender.n_queued(),
-            ))
-        })
-        .await
     }
 
     /// Return a reference to the hop corresponding to `hopnum`, if there is one.

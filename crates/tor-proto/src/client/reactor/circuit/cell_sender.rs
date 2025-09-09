@@ -3,7 +3,7 @@
 
 use std::{
     pin::{Pin, pin},
-    task::{self, Context, Poll},
+    task::{Context, Poll},
 };
 
 use cfg_if::cfg_if;
@@ -13,6 +13,7 @@ use tor_rtcompat::DynTimeProvider;
 
 use crate::{
     channel::{ChanCellQueueEntry, ChannelSender},
+    congestion::CongestionSignals,
     util::{SinkExt, sometimes_unbounded_sink::SometimesUnboundedSink},
 };
 
@@ -161,21 +162,25 @@ impl CircuitCellSender {
         self.post_queue_blocker_mut().allow_n_additional_items(1);
     }
 
-    /// Return true if this sink's underlying transport is blocked _from the point of view of
-    /// congestion control_.
-    pub(super) fn is_congested(&mut self, cx: &mut task::Context<'_>) -> bool {
-        // We're looking at the ChanSender's in order to deliberately ignore the blocked/unblocked
-        // status of this sink.
-        //
-        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3252061
-        // for a deeper discussion.
-
-        // TODO: If we someday add an extra Buffer, we need to look at that instead.
-        let ready = self
-            .chan_sender_mut()
-            .poll_ready_unpin_bool(cx)
-            .unwrap_or(false);
-        !ready
+    /// Note: This is only async because we need a Context to check the underlying sink for readiness.
+    /// This will register a new waker (or overwrite any existing waker).
+    pub(crate) async fn congestion_signals(&mut self) -> CongestionSignals {
+        futures::future::poll_fn(|cx| -> Poll<CongestionSignals> {
+            // We're looking at the ChanSender's in order to deliberately ignore the blocked/unblocked
+            // status of this sink.
+            //
+            // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3252061
+            // for a deeper discussion.
+            let channel_ready = self
+                .chan_sender_mut()
+                .poll_ready_unpin_bool(cx)
+                .unwrap_or(false);
+            Poll::Ready(CongestionSignals::new(
+                /* channel_blocked= */ !channel_ready,
+                self.n_queued(),
+            ))
+        })
+        .await
     }
 
     /// Helper: return a reference to the internal [`SometimesUnboundedSink`]
