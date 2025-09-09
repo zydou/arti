@@ -24,7 +24,6 @@ use std::{sync::Arc, task::Waker};
 
 use maybenot::{MachineId, TriggerEvent};
 use smallvec::SmallVec;
-use tor_llcrypto::util::rng::RngCompat;
 
 use super::{Bypass, Duration, Instant, PerHopPaddingEvent, PerHopPaddingEventVec, Replace};
 
@@ -35,7 +34,7 @@ use super::{Bypass, Duration, Instant, PerHopPaddingEvent, PerHopPaddingEventVec
 type Rng = ThisThreadRng;
 
 /// The particular instantiated padding framework type that we use.
-type Framework = maybenot::Framework<Arc<[maybenot::Machine]>, RngCompat<Rng>, Instant>;
+type Framework = maybenot::Framework<Arc<[maybenot::Machine]>, Rng, Instant>;
 
 /// A [`maybenot::TriggerAction`] as we construct it for use with our [`Framework`]s.
 type TriggerAction = maybenot::TriggerAction<Instant>;

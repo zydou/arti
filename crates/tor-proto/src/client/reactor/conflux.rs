@@ -24,6 +24,8 @@ use tor_linkspec::HasRelayIds as _;
 
 use crate::circuit::UniqId;
 use crate::client::circuit::TunnelMutableState;
+#[cfg(feature = "circ-padding")]
+use crate::client::circuit::padding::PaddingEvent;
 use crate::client::circuit::path::HopDetail;
 use crate::client::streammap;
 use crate::conflux::cmd_counts_towards_seqno;
@@ -973,6 +975,7 @@ impl ConfluxSet {
                 });
 
                 let mut send_fut = Box::pin(send_fut);
+                let mut next_padding_event_fut = leg.padding_event_stream.next();
 
                 async move {
                     select_biased! {
@@ -988,6 +991,12 @@ impl ConfluxSet {
                             Ok(Ok(CircuitAction::RemoveLeg {
                                 leg: unique_id,
                                 reason: RemoveLegReason::ConfluxHandshakeTimeout,
+                            }))
+                        }
+                        padding_action = next_padding_event_fut => {
+                            Ok(Ok(CircuitAction::PaddingAction {
+                                leg: unique_id,
+                                padding_action: padding_action.expect("PaddingEventStream, surprisingly, was terminated!"),
                             }))
                         }
                         ret = send_fut => {
@@ -1142,6 +1151,34 @@ impl ConfluxSet {
             .ok_or_else(|| internal!("leg {circ_id:?} not found in conflux set"))?;
 
         Ok(self.legs.remove(idx))
+    }
+
+    /// Perform some circuit-padding-based action on the specified circuit.
+    #[cfg(feature = "circ-padding")]
+    pub(super) async fn run_padding_action(
+        &mut self,
+        circ_id: UniqId,
+        padding_action: PaddingEvent,
+    ) -> crate::Result<()> {
+        use PaddingEvent as E;
+        let Some(circ) = self.leg_mut(circ_id) else {
+            // No such circuit; it must have gone away after generating this event.
+            // Just ignore it.
+            return Ok(());
+        };
+
+        match padding_action {
+            E::SendPadding(send_padding) => {
+                circ.send_padding(send_padding).await?;
+            }
+            E::StartBlocking(start_blocking) => {
+                circ.start_blocking_for_padding(start_blocking);
+            }
+            E::StopBlocking => {
+                circ.stop_blocking_for_padding();
+            }
+        }
+        Ok(())
     }
 }
 

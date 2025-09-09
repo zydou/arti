@@ -40,6 +40,14 @@ memory_cost_structural_copy!(QueuedCellPaddingInfo);
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct StartBlocking(void::Void);
 
+/// An instruction from the padding machine to the circuit.
+///
+/// These are returned from the [`PaddingEventStream`].
+///
+/// When the `circ-padding` feature is disabled, this type is uninhabited and unconstructable.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PaddingEvent(pub(crate) void::Void);
+
 impl<S: SleepProvider> PaddingController<S> {
     /// Report that we've enqueued a non-padding cell for a given hop.
     pub(crate) fn queued_data(&self, _hop: HopNum) -> Option<QueuedCellPaddingInfo> {
@@ -92,6 +100,14 @@ impl futures::Stream for PaddingEventStream {
     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // TODO circpad: Might it be more efficient to return Ready(None)?
         Poll::Pending
+    }
+}
+
+impl futures::stream::FusedStream for PaddingEventStream {
+    fn is_terminated(&self) -> bool {
+        // TODO circpad: _if_ we have the above implementation return Ready(None),
+        // then we must change this to return true.
+        false
     }
 }
 

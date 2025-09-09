@@ -32,6 +32,13 @@ use pin_project::pin_project;
 /// You can use [`Sink::poll_ready`] for this.
 /// Any [`Context`]-taking methods is suitable.
 ///
+/// (This is a difference between [`SometimesUnboundedSink`]
+/// and [`mpsc::UnboundedSender`](futures::channel::mpsc::UnboundedSender):
+/// [`UnboundedSender::unbounded_send`](futures::channel::mpsc::UnboundedSender::unbounded_send)
+/// does not require a flush operation.
+/// In this way, [`SometimesUnboundedSink::send_unbounded`] behaves more like
+/// [`Sink::start_send`], which _does_ require a subsequent flush.)
+//
 /// ### Error handling
 ///
 /// Errors from the underlying sink may not be reported immediately,
@@ -165,6 +172,17 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
     /// modify it, the `SometimesUnboundedSink` may malfunction.
     pub(crate) fn as_inner(&self) -> &S {
         &self.inner
+    }
+
+    /// Obtain a mutable reference to the inner `Sink`, `S`
+    ///
+    /// This method should be used with extra care, since it bypasses the wrapper.
+    /// Before you call this method,
+    /// make sure you understand the internal invariants for `SometimesUnboundedSink`,
+    /// and make sure that you are not violating them.
+    /// In particular, do not queue anything onto the resulting `Sink` directly.
+    pub(crate) fn as_inner_mut(&mut self) -> &mut S {
+        &mut self.inner
     }
 }
 

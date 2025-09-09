@@ -23,12 +23,12 @@ const MAX_LIMIT: NonMaxU32 = NonMaxU32::new(u32::MAX - 1).expect("Couldn't const
 
 impl CountingPolicy {
     /// Return a new unlimited CountingPolicy.
-    fn new_unlimited() -> Self {
+    pub(crate) fn new_unlimited() -> Self {
         Self { remaining: None }
     }
 
     /// Return a new completely blocked CountingPolicy.
-    fn new_blocked() -> Self {
+    pub(crate) fn new_blocked() -> Self {
         Self {
             remaining: Some(
                 const { NonMaxU32::new(0).expect("Couldn't construct NonMaxU32 from zero.") },
@@ -41,7 +41,7 @@ impl CountingPolicy {
     /// # Limitations:
     ///
     /// If `n` is greater than `MAX_LIMIT`, only `MAX_LIMIT` items will be allowed.
-    fn new_limited(n: u32) -> Self {
+    pub(crate) fn new_limited(n: u32) -> Self {
         Self {
             remaining: Some(NonMaxU32::new(n).unwrap_or(MAX_LIMIT)),
         }

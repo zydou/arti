@@ -12,7 +12,6 @@ use smallvec::SmallVec;
 use tor_memquota::memory_cost_structural_copy;
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
-use super::PaddingEvent;
 use crate::HopNum;
 use backend::PaddingBackend;
 
@@ -35,6 +34,22 @@ type PaddingEventVec = Vec<PaddingEvent>;
 ///
 /// This is a separate type so we can tune it and make it into a smallvec if needed.
 type PerHopPaddingEventVec = Vec<PerHopPaddingEvent>;
+
+/// An instruction from the padding machine to the circuit.
+///
+/// These are returned from the [`PaddingEventStream`].
+///
+/// When the `circ-padding` feature is disabled, these won't actually be constructed.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PaddingEvent {
+    /// An instruction to send padding.
+    SendPadding(SendPadding),
+    /// An instruction to start blocking outbound traffic,
+    /// or change the hop at which traffic is blocked.
+    StartBlocking(StartBlocking),
+    /// An instruction to stop all blocking.
+    StopBlocking,
+}
 
 /// An instruction from a single padding hop.
 ///
@@ -169,6 +184,11 @@ impl SendPadding {
     /// (If we do, we should call [`PaddingController::queued_data_as_padding`])
     pub(crate) fn may_replace_with_data(&self) -> Replace {
         self.replace
+    }
+
+    /// Return whether this padding cell is allowed to bypass any current blocking.
+    pub(crate) fn may_bypass_block(&self) -> Bypass {
+        self.bypass
     }
 }
 
@@ -596,6 +616,14 @@ impl futures::Stream for PaddingEventStream {
                 }
             }
         }
+    }
+}
+
+impl futures::stream::FusedStream for PaddingEventStream {
+    fn is_terminated(&self) -> bool {
+        // This stream is _never_ terminated: even if it has no padding machines now,
+        // we might add some in the future.
+        false
     }
 }
 
