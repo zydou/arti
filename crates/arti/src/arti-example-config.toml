@@ -392,9 +392,6 @@
 # List of locations to look in when downloading directory information
 # we don't actually have a directory yet.
 #
-# This does not apply to directory mirrors, who always download from directory
-# authorities.
-#
 #   fallback_caches = [ <default list is compiled-in > ]
 
 # List of directory authorities which we expect to sign consensus documents and
