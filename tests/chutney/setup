@@ -5,8 +5,9 @@ import os
 import shutil
 import subprocess
 import sys
+import textwrap
 
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 _SCRIPT_NAME = Path(sys.argv[0]).name
@@ -16,96 +17,143 @@ _TOP_LEVEL = Path(
 )
 
 
-def find_jq() -> Path:
-    # Verify jq is available. Generally it should just be on the PATH.
-    # If needed we could add support for passing in a path to jq.
-    jq = shutil.which("jq")
-    if not jq:
-        print("It doesn't look like jq is installed.")
-        print("On debian, install with:")
-        print("apt install jq")
-        sys.exit(1)
-    return Path(jq)
+class JqBinResolver:
+    def __init__(self, parser: ArgumentParser) -> None:
+        parser.add_argument("--jq-bin", help="jq executable")
+
+    def resolve(self, args: Namespace) -> Path:
+        res_str = args.jq_bin or shutil.which("jq")
+        if res_str is None:
+            print(
+                textwrap.dedent(
+                    """
+                    jq not found.
+                    Try setting --jq-bin or ensuring it's on your PATH.
+                    On debian, it can be installed with:
+                    apt install jq
+                    """
+                )
+            )
+            sys.exit(1)
+        res = Path(res_str)
+        if not os.access(res, os.X_OK):
+            print(f"jq resolved to {res}, but it isn't an executable file")
+            sys.exit(1)
+        return res
 
 
-def find_chutney_bin(args: Namespace) -> Path:
-    chutney_bin = args.chutney_bin
-    if not chutney_bin:
-        chutney_bin = shutil.which("chutney")
-    if not chutney_bin:
-        print("Couldn't locate chutney bin. Ensure it's on PATH or set --chutney-bin.")
-        print("You can install with:")
-        print(
-            "python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git"
+class ChutneyBinResolver:
+    def __init__(self, parser: ArgumentParser) -> None:
+        parser.add_argument("--chutney-bin", help="chutney executable")
+
+    def resolve(self, args: Namespace) -> Path:
+        res_str = args.chutney_bin or shutil.which("chutney")
+        if res_str is None:
+            print(
+                textwrap.dedent(
+                    """
+                    chutney (https://gitlab.torproject.org/tpo/core/chutney) not found.
+                    Try setting --chutney-bin or ensuring it's on your PATH.
+                    quick install:
+                    python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git
+                    """
+                )
+            )
+            sys.exit(1)
+        res = Path(res_str)
+        if not os.access(res, os.X_OK):
+            print(f"chutney resolved to {res}, but it isn't an executable file")
+            sys.exit(1)
+        return res
+
+
+class ArtiBinResolver:
+    def __init__(self, parser: ArgumentParser) -> None:
+        parser.add_argument("--arti-bin", help="arti executable")
+
+    def resolve(self, args: Namespace) -> Path:
+        res_str = args.arti_bin
+        if res_str is None:
+            for s in [
+                "target/x86_64-unknown-linux-gnu/quicktest/arti",
+                "target/quicktest/arti",
+                "target/x86_64-unknown-linux-gnu/debug/arti",
+                "target/debug/arti",
+            ]:
+                p = _TOP_LEVEL.joinpath(Path(s))
+                if p.exists():
+                    res_str = str(p)
+                    break
+        if res_str is None:
+            print(
+                textwrap.dedent(
+                    """
+                    arti client not found.
+                    Try setting --arti-bin or building one in this repo:
+                    cargo build --locked --profile=quicktest -p arti
+                    """
+                )
+            )
+            sys.exit(1)
+        res = Path(res_str)
+        if not os.access(res, os.X_OK):
+            print(f"arti resolved to {res}, but it isn't an executable file")
+            sys.exit(1)
+        return res
+
+
+class ChutneyDataDirResolver:
+    def __init__(self, parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--chutney-data-dir", help="directory for chutney to put its data"
         )
-        sys.exit(1)
-    if not os.access(chutney_bin, os.X_OK):
-        print(f"CHUTNEY_BIN='{chutney_bin}' doesn't exist or isn't executable")
-        sys.exit(1)
-    # chutney_bin is set; tell the user so.
-    print(f"Using chutney at '{chutney_bin}'")
-    return Path(chutney_bin).resolve()
 
-
-def find_arti(args: Namespace) -> Path:
-    # It's not really possible to know where the user built the arti binary.
-    # Was it a debug build, a release build, did they use '--target <triple>', etc?
-    # Try the platform triple build directory first, and then the usual build directory.
-    # It's possible we may choose a stale binary, but there's not much else we can
-    # do here other than maybe comparing timestamps.
-    arti = args.arti_bin
-    if not arti:
-        for p in [
-            Path("target/x86_64-unknown-linux-gnu/quicktest/arti"),
-            Path("target/quicktest/arti"),
-            Path("target/x86_64-unknown-linux-gnu/debug/arti"),
-            Path("target/debug/arti"),
-        ]:
-            p = _TOP_LEVEL.joinpath(p)
-            if p.exists():
-                arti = p
-                break
-    if not arti:
-        print(
-            "Could not find a debug arti binary. You can build it with 'cargo build -p arti'."
+    def resolve(self, args: Namespace) -> Path:
+        return Path(
+            args.chutney_data_dir or os.getenv("CHUTNEY_DATA_DIR") or os.getcwd()
         )
-        sys.exit(1)
-    if not os.access(arti, os.X_OK):
-        print(f"ARTI_BIN='{arti}' doesn't exist or isn't executable")
-        sys.exit(1)
-    return Path(arti)
+
+
+class ChutneyNetworkResolver:
+    def __init__(self, parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--network", "-n", help="name or path of a chutney network to launch"
+        )
+
+    def resolve(self, args: Namespace) -> str:
+        return args.network or str(_SCRIPT_DIR.joinpath("networks", "arti-ci"))
 
 
 def _main() -> None:
+    # Set up command-line parser, registering config options
     parser = argparse.ArgumentParser(
         prog=_SCRIPT_NAME, description="Configure a chutney testbed"
     )
-    parser.add_argument(
-        "-n",
-        "--network",
-        default=str(_SCRIPT_DIR.joinpath("networks", "arti-ci")),
-        help="Name or path of a chutney network to launch",
-    )
-    parser.add_argument(
-        "--chutney-bin",
-        type=Path,
-        help="Path to chutney executable",
-    )
-    parser.add_argument(
-        "--arti-bin",
-        type=Path,
-        help="Path to arti executable",
-    )
+    # XXX Actually respect the --jq-bin command-line option that this resolver
+    # introduces, downstream where we use jq.
+    jq_resolver = JqBinResolver(parser)
+    chutney_resolver = ChutneyBinResolver(parser)
+    arti_resolver = ArtiBinResolver(parser)
+    chutney_data_dir_resolver = ChutneyDataDirResolver(parser)
+    network_resolver = ChutneyNetworkResolver(parser)
+
     args = parser.parse_args()
 
-    find_jq()
-    chutney_bin = find_chutney_bin(args)
-    chutney_data_dir = os.getenv("CHUTNEY_DATA_DIR", os.getcwd())
-    arti = find_arti(args)
+    # resolve all options up-front before flushing to output file
+    chutney = chutney_resolver.resolve(args)
+    print("chutney:", chutney)
+    arti = arti_resolver.resolve(args)
+    print("arti:", arti)
+    jq = jq_resolver.resolve(args)
+    print("jq:", jq)
+    chutney_data_dir = chutney_data_dir_resolver.resolve(args)
+    print("CHUTNEY_DATA_DIR:", chutney_data_dir)
+    network = network_resolver.resolve(args)
+    print("network:", network)
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
-        print(f"target={args.network}", file=c)
-        print(f'chutney_bin="{chutney_bin}"', file=c)
+        print(f'target="{network}"', file=c)
+        print(f'chutney_bin="{chutney}"', file=c)
         print(f'export CHUTNEY_ARTI="{arti}"', file=c)
         print(f'export CHUTNEY_DATA_DIR="{chutney_data_dir}"', file=c)
 
