@@ -567,7 +567,7 @@ impl Circuit {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
 
         if decode_res.is_padding() {
-            self.padding_ctrl.decrypted_padding(hopnum);
+            self.padding_ctrl.decrypted_padding(hopnum)?;
         } else {
             self.padding_ctrl.decrypted_data(hopnum);
         }

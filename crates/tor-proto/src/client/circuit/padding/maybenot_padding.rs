@@ -363,10 +363,14 @@ impl<S: SleepProvider> PaddingController<S> {
             ],
         );
     }
-    /// Report that we have decrypted a non-padding cell from our queue.
+    /// Report that we have decrypted a padding cell from our queue.
+    ///
+    /// Return an error if this padding cell is not acceptable
+    /// (because we have received too much padding from this hop,
+    /// or because we have not enabled padding with this hop.)
     //
     // See note above.
-    pub(crate) fn decrypted_padding(&self, hop: HopNum) {
+    pub(crate) fn decrypted_padding(&self, hop: HopNum) -> Result<(), crate::Error> {
         self.trigger_events_mixed(
             hop,
             // We treat this as normal data from the intermediate hops.
@@ -380,6 +384,8 @@ impl<S: SleepProvider> PaddingController<S> {
                 maybenot::TriggerEvent::PaddingRecv,
             ],
         );
+        // XXXX Actually fail sometimes.
+        Ok(())
     }
 
     /// Return the `QueuedCellPaddingInfo` to use when sending messages to `target_hop`
