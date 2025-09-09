@@ -9,14 +9,14 @@ cd "$(git rev-parse --show-toplevel)"
 source tests/chutney/arti.run
 
 # Validate that these are set (from arti.run)
-[ -n "${CHUTNEY_BIN:?}" ]
+[ -n "${chutney_bin:?}" ]
 [ -n "${target:?}" ]
 
 # Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
 TEST_DOMAIN=example.com
 
 # Perform chutney's built-in "verify" test
-"${CHUTNEY_BIN}" verify "$target"
+"${chutney_bin}" verify "$target"
 
 arti_client_port=$(\
   jq -r \

@@ -31,8 +31,6 @@ def find_jq() -> Path:
 def find_chutney_bin(args: Namespace) -> Path:
     chutney_bin = args.chutney_bin
     if not chutney_bin:
-        chutney_bin = os.getenv("CHUTNEY_BIN")
-    if not chutney_bin:
         chutney_bin = shutil.which("chutney")
     if not chutney_bin:
         print("Couldn't locate chutney bin. Ensure it's on PATH or set --chutney-bin.")
@@ -107,8 +105,8 @@ def _main() -> None:
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
         print(f"target={args.network}", file=c)
+        print(f'chutney_bin="{chutney_bin}"', file=c)
         print(f'export CHUTNEY_ARTI="{arti}"', file=c)
-        print(f'export CHUTNEY_BIN="{chutney_bin}"', file=c)
         print(f'export CHUTNEY_DATA_DIR="{chutney_data_dir}"', file=c)
 
 

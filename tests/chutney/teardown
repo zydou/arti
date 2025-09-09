@@ -9,6 +9,6 @@ source tests/chutney/arti.run
 
 # Validate that these are set (from arti.run)
 [ -n "${target:?}" ]
-[ -n "${CHUTNEY_BIN:?}" ]
+[ -n "${chutney_bin:?}" ]
 
-"${CHUTNEY_BIN}" stop "$target"
+"${chutney_bin}" stop "$target"
