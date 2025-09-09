@@ -34,7 +34,6 @@ use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::tunnel::TunnelScopedCircId;
-use crate::util::SinkExt as _;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
 use crate::{ClockSkew, Error, Result};
@@ -1412,11 +1411,13 @@ impl Circuit {
     ///
     /// Note: This is only async because we need a Context to check the sink for readiness.
     /// This will register a new waker (or overwrite any existing waker).
+    //
+    // TODO: Perhaps we should move this into CircuitCellSender.
     pub(super) async fn congestion_signals(&mut self) -> CongestionSignals {
         futures::future::poll_fn(|cx| -> Poll<CongestionSignals> {
-            let channel_is_ready = self.chan_sender.poll_ready_unpin_bool(cx).unwrap_or(false);
+            let channel_blocked = self.chan_sender.is_congested(cx);
             Poll::Ready(CongestionSignals::new(
-                /* channel_blocked= */ !channel_is_ready,
+                /* channel_blocked= */ channel_blocked,
                 self.chan_sender.n_queued(),
             ))
         })
