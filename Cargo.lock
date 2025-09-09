@@ -6252,6 +6252,7 @@ dependencies = [
  "humantime-serde",
  "serde",
  "tor-basic-utils",
+ "tor-checkable",
  "tor-config",
  "tor-guardmgr",
  "tor-llcrypto",

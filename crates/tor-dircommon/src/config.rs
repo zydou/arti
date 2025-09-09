@@ -8,10 +8,14 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
+use std::time::Duration;
+
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use tor_checkable::timed::TimerangeBound;
 use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
 use tor_guardmgr::fallback::FallbackDirBuilder;
+use tor_netdoc::doc::netstatus::Lifetime;
 
 use crate::{
     authority::{AuthorityBuilder, AuthorityList, AuthorityListBuilder},
@@ -126,6 +130,65 @@ pub struct DownloadScheduleConfig {
 }
 
 impl_standard_builder! { DownloadScheduleConfig }
+
+/// Configuration for how much much to extend the official tolerances of our
+/// directory information.
+///
+/// Because of possible clock skew, and because we want to tolerate possible
+/// failures of the directory authorities to reach a consensus, we want to
+/// consider a directory to be valid for a while before and after its official
+/// range of validity.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[builder(build_fn(error = "ConfigBuildError"))]
+pub struct DirTolerance {
+    /// For how long before a directory document is valid should we accept it?
+    ///
+    /// Having a nonzero value here allows us to tolerate a little clock skew.
+    ///
+    /// Defaults to 1 day.
+    #[builder(default = "Duration::from_secs(24 * 60 * 60)")]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    pub pre_valid_tolerance: Duration,
+
+    /// For how long after a directory document is valid should we consider it
+    /// usable?
+    ///
+    /// Having a nonzero value here allows us to tolerate a little clock skew,
+    /// and makes us more robust to temporary failures for the directory
+    /// authorities to reach consensus.
+    ///
+    /// Defaults to 3 days (per [prop212]).
+    ///
+    /// [prop212]:
+    ///     https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/212-using-old-consensus.txt
+    #[builder(default = "Duration::from_secs(3 * 24 * 60 * 60)")]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    pub post_valid_tolerance: Duration,
+}
+
+impl_standard_builder! { DirTolerance }
+
+impl DirTolerance {
+    /// Return a new [`TimerangeBound`] that extends the validity interval of
+    /// `timebound` according to this configuration.
+    pub fn extend_tolerance<B>(&self, timebound: TimerangeBound<B>) -> TimerangeBound<B> {
+        timebound
+            .extend_tolerance(self.post_valid_tolerance)
+            .extend_pre_tolerance(self.pre_valid_tolerance)
+    }
+
+    /// Return a new consensus [`Lifetime`] that extends the validity intervals
+    /// of `lifetime` according to this configuration.
+    pub fn extend_lifetime(&self, lifetime: &Lifetime) -> Lifetime {
+        Lifetime::new(
+            lifetime.valid_after() - self.pre_valid_tolerance,
+            lifetime.fresh_until(),
+            lifetime.valid_until() + self.post_valid_tolerance,
+        )
+        .expect("Logic error when constructing lifetime")
+    }
+}
 
 #[cfg(test)]
 mod test {

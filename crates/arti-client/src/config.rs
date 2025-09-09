@@ -45,12 +45,11 @@ pub mod circ {
 pub mod dir {
     pub use tor_dircommon::authority::{Authority, AuthorityBuilder};
     pub use tor_dircommon::config::{
-        DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,
+        DirTolerance, DirToleranceBuilder, DownloadScheduleConfig, DownloadScheduleConfigBuilder,
+        NetworkConfig, NetworkConfigBuilder,
     };
     pub use tor_dircommon::retry::{DownloadSchedule, DownloadScheduleBuilder};
-    pub use tor_dirmgr::{
-        DirMgrConfig, DirTolerance, DirToleranceBuilder, FallbackDir, FallbackDirBuilder,
-    };
+    pub use tor_dirmgr::{DirMgrConfig, FallbackDir, FallbackDirBuilder};
 }
 
 /// Types for configuring pluggable transports.
