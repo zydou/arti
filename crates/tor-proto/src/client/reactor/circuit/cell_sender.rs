@@ -34,7 +34,7 @@ cfg_if! {
         ///   an additional _bounded_ [`futures::sink::Buffer`]
         ///   to queue cells before they are put onto the channel.)
         /// - Then there is a second `SinkBlocker` that permits us to trickle messages from the
-        ///   queue to the ChanSender even traffic is blocked by our padding system.
+        ///   queue to the ChanSender even if traffic is blocked by our padding system.
         /// - Finally, there is the [`ChannelSender`] itself.
         ///
         /// TODO: Ideally, this type would participate in the memory quota system.
