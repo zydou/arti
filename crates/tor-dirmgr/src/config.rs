@@ -119,10 +119,7 @@ impl DirMgrConfig {
         DirMgrConfig {
             cache_dir: self.cache_dir.clone(),
             cache_trust: self.cache_trust.clone(),
-            network: NetworkConfig {
-                fallback_caches: new_config.network.fallback_caches.clone(),
-                authorities: self.network.authorities.clone(),
-            },
+            network: new_config.network.clone(),
             schedule: new_config.schedule.clone(),
             tolerance: new_config.tolerance.clone(),
             override_net_params: new_config.override_net_params.clone(),

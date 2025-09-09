@@ -33,6 +33,7 @@ use crate::{
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
 pub struct NetworkConfig {
     /// List of locations to look in when downloading directory information, if
     /// we don't actually have a directory yet.
@@ -101,6 +102,7 @@ impl NetworkConfigBuilder {
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
     #[builder(
@@ -141,6 +143,7 @@ impl_standard_builder! { DownloadScheduleConfig }
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[non_exhaustive]
 pub struct DirTolerance {
     /// For how long before a directory document is valid should we accept it?
     ///
