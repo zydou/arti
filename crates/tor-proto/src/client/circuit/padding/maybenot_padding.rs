@@ -287,9 +287,10 @@ impl<S: SleepProvider> PaddingController<S> {
     /// Return a QueuedCellPaddingInfo if we need to alert the padding subsystem
     /// when this cell is flushed.
     pub(crate) fn queued_data(&self, hop: HopNum) -> Option<QueuedCellPaddingInfo> {
+        let mut shared = self.shared.lock().expect("Lock poisoned");
         // Every hop up to and including the target hop will see this as normal data.
-        self.trigger_events(hop, &[maybenot::TriggerEvent::NormalSent]);
-        self.info_for_hop(hop)
+        shared.trigger_events(hop, &[maybenot::TriggerEvent::NormalSent]);
+        shared.info_for_hop(hop)
     }
 
     /// Report that we have enqueued a non-padding cell
@@ -305,8 +306,8 @@ impl<S: SleepProvider> PaddingController<S> {
     ) -> Option<QueuedCellPaddingInfo> {
         assert_eq!(hop, sendpadding.hop);
         assert_eq!(Replace::Replaceable, sendpadding.replace);
-
-        self.trigger_events_mixed(
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events_mixed(
             hop,
             // Each intermediate hop sees this as normal data.
             &[maybenot::TriggerEvent::NormalSent],
@@ -316,7 +317,7 @@ impl<S: SleepProvider> PaddingController<S> {
                 sendpadding.into_sent_event(),
             ],
         );
-        self.info_for_hop(hop)
+        shared.info_for_hop(hop)
     }
 
     /// Report that we have enqueued a padding cell to a given hop.
@@ -329,20 +330,22 @@ impl<S: SleepProvider> PaddingController<S> {
         sendpadding: SendPadding,
     ) -> Option<QueuedCellPaddingInfo> {
         assert_eq!(hop, sendpadding.hop);
-        self.trigger_events_mixed(
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events_mixed(
             hop,
             // Each intermediate hop sees this as normal data.
             &[maybenot::TriggerEvent::NormalSent],
             // The target hop sees this as padding.
             &[sendpadding.into_sent_event()],
         );
-        self.info_for_hop(hop)
+        shared.info_for_hop(hop)
     }
 
     /// Report that we've flushed a cell from the queue for the given hop.
     pub(crate) fn flushed_relay_cell(&self, info: QueuedCellPaddingInfo) {
         // Every hop up to the last
-        self.trigger_events(info.target_hop, &[maybenot::TriggerEvent::TunnelSent]);
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events(info.target_hop, &[maybenot::TriggerEvent::TunnelSent]);
     }
 
     /// Report that we have decrypted a non-padding cell from our queue
@@ -354,7 +357,8 @@ impl<S: SleepProvider> PaddingController<S> {
     // since we won't know which hop actually originated the cell until we
     // decrypt it.
     pub(crate) fn decrypted_data(&self, hop: HopNum) {
-        self.trigger_events(
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events(
             hop,
             // We treat this as normal data from every hop.
             &[
@@ -371,7 +375,8 @@ impl<S: SleepProvider> PaddingController<S> {
     //
     // See note above.
     pub(crate) fn decrypted_padding(&self, hop: HopNum) -> Result<(), crate::Error> {
-        self.trigger_events_mixed(
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events_mixed(
             hop,
             // We treat this as normal data from the intermediate hops.
             &[
@@ -387,23 +392,15 @@ impl<S: SleepProvider> PaddingController<S> {
         // XXXX Actually fail sometimes.
         Ok(())
     }
+}
 
-    /// Return the `QueuedCellPaddingInfo` to use when sending messages to `target_hop`
-    fn info_for_hop(&self, target_hop: HopNum) -> Option<QueuedCellPaddingInfo> {
-        // TODO circpad optimization: This is always Some for now, but we
-        // could someday avoid creating this object
-        // when padding is not enabled on the circuit,
-        // or if padding is not enabled on any hop of the circuit <= target_hop.
-        Some(QueuedCellPaddingInfo { target_hop })
-    }
-
+impl<S: SleepProvider> PaddingShared<S> {
     /// Trigger a list of maybenot events on every hop up to and including `hop`.
-    fn trigger_events(&self, hop: HopNum, events: &[maybenot::TriggerEvent]) {
+    fn trigger_events(&mut self, hop: HopNum, events: &[maybenot::TriggerEvent]) {
         let final_idx = usize::from(hop);
-        let shared = &mut self.shared.lock().expect("poisoned lock");
-        let now = shared.runtime.now();
-        let next_scheduled_wakeup = shared.next_scheduled_wakeup;
-        for hop_controller in shared.hops.iter_mut().take(final_idx + 1) {
+        let now = self.runtime.now();
+        let next_scheduled_wakeup = self.next_scheduled_wakeup;
+        for hop_controller in self.hops.iter_mut().take(final_idx + 1) {
             let Some(hop_controller) = hop_controller else {
                 continue;
             };
@@ -417,7 +414,7 @@ impl<S: SleepProvider> PaddingController<S> {
     ///
     /// (Don't trigger anything on any hops _after_ `hop`.)
     fn trigger_events_mixed(
-        &self,
+        &mut self,
         hop: HopNum,
         intermediate_hop_events: &[maybenot::TriggerEvent],
         final_hop_events: &[maybenot::TriggerEvent],
@@ -425,11 +422,9 @@ impl<S: SleepProvider> PaddingController<S> {
         use itertools::Itertools as _;
         use itertools::Position as P;
         let final_idx = usize::from(hop);
-        let shared = &mut self.shared.lock().expect("poisoned lock");
-        let now = shared.runtime.now();
-        let next_scheduled_wakeup = shared.next_scheduled_wakeup;
-        for (position, hop_controller) in shared.hops.iter_mut().take(final_idx + 1).with_position()
-        {
+        let now = self.runtime.now();
+        let next_scheduled_wakeup = self.next_scheduled_wakeup;
+        for (position, hop_controller) in self.hops.iter_mut().take(final_idx + 1).with_position() {
             let Some(hop_controller) = hop_controller else {
                 continue;
             };
@@ -439,6 +434,16 @@ impl<S: SleepProvider> PaddingController<S> {
             };
             hop_controller.report_events_at(events, now, next_scheduled_wakeup);
         }
+    }
+
+    /// Return the `QueuedCellPaddingInfo` to use when sending messages to `target_hop`
+    #[allow(clippy::unnecessary_wraps)]
+    fn info_for_hop(&self, target_hop: HopNum) -> Option<QueuedCellPaddingInfo> {
+        // TODO circpad optimization: This is always Some for now, but we
+        // could someday avoid creating this object
+        // when padding is not enabled on the circuit,
+        // or if padding is not enabled on any hop of the circuit <= target_hop.
+        Some(QueuedCellPaddingInfo { target_hop })
     }
 }
 
