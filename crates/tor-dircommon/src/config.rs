@@ -10,6 +10,7 @@
 
 use std::time::Duration;
 
+use amplify::Getters;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_checkable::timed::TimerangeBound;
@@ -30,7 +31,7 @@ use crate::{
 //
 // TODO: We should move this type around, since the fallbacks part will no longer be used in
 // dirmgr, but only in guardmgr.  Probably this type belongs in `arti-client`.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
@@ -47,7 +48,7 @@ pub struct NetworkConfig {
     /// The default is to use a set of compiled-in fallback directories,
     /// whose addresses and public keys are shipped as part of the Arti source code.
     #[builder(sub_builder, setter(custom))]
-    pub fallback_caches: tor_guardmgr::fallback::FallbackList,
+    fallback_caches: tor_guardmgr::fallback::FallbackList,
 
     /// List of directory authorities which we expect to sign consensus
     /// documents.
@@ -60,7 +61,7 @@ pub struct NetworkConfig {
     /// The default is to use a set of compiled-in authorities,
     /// whose identities and public keys are shipped as part of the Arti source code.
     #[builder(sub_builder, setter(custom))]
-    pub authorities: AuthorityList,
+    authorities: AuthorityList,
 }
 
 impl_standard_builder! { NetworkConfig }
@@ -69,13 +70,6 @@ define_list_builder_accessors! {
     struct NetworkConfigBuilder {
         pub fallback_caches: [FallbackDirBuilder],
         pub authorities: [AuthorityBuilder],
-    }
-}
-
-impl NetworkConfig {
-    /// Return the list of fallback directory caches from this configuration.
-    pub fn fallback_caches(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.fallback_caches
     }
 }
 
@@ -99,7 +93,7 @@ impl NetworkConfigBuilder {
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
@@ -110,17 +104,20 @@ pub struct DownloadScheduleConfig {
         field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
     )]
     #[builder_field_attr(serde(default))]
-    pub retry_bootstrap: DownloadSchedule,
+    #[getter(as_copy)]
+    retry_bootstrap: DownloadSchedule,
 
     /// Configuration for how to retry a consensus download.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    pub retry_consensus: DownloadSchedule,
+    #[getter(as_copy)]
+    retry_consensus: DownloadSchedule,
 
     /// Configuration for how to retry an authority cert download.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    pub retry_certs: DownloadSchedule,
+    #[getter(as_copy)]
+    retry_certs: DownloadSchedule,
 
     /// Configuration for how to retry a microdescriptor download.
     #[builder(
@@ -128,7 +125,8 @@ pub struct DownloadScheduleConfig {
         field(build = "self.retry_microdescs.build_retry_microdescs()?")
     )]
     #[builder_field_attr(serde(default))]
-    pub retry_microdescs: DownloadSchedule,
+    #[getter(as_copy)]
+    retry_microdescs: DownloadSchedule,
 }
 
 impl_standard_builder! { DownloadScheduleConfig }
@@ -140,7 +138,7 @@ impl_standard_builder! { DownloadScheduleConfig }
 /// failures of the directory authorities to reach a consensus, we want to
 /// consider a directory to be valid for a while before and after its official
 /// range of validity.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[non_exhaustive]
@@ -152,7 +150,8 @@ pub struct DirTolerance {
     /// Defaults to 1 day.
     #[builder(default = "Duration::from_secs(24 * 60 * 60)")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
-    pub pre_valid_tolerance: Duration,
+    #[getter(as_copy)]
+    pre_valid_tolerance: Duration,
 
     /// For how long after a directory document is valid should we consider it
     /// usable?
@@ -167,7 +166,8 @@ pub struct DirTolerance {
     ///     https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/212-using-old-consensus.txt
     #[builder(default = "Duration::from_secs(3 * 24 * 60 * 60)")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
-    pub post_valid_tolerance: Duration,
+    #[getter(as_copy)]
+    post_valid_tolerance: Duration,
 }
 
 impl_standard_builder! { DirTolerance }

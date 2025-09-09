@@ -102,12 +102,12 @@ impl DirMgrConfig {
 
     /// Return a slice of the configured authorities
     pub fn authorities(&self) -> &[Authority] {
-        &self.network.authorities
+        self.network.authorities()
     }
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.network.fallback_caches
+        self.network.fallback_caches()
     }
 
     /// Construct a new configuration object where all replaceable fields in

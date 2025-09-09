@@ -675,7 +675,7 @@ impl<R: Runtime> DirMgr<R> {
                 // TODO(nickm): instead of getting this every time we loop, it
                 // might be a good idea to refresh it with each attempt, at
                 // least at the point of checking the number of attempts.
-                dirmgr.config.get().schedule.retry_bootstrap
+                dirmgr.config.get().schedule.retry_bootstrap()
             };
             let mut retry_delay = retry_config.schedule();
 
@@ -1147,7 +1147,7 @@ pub(crate) fn default_consensus_cutoff(
     /// We _always_ allow at least this much age in our consensuses, to account
     /// for the fact that consensuses have some lifetime.
     const MIN_AGE_TO_ALLOW: Duration = Duration::from_secs(3 * 3600);
-    let allow_skew = std::cmp::max(MIN_AGE_TO_ALLOW, tolerance.post_valid_tolerance);
+    let allow_skew = std::cmp::max(MIN_AGE_TO_ALLOW, tolerance.post_valid_tolerance());
     let cutoff = time::OffsetDateTime::from(now - allow_skew);
     // We now round cutoff to the next hour, so that we aren't leaking our exact
     // time to the directory cache.
@@ -1368,7 +1368,7 @@ mod test {
                 )
                 .unwrap()
             };
-            let tolerance = DirTolerance::default().post_valid_tolerance;
+            let tolerance = DirTolerance::default().post_valid_tolerance();
             match req {
                 ClientRequest::Consensus(r) => {
                     assert_eq!(r.old_consensus_digests().count(), 0);
