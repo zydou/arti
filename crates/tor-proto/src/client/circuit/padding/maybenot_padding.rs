@@ -2,6 +2,7 @@
 
 mod backend;
 
+use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
@@ -235,6 +236,9 @@ struct PaddingShared<S: SleepProvider> {
     ///
     /// INVARIANT: the length of this vector is no greater than `MAX_HOPS`.
     hops: SmallVec<[Option<Box<dyn PaddingBackend>>; HOPS]>,
+    /// Records about how much padding and normal traffic we have received from each hop,
+    /// and how much padding is allowed.
+    stats: SmallVec<[Option<PaddingStats>; HOPS]>,
     /// Which hops are currently blocking, and whether that blocking is bypassable.
     blocking: BlockingState,
     /// When will the currently pending sleep future next expire?
@@ -244,6 +248,72 @@ struct PaddingShared<S: SleepProvider> {
     /// which we call in `<PaddingStream as Stream>::poll_next` immediately
     /// before we create a timer.
     next_scheduled_wakeup: Option<Instant>,
+}
+
+/// The number of padding and non-padding cells we have received from each hop,
+/// and the rules for how many are allowed.
+#[derive(Clone, Debug)]
+struct PaddingStats {
+    /// The number of padding cells we've received from this hop.
+    n_padding: u64,
+    /// The number of non-padding cells we've received from this hop.
+    n_normal: u64,
+    /// The maximum allowable fraction of padding cells.
+    max_padding_frac: f32,
+    /// A lower limit, below which we will not enforce `max_padding_frac`.
+    //
+    // This is a NonZero for several reasons:
+    // - It doesn't make sense to enforce a ratio when no cells have been received.
+    // - If we only check when the total is at above zero, we can avoid a division-by-zero check.
+    // - Having an impossible value here ensures that the niche optimization
+    //   will work on PaddingStats.
+    enforce_max_after: NonZeroU16,
+}
+
+impl std::default::Default for PaddingStats {
+    fn default() -> Self {
+        Self {
+            n_padding: 0,
+            n_normal: 0,
+            // TODO circpad: These values are silly, and should be framework-dependent.
+            max_padding_frac: 0.75,
+            enforce_max_after: 128.try_into().expect("BUG: 128==0!?"),
+        }
+    }
+}
+
+impl PaddingStats {
+    /// Return an error if this PaddingStats has exceeded its maximum.
+    fn validate(&self) -> Result<(), ImproperPadding> {
+        // Total number of cells.
+        // (It is impossible to get so many cells that this addition will overflow a u64.)
+        let total = self.n_padding + self.n_normal;
+
+        if total >= u16::from(self.enforce_max_after).into() {
+            // TODO: is there a way we can avoid a floating-point op here?
+            // Or can we limit the number of times that we need to check?
+            // (Tobias suggests randomization; I'm worried.)
+            // On the one hand, this may never appear on our profiles.
+            // But on the other hand, if it _does_ matter for performance,
+            // it is likely to be on some marginal platform with bad FP performance,
+            // where we are unlikely to be doing much testing.
+            if self.n_padding as f32 / total as f32 > self.max_padding_frac {
+                return Err(ImproperPadding::RatioExceeded);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A problem that can occur with padding.
+#[derive(Clone, thiserror::Error, Debug)]
+enum ImproperPadding {
+    /// We've exceeded our maximum padding ratio.
+    #[error("Too much padding received")]
+    RatioExceeded,
+    /// We didn't negotiate a padding framework with this hop.
+    #[error("Padding not negotiated with this hop")]
+    NotNegotiated,
 }
 
 /// Current padding-related blocking status for a circuit.
@@ -358,6 +428,7 @@ impl<S: SleepProvider> PaddingController<S> {
     // decrypt it.
     pub(crate) fn decrypted_data(&self, hop: HopNum) {
         let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.inc_normal_received(hop);
         shared.trigger_events(
             hop,
             // We treat this as normal data from every hop.
@@ -376,6 +447,12 @@ impl<S: SleepProvider> PaddingController<S> {
     // See note above.
     pub(crate) fn decrypted_padding(&self, hop: HopNum) -> Result<(), crate::Error> {
         let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.inc_padding_received(hop).map_err(|e| {
+            crate::Error::CircProto(format!(
+                "Received unexpected padding from hop {}: {e}",
+                hop.display()
+            ))
+        })?;
         shared.trigger_events_mixed(
             hop,
             // We treat this as normal data from the intermediate hops.
@@ -389,7 +466,6 @@ impl<S: SleepProvider> PaddingController<S> {
                 maybenot::TriggerEvent::PaddingRecv,
             ],
         );
-        // XXXX Actually fail sometimes.
         Ok(())
     }
 }
@@ -436,6 +512,37 @@ impl<S: SleepProvider> PaddingShared<S> {
         }
     }
 
+    /// Increment the normal cell count from every hop up to and including `hop`.
+    fn inc_normal_received(&mut self, hop: HopNum) {
+        let final_idx = usize::from(hop);
+        for stats in self.stats.iter_mut().take(final_idx + 1).flatten() {
+            stats.n_normal += 1;
+        }
+    }
+
+    /// Increment the padding count from `hop`, and the normal cell count from all earlier hops.
+    ///
+    /// Return an error if a padding cell from `hop` would not be acceptable.
+    fn inc_padding_received(&mut self, hop: HopNum) -> Result<(), ImproperPadding> {
+        use itertools::Itertools as _;
+        use itertools::Position as P;
+        let final_idx = usize::from(hop);
+        for (position, stats) in self.stats.iter_mut().take(final_idx + 1).with_position() {
+            match (position, stats) {
+                (P::First | P::Middle, Some(stats)) => stats.n_normal += 1,
+                (P::First | P::Middle, None) => {}
+                (P::Last | P::Only, Some(stats)) => {
+                    stats.n_padding += 1;
+                    stats.validate()?;
+                }
+                (P::Last | P::Only, None) => {
+                    return Err(ImproperPadding::NotNegotiated);
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Return the `QueuedCellPaddingInfo` to use when sending messages to `target_hop`
     #[allow(clippy::unnecessary_wraps)]
     fn info_for_hop(&self, target_hop: HopNum) -> Option<QueuedCellPaddingInfo> {
@@ -461,7 +568,11 @@ impl<S: SleepProvider> PaddingShared<S> {
         while self.hops.len() < n_needed {
             self.hops.push(None);
         }
+        while self.stats.len() < n_needed {
+            self.stats.push(None);
+        }
         self.hops[hop_idx] = backend;
+        self.stats[hop_idx] = Default::default();
         // TODO circpad: we probably need to wake up the stream in this case.
 
         // TODO circpad: this won't behave correctly if there was previously a backend for this hop,
@@ -661,6 +772,7 @@ where
     let shared = PaddingShared {
         runtime,
         hops: Default::default(),
+        stats: Default::default(),
         blocking: Default::default(),
         next_scheduled_wakeup: None,
     };
