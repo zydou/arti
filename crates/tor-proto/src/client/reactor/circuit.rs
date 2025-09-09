@@ -1270,6 +1270,16 @@ impl Circuit {
             return Ok(Some(CircuitCmd::CleanShutdown));
         }
 
+        if msg.cmd() == RelayCmd::DROP {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "circ-padding")] {
+                    return Ok(None);
+                } else {
+                    return Err(Error::CircProto("Unexpected DROP message from relay, with circuit padding not enabled".into()));
+                }
+            }
+        }
+
         trace!(circ_id = %self.unique_id, cell = ?msg, "Received meta-cell");
 
         #[cfg(feature = "conflux")]
