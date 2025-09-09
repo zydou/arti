@@ -2,7 +2,7 @@
 name = "tor-rpc-connect"
 version = "0.34.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.85.1"
 authors = ["The Tor Project, Inc."]
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
