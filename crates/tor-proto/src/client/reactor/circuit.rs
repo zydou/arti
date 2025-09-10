@@ -71,7 +71,7 @@ use std::borrow::Borrow;
 use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
@@ -1466,9 +1466,10 @@ impl Circuit {
         sid: StreamId,
         behav: CloseStreamBehavior,
         reason: streammap::TerminateReason,
+        expiry: Instant,
     ) -> Result<()> {
         if let Some(hop) = self.hop_mut(hop_num) {
-            let res = hop.close_stream(sid, behav, reason)?;
+            let res = hop.close_stream(sid, behav, reason, expiry)?;
             if let Some(cell) = res {
                 self.send_relay_cell(cell).await?;
             }

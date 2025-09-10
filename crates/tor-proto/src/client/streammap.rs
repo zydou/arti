@@ -21,6 +21,7 @@ use std::collections::hash_map;
 use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::task::{Poll, Waker};
+use std::time::Instant;
 use tor_error::{bad_api_usage, internal};
 
 use rand::Rng;
@@ -214,6 +215,11 @@ pub(super) struct EndSentStreamEnt {
     /// True if the sender on this stream has been explicitly dropped;
     /// false if we got an explicit close from `close_pending`
     explicitly_dropped: bool,
+    /// When this entry should be removed from the stream map.
+    ///
+    /// This is the amount of time we are willing to wait for
+    /// an END ack before removing the half-stream from the map.
+    expiry: Instant,
 }
 
 /// The entry for a stream.
@@ -430,6 +436,7 @@ impl StreamMap {
         &mut self,
         id: StreamId,
         why: TerminateReason,
+        expiry: Instant,
     ) -> Result<ShouldSendEnd> {
         use TerminateReason as TR;
 
@@ -453,11 +460,13 @@ impl StreamMap {
             // TODO: would be nice to avoid new_ref.
             let half_stream = HalfStream::new(flow_ctrl, recv_window, cmd_checker);
             let explicitly_dropped = why == TR::StreamTargetClosed;
+
             let prev = self.closed_streams.insert(
                 id,
                 ClosedStreamEnt::EndSent(EndSentStreamEnt {
                     half_stream,
                     explicitly_dropped,
+                    expiry,
                 }),
             );
             debug_assert!(prev.is_none(), "Unexpected duplicate entry for {id}");
@@ -628,10 +637,11 @@ mod test {
 
         // Test terminate
         use TerminateReason as TR;
-        assert!(map.terminate(nonesuch_id, TR::ExplicitEnd).is_err());
+        let expiry = Instant::now(); // dummy value, unused outside of the reactor
+        assert!(map.terminate(nonesuch_id, TR::ExplicitEnd, expiry).is_err());
         assert_eq!(map.n_open_streams(), 127);
         assert_eq!(
-            map.terminate(ids[2], TR::ExplicitEnd).unwrap(),
+            map.terminate(ids[2], TR::ExplicitEnd, expiry).unwrap(),
             ShouldSendEnd::Send
         );
         assert_eq!(map.n_open_streams(), 126);
@@ -640,7 +650,7 @@ mod test {
             Some(StreamEntMut::EndSent { .. })
         ));
         assert_eq!(
-            map.terminate(ids[1], TR::ExplicitEnd).unwrap(),
+            map.terminate(ids[1], TR::ExplicitEnd, expiry).unwrap(),
             ShouldSendEnd::DontSend
         );
         // This stream was already closed when we called `ending_msg_received`

@@ -51,7 +51,7 @@ use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage, trace_report, warn_report};
-use tor_rtcompat::DynTimeProvider;
+use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 use cfg_if::cfg_if;
 use futures::StreamExt;
@@ -61,6 +61,7 @@ use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::channel::Channel;
 use crate::client::circuit::StreamMpscSender;
@@ -1038,7 +1039,29 @@ impl Reactor {
                     }
                 };
 
-                let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason).await;
+                // TODO: estimated RTT depends on whether this is an onion svc circ or not
+                // TODO: this should take the CBT into account too
+                let max_rtt = {
+                    let hop = leg
+                        .hop(hop_num)
+                        .ok_or_else(|| internal!("the hop we resolved disappeared?!"))?;
+                    let ccontrol = hop.ccontrol();
+
+                    // Note: this will be 0 if we have no measurements for the RTT,
+                    // so this half-stream will be removed immediately (on the next reactor run_once() loop).
+                    // (setting the expiry to max(CBT, timeout) *should* fix this though;
+                    // see the above TODOs).
+                    ccontrol
+                        .rtt()
+                        .max_rtt_usec()
+                        .map(|rtt| Duration::from_millis(u64::from(rtt)))
+                        .unwrap_or_default()
+                };
+
+                let timeout = max_rtt;
+                let expire_at = self.runtime.now() + timeout;
+
+                let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason, expire_at).await;
 
                 if let Some(done) = done {
                     // don't care if the sender goes away

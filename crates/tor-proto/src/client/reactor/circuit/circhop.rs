@@ -38,6 +38,7 @@ use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
+use std::time::Instant;
 
 #[cfg(test)]
 use tor_cell::relaycell::msg::SendmeTag;
@@ -315,8 +316,9 @@ impl CircHop {
         id: StreamId,
         message: CloseStreamBehavior,
         why: streammap::TerminateReason,
+        expiry: Instant,
     ) -> Result<Option<SendRelayCell>> {
-        let should_send_end = self.map.lock().expect("lock poisoned").terminate(id, why)?;
+        let should_send_end = self.map.lock().expect("lock poisoned").terminate(id, why, expiry)?;
         trace!(
             circ_id = %self.unique_id,
             stream_id = %id,
