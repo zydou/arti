@@ -92,6 +92,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.22"
+enum_dispatch = "0.3.13"
 futures = "0.3.14"
 futures-util = "0.3.31"
 hkdf = "0.12.0"

@@ -4,7 +4,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::reader::DrainRateRequest;
 
-use crate::client::stream::flow_ctrl::state::StreamRateLimit;
+use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
@@ -69,29 +69,27 @@ impl XonXoffFlowCtrl {
             last_sent_xon_xoff: None,
         }
     }
+}
 
-    /// See [`StreamFlowCtrl::can_send`].
-    pub(crate) fn can_send<M: RelayMsg>(&self, _msg: &M) -> bool {
+impl FlowCtrlMethods for XonXoffFlowCtrl {
+    fn can_send<M: RelayMsg>(&self, _msg: &M) -> bool {
         // we perform rate-limiting in the `DataWriter`,
         // so we send any messages that made it past the `DataWriter`
         true
     }
 
-    /// See [`StreamFlowCtrl::take_capacity_to_send`].
-    pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, _msg: &M) -> Result<()> {
+    fn take_capacity_to_send<M: RelayMsg>(&mut self, _msg: &M) -> Result<()> {
         // xon/xoff flow control doesn't have "capacity";
         // the capacity is effectively controlled by the congestion control
         Ok(())
     }
 
-    /// See [`StreamFlowCtrl::put_for_incoming_sendme`].
-    pub(crate) fn put_for_incoming_sendme(&mut self, _msg: UnparsedRelayMsg) -> Result<()> {
+    fn put_for_incoming_sendme(&mut self, _msg: UnparsedRelayMsg) -> Result<()> {
         let msg = "Stream level SENDME not allowed due to congestion control";
         Err(Error::CircProto(msg.into()))
     }
 
-    /// See [`StreamFlowCtrl::handle_incoming_xon`].
-    pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+    fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         let xon = msg
             .decode::<Xon>()
             .map_err(|e| Error::from_bytes_err(e, "failed to decode XON message"))?
@@ -116,8 +114,7 @@ impl XonXoffFlowCtrl {
         Ok(())
     }
 
-    /// See [`StreamFlowCtrl::handle_incoming_xoff`].
-    pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+    fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         let xoff = msg
             .decode::<Xoff>()
             .map_err(|e| Error::from_bytes_err(e, "failed to decode XOFF message"))?
@@ -146,12 +143,7 @@ impl XonXoffFlowCtrl {
         Ok(())
     }
 
-    /// See [`StreamFlowCtrl::maybe_send_xon`].
-    pub(crate) fn maybe_send_xon(
-        &mut self,
-        rate: XonKbpsEwma,
-        buffer_len: usize,
-    ) -> Result<Option<Xon>> {
+    fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
         if buffer_len > CC_XOFF_CLIENT {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
@@ -170,8 +162,7 @@ impl XonXoffFlowCtrl {
         Ok(Some(Xon::new(FlowCtrlVersion::V0, rate)))
     }
 
-    /// See [`StreamFlowCtrl::maybe_send_xoff`].
-    pub(crate) fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
+    fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
         // if the last XON/XOFF we sent was an XOFF, no need to send another
         if matches!(self.last_sent_xon_xoff, Some(LastSentXonXoff::Xoff)) {
             return Ok(None);

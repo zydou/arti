@@ -13,6 +13,7 @@ use crate::congestion::sendme;
 use crate::util::notify::NotifySender;
 
 /// Private internals of [`StreamFlowCtrl`].
+#[enum_dispatch::enum_dispatch]
 #[derive(Debug)]
 enum StreamFlowCtrlEnum {
     /// "legacy" sendme-window-based flow control.
@@ -50,15 +51,46 @@ impl StreamFlowCtrl {
             )),
         }
     }
+}
 
-    /// Whether this stream is ready to send `msg`.
-    pub(crate) fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
-        match &self.e {
-            StreamFlowCtrlEnum::WindowBased(w) => w.can_send(msg),
-            #[cfg(feature = "flowctl-cc")]
-            StreamFlowCtrlEnum::XonXoffBased(x) => x.can_send(msg),
-        }
+// forward all trait methods to the inner enum
+impl FlowCtrlMethods for StreamFlowCtrl {
+    fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
+        self.e.can_send(msg)
     }
+
+    fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
+        self.e.take_capacity_to_send(msg)
+    }
+
+    fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.e.put_for_incoming_sendme(msg)
+    }
+
+    fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.e.handle_incoming_xon(msg)
+    }
+
+    fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        self.e.handle_incoming_xoff(msg)
+    }
+
+    fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
+        self.e.maybe_send_xon(rate, buffer_len)
+    }
+
+    fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
+        self.e.maybe_send_xoff(buffer_len)
+    }
+}
+
+/// Methods that can be called on a [`StreamFlowCtrl`].
+///
+/// We use a trait so that we can use `enum_dispatch` on the inner [`StreamFlowCtrlEnum`] enum.
+#[enum_dispatch::enum_dispatch(StreamFlowCtrlEnum)]
+pub(crate) trait FlowCtrlMethods {
+    /// Whether this stream is ready to send `msg`.
+    fn can_send<M: RelayMsg>(&self, msg: &M) -> bool;
 
     /// Take capacity to send `msg`. If there's insufficient capacity, returns
     /// an error.
@@ -67,13 +99,7 @@ impl StreamFlowCtrl {
     // flow control earlier, e.g. in `OpenStreamEntStream`, without introducing
     // ambiguity in the sending function as to whether flow control has already
     // been applied or not.
-    pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
-        match &mut self.e {
-            StreamFlowCtrlEnum::WindowBased(w) => w.take_capacity_to_send(msg),
-            #[cfg(feature = "flowctl-cc")]
-            StreamFlowCtrlEnum::XonXoffBased(x) => x.take_capacity_to_send(msg),
-        }
-    }
+    fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()>;
 
     /// Handle an incoming sendme.
     ///
@@ -84,65 +110,31 @@ impl StreamFlowCtrl {
     ///
     /// Takes the [`UnparsedRelayMsg`] so that we don't even try to decode it if we're not using the
     /// correct type of flow control.
-    pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
-        match &mut self.e {
-            StreamFlowCtrlEnum::WindowBased(w) => w.put_for_incoming_sendme(msg),
-            #[cfg(feature = "flowctl-cc")]
-            StreamFlowCtrlEnum::XonXoffBased(x) => x.put_for_incoming_sendme(msg),
-        }
-    }
+    fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()>;
 
     /// Handle an incoming XON message.
     ///
     /// Takes the [`UnparsedRelayMsg`] so that we don't even try to decode it if we're not using the
     /// correct type of flow control.
-    pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
-        match &mut self.e {
-            StreamFlowCtrlEnum::WindowBased(w) => w.handle_incoming_xon(msg),
-            #[cfg(feature = "flowctl-cc")]
-            StreamFlowCtrlEnum::XonXoffBased(x) => x.handle_incoming_xon(msg),
-        }
-    }
+    fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()>;
 
     /// Handle an incoming XOFF message.
     ///
     /// Takes the [`UnparsedRelayMsg`] so that we don't even try to decode it if we're not using the
     /// correct type of flow control.
-    pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
-        match &mut self.e {
-            StreamFlowCtrlEnum::WindowBased(w) => w.handle_incoming_xoff(msg),
-            #[cfg(feature = "flowctl-cc")]
-            StreamFlowCtrlEnum::XonXoffBased(x) => x.handle_incoming_xoff(msg),
-        }
-    }
+    fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()>;
 
     /// Check if we should send an XON message.
     ///
     /// If we should, then returns the XON message that should be sent.
     /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
-    pub(crate) fn maybe_send_xon(
-        &mut self,
-        rate: XonKbpsEwma,
-        buffer_len: usize,
-    ) -> Result<Option<Xon>> {
-        match &mut self.e {
-            StreamFlowCtrlEnum::WindowBased(w) => w.maybe_send_xon(rate, buffer_len),
-            #[cfg(feature = "flowctl-cc")]
-            StreamFlowCtrlEnum::XonXoffBased(x) => x.maybe_send_xon(rate, buffer_len),
-        }
-    }
+    fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>>;
 
     /// Check if we should send an XOFF message.
     ///
     /// If we should, then returns the XOFF message that should be sent.
     /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
-    pub(crate) fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
-        match &mut self.e {
-            StreamFlowCtrlEnum::WindowBased(w) => w.maybe_send_xoff(buffer_len),
-            #[cfg(feature = "flowctl-cc")]
-            StreamFlowCtrlEnum::XonXoffBased(x) => x.maybe_send_xoff(buffer_len),
-        }
-    }
+    fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>>;
 }
 
 /// A newtype wrapper for a tor stream rate limit that makes the units explicit.
