@@ -312,7 +312,7 @@ struct XonXoffControl {
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
     /// How we communicate requests for new drain rate updates to the
-    /// [`XonXoffReader`](crate::client::stream::xon_xoff::XonXoffReader).
+    /// [`XonXoffReader`](crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
     drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
     last_sent_xon_xoff: Option<LastSentXonXoff>,
