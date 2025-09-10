@@ -1607,8 +1607,7 @@ impl Circuit {
                     (NotReplaceable, BypassBlocking) => QueuePaddingAndBypass,
                     (Replaceable, DoNotBypass) => {
                         if have_queued_data {
-                            // The queued item will count as padding.
-                            NothingToDo
+                            TreatQueuedCellAsPadding
                         } else {
                             QueuePaddingNormally
                         }
@@ -1622,19 +1621,16 @@ impl Circuit {
                     }
                 }
             }
-            Some(_) | None => {
-                match send_padding.may_replace_with_data() {
-                    Replaceable => {
-                        if have_queued_data {
-                            // The queued item will count as padding.
-                            NothingToDo
-                        } else {
-                            QueuePaddingNormally
-                        }
+            Some(_) | None => match send_padding.may_replace_with_data() {
+                Replaceable => {
+                    if have_queued_data {
+                        TreatQueuedCellAsPadding
+                    } else {
+                        QueuePaddingNormally
                     }
-                    NotReplaceable => QueuePaddingNormally,
                 }
-            }
+                NotReplaceable => QueuePaddingNormally,
+            },
         }
     }
 
@@ -1658,21 +1654,13 @@ impl Circuit {
                     .await?;
             }
             BypassWithExistingQueue => {
-                // TODO circpad: Is this correct? We didn't really queue anything;
-                // we only took an already-queued cell (possibly padding, possibly not)
-                // and decided that it counts as padding.
-                let _queue_info = self
-                    .padding_ctrl
-                    .queued_data_as_padding(target_hop, send_padding);
+                self.padding_ctrl
+                    .replaceable_padding_already_queued(target_hop, send_padding);
                 self.chan_sender.bypass_blocking_once();
             }
-            NothingToDo => {
-                // TODO circpad: Is this correct? We didn't really queue anything;
-                // we only took an already-queued cell (possibly padding, possibly not)
-                // and decided that it counts as padding.
-                let _queue_info = self
-                    .padding_ctrl
-                    .queued_data_as_padding(target_hop, send_padding);
+            TreatQueuedCellAsPadding => {
+                self.padding_ctrl
+                    .replaceable_padding_already_queued(target_hop, send_padding);
             }
         }
         Ok(())
@@ -1723,7 +1711,7 @@ enum CircPaddingDisposition {
     BypassWithExistingQueue,
     /// Do not take any actual padding action:
     /// existing data on our outbound queue will count as padding.
-    NothingToDo,
+    TreatQueuedCellAsPadding,
 }
 
 /// Return the stream ID of `msg`, if it has one.
