@@ -84,9 +84,13 @@ pub enum Error {
 ///
 /// # Limitations
 ///
-/// If you try to instantiate this type with LOWER > UPPER, you will
-/// get an uninhabitable type.  It would be better if we could check that at
-/// compile time, and prevent such types from being named.
+/// If you were to try to instantiate this type with LOWER > UPPER,
+/// you would get an uninhabitable type.
+/// Attempting to construct a value with a type with LOWER > UPPER
+/// will result in a compile-time error;
+/// though there may not be a compiler error if the code that constructs the value is
+/// dead code and is optimized away.
+/// It would be better if we could prevent such types from being named.
 //
 // [TODO: If you need a Bounded* for some type other than i32, ask nickm:
 // he has an implementation kicking around.]
@@ -109,7 +113,9 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
 
     /// Private constructor function for this type.
     fn unchecked_new(value: i32) -> Self {
-        assert!(LOWER <= UPPER); //The compiler optimizes this out, no run-time cost.
+        // If there is a code path leading to this function that remains after dead code elimination,
+        // this will ensures LOWER <= UPPER at build time.
+        const { assert!(LOWER <= UPPER) };
 
         BoundedInt32 { value }
     }
