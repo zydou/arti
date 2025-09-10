@@ -156,7 +156,7 @@ pub(crate) trait InboundClientLayer {
 /// Type to store hop indices on a circuit.
 ///
 /// Hop indices are zero-based: "0" denotes the first hop on the circuit.
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Deftly)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Deftly, Ord, PartialOrd)]
 #[derive_deftly(HasMemoryCost)]
 pub struct HopNum(u8);
 
