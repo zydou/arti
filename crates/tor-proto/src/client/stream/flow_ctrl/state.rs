@@ -6,6 +6,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::window::state::WindowFlowCtrl;
 use super::xon_xoff::reader::DrainRateRequest;
+#[cfg(feature = "flowctl-cc")]
 use super::xon_xoff::state::XonXoffFlowCtrl;
 
 use crate::Result;
