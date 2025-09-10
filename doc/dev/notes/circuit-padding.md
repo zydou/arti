@@ -171,22 +171,29 @@ We treat these flags as follows:
   - bypass: Queue a padding cell.
     Allow a single cell to be flushed.
   - replace:
-    <!-- If the per-circuit queue is empty,
+    <!-- If the per-circuit queue contains no cells
+    queued to the target hop or later,
     try to queue a data cell if any stream can read. -->
-    If the per-circuit queue is empty,
+    If the per-circuit queue contains no cells
+    queued to the target hop or later,
     queue a padding cell.
   - replace+bypass:
-    <!-- If the per-circuit queue is empty,
+    <!-- If the per-circuit queue contains no cells
+    queued to the target hop or later,
     try to queue a data cell if any stream can read. -->
-    If the per-circuit queue is empty,
+    If the per-circuit queue contains no cells
+    queued to the target hop or later,
     queue a padding cell.
     Allow a single cell to be flushed.
 
 - With non-bypassable blocking:
   - !replace: Queue a padding cell.
-  - replace: <!-- If the per-circuit queue is empty is empty,
+  - replace:
+    <!-- If the per-circuit queue contains no cells
+    queued to the target hop or later,
     try to queue a data cell if any stream can read. -->
-    If the per-circuit queue is empty,
+    If the per-circuit queue contains no cells
+    queued to the target hop or later,
     queue a padding cell.
 
 <!-- We do not in fact implement the commented-out instructions above.
