@@ -1,4 +1,12 @@
-use crate::congestion::sendme::StreamSendWindow;
+use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::msg::Sendme;
+use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
+
+use crate::congestion::sendme::{self, StreamSendWindow};
+use crate::{Error, Result};
+
+#[cfg(doc)]
+use crate::client::stream::flow_ctrl::state::StreamFlowControl;
 
 // XXX: remove pub(crate) from fields
 #[derive(Debug)]
@@ -13,5 +21,59 @@ impl WindowFlowCtrl {
     // preexisting StreamSendWindow.
     pub(crate) fn new(window: StreamSendWindow) -> Self {
         Self { window }
+    }
+
+    /// See [`StreamFlowControl::can_send`].
+    pub(crate) fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
+        !sendme::cmd_counts_towards_windows(msg.cmd()) || self.window.window() > 0
+    }
+
+    /// See [`StreamFlowControl::take_capacity_to_send`].
+    pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
+        if sendme::cmd_counts_towards_windows(msg.cmd()) {
+            self.window.take().map(|_| ())
+        } else {
+            // TODO: Maybe make this an error?
+            // Ideally caller would have checked this already.
+            Ok(())
+        }
+    }
+
+    /// See [`StreamFlowControl::put_for_incoming_sendme`].
+    pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
+        let _sendme = msg
+            .decode::<Sendme>()
+            .map_err(|e| Error::from_bytes_err(e, "failed to decode stream sendme message"))?
+            .into_msg();
+
+        self.window.put()
+    }
+
+    /// See [`StreamFlowControl::handle_incoming_xon`].
+    pub(crate) fn handle_incoming_xon(&mut self, _msg: UnparsedRelayMsg) -> Result<()> {
+        let msg = "XON messages not allowed with window flow control";
+        Err(Error::CircProto(msg.into()))
+    }
+
+    /// See [`StreamFlowControl::handle_incoming_xoff`].
+    pub(crate) fn handle_incoming_xoff(&mut self, _msg: UnparsedRelayMsg) -> Result<()> {
+        let msg = "XOFF messages not allowed with window flow control";
+        Err(Error::CircProto(msg.into()))
+    }
+
+    /// See [`StreamFlowControl::maybe_send_xon`].
+    pub(crate) fn maybe_send_xon(
+        &mut self,
+        _rate: XonKbpsEwma,
+        _buffer_len: usize,
+    ) -> Result<Option<Xon>> {
+        let msg = "XON messages cannot be sent with window flow control";
+        Err(Error::CircProto(msg.into()))
+    }
+
+    /// See [`StreamFlowControl::maybe_send_xoff`].
+    pub(crate) fn maybe_send_xoff(&mut self, _buffer_len: usize) -> Result<Option<Xoff>> {
+        let msg = "XOFF messages cannot be sent with window flow control";
+        Err(Error::CircProto(msg.into()))
     }
 }

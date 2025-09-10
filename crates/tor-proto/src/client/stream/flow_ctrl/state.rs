@@ -2,7 +2,6 @@
 
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
-use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::window::state::WindowFlowCtrl;
@@ -91,9 +90,7 @@ impl StreamFlowControl {
     /// Whether this stream is ready to send `msg`.
     pub(crate) fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
         match &self.e {
-            StreamFlowControlEnum::WindowBased(w) => {
-                !sendme::cmd_counts_towards_windows(msg.cmd()) || w.window.window() > 0
-            }
+            StreamFlowControlEnum::WindowBased(w) => w.can_send(msg),
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(_) => {
                 // we perform rate-limiting in the `DataWriter`,
@@ -112,15 +109,7 @@ impl StreamFlowControl {
     // been applied or not.
     pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => {
-                if sendme::cmd_counts_towards_windows(msg.cmd()) {
-                    w.window.take().map(|_| ())
-                } else {
-                    // TODO: Maybe make this an error?
-                    // Ideally caller would have checked this already.
-                    Ok(())
-                }
-            }
+            StreamFlowControlEnum::WindowBased(w) => w.take_capacity_to_send(msg),
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(_) => {
                 // xon/xoff flow control doesn't have "capacity";
@@ -141,16 +130,7 @@ impl StreamFlowControl {
     /// correct type of flow control.
     pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => {
-                let _sendme = msg
-                    .decode::<Sendme>()
-                    .map_err(|e| {
-                        Error::from_bytes_err(e, "failed to decode stream sendme message")
-                    })?
-                    .into_msg();
-
-                w.window.put()
-            }
+            StreamFlowControlEnum::WindowBased(w) => w.put_for_incoming_sendme(msg),
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(_) => Err(Error::CircProto(
                 "Stream level SENDME not allowed due to congestion control".into(),
@@ -164,9 +144,7 @@ impl StreamFlowControl {
     /// correct type of flow control.
     pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
-                "XON messages not allowed with window flow control".into(),
-            )),
+            StreamFlowControlEnum::WindowBased(w) => w.handle_incoming_xon(msg),
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(control) => {
                 let xon = msg
@@ -201,9 +179,7 @@ impl StreamFlowControl {
     /// correct type of flow control.
     pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
-                "XOFF messages not allowed with window flow control".into(),
-            )),
+            StreamFlowControlEnum::WindowBased(w) => w.handle_incoming_xoff(msg),
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(control) => {
                 let xoff = msg
@@ -246,9 +222,7 @@ impl StreamFlowControl {
         buffer_len: usize,
     ) -> Result<Option<Xon>> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
-                "XON messages cannot be sent with window flow control".into(),
-            )),
+            StreamFlowControlEnum::WindowBased(w) => w.maybe_send_xon(rate, buffer_len),
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(control) => {
                 if buffer_len > CC_XOFF_CLIENT {
@@ -277,9 +251,7 @@ impl StreamFlowControl {
     /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
     pub(crate) fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(_) => Err(Error::CircProto(
-                "XOFF messages cannot be sent with window flow control".into(),
-            )),
+            StreamFlowControlEnum::WindowBased(w) => w.maybe_send_xoff(buffer_len),
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(control) => {
                 // if the last XON/XOFF we sent was an XOFF, no need to send another
