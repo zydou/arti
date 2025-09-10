@@ -207,6 +207,10 @@ pub struct KeyPair(rsa::RsaPrivateKey);
 
 impl KeyPair {
     /// Generate a new random RSA keypair.
+    ///
+    /// This is hardcoded to generate a 1024-bit keypair, since this only exists to support the RSA
+    /// keys that we require for backwards compatibility (which are all 1024 bit), and we don't
+    /// anticipate adding anything new that uses RSA in the future.
     pub fn generate<R: rand_core::RngCore + rand_core::CryptoRng>(
         csprng: &mut R,
     ) -> Result<Self, tor_error::Bug> {
