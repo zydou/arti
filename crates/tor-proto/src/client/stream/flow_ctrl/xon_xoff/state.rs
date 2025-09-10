@@ -20,6 +20,20 @@ pub(crate) struct XonXoffFlowCtrl {
     pub(crate) last_sent_xon_xoff: Option<LastSentXonXoff>,
 }
 
+impl XonXoffFlowCtrl {
+    /// Returns a new xon/xoff-based state.
+    pub(crate) fn new(
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
+    ) -> Self {
+        Self {
+            rate_limit_updater,
+            drain_rate_requester,
+            last_sent_xon_xoff: None,
+        }
+    }
+}
+
 // XXX: remove pub(crate)
 /// The last XON/XOFF message that we sent.
 #[derive(Debug)]

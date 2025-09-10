@@ -68,12 +68,9 @@ pub(crate) struct StreamFlowControl {
 
 impl StreamFlowControl {
     /// Returns a new sendme-window-based [`StreamFlowControl`].
-    // TODO: Maybe take the raw u16 and create StreamSendWindow ourselves?
-    // Unclear whether we need or want to support creating this object from a
-    // preexisting StreamSendWindow.
     pub(crate) fn new_window_based(window: sendme::StreamSendWindow) -> Self {
         Self {
-            e: StreamFlowControlEnum::WindowBased(WindowFlowCtrl { window }),
+            e: StreamFlowControlEnum::WindowBased(WindowFlowCtrl::new(window)),
         }
     }
 
@@ -84,11 +81,10 @@ impl StreamFlowControl {
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
-            e: StreamFlowControlEnum::XonXoffBased(XonXoffFlowCtrl {
+            e: StreamFlowControlEnum::XonXoffBased(XonXoffFlowCtrl::new(
                 rate_limit_updater,
                 drain_rate_requester,
-                last_sent_xon_xoff: None,
-            }),
+            )),
         }
     }
 
