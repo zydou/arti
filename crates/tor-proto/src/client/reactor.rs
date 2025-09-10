@@ -1015,18 +1015,16 @@ impl Reactor {
                 reason,
                 done,
             } => {
-                let result = (move || {
-                    // this is needed to force the closure to be FnOnce rather than FnMut :(
-                    let self_ = self;
-                    let (leg_id, hop_num) = self_
+                let result = {
+                    let (leg_id, hop_num) = self
                         .resolve_hop_location(hop)
                         .map_err(into_bad_api_usage!("Could not resolve {hop:?}"))?;
-                    let leg = self_
+                    let leg = self
                         .circuits
                         .leg_mut(leg_id)
                         .ok_or(bad_api_usage!("No leg for id {:?}", leg_id))?;
                     Ok::<_, Bug>((leg, hop_num))
-                })();
+                };
 
                 let (leg, hop_num) = match result {
                     Ok(x) => x,
