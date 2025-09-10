@@ -7,6 +7,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::window::state::WindowFlowCtrl;
 use super::xon_xoff::reader::DrainRateRequest;
+use super::xon_xoff::state::{LastSentXonXoff, XonXoffControl};
 
 use crate::congestion::sendme;
 use crate::util::notify::NotifySender;
@@ -306,31 +307,6 @@ impl StreamFlowControl {
             }
         }
     }
-}
-
-/// Control state for XON/XOFF flow control.
-#[derive(Debug)]
-struct XonXoffControl {
-    /// How we communicate rate limit updates to the
-    /// [`DataWriter`](crate::client::stream::data::DataWriter).
-    rate_limit_updater: watch::Sender<StreamRateLimit>,
-    /// How we communicate requests for new drain rate updates to the
-    /// [`XonXoffReader`](crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
-    drain_rate_requester: NotifySender<DrainRateRequest>,
-    /// The last rate limit we sent.
-    last_sent_xon_xoff: Option<LastSentXonXoff>,
-}
-
-/// The last XON/XOFF message that we sent.
-#[derive(Debug)]
-enum LastSentXonXoff {
-    /// XON message with a rate.
-    // TODO: I'm expecting that we'll want the `XonKbpsEwma` in the future.
-    // If that doesn't end up being the case, then we should remove it.
-    #[expect(dead_code)]
-    Xon(XonKbpsEwma),
-    /// XOFF message.
-    Xoff,
 }
 
 /// A newtype wrapper for a tor stream rate limit that makes the units explicit.
