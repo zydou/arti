@@ -10,6 +10,7 @@ source tests/chutney/arti.run
 
 # Validate that these are set (from arti.run)
 [ -n "${chutney_bin:?}" ]
+[ -n "${jq_bin:?}" ]
 [ -n "${target:?}" ]
 
 # Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
@@ -19,11 +20,11 @@ TEST_DOMAIN=example.com
 "${chutney_bin}" verify "$target"
 
 arti_client_port=$(\
-  jq -r \
+  ${jq_bin} -r \
   'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .socksport)'\
   "$CHUTNEY_DATA_DIR"/nodes/network.json)
 arti_dns_port=$(\
-  jq -r \
+  ${jq_bin} -r \
   'limit(1; .nodes[] | select(.is_client and .backend=="ARTI") | .dnsport)'\
   "$CHUTNEY_DATA_DIR"/nodes/network.json)
 if [ -n "${RUNNING_IN_SHADOW:-}" ]; then
@@ -52,7 +53,7 @@ fi
 
 # Get the socks port of a tor client to use for benchmarking comparison.
 tor_client_port=$(\
-  jq -r \
+  ${jq_bin} -r \
   'limit(1; .nodes[] | select(.is_client and .backend=="TOR") | .socksport)'\
   "$CHUTNEY_DATA_DIR"/nodes/network.json)
 RUST_LOG=debug target/x86_64-unknown-linux-gnu/release/arti-bench -c "$CHUTNEY_DATA_DIR"/nodes/arti.toml --socks5 127.0.0.1:"$tor_client_port" -o benchmark_results.json

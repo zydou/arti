@@ -129,8 +129,6 @@ def _main() -> None:
     parser = argparse.ArgumentParser(
         prog=_SCRIPT_NAME, description="Configure a chutney testbed"
     )
-    # XXX Actually respect the --jq-bin command-line option that this resolver
-    # introduces, downstream where we use jq.
     jq_resolver = JqBinResolver(parser)
     chutney_resolver = ChutneyBinResolver(parser)
     arti_resolver = ArtiBinResolver(parser)
@@ -153,6 +151,7 @@ def _main() -> None:
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
         print(f'target="{network}"', file=c)
+        print(f'jq_bin="{jq}"', file=c)
         print(f'chutney_bin="{chutney}"', file=c)
         print(f'export CHUTNEY_ARTI="{arti}"', file=c)
         print(f'export CHUTNEY_DATA_DIR="{chutney_data_dir}"', file=c)
