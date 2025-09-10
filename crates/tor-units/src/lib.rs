@@ -73,9 +73,6 @@ pub enum Error {
     /// We encountered some kind of integer overflow when converting a number.
     #[error("Integer overflow")]
     Overflow,
-    /// Tried to instantiate an uninhabited type.
-    #[error("No value is valid for this type")]
-    Uninhabited,
 }
 
 /// A 32-bit signed integer with a restricted range.
@@ -183,10 +180,6 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
     /// If the input is a number that cannot be represented as an i32,
     /// then we return an error instead of clamping it.
     pub fn saturating_from_str(s: &str) -> Result<Self, Error> {
-        if UPPER < LOWER {
-            // The compiler should optimize this block out at compile time.
-            return Err(Error::Uninhabited);
-        }
         let val: i32 = s.parse().map_err(|_| Error::Unrepresentable)?;
         Ok(Self::saturating_from(val))
     }
