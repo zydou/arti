@@ -9,7 +9,7 @@ use crate::util::notify::NotifySender;
 // XXX: remove pub(crate) from fields
 /// Control state for XON/XOFF flow control.
 #[derive(Debug)]
-pub(crate) struct XonXoffControl {
+pub(crate) struct XonXoffFlowCtrl {
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
     pub(crate) rate_limit_updater: watch::Sender<StreamRateLimit>,

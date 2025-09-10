@@ -7,7 +7,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::window::state::WindowFlowCtrl;
 use super::xon_xoff::reader::DrainRateRequest;
-use super::xon_xoff::state::{LastSentXonXoff, XonXoffControl};
+use super::xon_xoff::state::{LastSentXonXoff, XonXoffFlowCtrl};
 
 use crate::congestion::sendme;
 use crate::util::notify::NotifySender;
@@ -56,7 +56,7 @@ enum StreamFlowControlEnum {
     WindowBased(WindowFlowCtrl),
     /// XON/XOFF flow control.
     #[cfg(feature = "flowctl-cc")]
-    XonXoffBased(XonXoffControl),
+    XonXoffBased(XonXoffFlowCtrl),
 }
 
 /// Manages flow control for a stream.
@@ -84,7 +84,7 @@ impl StreamFlowControl {
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
-            e: StreamFlowControlEnum::XonXoffBased(XonXoffControl {
+            e: StreamFlowControlEnum::XonXoffBased(XonXoffFlowCtrl {
                 rate_limit_updater,
                 drain_rate_requester,
                 last_sent_xon_xoff: None,
