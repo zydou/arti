@@ -88,6 +88,12 @@ Regardless of the Padding/Normal status of the cell
 sent or received from hop Rn,
 the intermediate hops all receive "Normal" events, not Padding.
 
+> (As an exception, when we treat an already queued cell as padding
+> because of a "replace" flag,
+> we trigger a PaddingSent event for the target hop,
+> and nothing else, since no actual data was sent
+> through the intermediate hops.)
+
 This, combined with the fact that we send TunnelSent
 at the time a cell is flushed,
 means that we need to remember the target hop for each queued cell.
@@ -164,22 +170,33 @@ We treat these flags as follows:
   - !bypass: Queue a padding cell.
   - bypass: Queue a padding cell.  If the per-circuit queue was empty,
     allow that cell to be flushed.
-  - replace: If the stream is empty,
-    try to queue a data cell if any stream can read.
-    If the stream is still empty,
+  - replace:
+    <!-- If the per-circuit queue is empty,
+    try to queue a data cell if any stream can read. -->
+    If the per-circuit queue is empty,
     queue a padding cell.
-  - replace+bypass: If the per-circuit queue was empty,
-    try to queue a data cell if any stream can read.
-    If the stream is still empty,
+  - replace+bypass:
+    <!-- If the per-circuit queue is empty,
+    try to queue a data cell if any stream can read. -->
+    If the per-circuit queue is empty,
     queue a padding cell.
     Allow a single cell to be flushed.
 
 - With non-bypassable blocking:
   - !replace: Queue a padding cell.
-  - replace: If the stream is empty,
-    try to queue a data cell if any stream can read.
-    If the stream is still empty,
+  - replace: <!-- If the per-circuit queue is empty is empty,
+    try to queue a data cell if any stream can read. -->
+    If the per-circuit queue is empty,
     queue a padding cell.
+
+<!-- We do not in fact implement the commented-out instructions above.
+     We may begin doing so in the future. -->
+
+> Note that we don't ordinarily put DATA messages onto per-circuit queues
+> unless they would be flushed immediately to the Channel.
+> Therefore, per-circuit queues will _usually_ be empty
+> unless we have queued a cell with non-DATA message
+> when the Channel's queue was blocked.
 
 ## Receiving padding
 
