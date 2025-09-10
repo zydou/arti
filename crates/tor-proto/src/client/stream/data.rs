@@ -32,8 +32,11 @@ use std::sync::{Mutex, Weak};
 
 use educe::Educe;
 
-use crate::client::stream::xon_xoff::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
-use crate::client::stream::{StreamRateLimit, StreamReceiver};
+use crate::client::stream::StreamReceiver;
+use crate::client::stream::flow_ctrl::state::StreamRateLimit;
+use crate::client::stream::flow_ctrl::xon_xoff::reader::{
+    BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl,
+};
 use crate::client::{ClientTunnel, StreamTarget};
 use crate::memquota::StreamAccount;
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;

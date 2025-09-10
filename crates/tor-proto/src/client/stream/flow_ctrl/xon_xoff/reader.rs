@@ -13,7 +13,6 @@ use tor_basic_utils::assert_val_impl_trait;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 
 use crate::client::StreamTarget;
-use crate::client::stream::DrainRateRequest;
 use crate::util::notify::NotifyReceiver;
 
 /// A wrapper for an [`AsyncRead`] to support XON/XOFF flow control.
@@ -147,3 +146,8 @@ pub(crate) trait BufferIsEmpty {
     /// a stream if necessary.
     fn is_empty(self: Pin<&mut Self>) -> bool;
 }
+
+/// A marker type for a [`NotifySender`](crate::util::notify::NotifySender)
+/// indicating that notifications are for new drain rate requests.
+#[derive(Debug)]
+pub(crate) struct DrainRateRequest;

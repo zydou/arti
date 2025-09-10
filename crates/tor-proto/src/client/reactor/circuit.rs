@@ -18,8 +18,10 @@ use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
+use crate::client::stream::flow_ctrl::state::StreamRateLimit;
+use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::client::stream::queue::{StreamQueueSender, stream_queue};
-use crate::client::stream::{AnyCmdChecker, DrainRateRequest, StreamRateLimit, StreamStatus};
+use crate::client::stream::{AnyCmdChecker, StreamStatus};
 use crate::client::streammap;
 use crate::congestion::CongestionSignals;
 use crate::congestion::sendme;

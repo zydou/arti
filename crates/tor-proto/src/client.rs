@@ -17,11 +17,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::circuit::UniqId;
+use crate::client::stream::flow_ctrl::state::StreamRateLimit;
+use crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::client::stream::queue::stream_queue;
-use crate::client::stream::xon_xoff::XonXoffReaderCtrl;
 use crate::client::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
-    StreamRateLimit, StreamReceiver,
+    StreamReceiver,
 };
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;

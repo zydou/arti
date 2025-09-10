@@ -13,14 +13,13 @@ mod cmdcheck;
 #[cfg(feature = "stream-ctrl")]
 mod ctrl;
 mod data;
-mod flow_control;
+pub(crate) mod flow_ctrl;
 #[cfg(feature = "hs-service")]
 mod incoming;
 mod params;
 pub(crate) mod queue;
 mod raw;
 mod resolve;
-pub(crate) mod xon_xoff;
 
 pub(crate) use cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 pub use data::{DataReader, DataStream, DataWriter};
@@ -43,5 +42,3 @@ pub use tor_cell::relaycell::msg::IpVersionPreference;
 #[cfg(feature = "stream-ctrl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "stream-ctrl")))]
 pub use {ctrl::ClientStreamCtrl, data::ClientDataStreamCtrl};
-
-pub(crate) use flow_control::{DrainRateRequest, StreamFlowControl, StreamRateLimit};

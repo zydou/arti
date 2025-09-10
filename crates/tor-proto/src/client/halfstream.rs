@@ -4,7 +4,8 @@
 //! we might still receive some cells.
 
 use crate::Result;
-use crate::client::stream::{AnyCmdChecker, StreamFlowControl, StreamStatus};
+use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamFlowCtrl};
+use crate::client::stream::{AnyCmdChecker, StreamStatus};
 use crate::congestion::sendme::{StreamRecvWindow, cmd_counts_towards_windows};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
@@ -21,7 +22,7 @@ pub(super) struct HalfStream {
     /// Flow control for this stream.
     ///
     /// Used to process incoming flow control messages (SENDME, XON, etc).
-    flow_control: StreamFlowControl,
+    flow_control: StreamFlowCtrl,
     /// Receive window for this stream. Used to detect whether we get too
     /// many data cells.
     recvw: StreamRecvWindow,
@@ -32,7 +33,7 @@ pub(super) struct HalfStream {
 impl HalfStream {
     /// Create a new half-closed stream.
     pub(super) fn new(
-        flow_control: StreamFlowControl,
+        flow_control: StreamFlowCtrl,
         recvw: StreamRecvWindow,
         cmd_checker: AnyCmdChecker,
     ) -> Self {
@@ -131,7 +132,7 @@ mod test {
         let sendw = StreamSendWindow::new(450);
 
         let mut hs = HalfStream::new(
-            StreamFlowControl::new_window_based(sendw),
+            StreamFlowCtrl::new_window(sendw),
             StreamRecvWindow::new(20),
             DataCmdChecker::new_any(),
         );
@@ -155,7 +156,7 @@ mod test {
 
     fn hs_new() -> HalfStream {
         HalfStream::new(
-            StreamFlowControl::new_window_based(StreamSendWindow::new(20)),
+            StreamFlowCtrl::new_window(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             DataCmdChecker::new_any(),
         )
@@ -215,7 +216,7 @@ mod test {
                 .unwrap();
         }
         let mut hs = HalfStream::new(
-            StreamFlowControl::new_window_based(StreamSendWindow::new(20)),
+            StreamFlowCtrl::new_window(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             cmd_checker,
         );
