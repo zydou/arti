@@ -44,18 +44,17 @@ use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowContro
 #[cfg(feature = "flowctl-cc")]
 const CC_XOFF_CLIENT: usize = 250_000;
 
-// XXX: remove pub(crate) from fields
 /// Control state for XON/XOFF flow control.
 #[derive(Debug)]
 pub(crate) struct XonXoffFlowCtrl {
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
-    pub(crate) rate_limit_updater: watch::Sender<StreamRateLimit>,
+    rate_limit_updater: watch::Sender<StreamRateLimit>,
     /// How we communicate requests for new drain rate updates to the
     /// [`XonXoffReader`](crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
-    pub(crate) drain_rate_requester: NotifySender<DrainRateRequest>,
+    drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
-    pub(crate) last_sent_xon_xoff: Option<LastSentXonXoff>,
+    last_sent_xon_xoff: Option<LastSentXonXoff>,
 }
 
 impl XonXoffFlowCtrl {
@@ -194,10 +193,9 @@ impl XonXoffFlowCtrl {
     }
 }
 
-// XXX: remove pub(crate)
 /// The last XON/XOFF message that we sent.
 #[derive(Debug)]
-pub(crate) enum LastSentXonXoff {
+enum LastSentXonXoff {
     /// XON message with a rate.
     // TODO: I'm expecting that we'll want the `XonKbpsEwma` in the future.
     // If that doesn't end up being the case, then we should remove it.

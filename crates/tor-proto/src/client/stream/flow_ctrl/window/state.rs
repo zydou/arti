@@ -8,10 +8,9 @@ use crate::{Error, Result};
 #[cfg(doc)]
 use crate::client::stream::flow_ctrl::state::StreamFlowControl;
 
-// XXX: remove pub(crate) from fields
 #[derive(Debug)]
 pub(crate) struct WindowFlowCtrl {
-    pub(crate) window: StreamSendWindow,
+    window: StreamSendWindow,
 }
 
 impl WindowFlowCtrl {
