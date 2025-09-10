@@ -132,7 +132,7 @@ mod test {
         let sendw = StreamSendWindow::new(450);
 
         let mut hs = HalfStream::new(
-            StreamFlowCtrl::new_window_based(sendw),
+            StreamFlowCtrl::new_window(sendw),
             StreamRecvWindow::new(20),
             DataCmdChecker::new_any(),
         );
@@ -156,7 +156,7 @@ mod test {
 
     fn hs_new() -> HalfStream {
         HalfStream::new(
-            StreamFlowCtrl::new_window_based(StreamSendWindow::new(20)),
+            StreamFlowCtrl::new_window(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             DataCmdChecker::new_any(),
         )
@@ -216,7 +216,7 @@ mod test {
                 .unwrap();
         }
         let mut hs = HalfStream::new(
-            StreamFlowCtrl::new_window_based(StreamSendWindow::new(20)),
+            StreamFlowCtrl::new_window(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             cmd_checker,
         );

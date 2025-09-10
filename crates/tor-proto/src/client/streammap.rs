@@ -597,7 +597,7 @@ mod test {
             let id = map.add_ent(
                 sink,
                 rx,
-                StreamFlowCtrl::new_window_based(StreamSendWindow::new(500)),
+                StreamFlowCtrl::new_window(StreamSendWindow::new(500)),
                 DataCmdChecker::new_any(),
             )?;
             let expect_id: StreamId = next_id;

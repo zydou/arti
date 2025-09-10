@@ -32,7 +32,7 @@ pub(crate) struct StreamFlowCtrl {
 
 impl StreamFlowCtrl {
     /// Returns a new sendme-window-based [`StreamFlowCtrl`].
-    pub(crate) fn new_window_based(window: sendme::StreamSendWindow) -> Self {
+    pub(crate) fn new_window(window: sendme::StreamSendWindow) -> Self {
         Self {
             e: StreamFlowCtrlEnum::WindowBased(WindowFlowCtrl::new(window)),
         }
@@ -40,7 +40,7 @@ impl StreamFlowCtrl {
 
     /// Returns a new xon/xoff-based [`StreamFlowCtrl`].
     #[cfg(feature = "flowctl-cc")]
-    pub(crate) fn new_xon_xoff_based(
+    pub(crate) fn new_xon_xoff(
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {

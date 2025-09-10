@@ -556,11 +556,11 @@ impl CircHop {
     ) -> Result<StreamFlowCtrl> {
         if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            Ok(StreamFlowCtrl::new_window_based(window))
+            Ok(StreamFlowCtrl::new_window(window))
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    Ok(StreamFlowCtrl::new_xon_xoff_based(rate_limit_updater, drain_rate_requester))
+                    Ok(StreamFlowCtrl::new_xon_xoff(rate_limit_updater, drain_rate_requester))
                 } else {
                     Err(internal!(
                         "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",
