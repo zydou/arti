@@ -168,8 +168,8 @@ We treat these flags as follows:
 
 - With bypassable blocking:
   - !bypass: Queue a padding cell.
-  - bypass: Queue a padding cell.  If the per-circuit queue was empty,
-    allow that cell to be flushed.
+  - bypass: Queue a padding cell.
+    Allow a single cell to be flushed.
   - replace:
     <!-- If the per-circuit queue is empty,
     try to queue a data cell if any stream can read. -->
