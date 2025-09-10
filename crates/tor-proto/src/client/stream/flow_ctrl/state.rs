@@ -5,6 +5,8 @@ use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
+use super::xon_xoff::reader::DrainRateRequest;
+
 use crate::congestion::sendme;
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
@@ -360,8 +362,3 @@ impl std::fmt::Display for StreamRateLimit {
         write!(f, "{} bytes/s", self.rate)
     }
 }
-
-/// A marker type for a [`NotifySender`] indicating that notifications are for new drain rate
-/// requests.
-#[derive(Debug)]
-pub(crate) struct DrainRateRequest;
