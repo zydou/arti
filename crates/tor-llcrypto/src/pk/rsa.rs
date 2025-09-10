@@ -242,8 +242,9 @@ impl KeyPair {
     }
     /// Sign a message using this keypair.
     ///
-    /// This uses PKCS#1 v1.5 padding and SHA1. This is insecure in general, but we use this for
-    /// backwards-compatibility, not security.
+    /// This uses PKCS#1 v1.5 padding and takes a raw bytes, rather than doing the hashing
+    /// internally. This is because we use PKCS padding without specifying the hash OID, which is a
+    /// slightly unusual setup that is understandably not supported by the rsa crate.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rsa::Error> {
         self.0.sign(rsa::Pkcs1v15Sign::new_unprefixed(), message)
     }
