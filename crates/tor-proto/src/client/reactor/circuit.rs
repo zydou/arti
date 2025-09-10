@@ -1586,7 +1586,8 @@ impl Circuit {
         use padding::Replace::*;
 
         // If true, and we are trying to send Replaceable padding,
-        // we should let the data in the queue count as the queued padding instead.
+        // we should let any data in the queue count as the queued padding instead,
+        // if it is queued for our target hop (or any subsequent hop).
         //
         // TODO circpad: In addition to letting currently-queued data count as padding,
         // maybenot also permits us to send currently pending data from our streams
@@ -1595,7 +1596,9 @@ impl Circuit {
         // TODO circpad: This will usually be false, since we try not to queue data
         // when there isn't space to write it.  If we someday add internal per-circuit
         // Buffers to chan_sender, this test is more likely to trigger.
-        let have_queued_data = self.chan_sender.n_queued() > 0;
+        let have_queued_cell_for_hop = self
+            .chan_sender
+            .have_queued_cell_for_hop_or_later(send_padding.hop);
 
         match &self.padding_block {
             Some(blocking) if blocking.is_bypassable => {
@@ -1606,14 +1609,14 @@ impl Circuit {
                     (NotReplaceable, DoNotBypass) => QueuePaddingNormally,
                     (NotReplaceable, BypassBlocking) => QueuePaddingAndBypass,
                     (Replaceable, DoNotBypass) => {
-                        if have_queued_data {
+                        if have_queued_cell_for_hop {
                             TreatQueuedCellAsPadding
                         } else {
                             QueuePaddingNormally
                         }
                     }
                     (Replaceable, BypassBlocking) => {
-                        if have_queued_data {
+                        if have_queued_cell_for_hop {
                             BypassWithExistingQueue
                         } else {
                             QueuePaddingAndBypass
@@ -1623,7 +1626,7 @@ impl Circuit {
             }
             Some(_) | None => match send_padding.may_replace_with_data() {
                 Replaceable => {
-                    if have_queued_data {
+                    if have_queued_cell_for_hop {
                         TreatQueuedCellAsPadding
                     } else {
                         QueuePaddingNormally

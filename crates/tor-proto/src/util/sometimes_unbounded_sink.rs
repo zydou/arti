@@ -106,6 +106,14 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
         self.buf.len()
     }
 
+    /// Return an iterator over the items queued in this sink.
+    ///
+    /// (Used by circuit padding to see whether we have a cell queued for a given hop.)
+    #[cfg(feature = "circ-padding")]
+    pub(crate) fn iter_queue(&self) -> impl Iterator<Item = &T> + '_ {
+        self.buf.iter()
+    }
+
     /// Hand `item` to the inner Sink if possible, or queue it otherwise
     ///
     /// Like a `poll_...` method in that it takes a `Context`.

@@ -12,6 +12,7 @@ use pin_project::pin_project;
 use tor_rtcompat::DynTimeProvider;
 
 use crate::{
+    HopNum,
     channel::{ChanCellQueueEntry, ChannelSender},
     util::sometimes_unbounded_sink::SometimesUnboundedSink,
 };
@@ -113,6 +114,17 @@ impl CircuitCellSender {
     /// that have not yet been flushed onto the channel.
     pub(super) fn n_queued(&self) -> usize {
         self.sometimes_unbounded().n_queued()
+    }
+
+    /// Return true if we have a queued cell for the specified hop or later.
+    #[cfg(feature = "circ-padding")]
+    pub(super) fn have_queued_cell_for_hop_or_later(&self, hop: HopNum) -> bool {
+        // TODO circpad: in theory we could also look at the per-channel queue to find this out!
+        // But that's nontrivial, since the per-channel queue is implemented with an futures mpsc
+        // channel, which doesn't have any functionality like thiat.
+        self.sometimes_unbounded()
+            .iter_queue()
+            .any(|(_, info)| info.is_some_and(|inf| inf.target_hop >= hop))
     }
 
     /// Send a cell on this sender,

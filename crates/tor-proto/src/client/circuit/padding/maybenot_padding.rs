@@ -123,7 +123,7 @@ pub(crate) enum Bypass {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct QueuedCellPaddingInfo {
     /// The hop that will receive this cell.
-    target_hop: HopNum,
+    pub(crate) target_hop: HopNum,
 }
 memory_cost_structural_copy!(QueuedCellPaddingInfo);
 
