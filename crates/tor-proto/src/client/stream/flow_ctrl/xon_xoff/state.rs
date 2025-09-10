@@ -1,3 +1,5 @@
+//! Circuit reactor's stream XON/XOFF flow control.
+
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
@@ -44,7 +46,7 @@ use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
 #[cfg(feature = "flowctl-cc")]
 const CC_XOFF_CLIENT: usize = 250_000;
 
-/// Control state for XON/XOFF flow control.
+/// State for XON/XOFF flow control.
 #[derive(Debug)]
 pub(crate) struct XonXoffFlowCtrl {
     /// How we communicate rate limit updates to the

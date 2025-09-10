@@ -1,3 +1,5 @@
+//! Circuit reactor's stream window flow control.
+
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
@@ -9,8 +11,10 @@ use crate::{Error, Result};
 #[cfg(doc)]
 use crate::client::stream::flow_ctrl::state::StreamFlowCtrl;
 
+/// State for window-based flow control.
 #[derive(Debug)]
 pub(crate) struct WindowFlowCtrl {
+    /// Send window.
     window: StreamSendWindow,
 }
 
