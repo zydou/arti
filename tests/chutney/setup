@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import dataclasses
 import os
 import shutil
 import subprocess
@@ -124,37 +125,48 @@ class ChutneyNetworkResolver:
         return args.network or str(_SCRIPT_DIR.joinpath("networks", "arti-ci"))
 
 
+@dataclasses.dataclass
+class Config:
+    chutney: Path
+    arti: Path
+    jq: Path
+    chutney_data_dir: Path
+    network: str
+
+
+class ConfigResolver:
+    def __init__(self, parser: ArgumentParser) -> None:
+        self._jq_resolver = JqBinResolver(parser)
+        self._chutney_resolver = ChutneyBinResolver(parser)
+        self._arti_resolver = ArtiBinResolver(parser)
+        self._chutney_data_dir_resolver = ChutneyDataDirResolver(parser)
+        self._network_resolver = ChutneyNetworkResolver(parser)
+
+    def resolve(self, args: Namespace) -> Config:
+        return Config(
+            chutney=self._chutney_resolver.resolve(args),
+            arti=self._arti_resolver.resolve(args),
+            jq=self._jq_resolver.resolve(args),
+            chutney_data_dir=self._chutney_data_dir_resolver.resolve(args),
+            network=self._network_resolver.resolve(args),
+        )
+
+
 def _main() -> None:
     # Set up command-line parser, registering config options
     parser = argparse.ArgumentParser(
         prog=_SCRIPT_NAME, description="Configure a chutney testbed"
     )
-    jq_resolver = JqBinResolver(parser)
-    chutney_resolver = ChutneyBinResolver(parser)
-    arti_resolver = ArtiBinResolver(parser)
-    chutney_data_dir_resolver = ChutneyDataDirResolver(parser)
-    network_resolver = ChutneyNetworkResolver(parser)
-
+    config_resolver = ConfigResolver(parser)
     args = parser.parse_args()
-
-    # resolve all options up-front before flushing to output file
-    chutney = chutney_resolver.resolve(args)
-    print("chutney:", chutney)
-    arti = arti_resolver.resolve(args)
-    print("arti:", arti)
-    jq = jq_resolver.resolve(args)
-    print("jq:", jq)
-    chutney_data_dir = chutney_data_dir_resolver.resolve(args)
-    print("CHUTNEY_DATA_DIR:", chutney_data_dir)
-    network = network_resolver.resolve(args)
-    print("network:", network)
+    config = config_resolver.resolve(args)
 
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
-        print(f'target="{network}"', file=c)
-        print(f'jq_bin="{jq}"', file=c)
-        print(f'chutney_bin="{chutney}"', file=c)
-        print(f'export CHUTNEY_ARTI="{arti}"', file=c)
-        print(f'export CHUTNEY_DATA_DIR="{chutney_data_dir}"', file=c)
+        print(f'target="{config.network}"', file=c)
+        print(f'jq_bin="{config.jq}"', file=c)
+        print(f'chutney_bin="{config.chutney}"', file=c)
+        print(f'export CHUTNEY_ARTI="{config.arti}"', file=c)
+        print(f'export CHUTNEY_DATA_DIR="{config.chutney_data_dir}"', file=c)
 
 
 if __name__ == "__main__":
