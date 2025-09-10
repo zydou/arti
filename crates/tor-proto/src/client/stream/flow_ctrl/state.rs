@@ -5,6 +5,7 @@ use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
+use super::window::state::WindowFlowCtrl;
 use super::xon_xoff::reader::DrainRateRequest;
 
 use crate::congestion::sendme;
@@ -51,7 +52,7 @@ const CC_XOFF_CLIENT: usize = 250_000;
 #[derive(Debug)]
 enum StreamFlowControlEnum {
     /// "legacy" sendme-window-based flow control.
-    WindowBased(sendme::StreamSendWindow),
+    WindowBased(WindowFlowCtrl),
     /// XON/XOFF flow control.
     #[cfg(feature = "flowctl-cc")]
     XonXoffBased(XonXoffControl),
@@ -71,7 +72,7 @@ impl StreamFlowControl {
     // preexisting StreamSendWindow.
     pub(crate) fn new_window_based(window: sendme::StreamSendWindow) -> Self {
         Self {
-            e: StreamFlowControlEnum::WindowBased(window),
+            e: StreamFlowControlEnum::WindowBased(WindowFlowCtrl { window }),
         }
     }
 
@@ -94,7 +95,7 @@ impl StreamFlowControl {
     pub(crate) fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
         match &self.e {
             StreamFlowControlEnum::WindowBased(w) => {
-                !sendme::cmd_counts_towards_windows(msg.cmd()) || w.window() > 0
+                !sendme::cmd_counts_towards_windows(msg.cmd()) || w.window.window() > 0
             }
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(_) => {
@@ -116,7 +117,7 @@ impl StreamFlowControl {
         match &mut self.e {
             StreamFlowControlEnum::WindowBased(w) => {
                 if sendme::cmd_counts_towards_windows(msg.cmd()) {
-                    w.take().map(|_| ())
+                    w.window.take().map(|_| ())
                 } else {
                     // TODO: Maybe make this an error?
                     // Ideally caller would have checked this already.
@@ -151,7 +152,7 @@ impl StreamFlowControl {
                     })?
                     .into_msg();
 
-                w.put()
+                w.window.put()
             }
             #[cfg(feature = "flowctl-cc")]
             StreamFlowControlEnum::XonXoffBased(_) => Err(Error::CircProto(
