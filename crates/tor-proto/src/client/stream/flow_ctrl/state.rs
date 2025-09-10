@@ -14,7 +14,7 @@ use crate::util::notify::NotifySender;
 
 /// Private internals of [`StreamFlowControl`].
 #[derive(Debug)]
-enum StreamFlowControlEnum {
+enum StreamFlowCtrlEnum {
     /// "legacy" sendme-window-based flow control.
     WindowBased(WindowFlowCtrl),
     /// XON/XOFF flow control.
@@ -26,14 +26,14 @@ enum StreamFlowControlEnum {
 #[derive(Debug)]
 pub(crate) struct StreamFlowControl {
     /// Private internal enum.
-    e: StreamFlowControlEnum,
+    e: StreamFlowCtrlEnum,
 }
 
 impl StreamFlowControl {
     /// Returns a new sendme-window-based [`StreamFlowControl`].
     pub(crate) fn new_window_based(window: sendme::StreamSendWindow) -> Self {
         Self {
-            e: StreamFlowControlEnum::WindowBased(WindowFlowCtrl::new(window)),
+            e: StreamFlowCtrlEnum::WindowBased(WindowFlowCtrl::new(window)),
         }
     }
 
@@ -44,7 +44,7 @@ impl StreamFlowControl {
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
-            e: StreamFlowControlEnum::XonXoffBased(XonXoffFlowCtrl::new(
+            e: StreamFlowCtrlEnum::XonXoffBased(XonXoffFlowCtrl::new(
                 rate_limit_updater,
                 drain_rate_requester,
             )),
@@ -54,9 +54,9 @@ impl StreamFlowControl {
     /// Whether this stream is ready to send `msg`.
     pub(crate) fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
         match &self.e {
-            StreamFlowControlEnum::WindowBased(w) => w.can_send(msg),
+            StreamFlowCtrlEnum::WindowBased(w) => w.can_send(msg),
             #[cfg(feature = "flowctl-cc")]
-            StreamFlowControlEnum::XonXoffBased(x) => x.can_send(msg),
+            StreamFlowCtrlEnum::XonXoffBased(x) => x.can_send(msg),
         }
     }
 
@@ -69,9 +69,9 @@ impl StreamFlowControl {
     // been applied or not.
     pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => w.take_capacity_to_send(msg),
+            StreamFlowCtrlEnum::WindowBased(w) => w.take_capacity_to_send(msg),
             #[cfg(feature = "flowctl-cc")]
-            StreamFlowControlEnum::XonXoffBased(x) => x.take_capacity_to_send(msg),
+            StreamFlowCtrlEnum::XonXoffBased(x) => x.take_capacity_to_send(msg),
         }
     }
 
@@ -86,9 +86,9 @@ impl StreamFlowControl {
     /// correct type of flow control.
     pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => w.put_for_incoming_sendme(msg),
+            StreamFlowCtrlEnum::WindowBased(w) => w.put_for_incoming_sendme(msg),
             #[cfg(feature = "flowctl-cc")]
-            StreamFlowControlEnum::XonXoffBased(x) => x.put_for_incoming_sendme(msg),
+            StreamFlowCtrlEnum::XonXoffBased(x) => x.put_for_incoming_sendme(msg),
         }
     }
 
@@ -98,9 +98,9 @@ impl StreamFlowControl {
     /// correct type of flow control.
     pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => w.handle_incoming_xon(msg),
+            StreamFlowCtrlEnum::WindowBased(w) => w.handle_incoming_xon(msg),
             #[cfg(feature = "flowctl-cc")]
-            StreamFlowControlEnum::XonXoffBased(x) => x.handle_incoming_xon(msg),
+            StreamFlowCtrlEnum::XonXoffBased(x) => x.handle_incoming_xon(msg),
         }
     }
 
@@ -110,9 +110,9 @@ impl StreamFlowControl {
     /// correct type of flow control.
     pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => w.handle_incoming_xoff(msg),
+            StreamFlowCtrlEnum::WindowBased(w) => w.handle_incoming_xoff(msg),
             #[cfg(feature = "flowctl-cc")]
-            StreamFlowControlEnum::XonXoffBased(x) => x.handle_incoming_xoff(msg),
+            StreamFlowCtrlEnum::XonXoffBased(x) => x.handle_incoming_xoff(msg),
         }
     }
 
@@ -126,9 +126,9 @@ impl StreamFlowControl {
         buffer_len: usize,
     ) -> Result<Option<Xon>> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => w.maybe_send_xon(rate, buffer_len),
+            StreamFlowCtrlEnum::WindowBased(w) => w.maybe_send_xon(rate, buffer_len),
             #[cfg(feature = "flowctl-cc")]
-            StreamFlowControlEnum::XonXoffBased(x) => x.maybe_send_xon(rate, buffer_len),
+            StreamFlowCtrlEnum::XonXoffBased(x) => x.maybe_send_xon(rate, buffer_len),
         }
     }
 
@@ -138,9 +138,9 @@ impl StreamFlowControl {
     /// Returns an error if XON/XOFF messages aren't supported for this type of flow control.
     pub(crate) fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
         match &mut self.e {
-            StreamFlowControlEnum::WindowBased(w) => w.maybe_send_xoff(buffer_len),
+            StreamFlowCtrlEnum::WindowBased(w) => w.maybe_send_xoff(buffer_len),
             #[cfg(feature = "flowctl-cc")]
-            StreamFlowControlEnum::XonXoffBased(x) => x.maybe_send_xoff(buffer_len),
+            StreamFlowCtrlEnum::XonXoffBased(x) => x.maybe_send_xoff(buffer_len),
         }
     }
 }
