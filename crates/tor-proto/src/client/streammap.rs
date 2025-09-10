@@ -3,8 +3,9 @@
 use crate::client::circuit::StreamMpscReceiver;
 use crate::client::halfstream::HalfStream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
+use crate::client::stream::AnyCmdChecker;
+use crate::client::stream::flow_ctrl::state::StreamFlowControl;
 use crate::client::stream::queue::StreamQueueSender;
-use crate::client::stream::{AnyCmdChecker, StreamFlowControl};
 use crate::congestion::sendme;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};

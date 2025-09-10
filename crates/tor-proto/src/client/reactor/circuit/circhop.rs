@@ -3,10 +3,11 @@
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
-use crate::client::stream::queue::StreamQueueSender;
-use crate::client::stream::{
-    AnyCmdChecker, DrainRateRequest, StreamFlowControl, StreamRateLimit, StreamStatus,
+use crate::client::stream::flow_ctrl::state::{
+    DrainRateRequest, StreamFlowControl, StreamRateLimit,
 };
+use crate::client::stream::queue::StreamQueueSender;
+use crate::client::stream::{AnyCmdChecker, StreamStatus};
 use crate::client::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
