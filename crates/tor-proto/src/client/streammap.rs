@@ -4,7 +4,7 @@ use crate::client::circuit::StreamMpscReceiver;
 use crate::client::halfstream::HalfStream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
 use crate::client::stream::AnyCmdChecker;
-use crate::client::stream::flow_ctrl::state::StreamFlowControl;
+use crate::client::stream::flow_ctrl::state::StreamFlowCtrl;
 use crate::client::stream::queue::StreamQueueSender;
 use crate::congestion::sendme;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
@@ -44,7 +44,7 @@ pub(super) struct OpenStreamEnt {
     /// Flow control for this stream.
     // Non-pub because we need to proxy `put_for_incoming_sendme` to ensure
     // `flow_ctrl_waker` is woken.
-    flow_ctrl: StreamFlowControl,
+    flow_ctrl: StreamFlowCtrl,
     /// Stream for cells that should be sent down this stream.
     // Not directly exposed. This should only be polled via
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
@@ -322,7 +322,7 @@ impl StreamMap {
         &mut self,
         sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        flow_ctrl: StreamFlowControl,
+        flow_ctrl: StreamFlowCtrl,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
         let mut stream_ent = OpenStreamEntStream {
@@ -362,7 +362,7 @@ impl StreamMap {
         &mut self,
         sink: StreamQueueSender,
         rx: StreamMpscReceiver<AnyRelayMsg>,
-        flow_ctrl: StreamFlowControl,
+        flow_ctrl: StreamFlowCtrl,
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
@@ -597,7 +597,7 @@ mod test {
             let id = map.add_ent(
                 sink,
                 rx,
-                StreamFlowControl::new_window_based(StreamSendWindow::new(500)),
+                StreamFlowCtrl::new_window_based(StreamSendWindow::new(500)),
                 DataCmdChecker::new_any(),
             )?;
             let expect_id: StreamId = next_id;

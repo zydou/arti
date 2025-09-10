@@ -9,7 +9,7 @@ use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
 #[cfg(doc)]
-use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowControl};
+use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
 
 /// The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
 ///
@@ -70,27 +70,27 @@ impl XonXoffFlowCtrl {
         }
     }
 
-    /// See [`StreamFlowControl::can_send`].
+    /// See [`StreamFlowCtrl::can_send`].
     pub(crate) fn can_send<M: RelayMsg>(&self, _msg: &M) -> bool {
         // we perform rate-limiting in the `DataWriter`,
         // so we send any messages that made it past the `DataWriter`
         true
     }
 
-    /// See [`StreamFlowControl::take_capacity_to_send`].
+    /// See [`StreamFlowCtrl::take_capacity_to_send`].
     pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, _msg: &M) -> Result<()> {
         // xon/xoff flow control doesn't have "capacity";
         // the capacity is effectively controlled by the congestion control
         Ok(())
     }
 
-    /// See [`StreamFlowControl::put_for_incoming_sendme`].
+    /// See [`StreamFlowCtrl::put_for_incoming_sendme`].
     pub(crate) fn put_for_incoming_sendme(&mut self, _msg: UnparsedRelayMsg) -> Result<()> {
         let msg = "Stream level SENDME not allowed due to congestion control";
         Err(Error::CircProto(msg.into()))
     }
 
-    /// See [`StreamFlowControl::handle_incoming_xon`].
+    /// See [`StreamFlowCtrl::handle_incoming_xon`].
     pub(crate) fn handle_incoming_xon(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         let xon = msg
             .decode::<Xon>()
@@ -116,7 +116,7 @@ impl XonXoffFlowCtrl {
         Ok(())
     }
 
-    /// See [`StreamFlowControl::handle_incoming_xoff`].
+    /// See [`StreamFlowCtrl::handle_incoming_xoff`].
     pub(crate) fn handle_incoming_xoff(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         let xoff = msg
             .decode::<Xoff>()
@@ -146,7 +146,7 @@ impl XonXoffFlowCtrl {
         Ok(())
     }
 
-    /// See [`StreamFlowControl::maybe_send_xon`].
+    /// See [`StreamFlowCtrl::maybe_send_xon`].
     pub(crate) fn maybe_send_xon(
         &mut self,
         rate: XonKbpsEwma,
@@ -170,7 +170,7 @@ impl XonXoffFlowCtrl {
         Ok(Some(Xon::new(FlowCtrlVersion::V0, rate)))
     }
 
-    /// See [`StreamFlowControl::maybe_send_xoff`].
+    /// See [`StreamFlowCtrl::maybe_send_xoff`].
     pub(crate) fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
         // if the last XON/XOFF we sent was an XOFF, no need to send another
         if matches!(self.last_sent_xon_xoff, Some(LastSentXonXoff::Xoff)) {

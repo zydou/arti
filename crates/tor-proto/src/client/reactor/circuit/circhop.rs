@@ -3,7 +3,7 @@
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
-use crate::client::stream::flow_ctrl::state::{StreamFlowControl, StreamRateLimit};
+use crate::client::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::stream::{AnyCmdChecker, StreamStatus};
@@ -553,14 +553,14 @@ impl CircHop {
         &self,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
-    ) -> Result<StreamFlowControl> {
+    ) -> Result<StreamFlowCtrl> {
         if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
-            Ok(StreamFlowControl::new_window_based(window))
+            Ok(StreamFlowCtrl::new_window_based(window))
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    Ok(StreamFlowControl::new_xon_xoff_based(rate_limit_updater, drain_rate_requester))
+                    Ok(StreamFlowCtrl::new_xon_xoff_based(rate_limit_updater, drain_rate_requester))
                 } else {
                     Err(internal!(
                         "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",

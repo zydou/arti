@@ -6,7 +6,7 @@ use crate::congestion::sendme::{self, StreamSendWindow};
 use crate::{Error, Result};
 
 #[cfg(doc)]
-use crate::client::stream::flow_ctrl::state::StreamFlowControl;
+use crate::client::stream::flow_ctrl::state::StreamFlowCtrl;
 
 #[derive(Debug)]
 pub(crate) struct WindowFlowCtrl {
@@ -22,12 +22,12 @@ impl WindowFlowCtrl {
         Self { window }
     }
 
-    /// See [`StreamFlowControl::can_send`].
+    /// See [`StreamFlowCtrl::can_send`].
     pub(crate) fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
         !sendme::cmd_counts_towards_windows(msg.cmd()) || self.window.window() > 0
     }
 
-    /// See [`StreamFlowControl::take_capacity_to_send`].
+    /// See [`StreamFlowCtrl::take_capacity_to_send`].
     pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
         if sendme::cmd_counts_towards_windows(msg.cmd()) {
             self.window.take().map(|_| ())
@@ -38,7 +38,7 @@ impl WindowFlowCtrl {
         }
     }
 
-    /// See [`StreamFlowControl::put_for_incoming_sendme`].
+    /// See [`StreamFlowCtrl::put_for_incoming_sendme`].
     pub(crate) fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         let _sendme = msg
             .decode::<Sendme>()
@@ -48,19 +48,19 @@ impl WindowFlowCtrl {
         self.window.put()
     }
 
-    /// See [`StreamFlowControl::handle_incoming_xon`].
+    /// See [`StreamFlowCtrl::handle_incoming_xon`].
     pub(crate) fn handle_incoming_xon(&mut self, _msg: UnparsedRelayMsg) -> Result<()> {
         let msg = "XON messages not allowed with window flow control";
         Err(Error::CircProto(msg.into()))
     }
 
-    /// See [`StreamFlowControl::handle_incoming_xoff`].
+    /// See [`StreamFlowCtrl::handle_incoming_xoff`].
     pub(crate) fn handle_incoming_xoff(&mut self, _msg: UnparsedRelayMsg) -> Result<()> {
         let msg = "XOFF messages not allowed with window flow control";
         Err(Error::CircProto(msg.into()))
     }
 
-    /// See [`StreamFlowControl::maybe_send_xon`].
+    /// See [`StreamFlowCtrl::maybe_send_xon`].
     pub(crate) fn maybe_send_xon(
         &mut self,
         _rate: XonKbpsEwma,
@@ -70,7 +70,7 @@ impl WindowFlowCtrl {
         Err(Error::CircProto(msg.into()))
     }
 
-    /// See [`StreamFlowControl::maybe_send_xoff`].
+    /// See [`StreamFlowCtrl::maybe_send_xoff`].
     pub(crate) fn maybe_send_xoff(&mut self, _buffer_len: usize) -> Result<Option<Xoff>> {
         let msg = "XOFF messages cannot be sent with window flow control";
         Err(Error::CircProto(msg.into()))

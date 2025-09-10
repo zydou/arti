@@ -12,7 +12,7 @@ use crate::Result;
 use crate::congestion::sendme;
 use crate::util::notify::NotifySender;
 
-/// Private internals of [`StreamFlowControl`].
+/// Private internals of [`StreamFlowCtrl`].
 #[derive(Debug)]
 enum StreamFlowCtrlEnum {
     /// "legacy" sendme-window-based flow control.
@@ -24,20 +24,20 @@ enum StreamFlowCtrlEnum {
 
 /// Manages flow control for a stream.
 #[derive(Debug)]
-pub(crate) struct StreamFlowControl {
+pub(crate) struct StreamFlowCtrl {
     /// Private internal enum.
     e: StreamFlowCtrlEnum,
 }
 
-impl StreamFlowControl {
-    /// Returns a new sendme-window-based [`StreamFlowControl`].
+impl StreamFlowCtrl {
+    /// Returns a new sendme-window-based [`StreamFlowCtrl`].
     pub(crate) fn new_window_based(window: sendme::StreamSendWindow) -> Self {
         Self {
             e: StreamFlowCtrlEnum::WindowBased(WindowFlowCtrl::new(window)),
         }
     }
 
-    /// Returns a new xon/xoff-based [`StreamFlowControl`].
+    /// Returns a new xon/xoff-based [`StreamFlowCtrl`].
     #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff_based(
         rate_limit_updater: watch::Sender<StreamRateLimit>,
