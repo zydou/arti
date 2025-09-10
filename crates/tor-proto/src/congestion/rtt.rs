@@ -103,6 +103,12 @@ impl RoundtripTimeEstimator {
             .map(|rtt| u32::try_from(rtt.as_micros()).ok().unwrap_or(u32::MAX))
     }
 
+    /// Return the maximum observed RTT in usec or `None` if we don't have an estimate yet.
+    pub(crate) fn max_rtt_usec(&self) -> Option<u32> {
+        self.max_rtt
+            .map(|rtt| u32::try_from(rtt.as_micros()).ok().unwrap_or(u32::MAX))
+    }
+
     /// Inform the estimator that we did (at time `now`) something that we'll expect a SENDME to
     /// be received for.
     pub(crate) fn expect_sendme(&mut self, now: Instant) {
