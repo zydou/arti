@@ -17,6 +17,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::circuit::UniqId;
+#[cfg(feature = "circ-padding-manual")]
+pub use crate::client::circuit::padding::{
+    CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError,
+};
 use crate::client::stream::flow_ctrl::state::StreamRateLimit;
 use crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::client::stream::queue::stream_queue;
@@ -408,6 +412,26 @@ impl ClientTunnel {
         };
 
         Ok(components)
+    }
+
+    /// Install a [`CircuitPadder`] at the listed [`hop`].
+    ///
+    /// Replaces any previous padder installed at that hop.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn start_padding_at_hop(
+        self: &Arc<Self>,
+        hop: HopLocation,
+        padder: CircuitPadder,
+    ) -> Result<()> {
+        self.circ.set_padder_impl(hop, Some(padder)).await
+    }
+
+    /// Remove any [`CircuitPadder`] at the listed [`hop`].
+    ///
+    /// Does nothing if there was not a padder installed there.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn stop_padding_at_hop(self: &Arc<Self>, hop: HopLocation) -> Result<()> {
+        self.circ.set_padder_impl(hop, None).await
     }
 
     /// Start a DataStream (anonymized connection) to the given

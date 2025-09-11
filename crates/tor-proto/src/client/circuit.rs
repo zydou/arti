@@ -873,6 +873,47 @@ impl ClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)?
     }
 
+    /// Install a [`CircuitPadder`] at the listed [`hop`].
+    ///
+    /// Replaces any previous padder installed at that hop.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn start_padding_at_hop(
+        &self,
+        hop: HopNum,
+        padder: crate::client::CircuitPadder,
+    ) -> Result<()> {
+        self.set_padder_impl(crate::HopLocation::Hop((self.unique_id, hop)), Some(padder))
+            .await
+    }
+
+    /// Remove any [`CircuitPadder`] at the listed [`hop`].
+    ///
+    /// Does nothing if there was not a padder installed there.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn stop_padding_at_hop(&self, hop: HopNum) -> Result<()> {
+        self.set_padder_impl(crate::HopLocation::Hop((self.unique_id, hop)), None)
+            .await
+    }
+
+    /// Helper: replace the padder at `hop` with the provided `padder`, or with `None`.
+    #[cfg(feature = "circ-padding-manual")]
+    pub(super) async fn set_padder_impl(
+        &self,
+        hop: crate::HopLocation,
+        padder: Option<crate::client::CircuitPadder>,
+    ) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        let msg = CtrlCmd::SetPadder {
+            hop,
+            padder,
+            sender: tx,
+        };
+        self.command
+            .unbounded_send(msg)
+            .map_err(|_| Error::CircuitClosed)?;
+        rx.await.map_err(|_| Error::CircuitClosed)?
+    }
+
     /// Return true if this circuit is closed and therefore unusable.
     pub fn is_closing(&self) -> bool {
         self.control.is_closed()

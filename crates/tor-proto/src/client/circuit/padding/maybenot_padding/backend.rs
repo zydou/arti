@@ -24,6 +24,7 @@ use std::{sync::Arc, task::Waker};
 
 use maybenot::{MachineId, TriggerEvent};
 use smallvec::SmallVec;
+use tor_error::into_bad_api_usage;
 
 use super::{Bypass, Duration, Instant, PerHopPaddingEvent, PerHopPaddingEventVec, Replace};
 
@@ -334,6 +335,20 @@ pub(super) struct MaybenotPadder<const N: usize> {
 }
 
 impl<const N: usize> MaybenotPadder<N> {
+    /// Construct a new MaybyenotPadder from a provided `FrameworkRules`.
+    pub(super) fn from_framework_rules(
+        rules: &super::PaddingRules,
+    ) -> Result<Self, maybenot::Error> {
+        let framework = maybenot::Framework::new(
+            rules.machines.clone(),
+            rules.max_outbound_padding_frac,
+            rules.max_outbound_blocking_frac,
+            Instant::now(),
+            ThisThreadRng,
+        )?;
+        Ok(Self::from_framework(framework))
+    }
+
     /// Construct a new MaybenotPadder from a given Framework.
     pub(super) fn from_framework(framework: Framework) -> Self {
         let n = framework.num_machines();

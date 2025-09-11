@@ -53,6 +53,10 @@ cfg_if::cfg_if! {
     }
 }
 
+// These types are made public using the super-experimental circ-padding-manual feature.
+#[cfg(feature = "circ-padding-manual")]
+pub use maybenot_padding::{CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError};
+
 pub(crate) use padding_impl::{
     PaddingController, PaddingEvent, PaddingEventStream, QueuedCellPaddingInfo, SendPadding,
     StartBlocking, new_padding,
