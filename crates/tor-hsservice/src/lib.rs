@@ -286,6 +286,10 @@ impl OnionService {
         let selector = KeystoreSelector::Primary;
         maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid, selector)?;
 
+        if !config.enabled() {
+            return Err(StartupError::DisabledInConfig);
+        }
+
         if config.restricted_discovery.enabled {
             info!(
                 nickname=%nickname,

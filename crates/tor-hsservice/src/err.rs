@@ -83,6 +83,10 @@ pub enum StartupError {
     /// Tried to launch an onion service that has already been launched.
     #[error("Onion service has already been launched")]
     AlreadyLaunched,
+
+    /// Tried to launch an onion service that was disabled in the config file.
+    #[error("Onion service is disabled in config")]
+    DisabledInConfig,
 }
 
 impl HasKind for StartupError {
@@ -98,6 +102,8 @@ impl HasKind for StartupError {
             E::StateDirectoryInaccessible(e) => e.kind(),
             E::StateDirectoryInaccessibleIo { .. } => EK::PersistentStateAccessFailed,
             E::Fatal(e) => e.kind(),
+            // Should this be [`ErrorKind::InvalidConfig`] instead?
+            E::DisabledInConfig => EK::BadApiUsage,
         }
     }
 }
