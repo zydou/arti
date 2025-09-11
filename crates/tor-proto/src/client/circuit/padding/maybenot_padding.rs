@@ -192,12 +192,10 @@ impl SendPadding {
     }
 }
 
-/// An instruction to start blocking traffic to a given hop,
+/// An instruction to start blocking traffic
 /// or to change the rules for blocking traffic.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct StartBlocking {
-    /// The first hop to which normal data should no longer be sent.
-    pub(crate) hop: HopNum,
     /// If true, then padding traffic _to the blocking hop_
     /// can bypass this block, if it has [`Bypass::BypassBlocking`].
     ///
@@ -247,35 +245,54 @@ struct PaddingShared<S: SleepProvider> {
 }
 
 /// Current padding-related blocking status for a circuit.
+///
+/// We have to keep track of whether each hop is blocked or not,
+/// and whether its blocking is bypassable.
+/// But all we actually need to tell the reactor code
+/// is whether to block the _entire_ circuit or not.
+//
+// TODO-circpad: It might beneficial
+// to block only the first blocking hop and its successors,
+// but that creates tricky starvation problems
+// in the case where we have queued traffic for a later, blocking, hop
+// that prevents us from flushing any messages to earlier hops.
+// We could solve this with tricky out-of-order designs,
+// but for now we're just treating "blocked" as a boolean.
 #[derive(Default)]
 struct BlockingState {
     /// Whether each hop is currently blocked.
     hop_blocked: BitArr![for MAX_HOPS],
-    /// Whether each hop's blocking is currently bypassable.
-    blocking_bypassable: BitArr![for MAX_HOPS],
+    /// Whether each hop's blocking is currently **not** bypassable.
+    blocking_non_bypassable: BitArr![for MAX_HOPS],
 }
 
 impl BlockingState {
     /// Set the hop at position `idx` to blocked.
     fn set_blocked(&mut self, idx: usize, is_bypassable: bool) {
         self.hop_blocked.set(idx, true);
-        self.blocking_bypassable.set(idx, is_bypassable);
+        self.blocking_non_bypassable.set(idx, !is_bypassable);
     }
     /// Set the hop at position `idx` to unblocked.
     fn set_unblocked(&mut self, idx: usize) {
         self.hop_blocked.set(idx, false);
+        self.blocking_non_bypassable.set(idx, false);
     }
     /// Return a [`PaddingEvent`]
     fn blocking_update_paddingevent(&self) -> PaddingEvent {
-        match self.hop_blocked.first_one() {
-            Some(hop_idx) => {
-                let hop = hopnum_from_hop_idx(hop_idx);
-                PaddingEvent::StartBlocking(StartBlocking {
-                    hop,
-                    is_bypassable: self.blocking_bypassable[hop_idx],
-                })
-            }
-            None => PaddingEvent::StopBlocking,
+        if self.blocking_non_bypassable.any() {
+            // At least one hop has non-bypassable blocking, so our blocking is non-bypassable.
+            PaddingEvent::StartBlocking(StartBlocking {
+                is_bypassable: false,
+            })
+        } else if self.hop_blocked.any() {
+            // At least one hop is blocking, but no hop has non-bypassable padding, so this padding
+            // is bypassable.
+            PaddingEvent::StartBlocking(StartBlocking {
+                is_bypassable: true,
+            })
+        } else {
+            // Nobody is blocking right now; it's time to unblock.
+            PaddingEvent::StopBlocking
         }
     }
 }
