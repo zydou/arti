@@ -103,7 +103,7 @@ pub use docid::DocId;
 pub use err::Error;
 pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};
 pub use storage::DocumentText;
-pub use tor_guardmgr::fallback::{FallbackDir, FallbackDirBuilder};
+pub use tor_dircommon::fallback::{FallbackDir, FallbackDirBuilder};
 pub use tor_netdir::Timeliness;
 
 /// Re-export of `strum` crate for use by an internal macro

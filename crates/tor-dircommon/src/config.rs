@@ -15,11 +15,11 @@ use getset::{CopyGetters, Getters};
 use serde::{Deserialize, Serialize};
 use tor_checkable::timed::TimerangeBound;
 use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
-use tor_guardmgr::fallback::FallbackDirBuilder;
 use tor_netdoc::doc::netstatus::Lifetime;
 
 use crate::{
     authority::{AuthorityBuilder, AuthorityList, AuthorityListBuilder},
+    fallback::{FallbackDirBuilder, FallbackList, FallbackListBuilder},
     retry::{DownloadSchedule, DownloadScheduleBuilder},
 };
 
@@ -49,7 +49,7 @@ pub struct NetworkConfig {
     /// whose addresses and public keys are shipped as part of the Arti source code.
     #[builder(sub_builder, setter(custom))]
     #[getset(get = "pub")]
-    fallback_caches: tor_guardmgr::fallback::FallbackList,
+    fallback_caches: FallbackList,
 
     /// List of directory authorities which we expect to sign consensus
     /// documents.
@@ -212,14 +212,12 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::unnecessary_wraps)]
 
-    use crate::authority::Authority;
+    use crate::{authority::Authority, fallback::FallbackDir};
 
     use super::*;
 
     #[test]
     fn build_network() {
-        use tor_guardmgr::fallback::FallbackDir;
-
         let dflt = NetworkConfig::default();
 
         // with nothing set, we get the default.

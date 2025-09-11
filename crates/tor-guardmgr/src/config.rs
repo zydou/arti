@@ -1,9 +1,9 @@
 //! Configuration elements for the guard manager
 
 use tor_basic_utils::define_accessor_trait;
+use tor_dircommon::fallback::FallbackList;
 
 use crate::bridge::BridgeConfig;
-use crate::fallback::FallbackList;
 
 define_accessor_trait! {
     /// Configuration for a guard manager

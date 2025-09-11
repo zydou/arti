@@ -106,7 +106,7 @@ impl DirMgrConfig {
     }
 
     /// Return the configured set of fallback directories
-    pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
+    pub fn fallbacks(&self) -> &tor_dircommon::fallback::FallbackList {
         self.network.fallback_caches()
     }
 

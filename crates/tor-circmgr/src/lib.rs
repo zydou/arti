@@ -51,6 +51,7 @@ use build::TunnelBuilder;
 use mgr::{AbstractTunnel, AbstractTunnelBuilder};
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
+use tor_dircommon::fallback::FallbackList;
 use tor_error::{error_report, warn_report};
 use tor_guardmgr::RetireCircuits;
 use tor_linkspec::ChanTarget;
@@ -97,7 +98,6 @@ cfg_if::cfg_if! {
 
 pub use err::Error;
 pub use isolation::IsolationToken;
-use tor_guardmgr::fallback::FallbackList;
 pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
 pub use tunnel::{
     ClientDataTunnel, ClientDirTunnel, ClientOnionServiceDataTunnel, ClientOnionServiceDirTunnel,

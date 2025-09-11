@@ -81,6 +81,7 @@ thiserror = "2"
 tor-async-utils = { version = "0.34.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.34.0" }
 tor-config = { path = "../tor-config", version = "0.34.0" }
+tor-dircommon = { path = "../tor-dircommon", version = "0.34.0" }
 tor-error = { path = "../tor-error", version = "0.34.0" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.34.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.34.0" }
