@@ -583,6 +583,23 @@ impl TryFrom<i32> for SendMeVersion {
     }
 }
 
+/// Tests that check whether some code fails to compile as intended.
+#[cfg(doc)]
+#[doc(hidden)]
+mod compile_fail_tests {
+    /// ```compile_fail
+    /// use tor_units::BoundedInt32;
+    /// let _: BoundedInt32<10, 5> = BoundedInt32::saturating_new(7);
+    /// ```
+    fn uninhabited_saturating_new() {}
+
+    /// ```compile_fail
+    /// use tor_units::BoundedInt32;
+    /// let _: Result<BoundedInt32<10, 5>, Error> = BoundedInt32::saturating_from_str("7");
+    /// ```
+    fn uninhabited_from_string() {}
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
@@ -625,19 +642,6 @@ mod tests {
         let x: TestFoo = TestFoo::saturating_from_str("0").unwrap();
         let x_val: i32 = x.into();
         assert!(x_val == TestFoo::LOWER);
-    }
-
-    #[test]
-    #[should_panic]
-    fn uninhabited_saturating_new() {
-        // This value should be uncreatable.
-        let _: BoundedInt32<10, 5> = BoundedInt32::saturating_new(7);
-    }
-
-    #[test]
-    fn uninhabited_from_string() {
-        let v: Result<BoundedInt32<10, 5>, Error> = BoundedInt32::saturating_from_str("7");
-        assert!(matches!(v, Err(Error::Uninhabited)));
     }
 
     #[test]
