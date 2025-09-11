@@ -226,15 +226,24 @@ Padding is only allowed from hops where padding machines have been
 negotiated. If padding arrives from any other hop,
 the client _should_ destroy the circuit with a warning.
 
-> For hops where padding has been negotiated,
-> we may keep overall limits of the number or fraction of padding messages
-> that may be accepted.
-> These limits will be associated with a set of padding machines.
->
-> We'll need to specify these.
-> They might have to be future work.
->
-> For one possible design, see
+For hops where padding has been negotiated,
+we may keep overall limits of the number or fraction of padding messages
+that may be accepted.
+These limits will be associated with a set of padding machines.
+
+In particular, we can configure:
+ - A maximum fraction of incoming cells from this hop
+   that may be padding.
+ - A minimum threshold number of received cells below which the above limit does not apply.
+
+> For example, if the maximum padding fraction is 0.25,
+> and the threshold is 10,
+> then we kill the circuit whenever
+> `n_padding_received + n_normal_received >= 10`
+> and
+> `n_padding_received / n_padding_received + n_normal_received > 0.25`.
+
+> For a more sophisticated design, see
 > <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3251976>.
 
 
