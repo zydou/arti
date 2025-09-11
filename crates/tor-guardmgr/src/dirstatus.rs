@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use tor_basic_utils::retry::RetryDelay;
 
 /// Status information about whether a
-/// [`FallbackDir`](crate::fallback::FallbackDir) or
+/// [`FallbackDir`](tor_dircommon::fallback::FallbackDir) or
 /// [`Guard`](crate::guard::Guard) is currently usable as a directory cache.
 ///
 /// This structure is used to track whether the cache has recently failed, and

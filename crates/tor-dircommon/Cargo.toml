@@ -16,6 +16,7 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
+base64ct = "1.8.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 getset = "0.1.6"
 humantime = "2"
@@ -24,6 +25,6 @@ serde = { version = "1.0.103", features = ["derive"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.34.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.34.0" }
 tor-config = { path = "../tor-config", version = "0.34.0" }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.34.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.34.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.34.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.34.0" }

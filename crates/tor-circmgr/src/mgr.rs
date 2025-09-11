@@ -1544,8 +1544,8 @@ mod test {
         Error, IsolationToken, StreamIsolation, TargetPort, TargetPorts, TargetTunnelUsage,
     };
     use std::sync::LazyLock;
+    use tor_dircommon::fallback::FallbackList;
     use tor_guardmgr::TestConfig;
-    use tor_guardmgr::fallback::FallbackList;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
     use tor_persist::TestingStateMgr;

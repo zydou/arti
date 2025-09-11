@@ -740,8 +740,8 @@ impl tor_circmgr::hspool::HsCircPoolConfig for TorClientConfig {
     }
 }
 
-impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
-    fn as_ref(&self) -> &tor_guardmgr::fallback::FallbackList {
+impl AsRef<tor_dircommon::fallback::FallbackList> for TorClientConfig {
+    fn as_ref(&self) -> &tor_dircommon::fallback::FallbackList {
         self.tor_network.fallback_caches()
     }
 }
