@@ -108,12 +108,21 @@ However, since our blocking design below
 allows a circuit's outbound cell queue to become blocked
 for reasons other than becoming full,
 we need to look at the blocking status of the inner MPSC sink
-(the one connected directly to the channel).
+(the one connected directly to the channel)
+when deciding whether to give a "congestion signal"
+to the CC algorithm.
 
-> TODO: Do we actually want to do this?
+> There's a possibility that ignoring padding-based blocking in this way
+> might cause us to infer a too-high transfer rate.
+> On the other hand,
+> if we were to take blocked channels as a padding signal,
+> we'd be at risk of inferring a too-low rate.
+> Ideally, our padding machines should not block so much
+> that this becomes a decisive issue.
 >
-> See discussion at
-> <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3252061>.
+> See
+> <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3252061>
+> for more discussion.
 
 ## Scope of blocking
 
@@ -274,4 +283,3 @@ with respect to how to optimize:
 - When we build circuit-muxes, make their blocking behavior smarter.
 
 - Tweak maybenot API so that we enter machines with a TriggerEvent::Startup event.
-
