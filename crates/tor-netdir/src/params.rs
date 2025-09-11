@@ -368,6 +368,39 @@ pub struct NetParameters {
     pub cc_vegas_sscap_onion: BoundedInt32<100, { i32::MAX }> = (475)
         from "cc_sscap_onion",
 
+    // Stream flow control parameters.
+    // TODO: There is a `circwindow` for circuit flow control, but is there a similar package window
+    // parameter for pre-cc stream flow control?
+
+    /// The outbuf length, in relay cell multiples, before we send an XOFF.
+    /// Used by clients (including onion services).
+    ///
+    /// See prop 324.
+    pub cc_xoff_client: BoundedInt32<1, 10_000> = (500)
+        from "cc_xoff_client",
+    /// The outbuf length, in relay cell multiples, before we send an XOFF.
+    /// Used by exits.
+    ///
+    /// See prop 324.
+    pub cc_xoff_exit: BoundedInt32<1, 10_000> = (500)
+        from "cc_xoff_exit",
+    /// Specifies how many full packed cells of bytes must arrive before we can compute a rate,
+    /// as well as how often we can send XONs.
+    ///
+    /// See prop 324.
+    pub cc_xon_rate: BoundedInt32<1, 5000> = (500)
+        from "cc_xon_rate",
+    /// Specifies how much the edge drain rate can change before we send another advisory cell.
+    ///
+    /// See prop 324.
+    pub cc_xon_change_pct: BoundedInt32<1, 99> = (25)
+        from "cc_xon_change_pct",
+    /// Specifies the `N` in the `N_EWMA` of rates.
+    ///
+    /// See prop 324.
+    pub cc_xon_ewma_cnt: BoundedInt32<2, 100> = (2)
+        from "cc_xon_ewma_cnt",
+
     /// The maximum cell window size?
     pub circuit_window: BoundedInt32<100, 1000> = (1_000)
         from "circwindow",
