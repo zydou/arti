@@ -577,6 +577,10 @@ impl TryFrom<i32> for SendMeVersion {
 }
 
 /// Tests that check whether some code fails to compile as intended.
+// Unfortunately we can't check the reason that it fails to compile,
+// so these tests could become stale if the API is changed.
+// In the future, we may be able to use the (currently nightly):
+// https://doc.rust-lang.org/rustdoc/unstable-features.html?highlight=compile_fail#error-numbers-for-compile-fail-doctests
 #[cfg(doc)]
 #[doc(hidden)]
 mod compile_fail_tests {
