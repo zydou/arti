@@ -227,10 +227,10 @@ pub(crate) fn make_consensus_request(
     request.set_skew_limit(
         // If we are _fast_ by at least this much, then any valid directory will
         // seem to be at least this far in the past.
-        config.tolerance.post_valid_tolerance,
+        config.tolerance.post_valid_tolerance(),
         // If we are _slow_ by this much, then any valid directory will seem to
         // be at least this far in the future.
-        config.tolerance.pre_valid_tolerance,
+        config.tolerance.pre_valid_tolerance(),
     );
 
     Ok(ClientRequest::Consensus(request))
@@ -738,10 +738,10 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::DownloadSchedule;
     use crate::storage::DynStore;
     use crate::test::new_mgr;
     use std::sync::Mutex;
+    use tor_dircommon::retry::DownloadSchedule;
     use tor_netdoc::doc::microdesc::MdDigest;
     use tor_rtcompat::SleepProvider;
 

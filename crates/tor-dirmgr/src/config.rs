@@ -9,186 +9,12 @@
 //! here must be reflected in the version of `arti-client`.
 
 use crate::Result;
-use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
-use tor_checkable::timed::TimerangeBound;
-use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
-use tor_dircommon::authority::{Authority, AuthorityBuilder, AuthorityList, AuthorityListBuilder};
-use tor_guardmgr::fallback::FallbackDirBuilder;
-use tor_netdoc::doc::netstatus::{self, Lifetime};
+use tor_dircommon::authority::Authority;
+use tor_dircommon::config::{DirTolerance, DownloadScheduleConfig, NetworkConfig};
+use tor_netdoc::doc::netstatus::{self};
 
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::Duration;
-
-/// Configuration information about the Tor network itself; used as
-/// part of Arti's configuration.
-///
-/// This type is immutable once constructed. To make one, use
-/// [`NetworkConfigBuilder`], or deserialize it from a string.
-//
-// TODO: We should move this type around, since the fallbacks part will no longer be used in
-// dirmgr, but only in guardmgr.  Probably this type belongs in `arti-client`.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-pub struct NetworkConfig {
-    /// List of locations to look in when downloading directory information, if
-    /// we don't actually have a directory yet.
-    ///
-    /// (If we do have a cached directory, we use directory caches listed there
-    /// instead.)
-    ///
-    /// This section can be changed in a running Arti client.  Doing so will
-    /// affect future download attempts only.
-    ///
-    /// The default is to use a set of compiled-in fallback directories,
-    /// whose addresses and public keys are shipped as part of the Arti source code.
-    #[builder(sub_builder, setter(custom))]
-    pub(crate) fallback_caches: tor_guardmgr::fallback::FallbackList,
-
-    /// List of directory authorities which we expect to sign consensus
-    /// documents.
-    ///
-    /// (If none are specified, we use a default list of authorities shipped
-    /// with Arti.)
-    ///
-    /// This section cannot be changed in a running Arti client.
-    ///
-    /// The default is to use a set of compiled-in authorities,
-    /// whose identities and public keys are shipped as part of the Arti source code.
-    #[builder(sub_builder, setter(custom))]
-    pub(crate) authorities: AuthorityList,
-}
-
-impl_standard_builder! { NetworkConfig }
-
-define_list_builder_accessors! {
-    struct NetworkConfigBuilder {
-        pub fallback_caches: [FallbackDirBuilder],
-        pub authorities: [AuthorityBuilder],
-    }
-}
-
-impl NetworkConfig {
-    /// Return the list of fallback directory caches from this configuration.
-    pub fn fallback_caches(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.fallback_caches
-    }
-}
-
-impl NetworkConfigBuilder {
-    /// Check that this builder will give a reasonable network.
-    fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if self.opt_authorities().is_some() && self.opt_fallback_caches().is_none() {
-            return Err(ConfigBuildError::Inconsistent {
-                fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
-                problem: "Non-default authorities are use, but the fallback list is not overridden"
-                    .to_owned(),
-            });
-        }
-
-        Ok(())
-    }
-}
-
-/// Configuration information for how exactly we download documents from the
-/// Tor directory caches.
-///
-/// This type is immutable once constructed. To make one, use
-/// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-pub struct DownloadScheduleConfig {
-    /// Top-level configuration for how to retry our initial bootstrap attempt.
-    #[builder(
-        sub_builder,
-        field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
-    )]
-    #[builder_field_attr(serde(default))]
-    pub(crate) retry_bootstrap: DownloadSchedule,
-
-    /// Configuration for how to retry a consensus download.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
-    pub(crate) retry_consensus: DownloadSchedule,
-
-    /// Configuration for how to retry an authority cert download.
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
-    pub(crate) retry_certs: DownloadSchedule,
-
-    /// Configuration for how to retry a microdescriptor download.
-    #[builder(
-        sub_builder,
-        field(build = "self.retry_microdescs.build_retry_microdescs()?")
-    )]
-    #[builder_field_attr(serde(default))]
-    pub(crate) retry_microdescs: DownloadSchedule,
-}
-
-impl_standard_builder! { DownloadScheduleConfig }
-
-/// Configuration for how much much to extend the official tolerances of our
-/// directory information.
-///
-/// Because of possible clock skew, and because we want to tolerate possible
-/// failures of the directory authorities to reach a consensus, we want to
-/// consider a directory to be valid for a while before and after its official
-/// range of validity.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder(build_fn(error = "ConfigBuildError"))]
-pub struct DirTolerance {
-    /// For how long before a directory document is valid should we accept it?
-    ///
-    /// Having a nonzero value here allows us to tolerate a little clock skew.
-    ///
-    /// Defaults to 1 day.
-    #[builder(default = "Duration::from_secs(24 * 60 * 60)")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
-    pub(crate) pre_valid_tolerance: Duration,
-
-    /// For how long after a directory document is valid should we consider it
-    /// usable?
-    ///
-    /// Having a nonzero value here allows us to tolerate a little clock skew,
-    /// and makes us more robust to temporary failures for the directory
-    /// authorities to reach consensus.
-    ///
-    /// Defaults to 3 days (per [prop212]).
-    ///
-    /// [prop212]:
-    ///     https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/212-using-old-consensus.txt
-    #[builder(default = "Duration::from_secs(3 * 24 * 60 * 60)")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
-    pub(crate) post_valid_tolerance: Duration,
-}
-
-impl_standard_builder! { DirTolerance }
-
-impl DirTolerance {
-    /// Return a new [`TimerangeBound`] that extends the validity interval of
-    /// `timebound` according to this configuration.
-    pub(crate) fn extend_tolerance<B>(&self, timebound: TimerangeBound<B>) -> TimerangeBound<B> {
-        timebound
-            .extend_tolerance(self.post_valid_tolerance)
-            .extend_pre_tolerance(self.pre_valid_tolerance)
-    }
-
-    /// Return a new consensus [`Lifetime`] that extends the validity intervals
-    /// of `lifetime` according to this configuration.
-    pub(crate) fn extend_lifetime(&self, lifetime: &Lifetime) -> Lifetime {
-        Lifetime::new(
-            lifetime.valid_after() - self.pre_valid_tolerance,
-            lifetime.fresh_until(),
-            lifetime.valid_until() + self.post_valid_tolerance,
-        )
-        .expect("Logic error when constructing lifetime")
-    }
-}
 
 /// Configuration type for network directory operations.
 ///
@@ -276,12 +102,12 @@ impl DirMgrConfig {
 
     /// Return a slice of the configured authorities
     pub fn authorities(&self) -> &[Authority] {
-        &self.network.authorities
+        self.network.authorities()
     }
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.network.fallback_caches
+        self.network.fallback_caches()
     }
 
     /// Construct a new configuration object where all replaceable fields in
@@ -293,10 +119,7 @@ impl DirMgrConfig {
         DirMgrConfig {
             cache_dir: self.cache_dir.clone(),
             cache_trust: self.cache_trust.clone(),
-            network: NetworkConfig {
-                fallback_caches: new_config.network.fallback_caches.clone(),
-                authorities: self.network.authorities.clone(),
-            },
+            network: new_config.network.clone(),
             schedule: new_config.schedule.clone(),
             tolerance: new_config.tolerance.clone(),
             override_net_params: new_config.override_net_params.clone(),
@@ -355,81 +178,6 @@ mod test {
         assert!(dir.fallbacks().len() >= 3);
 
         // TODO: verify other defaults.
-
-        Ok(())
-    }
-
-    #[test]
-    fn build_network() -> Result<()> {
-        use tor_guardmgr::fallback::FallbackDir;
-
-        let dflt = NetworkConfig::default();
-
-        // with nothing set, we get the default.
-        let mut bld = NetworkConfig::builder();
-        let cfg = bld.build().unwrap();
-        assert_eq!(cfg.authorities.len(), dflt.authorities.len());
-        assert_eq!(cfg.fallback_caches.len(), dflt.fallback_caches.len());
-
-        // with any authorities set, the fallback list _must_ be set
-        // or the build fails.
-        bld.set_authorities(vec![
-            Authority::builder()
-                .name("Hello")
-                .v3ident([b'?'; 20].into())
-                .clone(),
-            Authority::builder()
-                .name("world")
-                .v3ident([b'!'; 20].into())
-                .clone(),
-        ]);
-        assert!(bld.build().is_err());
-
-        bld.set_fallback_caches(vec![{
-            let mut bld = FallbackDir::builder();
-            bld.rsa_identity([b'x'; 20].into())
-                .ed_identity([b'y'; 32].into());
-            bld.orports().push("127.0.0.1:99".parse().unwrap());
-            bld.orports().push("[::]:99".parse().unwrap());
-            bld
-        }]);
-        let cfg = bld.build().unwrap();
-        assert_eq!(cfg.authorities.len(), 2);
-        assert_eq!(cfg.fallback_caches.len(), 1);
-
-        Ok(())
-    }
-
-    #[test]
-    fn build_schedule() -> Result<()> {
-        use std::time::Duration;
-        let mut bld = DownloadScheduleConfig::builder();
-
-        let cfg = bld.build().unwrap();
-        assert_eq!(cfg.retry_microdescs.parallelism(), 4);
-        assert_eq!(cfg.retry_microdescs.n_attempts(), 3);
-        assert_eq!(cfg.retry_bootstrap.n_attempts(), 128);
-
-        bld.retry_consensus().attempts(7);
-        bld.retry_consensus().initial_delay(Duration::new(86400, 0));
-        bld.retry_consensus().parallelism(1);
-        bld.retry_bootstrap().attempts(4);
-        bld.retry_bootstrap().initial_delay(Duration::new(3600, 0));
-        bld.retry_bootstrap().parallelism(1);
-
-        bld.retry_certs().attempts(5);
-        bld.retry_certs().initial_delay(Duration::new(3600, 0));
-        bld.retry_certs().parallelism(1);
-        bld.retry_microdescs().attempts(6);
-        bld.retry_microdescs().initial_delay(Duration::new(3600, 0));
-        bld.retry_microdescs().parallelism(1);
-
-        let cfg = bld.build().unwrap();
-        assert_eq!(cfg.retry_microdescs.parallelism(), 1);
-        assert_eq!(cfg.retry_microdescs.n_attempts(), 6);
-        assert_eq!(cfg.retry_bootstrap.n_attempts(), 4);
-        assert_eq!(cfg.retry_consensus.n_attempts(), 7);
-        assert_eq!(cfg.retry_certs.n_attempts(), 5);
 
         Ok(())
     }

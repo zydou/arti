@@ -391,9 +391,12 @@
 [tor_network]
 # List of locations to look in when downloading directory information
 # we don't actually have a directory yet.
+#
 #   fallback_caches = [ <default list is compiled-in > ]
 
-# List of directory authorities which we expect to sign consensus documents.
+# List of directory authorities which we expect to sign consensus documents and
+# to download directory information from, if we are a directory mirror.
+#
 #   authorities = [ <default list is compiled-in > ]
 
 # Channels and their behaviour

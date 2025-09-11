@@ -45,3 +45,5 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod authority;
+pub mod config;
+pub mod retry;

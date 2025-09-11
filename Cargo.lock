@@ -6269,9 +6269,15 @@ dependencies = [
 name = "tor-dircommon"
 version = "0.34.0"
 dependencies = [
+ "amplify",
  "derive_builder_fork_arti",
+ "humantime",
+ "humantime-serde",
  "serde",
+ "tor-basic-utils",
+ "tor-checkable",
  "tor-config",
+ "tor-guardmgr",
  "tor-llcrypto",
  "tor-netdoc",
 ]

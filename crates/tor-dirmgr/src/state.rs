@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
 use tor_basic_utils::RngExt as _;
+use tor_dircommon::retry::DownloadSchedule;
 use tor_error::{internal, warn_report};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::authcert::UncheckedAuthCert;
@@ -30,7 +31,6 @@ use crate::{
     CacheUsage, ClientRequest, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
     docmeta::{AuthCertMeta, ConsensusMeta},
     event,
-    retry::DownloadSchedule,
 };
 use crate::{DocSource, SharedMutArc};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
@@ -282,7 +282,7 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         }
     }
     fn dl_config(&self) -> DownloadSchedule {
-        self.config.schedule.retry_consensus
+        self.config.schedule.retry_consensus()
     }
     fn add_from_cache(
         &mut self,
@@ -599,7 +599,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         }
     }
     fn dl_config(&self) -> DownloadSchedule {
-        self.config.schedule.retry_certs
+        self.config.schedule.retry_certs()
     }
     fn add_from_cache(
         &mut self,
@@ -732,7 +732,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
     fn reset_time(&self) -> Option<SystemTime> {
         Some(
             self.consensus_meta.lifetime().valid_until()
-                + self.config.tolerance.post_valid_tolerance,
+                + self.config.tolerance.post_valid_tolerance(),
         )
     }
     fn reset(self: Box<Self>) -> Box<dyn DirState> {
@@ -934,7 +934,8 @@ impl<R: Runtime> GetMicrodescsState<R> {
         prev_netdir: Option<Arc<dyn PreviousNetDir>>,
         #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
-        let reset_time = consensus.lifetime().valid_until() + config.tolerance.post_valid_tolerance;
+        let reset_time =
+            consensus.lifetime().valid_until() + config.tolerance.post_valid_tolerance();
         let n_microdescs = consensus.relays().len();
 
         let params = &config.override_net_params;
@@ -1049,7 +1050,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         }
     }
     fn dl_config(&self) -> DownloadSchedule {
-        self.config.schedule.retry_microdescs
+        self.config.schedule.retry_microdescs()
     }
     fn add_from_cache(
         &mut self,
@@ -1299,12 +1300,14 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::cognitive_complexity)]
     use super::*;
-    use crate::DownloadScheduleConfig;
     use std::convert::TryInto;
     use std::sync::Arc;
     use tempfile::TempDir;
     use time::macros::datetime;
-    use tor_dircommon::authority::{Authority, AuthorityBuilder};
+    use tor_dircommon::{
+        authority::{Authority, AuthorityBuilder},
+        config::{DownloadScheduleConfig, NetworkConfig},
+    };
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
     use tor_rtcompat::RuntimeSubstExt as _;
     #[allow(deprecated)] // TODO #1885
@@ -1355,7 +1358,7 @@ mod test {
     }
 
     fn make_dirmgr_config(authorities: Option<Vec<AuthorityBuilder>>) -> Arc<DirMgrConfig> {
-        let mut netcfg = crate::NetworkConfig::builder();
+        let mut netcfg = NetworkConfig::builder();
         netcfg.set_fallback_caches(vec![]);
         if let Some(a) = authorities {
             netcfg.set_authorities(a);
@@ -1464,7 +1467,7 @@ mod test {
             // Download configuration is simple: only 1 request can be done in
             // parallel.  It uses a consensus retry schedule.
             let retry = state.dl_config();
-            assert_eq!(retry, DownloadScheduleConfig::default().retry_consensus);
+            assert_eq!(retry, DownloadScheduleConfig::default().retry_consensus());
 
             // Do we know what we want?
             let docs = state.missing_docs();
@@ -1614,13 +1617,13 @@ mod test {
             assert!(!state.is_ready(Readiness::Complete));
             assert!(!state.is_ready(Readiness::Usable));
             let consensus_expires: SystemTime = datetime!(2020-08-07 12:43:20 UTC).into();
-            let post_valid_tolerance = crate::DirTolerance::default().post_valid_tolerance;
+            let post_valid_tolerance = crate::DirTolerance::default().post_valid_tolerance();
             assert_eq!(
                 state.reset_time(),
                 Some(consensus_expires + post_valid_tolerance)
             );
             let retry = state.dl_config();
-            assert_eq!(retry, DownloadScheduleConfig::default().retry_certs);
+            assert_eq!(retry, DownloadScheduleConfig::default().retry_certs());
 
             // Bootstrap status okay?
             assert_eq!(
@@ -1766,10 +1769,10 @@ mod test {
                 let fresh_until: SystemTime = datetime!(2021-10-27 21:27:00 UTC).into();
                 let valid_until: SystemTime = datetime!(2021-10-27 21:27:20 UTC).into();
                 assert!(reset_time >= fresh_until);
-                assert!(reset_time <= valid_until + state.config.tolerance.post_valid_tolerance);
+                assert!(reset_time <= valid_until + state.config.tolerance.post_valid_tolerance());
             }
             let retry = state.dl_config();
-            assert_eq!(retry, DownloadScheduleConfig::default().retry_microdescs);
+            assert_eq!(retry, DownloadScheduleConfig::default().retry_microdescs());
             assert_eq!(
                 state.bootstrap_progress().to_string(),
                 "fetching microdescriptors (0/4)"

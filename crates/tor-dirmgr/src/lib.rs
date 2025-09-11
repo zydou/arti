@@ -55,7 +55,6 @@ mod docid;
 mod docmeta;
 mod err;
 mod event;
-mod retry;
 mod shared_ref;
 mod state;
 mod storage;
@@ -75,10 +74,10 @@ use crate::storage::{DynStore, Store};
 use bootstrap::AttemptId;
 use event::DirProgress;
 use postage::watch;
-pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use scopeguard::ScopeGuard;
 use tor_circmgr::CircMgr;
 use tor_dirclient::SourceInfo;
+use tor_dircommon::config::DirTolerance;
 use tor_error::{info_report, into_internal, warn_report};
 use tor_netdir::params::NetParameters;
 use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
@@ -99,10 +98,7 @@ use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
 use crate::state::{DirState, NetDirChange};
-pub use config::{
-    DirMgrConfig, DirTolerance, DirToleranceBuilder, DownloadScheduleConfig,
-    DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,
-};
+pub use config::DirMgrConfig;
 pub use docid::DocId;
 pub use err::Error;
 pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};
@@ -679,7 +675,7 @@ impl<R: Runtime> DirMgr<R> {
                 // TODO(nickm): instead of getting this every time we loop, it
                 // might be a good idea to refresh it with each attempt, at
                 // least at the point of checking the number of attempts.
-                dirmgr.config.get().schedule.retry_bootstrap
+                dirmgr.config.get().schedule.retry_bootstrap()
             };
             let mut retry_delay = retry_config.schedule();
 
@@ -1151,7 +1147,7 @@ pub(crate) fn default_consensus_cutoff(
     /// We _always_ allow at least this much age in our consensuses, to account
     /// for the fact that consensuses have some lifetime.
     const MIN_AGE_TO_ALLOW: Duration = Duration::from_secs(3 * 3600);
-    let allow_skew = std::cmp::max(MIN_AGE_TO_ALLOW, tolerance.post_valid_tolerance);
+    let allow_skew = std::cmp::max(MIN_AGE_TO_ALLOW, tolerance.post_valid_tolerance());
     let cutoff = time::OffsetDateTime::from(now - allow_skew);
     // We now round cutoff to the next hour, so that we aren't leaking our exact
     // time to the directory cache.
@@ -1372,7 +1368,7 @@ mod test {
                 )
                 .unwrap()
             };
-            let tolerance = DirTolerance::default().post_valid_tolerance;
+            let tolerance = DirTolerance::default().post_valid_tolerance();
             match req {
                 ClientRequest::Consensus(r) => {
                     assert_eq!(r.old_consensus_digests().count(), 0);
