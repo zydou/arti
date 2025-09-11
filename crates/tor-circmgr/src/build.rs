@@ -17,9 +17,9 @@ use tor_error::into_internal;
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
-use tor_proto::ClientTunnel;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::client::circuit::{CircParameters, PendingClientTunnel};
+use tor_proto::{ClientTunnel, FlowCtrlParameters};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 
@@ -583,9 +583,17 @@ fn circparameters_from_netparameters(
         .map_err(into_internal!(
             "Unable to build CongestionControl params from NetParams"
         ))?;
+    let flow_ctrl_params = FlowCtrlParameters {
+        cc_xoff_client: inp.cc_xoff_client.get_u32(),
+        cc_xoff_exit: inp.cc_xoff_exit.get_u32(),
+        cc_xon_rate: inp.cc_xon_rate.get_u32(),
+        cc_xon_change_pct: inp.cc_xon_change_pct.get_u32(),
+        cc_xon_ewma_cnt: inp.cc_xon_ewma_cnt.get_u32(),
+    };
     Ok(CircParameters::new(
         inp.extend_by_ed25519_id.into(),
         ccontrol,
+        flow_ctrl_params,
     ))
 }
 

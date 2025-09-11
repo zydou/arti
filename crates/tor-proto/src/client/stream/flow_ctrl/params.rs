@@ -20,3 +20,17 @@ pub struct FlowCtrlParameters {
     /// See `tor_netdir::params::NetParameters::cc_xon_ewma_cnt`.
     pub cc_xon_ewma_cnt: u32,
 }
+
+impl FlowCtrlParameters {
+    #[cfg(test)]
+    pub(crate) fn defaults_for_tests() -> Self {
+        // These have been copied from the current consensus, but may be out of date.
+        Self {
+            cc_xoff_client: 500,
+            cc_xoff_exit: 500,
+            cc_xon_rate: 500,
+            cc_xon_change_pct: 25,
+            cc_xon_ewma_cnt: 2,
+        }
+    }
+}
