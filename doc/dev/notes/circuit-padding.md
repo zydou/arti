@@ -263,6 +263,17 @@ need to be hardcoded in Arti.
 We may revisit this to make experimentation easier,
 but we don't plan to support e.g. consensus-provided padding machines.
 
+## Guard padding and blocked channels
+
+We need the ability to avoid sending padding to a guard
+when the outbound channel to that guard is too full.
+
+We implement this with a per-framework `no_padding_when_blocked` check
+that causes no padding to be queued
+when the underlying Channel's mpsc stream is full.
+If we receive a SendPadding event from maybenot
+in this state, we ignore it entirely.
+
 ## Advertising which padding machines are supported
 
 > TODO: This needs a proposal.  This could be as simple as a new set of
