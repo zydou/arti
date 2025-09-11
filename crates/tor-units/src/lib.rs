@@ -73,9 +73,6 @@ pub enum Error {
     /// We encountered some kind of integer overflow when converting a number.
     #[error("Integer overflow")]
     Overflow,
-    /// Tried to instantiate an uninhabited type.
-    #[error("No value is valid for this type")]
-    Uninhabited,
 }
 
 /// A 32-bit signed integer with a restricted range.
@@ -84,9 +81,13 @@ pub enum Error {
 ///
 /// # Limitations
 ///
-/// If you try to instantiate this type with LOWER > UPPER, you will
-/// get an uninhabitable type.  It would be better if we could check that at
-/// compile time, and prevent such types from being named.
+/// If you were to try to instantiate this type with LOWER > UPPER,
+/// you would get an uninhabitable type.
+/// Attempting to construct a value with a type with LOWER > UPPER
+/// will result in a compile-time error;
+/// though there may not be a compiler error if the code that constructs the value is
+/// dead code and is optimized away.
+/// It would be better if we could prevent such types from being named.
 //
 // [TODO: If you need a Bounded* for some type other than i32, ask nickm:
 // he has an implementation kicking around.]
@@ -109,7 +110,9 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
 
     /// Private constructor function for this type.
     fn unchecked_new(value: i32) -> Self {
-        assert!(LOWER <= UPPER); //The compiler optimizes this out, no run-time cost.
+        // If there is a code path leading to this function that remains after dead code elimination,
+        // this will ensures LOWER <= UPPER at build time.
+        const { assert!(LOWER <= UPPER) };
 
         BoundedInt32 { value }
     }
@@ -177,10 +180,6 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
     /// If the input is a number that cannot be represented as an i32,
     /// then we return an error instead of clamping it.
     pub fn saturating_from_str(s: &str) -> Result<Self, Error> {
-        if UPPER < LOWER {
-            // The compiler should optimize this block out at compile time.
-            return Err(Error::Uninhabited);
-        }
         let val: i32 = s.parse().map_err(|_| Error::Unrepresentable)?;
         Ok(Self::saturating_from(val))
     }
@@ -577,6 +576,27 @@ impl TryFrom<i32> for SendMeVersion {
     }
 }
 
+/// Tests that check whether some code fails to compile as intended.
+// Unfortunately we can't check the reason that it fails to compile,
+// so these tests could become stale if the API is changed.
+// In the future, we may be able to use the (currently nightly):
+// https://doc.rust-lang.org/rustdoc/unstable-features.html?highlight=compile_fail#error-numbers-for-compile-fail-doctests
+#[cfg(doc)]
+#[doc(hidden)]
+mod compile_fail_tests {
+    /// ```compile_fail
+    /// use tor_units::BoundedInt32;
+    /// let _: BoundedInt32<10, 5> = BoundedInt32::saturating_new(7);
+    /// ```
+    fn uninhabited_saturating_new() {}
+
+    /// ```compile_fail
+    /// use tor_units::BoundedInt32;
+    /// let _: Result<BoundedInt32<10, 5>, Error> = BoundedInt32::saturating_from_str("7");
+    /// ```
+    fn uninhabited_from_string() {}
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
@@ -619,19 +639,6 @@ mod tests {
         let x: TestFoo = TestFoo::saturating_from_str("0").unwrap();
         let x_val: i32 = x.into();
         assert!(x_val == TestFoo::LOWER);
-    }
-
-    #[test]
-    #[should_panic]
-    fn uninhabited_saturating_new() {
-        // This value should be uncreatable.
-        let _: BoundedInt32<10, 5> = BoundedInt32::saturating_new(7);
-    }
-
-    #[test]
-    fn uninhabited_from_string() {
-        let v: Result<BoundedInt32<10, 5>, Error> = BoundedInt32::saturating_from_str("7");
-        assert!(matches!(v, Err(Error::Uninhabited)));
     }
 
     #[test]
