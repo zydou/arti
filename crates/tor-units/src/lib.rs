@@ -136,6 +136,17 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
         self.value
     }
 
+    /// Return the underlying u32 value, if [`Self::LOWER`] is non-negative.
+    ///
+    /// If [`Self::LOWER`] is negative, this will panic at build-time.
+    ///
+    /// This value will always be between [`Self::LOWER`] and [`Self::UPPER`],
+    /// inclusive.
+    pub fn get_u32(&self) -> u32 {
+        const { assert!(LOWER >= 0) };
+        self.value as u32
+    }
+
     /// If `val` is within range, return a new `BoundedInt32` wrapping
     /// it; otherwise, clamp it to the upper or lower bound as
     /// appropriate.
