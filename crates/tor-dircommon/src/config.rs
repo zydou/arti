@@ -10,8 +10,8 @@
 
 use std::time::Duration;
 
-use amplify::Getters;
 use derive_builder::Builder;
+use getset::{CopyGetters, Getters};
 use serde::{Deserialize, Serialize};
 use tor_checkable::timed::TimerangeBound;
 use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
@@ -48,6 +48,7 @@ pub struct NetworkConfig {
     /// The default is to use a set of compiled-in fallback directories,
     /// whose addresses and public keys are shipped as part of the Arti source code.
     #[builder(sub_builder, setter(custom))]
+    #[getset(get = "pub")]
     fallback_caches: tor_guardmgr::fallback::FallbackList,
 
     /// List of directory authorities which we expect to sign consensus
@@ -61,6 +62,7 @@ pub struct NetworkConfig {
     /// The default is to use a set of compiled-in authorities,
     /// whose identities and public keys are shipped as part of the Arti source code.
     #[builder(sub_builder, setter(custom))]
+    #[getset(get = "pub")]
     authorities: AuthorityList,
 }
 
@@ -93,7 +95,7 @@ impl NetworkConfigBuilder {
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters, CopyGetters)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
@@ -104,19 +106,19 @@ pub struct DownloadScheduleConfig {
         field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
     )]
     #[builder_field_attr(serde(default))]
-    #[getter(as_copy)]
+    #[getset(get_copy = "pub")]
     retry_bootstrap: DownloadSchedule,
 
     /// Configuration for how to retry a consensus download.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    #[getter(as_copy)]
+    #[getset(get_copy = "pub")]
     retry_consensus: DownloadSchedule,
 
     /// Configuration for how to retry an authority cert download.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    #[getter(as_copy)]
+    #[getset(get_copy = "pub")]
     retry_certs: DownloadSchedule,
 
     /// Configuration for how to retry a microdescriptor download.
@@ -125,7 +127,7 @@ pub struct DownloadScheduleConfig {
         field(build = "self.retry_microdescs.build_retry_microdescs()?")
     )]
     #[builder_field_attr(serde(default))]
-    #[getter(as_copy)]
+    #[getset(get_copy = "pub")]
     retry_microdescs: DownloadSchedule,
 }
 
@@ -138,7 +140,7 @@ impl_standard_builder! { DownloadScheduleConfig }
 /// failures of the directory authorities to reach a consensus, we want to
 /// consider a directory to be valid for a while before and after its official
 /// range of validity.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters, CopyGetters)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[non_exhaustive]
@@ -150,7 +152,7 @@ pub struct DirTolerance {
     /// Defaults to 1 day.
     #[builder(default = "Duration::from_secs(24 * 60 * 60)")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
-    #[getter(as_copy)]
+    #[getset(get_copy = "pub")]
     pre_valid_tolerance: Duration,
 
     /// For how long after a directory document is valid should we consider it
@@ -166,7 +168,7 @@ pub struct DirTolerance {
     ///     https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/212-using-old-consensus.txt
     #[builder(default = "Duration::from_secs(3 * 24 * 60 * 60)")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
-    #[getter(as_copy)]
+    #[getset(get_copy = "pub")]
     post_valid_tolerance: Duration,
 }
 
