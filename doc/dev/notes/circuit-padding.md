@@ -145,8 +145,9 @@ MPSC queue _will_ be sent.
 
 We also treat the per-circuit outbound queue as "full"
 with respect to adding more normal DATA messages to that circuit.
-(Control messages can still be enqueued,
-since arti breaks badly if they can't.)
+(Non-DATA messages can still be enqueued,
+since arti breaks badly if they can't.
+But they won't be flushed until the padding framework permits.)
 
 We consider a circuit's blocking to be _bypassable_
 if the bypass flag for _every_ blocking hop is set.
