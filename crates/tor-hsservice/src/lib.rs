@@ -131,7 +131,6 @@ pub(crate) type NtorPublicKey = curve25519::PublicKey;
 /// A handle to a running instance of an onion service.
 //
 // TODO (#1228): Write more.
-// TODO (#1247): Choose a better name for this struct
 //
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
