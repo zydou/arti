@@ -130,7 +130,9 @@ pub(crate) type NtorPublicKey = curve25519::PublicKey;
 
 /// A handle to a running instance of an onion service.
 //
-// TODO (#1228): Write more.
+/// To construct a `RunningOnionService`, use [`OnionServiceBuilder`]
+/// to build an [`OnionService`], and then call its
+/// [``.launch()``](OnionService::launch) method.
 //
 // (APIs should return Arc<OnionService>)
 #[must_use = "a hidden service object will terminate the service when dropped"]
