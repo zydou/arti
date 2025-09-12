@@ -88,6 +88,10 @@ members = [
     "examples/ureq-examples",
 ]
 
+# We have to specify the resolver manually. It can't be inferred from
+# package.edition as normal, since a virtual workspace doesn't have
+# one of those.
+# See https://doc.rust-lang.org/cargo/reference/workspaces.html#virtual-workspace
 resolver = "3"
 
 [profile.release]
