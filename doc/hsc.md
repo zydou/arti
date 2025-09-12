@@ -14,10 +14,8 @@ state directory, which you might have overridden in the configuration.
 ## Generating a service discovery key
 
 Client service discovery keys (previously known as "client authorization" keys)
-can be generated and/or retrieved using the
-`arti hsc key get` command, the user will be prompted for an onion
-address of the form `<SVC>.onion`.
-By default `key get` will generate a new keypair for use with `<SVC>.onion`,
+can be generated and/or retrieved using the `arti hsc key get` command.
+By default `key get` will generate a new keypair for use with the specified onion service,
 if one does not already exist, and output its public part in the file specified
 with the `--output` option. If such a keypair already exists, a new one will
 **not** be generated.
