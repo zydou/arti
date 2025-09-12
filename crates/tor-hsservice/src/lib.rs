@@ -225,7 +225,7 @@ impl From<oneshot::Canceled> for ShutdownStatus {
     }
 }
 
-/// A handle to an instance of an onion service, which may or may not be running.
+/// A handle to an instance of an onion service.
 ///
 /// To construct an `OnionService`, use [`OnionServiceBuilder`].
 /// It will not start handling requests until you call its
