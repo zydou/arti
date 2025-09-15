@@ -8,17 +8,21 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
-use std::time::Duration;
+use std::{fmt::Formatter, time::Duration};
 
 use derive_builder::Builder;
 use getset::{CopyGetters, Getters};
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize, Deserializer, Serialize,
+    de::{MapAccess, SeqAccess, Visitor, value::MapAccessDeserializer},
+};
 use tor_checkable::timed::TimerangeBound;
 use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_builder};
 use tor_netdoc::doc::netstatus::Lifetime;
+use tracing::warn;
 
 use crate::{
-    authority::{AuthorityContacts, AuthorityContactsBuilder},
+    authority::{AuthorityContacts, AuthorityContactsBuilder, LegacyAuthority},
     fallback::{FallbackDirBuilder, FallbackList, FallbackListBuilder},
     retry::{DownloadSchedule, DownloadScheduleBuilder},
 };
@@ -62,7 +66,7 @@ pub struct NetworkConfig {
     /// The default is to use a set of compiled-in authorities,
     /// whose identities and public keys are shipped as part of the Arti source code.
     #[builder(sub_builder)]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(deserialize_with = "authority_compat"))]
     #[getset(get = "pub")]
     authorities: AuthorityContacts,
 }
@@ -73,6 +77,116 @@ define_list_builder_accessors! {
     struct NetworkConfigBuilder {
         pub fallback_caches: [FallbackDirBuilder],
     }
+}
+
+/// Compatibility function for legacy configuration syntaxes.
+///
+/// Before Arti 1.6.0, we used the following syntax for defining custom authorities:
+/// ```toml
+/// [tor_network]
+/// authorities = [
+///     { name = "test000a", v3ident = "1811E131971D37C118E3D3842A53400D5F5DFFA6" },
+///     { name = "test001a", v3ident = "5F2AB6BAB847F18CBFCDD9425EAB4761473632A4" },
+///     { name = "test002a", v3ident = "F92C5F21BF17035E03CD4B73262F1B7F10FAFE98" },
+///     { name = "test003a", v3ident = "997E81DA5052D5172073E6FAB22A97165EDA8912" },
+/// ]
+/// ```
+///
+/// Starting with Arti 1.6.0 and the implementation of prop330, we now use a
+/// different syntax, which is without doubt way more cumbersome to define.
+/// However, this option is rarely set by hand and it allows greater flexibility.
+/// ```toml
+/// [tor_network.authorities]
+/// v3idents = [
+///     "000D252DCFA8FC91143A4DC5A3EDE0ECF29919AE",
+///     "754169383C399466CA2531D0B3B71AA06DDFF853",
+///     "1DB224D49199FAF22327031888EAE56AE4D3E99C",
+///     "F216A4D49B51A3F460350410AE666594E87624D5",
+/// ]
+/// uploads = [
+///     [
+///         "127.0.0.1:7100",
+///     ],
+///     [
+///         "127.0.0.1:7101",
+///     ],
+///     [
+///         "127.0.0.1:7102",
+///     ],
+///     [
+///         "127.0.0.1:7103",
+///     ],
+/// ]
+/// downloads = [
+///     [
+///         "127.0.0.1:7100",
+///     ],
+///     [
+///         "127.0.0.1:7101",
+///     ],
+///     [
+///         "127.0.0.1:7102",
+///     ],
+///     [
+///         "127.0.0.1:7103",
+///     ],
+/// ]
+/// votes = [
+///     [
+///         "127.0.0.1:7100",
+///     ],
+///     [
+///         "127.0.0.1:7101",
+///     ],
+///     [
+///         "127.0.0.1:7102",
+///     ],
+///     [
+///         "127.0.0.1:7103",
+///     ],
+/// ]
+/// ```
+///
+/// This code is largely inspired by the following serde document:
+/// <https://serde.rs/string-or-struct.html>
+fn authority_compat<'de, D>(deserializer: D) -> Result<AuthorityContactsBuilder, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct LegacyOrProp330;
+
+    impl<'de> Visitor<'de> for LegacyOrProp330 {
+        type Value = AuthorityContactsBuilder;
+
+        fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+            formatter.write_str("legacy or prop330")
+        }
+
+        /// A sequence (aka list) means that we are using the legacy syntax.
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            warn!("using deprecated (before arti 1.6.0) authority configuration syntax");
+            let mut builder = AuthorityContacts::builder();
+            while let Some(legacy_authority) = seq.next_element::<LegacyAuthority>()? {
+                builder.v3idents().push(legacy_authority.v3ident);
+            }
+
+            Ok(builder)
+        }
+
+        /// A map means it is the new syntax; pass responsibility to
+        /// [`AuthorityContactsBuilder`] using [`MapAccessDeserializer`].
+        fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+        where
+            A: MapAccess<'de>,
+        {
+            Deserialize::deserialize(MapAccessDeserializer::new(map))
+        }
+    }
+
+    deserializer.deserialize_any(LegacyOrProp330)
 }
 
 impl NetworkConfigBuilder {
@@ -212,7 +326,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::unnecessary_wraps)]
 
-    use crate::{authority::Authority, fallback::FallbackDir};
+    use crate::fallback::FallbackDir;
 
     use super::*;
 
