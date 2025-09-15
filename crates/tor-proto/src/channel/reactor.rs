@@ -7,7 +7,6 @@
 //! or in the error handling behavior.
 
 use super::circmap::{CircEnt, CircMap};
-use crate::channel::ChanCellQueueEntry;
 use crate::client::circuit::halfcirc::HalfCirc;
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 use crate::util::err::ReactorError;
@@ -18,7 +17,6 @@ use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::{AnyChanCell, CircId, msg::AnyChanMsg};
 use tor_error::debug_report;
-use tor_memquota::mq_queue;
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 #[cfg_attr(not(target_os = "linux"), allow(unused))]
@@ -113,7 +111,7 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// A receiver for cells to be sent on this reactor's sink.
     ///
     /// `Channel` objects have a sender that can send cells here.
-    pub(super) cells: mq_queue::Receiver<ChanCellQueueEntry, mq_queue::MpscSpec>,
+    pub(super) cells: super::CellRx,
     /// A Stream from which we can read `ChanCell`s.
     ///
     /// This should be backed by a TLS connection if you want it to be secure.
