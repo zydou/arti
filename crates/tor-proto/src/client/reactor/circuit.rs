@@ -330,7 +330,7 @@ impl Circuit {
 
     /// Get the wallclock time when the handshake on this circuit is supposed to time out.
     ///
-    /// Returns `None` if this handler hasn't started the handshake yet.
+    /// Returns `None` if the handshake is not currently in progress.
     pub(super) fn conflux_hs_timeout(&self) -> Option<SystemTime> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "conflux")] {

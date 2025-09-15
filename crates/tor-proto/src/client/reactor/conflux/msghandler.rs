@@ -129,7 +129,7 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
 
     /// Get the wallclock time when the handshake on this circuit is supposed to time out.
     ///
-    /// Returns `None` if this handler hasn't started the handshake yet.
+    /// Returns `None` if the handshake is not currently in progress.
     fn handshake_timeout(&self) -> Option<SystemTime> {
         /// The maximum amount of time to wait for the LINKED cell to arrive.
         //
@@ -140,7 +140,15 @@ impl AbstractConfluxMsgHandler for ClientConfluxMsgHandler {
         // (The C-Tor implementation currently uses Circuit Build Timeout)".
         const LINK_TIMEOUT: Duration = Duration::from_secs(60);
 
-        self.link_sent.map(|link_sent| link_sent + LINK_TIMEOUT)
+        if matches!(self.state, ConfluxState::AwaitingLink(_)) {
+            debug_assert!(
+                self.link_sent.is_some(),
+                "awaiting LINKED, but LINK not sent?!"
+            );
+            self.link_sent.map(|link_sent| link_sent + LINK_TIMEOUT)
+        } else {
+            None
+        }
     }
 
     /// Returns the initial RTT measured by this handler.
