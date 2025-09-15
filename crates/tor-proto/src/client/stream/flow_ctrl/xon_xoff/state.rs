@@ -44,12 +44,6 @@ use crate::{Error, Result};
 #[cfg(doc)]
 use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
 
-// TODO(arti#534): We want to get the value from the consensus. The value in the consensus is the
-// number of relay cells, not number of bytes. But do we really want to use the number of relays
-// cells rather than bytes?
-#[cfg(feature = "flowctl-cc")]
-const CC_XOFF_CLIENT: usize = 250_000;
-
 /// State for XON/XOFF flow control.
 #[derive(Debug)]
 pub(crate) struct XonXoffFlowCtrl {
@@ -57,7 +51,7 @@ pub(crate) struct XonXoffFlowCtrl {
     // TODO: This is a lot of wasted space since each stream needs to store this,
     // and it's very likely that all will be using the same values.
     // TODO: Use these values.
-    _params: FlowCtrlParameters,
+    params: FlowCtrlParameters,
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -76,7 +70,7 @@ impl XonXoffFlowCtrl {
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
-            _params: params.clone(),
+            params: params.clone(),
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,
@@ -157,7 +151,7 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
     }
 
     fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
-        if buffer_len > CC_XOFF_CLIENT {
+        if buffer_len as u64 > self.params.cc_xoff_client.as_bytes() {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
             debug_assert!(matches!(
@@ -181,7 +175,7 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
             return Ok(None);
         }
 
-        if buffer_len <= CC_XOFF_CLIENT {
+        if buffer_len as u64 <= self.params.cc_xoff_client.as_bytes() {
             return Ok(None);
         }
 
