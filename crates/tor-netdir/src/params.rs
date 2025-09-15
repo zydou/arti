@@ -269,11 +269,7 @@ pub struct NetParameters {
 
     /// Specifies which congestion control algorithm clients should use.
     /// Current values are 0 for the fixed window algorithm and 2 for Vegas.
-    ///
-    /// TODO: Flip this to 2 once CC circuit negotiation and Flow Control is in which would be the
-    /// same default as C-tor. Reason is that we can't have it to 2 for now else it makes the
-    /// consensus download fails.
-    pub cc_alg: BoundedInt32<0, 2> = (0)
+    pub cc_alg: BoundedInt32<0, 2> = (2)
         from "cc_alg",
 
     /// Vegas only. This parameter defines the integer number of 'cc_sendme_inc' multiples
