@@ -423,7 +423,6 @@ impl ChannelSender {
     /// Circuit padding uses this count to determine
     /// when messages are already outbound for the first hop of a circuit.
     #[cfg(feature = "circ-padding")]
-    #[expect(dead_code)] // XXXX
     pub(crate) fn approx_count(&self) -> usize {
         self.cell_tx.approx_count()
     }

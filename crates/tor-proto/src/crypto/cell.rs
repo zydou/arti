@@ -171,6 +171,11 @@ impl HopNum {
     pub fn display(&self) -> HopNumDisplay {
         HopNumDisplay(*self)
     }
+
+    /// Return true if this is  the first hop of a circuit.
+    pub(crate) fn is_first_hop(&self) -> bool {
+        self.0 == 0
+    }
 }
 
 /// A helper for displaying [`HopNum`]s.
