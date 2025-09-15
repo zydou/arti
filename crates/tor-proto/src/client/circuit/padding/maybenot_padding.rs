@@ -293,11 +293,16 @@ impl PaddingStats {
             // TODO: is there a way we can avoid a floating-point op here?
             // Or can we limit the number of times that we need to check?
             // (Tobias suggests randomization; I'm worried.)
+            //
             // On the one hand, this may never appear on our profiles.
             // But on the other hand, if it _does_ matter for performance,
             // it is likely to be on some marginal platform with bad FP performance,
             // where we are unlikely to be doing much testing.
-            if self.n_padding as f32 / total as f32 > self.max_padding_frac {
+            //
+            // One promising possibility is to calculate a minimum amount of padding
+            // that we _know_ will be valid, given the current total,
+            // and then not check again until we at all until we reach that amount.
+            if self.n_padding as f32 > (total as f32 * self.max_padding_frac) {
                 return Err(ImproperPadding::RatioExceeded);
             }
         }
