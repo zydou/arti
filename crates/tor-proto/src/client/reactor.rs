@@ -1110,7 +1110,7 @@ impl Reactor {
                     .ok_or_else(|| internal!("leg disappeared?!"))?;
                 // NOTE: it's okay to await. We are only awaiting on the congestion_signals
                 // future which *should* resolve immediately
-                let signals = leg.congestion_signals().await;
+                let signals = leg.chan_sender.congestion_signals().await;
                 leg.handle_sendme(hop, sendme, signals)?;
             }
             RunOnceCmdInner::FirstHopClockSkew { answer } => {

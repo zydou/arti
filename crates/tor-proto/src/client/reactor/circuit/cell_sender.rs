@@ -14,7 +14,8 @@ use tor_rtcompat::DynTimeProvider;
 use crate::{
     HopNum,
     channel::{ChanCellQueueEntry, ChannelSender},
-    util::sometimes_unbounded_sink::SometimesUnboundedSink,
+    congestion::CongestionSignals,
+    util::{SinkExt, sometimes_unbounded_sink::SometimesUnboundedSink},
 };
 
 cfg_if! {
@@ -173,6 +174,27 @@ impl CircuitCellSender {
         self.post_queue_blocker_mut().allow_n_additional_items(1);
     }
 
+    /// Note: This is only async because we need a Context to check the underlying sink for readiness.
+    /// This will register a new waker (or overwrite any existing waker).
+    pub(crate) async fn congestion_signals(&mut self) -> CongestionSignals {
+        futures::future::poll_fn(|cx| -> Poll<CongestionSignals> {
+            // We're looking at the ChanSender's in order to deliberately ignore the blocked/unblocked
+            // status of this sink.
+            //
+            // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3225#note_3252061
+            // for a deeper discussion.
+            let channel_ready = self
+                .chan_sender_mut()
+                .poll_ready_unpin_bool(cx)
+                .unwrap_or(false);
+            Poll::Ready(CongestionSignals::new(
+                /* channel_blocked= */ !channel_ready,
+                self.n_queued(),
+            ))
+        })
+        .await
+    }
+
     /// Helper: return a reference to the internal [`SometimesUnboundedSink`]
     /// that this `CircuitCellSender` is based on.
     fn sometimes_unbounded(&self) -> &SometimesUnbounded {
@@ -205,6 +227,18 @@ impl CircuitCellSender {
                 self.sink.as_inner().as_inner().as_inner()
             } else {
                 self.sink.as_inner()
+            }
+        }
+    }
+
+    /// Helper: Return a mutable reference to the internal [`ChannelSender`]
+    /// that this `CircuitCellSender` is based on.
+    fn chan_sender_mut(&mut self) -> &mut ChannelSender {
+        cfg_if! {
+            if #[cfg(feature="circ-padding")] {
+                self.sink.as_inner_mut().as_inner_mut().as_inner_mut()
+            } else {
+                self.sink.as_inner_mut()
             }
         }
     }
