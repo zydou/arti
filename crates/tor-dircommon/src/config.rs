@@ -18,7 +18,7 @@ use tor_config::{ConfigBuildError, define_list_builder_accessors, impl_standard_
 use tor_netdoc::doc::netstatus::Lifetime;
 
 use crate::{
-    authority::{AuthorityBuilder, AuthorityList, AuthorityListBuilder},
+    authority::{AuthorityContacts, AuthorityContactsBuilder},
     fallback::{FallbackDirBuilder, FallbackList, FallbackListBuilder},
     retry::{DownloadSchedule, DownloadScheduleBuilder},
 };
@@ -51,8 +51,8 @@ pub struct NetworkConfig {
     #[getset(get = "pub")]
     fallback_caches: FallbackList,
 
-    /// List of directory authorities which we expect to sign consensus
-    /// documents.
+    /// List of directory authorities which we expect to perform various operations
+    /// affecting the overall Tor network.
     ///
     /// (If none are specified, we use a default list of authorities shipped
     /// with Arti.)
@@ -61,9 +61,10 @@ pub struct NetworkConfig {
     ///
     /// The default is to use a set of compiled-in authorities,
     /// whose identities and public keys are shipped as part of the Arti source code.
-    #[builder(sub_builder, setter(custom))]
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     #[getset(get = "pub")]
-    authorities: AuthorityList,
+    authorities: AuthorityContacts,
 }
 
 impl_standard_builder! { NetworkConfig }
@@ -71,14 +72,13 @@ impl_standard_builder! { NetworkConfig }
 define_list_builder_accessors! {
     struct NetworkConfigBuilder {
         pub fallback_caches: [FallbackDirBuilder],
-        pub authorities: [AuthorityBuilder],
     }
 }
 
 impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if self.opt_authorities().is_some() && self.opt_fallback_caches().is_none() {
+        if self.authorities.opt_v3idents().is_some() && self.opt_fallback_caches().is_none() {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
                 problem: "Non-default authorities are use, but the fallback list is not overridden"
@@ -223,21 +223,16 @@ mod test {
         // with nothing set, we get the default.
         let mut bld = NetworkConfig::builder();
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.authorities.len(), dflt.authorities.len());
+        assert_eq!(
+            cfg.authorities.v3idents().len(),
+            dflt.authorities.v3idents().len()
+        );
         assert_eq!(cfg.fallback_caches.len(), dflt.fallback_caches.len());
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
-        bld.set_authorities(vec![
-            Authority::builder()
-                .name("Hello")
-                .v3ident([b'?'; 20].into())
-                .clone(),
-            Authority::builder()
-                .name("world")
-                .v3ident([b'!'; 20].into())
-                .clone(),
-        ]);
+        bld.authorities
+            .set_v3idents(vec![[b'?'; 20].into(), [b'!'; 20].into()]);
         assert!(bld.build().is_err());
 
         bld.set_fallback_caches(vec![{
@@ -249,7 +244,7 @@ mod test {
             bld
         }]);
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.authorities.len(), 2);
+        assert_eq!(cfg.authorities.v3idents().len(), 2);
         assert_eq!(cfg.fallback_caches.len(), 1);
     }
 }

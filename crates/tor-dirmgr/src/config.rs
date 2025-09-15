@@ -10,8 +10,10 @@
 
 use crate::Result;
 use crate::storage::DynStore;
-use tor_dircommon::authority::Authority;
-use tor_dircommon::config::{DirTolerance, DownloadScheduleConfig, NetworkConfig};
+use tor_dircommon::{
+    authority::AuthorityContacts,
+    config::{DirTolerance, DownloadScheduleConfig, NetworkConfig},
+};
 use tor_netdoc::doc::netstatus::{self};
 
 use std::path::PathBuf;
@@ -101,7 +103,7 @@ impl DirMgrConfig {
     }
 
     /// Return a slice of the configured authorities
-    pub fn authorities(&self) -> &[Authority] {
+    pub fn authorities(&self) -> &AuthorityContacts {
         self.network.authorities()
     }
 
@@ -174,7 +176,7 @@ mod test {
             ..Default::default()
         };
 
-        assert!(dir.authorities().len() >= 3);
+        assert!(dir.authorities().v3idents().len() >= 3);
         assert!(dir.fallbacks().len() >= 3);
 
         // TODO: verify other defaults.
