@@ -38,9 +38,14 @@
 //! [`PaddingController`]: maybenot_padding::PaddingController
 //! [`PaddingEventStream`]: maybenot_padding::PaddingEventStream
 
-// TODO circpad: Remove these allows when we integrate padding into the rest of our code.
-#![allow(dead_code)]
-#![allow(unused_imports)]
+// Some of the circuit padding implementation isn't reachable unless
+// the extra-experimental circ-padding-manual feature is also present.
+//
+// TODO circpad: Remove this once we have circ-padding negotiation implemented.
+#![cfg_attr(
+    all(feature = "circ-padding", not(feature = "circ-padding-manual")),
+    expect(dead_code)
+)]
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "circ-padding")] {

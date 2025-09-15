@@ -24,7 +24,6 @@ use std::{sync::Arc, task::Waker};
 
 use maybenot::{MachineId, TriggerEvent};
 use smallvec::SmallVec;
-use tor_error::into_bad_api_usage;
 
 use super::{Bypass, Duration, Instant, PerHopPaddingEvent, PerHopPaddingEventVec, Replace};
 
@@ -316,8 +315,6 @@ impl Timer {
 struct BlockingState {
     /// The time at which this blocking expires.
     expiration: Instant,
-    /// If true, then some padding can bypass this blocking.
-    bypassable: bool,
 }
 
 /// An implementation of circuit padding using [`maybenot`].
@@ -501,7 +498,6 @@ impl<const N: usize> MaybenotPadder<N> {
                             if replace {
                                 self.blocking = Some(BlockingState {
                                     expiration: new_expiry,
-                                    bypassable: bypass,
                                 });
                             }
 

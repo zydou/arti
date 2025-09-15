@@ -1,5 +1,14 @@
 //! A `maybenot`-specific backend for padding.
 
+// Some of the circuit padding implementation isn't reachable unless
+// the extra-experimental circ-padding-manual feature is also present.
+//
+// TODO circpad: Remove this once we have circ-padding negotiation implemented.
+#![cfg_attr(
+    all(feature = "circ-padding", not(feature = "circ-padding-manual")),
+    expect(dead_code)
+)]
+
 mod backend;
 
 use std::num::NonZeroU16;
@@ -10,8 +19,6 @@ use std::task::{Context, Poll, Waker};
 use bitvec::BitArr;
 use maybenot::MachineId;
 use smallvec::SmallVec;
-use tor_config::impl_standard_builder;
-use tor_error::{bad_api_usage, into_bad_api_usage};
 use tor_memquota::memory_cost_structural_copy;
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
@@ -301,16 +308,6 @@ pub(crate) struct SendPadding {
 }
 
 impl SendPadding {
-    /// Create a new SendPadding based on instructions from Maybenot.
-    fn new(machine: maybenot::MachineId, hop: HopNum, replace: Replace, bypass: Bypass) -> Self {
-        Self {
-            machine,
-            hop,
-            replace,
-            bypass,
-        }
-    }
-
     /// Convert this SendPadding into a TriggerEvent for Maybenot,
     /// to indicate that the padding was sent.
     fn into_sent_event(self) -> maybenot::TriggerEvent {
