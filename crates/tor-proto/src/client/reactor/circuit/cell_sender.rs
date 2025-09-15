@@ -121,7 +121,7 @@ impl CircuitCellSender {
     pub(super) fn have_queued_cell_for_hop_or_later(&self, hop: HopNum) -> bool {
         // TODO circpad: in theory we could also look at the per-channel queue to find this out!
         // But that's nontrivial, since the per-channel queue is implemented with an futures mpsc
-        // channel, which doesn't have any functionality like thiat.
+        // channel, which doesn't have any functionality like that.
         self.sometimes_unbounded()
             .iter_queue()
             .any(|(_, info)| info.is_some_and(|inf| inf.target_hop >= hop))
