@@ -181,17 +181,17 @@ We treat these flags as follows:
   - bypass: Queue a padding cell.
     Allow a single cell to be flushed.
   - replace:
-    <!-- If the per-circuit queue contains no cells
+    <!-- If the queue[^1] contains no cells
     queued to the target hop or later,
     try to queue a data cell if any stream can read. -->
-    If the per-circuit queue contains no cells
+    If the queue[^1] contains no cells
     queued to the target hop or later,
     queue a padding cell.
   - replace+bypass:
-    <!-- If the per-circuit queue contains no cells
+    <!-- If the queue[^1] contains no cells
     queued to the target hop or later,
     try to queue a data cell if any stream can read. -->
-    If the per-circuit queue contains no cells
+    If the queue[^1] contains no cells
     queued to the target hop or later,
     queue a padding cell.
     Allow a single cell to be flushed.
@@ -199,17 +199,26 @@ We treat these flags as follows:
 - With non-bypassable blocking:
   - !replace: Queue a padding cell.
   - replace:
-    <!-- If the per-circuit queue contains no cells
+    <!-- If the queue contains no cells
     queued to the target hop or later,
     try to queue a data cell if any stream can read. -->
-    If the per-circuit queue contains no cells
+    If the queue[^1] contains no cells
     queued to the target hop or later,
     queue a padding cell.
+
+
+[^1]: If the padding is for any hop other than the first,
+      we consider only the per-circuit queue when deciding whether to queue
+      'replace' padding.
+      If the padding is for the first hop,
+      we consider the per-circuit queue _as well as_ the channel queue,
+      and we consider _any cell queued on the same channel_
+      to be an acceptable replacement for padding to the first hop.
 
 <!-- We do not in fact implement the commented-out instructions above.
      We may begin doing so in the future. -->
 
-> Note that we don't ordinarily put DATA messages onto per-circuit queues
+> Note that we don't ordinarily put DATA messages konto per-circuit queues
 > unless they would be flushed immediately to the Channel.
 > Therefore, per-circuit queues will _usually_ be empty
 > unless we have queued a cell with non-DATA message
@@ -268,11 +277,11 @@ but we don't plan to support e.g. consensus-provided padding machines.
 We need the ability to avoid sending padding to a guard
 when the outbound channel to that guard is too full.
 
-We implement this with a per-framework `no_padding_when_blocked` check
-that causes no padding to be queued
-when the underlying Channel's mpsc stream is full.
-If we receive a SendPadding event from maybenot
-in this state, we ignore it entirely.
+To achieve this, we encourage padding machine designers
+to _only_ generate 'replace' padding to the first hop.
+Since we consider _all_ cells queued to the first hop as acceptable
+replacements for first-hop padding,
+this will ensure that excessive padding to the first hop is never generated.
 
 ## Advertising which padding machines are supported
 
