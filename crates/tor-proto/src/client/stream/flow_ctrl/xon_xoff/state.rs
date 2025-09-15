@@ -4,33 +4,33 @@
 //!
 //! ### `cc_xoff_client`
 //!
-/// The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
-///
-/// Note that this is the number of bytes that we buffer within a [`DataStream`]. The actual total
-/// number of bytes buffered can be *much* larger. For example there will be additional buffering:
-///
-/// - Within the arti socks proxy: Arti's socks code needs to read some bytes from the stream, store
-///   it in a temporary buffer, then write the buffer to the socket. If the socket would block, the
-///   data would remain in that temporary buffer. In practice arti uses only a 1024 byte buffer at
-///   the time of writing, which is negligible. See `arti::socks::copy_interactive()`.
-/// - Within the kernel: There are two additional buffers that will store stream data before the
-///   application connected over socks will see the data: Arti's socket send buffer and the
-///   application's socket receive buffer. If the application were to stop reading from its socket,
-///   stream data would accumulate first in the socket's receive buffer. Once full, stream data
-///   would accumulate in arti's socket's send buffer. This can become relatively large, especially
-///   with buffer autotuning enabled. On a Linux 6.15 system with curl downloading a large file and
-///   stopping mid-download, the receive buffer was 6,116,738 bytes and the send buffer was
-///   2,631,062 bytes. This sums to around 8.7 MB of stream data buffered in the kernel, which is
-///   significantly higher than the value of `CC_XOFF_CLIENT` below.
-///
-/// This means that the total number of bytes buffered before an XOFF is sent can be much larger
-/// than `CC_XOFF_CLIENT`.
-///
-/// While we should take into account the kernel and arti socks buffering above, we also need to
-/// keep in mind that arti-client is a library that can be used by others. These library users might
-/// not do any kernel or socks buffering, for example if they write a rust program that handles the
-/// stream data entirely within their program. We don't want to set `CC_XOFF_CLIENT` too low that it
-/// harms the performance for these users, even if it's fine for the arti socks proxy case.
+//! The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
+//!
+//! Note that this is the number of bytes that we buffer within a [`DataStream`]. The actual total
+//! number of bytes buffered can be *much* larger. For example there will be additional buffering:
+//!
+//! - Within the arti socks proxy: Arti's socks code needs to read some bytes from the stream, store
+//!   it in a temporary buffer, then write the buffer to the socket. If the socket would block, the
+//!   data would remain in that temporary buffer. In practice arti uses only a 1024 byte buffer at
+//!   the time of writing, which is negligible. See `arti::socks::copy_interactive()`.
+//! - Within the kernel: There are two additional buffers that will store stream data before the
+//!   application connected over socks will see the data: Arti's socket send buffer and the
+//!   application's socket receive buffer. If the application were to stop reading from its socket,
+//!   stream data would accumulate first in the socket's receive buffer. Once full, stream data
+//!   would accumulate in arti's socket's send buffer. This can become relatively large, especially
+//!   with buffer autotuning enabled. On a Linux 6.15 system with curl downloading a large file and
+//!   stopping mid-download, the receive buffer was 6,116,738 bytes and the send buffer was
+//!   2,631,062 bytes. This sums to around 8.7 MB of stream data buffered in the kernel, which is
+//!   significantly higher than the value of `CC_XOFF_CLIENT` below.
+//!
+//! This means that the total number of bytes buffered before an XOFF is sent can be much larger
+//! than `CC_XOFF_CLIENT`.
+//!
+//! While we should take into account the kernel and arti socks buffering above, we also need to
+//! keep in mind that arti-client is a library that can be used by others. These library users might
+//! not do any kernel or socks buffering, for example if they write a rust program that handles the
+//! stream data entirely within their program. We don't want to set `CC_XOFF_CLIENT` too low that it
+//! harms the performance for these users, even if it's fine for the arti socks proxy case.
 
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
