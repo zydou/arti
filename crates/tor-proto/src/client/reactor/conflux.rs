@@ -913,12 +913,12 @@ impl ConfluxSet {
                 // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
                 // implementation currently uses Circuit Build Timeout).
                 let conflux_hs_timeout = if let Some(timeout) = leg.conflux_hs_timeout() {
-                        // TODO: ask Diziet if we can have a sleep_until_instant() function
-                        Box::pin(runtime.sleep_until_wallclock(timeout))
-                            as Pin<Box<dyn Future<Output = ()> + Send>>
-                    } else {
-                        Box::pin(std::future::pending())
-                    };
+                    // TODO: ask Diziet if we can have a sleep_until_instant() function
+                    Box::pin(runtime.sleep_until_wallclock(timeout))
+                        as Pin<Box<dyn Future<Output = ()> + Send>>
+                } else {
+                    Box::pin(std::future::pending())
+                };
 
                 // Garbage-collect all halfstreams that have expired.
                 //
