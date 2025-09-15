@@ -567,7 +567,7 @@ impl Circuit {
         let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
 
         if decode_res.is_padding() {
-            self.padding_ctrl.decrypted_padding(hopnum);
+            self.padding_ctrl.decrypted_padding(hopnum)?;
         } else {
             self.padding_ctrl.decrypted_data(hopnum);
         }
@@ -1268,6 +1268,17 @@ impl Circuit {
             );
 
             return Ok(Some(CircuitCmd::CleanShutdown));
+        }
+
+        if msg.cmd() == RelayCmd::DROP {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "circ-padding")] {
+                    return Ok(None);
+                } else {
+                    use crate::util::err::ExcessPadding;
+                    return Err(Error::ExcessPadding(ExcessPadding::NoPaddingNegotiated, hopnum));
+                }
+            }
         }
 
         trace!(circ_id = %self.unique_id, cell = ?msg, "Received meta-cell");
