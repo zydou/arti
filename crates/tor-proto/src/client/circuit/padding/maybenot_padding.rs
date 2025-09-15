@@ -428,7 +428,8 @@ impl<S: SleepProvider> PaddingController<S> {
     /// as a substitute for sending padding to a given hop.
     pub(crate) fn replaceable_padding_already_queued(&self, hop: HopNum, sendpadding: SendPadding) {
         assert_eq!(hop, sendpadding.hop);
-        self.trigger_events_mixed(
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events_mixed(
             hop,
             // No additional data will be seen for any intermediate hops.
             &[],
