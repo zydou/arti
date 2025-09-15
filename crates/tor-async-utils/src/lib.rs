@@ -51,6 +51,7 @@ mod sink_try_send;
 mod sinkext;
 mod watch;
 
+pub mod counting_streams;
 pub mod peekable_stream;
 pub mod stream_peek;
 
