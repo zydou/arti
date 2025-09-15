@@ -1,19 +1,9 @@
 //! Circuit reactor's stream XON/XOFF flow control.
-
-use postage::watch;
-use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
-use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
-
-use super::reader::DrainRateRequest;
-
-use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamRateLimit};
-use crate::util::notify::NotifySender;
-use crate::{Error, Result};
-
-#[cfg(doc)]
-use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
-
+//!
+//! ## Notes on consensus parameters
+//!
+//! ### `cc_xoff_client`
+//!
 /// The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
 ///
 /// Note that this is the number of bytes that we buffer within a [`DataStream`]. The actual total
@@ -41,6 +31,21 @@ use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
 /// not do any kernel or socks buffering, for example if they write a rust program that handles the
 /// stream data entirely within their program. We don't want to set `CC_XOFF_CLIENT` too low that it
 /// harms the performance for these users, even if it's fine for the arti socks proxy case.
+
+use postage::watch;
+use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
+
+use super::reader::DrainRateRequest;
+
+use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
+use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamRateLimit};
+use crate::util::notify::NotifySender;
+use crate::{Error, Result};
+
+#[cfg(doc)]
+use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
+
 // TODO(arti#534): We want to get the value from the consensus. The value in the consensus is the
 // number of relay cells, not number of bytes. But do we really want to use the number of relays
 // cells rather than bytes?
