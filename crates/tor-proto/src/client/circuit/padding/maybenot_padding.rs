@@ -123,7 +123,7 @@ pub(crate) enum Bypass {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct QueuedCellPaddingInfo {
     /// The hop that will receive this cell.
-    target_hop: HopNum,
+    pub(crate) target_hop: HopNum,
 }
 memory_cost_structural_copy!(QueuedCellPaddingInfo);
 
@@ -315,6 +315,7 @@ impl<S: SleepProvider> PaddingController<S> {
     ///
     /// Return a QueuedCellPaddingInfo if we need to alert the padding subsystem
     /// when this cell is flushed.
+    #[allow(dead_code)] // This functionality is not implemented in arti.
     pub(crate) fn queued_data_as_padding(
         &self,
         hop: HopNum,
@@ -354,6 +355,19 @@ impl<S: SleepProvider> PaddingController<S> {
             &[sendpadding.into_sent_event()],
         );
         self.info_for_hop(hop)
+    }
+
+    /// Report that we are using an already-queued cell
+    /// as a substitute for sending padding to a given hop.
+    pub(crate) fn replaceable_padding_already_queued(&self, hop: HopNum, sendpadding: SendPadding) {
+        assert_eq!(hop, sendpadding.hop);
+        self.trigger_events_mixed(
+            hop,
+            // No additional data will be seen for any intermediate hops.
+            &[],
+            // The target hop's machine sees this as padding.
+            &[sendpadding.into_sent_event()],
+        );
     }
 
     /// Report that we've flushed a cell from the queue for the given hop.
