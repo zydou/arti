@@ -1061,7 +1061,9 @@ impl Reactor {
                 let timeout = max_rtt;
                 let expire_at = self.runtime.now() + timeout;
 
-                let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason, expire_at).await;
+                let res: Result<()> = leg
+                    .close_stream(hop_num, sid, behav, reason, expire_at)
+                    .await;
 
                 if let Some(done) = done {
                     // don't care if the sender goes away

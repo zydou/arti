@@ -318,7 +318,11 @@ impl CircHop {
         why: streammap::TerminateReason,
         expiry: Instant,
     ) -> Result<Option<SendRelayCell>> {
-        let should_send_end = self.map.lock().expect("lock poisoned").terminate(id, why, expiry)?;
+        let should_send_end = self
+            .map
+            .lock()
+            .expect("lock poisoned")
+            .terminate(id, why, expiry)?;
         trace!(
             circ_id = %self.unique_id,
             stream_id = %id,
