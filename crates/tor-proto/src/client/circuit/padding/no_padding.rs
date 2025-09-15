@@ -10,7 +10,9 @@ use std::task::{Context, Poll, Waker};
 use tor_memquota::memory_cost_structural_copy;
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
+use crate::Error;
 use crate::HopNum;
+use crate::util::err::ExcessPadding;
 
 /// Used to report padding events.
 ///
@@ -81,9 +83,10 @@ impl<S: SleepProvider> PaddingController<S> {
     pub(crate) fn decrypted_data(&self, _hop: HopNum) {}
 
     /// Report that we have decrypted a padding cell from our queue.
-    pub(crate) fn decrypted_padding(&self, _hop: HopNum) -> Result<(), crate::Error> {
-        Err(crate::Error::CircProto(
-            "Received unexpected padding when circuit padding was not enabled.".into(),
+    pub(crate) fn decrypted_padding(&self, hop: HopNum) -> Result<(), crate::Error> {
+        Err(crate::Error::ExcessPadding(
+            ExcessPadding::NoPaddingNegotiated,
+            hop,
         ))
     }
 }

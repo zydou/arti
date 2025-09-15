@@ -14,6 +14,7 @@ use tor_memquota::memory_cost_structural_copy;
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 use crate::HopNum;
+use crate::util::err::ExcessPadding;
 use backend::PaddingBackend;
 
 /// The type of Instant that we'll use for our padding machines.
@@ -284,7 +285,7 @@ impl std::default::Default for PaddingStats {
 
 impl PaddingStats {
     /// Return an error if this PaddingStats has exceeded its maximum.
-    fn validate(&self) -> Result<(), ImproperPadding> {
+    fn validate(&self) -> Result<(), ExcessPadding> {
         // Total number of cells.
         // (It is impossible to get so many cells that this addition will overflow a u64.)
         let total = self.n_padding + self.n_normal;
@@ -303,22 +304,11 @@ impl PaddingStats {
             // that we _know_ will be valid, given the current total,
             // and then not check again until we at all until we reach that amount.
             if self.n_padding as f32 > (total as f32 * self.max_padding_frac) {
-                return Err(ImproperPadding::RatioExceeded);
+                return Err(ExcessPadding::PaddingExceedsLimit);
             }
         }
         Ok(())
     }
-}
-
-/// A problem that can occur with padding.
-#[derive(Clone, thiserror::Error, Debug)]
-enum ImproperPadding {
-    /// We've exceeded our maximum padding ratio.
-    #[error("Too much padding received")]
-    RatioExceeded,
-    /// We didn't negotiate a padding framework with this hop.
-    #[error("Padding not negotiated with this hop")]
-    NotNegotiated,
 }
 
 /// Current padding-related blocking status for a circuit.
@@ -452,12 +442,9 @@ impl<S: SleepProvider> PaddingController<S> {
     // See note above.
     pub(crate) fn decrypted_padding(&self, hop: HopNum) -> Result<(), crate::Error> {
         let mut shared = self.shared.lock().expect("Lock poisoned");
-        shared.inc_padding_received(hop).map_err(|e| {
-            crate::Error::CircProto(format!(
-                "Received unexpected padding from hop {}: {e}",
-                hop.display()
-            ))
-        })?;
+        shared
+            .inc_padding_received(hop)
+            .map_err(|e| crate::Error::ExcessPadding(e, hop))?;
         shared.trigger_events_mixed(
             hop,
             // We treat this as normal data from the intermediate hops.
@@ -528,7 +515,7 @@ impl<S: SleepProvider> PaddingShared<S> {
     /// Increment the padding count from `hop`, and the normal cell count from all earlier hops.
     ///
     /// Return an error if a padding cell from `hop` would not be acceptable.
-    fn inc_padding_received(&mut self, hop: HopNum) -> Result<(), ImproperPadding> {
+    fn inc_padding_received(&mut self, hop: HopNum) -> Result<(), ExcessPadding> {
         use itertools::Itertools as _;
         use itertools::Position as P;
         let final_idx = usize::from(hop);
@@ -541,7 +528,7 @@ impl<S: SleepProvider> PaddingShared<S> {
                     stats.validate()?;
                 }
                 (P::Last | P::Only, None) => {
-                    return Err(ImproperPadding::NotNegotiated);
+                    return Err(ExcessPadding::NoPaddingNegotiated);
                 }
             }
         }

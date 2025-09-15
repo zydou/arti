@@ -5,6 +5,8 @@ use tor_cell::relaycell::{StreamId, msg::EndReason};
 use tor_error::{Bug, ErrorKind, HasKind};
 use tor_linkspec::RelayIdType;
 
+use crate::HopNum;
+
 /// An error type for the tor-proto crate.
 ///
 /// This type should probably be split into several.  There's more
@@ -139,6 +141,10 @@ pub enum Error {
     #[error("Tried to send too many outbound cells")]
     ExcessOutboundCells,
 
+    /// Received unexpected or excessive inbound circuit
+    #[error("Received unexpected or excessive circuit padding from {}", _1.display())]
+    ExcessPadding(#[source] ExcessPadding, HopNum),
+
     /// Channel does not match target
     #[error("Peer identity mismatch: {0}")]
     ChanMismatch(String),
@@ -247,7 +253,8 @@ impl From<Error> for std::io::Error {
             | IdUnavailable(_)
             | StreamIdZero
             | ExcessInboundCells
-            | ExcessOutboundCells => ErrorKind::InvalidData,
+            | ExcessOutboundCells
+            | ExcessPadding(_, _) => ErrorKind::InvalidData,
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -299,6 +306,7 @@ impl HasKind for Error {
             E::StreamIdZero => EK::BadApiUsage,
             E::ExcessInboundCells => EK::TorProtocolViolation,
             E::ExcessOutboundCells => EK::Internal,
+            E::ExcessPadding(_, _) => EK::TorProtocolViolation,
             E::Memquota(err) => err.kind(),
             E::Bug(e) => e.kind(),
         }
@@ -355,4 +363,15 @@ pub(crate) enum ConfluxHandshakeError {
     Link(Error),
     /// The channel was closed.
     ChannelClosed,
+}
+
+#[derive(Debug, Clone, Error)]
+#[non_exhaustive]
+pub enum ExcessPadding {
+    /// We received circuit padding when we hadn't negotiated a padding framework.
+    #[error("Padding received when not negotiated with given hop")]
+    NoPaddingNegotiated,
+    /// We received more padding than our negotiated framework permits.
+    #[error("Received padding in excess of negotiated framework's limit")]
+    PaddingExceedsLimit,
 }

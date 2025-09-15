@@ -1275,7 +1275,7 @@ impl Circuit {
                 if #[cfg(feature = "circ-padding")] {
                     return Ok(None);
                 } else {
-                    return Err(Error::CircProto("Unexpected DROP message from relay, with circuit padding not enabled".into()));
+                    return Err(Error::ExcessPadding(ExcessPadding::NoPaddingNegotiated, hopnum));
                 }
             }
         }
