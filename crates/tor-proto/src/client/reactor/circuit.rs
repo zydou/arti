@@ -1275,6 +1275,7 @@ impl Circuit {
                 if #[cfg(feature = "circ-padding")] {
                     return Ok(None);
                 } else {
+                    use crate::util::err::ExcessPadding;
                     return Err(Error::ExcessPadding(ExcessPadding::NoPaddingNegotiated, hopnum));
                 }
             }
