@@ -3,6 +3,7 @@
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
+use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::client::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::client::stream::queue::StreamQueueSender;
@@ -214,6 +215,11 @@ pub(crate) struct CircHop {
     ///
     /// This object is also in charge of handling circuit level SENDME logic for this hop.
     ccontrol: CongestionControl,
+    /// Flow control parameters for new streams.
+    // TODO: It's unfortunate that all circuit hops need to hold on to this when they're likely the
+    // same for all circuits. It would be nice if this could be in an `Arc`, and each circuit just
+    // holds a reference to this `Arc`.
+    flow_ctrl_params: FlowCtrlParameters,
     /// Decodes relay cells received from this hop.
     inbound: RelayCellDecoder,
     /// Format to use for relay cells.
@@ -258,6 +264,7 @@ impl CircHop {
             hop_num,
             map: Arc::new(Mutex::new(streammap::StreamMap::new())),
             ccontrol: CongestionControl::new(&settings.ccontrol),
+            flow_ctrl_params: settings.flow_ctrl_params.clone(),
             inbound: RelayCellDecoder::new(relay_format),
             relay_format,
             n_incoming_cells_permitted: settings.n_incoming_cells_permitted.map(cvt),
@@ -276,7 +283,11 @@ impl CircHop {
         drain_rate_requester: NotifySender<DrainRateRequest>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_flow_ctrl(rate_limit_updater, drain_rate_requester)?;
+        let flow_ctrl = self.build_flow_ctrl(
+            &self.flow_ctrl_params,
+            rate_limit_updater,
+            drain_rate_requester,
+        )?;
         let r =
             self.map
                 .lock()
@@ -449,7 +460,11 @@ impl CircHop {
         hop_map.add_ent_with_id(
             sink,
             rx,
-            self.build_flow_ctrl(rate_limit_updater, drain_rate_requester)?,
+            self.build_flow_ctrl(
+                &self.flow_ctrl_params,
+                rate_limit_updater,
+                drain_rate_requester,
+            )?,
             stream_id,
             cmd_checker,
         )?;
@@ -551,6 +566,7 @@ impl CircHop {
     #[cfg_attr(feature = "flowctl-cc", expect(clippy::unnecessary_wraps))]
     fn build_flow_ctrl(
         &self,
+        params: &FlowCtrlParameters,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Result<StreamFlowCtrl> {
@@ -560,7 +576,7 @@ impl CircHop {
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    Ok(StreamFlowCtrl::new_xon_xoff(rate_limit_updater, drain_rate_requester))
+                    Ok(StreamFlowCtrl::new_xon_xoff(params, rate_limit_updater, drain_rate_requester))
                 } else {
                     Err(internal!(
                         "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",

@@ -4,6 +4,7 @@ use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
+use super::params::FlowCtrlParameters;
 use super::window::state::WindowFlowCtrl;
 use super::xon_xoff::reader::DrainRateRequest;
 #[cfg(feature = "flowctl-cc")]
@@ -42,11 +43,13 @@ impl StreamFlowCtrl {
     /// Returns a new xon/xoff-based [`StreamFlowCtrl`].
     #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff(
+        params: &FlowCtrlParameters,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
             e: StreamFlowCtrlEnum::XonXoffBased(XonXoffFlowCtrl::new(
+                params,
                 rate_limit_updater,
                 drain_rate_requester,
             )),

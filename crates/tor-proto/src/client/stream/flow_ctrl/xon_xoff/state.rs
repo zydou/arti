@@ -6,6 +6,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::reader::DrainRateRequest;
 
+use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
@@ -49,6 +50,11 @@ const CC_XOFF_CLIENT: usize = 250_000;
 /// State for XON/XOFF flow control.
 #[derive(Debug)]
 pub(crate) struct XonXoffFlowCtrl {
+    /// Consensus parameters.
+    // TODO: This is a lot of wasted space since each stream needs to store this,
+    // and it's very likely that all will be using the same values.
+    // TODO: Use these values.
+    _params: FlowCtrlParameters,
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -62,10 +68,12 @@ pub(crate) struct XonXoffFlowCtrl {
 impl XonXoffFlowCtrl {
     /// Returns a new xon/xoff-based state.
     pub(crate) fn new(
+        params: &FlowCtrlParameters,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
+            _params: params.clone(),
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,

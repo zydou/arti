@@ -51,6 +51,7 @@ use crate::channel::Channel;
 use crate::client::circuit::celltypes::*;
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
+use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
@@ -395,6 +396,26 @@ pub struct CircParameters {
     /// Congestion control parameters for this circuit.
     pub ccontrol: CongestionControlParams,
 
+    /// Flow control parameters to use for all streams on this circuit.
+    // While flow control is a stream property and not a circuit property,
+    // and it may seem better to pass the flow control parameters to for example `begin_stream()`,
+    // it's included in [`CircParameters`] for the following reasons:
+    //
+    // - When endpoints (exits + hs) receive new stream requests, they need the flow control
+    //   parameters immediately. It would be easy to pass flow control parameters when creating a
+    //   stream, but it's not as easy to get flow control parameters when receiving a new stream
+    //   request, unless those parameters are already available to the circuit (like
+    //   `CircParameters` are).
+    // - It's unclear if new streams on existing circuits should switch to new flow control
+    //   parameters if the consensus changes. This behaviour doesn't appear to be specified. It
+    //   might also leak information to the circuit's endpoint about when we downloaded new
+    //   directory documents. So it seems best to stick with the same flow control parameters for
+    //   the lifetime of the circuit.
+    // - It doesn't belong in [`StreamParameters`] as `StreamParameters` is a set of preferences
+    //   with defaults, and consensus parameters aren't preferences and don't have defaults.
+    //   (Technically they have defaults, but `StreamParameters` isn't the place to set them.)
+    pub flow_ctrl: FlowCtrlParameters,
+
     /// Maximum number of permitted incoming relay cells for each hop.
     ///
     /// If we would receive more relay cells than this from a single hop,
@@ -462,6 +483,9 @@ pub(super) enum HopNegotiationType {
 pub(super) struct HopSettings {
     /// The negotiated congestion control settings for this hop .
     pub(super) ccontrol: CongestionControlParams,
+
+    /// Flow control parameters that will be used for streams on this hop.
+    pub(super) flow_ctrl_params: FlowCtrlParameters,
 
     /// Maximum number of permitted incoming relay cells for this hop.
     pub(super) n_incoming_cells_permitted: Option<u32>,
@@ -546,6 +570,7 @@ impl HopSettings {
 
         Ok(Self {
             ccontrol,
+            flow_ctrl_params: params.flow_ctrl.clone(),
             relay_crypt_protocol,
             n_incoming_cells_permitted: params.n_incoming_cells_permitted,
             n_outgoing_cells_permitted: params.n_outgoing_cells_permitted,
@@ -564,6 +589,7 @@ impl std::default::Default for CircParameters {
         Self {
             extend_by_ed25519_id: true,
             ccontrol: crate::congestion::test_utils::params::build_cc_fixed_params(),
+            flow_ctrl: FlowCtrlParameters::defaults_for_tests(),
             n_incoming_cells_permitted: None,
             n_outgoing_cells_permitted: None,
         }
@@ -572,10 +598,15 @@ impl std::default::Default for CircParameters {
 
 impl CircParameters {
     /// Constructor
-    pub fn new(extend_by_ed25519_id: bool, ccontrol: CongestionControlParams) -> Self {
+    pub fn new(
+        extend_by_ed25519_id: bool,
+        ccontrol: CongestionControlParams,
+        flow_ctrl: FlowCtrlParameters,
+    ) -> Self {
         Self {
             extend_by_ed25519_id,
             ccontrol,
+            flow_ctrl,
             n_incoming_cells_permitted: None,
             n_outgoing_cells_permitted: None,
         }
@@ -1380,7 +1411,11 @@ pub(crate) mod test {
                 HandshakeType::NtorV3 => {
                     let params = if with_cc {
                         // Setup CC vegas parameters.
-                        CircParameters::new(true, build_cc_vegas_params())
+                        CircParameters::new(
+                            true,
+                            build_cc_vegas_params(),
+                            FlowCtrlParameters::defaults_for_tests(),
+                        )
                     } else {
                         params
                     };
@@ -2733,7 +2768,8 @@ pub(crate) mod test {
         // the calling code prevents guard reuse (except in the case where
         // one of the guards happens to be Guard + Exit)
         let same_hops = true;
-        let params = CircParameters::new(true, cc_params);
+        let flow_ctrl_params = FlowCtrlParameters::defaults_for_tests();
+        let params = CircParameters::new(true, cc_params, flow_ctrl_params);
         setup_conflux_tunnel(rt, same_hops, params).await
     }
 
@@ -2743,7 +2779,8 @@ pub(crate) mod test {
         // so they won't end in the same hop (no join point),
         // causing the reactor to refuse to link them.
         let same_hops = false;
-        let params = CircParameters::new(true, build_cc_vegas_params());
+        let flow_ctrl_params = FlowCtrlParameters::defaults_for_tests();
+        let params = CircParameters::new(true, build_cc_vegas_params(), flow_ctrl_params);
         setup_conflux_tunnel(rt, same_hops, params).await
     }
 
