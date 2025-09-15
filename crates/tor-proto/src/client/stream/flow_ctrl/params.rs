@@ -34,3 +34,40 @@ impl FlowCtrlParameters {
         }
     }
 }
+
+/// A cell count that can be converted into a byte count using a constant conversion rate.
+///
+/// The const generic is the conversion multiplier when converting from cells to bytes.
+#[derive(Clone, Debug)]
+pub struct CellCount<const BYTES_PER_CELL: u32>(u32);
+
+impl<const BYTES_PER_CELL: u32> CellCount<BYTES_PER_CELL> {
+    /// A new [`CellCount`].
+    pub const fn new(cells: u32) -> Self {
+        Self(cells)
+    }
+
+    /// The [`CellCount`] as the number of cells.
+    ///
+    /// This is the value that [`CellCount`] was originally constructed with.
+    pub const fn as_cells(&self) -> u32 {
+        self.0
+    }
+
+    /// The number of payload bytes corresponding to this [`CellCount`].
+    ///
+    /// This is a constant multiple of the cell count,
+    /// and is the conversion we use for the consensus parameters.
+    /// For example `cc_xoff_client` which says:
+    ///
+    /// > Specifies the outbuf length, in relay cell multiples
+    pub const fn as_bytes(&self) -> u64 {
+        // u32 to u64 cast
+        let cells = self.0 as u64;
+
+        cells
+            // u32 to u64 cast
+            .checked_mul(BYTES_PER_CELL as u64)
+            .expect("u32 * u32 should fit within a u64")
+    }
+}
