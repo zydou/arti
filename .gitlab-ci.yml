@@ -87,7 +87,8 @@ python3-checks:
     BLACK_VERSION: 25.1.0
     # Updated 2025-09-15
     FLAKE8_VERSION: 7.3.0
-    MYPY_VERSION: 1.14.0
+    # Updated 2025-09-15
+    MYPY_VERSION: 1.18.1
   script:
     - maint/common/apt-install python3-pip python3-venv git
     # AFAICT these python packages do not have debian packages.
