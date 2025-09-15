@@ -443,6 +443,22 @@ pub struct UnparsedRelayMsg {
     internal: UnparsedRelayMsgInternal,
 }
 
+/// Const helper to find the min between three u16 values.
+const fn min(a: u16, b: u16, c: u16) -> u16 {
+    const fn min_2(a: u16, b: u16) -> u16 {
+        if a < b { a } else { b }
+    }
+    min_2(a, min_2(b, c))
+}
+
+/// Const helper to find the max between three u16 values.
+const fn max(a: u16, b: u16, c: u16) -> u16 {
+    const fn max_2(a: u16, b: u16) -> u16 {
+        if a > b { a } else { b }
+    }
+    max_2(a, max_2(b, c))
+}
+
 /// Position of the stream ID within the V0 cell body.
 const STREAM_ID_OFFSET_V0: usize = 3;
 
@@ -455,11 +471,45 @@ const LENGTH_OFFSET_V0: usize = 1 + 2 + 2 + 4; // command, recognized, stream_id
 /// Position of the payload data length within the V1 cell body.
 const LENGTH_OFFSET_V1: usize = 16 + 1; // tag, command.
 
+/// Position of the payload data within the V0 cell body.
+const PAYLOAD_OFFSET_V0: usize = LENGTH_OFFSET_V0 + 2; // (everything before length), length.
+
+/// Position of the payload data within the V1 cell body, when not including a stream ID.
+const PAYLOAD_OFFSET_V1_WITHOUT_STREAM_ID: usize = LENGTH_OFFSET_V1 + 2; // (everything before length), length.
+
+/// Position of the payload data within the V1 cell body, when including a stream ID.
+const PAYLOAD_OFFSET_V1_WITH_STREAM_ID: usize = LENGTH_OFFSET_V1 + 2 + 2; // (everything before length), length, stream_id.
+
+/// Max amount of payload data that can be stored in a V0 cell body.
+const PAYLOAD_MAX_SIZE_V0: u16 = BODY_MAX_LEN_V0 - (PAYLOAD_OFFSET_V0 as u16);
+
+/// Max amount of payload data that can be stored in a V1 cell body, when not including a stream ID.
+const PAYLOAD_MAX_SIZE_V1_WITHOUT_STREAM_ID: u16 =
+    BODY_MAX_LEN_V1 - (PAYLOAD_OFFSET_V1_WITHOUT_STREAM_ID as u16);
+
+/// Max amount of payload data that can be stored in a V1 cell body, when including a stream ID.
+const PAYLOAD_MAX_SIZE_V1_WITH_STREAM_ID: u16 =
+    BODY_MAX_LEN_V1 - (PAYLOAD_OFFSET_V1_WITH_STREAM_ID as u16);
+
 /// The maximum length of a V0 cell message body.
 const BODY_MAX_LEN_V0: u16 = 509;
 
 /// The maximum length of a V1 cell message body.
 const BODY_MAX_LEN_V1: u16 = 509;
+
+/// The maximum amount of payload data that can fit within all cell body types.
+pub const PAYLOAD_MAX_SIZE_ALL: u16 = min(
+    PAYLOAD_MAX_SIZE_V0,
+    PAYLOAD_MAX_SIZE_V1_WITH_STREAM_ID,
+    PAYLOAD_MAX_SIZE_V1_WITHOUT_STREAM_ID,
+);
+
+/// The maximum amount of payload data that can fit within any cell body type.
+pub const PAYLOAD_MAX_SIZE_ANY: u16 = max(
+    PAYLOAD_MAX_SIZE_V0,
+    PAYLOAD_MAX_SIZE_V1_WITH_STREAM_ID,
+    PAYLOAD_MAX_SIZE_V1_WITHOUT_STREAM_ID,
+);
 
 impl UnparsedRelayMsg {
     /// Wrap a BoxedCellBody as an UnparsedRelayMsg.
