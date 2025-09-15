@@ -85,7 +85,8 @@ python3-checks:
   variables:
     # Updated 2025-09-15
     BLACK_VERSION: 25.1.0
-    FLAKE8_VERSION: 6.1.0
+    # Updated 2025-09-15
+    FLAKE8_VERSION: 7.3.0
     MYPY_VERSION: 1.14.0
   script:
     - maint/common/apt-install python3-pip python3-venv git
