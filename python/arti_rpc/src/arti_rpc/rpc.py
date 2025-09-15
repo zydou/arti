@@ -494,7 +494,7 @@ class ArtiRpcError(Exception):
 
 
 def _opt_object_id_to_bytes(
-    object_id: Union[ArtiRpcObject, str, None]
+    object_id: Union[ArtiRpcObject, str, None],
 ) -> Optional[bytes]:
     """
     Convert `object_id` (if it is present) to a `bytes`.
