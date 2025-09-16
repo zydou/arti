@@ -14,8 +14,7 @@ state directory, which you might have overridden in the configuration.
 
 ## Listing keystores
 
-`arti keys list-keystores` allows the user to list all the available keystores in the state
-directory (i.e.: `~/.local/share/arti` on Linux platforms)
+`arti keys list-keystores` lists all the configured keystores:
 
 ```
 $ arti -c keys.toml keys list-keystores
