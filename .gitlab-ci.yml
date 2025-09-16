@@ -82,7 +82,13 @@ shellcheck:
 
 python3-checks:
   stage: check
-  allow_failure: true
+  variables:
+    # Updated 2025-09-15
+    BLACK_VERSION: "25.1.0"
+    # Updated 2025-09-15
+    FLAKE8_VERSION: "7.3.0"
+    # Updated 2025-09-15
+    MYPY_VERSION: "1.18.1"
   script:
     - maint/common/apt-install python3-pip python3-venv git
     # AFAICT these python packages do not have debian packages.
@@ -91,11 +97,19 @@ python3-checks:
     #
     # (NOTE: We have specific versions of some tools pinned here to avoid
     # breakage; we should update them periodically.)
-    - |
-      python3 -m venv lint
-      source lint/bin/activate
-      pip3 install marko tomli_w types-toml types-PyYAML types-beautifulsoup4 types-requests black==24.4.2 flake8==6.1.0 mypy==1.14.0
-      ./maint/python-lints
+    - python3 -m venv lint
+    - source lint/bin/activate
+    - pip3 install
+        marko
+        tomli_w
+        types-toml
+        types-PyYAML
+        types-beautifulsoup4
+        types-requests
+        black=="$BLACK_VERSION"
+        flake8=="$FLAKE8_VERSION"
+        mypy=="$MYPY_VERSION"
+    - ./maint/python-lints
 
 maint-checks:
   stage: check
