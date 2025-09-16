@@ -327,6 +327,14 @@ where
             .with_batch_config(otel_file_config.batch.unwrap_or_default().into())
             .build()
     } else if let Some(otel_http_config) = &config.opentelemetry.http {
+        if otel_http_config.endpoint.starts_with("http://")
+            && !(otel_http_config.endpoint.starts_with("http://localhost")
+                || otel_http_config.endpoint.starts_with("http://127.0.0.1"))
+        {
+            panic!(
+                "OpenTelemetry endpoint is set to HTTP on a non-localhost address! For security reasons, this is not supported."
+            );
+        }
         let exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
             .with_endpoint(otel_http_config.endpoint.clone());
