@@ -1,5 +1,8 @@
 //! Tracing exporter to write spans to a file in the OTLP JSON format.
 
+// TODO: If https://github.com/open-telemetry/opentelemetry-rust/issues/2602 gets fixed, we can
+// replace this entire file with whatever upstream has for doing this.
+
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
 use opentelemetry_sdk::{
