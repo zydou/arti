@@ -298,6 +298,9 @@ where
 }
 
 /// Try to construct a tracing [`Layer`] for exporting spans via OpenTelemetry.
+///
+/// This doesn't allow for filtering, since most of our spans are exported at the trace level
+/// anyways, and filtering can easily be done when viewing the data.
 #[cfg(feature = "opentelemetry")]
 fn otel_layer<S>(config: &LoggingConfig, path_resolver: &CfgPathResolver) -> Result<impl Layer<S>>
 where
