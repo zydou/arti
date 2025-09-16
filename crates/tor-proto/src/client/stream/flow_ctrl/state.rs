@@ -172,3 +172,14 @@ impl std::fmt::Display for StreamRateLimit {
         write!(f, "{} bytes/s", self.rate)
     }
 }
+
+/// An endpoint of a stream.
+///
+/// This could be either our end of the stream, or the other end of the stream.
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum StreamEndpointType {
+    /// A client, which could be an OP or an onion service.
+    Client,
+    /// An exit relay.
+    Exit,
+}

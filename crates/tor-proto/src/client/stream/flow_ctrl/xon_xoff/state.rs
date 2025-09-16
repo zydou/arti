@@ -30,6 +30,8 @@
 //! stream data entirely within their program. We don't want to set `cc_xoff_client` too low that it
 //! harms the performance for these users, even if it's fine for the arti socks proxy case.
 
+use std::num::Saturating;
+
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
@@ -38,7 +40,9 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 use super::reader::DrainRateRequest;
 
 use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamRateLimit};
+use crate::client::stream::flow_ctrl::state::{
+    FlowCtrlMethods, StreamEndpointType, StreamRateLimit,
+};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
@@ -189,6 +193,15 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
     }
 }
 
+/// An XON or XOFF message with no associated data.
+#[derive(Debug)]
+enum XonXoff {
+    /// XON message.
+    Xon,
+    /// XOFF message.
+    Xoff,
+}
+
 /// An XON or XOFF message with associated data.
 #[derive(Debug)]
 enum XonXoffMsg {
@@ -199,4 +212,133 @@ enum XonXoffMsg {
     Xon(XonKbpsEwma),
     /// XOFF message.
     Xoff,
+}
+
+/// Sidechannel mitigations for DropMark attacks.
+///
+/// > In order to mitigate DropMark attacks, both XOFF and advisory XON transmission must be
+/// > restricted.
+///
+/// These restrictions should be implemented for clients (OPs and onion services).
+#[derive(Debug)]
+struct SidechannelMitigation {
+    /// The last rate limit update we received.
+    last_recvd_xon_xoff: Option<XonXoff>,
+    /// Number of sent stream bytes.
+    bytes_sent_total: Saturating<u32>,
+    /// Number of sent stream bytes since the last advisory XON was received.
+    bytes_sent_since_recvd_last_advisory_xon: Saturating<u32>,
+    /// Number of sent stream bytes since the last XOFF was received.
+    bytes_sent_since_recvd_last_xoff: Saturating<u32>,
+    /// The type of peer we are connected to, either an onion service (client) or exit.
+    peer: StreamEndpointType,
+}
+
+impl SidechannelMitigation {
+    /// A new [`SidechannelMitigation`].
+    fn new(peer: StreamEndpointType) -> Self {
+        Self {
+            last_recvd_xon_xoff: None,
+            bytes_sent_total: Saturating(0),
+            bytes_sent_since_recvd_last_advisory_xon: Saturating(0),
+            bytes_sent_since_recvd_last_xoff: Saturating(0),
+            peer,
+        }
+    }
+
+    /// The XOFF limit that the other endpoint should be using.
+    ///
+    /// This may be different from our XOFF limit, since clients and exits use different limits.
+    fn peer_xoff_limit_bytes(&self, params: &FlowCtrlParameters) -> u64 {
+        match self.peer {
+            StreamEndpointType::Client => params.cc_xoff_client.as_bytes(),
+            StreamEndpointType::Exit => params.cc_xoff_exit.as_bytes(),
+        }
+    }
+
+    /// Notify that we have sent stream data.
+    fn sent_stream_data(&mut self, stream_bytes: usize) {
+        // perform a saturating conversion to u32
+        let stream_bytes: u32 = stream_bytes.try_into().unwrap_or(u32::MAX);
+
+        self.bytes_sent_total += stream_bytes;
+        self.bytes_sent_since_recvd_last_advisory_xon += stream_bytes;
+        self.bytes_sent_since_recvd_last_xoff += stream_bytes;
+    }
+
+    /// Notify that we have received an XON message.
+    fn received_xon(&mut self, params: &FlowCtrlParameters) -> Result<()> {
+        // Check to make sure that XON is not sent too early, for dropmark attacks. The main
+        // sidechannel risk is early cells, but we also check to see that we did not get more XONs
+        // than make sense for the number of bytes we sent.
+
+        // is this an advisory XON?
+        let is_advisory = match self.last_recvd_xon_xoff {
+            Some(XonXoff::Xon) => true,
+            Some(XonXoff::Xoff) => false,
+            None => true,
+        };
+
+        // set this before we possibly return early below, since this must be set regardless of if
+        // it's an advisory XON or not
+        self.last_recvd_xon_xoff = Some(XonXoff::Xon);
+
+        // we only restrict advisory XON messages
+        if !is_advisory {
+            return Ok(());
+        }
+
+        // XXX: this is waiting on discussion in:
+        // https://gitlab.torproject.org/tpo/core/arti/-/issues/2129#note_3258116
+        //
+        // > Clients also SHOULD ensure that advisory XONs do not arrive before the minimum of the
+        // > XOFF limit and 'cc_xon_rate' full cells worth of bytes have been transmitted.
+        let advisory_not_expected_before = std::cmp::min(
+            self.peer_xoff_limit_bytes(params),
+            params.cc_xon_rate.as_bytes(),
+        );
+        if u64::from(self.bytes_sent_total.0) < advisory_not_expected_before {
+            const MSG: &str = "Received advisory XON too early";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
+        // > Clients SHOULD ensure that advisory XONs do not arrive more frequently than every
+        // > 'cc_xon_rate' cells worth of sent data.
+        if u64::from(self.bytes_sent_since_recvd_last_advisory_xon.0)
+            < params.cc_xon_rate.as_bytes()
+        {
+            const MSG: &str = "Received advisory XON too frequently";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
+        self.bytes_sent_since_recvd_last_advisory_xon = Saturating(0);
+
+        Ok(())
+    }
+
+    /// Notify that we have received an XOFF message.
+    fn received_xoff(&mut self, params: &FlowCtrlParameters) -> Result<()> {
+        // Check to make sure that XOFF is not sent too early, for dropmark attacks. The
+        // main sidechannel risk is early cells, but we also check to make sure that we have not
+        // received more XOFFs than could have been generated by the bytes we sent.
+
+        // > clients MUST ensure that an XOFF does not arrive before it has sent the appropriate
+        // > XOFF limit of bytes on a stream ('cc_xoff_exit' for exits, 'cc_xoff_client' for
+        // > onions).
+        if u64::from(self.bytes_sent_total.0) < self.peer_xoff_limit_bytes(params) {
+            const MSG: &str = "Received XOFF too early";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
+        // > Clients also SHOULD ensure than XOFFs do not arrive more frequently than every XOFF
+        // > limit worth of sent data.
+        if u64::from(self.bytes_sent_since_recvd_last_xoff.0) < self.peer_xoff_limit_bytes(params) {
+            return Err(Error::CircProto("Received XOFF too frequently".into()));
+        }
+
+        self.bytes_sent_since_recvd_last_xoff = Saturating(0);
+        self.last_recvd_xon_xoff = Some(XonXoff::Xoff);
+
+        Ok(())
+    }
 }
