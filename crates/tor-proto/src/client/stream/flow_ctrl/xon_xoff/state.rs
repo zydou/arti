@@ -1,4 +1,34 @@
 //! Circuit reactor's stream XON/XOFF flow control.
+//!
+//! ## Notes on consensus parameters
+//!
+//! ### `cc_xoff_client`
+//!
+//! This is the number of bytes that we buffer within a [`DataStream`]. The actual total number of
+//! bytes buffered can be *much* larger. For example there will be additional buffering:
+//!
+//! - Within the arti socks proxy: Arti's socks code needs to read some bytes from the stream, store
+//!   it in a temporary buffer, then write the buffer to the socket. If the socket would block, the
+//!   data would remain in that temporary buffer. In practice arti uses only a 1024 byte buffer at
+//!   the time of writing, which is negligible. See `arti::socks::copy_interactive()`.
+//! - Within the kernel: There are two additional buffers that will store stream data before the
+//!   application connected over socks will see the data: Arti's socket send buffer and the
+//!   application's socket receive buffer. If the application were to stop reading from its socket,
+//!   stream data would accumulate first in the socket's receive buffer. Once full, stream data
+//!   would accumulate in arti's socket's send buffer. This can become relatively large, especially
+//!   with buffer autotuning enabled. On a Linux 6.15 system with curl downloading a large file and
+//!   stopping mid-download, the receive buffer was 6,116,738 bytes and the send buffer was
+//!   2,631,062 bytes. This sums to around 8.7 MB of stream data buffered in the kernel, which is
+//!   significantly higher than the current consensus value of `cc_xoff_client`.
+//!
+//! This means that the total number of bytes buffered before an XOFF is sent can be much larger
+//! than `cc_xoff_client`.
+//!
+//! While we should take into account the kernel and arti socks buffering above, we also need to
+//! keep in mind that arti-client is a library that can be used by others. These library users might
+//! not do any kernel or socks buffering, for example if they write a rust program that handles the
+//! stream data entirely within their program. We don't want to set `cc_xoff_client` too low that it
+//! harms the performance for these users, even if it's fine for the arti socks proxy case.
 
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
@@ -14,39 +44,6 @@ use crate::{Error, Result};
 #[cfg(doc)]
 use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
 
-/// The threshold number of incoming data bytes buffered on a stream at which we send an XOFF.
-///
-/// Note that this is the number of bytes that we buffer within a [`DataStream`]. The actual total
-/// number of bytes buffered can be *much* larger. For example there will be additional buffering:
-///
-/// - Within the arti socks proxy: Arti's socks code needs to read some bytes from the stream, store
-///   it in a temporary buffer, then write the buffer to the socket. If the socket would block, the
-///   data would remain in that temporary buffer. In practice arti uses only a 1024 byte buffer at
-///   the time of writing, which is negligible. See `arti::socks::copy_interactive()`.
-/// - Within the kernel: There are two additional buffers that will store stream data before the
-///   application connected over socks will see the data: Arti's socket send buffer and the
-///   application's socket receive buffer. If the application were to stop reading from its socket,
-///   stream data would accumulate first in the socket's receive buffer. Once full, stream data
-///   would accumulate in arti's socket's send buffer. This can become relatively large, especially
-///   with buffer autotuning enabled. On a Linux 6.15 system with curl downloading a large file and
-///   stopping mid-download, the receive buffer was 6,116,738 bytes and the send buffer was
-///   2,631,062 bytes. This sums to around 8.7 MB of stream data buffered in the kernel, which is
-///   significantly higher than the value of `CC_XOFF_CLIENT` below.
-///
-/// This means that the total number of bytes buffered before an XOFF is sent can be much larger
-/// than `CC_XOFF_CLIENT`.
-///
-/// While we should take into account the kernel and arti socks buffering above, we also need to
-/// keep in mind that arti-client is a library that can be used by others. These library users might
-/// not do any kernel or socks buffering, for example if they write a rust program that handles the
-/// stream data entirely within their program. We don't want to set `CC_XOFF_CLIENT` too low that it
-/// harms the performance for these users, even if it's fine for the arti socks proxy case.
-// TODO(arti#534): We want to get the value from the consensus. The value in the consensus is the
-// number of relay cells, not number of bytes. But do we really want to use the number of relays
-// cells rather than bytes?
-#[cfg(feature = "flowctl-cc")]
-const CC_XOFF_CLIENT: usize = 250_000;
-
 /// State for XON/XOFF flow control.
 #[derive(Debug)]
 pub(crate) struct XonXoffFlowCtrl {
@@ -54,7 +51,7 @@ pub(crate) struct XonXoffFlowCtrl {
     // TODO: This is a lot of wasted space since each stream needs to store this,
     // and it's very likely that all will be using the same values.
     // TODO: Use these values.
-    _params: FlowCtrlParameters,
+    params: FlowCtrlParameters,
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -73,7 +70,7 @@ impl XonXoffFlowCtrl {
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
-            _params: params.clone(),
+            params: params.clone(),
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,
@@ -154,7 +151,7 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
     }
 
     fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
-        if buffer_len > CC_XOFF_CLIENT {
+        if buffer_len as u64 > self.params.cc_xoff_client.as_bytes() {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
             debug_assert!(matches!(
@@ -178,7 +175,7 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
             return Ok(None);
         }
 
-        if buffer_len <= CC_XOFF_CLIENT {
+        if buffer_len as u64 <= self.params.cc_xoff_client.as_bytes() {
             return Ok(None);
         }
 
