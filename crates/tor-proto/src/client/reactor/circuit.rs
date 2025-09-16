@@ -1425,6 +1425,11 @@ impl Circuit {
         self.hops.ready_streams_iterator(exclude)
     }
 
+    /// Remove all halfstreams that are expired at `now`.
+    pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
+        self.hops.remove_expired_halfstreams(now);
+    }
+
     /// Return a reference to the hop corresponding to `hopnum`, if there is one.
     pub(super) fn hop(&self, hopnum: HopNum) -> Option<&CircHop> {
         self.hops.hop(hopnum)

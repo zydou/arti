@@ -533,6 +533,14 @@ impl StreamMap {
         Some(val)
     }
 
+    /// Remove all halfstreams that are expired at `now`.
+    pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
+        self.closed_streams.retain(|_sid, entry| match entry {
+            ClosedStreamEnt::EndReceived => true,
+            ClosedStreamEnt::EndSent(ent) => ent.expiry > now,
+        });
+    }
+
     // TODO: Eventually if we want relay support, we'll need to support
     // stream IDs chosen by somebody else. But for now, we don't need those.
 }

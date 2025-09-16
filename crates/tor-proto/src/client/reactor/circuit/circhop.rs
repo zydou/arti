@@ -167,6 +167,16 @@ impl CircHopList {
             .collect::<FuturesUnordered<_>>()
     }
 
+    /// Remove all halfstreams that are expired at `now`.
+    pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
+        for hop in self.hops.iter_mut() {
+            hop.map
+                .lock()
+                .expect("lock poisoned")
+                .remove_expired_halfstreams(now);
+        }
+    }
+
     /// Returns true if there are any streams on this circuit
     ///
     /// Important: this function locks the stream map of its each of the [`CircHop`]s
