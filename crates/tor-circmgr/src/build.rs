@@ -95,12 +95,15 @@ async fn create_common<RT: Runtime>(
     rt: &RT,
 ) -> Result<PendingClientTunnel> {
     // Construct the (zero-hop) circuit.
-    let (pending_tunnel, reactor) = chan.new_tunnel(timeouts).await.map_err(|error| Error::Protocol {
-        error,
-        peer: None, // we don't blame the peer, because new_circ() does no networking.
-        action: "initializing circuit",
-        unique_id: None,
-    })?;
+    let (pending_tunnel, reactor) =
+        chan.new_tunnel(timeouts)
+            .await
+            .map_err(|error| Error::Protocol {
+                error,
+                peer: None, // we don't blame the peer, because new_circ() does no networking.
+                action: "initializing circuit",
+                unique_id: None,
+            })?;
 
     rt.spawn(async {
         let _ = reactor.run().await;
@@ -260,7 +263,8 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
         match path {
             OwnedPath::ChannelOnly(target) => {
                 let timeouts = Arc::clone(&self.timeouts);
-                let circ = C::create_chantarget(channel, &self.runtime, &target, params, timeouts).await?;
+                let circ =
+                    C::create_chantarget(channel, &self.runtime, &target, params, timeouts).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, true);
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
@@ -271,7 +275,8 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 let n_hops = p.len() as u8;
                 let timeouts = Arc::clone(&self.timeouts);
                 // Each hop has its own circ parameters. This is for the first hop (CREATE).
-                let circ = C::create(channel, &self.runtime, &p[0], params.clone(), timeouts).await?;
+                let circ =
+                    C::create(channel, &self.runtime, &p[0], params.clone(), timeouts).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, n_hops == 0);
                 // If we fail after this point, we can't tell whether it's

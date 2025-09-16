@@ -646,7 +646,10 @@ pub(crate) mod test {
             let (chan, mut reactor, mut output, _input) = new_reactor(rt.clone());
             assert!(chan.duration_unused().is_some()); // unused yet
 
-            let (ret, reac) = futures::join!(chan.new_tunnel(Arc::new(DummyTimeoutEstimator)), reactor.run_once());
+            let (ret, reac) = futures::join!(
+                chan.new_tunnel(Arc::new(DummyTimeoutEstimator)),
+                reactor.run_once()
+            );
             let (pending, circr) = ret.unwrap();
             rt.spawn(async {
                 let _ignore = circr.run().await;
@@ -684,7 +687,10 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut reactor, mut output, mut input) = new_reactor(rt.clone());
 
-            let (ret, reac) = futures::join!(chan.new_tunnel(Arc::new(DummyTimeoutEstimator)), reactor.run_once());
+            let (ret, reac) = futures::join!(
+                chan.new_tunnel(Arc::new(DummyTimeoutEstimator)),
+                reactor.run_once()
+            );
             let (pending, circr) = ret.unwrap();
             rt.spawn(async {
                 let _ignore = circr.run().await;
