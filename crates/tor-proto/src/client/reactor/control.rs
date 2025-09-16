@@ -298,9 +298,9 @@ pub(crate) enum CtrlCmd {
         answer: oneshot::Sender<StdResult<Circuit, Bug>>,
     },
 
-    /// Install or remove a [`padding::Padder`] for a given hop.
+    /// Install or remove a [`padding::CircuitPadder`] for a given hop.
     ///
-    /// Any existing Padder at that hop is replaced.
+    /// Any existing `CircuitPadder` at that hop is replaced.
     #[cfg(feature = "circ-padding-manual")]
     SetPadder {
         /// The hop to modify.

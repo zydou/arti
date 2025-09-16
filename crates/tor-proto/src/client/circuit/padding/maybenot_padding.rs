@@ -86,7 +86,7 @@ pub(crate) struct PaddingRules {
     enforce_inbound_padding_after_cells: u16,
 }
 
-/// An error returned from validating a [`PadderConfig`].
+/// An error returned from validating a [`CircuitPadderConfig`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[cfg_attr(feature = "circ-padding-manual", visibility::make(pub))]
 #[non_exhaustive]
@@ -499,11 +499,11 @@ impl<S: SleepProvider> PaddingController<S> {
         shared.info_for_hop(hop)
     }
 
-    /// Install the given [`Padder`] to start padding traffic to the listed `hop`.
+    /// Install the given [`CircuitPadder`] to start padding traffic to the listed `hop`.
     ///
     /// Stops padding if the provided padder is `None`.
     ///
-    /// Replaces any previous [`Padder`].
+    /// Replaces any previous [`CircuitPadder`].
     pub(crate) fn install_padder_padding_at_hop(&self, hop: HopNum, padder: Option<CircuitPadder>) {
         self.shared
             .lock()

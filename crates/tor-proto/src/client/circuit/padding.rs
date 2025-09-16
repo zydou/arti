@@ -35,8 +35,7 @@
 //! Because of this, we've taken some effort to optimize the
 //! storage overhead of our padding state.
 //!
-//! [`PaddingController`]: maybenot_padding::PaddingController
-//! [`PaddingEventStream`]: maybenot_padding::PaddingEventStream
+//! [`maybenot`]: https://docs.rs/maybenot/latest/maybenot/index.html
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "circ-padding")] {

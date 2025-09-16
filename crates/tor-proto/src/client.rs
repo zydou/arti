@@ -415,7 +415,7 @@ impl ClientTunnel {
         Ok(components)
     }
 
-    /// Install a [`CircuitPadder`] at the listed [`hop`].
+    /// Install a [`CircuitPadder`] at the listed `hop`.
     ///
     /// Replaces any previous padder installed at that hop.
     #[cfg(feature = "circ-padding-manual")]
@@ -427,7 +427,7 @@ impl ClientTunnel {
         self.circ.set_padder_impl(hop, Some(padder)).await
     }
 
-    /// Remove any [`CircuitPadder`] at the listed [`hop`].
+    /// Remove any [`CircuitPadder`] at the listed `hop`.
     ///
     /// Does nothing if there was not a padder installed there.
     #[cfg(feature = "circ-padding-manual")]
