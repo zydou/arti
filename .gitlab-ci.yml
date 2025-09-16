@@ -84,11 +84,11 @@ python3-checks:
   stage: check
   variables:
     # Updated 2025-09-15
-    BLACK_VERSION: 25.1.0
+    BLACK_VERSION: "25.1.0"
     # Updated 2025-09-15
-    FLAKE8_VERSION: 7.3.0
+    FLAKE8_VERSION: "7.3.0"
     # Updated 2025-09-15
-    MYPY_VERSION: 1.18.1
+    MYPY_VERSION: "1.18.1"
   script:
     - maint/common/apt-install python3-pip python3-venv git
     # AFAICT these python packages do not have debian packages.
@@ -106,9 +106,9 @@ python3-checks:
         types-PyYAML
         types-beautifulsoup4
         types-requests
-        black==$BLACK_VERSION
-        flake8==$FLAKE8_VERSION
-        mypy==$MYPY_VERSION
+        black=="$BLACK_VERSION"
+        flake8=="$FLAKE8_VERSION"
+        mypy=="$MYPY_VERSION"
     - ./maint/python-lints
 
 maint-checks:
