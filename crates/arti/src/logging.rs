@@ -173,6 +173,8 @@ pub struct OpentelemetryHttpExporterConfig {
     ///
     /// If this is set to [`None`], it will be left at the OpenTelemetry default, which is
     /// currently 10 seconds unless overrided with a environment variable.
+    #[serde(default)]
+    #[serde(with = "humantime_serde")]
     timeout: Option<Duration>,
     // TODO: Once opentelemetry-otlp supports more than one protocol over HTTP, add a config option
     // to choose protocol here.
@@ -207,6 +209,7 @@ pub struct OpentelemetryBatchConfig {
     max_export_batch_size: Option<usize>,
     /// Scheduled delay. See [`opentelemetry_sdk::trace::BatchConfig::scheduled_delay`].
     #[builder(default)]
+    #[serde(with = "humantime_serde")]
     scheduled_delay: Option<Duration>,
 }
 impl_standard_builder! { OpentelemetryBatchConfig }
