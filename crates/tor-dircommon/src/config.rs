@@ -66,7 +66,7 @@ pub struct NetworkConfig {
     /// The default is to use a set of compiled-in authorities,
     /// whose identities and public keys are shipped as part of the Arti source code.
     #[builder(sub_builder)]
-    #[builder_field_attr(serde(deserialize_with = "authority_compat"))]
+    #[builder_field_attr(serde(default, deserialize_with = "authority_compat"))]
     #[getset(get = "pub")]
     authorities: AuthorityContacts,
 }
