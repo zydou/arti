@@ -55,7 +55,6 @@ pub(crate) struct XonXoffFlowCtrl {
     /// Consensus parameters.
     // TODO: This is a lot of wasted space since each stream needs to store this,
     // and it's very likely that all will be using the same values.
-    // TODO: Use these values.
     params: FlowCtrlParameters,
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
@@ -65,20 +64,33 @@ pub(crate) struct XonXoffFlowCtrl {
     drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
     last_sent_xon_xoff: Option<XonXoffMsg>,
+    /// DropMark sidechannel mitigations.
+    ///
+    /// This is only enabled if we are a client (including an onion service).
+    sidechannel_mitigation: Option<SidechannelMitigation>,
 }
 
 impl XonXoffFlowCtrl {
     /// Returns a new xon/xoff-based state.
     pub(crate) fn new(
         params: &FlowCtrlParameters,
+        our_endpoint: StreamEndpointType,
+        peer_endpoint: StreamEndpointType,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
+        // only use dropmark sidechannel mitigations at clients, not exits
+        let sidechannel_mitigation = match our_endpoint {
+            StreamEndpointType::Client => Some(SidechannelMitigation::new(peer_endpoint)),
+            StreamEndpointType::Exit => None,
+        };
+
         Self {
             params: params.clone(),
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,
+            sidechannel_mitigation,
         }
     }
 }
@@ -90,9 +102,18 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         true
     }
 
-    fn take_capacity_to_send(&mut self, _msg: &AnyRelayMsg) -> Result<()> {
+    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         // xon/xoff flow control doesn't have "capacity";
         // the capacity is effectively controlled by the congestion control
+
+        // if sidechannel mitigations are enabled and this is a RELAY_DATA message,
+        // notify that we sent a data message
+        if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {
+            if let AnyRelayMsg::Data(data_msg) = msg {
+                sidechannel_mitigation.sent_stream_data(data_msg.as_ref().len());
+            }
+        }
+
         Ok(())
     }
 
@@ -111,6 +132,11 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         // > violation.
         if *xon.version() != 0 {
             return Err(Error::CircProto("Unrecognized XON version".into()));
+        }
+
+        // if sidechannel mitigations are enabled, notify that an XON was received
+        if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {
+            sidechannel_mitigation.received_xon(&self.params)?;
         }
 
         let rate = match xon.kbps_ewma() {
@@ -136,6 +162,11 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         // > violation.
         if *xoff.version() != 0 {
             return Err(Error::CircProto("Unrecognized XOFF version".into()));
+        }
+
+        // if sidechannel mitigations are enabled, notify that an XOFF was received
+        if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {
+            sidechannel_mitigation.received_xoff(&self.params)?;
         }
 
         // update the rate limit and notify the `DataWriter`

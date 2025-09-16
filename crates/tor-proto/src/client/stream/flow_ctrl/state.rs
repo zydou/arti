@@ -45,12 +45,16 @@ impl StreamFlowCtrl {
     #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff(
         params: &FlowCtrlParameters,
+        our_endpoint: StreamEndpointType,
+        peer_endpoint: StreamEndpointType,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
             e: StreamFlowCtrlEnum::XonXoffBased(XonXoffFlowCtrl::new(
                 params,
+                our_endpoint,
+                peer_endpoint,
                 rate_limit_updater,
                 drain_rate_requester,
             )),
