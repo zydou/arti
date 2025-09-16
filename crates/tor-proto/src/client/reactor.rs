@@ -22,9 +22,9 @@ mod control;
 pub(super) mod syncview;
 
 use crate::circuit::UniqId;
-use crate::client::circuit::CircuitRxReceiver;
 use crate::client::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
+use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
 use crate::client::stream::AnyCmdChecker;
 use crate::client::stream::flow_ctrl::state::StreamRateLimit;
 use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
@@ -691,6 +691,7 @@ impl Reactor {
         memquota: CircuitAccount,
         padding_ctrl: PaddingController,
         padding_stream: PaddingEventStream,
+        timeouts: Arc<dyn TimeoutEstimator + Send>,
     ) -> (
         Self,
         mpsc::UnboundedSender<CtrlMsg>,
@@ -722,6 +723,7 @@ impl Reactor {
             Arc::clone(&mutable),
             padding_ctrl,
             padding_stream,
+            timeouts,
         );
 
         let (circuits, mutable) = ConfluxSet::new(tunnel_id, circuit_leg);
@@ -1039,18 +1041,14 @@ impl Reactor {
                     }
                 };
 
-                // TODO: estimated RTT depends on whether this is an onion svc circ or not
-                // TODO: this should take the CBT into account too
                 let max_rtt = {
                     let hop = leg
                         .hop(hop_num)
                         .ok_or_else(|| internal!("the hop we resolved disappeared?!"))?;
                     let ccontrol = hop.ccontrol();
 
-                    // Note: this will be 0 if we have no measurements for the RTT,
-                    // so this half-stream will be removed immediately (on the next reactor run_once() loop).
-                    // (setting the expiry to max(CBT, timeout) *should* fix this though;
-                    // see the above TODOs).
+                    // Note: if we have no measurements for the RTT, this will be set to 0,
+                    // and the timeout will be 2 * CBT.
                     ccontrol
                         .rtt()
                         .max_rtt_usec()
@@ -1058,7 +1056,10 @@ impl Reactor {
                         .unwrap_or_default()
                 };
 
-                let timeout = max_rtt;
+                // We double the CBT to account for rend circuits,
+                // which are twice as long (otherwise we risk expiring
+                // the rend half-streams too soon).
+                let timeout = std::cmp::max(max_rtt, 2 * leg.estimate_cbt());
                 let expire_at = self.runtime.now() + timeout;
 
                 let res: Result<()> = leg

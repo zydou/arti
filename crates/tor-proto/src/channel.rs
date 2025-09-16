@@ -758,6 +758,8 @@ impl Channel {
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
+        // XXX pass in the actual estimator from tor-circmgr
+        let timeouts = todo!();
         Ok(PendingClientTunnel::new(
             id,
             self.clone(),
@@ -768,6 +770,7 @@ impl Channel {
             memquota,
             padding_ctrl,
             padding_stream,
+            timeouts,
         ))
     }
 

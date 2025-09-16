@@ -15,7 +15,7 @@ use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
-use crate::client::circuit::{HopSettings, path};
+use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
 use crate::client::stream::flow_ctrl::state::StreamRateLimit;
@@ -154,6 +154,10 @@ pub(crate) struct Circuit {
     /// Current rules for blocking traffic, according to the padding controller.
     #[cfg(feature = "circ-padding")]
     padding_block: Option<padding::StartBlocking>,
+    /// The circuit timeout estimator.
+    ///
+    /// Used for computing half-stream expiration.
+    timeouts: Arc<dyn TimeoutEstimator>,
     /// Memory quota account
     #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
     memquota: CircuitAccount,
@@ -239,6 +243,7 @@ impl Circuit {
         mutable: Arc<MutableState>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
+        timeouts: Arc<dyn TimeoutEstimator>,
     ) -> Self {
         let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
 
@@ -260,6 +265,7 @@ impl Circuit {
             padding_event_stream,
             #[cfg(feature = "circ-padding")]
             padding_block: None,
+            timeouts,
             memquota,
         }
     }
@@ -1696,6 +1702,11 @@ impl Circuit {
     pub(super) fn stop_blocking_for_padding(&mut self) {
         self.chan_sender.stop_blocking();
         self.padding_block = None;
+    }
+
+    /// The approximate value of the circuit build timeout.
+    pub(super) fn estimate_cbt(&self) -> Duration {
+        self.timeouts.circuit_build_timeout(self.hops.len())
     }
 }
 

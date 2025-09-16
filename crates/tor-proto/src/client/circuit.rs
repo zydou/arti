@@ -79,6 +79,7 @@ use oneshot_fused_workaround as oneshot;
 use futures::FutureExt as _;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tor_memquota::mq_queue::{self, MpscSpec};
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -954,6 +955,7 @@ impl PendingClientTunnel {
         memquota: CircuitAccount,
         padding_ctrl: PaddingController,
         padding_stream: PaddingEventStream,
+        timeouts: Arc<dyn TimeoutEstimator>,
     ) -> (PendingClientTunnel, crate::client::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) = Reactor::new(
@@ -965,6 +967,7 @@ impl PendingClientTunnel {
             memquota.clone(),
             padding_ctrl,
             padding_stream,
+            timeouts,
         );
 
         let circuit = ClientCirc {
@@ -1134,6 +1137,16 @@ impl PendingClientTunnel {
     }
 }
 
+/// An object used by circuits to compute various timeouts.
+///
+// This is implemented for the timeout `Estimator` from tor-circmgr.
+pub trait TimeoutEstimator: Send + Sync {
+    /// The estimated circuit build timeout for a circuit of the specified length.
+    ///
+    // Used by the circuit reactor for deciding when to expire half-streams.
+    fn circuit_build_timeout(&self, length: usize) -> Duration;
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -1160,6 +1173,7 @@ pub(crate) mod test {
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
     use crate::memquota::SpecificAccount as _;
+    use crate::util::DummyTimeoutEstimator;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -1322,6 +1336,7 @@ pub(crate) mod test {
             CircuitAccount::new_noop(),
             padding_ctrl,
             padding_stream,
+            Arc::new(DummyTimeoutEstimator),
         );
 
         rt.spawn(async {
@@ -1538,6 +1553,7 @@ pub(crate) mod test {
             CircuitAccount::new_noop(),
             padding_ctrl,
             padding_stream,
+            Arc::new(DummyTimeoutEstimator),
         );
 
         rt.spawn(async {
