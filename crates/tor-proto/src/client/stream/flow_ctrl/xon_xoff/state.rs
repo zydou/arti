@@ -60,7 +60,7 @@ pub(crate) struct XonXoffFlowCtrl {
     /// [`XonXoffReader`](crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
     drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
-    last_sent_xon_xoff: Option<LastSentXonXoff>,
+    last_sent_xon_xoff: Option<XonXoffMsg>,
 }
 
 impl XonXoffFlowCtrl {
@@ -155,24 +155,21 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         if buffer_len as u64 > self.params.cc_xoff_client.as_bytes() {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
-            debug_assert!(matches!(
-                self.last_sent_xon_xoff,
-                Some(LastSentXonXoff::Xoff),
-            ));
+            debug_assert!(matches!(self.last_sent_xon_xoff, Some(XonXoffMsg::Xoff)));
 
             // inform the stream reader that we need a new drain rate
             self.drain_rate_requester.notify();
             return Ok(None);
         }
 
-        self.last_sent_xon_xoff = Some(LastSentXonXoff::Xon(rate));
+        self.last_sent_xon_xoff = Some(XonXoffMsg::Xon(rate));
 
         Ok(Some(Xon::new(FlowCtrlVersion::V0, rate)))
     }
 
     fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
         // if the last XON/XOFF we sent was an XOFF, no need to send another
-        if matches!(self.last_sent_xon_xoff, Some(LastSentXonXoff::Xoff)) {
+        if matches!(self.last_sent_xon_xoff, Some(XonXoffMsg::Xoff)) {
             return Ok(None);
         }
 
@@ -183,7 +180,7 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         // either we have never sent an XOFF or XON, or we last sent an XON
 
         // remember that we last sent an XOFF
-        self.last_sent_xon_xoff = Some(LastSentXonXoff::Xoff);
+        self.last_sent_xon_xoff = Some(XonXoffMsg::Xoff);
 
         // inform the stream reader that we need a new drain rate
         self.drain_rate_requester.notify();
@@ -192,9 +189,9 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
     }
 }
 
-/// The last XON/XOFF message that we sent.
+/// An XON or XOFF message with associated data.
 #[derive(Debug)]
-enum LastSentXonXoff {
+enum XonXoffMsg {
     /// XON message with a rate.
     // TODO: I'm expecting that we'll want the `XonKbpsEwma` in the future.
     // If that doesn't end up being the case, then we should remove it.
