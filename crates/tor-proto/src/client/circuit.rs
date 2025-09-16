@@ -48,6 +48,8 @@ pub(crate) mod padding;
 pub(super) mod path;
 
 use crate::channel::Channel;
+#[cfg(feature = "circ-padding-manual")]
+use crate::client::CircuitPadder;
 use crate::client::circuit::celltypes::*;
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
@@ -901,6 +903,43 @@ impl ClientCirc {
             .unbounded_send(message)
             .map_err(|_| Error::CircuitClosed)?;
 
+        rx.await.map_err(|_| Error::CircuitClosed)?
+    }
+
+    /// Install a [`CircuitPadder`] at the listed `hop`.
+    ///
+    /// Replaces any previous padder installed at that hop.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn start_padding_at_hop(&self, hop: HopNum, padder: CircuitPadder) -> Result<()> {
+        self.set_padder_impl(crate::HopLocation::Hop((self.unique_id, hop)), Some(padder))
+            .await
+    }
+
+    /// Remove any [`CircuitPadder`] at the listed `hop`.
+    ///
+    /// Does nothing if there was not a padder installed there.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn stop_padding_at_hop(&self, hop: HopNum) -> Result<()> {
+        self.set_padder_impl(crate::HopLocation::Hop((self.unique_id, hop)), None)
+            .await
+    }
+
+    /// Helper: replace the padder at `hop` with the provided `padder`, or with `None`.
+    #[cfg(feature = "circ-padding-manual")]
+    pub(super) async fn set_padder_impl(
+        &self,
+        hop: crate::HopLocation,
+        padder: Option<CircuitPadder>,
+    ) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        let msg = CtrlCmd::SetPadder {
+            hop,
+            padder,
+            sender: tx,
+        };
+        self.command
+            .unbounded_send(msg)
+            .map_err(|_| Error::CircuitClosed)?;
         rx.await.map_err(|_| Error::CircuitClosed)?
     }
 

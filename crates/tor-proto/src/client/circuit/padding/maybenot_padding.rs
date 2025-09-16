@@ -1,5 +1,14 @@
 //! A `maybenot`-specific backend for padding.
 
+// Some of the circuit padding implementation isn't reachable unless
+// the extra-experimental circ-padding-manual feature is also present.
+//
+// TODO circpad: Remove this once we have circ-padding negotiation implemented.
+#![cfg_attr(
+    all(feature = "circ-padding", not(feature = "circ-padding-manual")),
+    expect(dead_code)
+)]
+
 mod backend;
 
 use std::num::NonZeroU16;
@@ -36,6 +45,143 @@ type PaddingEventVec = Vec<PaddingEvent>;
 ///
 /// This is a separate type so we can tune it and make it into a smallvec if needed.
 type PerHopPaddingEventVec = Vec<PerHopPaddingEvent>;
+
+/// Specifications for a set of maybenot padding machines as used in Arti: used to construct a `maybenot::Framework`.
+#[derive(Clone, Debug, derive_builder::Builder)]
+#[builder(build_fn(
+    validate = "Self::validate",
+    private,
+    error = "CircuitPadderConfigError"
+))]
+#[builder(name = "CircuitPadderConfig")]
+#[cfg_attr(not(feature = "circ-padding-manual"), builder(private))]
+#[cfg_attr(feature = "circ-padding-manual", builder(public))]
+pub(crate) struct PaddingRules {
+    /// List of padding machines to use for shaping traffic.
+    ///
+    /// Note that this list may be empty, if we only want to receive padding,
+    /// and never send it.
+    machines: Arc<[maybenot::Machine]>,
+    /// Maximum allowable outbound padding fraction.
+    ///
+    /// Passed directly to maybenot; not enforced in Arti.
+    /// See [`maybenot::Framework::new`] for details.
+    ///
+    /// Must be between 0.0 and 1.0
+    #[builder(default = "1.0")]
+    max_outbound_blocking_frac: f64,
+    /// Maximum allowable outbound blocking fraction.
+    ///
+    /// Passed directly to maybenot; not enforced in Arti.
+    /// See [`maybenot::Framework::new`] for details.
+    ///
+    /// Must be between 0.0 and 1.0.
+    #[builder(default = "1.0")]
+    max_outbound_padding_frac: f64,
+    /// Maximum allowable fraction of inbound padding
+    #[builder(default = "1.0")]
+    max_inbound_padding_frac: f64,
+    /// Number of cells before which we should not enforce max_inbound_padding_frac.
+    #[builder(default = "1")]
+    enforce_inbound_padding_after_cells: u16,
+}
+
+/// An error returned from validating a [`CircuitPadderConfig`].
+#[derive(Clone, Debug, thiserror::Error)]
+#[cfg_attr(feature = "circ-padding-manual", visibility::make(pub))]
+#[non_exhaustive]
+pub(crate) enum CircuitPadderConfigError {
+    /// A field needed to be given, but wasn't.
+    #[error("No value was given for {0}")]
+    UninitializedField(&'static str),
+    /// A field needed to be a proper fraction, but wasn't.
+    #[error("Value was out of range for {0}. (Must be between 0 and 1)")]
+    FractionOutOfRange(&'static str),
+    /// Maybenot gave us an error when initializing the framework.
+    #[error("Maybenot could not initialize framework for rules")]
+    MaybenotError(#[from] maybenot::Error),
+}
+
+impl From<derive_builder::UninitializedFieldError> for CircuitPadderConfigError {
+    fn from(value: derive_builder::UninitializedFieldError) -> Self {
+        Self::UninitializedField(value.field_name())
+    }
+}
+
+impl CircuitPadderConfig {
+    /// Helper: Return an error if this is not a valid Builder.
+    fn validate(&self) -> Result<(), CircuitPadderConfigError> {
+        macro_rules! enforce_frac {
+            { $field:ident } =>
+            {
+                if self.$field.is_some_and(|v| ! (0.0 .. 1.0).contains(&v)) {
+                    return Err(CircuitPadderConfigError::FractionOutOfRange(stringify!($field)));
+                }
+            }
+        }
+        enforce_frac!(max_outbound_blocking_frac);
+        enforce_frac!(max_outbound_padding_frac);
+        enforce_frac!(max_inbound_padding_frac);
+
+        Ok(())
+    }
+
+    /// Construct a [`CircuitPadder`] based on this [`CircuitPadderConfig`].
+    ///
+    /// A [`CircuitPadderConfig`] is created its accessors, and used with this method to build a [`CircuitPadder`].
+    ///
+    /// That [`CircuitPadder`] can then be installed on a circuit using [`ClientCirc::start_padding_at_hop`](crate::client::circuit::ClientCirc::start_padding_at_hop).
+    #[cfg_attr(feature = "circ-padding-manual", visibility::make(pub))]
+    pub(crate) fn create_padder(&self) -> Result<CircuitPadder, CircuitPadderConfigError> {
+        let rules = self.build()?;
+        let backend = rules.create_padding_backend()?;
+        let initial_stats = rules.initialize_stats();
+        Ok(CircuitPadder {
+            initial_stats,
+            backend,
+        })
+    }
+}
+
+impl PaddingRules {
+    /// Create a [`PaddingBackend`] for this [`PaddingRules`], so we can install it in a
+    /// [`PaddingShared`].
+    fn create_padding_backend(&self) -> Result<Box<dyn PaddingBackend>, maybenot::Error> {
+        // TODO circpad: specialize this.
+        const OPTIMIZE_FOR_N_MACHINES: usize = 4;
+
+        let backend =
+            backend::MaybenotPadder::<OPTIMIZE_FOR_N_MACHINES>::from_framework_rules(self)?;
+        Ok(Box::new(backend))
+    }
+
+    /// Create a new `PaddingStats` to reflect the rules for inbound padding of this  PaddingRules
+    fn initialize_stats(&self) -> PaddingStats {
+        PaddingStats {
+            n_padding: 0,
+            n_normal: 0,
+            max_padding_frac: self.max_inbound_padding_frac as f32,
+            // We just convert 0 to 1, since that's necessarily what was meant.
+            enforce_max_after: self
+                .enforce_inbound_padding_after_cells
+                .try_into()
+                .unwrap_or(1.try_into().expect("1 was not nonzero!?")),
+        }
+    }
+}
+
+/// A opaque handle to a padding implementation for a single hop.
+///
+/// This type is constructed with [`CircuitPadderConfig::create_padder`].
+#[derive(derive_more::Debug)]
+#[cfg_attr(feature = "circ-padding-manual", visibility::make(pub))]
+pub(crate) struct CircuitPadder {
+    /// The initial padding stats and restrictions for inbound padding.
+    initial_stats: PaddingStats,
+    /// The underlying backend to use.
+    #[debug(skip)]
+    backend: Box<dyn PaddingBackend>,
+}
 
 /// An instruction from the padding machine to the circuit.
 ///
@@ -162,16 +308,6 @@ pub(crate) struct SendPadding {
 }
 
 impl SendPadding {
-    /// Create a new SendPadding based on instructions from Maybenot.
-    fn new(machine: maybenot::MachineId, hop: HopNum, replace: Replace, bypass: Bypass) -> Self {
-        Self {
-            machine,
-            hop,
-            replace,
-            bypass,
-        }
-    }
-
     /// Convert this SendPadding into a TriggerEvent for Maybenot,
     /// to indicate that the padding was sent.
     fn into_sent_event(self) -> maybenot::TriggerEvent {
@@ -269,18 +405,6 @@ struct PaddingStats {
     enforce_max_after: NonZeroU16,
 }
 
-impl std::default::Default for PaddingStats {
-    fn default() -> Self {
-        Self {
-            n_padding: 0,
-            n_normal: 0,
-            // TODO circpad: These values are silly, and should be framework-dependent.
-            max_padding_frac: 0.75,
-            enforce_max_after: 128.try_into().expect("BUG: 128==0!?"),
-        }
-    }
-}
-
 impl PaddingStats {
     /// Return an error if this PaddingStats has exceeded its maximum.
     fn validate(&self) -> Result<(), ExcessPadding> {
@@ -373,6 +497,18 @@ impl<S: SleepProvider> PaddingController<S> {
         // Every hop up to and including the target hop will see this as normal data.
         shared.trigger_events(hop, &[maybenot::TriggerEvent::NormalSent]);
         shared.info_for_hop(hop)
+    }
+
+    /// Install the given [`CircuitPadder`] to start padding traffic to the listed `hop`.
+    ///
+    /// Stops padding if the provided padder is `None`.
+    ///
+    /// Replaces any previous [`CircuitPadder`].
+    pub(crate) fn install_padder_padding_at_hop(&self, hop: HopNum, padder: Option<CircuitPadder>) {
+        self.shared
+            .lock()
+            .expect("lock poisoned")
+            .set_hop_backend(hop, padder);
     }
 
     /// Report that we have enqueued a non-padding cell
@@ -579,10 +715,8 @@ impl<S: SleepProvider> PaddingShared<S> {
 }
 
 impl<S: SleepProvider> PaddingShared<S> {
-    /// Install a PaddingBackend for a single hop.
-    ///
-    // TODO circpad: define a wrapper for this function; right now it's unreachable.
-    fn set_hop_backend(&mut self, hop: HopNum, backend: Option<Box<dyn PaddingBackend>>) {
+    /// Install or remove a [`CircuitPadder`] for a single hop.
+    fn set_hop_backend(&mut self, hop: HopNum, backend: Option<CircuitPadder>) {
         let hop_idx: usize = hop.into();
         assert!(hop_idx < MAX_HOPS);
         let n_needed = hop_idx + 1;
@@ -595,8 +729,14 @@ impl<S: SleepProvider> PaddingShared<S> {
         while self.stats.len() < n_needed {
             self.stats.push(None);
         }
-        self.hops[hop_idx] = backend;
-        self.stats[hop_idx] = Default::default();
+        // project through option...
+        let (hop_backend, stats) = if let Some(padder) = backend {
+            (Some(padder.backend), Some(padder.initial_stats))
+        } else {
+            (None, None)
+        };
+        self.hops[hop_idx] = hop_backend;
+        self.stats[hop_idx] = stats;
         // TODO circpad: we probably need to wake up the stream in this case.
 
         // TODO circpad: this won't behave correctly if there was previously a backend for this hop,

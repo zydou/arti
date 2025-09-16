@@ -7,6 +7,8 @@ use super::{
 };
 use crate::Result;
 use crate::client::circuit::celltypes::CreateResponse;
+#[cfg(feature = "circ-padding-manual")]
+use crate::client::circuit::padding;
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::circuit::circ_extensions_from_settings;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
@@ -294,6 +296,19 @@ pub(crate) enum CtrlCmd {
         /// Oneshot channel to return the underlying [`Circuit`],
         /// or an error if the reactor's tunnel is multi-path.
         answer: oneshot::Sender<StdResult<Circuit, Bug>>,
+    },
+
+    /// Install or remove a [`padding::CircuitPadder`] for a given hop.
+    ///
+    /// Any existing `CircuitPadder` at that hop is replaced.
+    #[cfg(feature = "circ-padding-manual")]
+    SetPadder {
+        /// The hop to modify.
+        hop: HopLocation,
+        /// The Padder to install, or None to remove any existing padder.
+        padder: Option<padding::CircuitPadder>,
+        /// A sender to alert after we've changed the padding.
+        sender: oneshot::Sender<Result<()>>,
     },
 }
 
@@ -761,6 +776,16 @@ impl<'a> ControlHandler<'a> {
             #[cfg(feature = "conflux")]
             CtrlCmd::ShutdownAndReturnCircuit { answer } => {
                 self.reactor.handle_shutdown_and_return_circuit(answer)
+            }
+            #[cfg(feature = "circ-padding-manual")]
+            CtrlCmd::SetPadder {
+                hop,
+                padder,
+                sender,
+            } => {
+                let result = self.reactor.set_padding_at_hop(hop, padder);
+                let _ = sender.send(result);
+                Ok(())
             }
         }
     }

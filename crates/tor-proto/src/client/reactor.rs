@@ -1441,6 +1441,21 @@ impl Reactor {
             .and_then(|resolved| self.resolve_hop_location(resolved).ok())
     }
 
+    /// Install or remove a padder at a given hop.
+    #[cfg(feature = "circ-padding-manual")]
+    fn set_padding_at_hop(
+        &self,
+        hop: HopLocation,
+        padder: Option<super::circuit::padding::CircuitPadder>,
+    ) -> Result<()> {
+        let HopLocation::Hop((leg_id, hop_num)) = hop else {
+            return Err(bad_api_usage!("Padding to the join point is not supported.").into());
+        };
+        let circ = self.circuits.leg(leg_id).ok_or(Error::NoSuchHop)?;
+        circ.set_padding_at_hop(hop_num, padder)?;
+        Ok(())
+    }
+
     /// Does congestion control use stream SENDMEs for the given hop?
     ///
     /// Returns `None` if either the `leg` or `hop` don't exist.

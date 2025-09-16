@@ -35,12 +35,7 @@
 //! Because of this, we've taken some effort to optimize the
 //! storage overhead of our padding state.
 //!
-//! [`PaddingController`]: maybenot_padding::PaddingController
-//! [`PaddingEventStream`]: maybenot_padding::PaddingEventStream
-
-// TODO circpad: Remove these allows when we integrate padding into the rest of our code.
-#![allow(dead_code)]
-#![allow(unused_imports)]
+//! [`maybenot`]: https://docs.rs/maybenot/latest/maybenot/index.html
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "circ-padding")] {
@@ -52,6 +47,11 @@ cfg_if::cfg_if! {
         use no_padding as padding_impl;
     }
 }
+
+// These types are made public using the super-experimental circ-padding-manual feature.
+#[cfg(feature = "circ-padding-manual")]
+#[cfg_attr(docsrs, doc(cfg(feature = "circ-padding-manual")))]
+pub use maybenot_padding::{CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError};
 
 pub(crate) use padding_impl::{
     PaddingController, PaddingEvent, PaddingEventStream, QueuedCellPaddingInfo, SendPadding,

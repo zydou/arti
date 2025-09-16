@@ -315,8 +315,6 @@ impl Timer {
 struct BlockingState {
     /// The time at which this blocking expires.
     expiration: Instant,
-    /// If true, then some padding can bypass this blocking.
-    bypassable: bool,
 }
 
 /// An implementation of circuit padding using [`maybenot`].
@@ -334,6 +332,20 @@ pub(super) struct MaybenotPadder<const N: usize> {
 }
 
 impl<const N: usize> MaybenotPadder<N> {
+    /// Construct a new MaybyenotPadder from a provided `FrameworkRules`.
+    pub(super) fn from_framework_rules(
+        rules: &super::PaddingRules,
+    ) -> Result<Self, maybenot::Error> {
+        let framework = maybenot::Framework::new(
+            rules.machines.clone(),
+            rules.max_outbound_padding_frac,
+            rules.max_outbound_blocking_frac,
+            Instant::now(),
+            ThisThreadRng,
+        )?;
+        Ok(Self::from_framework(framework))
+    }
+
     /// Construct a new MaybenotPadder from a given Framework.
     pub(super) fn from_framework(framework: Framework) -> Self {
         let n = framework.num_machines();
@@ -486,7 +498,6 @@ impl<const N: usize> MaybenotPadder<N> {
                             if replace {
                                 self.blocking = Some(BlockingState {
                                     expiration: new_expiry,
-                                    bypassable: bypass,
                                 });
                             }
 

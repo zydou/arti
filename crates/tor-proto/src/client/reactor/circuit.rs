@@ -1567,6 +1567,24 @@ impl Circuit {
             .map(|handler| handler.init_rtt())?
     }
 
+    /// Start or stop padding at the given hop.
+    ///
+    /// Replaces any previous padder at that hop.
+    ///
+    /// Return an error if that hop doesn't exist.
+    #[cfg(feature = "circ-padding-manual")]
+    pub(super) fn set_padding_at_hop(
+        &self,
+        hop: HopNum,
+        padder: Option<padding::CircuitPadder>,
+    ) -> Result<()> {
+        if self.hop(hop).is_none() {
+            return Err(Error::NoSuchHop);
+        }
+        self.padding_ctrl.install_padder_padding_at_hop(hop, padder);
+        Ok(())
+    }
+
     /// Determine how exactly to handle a request to handle padding.
     ///
     /// This is fairly complicated; see the maybenot documentation for more information.
