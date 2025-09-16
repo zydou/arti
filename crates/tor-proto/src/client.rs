@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use crate::circuit::UniqId;
 #[cfg(feature = "circ-padding-manual")]
+#[cfg_attr(docsrs, doc(cfg(feature = "circ-padding-manual")))]
 pub use crate::client::circuit::padding::{
     CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError,
 };

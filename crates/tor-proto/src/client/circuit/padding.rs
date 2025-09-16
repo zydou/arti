@@ -38,15 +38,6 @@
 //! [`PaddingController`]: maybenot_padding::PaddingController
 //! [`PaddingEventStream`]: maybenot_padding::PaddingEventStream
 
-// Some of the circuit padding implementation isn't reachable unless
-// the extra-experimental circ-padding-manual feature is also present.
-//
-// TODO circpad: Remove this once we have circ-padding negotiation implemented.
-#![cfg_attr(
-    all(feature = "circ-padding", not(feature = "circ-padding-manual")),
-    expect(dead_code)
-)]
-
 cfg_if::cfg_if! {
     if #[cfg(feature = "circ-padding")] {
         mod maybenot_padding;
@@ -60,6 +51,7 @@ cfg_if::cfg_if! {
 
 // These types are made public using the super-experimental circ-padding-manual feature.
 #[cfg(feature = "circ-padding-manual")]
+#[cfg_attr(docsrs, doc(cfg(feature = "circ-padding-manual")))]
 pub use maybenot_padding::{CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError};
 
 pub(crate) use padding_impl::{
