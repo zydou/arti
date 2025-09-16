@@ -1,6 +1,6 @@
 # Using OpenTelemetry with Arti
 
-Arti has experimental support for exporting span data via OpenTelemetry. This allows use to see detailed information about the call stack and timing.
+Arti has experimental support for exporting span data via OpenTelemetry. This allows use to see detailed information about the call stack and timing. This can have serious security implications, and is something you should only do if you're a developer, or have thought through and analyzed the security implications carefully as they relate to your particular usecase.
 
 To use this feature, arti must be compiled with the `opentelemetry` feature.
 
@@ -59,6 +59,6 @@ Run Jaeger. Click on "Search" in the Jaeger UI, then "Upload", and upload the cr
 
 Function calls are not instrumented by default. If you want to see something, you will need to add instrumentation to capture it. This can be easily done by applying the `#[instrument]` macro from the `tracing` crate to the functions you are interested in.
 
-It is worthwhile to familiarize yourself with [the options available](https://docs.rs/tracing/latest/tracing/attr.instrument.html). I typically use `level = "trace"` and often use `skip_all` to avoid logging function arguments where I don't want to. You can also use `skip` to avoid logging specific fields, if you want to capture some fields but not others.
+It is worthwhile to familiarize yourself with [the options available](https://docs.rs/tracing/latest/tracing/attr.instrument.html). I typically use `level = "trace"` and often use `skip_all` to avoid logging function arguments where I don't want to. You can also use `skip` to avoid logging specific fields, if you want to capture some fields but not others. In general, you should add `skip_all` to everything that you don't have a good reason to, and if you omit `skip_all`, you should think through the security implications carefully.
 
 If you add instrumentation to something, please be sure to submit a MR for it!
