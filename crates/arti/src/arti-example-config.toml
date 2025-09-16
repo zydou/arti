@@ -97,9 +97,13 @@
 #time_granularity = "1s"
 
 # If the `opentelemetry` feature is enabled, spans can be exported to a HTTP(S)
-# URL or to a JSON file.
+# URL or to a JSON file in the https://opentelemetry.io format.
 #
-# Only one of `file` or `http` may be specified, due to limitations in the underlying tracing system.
+# Note that this information may be extremely sensitive. It is not recommended
+# to use this outside of development and debugging usecases.
+#
+# Only one of `file` or `http` may be specified, due to limitations in the
+# underlying tracing system.
 #
 # For example (not the default):
 #     opentelemetry.file = { path = "~/logs/otel.json" }
