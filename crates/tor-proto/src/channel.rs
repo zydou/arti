@@ -76,6 +76,7 @@ use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{ClockSkew, client};
 use crate::{Error, Result};
+use cfg_if::cfg_if;
 use reactor::BoxedChannelStreamOps;
 use safelog::sensitive as sv;
 use std::future::{Future, IntoFuture};
@@ -90,6 +91,9 @@ use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider, StreamOps};
+
+#[cfg(feature = "circ-padding")]
+use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
@@ -243,7 +247,7 @@ pub struct Channel {
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
-    cell_tx: mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>,
+    cell_tx: CellTx,
 
     /// A receiver that indicates whether the channel is closed.
     ///
@@ -346,11 +350,27 @@ enum PaddingControlState {
 
 use PaddingControlState as PCS;
 
+cfg_if! {
+    if #[cfg(feature="circ-padding")] {
+        /// Implementation type for a ChannelSender.
+        type CellTx = CountingSink<mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>>;
+
+        /// Implementation type for a cell queue held by a reactor.
+        type CellRx = CountingStream<mq_queue::Receiver<ChanCellQueueEntry, mq_queue::MpscSpec>>;
+    } else {
+        /// Implementation type for a ChannelSender.
+        type CellTx = mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>;
+
+        /// Implementation type for a cell queue held by a reactor.
+        type CellRx = mq_queue::Receiver<ChanCellQueueEntry, mq_queue::MpscSpec>;
+    }
+}
+
 /// A handle to a [`Channel`]` that can be used, by circuits, to send channel cells.
 #[derive(Debug)]
 pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
-    cell_tx: mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>,
+    cell_tx: CellTx,
     /// A receiver used to check if the channel is closed.
     reactor_closed_rx: oneshot_broadcast::Receiver<Result<CloseInfo>>,
     /// Unique ID for this channel. For logging.
@@ -383,7 +403,28 @@ impl ChannelSender {
     /// (This can sometimes be used to avoid having to keep
     /// a separate clone of the time provider.)
     pub(crate) fn time_provider(&self) -> &DynTimeProvider {
-        self.cell_tx.time_provider()
+        cfg_if! {
+            if #[cfg(feature="circ-padding")] {
+                self.cell_tx.inner().time_provider()
+            } else {
+                self.cell_tx.time_provider()
+            }
+        }
+    }
+
+    /// Return an approximate count of the number of outbound cells queued for this channel.
+    ///
+    /// This count is necessarily approximate,
+    /// because the underlying count can be modified by other senders and receivers
+    /// between when this method is called and when its return value is used.
+    ///
+    /// Does not include cells that have already been passed to the TLS connection.
+    ///
+    /// Circuit padding uses this count to determine
+    /// when messages are already outbound for the first hop of a circuit.
+    #[cfg(feature = "circ-padding")]
+    pub(crate) fn approx_count(&self) -> usize {
+        self.cell_tx.approx_count()
     }
 }
 
@@ -522,6 +563,8 @@ impl Channel {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (cell_tx, cell_rx) = mq_queue::MpscSpec::new(CHANNEL_BUFFER_SIZE)
             .new_mq(dyn_time.clone(), memquota.as_raw_account())?;
+        #[cfg(feature = "circ-padding")]
+        let (cell_tx, cell_rx) = counting_streams::channel(cell_tx, cell_rx);
         let unused_since = AtomicOptTimestamp::new();
         unused_since.update();
 
@@ -585,7 +628,13 @@ impl Channel {
     /// (This can sometimes be used to avoid having to keep
     /// a separate clone of the time provider.)
     pub fn time_provider(&self) -> &DynTimeProvider {
-        self.cell_tx.time_provider()
+        cfg_if! {
+            if #[cfg(feature="circ-padding")] {
+                self.cell_tx.inner().time_provider()
+            } else {
+                self.cell_tx.time_provider()
+            }
+        }
     }
 
     /// Return an OwnedChanTarget representing the actual handshake used to
@@ -739,7 +788,7 @@ impl Channel {
             return Err(ChannelClosed.into());
         }
 
-        let time_prov = self.cell_tx.time_provider().clone();
+        let time_prov = self.time_provider().clone();
         let memquota = CircuitAccount::new(&self.details.memquota)?;
 
         // TODO: blocking is risky, but so is unbounded.
@@ -925,11 +974,11 @@ fn fake_channel_details() -> Arc<ChannelDetails> {
 
 /// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
 #[cfg(any(test, feature = "testing"))] // Used by Channel::new_fake which is also feature=testing
-pub(crate) fn fake_mpsc() -> (
-    mq_queue::Sender<ChanCellQueueEntry, mq_queue::MpscSpec>,
-    mq_queue::Receiver<ChanCellQueueEntry, mq_queue::MpscSpec>,
-) {
-    crate::fake_mpsc(CHANNEL_BUFFER_SIZE)
+pub(crate) fn fake_mpsc() -> (CellTx, CellRx) {
+    let (tx, rx) = crate::fake_mpsc(CHANNEL_BUFFER_SIZE);
+    #[cfg(feature = "circ-padding")]
+    let (tx, rx) = counting_streams::channel(tx, rx);
+    (tx, rx)
 }
 
 #[cfg(test)]

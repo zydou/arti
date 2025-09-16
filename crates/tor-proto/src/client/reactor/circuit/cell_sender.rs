@@ -120,7 +120,16 @@ impl CircuitCellSender {
     /// Return true if we have a queued cell for the specified hop or later.
     #[cfg(feature = "circ-padding")]
     pub(super) fn have_queued_cell_for_hop_or_later(&self, hop: HopNum) -> bool {
-        // TODO circpad: in theory we could also look at the per-channel queue to find this out!
+        if hop.is_first_hop() && self.chan_sender().approx_count() > 0 {
+            // There's a cell on the outbound channel queue:
+            // That will function perfectly well as padding to the first hop of this circuit,
+            // whether it is actually for this circuit or not.
+            return true;
+        }
+
+        // Now look at our own sometimes_unbounded queue.
+        //
+        // TODO circpad: in theory we could also look at the members of the per-channel queue to find this out!
         // But that's nontrivial, since the per-channel queue is implemented with an futures mpsc
         // channel, which doesn't have any functionality like that.
         self.sometimes_unbounded()
