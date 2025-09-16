@@ -68,7 +68,7 @@ mod unique_id;
 pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
-use crate::client::circuit::PendingClientTunnel;
+use crate::client::circuit::{PendingClientTunnel, TimeoutEstimator};
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
@@ -734,6 +734,7 @@ impl Channel {
     /// [crate::client::circuit::PendingClientTunnel] to build the circuit.
     pub async fn new_tunnel(
         self: &Arc<Self>,
+        timeouts: Arc<dyn TimeoutEstimator>,
     ) -> Result<(PendingClientTunnel, client::reactor::Reactor)> {
         if self.is_closing() {
             return Err(ChannelClosed.into());
@@ -758,8 +759,6 @@ impl Channel {
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
-        // XXX pass in the actual estimator from tor-circmgr
-        let timeouts = todo!();
         Ok(PendingClientTunnel::new(
             id,
             self.clone(),

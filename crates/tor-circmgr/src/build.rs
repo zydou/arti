@@ -61,6 +61,7 @@ pub(crate) trait Buildable: Sized {
         rt: &RT,
         ct: &OwnedChanTarget,
         params: CircParameters,
+        timeouts: Arc<dyn tor_proto::client::circuit::TimeoutEstimator>,
     ) -> Result<Self>;
 
     /// Launch a new circuit through a given relay, given a circuit target
@@ -70,6 +71,7 @@ pub(crate) trait Buildable: Sized {
         rt: &RT,
         ct: &OwnedCircTarget,
         params: CircParameters,
+        timeouts: Arc<dyn tor_proto::client::circuit::TimeoutEstimator>,
     ) -> Result<Self>;
 
     /// Extend this circuit-like object by one hop, to the location described
@@ -89,10 +91,11 @@ pub(crate) trait Buildable: Sized {
 /// implementation of `Buildable` for `ClientTunnel`.
 async fn create_common<RT: Runtime>(
     chan: Arc<tor_proto::channel::Channel>,
+    timeouts: Arc<dyn tor_proto::client::circuit::TimeoutEstimator>,
     rt: &RT,
 ) -> Result<PendingClientTunnel> {
     // Construct the (zero-hop) circuit.
-    let (pending_tunnel, reactor) = chan.new_tunnel().await.map_err(|error| Error::Protocol {
+    let (pending_tunnel, reactor) = chan.new_tunnel(timeouts).await.map_err(|error| Error::Protocol {
         error,
         peer: None, // we don't blame the peer, because new_circ() does no networking.
         action: "initializing circuit",
@@ -147,8 +150,9 @@ impl Buildable for ClientTunnel {
         rt: &RT,
         ct: &OwnedChanTarget,
         params: CircParameters,
+        timeouts: Arc<dyn tor_proto::client::circuit::TimeoutEstimator>,
     ) -> Result<Self> {
-        let pending_tunnel = create_common(chan, rt).await?;
+        let pending_tunnel = create_common(chan, timeouts, rt).await?;
         let unique_id = Some(pending_tunnel.peek_unique_id());
         pending_tunnel
             .create_firsthop_fast(params)
@@ -165,8 +169,9 @@ impl Buildable for ClientTunnel {
         rt: &RT,
         ct: &OwnedCircTarget,
         params: CircParameters,
+        timeouts: Arc<dyn tor_proto::client::circuit::TimeoutEstimator>,
     ) -> Result<Self> {
-        let pending_tunnel = create_common(chan, rt).await?;
+        let pending_tunnel = create_common(chan, timeouts, rt).await?;
         let unique_id = Some(pending_tunnel.peek_unique_id());
 
         let handshake_res = pending_tunnel.create_firsthop(ct, params).await;
@@ -216,7 +221,7 @@ struct Builder<R: Runtime, C: Buildable + Sync + Send + 'static> {
     /// A channel manager that this circuit builder uses to make channels.
     chanmgr: Arc<ChanMgr<R>>,
     /// An estimator to determine the correct timeouts for circuit building.
-    timeouts: timeouts::Estimator,
+    timeouts: Arc<timeouts::Estimator>,
     /// We don't actually hold any clientcircs, so we need to put this
     /// type here so the compiler won't freak out.
     _phantom: std::marker::PhantomData<C>,
@@ -228,7 +233,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
         Builder {
             runtime,
             chanmgr,
-            timeouts,
+            timeouts: Arc::new(timeouts),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -254,7 +259,8 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     ) -> Result<C> {
         match path {
             OwnedPath::ChannelOnly(target) => {
-                let circ = C::create_chantarget(channel, &self.runtime, &target, params).await?;
+                let timeouts = Arc::clone(&self.timeouts);
+                let circ = C::create_chantarget(channel, &self.runtime, &target, params, timeouts).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, true);
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
@@ -263,8 +269,9 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
             OwnedPath::Normal(p) => {
                 assert!(!p.is_empty());
                 let n_hops = p.len() as u8;
+                let timeouts = Arc::clone(&self.timeouts);
                 // Each hop has its own circ parameters. This is for the first hop (CREATE).
-                let circ = C::create(channel, &self.runtime, &p[0], params.clone()).await?;
+                let circ = C::create(channel, &self.runtime, &p[0], params.clone(), timeouts).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, n_hops == 0);
                 // If we fail after this point, we can't tell whether it's
@@ -907,6 +914,7 @@ mod test {
             rt: &RT,
             ct: &OwnedChanTarget,
             _: CircParameters,
+            _timeouts: Arc<dyn tor_proto::client::circuit::TimeoutEstimator>,
         ) -> Result<Self> {
             let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
@@ -925,6 +933,7 @@ mod test {
             rt: &RT,
             ct: &OwnedCircTarget,
             _: CircParameters,
+            _timeouts: Arc<dyn tor_proto::client::circuit::TimeoutEstimator>,
         ) -> Result<Self> {
             let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
