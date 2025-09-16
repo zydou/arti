@@ -4,7 +4,7 @@ use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
-use crate::client::stream::flow_ctrl::state::FlowCtrlMethods;
+use crate::client::stream::flow_ctrl::state::FlowCtrlHooks;
 use crate::congestion::sendme::{self, StreamSendWindow};
 use crate::{Error, Result};
 
@@ -28,7 +28,7 @@ impl WindowFlowCtrl {
     }
 }
 
-impl FlowCtrlMethods for WindowFlowCtrl {
+impl FlowCtrlHooks for WindowFlowCtrl {
     fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
         !sendme::cmd_counts_towards_windows(msg.cmd()) || self.window.window() > 0
     }

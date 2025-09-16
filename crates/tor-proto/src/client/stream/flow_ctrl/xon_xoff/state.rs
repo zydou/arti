@@ -40,9 +40,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 use super::reader::DrainRateRequest;
 
 use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::client::stream::flow_ctrl::state::{
-    FlowCtrlMethods, StreamEndpointType, StreamRateLimit,
-};
+use crate::client::stream::flow_ctrl::state::{FlowCtrlHooks, StreamEndpointType, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
@@ -95,7 +93,7 @@ impl XonXoffFlowCtrl {
     }
 }
 
-impl FlowCtrlMethods for XonXoffFlowCtrl {
+impl FlowCtrlHooks for XonXoffFlowCtrl {
     fn can_send<M: RelayMsg>(&self, _msg: &M) -> bool {
         // we perform rate-limiting in the `DataWriter`,
         // so we send any messages that made it past the `DataWriter`

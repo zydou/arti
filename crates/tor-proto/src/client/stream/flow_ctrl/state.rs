@@ -63,7 +63,7 @@ impl StreamFlowCtrl {
 }
 
 // forward all trait methods to the inner enum
-impl FlowCtrlMethods for StreamFlowCtrl {
+impl FlowCtrlHooks for StreamFlowCtrl {
     fn can_send<M: RelayMsg>(&self, msg: &M) -> bool {
         self.e.can_send(msg)
     }
@@ -97,7 +97,7 @@ impl FlowCtrlMethods for StreamFlowCtrl {
 ///
 /// We use a trait so that we can use `enum_dispatch` on the inner [`StreamFlowCtrlEnum`] enum.
 #[enum_dispatch::enum_dispatch(StreamFlowCtrlEnum)]
-pub(crate) trait FlowCtrlMethods {
+pub(crate) trait FlowCtrlHooks {
     /// Whether this stream is ready to send `msg`.
     fn can_send<M: RelayMsg>(&self, msg: &M) -> bool;
 
