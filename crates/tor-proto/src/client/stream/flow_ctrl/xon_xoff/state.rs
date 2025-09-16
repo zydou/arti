@@ -366,3 +366,84 @@ impl SidechannelMitigation {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use crate::client::stream::flow_ctrl::params::CellCount;
+
+    #[test]
+    fn sidechannel_mitigation() {
+        let params = FlowCtrlParameters {
+            cc_xoff_client: CellCount::new(2),
+            cc_xoff_exit: CellCount::new(4),
+            cc_xon_rate: CellCount::new(8),
+            cc_xon_change_pct: 1,
+            cc_xon_ewma_cnt: 1,
+        };
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // cannot receive XON as first message
+        assert!(x.received_xon(&params).is_err());
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // cannot receive XOFF as first message
+        assert!(x.received_xoff(&params).is_err());
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // cannot receive XOFF after sending fewer than `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize - 1);
+        assert!(x.received_xoff(&params).is_err());
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // can receive XOFF after sending `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+        assert!(x.received_xoff(&params).is_ok());
+        // but cannot receive another XOFF immediately after
+        assert!(x.received_xoff(&params).is_err());
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // can receive XOFF after sending `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+        assert!(x.received_xoff(&params).is_ok());
+        // but cannot receive another XOFF even after sending another `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+        assert!(x.received_xoff(&params).is_err());
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // can receive XOFF after sending `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+        assert!(x.received_xoff(&params).is_ok());
+        // and can immediately receive an XON
+        assert!(x.received_xon(&params).is_ok());
+        // and can receive another XOFF after sending another `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+        assert!(x.received_xoff(&params).is_ok());
+
+        // XXX: this is waiting on discussion in:
+        // https://gitlab.torproject.org/tpo/core/arti/-/issues/2129#note_3258116
+        /*
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // cannot receive XON after sending fewer than `cc_xoff_exit` bytes
+        // (since `cc_xoff_exit` < `cc_xon_rate`)
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize - 1);
+        assert!(x.received_xon(&params).is_err());
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // can receive XON after sending `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+        assert!(x.received_xon(&params).is_ok());
+        // but cannot receive another XON immediately after
+        assert!(x.received_xon(&params).is_err());
+
+        let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+        // can receive XON after sending `cc_xoff_exit` bytes
+        x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+        assert!(x.received_xon(&params).is_ok());
+        // and can receive another XON after sending another `cc_xon_rate` bytes
+        x.sent_stream_data(params.cc_xon_rate.as_bytes() as usize);
+        assert!(x.received_xon(&params).is_ok());
+        */
+    }
+}
