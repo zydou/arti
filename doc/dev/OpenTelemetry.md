@@ -1,6 +1,6 @@
 # Using OpenTelemetry with Arti
 
-Arti has experimental support for exporting span data via OpenTelemetry. This allows use to see detailed information about the call stack and timing. This can have serious security implications, and is something you should only do if you're a developer, or have thought through and analyzed the security implications carefully as they relate to your particular usecase.
+Arti has experimental support for exporting span data via OpenTelemetry. This allows us to see detailed information about the call stack and timing. This can have serious security implications, and is something you should only do if you're a developer, or have thought through and analyzed the security implications carefully as they relate to your particular usecase.
 
 To use this feature, arti must be compiled with the `opentelemetry` feature.
 
