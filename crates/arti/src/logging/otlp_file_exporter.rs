@@ -41,14 +41,7 @@ impl<W: Write + Send + Debug> SpanExporter for FileExporter<W> {
     > + std::marker::Send {
         let resource = ResourceAttributesWithSchema::from(&self.resource);
         let data = group_spans_by_resource_and_scope(batch, &resource);
-        let mut writer = match self.writer.lock() {
-            Ok(f) => f,
-            Err(e) => {
-                return Box::pin(std::future::ready(Err(OTelSdkError::InternalFailure(
-                    e.to_string(),
-                ))));
-            }
-        };
+        let mut writer = self.writer.lock().expect("Lock poisoned");
         Box::pin(std::future::ready('write: {
             // See https://opentelemetry.io/docs/specs/otel/protocol/file-exporter/ for format
 
