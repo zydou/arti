@@ -10,6 +10,7 @@ use std::str::FromStr;
 use digest::Digest;
 use itertools::{Itertools, chain};
 use safelog::DisplayRedacted;
+use subtle::ConstantTimeEq;
 use thiserror::Error;
 use tor_basic_utils::{StrExt as _, impl_debug_hex};
 use tor_key_forge::ToEncodableKey;
@@ -101,6 +102,42 @@ impl From<&HsIdKeypair> for HsIdKey {
 impl From<HsIdKeypair> for HsIdKey {
     fn from(value: HsIdKeypair) -> Self {
         Self(*value.0.public())
+    }
+}
+
+impl ConstantTimeEq for HsIdKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsIdKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
+impl ConstantTimeEq for HsIdKeypair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_keypair) = self;
+        let Self(other_keypair) = other;
+
+        self_keypair
+            .public()
+            .as_bytes()
+            .ct_eq(other_keypair.public().as_bytes())
+            & self_keypair
+                .to_secret_key_bytes()
+                .ct_eq(&other_keypair.to_secret_key_bytes())
+    }
+}
+
+impl PartialEq for HsIdKeypair {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
     }
 }
 
@@ -377,6 +414,42 @@ impl From<HsBlindIdKeypair> for HsBlindIdKey {
     }
 }
 
+impl ConstantTimeEq for HsBlindIdKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsBlindIdKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
+impl ConstantTimeEq for HsBlindIdKeypair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_keypair) = self;
+        let Self(other_keypair) = other;
+
+        self_keypair
+            .public()
+            .as_bytes()
+            .ct_eq(other_keypair.public().as_bytes())
+            & self_keypair
+                .to_secret_key_bytes()
+                .ct_eq(&other_keypair.to_secret_key_bytes())
+    }
+}
+
+impl PartialEq for HsBlindIdKeypair {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
 define_bytes! {
 /// A blinded onion service identity, represented in a compact format. (`KP_hs_blind_id`)
 ///
@@ -449,6 +522,40 @@ define_pk_keypair! {
 pub struct HsDescSigningKey(ed25519::PublicKey) / HsDescSigningKeypair(ed25519::Keypair);
 }
 
+impl ConstantTimeEq for HsDescSigningKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsDescSigningKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
+impl ConstantTimeEq for HsDescSigningKeypair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_keypair) = self;
+        let Self(other_keypair) = other;
+
+        self_keypair.as_bytes().ct_eq(other_keypair.as_bytes())
+            & self_keypair
+                .verifying_key()
+                .as_bytes()
+                .ct_eq(other_keypair.verifying_key().as_bytes())
+    }
+}
+
+impl PartialEq for HsDescSigningKeypair {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
 define_pk_keypair! {
 /// A key used to identify and authenticate an onion service at a single
 /// introduction point. (`KP_hs_ipt_sid`)
@@ -458,6 +565,40 @@ define_pk_keypair! {
 /// relation of this key to the onion service: they only recognize the same key
 /// when they see it again.
 pub struct HsIntroPtSessionIdKey(ed25519::PublicKey) / HsIntroPtSessionIdKeypair(ed25519::Keypair);
+}
+
+impl ConstantTimeEq for HsIntroPtSessionIdKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsIntroPtSessionIdKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
+impl ConstantTimeEq for HsIntroPtSessionIdKeypair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_keypair) = self;
+        let Self(other_keypair) = other;
+
+        self_keypair.as_bytes().ct_eq(other_keypair.as_bytes())
+            & self_keypair
+                .verifying_key()
+                .as_bytes()
+                .ct_eq(other_keypair.verifying_key().as_bytes())
+    }
+}
+
+impl PartialEq for HsIntroPtSessionIdKeypair {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
 }
 
 define_pk_keypair! {
@@ -471,10 +612,41 @@ pub struct HsSvcNtorKey(curve25519::PublicKey) / HsSvcNtorSecretKey(curve25519::
 curve25519_pair as HsSvcNtorKeypair;
 }
 
+impl ConstantTimeEq for HsSvcNtorKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsSvcNtorKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
+impl ConstantTimeEq for HsSvcNtorSecretKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsSvcNtorSecretKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
 mod hs_client_intro_auth {
     #![allow(deprecated)]
     //! Key type wrappers for the deprecated `HsClientIntroKey`/`HsClientIntroKeypair` types.
 
+    use subtle::ConstantTimeEq;
     use tor_llcrypto::pk::ed25519;
 
     use crate::macros::define_pk_keypair;
@@ -489,6 +661,40 @@ mod hs_client_intro_auth {
     pub struct HsClientIntroAuthKey(ed25519::PublicKey) /
     #[deprecated(note = "This key type is not used in the protocol implemented today.")]
     HsClientIntroAuthKeypair(ed25519::Keypair);
+    }
+
+    impl ConstantTimeEq for HsClientIntroAuthKey {
+        fn ct_eq(&self, other: &Self) -> subtle::Choice {
+            let Self(self_key) = self;
+            let Self(other_key) = other;
+
+            self_key.as_bytes().ct_eq(other_key.as_bytes())
+        }
+    }
+
+    impl PartialEq for HsClientIntroAuthKey {
+        fn eq(&self, other: &Self) -> bool {
+            self.ct_eq(other).into()
+        }
+    }
+
+    impl ConstantTimeEq for HsClientIntroAuthKeypair {
+        fn ct_eq(&self, other: &Self) -> subtle::Choice {
+            let Self(self_keypair) = self;
+            let Self(other_keypair) = other;
+
+            self_keypair.as_bytes().ct_eq(other_keypair.as_bytes())
+                & self_keypair
+                    .verifying_key()
+                    .as_bytes()
+                    .ct_eq(other_keypair.verifying_key().as_bytes())
+        }
+    }
+
+    impl PartialEq for HsClientIntroAuthKeypair {
+        fn eq(&self, other: &Self) -> bool {
+            self.ct_eq(other).into()
+        }
     }
 }
 
@@ -527,9 +733,18 @@ pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(
 curve25519_pair as HsClientDescEncKeypair;
 }
 
+impl ConstantTimeEq for HsClientDescEncKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
 impl PartialEq for HsClientDescEncKey {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.ct_eq(other).into()
     }
 }
 
@@ -578,6 +793,21 @@ impl FromStr for HsClientDescEncKey {
     }
 }
 
+impl ConstantTimeEq for HsClientDescEncSecretKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsClientDescEncSecretKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
 /// Error that can occur parsing an `HsClientDescEncKey` from C Tor format.
 #[derive(Error, Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -611,6 +841,36 @@ define_pk_keypair! {
 pub struct HsSvcDescEncKey(curve25519::PublicKey) / HsSvcDescEncSecretKey(curve25519::StaticSecret);
 }
 
+impl ConstantTimeEq for HsSvcDescEncKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsSvcDescEncKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
+impl ConstantTimeEq for HsSvcDescEncSecretKey {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self(self_key) = self;
+        let Self(other_key) = other;
+
+        self_key.as_bytes().ct_eq(other_key.as_bytes())
+    }
+}
+
+impl PartialEq for HsSvcDescEncSecretKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
+}
+
 impl From<&HsClientDescEncSecretKey> for HsClientDescEncKey {
     fn from(ks: &HsClientDescEncSecretKey) -> Self {
         Self(curve25519::PublicKey::from(&ks.0))
@@ -632,6 +892,27 @@ pub struct HsSvcDescEncKeypair {
     pub public: HsSvcDescEncKey,
     /// The secret part of the key.
     pub secret: HsSvcDescEncSecretKey,
+}
+
+impl ConstantTimeEq for HsSvcDescEncKeypair {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        let Self {
+            public: self_public,
+            secret: self_secret,
+        } = self;
+        let Self {
+            public: other_public,
+            secret: other_secret,
+        } = other;
+
+        self_public.ct_eq(other_public) & self_secret.ct_eq(other_secret)
+    }
+}
+
+impl PartialEq for HsSvcDescEncKeypair {
+    fn eq(&self, other: &Self) -> bool {
+        self.ct_eq(other).into()
+    }
 }
 
 // TODO: let the define_ed25519_keypair/define_curve25519_keypair macros
