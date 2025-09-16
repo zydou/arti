@@ -127,6 +127,18 @@ impl Estimator {
     }
 }
 
+impl tor_proto::client::circuit::TimeoutEstimator for Estimator {
+    fn circuit_build_timeout(&self, length: usize) -> Duration {
+        let (_timeout, abandon) = self
+            .inner
+            .lock()
+            .expect("poisoned lock")
+            .timeouts(&Action::BuildCircuit { length });
+
+        abandon
+    }
+}
+
 /// Try to construct a new boxed TimeoutEstimator based on the contents of
 /// storage, and whether it is read-only.
 ///
