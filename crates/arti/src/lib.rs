@@ -116,7 +116,7 @@ use tor_rtcompat::ToplevelRuntime;
 use anyhow::{Context, Error, Result};
 use clap::{Arg, ArgAction, Command, value_parser};
 #[allow(unused_imports)]
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 
 #[cfg(any(
     feature = "hsc",
@@ -187,6 +187,7 @@ fn list_enabled_features() -> &'static [&'static str] {
 /// Currently, might panic if wrong arguments are specified.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[allow(clippy::cognitive_complexity)]
+#[instrument(skip_all, level = "trace")]
 fn main_main<I, T>(cli_args: I) -> Result<()>
 where
     I: IntoIterator<Item = T>,

@@ -9,7 +9,7 @@ use safelog::sensitive as sv;
 use tor_error::bad_api_usage;
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{NetStreamProvider, Runtime};
-use tracing::trace;
+use tracing::{instrument, trace};
 
 use crate::Error;
 
@@ -37,6 +37,7 @@ impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
 
     /// Implements the transport: makes a TCP connection (possibly
     /// tunneled over whatever protocol) if possible.
+    #[instrument(skip_all, level = "trace")]
     async fn connect(
         &self,
         target: &OwnedChanTarget,

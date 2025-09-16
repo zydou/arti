@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use educe::Educe;
 use either::Either::{self, *};
 use postage::stream::Stream as _;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, instrument, trace};
 
 use safelog::DisplayRedacted as _;
 use tor_basic_utils::define_accessor_trait;
@@ -522,6 +522,7 @@ impl<D: MockableConnectorData> Services<D> {
 
     /// Connect to a hidden service
     // We *do* drop guard.  There is *one* await point, just after drop(guard).
+    #[instrument(skip_all, level = "trace")]
     pub(crate) async fn get_or_launch_connection(
         connector: &HsClientConnector<impl Runtime, D>,
         netdir: &Arc<NetDir>,

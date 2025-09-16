@@ -11,7 +11,7 @@ use safelog::sensitive;
 use std::io::Result as IoResult;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 #[allow(unused)]
 use arti_client::HasKind;
@@ -448,6 +448,7 @@ impl<R: Runtime> SocksConnContext<R> {
 /// may use.  Requires that `isolation_info` is a pair listing the listener
 /// id and the source address for the socks request.
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor
+#[instrument(skip_all, level = "trace")]
 async fn handle_socks_conn<R, S>(
     runtime: R,
     context: SocksConnContext<R>,
@@ -715,6 +716,7 @@ where
 /// This function assumes that the writer might need to be flushed for
 /// any buffered data to be sent.  It tries to minimize the number of
 /// flushes, however, by only flushing the writer when the reader has no data.
+#[instrument(skip_all, level = "trace")]
 async fn copy_interactive<R, W>(mut reader: R, mut writer: W) -> IoResult<()>
 where
     R: AsyncRead + Unpin,
@@ -792,6 +794,7 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 /// network.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor
+#[instrument(skip_all, level = "trace")]
 pub(crate) async fn run_socks_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
@@ -862,6 +865,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
 
 /// Launch a SOCKS proxy from a given set of already bound listeners.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[instrument(skip_all, level = "trace")]
 pub(crate) async fn run_socks_proxy_with_listeners<R: Runtime>(
     tor_client: TorClient<R>,
     listeners: Vec<<R as tor_rtcompat::NetStreamProvider>::Listener>,

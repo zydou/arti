@@ -70,7 +70,7 @@ use crate::{TorClientBuilder, status, util};
 #[cfg(feature = "geoip")]
 use tor_geoip::CountryCode;
 use tor_rtcompat::scheduler::TaskHandle;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 /// An active client session on the Tor network.
 ///
@@ -1080,6 +1080,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// If the bootstrapping process fails, returns an error. This function can safely be called
     /// again later to attempt to bootstrap another time.
+    #[instrument(skip_all, level = "trace")]
     pub async fn bootstrap(&self) -> crate::Result<()> {
         self.bootstrap_inner().await.map_err(ErrorDetail::into)
     }
@@ -1154,6 +1155,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Check whether a bootstrap is in progress; if one is, wait until it finishes
     /// and then return. (Otherwise, return immediately.)
+    #[instrument(skip_all, level = "trace")]
     async fn wait_for_bootstrap(&self) -> StdResult<(), ErrorDetail> {
         match self.should_bootstrap {
             BootstrapBehavior::OnDemand => {
@@ -1202,6 +1204,7 @@ impl<R: Runtime> TorClient<R> {
     /// Changing some options do not take effect immediately on all open streams
     /// and circuits, but rather affect only future streams and circuits.  Those
     /// are also explicitly documented.
+    #[instrument(skip_all, level = "trace")]
     pub fn reconfigure(
         &self,
         new_config: &TorClientConfig,
@@ -1383,6 +1386,7 @@ impl<R: Runtime> TorClient<R> {
     /// # Ok(())
     /// # }
     /// ```
+    #[instrument(skip_all, level = "trace")]
     pub async fn connect<A: IntoTorAddr>(&self, target: A) -> crate::Result<DataStream> {
         self.connect_with_prefs(target, &self.connect_prefs).await
     }
@@ -1393,6 +1397,7 @@ impl<R: Runtime> TorClient<R> {
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     /// (See [`TorClient::connect()`] for more information.)
+    #[instrument(skip_all, level = "trace")]
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
@@ -1526,11 +1531,13 @@ impl<R: Runtime> TorClient<R> {
     }
 
     /// On success, return a list of IP addresses.
+    #[instrument(skip_all, level = "trace")]
     pub async fn resolve(&self, hostname: &str) -> crate::Result<Vec<IpAddr>> {
         self.resolve_with_prefs(hostname, &self.connect_prefs).await
     }
 
     /// On success, return a list of IP addresses, but use prefs.
+    #[instrument(skip_all, level = "trace")]
     pub async fn resolve_with_prefs(
         &self,
         hostname: &str,
@@ -1565,6 +1572,7 @@ impl<R: Runtime> TorClient<R> {
     /// Perform a remote DNS reverse lookup with the provided IP address.
     ///
     /// On success, return a list of hostnames.
+    #[instrument(skip_all, level = "trace")]
     pub async fn resolve_ptr(&self, addr: IpAddr) -> crate::Result<Vec<String>> {
         self.resolve_ptr_with_prefs(addr, &self.connect_prefs).await
     }
@@ -1669,6 +1677,7 @@ impl<R: Runtime> TorClient<R> {
 
     /// Get or launch an exit-suitable circuit with a given set of
     /// exit ports.
+    #[instrument(skip_all, level = "trace")]
     async fn get_or_launch_exit_tunnel(
         &self,
         exit_ports: &[TargetPort],
@@ -1732,6 +1741,7 @@ impl<R: Runtime> TorClient<R> {
     /// If you want to forward all the requests from an onion service to a set
     /// of local ports, you may want to use the `tor-hsrproxy` crate.
     #[cfg(feature = "onion-service-service")]
+    #[instrument(skip_all, level = "trace")]
     pub fn launch_onion_service(
         &self,
         config: tor_hsservice::OnionServiceConfig,
@@ -1793,6 +1803,7 @@ impl<R: Runtime> TorClient<R> {
     /// If you want to forward all the requests from an onion service to a set
     /// of local ports, you may want to use the `tor-hsrproxy` crate.
     #[cfg(all(feature = "onion-service-service", feature = "experimental-api"))]
+    #[instrument(skip_all, level = "trace")]
     pub fn launch_onion_service_with_hsid(
         &self,
         config: tor_hsservice::OnionServiceConfig,
@@ -2018,6 +2029,7 @@ impl<R: Runtime> TorClient<R> {
     /// `create_onion_service()` using one [`TorClientConfig`],
     /// but launch it using a `TorClient` generated from a different `TorClientConfig`.
     #[cfg(feature = "onion-service-service")]
+    #[instrument(skip_all, level = "trace")]
     pub fn create_onion_service(
         config: &TorClientConfig,
         svc_config: tor_hsservice::OnionServiceConfig,
@@ -2074,6 +2086,7 @@ impl<R: Runtime> TorClient<R> {
     /// Return a [`Future`] which resolves
     /// once this TorClient has stopped.
     #[cfg(feature = "experimental-api")]
+    #[instrument(skip_all, level = "trace")]
     pub fn wait_for_stop(
         &self,
     ) -> impl futures::Future<Output = ()> + Send + Sync + 'static + use<R> {

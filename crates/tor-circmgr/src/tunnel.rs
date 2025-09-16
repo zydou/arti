@@ -14,6 +14,7 @@ use tor_proto::{
     client::circuit::{CircParameters, CircuitBinding, ClientCirc},
     client::stream::{DataStream, StreamParameters},
 };
+use tracing::instrument;
 
 use crate::{Error, Result};
 
@@ -199,6 +200,7 @@ define_derive_deftly! {
         ///
         /// The use of a string for the address is intentional: you should let
         /// the remote Tor relay do the hostname lookup for you.
+        #[instrument(skip_all, level = "trace")]
         pub async fn begin_stream(
             &self,
             target: &str,

@@ -10,6 +10,7 @@ use futures::{channel::mpsc, stream::StreamExt};
 #[cfg(test)]
 use oneshot_fused_workaround as oneshot;
 use tor_proto::ClockSkew;
+use tracing::instrument;
 
 use std::sync::{Mutex, Weak};
 
@@ -34,6 +35,7 @@ pub(crate) enum Msg {
 ///
 /// Requires a `mpsc::Receiver` that is used to tell the task about
 /// new status events to wait for.
+#[instrument(skip_all, level = "trace")]
 pub(crate) async fn report_status_events(
     runtime: impl tor_rtcompat::SleepProvider,
     inner: Weak<Mutex<GuardMgrInner>>,
@@ -70,6 +72,7 @@ pub(crate) async fn report_status_events(
 ///
 /// Takes the [`GuardMgrInner`] by weak reference; if the guard
 /// manager goes away, then this task exits.
+#[instrument(skip_all, level = "trace")]
 pub(crate) async fn run_periodic<R: tor_rtcompat::SleepProvider>(
     runtime: R,
     inner: Weak<Mutex<GuardMgrInner>>,
@@ -90,6 +93,7 @@ pub(crate) async fn run_periodic<R: tor_rtcompat::SleepProvider>(
 
 /// Background task to keep a guard manager up-to-date with a given network
 /// directory provider.
+#[instrument(skip_all, level = "trace")]
 pub(crate) async fn keep_netdir_updated<RT: tor_rtcompat::Runtime>(
     runtime: RT,
     inner: Weak<Mutex<GuardMgrInner>>,
