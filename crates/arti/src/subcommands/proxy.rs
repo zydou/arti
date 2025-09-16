@@ -104,7 +104,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
 /// Currently, might panic if things go badly enough wrong
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
-#[instrument(level = "trace")]
+#[instrument(skip_all, level = "trace")]
 async fn run_proxy<R: ToplevelRuntime>(
     runtime: R,
     socks_listen: Listen,
