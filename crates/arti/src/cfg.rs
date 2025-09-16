@@ -1632,10 +1632,9 @@ example config file {which:?}, uncommented={uncommented:?}
         use tor_config_path::CfgPath;
         let sec = std::time::Duration::from_secs(1);
 
-        let auth = dir::Authority::builder()
-            .name("Fred")
-            .v3ident([22; 20].into())
-            .clone();
+        let mut authorities = dir::AuthorityContacts::builder();
+        authorities.v3idents().push([22; 20].into());
+
         let mut fallback = dir::FallbackDir::builder();
         fallback
             .rsa_identity([23; 20].into())
@@ -1649,7 +1648,7 @@ example config file {which:?}, uncommented={uncommented:?}
         bld.proxy().socks_listen(Listen::new_localhost(9999));
         bld.logging().console("warn");
 
-        bld_tor.tor_network().set_authorities(vec![auth]);
+        *bld_tor.tor_network().authorities() = authorities;
         bld_tor.tor_network().set_fallback_caches(vec![fallback]);
         bld_tor
             .storage()

@@ -28,3 +28,7 @@ tor-config = { path = "../tor-config", version = "0.34.0" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.34.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.34.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.34.0" }
+tracing = "0.1.41"
+
+[dev-dependencies]
+toml = "0.9.6"

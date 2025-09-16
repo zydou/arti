@@ -221,11 +221,7 @@ impl<R: Runtime> GetConsensusState<R> {
         prev_netdir: Option<Arc<dyn PreviousNetDir>>,
         #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
-        let authority_ids = config
-            .authorities()
-            .iter()
-            .map(|auth| auth.v3ident())
-            .collect();
+        let authority_ids = config.authorities().v3idents().clone();
         let after = prev_netdir
             .as_ref()
             .and_then(|x| x.get_netdir())
@@ -1305,7 +1301,7 @@ mod test {
     use tempfile::TempDir;
     use time::macros::datetime;
     use tor_dircommon::{
-        authority::{Authority, AuthorityBuilder},
+        authority::{AuthorityContacts, AuthorityContactsBuilder},
         config::{DownloadScheduleConfig, NetworkConfig},
     };
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
@@ -1357,11 +1353,11 @@ mod test {
             .with_coarse_time_provider(msp)
     }
 
-    fn make_dirmgr_config(authorities: Option<Vec<AuthorityBuilder>>) -> Arc<DirMgrConfig> {
+    fn make_dirmgr_config(authorities: Option<AuthorityContactsBuilder>) -> Arc<DirMgrConfig> {
         let mut netcfg = NetworkConfig::builder();
         netcfg.set_fallback_caches(vec![]);
         if let Some(a) = authorities {
-            netcfg.set_authorities(a);
+            *netcfg.authorities() = a;
         }
         let cfg = DirMgrConfig {
             cache_dir: "/we_will_never_use_this/".into(),
@@ -1384,18 +1380,16 @@ mod test {
     fn rsa(s: &str) -> RsaIdentity {
         RsaIdentity::from_hex(s).unwrap()
     }
-    fn test_authorities() -> Vec<AuthorityBuilder> {
-        fn a(s: &str) -> AuthorityBuilder {
-            Authority::builder().name("ignore").v3ident(rsa(s)).clone()
-        }
-        vec![
-            a("5696AB38CB3852AFA476A5C07B2D4788963D5567"),
-            a("5A23BA701776C9C1AB1C06E734E92AB3D5350D64"),
-            // This is an authority according to the consensus, but we'll
-            // pretend we don't recognize it, to make sure that we
-            // don't fetch or accept it.
-            // a("7C47DCB4A90E2C2B7C7AD27BD641D038CF5D7EBE"),
-        ]
+    fn test_authorities() -> AuthorityContactsBuilder {
+        let mut builder = AuthorityContacts::builder();
+        builder
+            .v3idents()
+            .push(rsa("5696AB38CB3852AFA476A5C07B2D4788963D5567"));
+        builder
+            .v3idents()
+            .push(rsa("5A23BA701776C9C1AB1C06E734E92AB3D5350D64"));
+
+        builder
     }
     fn authcert_id_5696() -> AuthCertKeyIds {
         AuthCertKeyIds {
