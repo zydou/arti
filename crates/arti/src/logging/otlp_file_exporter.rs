@@ -35,6 +35,9 @@ impl<W: Write + Send + Debug> FileExporter<W> {
     }
 }
 
+// Note that OpenTelemetry can only represent events as children of spans, so this exporter only
+// works on spans. If you want a event to be exported, you need to make sure it exists within some
+// span.
 impl<W: Write + Send + Debug> SpanExporter for FileExporter<W> {
     fn export(
         &self,
