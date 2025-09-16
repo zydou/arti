@@ -27,7 +27,7 @@ use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
-    RelayMsg, StreamId, UnparsedRelayMsg,
+    StreamId, UnparsedRelayMsg,
 };
 
 use tor_error::{Bug, internal};
@@ -424,10 +424,10 @@ impl CircHop {
     /// See [`OpenStreamEnt::take_capacity_to_send`].
     //
     // TODO prop340: This should take a cell or similar, not a message.
-    pub(crate) fn take_capacity_to_send<M: RelayMsg>(
+    pub(crate) fn take_capacity_to_send(
         &mut self,
         stream_id: StreamId,
-        msg: &M,
+        msg: &AnyRelayMsg,
     ) -> Result<()> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = hop_map.get_mut(stream_id) else {

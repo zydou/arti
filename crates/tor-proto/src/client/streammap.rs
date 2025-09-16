@@ -131,7 +131,7 @@ impl OpenStreamEnt {
     //
     // TODO: Consider not exposing this, and instead taking the capacity in
     // `StreamMap::take_ready_msg`.
-    pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
+    pub(crate) fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         self.flow_ctrl.take_capacity_to_send(msg)
     }
 }

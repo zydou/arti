@@ -2,6 +2,7 @@
 
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::params::FlowCtrlParameters;
@@ -63,7 +64,7 @@ impl FlowCtrlMethods for StreamFlowCtrl {
         self.e.can_send(msg)
     }
 
-    fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
+    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         self.e.take_capacity_to_send(msg)
     }
 
@@ -103,7 +104,7 @@ pub(crate) trait FlowCtrlMethods {
     // flow control earlier, e.g. in `OpenStreamEntStream`, without introducing
     // ambiguity in the sending function as to whether flow control has already
     // been applied or not.
-    fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()>;
+    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()>;
 
     /// Handle an incoming sendme.
     ///

@@ -32,6 +32,7 @@
 
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::reader::DrainRateRequest;
@@ -85,7 +86,7 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         true
     }
 
-    fn take_capacity_to_send<M: RelayMsg>(&mut self, _msg: &M) -> Result<()> {
+    fn take_capacity_to_send(&mut self, _msg: &AnyRelayMsg) -> Result<()> {
         // xon/xoff flow control doesn't have "capacity";
         // the capacity is effectively controlled by the congestion control
         Ok(())
