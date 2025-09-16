@@ -11,7 +11,8 @@ This feature can be used in one of two ways:
 
 ## Exporting via HTTP
 
-Add the following to the Arti configuration file:
+Add the following to the Arti configuration file
+(if you plan on running Jaeger on a different port, or are using some OTEL collector other than Jaeger, you will need to adjust the `endpoint` accordingly):
 
 ```toml
 [logging]
