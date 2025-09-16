@@ -112,6 +112,10 @@ pub mod curve25519 {
         pub fn to_bytes(&self) -> [u8; 32] {
             self.0.to_bytes()
         }
+        /// Return a reference to the bytes that represent this key.
+        pub fn as_bytes(&self) -> &[u8; 32] {
+            self.0.as_bytes()
+        }
     }
     impl SharedSecret {
         /// Return the shared secret as an array of bytes.
