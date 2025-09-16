@@ -361,4 +361,38 @@ mod test {
         assert_eq!(cfg.authorities.v3idents().len(), 2);
         assert_eq!(cfg.fallback_caches.len(), 1);
     }
+
+    #[test]
+    fn deserialize_compat() {
+        // Test whether we can serialize both formats.
+
+        let mut netcfg_legacy: NetworkConfigBuilder = toml::from_str(
+            "
+        authorities = [
+            { name = \"test000a\", v3ident = \"911F7C74212214823DDBDE3044B5B1AF3EFB98A0\" },
+            { name = \"test001a\", v3ident = \"46C4A4492D103A8C5CA544AC653B51C7B9AC8692\" },
+            { name = \"test002a\", v3ident = \"28D4680EA9C3660D1028FC40BACAC1319414581E\" },
+            { name = \"test003a\", v3ident = \"3817C9EB7E41C957594D0D9BCD6C7D7D718479C2\" },
+        ]",
+        )
+        .unwrap();
+
+        let mut netcfg_prop330: NetworkConfigBuilder = toml::from_str(
+            "
+        [authorities]
+        v3idents = [
+            \"911F7C74212214823DDBDE3044B5B1AF3EFB98A0\",
+            \"46C4A4492D103A8C5CA544AC653B51C7B9AC8692\",
+            \"28D4680EA9C3660D1028FC40BACAC1319414581E\",
+            \"3817C9EB7E41C957594D0D9BCD6C7D7D718479C2\",
+        ]",
+        )
+        .unwrap();
+
+        assert_eq!(netcfg_legacy.authorities.v3idents().len(), 4);
+        assert_eq!(
+            netcfg_legacy.authorities.v3idents(),
+            netcfg_prop330.authorities.v3idents(),
+        );
+    }
 }

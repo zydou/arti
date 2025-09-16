@@ -144,3 +144,46 @@ fn default_downloads() -> Vec<Vec<SocketAddr>> {
 fn default_votes() -> Vec<Vec<SocketAddr>> {
     default_uploads()
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::unnecessary_wraps)]
+
+    use super::*;
+
+    #[test]
+    fn default_auths() {
+        let dflt = AuthorityContacts::builder().build().unwrap();
+        assert_eq!(dflt.v3idents, default_v3idents());
+        assert_eq!(dflt.uploads, default_uploads());
+        assert_eq!(dflt.downloads, default_downloads());
+        assert_eq!(dflt.votes, default_votes());
+
+        assert_eq!(
+            dflt.v3idents[8],
+            RsaIdentity::from_hex("2F3DF9CA0E5D36F2685A2DA67184EB8DCB8CBA8C").unwrap()
+        );
+        assert_eq!(
+            dflt.uploads[8],
+            vec![
+                "217.196.147.77:80".parse().unwrap(),
+                "[2a02:16a8:662:2203::1]:80".parse().unwrap()
+            ]
+        );
+        assert_eq!(dflt.uploads[8], dflt.downloads[8]);
+        assert_eq!(dflt.uploads[8], dflt.votes[8]);
+    }
+}
