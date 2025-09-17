@@ -39,7 +39,7 @@ type Duration = std::time::Duration;
 /// A type we use to generate a set of [`PaddingEvent`].
 ///
 /// This is a separate type so we can tune it and make it into a smallvec if needed.
-type PaddingEventVec = Vec<PaddingEvent>;
+type PaddingEventQueue = Vec<PaddingEvent>;
 
 /// A type we use to generate a set of [`PaddingEvent`].
 ///
@@ -392,7 +392,7 @@ struct PaddingShared<S: SleepProvider> {
     ///
     /// NOTE: If you put new items in this list from anywhere other than inside
     /// `PaddingEventStream::poll_next`, you need to alert the `waker`.
-    pending_events: PaddingEventVec,
+    pending_events: PaddingEventQueue,
 
     /// A waker to alert if we've added any events to padding_events,
     /// or if we need the stream to re-poll.
@@ -805,8 +805,8 @@ impl<S: SleepProvider> PaddingShared<S> {
     /// Extract every PaddingEvent that is ready to be reported to the circuit at time `now`.
     ///
     /// May trigger other events, or wake up the stream, in the course of running.
-    fn take_padding_events_at(&mut self, now: Instant) -> PaddingEventVec {
-        let mut output = PaddingEventVec::default();
+    fn take_padding_events_at(&mut self, now: Instant) -> PaddingEventQueue {
+        let mut output = PaddingEventQueue::default();
         for (hop_idx, backend) in self.hops.iter_mut().enumerate() {
             let Some(backend) = backend else {
                 continue;
@@ -954,7 +954,7 @@ where
         stats: Default::default(),
         blocking: Default::default(),
         next_scheduled_wakeup: None,
-        pending_events: PaddingEventVec::default(),
+        pending_events: PaddingEventQueue::default(),
         waker: Waker::noop().clone(),
     };
     let shared = Arc::new(Mutex::new(shared));
