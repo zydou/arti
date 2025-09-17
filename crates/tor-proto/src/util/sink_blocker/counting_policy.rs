@@ -3,7 +3,7 @@
 use nonany::NonMaxU32;
 use tor_error::{Bug, internal};
 
-/// A sink-blocking [`Policy`] that can allow a limited number of items to be sent.
+/// A sink-blocking [`Policy`](super::Policy) that can allow a limited number of items to be sent.
 ///
 /// This policy may be in three states:
 ///  - Completely blocked
