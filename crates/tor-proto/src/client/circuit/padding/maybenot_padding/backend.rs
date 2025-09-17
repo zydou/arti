@@ -310,7 +310,8 @@ impl Timer {
 
 /// State of a MaybenotPadder that is blocking.
 ///
-/// TODO circpad-trafficblock: Document this more when we want to support blocking.
+/// Here we only need to remember when the blocking expires;
+/// we record the bypassable status of the padding in [`super::PaddingShared`].
 #[derive(Debug)]
 struct BlockingState {
     /// The time at which this blocking expires.

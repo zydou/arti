@@ -147,7 +147,8 @@ impl PaddingRules {
     /// Create a [`PaddingBackend`] for this [`PaddingRules`], so we can install it in a
     /// [`PaddingShared`].
     fn create_padding_backend(&self) -> Result<Box<dyn PaddingBackend>, maybenot::Error> {
-        // TODO circpad: specialize this.
+        // TODO circpad: specialize this for particular values of n_machines,
+        // when we finally go to implement padding.
         const OPTIMIZE_FOR_N_MACHINES: usize = 4;
 
         let backend =
@@ -440,7 +441,7 @@ impl PaddingStats {
 /// But all we actually need to tell the reactor code
 /// is whether to block the _entire_ circuit or not.
 //
-// TODO-circpad: It might beneficial
+// TODO circpad: It might beneficial
 // to block only the first blocking hop and its successors,
 // but that creates tricky starvation problems
 // in the case where we have queued traffic for a later, blocking, hop
@@ -767,9 +768,9 @@ impl<S: SleepProvider> PaddingShared<S> {
                 bypass,
             }),
             PHPE::StartBlocking { is_bypassable } => {
+                // NOTE that we remember is_bypassable for every hop, but the blocking is only
+                // bypassable if _every_ hop is unblocked, or has bypassable blocking.
                 blocking.set_blocked(hop_idx, is_bypassable);
-                // TODO circpad-trafficblock: by design, "is_bypassable" only works for the first hop
-                // that is blocking; Is this as intended?
                 blocking.blocking_update_paddingevent()
             }
             PHPE::StopBlocking => {

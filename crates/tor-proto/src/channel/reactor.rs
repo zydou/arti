@@ -298,10 +298,14 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 let mut rng = rand::rng();
                 let my_unique_id = self.unique_id;
                 let circ_unique_id = self.circ_unique_id_ctx.next(my_unique_id);
-                // TODO/NOTE: This is a very weird place to be calling new_padding, but:
+                // NOTE: This is a very weird place to be calling new_padding, but:
                 //  - we need to do it here or earlier, so we can add it as part of the CircEnt to
                 //    our map.
-                //  - We need to do it at some point where we have a runtime, which implies in a reactor.
+                //  - We need to do it at some point where we have a runtime, which implies in a
+                //    reactor.
+                //
+                // TODO circpad: We might want to lazy-allocate this somehow, or try harder to make
+                // it a no-op when we aren't padding on a particular circuit.
                 let (padding_ctrl, padding_stream) = crate::client::circuit::padding::new_padding(
                     // TODO: avoid using DynTimeProvider at some point, and re-parameterize for efficiency.
                     DynTimeProvider::new(self.runtime.clone()),
