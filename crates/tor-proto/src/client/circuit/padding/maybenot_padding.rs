@@ -11,6 +11,7 @@
 
 mod backend;
 
+use std::collections::VecDeque;
 use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -39,7 +40,7 @@ type Duration = std::time::Duration;
 /// A type we use to generate a set of [`PaddingEvent`].
 ///
 /// This is a separate type so we can tune it and make it into a smallvec if needed.
-type PaddingEventQueue = Vec<PaddingEvent>;
+type PaddingEventQueue = VecDeque<PaddingEvent>;
 
 /// A type we use to generate a set of [`PaddingEvent`].
 ///
@@ -385,10 +386,7 @@ struct PaddingShared<S: SleepProvider> {
     /// before we create a timer.
     next_scheduled_wakeup: Option<Instant>,
 
-    /// A list of `PaddingEvent` that we want to yield from our [`PaddingEventStream`].
-    ///
-    /// We store this list in reverse order from that returned by `padding_events_at`,
-    /// so that we can pop them one by one.
+    /// A deque of `PaddingEvent` that we want to yield from our [`PaddingEventStream`].
     ///
     /// NOTE: If you put new items in this list from anywhere other than inside
     /// `PaddingEventStream::poll_next`, you need to alert the `waker`.
@@ -758,9 +756,8 @@ impl<S: SleepProvider> PaddingShared<S> {
         let was_blocked = self.blocking.hop_blocked[hop_idx];
         self.blocking.set_unblocked(hop_idx);
         if was_blocked {
-            // XXXX out-of-order.
             self.pending_events
-                .push(self.blocking.blocking_update_paddingevent());
+                .push_back(self.blocking.blocking_update_paddingevent());
         }
 
         // We need to alert the stream, in case we added an event above, and so that it will poll
@@ -873,16 +870,15 @@ impl futures::Stream for PaddingEventStream {
                 let mut shared = shared.lock().expect("Poisoned lock");
 
                 // Do we have any events that are waiting to be yielded?
-                if let Some(val) = shared.pending_events.pop() {
+                if let Some(val) = shared.pending_events.pop_front() {
                     return Poll::Ready(Some(val));
                 }
 
                 // Does the padder have any events that have become ready to be yielded?
                 let now = shared.runtime.now();
                 shared.pending_events = shared.take_padding_events_at(now);
-                // (we reverse them, so that we can pop them one by one.)
-                shared.pending_events.reverse();
-                if let Some(val) = shared.pending_events.pop() {
+
+                if let Some(val) = shared.pending_events.pop_front() {
                     return Poll::Ready(Some(val));
                 }
 
