@@ -12,9 +12,8 @@
 //! For more information on the exact algorithms and their rationales,
 //! see [`path-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/blob/master/path-spec.txt).
 
-use bounded_vec_deque::BoundedVecDeque;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::time::Duration;
 use tor_netdir::params::NetParameters;
 
@@ -67,7 +66,7 @@ struct History {
     /// For the purpose of this estimator, a circuit counts as
     /// "constructed" when a certain "significant" hop (typically the third)
     /// is completed.
-    time_history: BoundedVecDeque<MsecDuration>,
+    time_history: BoundedDeque<MsecDuration>,
 
     /// A histogram representation of the values in [`History::time_history`].
     ///
@@ -82,16 +81,16 @@ struct History {
     /// Each `true` value represents a successfully completed circuit
     /// (all hops).  Each `false` value represents a circuit that
     /// timed out after having completed at least one hop.
-    success_history: BoundedVecDeque<bool>,
+    success_history: BoundedDeque<bool>,
 }
 
 impl History {
     /// Initialize a new empty `History` with no observations.
     fn new_empty() -> Self {
         History {
-            time_history: BoundedVecDeque::new(TIME_HISTORY_LEN),
+            time_history: BoundedDeque::new(TIME_HISTORY_LEN),
             time_histogram: BTreeMap::new(),
-            success_history: BoundedVecDeque::new(SUCCESS_HISTORY_DEFAULT_LEN),
+            success_history: BoundedDeque::new(SUCCESS_HISTORY_DEFAULT_LEN),
         }
     }
 
@@ -105,10 +104,6 @@ impl History {
     /// Change the number of successes to record in our success
     /// history to `n`.
     fn set_success_history_len(&mut self, n: usize) {
-        if n < self.success_history.len() {
-            self.success_history
-                .drain(0..(self.success_history.len() - n));
-        }
         self.success_history.set_max_len(n);
     }
 
@@ -116,6 +111,12 @@ impl History {
     /// our time history to `n`.
     ///
     /// This is a testing-only function.
+    ///
+    /// # Limitations
+    ///
+    /// This method doesn't update time_histogram based on removed entries.
+    /// That doesn't matter for the tests that use it,
+    /// but if we ever try to use it in production, we'll need to fix that.
     #[cfg(test)]
     fn set_time_history_len(&mut self, n: usize) {
         self.time_history.set_max_len(n);
@@ -649,6 +650,74 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
             current_timeout: Some(cur_timeout),
             unknown_fields: Default::default(),
         })
+    }
+}
+
+/// A wrapper around `VecDeque<T>` that prevents more a certain number of entries from being inserted.
+#[derive(Clone, Debug)]
+struct BoundedDeque<T> {
+    /// The underlying `VecDeque`.
+    ///
+    /// We could use a `SmallVec` or an array instead,
+    /// but that would require reimplementing more of `VecDeque`.
+    inner: VecDeque<T>,
+
+    /// The maximum number of elements to permit.
+    limit: usize,
+}
+impl<T> BoundedDeque<T> {
+    /// Construct a new empty `BoundedDeque`, limited to `limit` entries.
+    fn new(limit: usize) -> Self {
+        Self {
+            inner: VecDeque::with_capacity(limit),
+            limit,
+        }
+    }
+
+    /// Remove every entry from this `BoundedDeque`.
+    fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    /// Return the number of entries in this `BoundedDeque`.
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Add a new entry to the back of this `BoundedDeque`.
+    ///
+    /// If the deque was at its limit, pop and return the entry at the front.
+    fn push_back(&mut self, item: T) -> Option<T> {
+        if self.limit == 0 {
+            return None;
+        }
+        let removed = if self.len() == self.limit {
+            self.inner.pop_front()
+        } else {
+            None
+        };
+        self.inner.push_back(item);
+        removed
+    }
+
+    /// Return an iterator over the entries in this `BoundedDeque`, from front to back.
+    fn iter(&self) -> impl Iterator<Item = &T> {
+        self.inner.iter()
+    }
+
+    /// Replace the maximum number of observations in this `BoundedDeque`.
+    ///
+    /// Unlike the equivalent method in the old BoundedVecDeque crate,
+    /// if the new limit is smaller than the previous limit,
+    /// this method will remove the _oldest_ items from the queue
+    /// - that is, the ones from the front.
+    fn set_max_len(&mut self, new_limit: usize) {
+        if new_limit < self.limit {
+            let n_to_drain = self.inner.len().saturating_sub(new_limit);
+            self.inner.drain(0..n_to_drain);
+            self.inner.shrink_to_fit();
+        }
+        self.limit = new_limit;
     }
 }
 
