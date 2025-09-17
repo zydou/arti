@@ -45,12 +45,7 @@
 //!
 //! # Limitations
 //!
-//! This is client-only, and only supports link protocol version 4.
-//!
-//! TODO: There is no channel padding.
-//!
-//! TODO: There is no flow control, rate limiting, queueing, or
-//! fairness.
+//! TODO: There is no rate limiting or fairness.
 
 /// The size of the channel buffer for communication between `Channel` and its reactor.
 pub const CHANNEL_BUFFER_SIZE: usize = 128;
