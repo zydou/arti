@@ -578,6 +578,8 @@ impl CircHop {
                 if #[cfg(feature = "flowctl-cc")] {
                     Ok(StreamFlowCtrl::new_xon_xoff(params, rate_limit_updater, drain_rate_requester))
                 } else {
+                    drop(rate_limit_updater);
+                    drop(drain_rate_requester);
                     Err(internal!(
                         "`CongestionControl` doesn't use sendmes, but 'flowctl-cc' feature not enabled",
                     ).into())
