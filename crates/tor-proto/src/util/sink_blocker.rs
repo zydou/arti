@@ -1,8 +1,7 @@
 //! Implement [`SinkBlocker`], a wrapper type to allow policy-based blocking of
 //! a [futures::Sink].
 
-#![expect(dead_code)] // TODO circpad remove.
-#![expect(unused_imports)] // TODO circpad remove.
+#![cfg_attr(not(feature = "circ-padding"), expect(dead_code))]
 
 mod boolean_policy;
 mod counting_policy;
@@ -94,11 +93,6 @@ impl<S, P> SinkBlocker<S, P> {
             policy,
             waker: None,
         }
-    }
-
-    /// Return a reference to the current Policy for this `SinkBlocker`.
-    pub(crate) fn policy(&self) -> &P {
-        &self.policy
     }
 
     /// Return a reference to the inner `Sink` of this object.
@@ -204,19 +198,14 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::{
-        future::poll_fn,
-        sync::{
-            Arc,
-            atomic::{AtomicBool, AtomicUsize, Ordering},
-        },
-        time::Duration,
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     };
 
     use super::*;
 
-    use futures::{FutureExt, SinkExt as _, StreamExt as _, channel::mpsc, poll};
-    use tor_rtcompat::{Runtime, SleepProvider};
+    use futures::{SinkExt as _, StreamExt as _, channel::mpsc, poll};
     use tor_rtmock::MockRuntime;
 
     #[test]

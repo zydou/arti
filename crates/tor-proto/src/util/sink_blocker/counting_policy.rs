@@ -1,6 +1,5 @@
 //! Implement a sink-blocking policy that allows a limited number of items to be sent.
 
-use super::Policy;
 use nonany::NonMaxU32;
 use tor_error::{Bug, internal};
 
@@ -141,6 +140,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::util::sink_blocker::Policy as _;
 
     #[test]
     fn counting_unlimited() {
