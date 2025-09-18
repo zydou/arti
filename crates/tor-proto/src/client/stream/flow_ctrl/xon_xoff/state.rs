@@ -31,6 +31,7 @@
 //! harms the performance for these users, even if it's fine for the arti socks proxy case.
 
 use std::num::Saturating;
+use std::sync::Arc;
 
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
@@ -51,9 +52,7 @@ use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
 #[derive(Debug)]
 pub(crate) struct XonXoffFlowCtrl {
     /// Consensus parameters.
-    // TODO: This is a lot of wasted space since each stream needs to store this,
-    // and it's very likely that all will be using the same values.
-    params: FlowCtrlParameters,
+    params: Arc<FlowCtrlParameters>,
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -75,7 +74,7 @@ pub(crate) struct XonXoffFlowCtrl {
 impl XonXoffFlowCtrl {
     /// Returns a new xon/xoff-based state.
     pub(crate) fn new(
-        params: &FlowCtrlParameters,
+        params: Arc<FlowCtrlParameters>,
         our_endpoint: StreamEndpointType,
         peer_endpoint: StreamEndpointType,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -88,7 +87,7 @@ impl XonXoffFlowCtrl {
         };
 
         Self {
-            params: params.clone(),
+            params,
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,

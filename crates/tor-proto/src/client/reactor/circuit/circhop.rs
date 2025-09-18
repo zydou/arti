@@ -221,7 +221,7 @@ pub(crate) struct CircHop {
     // TODO: It's unfortunate that all circuit hops need to hold on to this when they're likely the
     // same for all circuits. It would be nice if this could be in an `Arc`, and each circuit just
     // holds a reference to this `Arc`.
-    flow_ctrl_params: FlowCtrlParameters,
+    flow_ctrl_params: Arc<FlowCtrlParameters>,
     /// Decodes relay cells received from this hop.
     inbound: RelayCellDecoder,
     /// Format to use for relay cells.
@@ -266,7 +266,7 @@ impl CircHop {
             hop_num,
             map: Arc::new(Mutex::new(streammap::StreamMap::new())),
             ccontrol: CongestionControl::new(&settings.ccontrol),
-            flow_ctrl_params: settings.flow_ctrl_params.clone(),
+            flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
             inbound: RelayCellDecoder::new(relay_format),
             relay_format,
             n_incoming_cells_permitted: settings.n_incoming_cells_permitted.map(cvt),
@@ -286,7 +286,7 @@ impl CircHop {
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
         let flow_ctrl = self.build_flow_ctrl(
-            &self.flow_ctrl_params,
+            Arc::clone(&self.flow_ctrl_params),
             rate_limit_updater,
             drain_rate_requester,
         )?;
@@ -463,7 +463,7 @@ impl CircHop {
             sink,
             rx,
             self.build_flow_ctrl(
-                &self.flow_ctrl_params,
+                Arc::clone(&self.flow_ctrl_params),
                 rate_limit_updater,
                 drain_rate_requester,
             )?,
@@ -568,7 +568,7 @@ impl CircHop {
     #[cfg_attr(feature = "flowctl-cc", expect(clippy::unnecessary_wraps))]
     fn build_flow_ctrl(
         &self,
-        params: &FlowCtrlParameters,
+        params: Arc<FlowCtrlParameters>,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Result<StreamFlowCtrl> {

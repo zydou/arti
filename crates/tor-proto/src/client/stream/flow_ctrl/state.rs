@@ -1,5 +1,7 @@
 //! Code for implementing flow control (stream-level).
 
+use std::sync::Arc;
+
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
@@ -44,7 +46,7 @@ impl StreamFlowCtrl {
     /// Returns a new xon/xoff-based [`StreamFlowCtrl`].
     #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff(
-        params: &FlowCtrlParameters,
+        params: Arc<FlowCtrlParameters>,
         our_endpoint: StreamEndpointType,
         peer_endpoint: StreamEndpointType,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
