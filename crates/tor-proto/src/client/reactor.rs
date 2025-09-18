@@ -830,58 +830,58 @@ impl Reactor {
         };
 
         for action in actions {
-        let cmd = match action {
-            CircuitAction::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
-                RunOnceCmdInner::from_circuit_cmd(leg, cmd),
-            )),
-            CircuitAction::HandleControl(ctrl) => ControlHandler::new(self)
-                .handle_msg(ctrl)?
-                .map(RunOnceCmd::Single),
-            CircuitAction::HandleCell { leg, cell } => {
-                let circ = self
-                    .circuits
-                    .leg_mut(leg)
-                    .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
+            let cmd = match action {
+                CircuitAction::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
+                    RunOnceCmdInner::from_circuit_cmd(leg, cmd),
+                )),
+                CircuitAction::HandleControl(ctrl) => ControlHandler::new(self)
+                    .handle_msg(ctrl)?
+                    .map(RunOnceCmd::Single),
+                CircuitAction::HandleCell { leg, cell } => {
+                    let circ = self
+                        .circuits
+                        .leg_mut(leg)
+                        .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
 
-                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, leg, cell)?;
-                if circ_cmds.is_empty() {
-                    None
-                } else {
-                    // TODO: we return RunOnceCmd::Multiple even if there's a single command.
-                    //
-                    // See the TODO on `Circuit::handle_cell`.
-                    let cmd = RunOnceCmd::Multiple(
-                        circ_cmds
-                            .into_iter()
-                            .map(|cmd| RunOnceCmdInner::from_circuit_cmd(leg, cmd))
-                            .collect(),
-                    );
-
-                    Some(cmd)
-                }
-            }
-            CircuitAction::RemoveLeg { leg, reason } => {
-                Some(RunOnceCmdInner::RemoveLeg { leg, reason }.into())
-            }
-            CircuitAction::PaddingAction {
-                leg,
-                padding_action,
-            } => {
-                cfg_if! {
-                    if #[cfg(feature = "circ-padding")] {
-                        Some(RunOnceCmdInner::PaddingAction { leg, padding_action }.into())
+                    let circ_cmds = circ.handle_cell(&mut self.cell_handlers, leg, cell)?;
+                    if circ_cmds.is_empty() {
+                        None
                     } else {
-                        // If padding isn't enabled, we never generate a padding action,
-                        // so we can be sure this case will never be called.
-                        void::unreachable(padding_action.0);
+                        // TODO: we return RunOnceCmd::Multiple even if there's a single command.
+                        //
+                        // See the TODO on `Circuit::handle_cell`.
+                        let cmd = RunOnceCmd::Multiple(
+                            circ_cmds
+                                .into_iter()
+                                .map(|cmd| RunOnceCmdInner::from_circuit_cmd(leg, cmd))
+                                .collect(),
+                        );
+
+                        Some(cmd)
                     }
                 }
-            }
-        };
+                CircuitAction::RemoveLeg { leg, reason } => {
+                    Some(RunOnceCmdInner::RemoveLeg { leg, reason }.into())
+                }
+                CircuitAction::PaddingAction {
+                    leg,
+                    padding_action,
+                } => {
+                    cfg_if! {
+                        if #[cfg(feature = "circ-padding")] {
+                            Some(RunOnceCmdInner::PaddingAction { leg, padding_action }.into())
+                        } else {
+                            // If padding isn't enabled, we never generate a padding action,
+                            // so we can be sure this case will never be called.
+                            void::unreachable(padding_action.0);
+                        }
+                    }
+                }
+            };
 
-        if let Some(cmd) = cmd {
-            self.handle_run_once_cmd(cmd).await?;
-        }
+            if let Some(cmd) = cmd {
+                self.handle_run_once_cmd(cmd).await?;
+            }
         }
 
         Ok(())
