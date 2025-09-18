@@ -40,7 +40,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::reader::DrainRateRequest;
 
-use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
+use crate::client::stream::flow_ctrl::params::{CellCount, FlowCtrlParameters};
 use crate::client::stream::flow_ctrl::state::{FlowCtrlHooks, StreamEndpointType, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
@@ -61,6 +61,11 @@ pub(crate) struct XonXoffFlowCtrl {
     drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
     last_sent_xon_xoff: Option<XonXoffMsg>,
+    /// The buffer limit at which we should send an XOFF.
+    ///
+    /// This will be either `cc_xoff_client` or `cc_xoff_exit` depending on whether we're a
+    /// client/hs or exit.
+    xoff_limit: CellCount<{ tor_cell::relaycell::PAYLOAD_MAX_SIZE_ALL as u32 }>,
     /// DropMark sidechannel mitigations.
     ///
     /// This is only enabled if we are a client (including an onion service).
@@ -86,11 +91,17 @@ impl XonXoffFlowCtrl {
             StreamEndpointType::Exit => None,
         };
 
+        let xoff_limit = match our_endpoint {
+            StreamEndpointType::Client => params.cc_xoff_client,
+            StreamEndpointType::Exit => params.cc_xoff_exit,
+        };
+
         Self {
             params,
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,
+            xoff_limit,
             sidechannel_mitigation,
         }
     }
@@ -174,7 +185,7 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
     }
 
     fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
-        if buffer_len as u64 > self.params.cc_xoff_client.as_bytes() {
+        if buffer_len as u64 > self.xoff_limit.as_bytes() {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
             debug_assert!(matches!(self.last_sent_xon_xoff, Some(XonXoffMsg::Xoff)));
@@ -195,7 +206,7 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
             return Ok(None);
         }
 
-        if buffer_len as u64 <= self.params.cc_xoff_client.as_bytes() {
+        if buffer_len as u64 <= self.xoff_limit.as_bytes() {
             return Ok(None);
         }
 
