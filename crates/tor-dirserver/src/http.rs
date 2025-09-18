@@ -100,8 +100,34 @@ struct DocumentBody(VecDeque<Arc<[u8]>>);
 /// Representation of an endpoint, uniquely identified by a [`Method`] and path
 /// pair followed by an appropriate [`EndpointFn`].
 ///
-/// TODO: Replace the [`Vec`] with a [`str`] and do splitting in the core code.
-type Endpoint = (Method, Vec<&'static str>, EndpointFn);
+/// The path itself is a special string that refers to the endpoint at which this
+/// resource should be available.  It supports a pattern-matching like syntax
+/// through the use of the asterisk `*` character.
+///
+/// For example:
+/// `/tor/status-vote/current/consensus` will match the URL exactly, whereas
+/// `/tor/status-vote/current/*` will match every string that is in the
+/// fourth component; such as `/tor/status-vote/current/consensus` or
+/// `/tor/status-vote/current/consensus-microdesc`; it will however not
+/// match in a prefix-like syntax, such as
+/// `/tor/status-vote/current/consensus-microdesc/diff`.
+///
+/// In the case of non-unique matches, the first match wins.  Also, because
+/// of wildcards, matching takes place in a `O(n)` fashion, so be sure to
+/// to keep the `n` at a reasonable size.  This should not be much of a
+/// problem for Tor applications though, because the list of endpoints is
+/// reasonable (less than 30).
+///
+/// TODO: The entire asterisk matching is not so super nice, primarily because
+/// it removes compile-time semantic checks; however, I cannot really think
+/// of a much cleaner way that would not involve lots of boilerplate.
+/// The most minimal "clean" way could be to do `path: &Option<&'static str>`
+/// but I am not sure if this overhead is worth it, i.e.:
+/// * `/tor/status-vote/current/*/diff/*/*`
+/// * `[Some(""), Some("tor"), Some("status-vote"), Some("current"), None, ...]`
+///   Maybe a macro could help here though ...
+
+type Endpoint = (Method, &'static str, EndpointFn);
 
 /// Representation of the core HTTP server.
 #[derive(Debug)]
@@ -499,6 +525,7 @@ impl HttpServer {
         let mut res = None;
         for tuple in endpoints.iter() {
             let (method, path, _endpoint_fn) = tuple;
+            let path = path.split('/').collect::<Vec<_>>();
 
             // Filter the method out first.
             if requ.method() != method {
@@ -835,10 +862,10 @@ pub(in crate::http) mod test {
         }
 
         let endpoints: Vec<Endpoint> = vec![
-            (Method::GET, vec!["", "foo", "bar", "baz"], dummy),
-            (Method::GET, vec!["", "foo", "*", "baz"], dummy),
-            (Method::GET, vec!["", "bar", "*"], dummy),
-            (Method::GET, vec!["", ""], dummy),
+            (Method::GET, "/foo/bar/baz", dummy),
+            (Method::GET, "/foo/*/baz", dummy),
+            (Method::GET, "/bar/*", dummy),
+            (Method::GET, "/", dummy),
         ];
 
         /// Basically a domain specific [`assert_eq`] that works by comparing
@@ -917,11 +944,7 @@ pub(in crate::http) mod test {
 
         let pool = create_test_db_pool().await;
         let server = HttpServer::new(
-            vec![(
-                Method::GET,
-                vec!["", "tor", "status-vote", "current", "consensus"],
-                identity,
-            )],
+            vec![(Method::GET, "/tor/status-vote/current/consensus", identity)],
             pool,
         );
 
