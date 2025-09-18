@@ -1,5 +1,7 @@
 //! Code for implementing flow control (stream-level).
 
+use std::sync::Arc;
+
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
@@ -44,7 +46,7 @@ impl StreamFlowCtrl {
     /// Returns a new xon/xoff-based [`StreamFlowCtrl`].
     #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff(
-        params: &FlowCtrlParameters,
+        params: Arc<FlowCtrlParameters>,
         our_endpoint: StreamEndpointType,
         peer_endpoint: StreamEndpointType,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -68,8 +70,8 @@ impl FlowCtrlHooks for StreamFlowCtrl {
         self.e.can_send(msg)
     }
 
-    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
-        self.e.take_capacity_to_send(msg)
+    fn about_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
+        self.e.about_to_send(msg)
     }
 
     fn put_for_incoming_sendme(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
@@ -101,14 +103,15 @@ pub(crate) trait FlowCtrlHooks {
     /// Whether this stream is ready to send `msg`.
     fn can_send<M: RelayMsg>(&self, msg: &M) -> bool;
 
-    /// Take capacity to send `msg`. If there's insufficient capacity, returns
-    /// an error.
+    /// Inform the flow control code that we're about to send `msg`.
+    /// Returns an error if the message should not be sent,
+    /// and the circuit should be closed.
     // TODO: Consider having this method wrap the message in a type that
     // "proves" we've applied flow control. This would make it easier to apply
     // flow control earlier, e.g. in `OpenStreamEntStream`, without introducing
     // ambiguity in the sending function as to whether flow control has already
     // been applied or not.
-    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()>;
+    fn about_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()>;
 
     /// Handle an incoming sendme.
     ///

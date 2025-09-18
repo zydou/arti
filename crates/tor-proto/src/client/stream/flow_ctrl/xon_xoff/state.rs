@@ -31,6 +31,7 @@
 //! harms the performance for these users, even if it's fine for the arti socks proxy case.
 
 use std::num::Saturating;
+use std::sync::Arc;
 
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
@@ -39,7 +40,7 @@ use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::reader::DrainRateRequest;
 
-use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
+use crate::client::stream::flow_ctrl::params::{CellCount, FlowCtrlParameters};
 use crate::client::stream::flow_ctrl::state::{FlowCtrlHooks, StreamEndpointType, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
@@ -51,9 +52,7 @@ use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
 #[derive(Debug)]
 pub(crate) struct XonXoffFlowCtrl {
     /// Consensus parameters.
-    // TODO: This is a lot of wasted space since each stream needs to store this,
-    // and it's very likely that all will be using the same values.
-    params: FlowCtrlParameters,
+    params: Arc<FlowCtrlParameters>,
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -62,6 +61,11 @@ pub(crate) struct XonXoffFlowCtrl {
     drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
     last_sent_xon_xoff: Option<XonXoffMsg>,
+    /// The buffer limit at which we should send an XOFF.
+    ///
+    /// This will be either `cc_xoff_client` or `cc_xoff_exit` depending on whether we're a
+    /// client/hs or exit.
+    xoff_limit: CellCount<{ tor_cell::relaycell::PAYLOAD_MAX_SIZE_ALL as u32 }>,
     /// DropMark sidechannel mitigations.
     ///
     /// This is only enabled if we are a client (including an onion service).
@@ -75,7 +79,7 @@ pub(crate) struct XonXoffFlowCtrl {
 impl XonXoffFlowCtrl {
     /// Returns a new xon/xoff-based state.
     pub(crate) fn new(
-        params: &FlowCtrlParameters,
+        params: Arc<FlowCtrlParameters>,
         our_endpoint: StreamEndpointType,
         peer_endpoint: StreamEndpointType,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
@@ -87,11 +91,17 @@ impl XonXoffFlowCtrl {
             StreamEndpointType::Exit => None,
         };
 
+        let xoff_limit = match our_endpoint {
+            StreamEndpointType::Client => params.cc_xoff_client,
+            StreamEndpointType::Exit => params.cc_xoff_exit,
+        };
+
         Self {
-            params: params.clone(),
+            params,
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,
+            xoff_limit,
             sidechannel_mitigation,
         }
     }
@@ -104,10 +114,7 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
         true
     }
 
-    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
-        // xon/xoff flow control doesn't have "capacity";
-        // the capacity is effectively controlled by the congestion control
-
+    fn about_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         // if sidechannel mitigations are enabled and this is a RELAY_DATA message,
         // notify that we sent a data message
         if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {
@@ -178,7 +185,7 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
     }
 
     fn maybe_send_xon(&mut self, rate: XonKbpsEwma, buffer_len: usize) -> Result<Option<Xon>> {
-        if buffer_len as u64 > self.params.cc_xoff_client.as_bytes() {
+        if buffer_len as u64 > self.xoff_limit.as_bytes() {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
             debug_assert!(matches!(self.last_sent_xon_xoff, Some(XonXoffMsg::Xoff)));
@@ -199,7 +206,7 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
             return Ok(None);
         }
 
-        if buffer_len as u64 <= self.params.cc_xoff_client.as_bytes() {
+        if buffer_len as u64 <= self.xoff_limit.as_bytes() {
             return Ok(None);
         }
 
@@ -308,6 +315,13 @@ impl SidechannelMitigation {
         // advisory XON that was too early, before we check if we received the advisory XON too
         // frequently.
 
+        // Ensure that we have sent some bytes. This might be covered by other checks below, but this
+        // is the most important check so we do it explicitly here first.
+        if self.bytes_sent_total.0 == 0 {
+            const MSG: &str = "Received XON before sending any data";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
         // is this an advisory XON?
         let is_advisory = match self.last_recvd_xon_xoff {
             // if we last received an XON, then this is advisory since we are already sending data
@@ -370,6 +384,13 @@ impl SidechannelMitigation {
         // The ordering is important here. For example we first want to disallow consecutive XOFFs,
         // then check if we received an XOFF that was too early, and finally check if we received
         // the XOFF too frequently.
+
+        // Ensure that we have sent some bytes. This might be covered by other checks below, but this
+        // is the most important check so we do it explicitly here first.
+        if self.bytes_sent_total.0 == 0 {
+            const MSG: &str = "Received XOFF before sending any data";
+            return Err(Error::CircProto(MSG.into()));
+        }
 
         // disallow consecutive XOFF messages
         if self.last_recvd_xon_xoff == Some(XonXoff::Xoff) {
