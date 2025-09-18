@@ -54,7 +54,7 @@ use tor_linkspec::RelayIds;
 use tor_llcrypto::pk;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 
-use futures::{SinkExt as _, Stream};
+use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use postage::watch;
 use safelog::sensitive as sv;
@@ -1415,25 +1415,6 @@ impl Circuit {
         Ok(())
     }
 
-    /// Returns a [`Stream`] of [`CircuitCmd`] to poll from the main loop.
-    ///
-    /// The iterator contains at most one [`CircuitCmd`] for each hop,
-    /// (excluding the `exclude` hop, if specified),
-    /// representing the instructions for handling the ready-item, if any,
-    /// of its highest priority stream.
-    ///
-    /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
-    /// To avoid contention, never create more than one [`Circuit::ready_streams_iterator`]
-    /// stream at a time!
-    ///
-    /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(
-        &self,
-        exclude: Option<HopNum>,
-    ) -> impl Stream<Item = CircuitCmd> + use<> {
-        self.hops.ready_streams_iterator(exclude)
-    }
-
     /// Remove all halfstreams that are expired at `now`.
     pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
         self.hops.remove_expired_halfstreams(now);
@@ -1501,7 +1482,7 @@ impl Circuit {
     ///
     /// Important: this function locks the stream map of its each of the [`CircHop`]s
     /// in this circuit, so it must **not** be called from any function where the
-    /// stream map lock is held (such as [`ready_streams_iterator`](Self::ready_streams_iterator).
+    /// stream map lock is held.
     pub(super) fn has_streams(&self) -> bool {
         self.hops.has_streams()
     }
