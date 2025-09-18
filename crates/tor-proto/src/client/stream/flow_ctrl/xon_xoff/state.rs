@@ -103,10 +103,7 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
         true
     }
 
-    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
-        // xon/xoff flow control doesn't have "capacity";
-        // the capacity is effectively controlled by the congestion control
-
+    fn about_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         // if sidechannel mitigations are enabled and this is a RELAY_DATA message,
         // notify that we sent a data message
         if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {

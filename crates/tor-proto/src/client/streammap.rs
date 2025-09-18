@@ -125,14 +125,14 @@ impl OpenStreamEnt {
         self.flow_ctrl.handle_incoming_xoff(msg)
     }
 
-    /// Take capacity to send `msg`. If there's insufficient capacity, returns
-    /// an error. Should be called at the point we've fully committed to
-    /// sending the message.
+    /// Inform the flow control code that we're about to send `msg`.
+    /// Should be called at the point we've fully committed to sending the message.
+    /// Returns an error if we can't send `msg` and should close the circuit.
     //
-    // TODO: Consider not exposing this, and instead taking the capacity in
+    // TODO: Consider not exposing this, and instead calling in
     // `StreamMap::take_ready_msg`.
-    pub(crate) fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
-        self.flow_ctrl.take_capacity_to_send(msg)
+    pub(crate) fn about_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
+        self.flow_ctrl.about_to_send(msg)
     }
 }
 
@@ -159,7 +159,7 @@ impl futures::Stream for OpenStreamEntStream {
         };
         let res = self.project().inner.project().rx.poll_next(cx);
         debug_assert!(res.is_ready());
-        // TODO: consider calling `inner.flow_ctrl.take_capacity_to_send` here;
+        // TODO: consider calling `inner.flow_ctrl.about_to_send` here;
         // particularly if we change it to return a wrapper type that proves
         // we've taken the capacity. Otherwise it'd make it tricky in the reactor
         // to be sure we've correctly taken the capacity, since messages can originate

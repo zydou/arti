@@ -33,7 +33,7 @@ impl FlowCtrlHooks for WindowFlowCtrl {
         !sendme::cmd_counts_towards_windows(msg.cmd()) || self.window.window() > 0
     }
 
-    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
+    fn about_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         if sendme::cmd_counts_towards_windows(msg.cmd()) {
             self.window.take().map(|_| ())
         } else {

@@ -450,13 +450,13 @@ impl Circuit {
         // We might be out of capacity entirely; see if we are about to hit a limit.
         //
         // TODO: If we ever add a notion of _recoverable_ errors below, we'll
-        // need a way to restore this limit, and similarly for take_capacity_to_send().
+        // need a way to restore this limit, and similarly for about_to_send().
         circhop.decrement_outbound_cell_limit()?;
 
         // We need to apply stream-level flow control *before* encoding the message.
         if c_t_w {
             if let Some(stream_id) = stream_id {
-                circhop.take_capacity_to_send(stream_id, msg.msg())?;
+                circhop.about_to_send(stream_id, msg.msg())?;
             }
         }
 

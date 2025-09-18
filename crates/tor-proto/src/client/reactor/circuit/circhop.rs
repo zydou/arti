@@ -421,16 +421,12 @@ impl CircHop {
         self.relay_format
     }
 
-    /// Take capacity to send `msg`.
+    /// We're about to send `msg`.
     ///
-    /// See [`OpenStreamEnt::take_capacity_to_send`].
+    /// See [`OpenStreamEnt::about_to_send`].
     //
     // TODO prop340: This should take a cell or similar, not a message.
-    pub(crate) fn take_capacity_to_send(
-        &mut self,
-        stream_id: StreamId,
-        msg: &AnyRelayMsg,
-    ) -> Result<()> {
+    pub(crate) fn about_to_send(&mut self, stream_id: StreamId, msg: &AnyRelayMsg) -> Result<()> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = hop_map.get_mut(stream_id) else {
             warn!(
@@ -444,7 +440,7 @@ impl CircHop {
             )));
         };
 
-        ent.take_capacity_to_send(msg)
+        ent.about_to_send(msg)
     }
 
     /// Add an entry to this map using the specified StreamId.
