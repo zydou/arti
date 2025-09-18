@@ -127,7 +127,7 @@ pub(crate) struct Circuit {
     /// The cryptographic state for this circuit for outbound cells.
     crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
-    hops: CircHopList,
+    pub(super) hops: CircHopList,
     /// Mutable information about this circuit,
     /// shared with the reactor's `ConfluxSet`.
     mutable: Arc<MutableState>,
