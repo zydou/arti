@@ -53,6 +53,11 @@ use {
 /// Note: this value was picked arbitrarily and may not be suitable.
 const MAX_CONFLUX_LEGS: usize = 16;
 
+/// The expected number of circuit actions to be returned from
+/// [`ConfluxSet::next_circ_action`]
+/// (2 * number of futures, because there are usually at most 2 legs in a conflux tunnel).
+const CIRC_ACTION_COUNT: usize = 8;
+
 /// A set with one or more circuits.
 ///
 /// ### Conflux set life cycle
@@ -891,7 +896,11 @@ impl ConfluxSet {
     pub(super) fn next_circ_action<'a>(
         &'a mut self,
         runtime: &'a tor_rtcompat::DynTimeProvider,
-    ) -> Result<impl Future<Output = Result<CircuitAction, crate::Error>> + 'a, Bug> {
+    ) -> Result<
+        // XXX this return type will soon become a lot simpler.
+        impl Future<Output = Result<SmallVec<[CircuitAction; CIRC_ACTION_COUNT]>, crate::Error>> + 'a,
+        Bug,
+    > {
         // Avoid polling the streams on the join point if our primary
         // leg is blocked on cc
         cfg_if::cfg_if! {
@@ -1018,7 +1027,8 @@ impl ConfluxSet {
             .into_future()
             .map(|(next, _)| next.ok_or(internal!("empty conflux set").into()))
             // Clean up the nested `Result`s before returning to the caller.
-            .map(|res| flatten(flatten(res))))
+            .map(|res| flatten(flatten(res)))
+            .map(|res| res.map(|res| smallvec![res])))
     }
 
     /// The join point on the current primary leg.

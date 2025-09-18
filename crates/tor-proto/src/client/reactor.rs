@@ -70,6 +70,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use circuit::CircuitCmd;
 use derive_deftly::Deftly;
 use derive_more::From;
+use smallvec::smallvec;
 use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -808,7 +809,7 @@ impl Reactor {
         #[cfg(feature = "conflux")]
         self.try_dequeue_ooo_msgs().await?;
 
-        let action = select_biased! {
+        let actions = select_biased! {
             res = self.command.next() => {
                 let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
                 return ControlHandler::new(self).handle_cmd(cmd);
@@ -823,11 +824,12 @@ impl Reactor {
             // circuit is ready for sending.
             ret = self.control.next() => {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
-                CircuitAction::HandleControl(msg)
+                smallvec![CircuitAction::HandleControl(msg)]
             },
             res = self.circuits.next_circ_action(&self.runtime)?.fuse() => res?,
         };
 
+        for action in actions {
         let cmd = match action {
             CircuitAction::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
                 RunOnceCmdInner::from_circuit_cmd(leg, cmd),
@@ -879,6 +881,7 @@ impl Reactor {
 
         if let Some(cmd) = cmd {
             self.handle_run_once_cmd(cmd).await?;
+        }
         }
 
         Ok(())
