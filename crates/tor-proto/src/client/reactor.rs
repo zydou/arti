@@ -826,7 +826,7 @@ impl Reactor {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
                 smallvec![CircuitAction::HandleControl(msg)]
             },
-            res = self.circuits.next_circ_action(&self.runtime)?.fuse() => res?,
+            res = self.circuits.next_circ_action(&self.runtime).fuse() => res?,
         };
 
         for action in actions {

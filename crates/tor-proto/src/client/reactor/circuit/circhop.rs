@@ -91,10 +91,10 @@ impl CircHopList {
     /// stream at a time!
     ///
     /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(
+    pub(in crate::client::reactor) fn ready_streams_iterator(
         &self,
         exclude: Option<HopNum>,
-    ) -> impl Stream<Item = Result<CircuitCmd>> + use<> {
+    ) -> impl Stream<Item = CircuitCmd> + use<> {
         self.hops
             .iter()
             .enumerate()
@@ -140,12 +140,12 @@ impl CircHopList {
                     };
 
                     if msg.is_none() {
-                        return Poll::Ready(Ok(CircuitCmd::CloseStream {
+                        return Poll::Ready(CircuitCmd::CloseStream {
                             hop: hop_num,
                             sid,
                             behav: CloseStreamBehavior::default(),
                             reason: streammap::TerminateReason::StreamTargetClosed,
-                        }));
+                        });
                     };
                     let msg = hop_map.take_ready_msg(sid).expect("msg disappeared");
 
@@ -164,7 +164,7 @@ impl CircHopList {
                         early: false,
                         cell: AnyRelayMsgOuter::new(Some(sid), msg),
                     };
-                    Poll::Ready(Ok(CircuitCmd::Send(cell)))
+                    Poll::Ready(CircuitCmd::Send(cell))
                 }))
             })
             .collect::<FuturesUnordered<_>>()
