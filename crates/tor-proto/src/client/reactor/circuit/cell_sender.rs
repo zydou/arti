@@ -131,7 +131,7 @@ impl CircuitCellSender {
         //
         // TODO circpad: in theory we could also look at the members of the per-channel queue to find this out!
         // But that's nontrivial, since the per-channel queue is implemented with an futures mpsc
-        // channel, which doesn't have any functionality like that.
+        // channel, which doesn't have any functionality to let you inspect its queue.
         self.sometimes_unbounded()
             .iter_queue()
             .any(|(_, info)| info.is_some_and(|inf| inf.target_hop >= hop))

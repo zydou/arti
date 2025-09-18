@@ -11,6 +11,7 @@
 
 mod backend;
 
+use std::collections::VecDeque;
 use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -39,7 +40,7 @@ type Duration = std::time::Duration;
 /// A type we use to generate a set of [`PaddingEvent`].
 ///
 /// This is a separate type so we can tune it and make it into a smallvec if needed.
-type PaddingEventVec = Vec<PaddingEvent>;
+type PaddingEventQueue = VecDeque<PaddingEvent>;
 
 /// A type we use to generate a set of [`PaddingEvent`].
 ///
@@ -147,7 +148,8 @@ impl PaddingRules {
     /// Create a [`PaddingBackend`] for this [`PaddingRules`], so we can install it in a
     /// [`PaddingShared`].
     fn create_padding_backend(&self) -> Result<Box<dyn PaddingBackend>, maybenot::Error> {
-        // TODO circpad: specialize this.
+        // TODO circpad: specialize this for particular values of n_machines,
+        // when we finally go to implement padding.
         const OPTIMIZE_FOR_N_MACHINES: usize = 4;
 
         let backend =
@@ -383,6 +385,19 @@ struct PaddingShared<S: SleepProvider> {
     /// which we call in `<PaddingStream as Stream>::poll_next` immediately
     /// before we create a timer.
     next_scheduled_wakeup: Option<Instant>,
+
+    /// A deque of `PaddingEvent` that we want to yield from our [`PaddingEventStream`].
+    ///
+    /// NOTE: If you put new items in this list from anywhere other than inside
+    /// `PaddingEventStream::poll_next`, you need to alert the `waker`.
+    pending_events: PaddingEventQueue,
+
+    /// A waker to alert if we've added any events to padding_events,
+    /// or if we need the stream to re-poll.
+    //
+    // TODO circpad: This waker is redundant with the one stored in every backend's `Timer`.
+    // When we revisit this code we may want to consider combining them somehow.
+    waker: Waker,
 }
 
 /// The number of padding and non-padding cells we have received from each hop,
@@ -440,7 +455,7 @@ impl PaddingStats {
 /// But all we actually need to tell the reactor code
 /// is whether to block the _entire_ circuit or not.
 //
-// TODO-circpad: It might beneficial
+// TODO circpad: It might beneficial
 // to block only the first blocking hop and its successors,
 // but that creates tricky starvation problems
 // in the case where we have queued traffic for a later, blocking, hop
@@ -737,12 +752,17 @@ impl<S: SleepProvider> PaddingShared<S> {
         };
         self.hops[hop_idx] = hop_backend;
         self.stats[hop_idx] = stats;
-        // TODO circpad: we probably need to wake up the stream in this case.
 
-        // TODO circpad: this won't behave correctly if there was previously a backend for this hop,
-        // and it had set blocking.  We need to make sure that an appropriate blocking-related
-        // PaddingEvent gets generated.
+        let was_blocked = self.blocking.hop_blocked[hop_idx];
         self.blocking.set_unblocked(hop_idx);
+        if was_blocked {
+            self.pending_events
+                .push_back(self.blocking.blocking_update_paddingevent());
+        }
+
+        // We need to alert the stream, in case we added an event above, and so that it will poll
+        // the new padder at least once.
+        self.waker.wake_by_ref();
     }
 
     /// Transform a [`PerHopPaddingEvent`] for a single hop with index `idx` into a [`PaddingEvent`],
@@ -767,9 +787,9 @@ impl<S: SleepProvider> PaddingShared<S> {
                 bypass,
             }),
             PHPE::StartBlocking { is_bypassable } => {
+                // NOTE that we remember is_bypassable for every hop, but the blocking is only
+                // bypassable if _every_ hop is unblocked, or has bypassable blocking.
                 blocking.set_blocked(hop_idx, is_bypassable);
-                // TODO circpad-trafficblock: by design, "is_bypassable" only works for the first hop
-                // that is blocking; Is this as intended?
                 blocking.blocking_update_paddingevent()
             }
             PHPE::StopBlocking => {
@@ -782,8 +802,8 @@ impl<S: SleepProvider> PaddingShared<S> {
     /// Extract every PaddingEvent that is ready to be reported to the circuit at time `now`.
     ///
     /// May trigger other events, or wake up the stream, in the course of running.
-    fn take_padding_events_at(&mut self, now: Instant) -> PaddingEventVec {
-        let mut output = PaddingEventVec::default();
+    fn take_padding_events_at(&mut self, now: Instant) -> PaddingEventQueue {
+        let mut output = PaddingEventQueue::default();
         for (hop_idx, backend) in self.hops.iter_mut().enumerate() {
             let Some(backend) = backend else {
                 continue;
@@ -811,6 +831,7 @@ impl<S: SleepProvider> PaddingShared<S> {
             .filter_map(|hop| hop.next_wakeup(waker))
             .min();
         self.next_scheduled_wakeup = next_expiration;
+        self.waker = waker.clone();
         next_expiration
     }
 }
@@ -826,6 +847,7 @@ where
 {
     /// An underlying list of PaddingBackend.
     shared: Arc<Mutex<PaddingShared<S>>>,
+
     /// A future defining a time at which we must next call `padder.padding_events_at`.
     ///
     /// (We also arrange for the backend to wake us up if we need to change this time,
@@ -834,12 +856,6 @@ where
     /// Note that this timer is allowed to be _earlier_ than our true wakeup time,
     /// but not later.
     sleep_future: S::SleepFuture,
-
-    /// A list of `PaddingEvent` that we want to yield.
-    ///
-    /// We store this list in reverse order from that returned by `padding_events_at`,
-    /// so that we can pop them one by one.
-    pending_events: PaddingEventVec,
 }
 
 impl futures::Stream for PaddingEventStream {
@@ -849,25 +865,20 @@ impl futures::Stream for PaddingEventStream {
         loop {
             let (now, next_wakeup, runtime) = {
                 // We destructure like this to avoid simultaneous mutable/immutable borrows.
-                let Self {
-                    shared,
-                    pending_events,
-                    ..
-                } = &mut *self;
-
-                // Do we have any events that are waiting to be yielded?
-                if let Some(val) = pending_events.pop() {
-                    return Poll::Ready(Some(val));
-                }
+                let Self { shared, .. } = &mut *self;
 
                 let mut shared = shared.lock().expect("Poisoned lock");
 
+                // Do we have any events that are waiting to be yielded?
+                if let Some(val) = shared.pending_events.pop_front() {
+                    return Poll::Ready(Some(val));
+                }
+
                 // Does the padder have any events that have become ready to be yielded?
                 let now = shared.runtime.now();
-                *pending_events = shared.take_padding_events_at(now);
-                // (we reverse them, so that we can pop them one by one.)
-                pending_events.reverse();
-                if let Some(val) = pending_events.pop() {
+                shared.pending_events = shared.take_padding_events_at(now);
+
+                if let Some(val) = shared.pending_events.pop_front() {
                     return Poll::Ready(Some(val));
                 }
 
@@ -939,6 +950,8 @@ where
         stats: Default::default(),
         blocking: Default::default(),
         next_scheduled_wakeup: None,
+        pending_events: PaddingEventQueue::default(),
+        waker: Waker::noop().clone(),
     };
     let shared = Arc::new(Mutex::new(shared));
     let controller = PaddingController {
@@ -947,7 +960,6 @@ where
     let stream = PaddingEventStream {
         shared,
         sleep_future,
-        pending_events: PaddingEventVec::default(),
     };
 
     (controller, stream)

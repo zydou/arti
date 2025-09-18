@@ -297,7 +297,9 @@ impl_not_auto_value!(ByteQty);
 /// obscure traffic patterns, and impede router-level data collection.
 ///
 /// This same enum is used to control padding at various levels of the Tor system.
-/// (TODO: actually we don't do circuit padding yet.)
+//
+// (TODO circpad: actually we don't negotiate circuit padding yet. But when we do, we should look at
+// this.)
 //
 // This slightly-odd interleaving of derives and attributes stops rustfmt doing a daft thing
 #[derive(Clone, Copy, Hash, Debug, Ord, PartialOrd, Eq, PartialEq)]
