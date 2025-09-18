@@ -40,10 +40,7 @@ use tokio::{
 };
 use tracing::warn;
 
-use crate::{
-    err::{BuilderError, DatabaseError},
-    schema::Sha256,
-};
+use crate::{err::DatabaseError, schema::Sha256};
 
 mod cache;
 
@@ -107,22 +104,12 @@ struct DocumentBody(VecDeque<Arc<[u8]>>);
 type Endpoint = (Method, Vec<&'static str>, EndpointFn);
 
 /// Representation of the core HTTP server.
+#[derive(Debug)]
 pub(crate) struct HttpServer {
-    /// The [`HttpServerBuilder`] used to generate this [`HttpServer`].
-    builder: HttpServerBuilder,
-}
-
-/// A builder for [`HttpServer`].
-///
-/// TODO DIRMIRROR: Get rid of this structure and just access the stuff in
-/// [`HttpServer`] directly, which is fine given that this is an internal module
-/// anyways.
-#[derive(Default)]
-pub(crate) struct HttpServerBuilder {
-    /// The [`Pool`] from deapool to manage database connections.
-    pool: Option<Pool<Manager>>,
-    /// The HTTP endpoints.
+    /// List of [`Endpoint`] entries.
     endpoints: Vec<Endpoint>,
+    /// Access to the database pool.
+    pool: Pool<Manager>,
 }
 
 impl Body for DocumentBody {
@@ -142,9 +129,10 @@ impl Body for DocumentBody {
 }
 
 impl HttpServer {
-    /// Creates a new [`HttpServerBuilder`].
-    pub(crate) fn builder() -> HttpServerBuilder {
-        HttpServerBuilder::default()
+    /// Creates a new [`HttpServer`] with a given [`Vec`] of [`Endpoint`] entries
+    /// alongside access to the database [`Pool`].
+    pub(crate) fn new(endpoints: Vec<Endpoint>, pool: Pool<Manager>) -> Self {
+        Self { endpoints, pool }
     }
 
     /// Runs the server endlessly in the current task.
@@ -160,8 +148,8 @@ impl HttpServer {
         E: std::error::Error,
     {
         let cache = StoreCache::new();
-        let endpoints: Arc<[Endpoint]> = self.builder.endpoints.into();
-        let pool = self.builder.pool.expect("builder ensured this is Some");
+        let endpoints: Arc<[Endpoint]> = self.endpoints.into();
+        let pool = self.pool;
 
         // We operate exclusively in JoinSets so that everything gets aborted
         // nicely in order without causing any sort of leaks.
@@ -598,63 +586,6 @@ impl HttpServer {
     }
 }
 
-impl HttpServerBuilder {
-    /// Creates a new [`HttpServerBuilder`] with default values.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
-    /// Sets the database pool which is mandatory.
-    pub(crate) fn pool(mut self, pool: Pool<Manager>) -> Self {
-        self.pool = Some(pool);
-        self
-    }
-
-    /// Adds a new [`Method::GET`] endpoint.
-    ///
-    /// `path` is a special string that refers to the endpoint at which this
-    /// resource should be available.  It supports a pattern-matching like
-    /// syntax through the use of the asterisk `*` character.
-    ///
-    /// For example:
-    /// `/tor/status-vote/current/consensus` will match the URL exactly, whereas
-    /// `/tor/status-vote/current/*` will match every string that is in the
-    /// fourth component; such as `/tor/status-vote/current/consensus` or
-    /// `/tor/status-vote/current/consensus-microdesc`; it will however not
-    /// match in a prefix-like syntax, such as
-    /// `/tor/status-vote/current/consensus-microdesc/diff`.
-    ///
-    /// In the case of non-unique matches, the first match wins.  Also, because
-    /// of wildcards, matching takes place in a `O(n)` fashion, so be sure to
-    /// to keep the `n` at a reasonable size.  This should not be much of a
-    /// problem for Tor applications though, because the list of endpoints is
-    /// reasonable (less than 30).
-    ///
-    /// TODO: The entire asterisk matching is not so super nice, primarily because
-    /// it removes compile-time semantic checks; however, I cannot really think
-    /// of a much cleaner way that would not involve lots of boilerplate.
-    /// The most minimal "clean" way could be to do `path: &Option<&'static str>`
-    /// but I am not sure if this overhead is worth it, i.e.:
-    /// * `/tor/status-vote/current/*/diff/*/*`
-    /// * `[Some(""), Some("tor"), Some("status-vote"), Some("current"), None, ...]`
-    ///   Maybe a macro could help here though ...
-    pub(crate) fn get(mut self, path: &'static str, endpoint_fn: EndpointFn) -> Self {
-        self.endpoints
-            .push((Method::GET, path.split('/').collect(), endpoint_fn));
-        self
-    }
-
-    /// Consumes the [`HttpServerBuilder`] to build an [`HttpServer`].
-    pub(crate) fn build(self) -> Result<HttpServer, BuilderError> {
-        // Check the presence of mandatory fields.
-        if self.pool.is_none() {
-            return Err(BuilderError::MissingField("pool"));
-        }
-
-        Ok(HttpServer { builder: self })
-    }
-}
-
 #[cfg(test)]
 pub(in crate::http) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -985,11 +916,14 @@ pub(in crate::http) mod test {
         }
 
         let pool = create_test_db_pool().await;
-        let server = HttpServer::builder()
-            .pool(pool)
-            .get("/tor/status-vote/current/consensus", identity)
-            .build()
-            .unwrap();
+        let server = HttpServer::new(
+            vec![(
+                Method::GET,
+                vec!["", "tor", "status-vote", "current", "consensus"],
+                identity,
+            )],
+            pool,
+        );
 
         let listener = TcpListener::bind("[::]:0").await.unwrap();
         let local_addr = listener.local_addr().unwrap();
