@@ -30,14 +30,17 @@
 //! stream data entirely within their program. We don't want to set `cc_xoff_client` too low that it
 //! harms the performance for these users, even if it's fine for the arti socks proxy case.
 
+use std::num::Saturating;
+
 use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use super::reader::DrainRateRequest;
 
 use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamRateLimit};
+use crate::client::stream::flow_ctrl::state::{FlowCtrlHooks, StreamEndpointType, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
@@ -50,7 +53,6 @@ pub(crate) struct XonXoffFlowCtrl {
     /// Consensus parameters.
     // TODO: This is a lot of wasted space since each stream needs to store this,
     // and it's very likely that all will be using the same values.
-    // TODO: Use these values.
     params: FlowCtrlParameters,
     /// How we communicate rate limit updates to the
     /// [`DataWriter`](crate::client::stream::data::DataWriter).
@@ -59,35 +61,61 @@ pub(crate) struct XonXoffFlowCtrl {
     /// [`XonXoffReader`](crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
     drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
-    last_sent_xon_xoff: Option<LastSentXonXoff>,
+    last_sent_xon_xoff: Option<XonXoffMsg>,
+    /// DropMark sidechannel mitigations.
+    ///
+    /// This is only enabled if we are a client (including an onion service).
+    //
+    // We could use a `Box` here so that this only takes up space if sidechannel mitigations are
+    // enabled. But `SidechannelMitigation` is (at the time of writing) only 16 bytes. We could
+    // reconsider in the future if we add more functionality to `SidechannelMitigation`.
+    sidechannel_mitigation: Option<SidechannelMitigation>,
 }
 
 impl XonXoffFlowCtrl {
     /// Returns a new xon/xoff-based state.
     pub(crate) fn new(
         params: &FlowCtrlParameters,
+        our_endpoint: StreamEndpointType,
+        peer_endpoint: StreamEndpointType,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
+        // only use dropmark sidechannel mitigations at clients, not exits
+        let sidechannel_mitigation = match our_endpoint {
+            StreamEndpointType::Client => Some(SidechannelMitigation::new(peer_endpoint)),
+            StreamEndpointType::Exit => None,
+        };
+
         Self {
             params: params.clone(),
             rate_limit_updater,
             drain_rate_requester,
             last_sent_xon_xoff: None,
+            sidechannel_mitigation,
         }
     }
 }
 
-impl FlowCtrlMethods for XonXoffFlowCtrl {
+impl FlowCtrlHooks for XonXoffFlowCtrl {
     fn can_send<M: RelayMsg>(&self, _msg: &M) -> bool {
         // we perform rate-limiting in the `DataWriter`,
         // so we send any messages that made it past the `DataWriter`
         true
     }
 
-    fn take_capacity_to_send<M: RelayMsg>(&mut self, _msg: &M) -> Result<()> {
+    fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         // xon/xoff flow control doesn't have "capacity";
         // the capacity is effectively controlled by the congestion control
+
+        // if sidechannel mitigations are enabled and this is a RELAY_DATA message,
+        // notify that we sent a data message
+        if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {
+            if let AnyRelayMsg::Data(data_msg) = msg {
+                sidechannel_mitigation.sent_stream_data(data_msg.as_ref().len());
+            }
+        }
+
         Ok(())
     }
 
@@ -106,6 +134,11 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         // > violation.
         if *xon.version() != 0 {
             return Err(Error::CircProto("Unrecognized XON version".into()));
+        }
+
+        // if sidechannel mitigations are enabled, notify that an XON was received
+        if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {
+            sidechannel_mitigation.received_xon(&self.params)?;
         }
 
         let rate = match xon.kbps_ewma() {
@@ -133,19 +166,13 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
             return Err(Error::CircProto("Unrecognized XOFF version".into()));
         }
 
-        // update the rate limit and notify the `DataWriter`
-        let old_rate_limit = std::mem::replace(
-            &mut *self.rate_limit_updater.borrow_mut(),
-            StreamRateLimit::ZERO,
-        );
-
-        // if the old rate limit is zero,
-        // then the last XON or XOFF message we received was an XOFF
-        if old_rate_limit == StreamRateLimit::ZERO {
-            // we don't expect to receive consecutive XOFFs, so we want to close the circuit
-            // as a sidechannel mitigation
-            return Err(Error::CircProto("Consecutive XOFF messages".into()));
+        // if sidechannel mitigations are enabled, notify that an XOFF was received
+        if let Some(ref mut sidechannel_mitigation) = self.sidechannel_mitigation {
+            sidechannel_mitigation.received_xoff(&self.params)?;
         }
+
+        // update the rate limit and notify the `DataWriter`
+        *self.rate_limit_updater.borrow_mut() = StreamRateLimit::ZERO;
 
         Ok(())
     }
@@ -154,24 +181,21 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         if buffer_len as u64 > self.params.cc_xoff_client.as_bytes() {
             // we can't send an XON, and we should have already sent an XOFF when the queue first
             // exceeded the limit (see `maybe_send_xoff()`)
-            debug_assert!(matches!(
-                self.last_sent_xon_xoff,
-                Some(LastSentXonXoff::Xoff),
-            ));
+            debug_assert!(matches!(self.last_sent_xon_xoff, Some(XonXoffMsg::Xoff)));
 
             // inform the stream reader that we need a new drain rate
             self.drain_rate_requester.notify();
             return Ok(None);
         }
 
-        self.last_sent_xon_xoff = Some(LastSentXonXoff::Xon(rate));
+        self.last_sent_xon_xoff = Some(XonXoffMsg::Xon(rate));
 
         Ok(Some(Xon::new(FlowCtrlVersion::V0, rate)))
     }
 
     fn maybe_send_xoff(&mut self, buffer_len: usize) -> Result<Option<Xoff>> {
         // if the last XON/XOFF we sent was an XOFF, no need to send another
-        if matches!(self.last_sent_xon_xoff, Some(LastSentXonXoff::Xoff)) {
+        if matches!(self.last_sent_xon_xoff, Some(XonXoffMsg::Xoff)) {
             return Ok(None);
         }
 
@@ -182,7 +206,7 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
         // either we have never sent an XOFF or XON, or we last sent an XON
 
         // remember that we last sent an XOFF
-        self.last_sent_xon_xoff = Some(LastSentXonXoff::Xoff);
+        self.last_sent_xon_xoff = Some(XonXoffMsg::Xoff);
 
         // inform the stream reader that we need a new drain rate
         self.drain_rate_requester.notify();
@@ -191,9 +215,18 @@ impl FlowCtrlMethods for XonXoffFlowCtrl {
     }
 }
 
-/// The last XON/XOFF message that we sent.
+/// An XON or XOFF message with no associated data.
+#[derive(Debug, PartialEq, Eq)]
+enum XonXoff {
+    /// XON message.
+    Xon,
+    /// XOFF message.
+    Xoff,
+}
+
+/// An XON or XOFF message with associated data.
 #[derive(Debug)]
-enum LastSentXonXoff {
+enum XonXoffMsg {
     /// XON message with a rate.
     // TODO: I'm expecting that we'll want the `XonKbpsEwma` in the future.
     // If that doesn't end up being the case, then we should remove it.
@@ -201,4 +234,251 @@ enum LastSentXonXoff {
     Xon(XonKbpsEwma),
     /// XOFF message.
     Xoff,
+}
+
+/// Sidechannel mitigations for DropMark attacks.
+///
+/// > In order to mitigate DropMark attacks, both XOFF and advisory XON transmission must be
+/// > restricted.
+///
+/// These restrictions should be implemented for clients (OPs and onion services).
+#[derive(Debug)]
+struct SidechannelMitigation {
+    /// The last rate limit update we received.
+    last_recvd_xon_xoff: Option<XonXoff>,
+    /// Number of sent stream bytes.
+    ///
+    /// We only use this for bytes that are sent early on the stream,
+    /// checking if it's less than `cc_xon_rate` and/or `cc_xoff_{client,exit}`.
+    /// Once this value is sufficiently large, we don't care about the exact value.
+    /// So a saturating u32 should be more than enough bits for what we need.
+    bytes_sent_total: Saturating<u32>,
+    /// Number of sent stream bytes since the last advisory XON was received.
+    bytes_sent_since_recvd_last_advisory_xon: Saturating<u32>,
+    /// Number of sent stream bytes since the last XOFF was received.
+    bytes_sent_since_recvd_last_xoff: Saturating<u32>,
+    /// The type of peer we are connected to, either an onion service (client) or exit.
+    peer: StreamEndpointType,
+}
+
+impl SidechannelMitigation {
+    /// A new [`SidechannelMitigation`].
+    fn new(peer: StreamEndpointType) -> Self {
+        Self {
+            last_recvd_xon_xoff: None,
+            bytes_sent_total: Saturating(0),
+            // We set these to 0 even though we haven't yet received an XON or XOFF. We could use an
+            // `Option` instead, but it makes the code more complicated and increases their size
+            // from 32 bits to 64 bits.
+            bytes_sent_since_recvd_last_advisory_xon: Saturating(0),
+            bytes_sent_since_recvd_last_xoff: Saturating(0),
+            peer,
+        }
+    }
+
+    /// The XOFF limit that the other endpoint should be using.
+    ///
+    /// This may be different from our XOFF limit, since clients and exits use different limits.
+    fn peer_xoff_limit_bytes(&self, params: &FlowCtrlParameters) -> u64 {
+        match self.peer {
+            StreamEndpointType::Client => params.cc_xoff_client.as_bytes(),
+            StreamEndpointType::Exit => params.cc_xoff_exit.as_bytes(),
+        }
+    }
+
+    /// Notify that we have sent stream data.
+    fn sent_stream_data(&mut self, stream_bytes: usize) {
+        // perform a saturating conversion to u32
+        let stream_bytes: u32 = stream_bytes.try_into().unwrap_or(u32::MAX);
+
+        self.bytes_sent_total += stream_bytes;
+
+        // when we receive an XON or XOFF, we set the corresponding variable back to 0
+        self.bytes_sent_since_recvd_last_advisory_xon += stream_bytes;
+        self.bytes_sent_since_recvd_last_xoff += stream_bytes;
+    }
+
+    /// Notify that we have received an XON message.
+    fn received_xon(&mut self, params: &FlowCtrlParameters) -> Result<()> {
+        // Check to make sure that XON is not sent too early, for dropmark attacks. The main
+        // sidechannel risk is early cells, but we also check to see that we did not get more XONs
+        // than make sense for the number of bytes we sent.
+        //
+        // The ordering is important here. For example we first want to check if we received an
+        // advisory XON that was too early, before we check if we received the advisory XON too
+        // frequently.
+
+        // is this an advisory XON?
+        let is_advisory = match self.last_recvd_xon_xoff {
+            // if we last received an XON, then this is advisory since we are already sending data
+            Some(XonXoff::Xon) => true,
+            // if we last received an XOFF, then this isn't advisory since we're being asked to
+            // resume sending data
+            Some(XonXoff::Xoff) => false,
+            // if we never received an XON nor XOFF, then this is advisory since we are already
+            // sending data
+            None => true,
+        };
+
+        // set this before we possibly return early below, since this must be set regardless of if
+        // it's an advisory XON or not
+        self.last_recvd_xon_xoff = Some(XonXoff::Xon);
+
+        // we only restrict advisory XON messages
+        if !is_advisory {
+            return Ok(());
+        }
+
+        // > Clients also SHOULD ensure that advisory XONs do not arrive before the minimum of the
+        // > XOFF limit and 'cc_xon_rate' full cells worth of bytes have been transmitted.
+        let advisory_not_expected_before = std::cmp::min(
+            self.peer_xoff_limit_bytes(params),
+            params.cc_xon_rate.as_bytes(),
+        );
+        if u64::from(self.bytes_sent_total.0) < advisory_not_expected_before {
+            const MSG: &str = "Received advisory XON too early";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
+        // > Clients SHOULD ensure that advisory XONs do not arrive more frequently than every
+        // > 'cc_xon_rate' cells worth of sent data.
+        //
+        // NOTE: We implement this a bit different than C-tor. In C-tor it checks that:
+        //   conn->total_bytes_xmit < MIN(xoff_{client/exit}, xon_rate_bytes)*conn->num_xon_recv
+        // which effectively checks that the average XON frequency over the lifetime of the stream
+        // does not exceed a frequency of `MIN(xoff_{client/exit}, xon_rate_bytes)`. Instead here we
+        // check that two XON messages never arrive at an interval that would exceed a frequency of
+        // `cc_xon_rate`.
+        if u64::from(self.bytes_sent_since_recvd_last_advisory_xon.0)
+            < params.cc_xon_rate.as_bytes()
+        {
+            const MSG: &str = "Received advisory XON too frequently";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
+        self.bytes_sent_since_recvd_last_advisory_xon = Saturating(0);
+
+        Ok(())
+    }
+
+    /// Notify that we have received an XOFF message.
+    fn received_xoff(&mut self, params: &FlowCtrlParameters) -> Result<()> {
+        // Check to make sure that XOFF is not sent too early, for dropmark attacks. The
+        // main sidechannel risk is early cells, but we also check to make sure that we have not
+        // received more XOFFs than could have been generated by the bytes we sent.
+        //
+        // The ordering is important here. For example we first want to disallow consecutive XOFFs,
+        // then check if we received an XOFF that was too early, and finally check if we received
+        // the XOFF too frequently.
+
+        // disallow consecutive XOFF messages
+        if self.last_recvd_xon_xoff == Some(XonXoff::Xoff) {
+            const MSG: &str = "Received consecutive XOFF messages";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
+        // > clients MUST ensure that an XOFF does not arrive before it has sent the appropriate
+        // > XOFF limit of bytes on a stream ('cc_xoff_exit' for exits, 'cc_xoff_client' for
+        // > onions).
+        if u64::from(self.bytes_sent_total.0) < self.peer_xoff_limit_bytes(params) {
+            const MSG: &str = "Received XOFF too early";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
+        // > Clients also SHOULD ensure than XOFFs do not arrive more frequently than every XOFF
+        // > limit worth of sent data.
+        //
+        // NOTE: We implement this a bit different than C-tor. In C-tor it checks that:
+        //   conn->total_bytes_xmit < xoff_{client/exit}*conn->num_xoff_recv
+        // which effectively checks that the average XOFF frequency over the lifetime of the stream
+        // does not exceed a frequency of `xoff_{client/exit}`. Instead here we check that two XOFF
+        // messages never arrive at an interval that would exceed a frequency of
+        // `xoff_{client/exit}`.
+        if u64::from(self.bytes_sent_since_recvd_last_xoff.0) < self.peer_xoff_limit_bytes(params) {
+            return Err(Error::CircProto("Received XOFF too frequently".into()));
+        }
+
+        self.bytes_sent_since_recvd_last_xoff = Saturating(0);
+        self.last_recvd_xon_xoff = Some(XonXoff::Xoff);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use crate::client::stream::flow_ctrl::params::CellCount;
+
+    #[test]
+    fn sidechannel_mitigation() {
+        let params = [
+            FlowCtrlParameters {
+                cc_xoff_client: CellCount::new(2),
+                cc_xoff_exit: CellCount::new(4),
+                cc_xon_rate: CellCount::new(8),
+                cc_xon_change_pct: 1,
+                cc_xon_ewma_cnt: 1,
+            },
+            FlowCtrlParameters {
+                cc_xoff_client: CellCount::new(8),
+                cc_xoff_exit: CellCount::new(4),
+                cc_xon_rate: CellCount::new(2),
+                cc_xon_change_pct: 1,
+                cc_xon_ewma_cnt: 1,
+            },
+        ];
+
+        for params in params {
+            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            // cannot receive XON as first message
+            assert!(x.received_xon(&params).is_err());
+
+            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            // cannot receive XOFF as first message
+            assert!(x.received_xoff(&params).is_err());
+
+            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            // cannot receive XOFF after sending fewer than `cc_xoff_exit` bytes
+            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize - 1);
+            assert!(x.received_xoff(&params).is_err());
+
+            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            // can receive XOFF after sending `cc_xoff_exit` bytes
+            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            assert!(x.received_xoff(&params).is_ok());
+            // but cannot receive another XOFF immediately after
+            assert!(x.received_xoff(&params).is_err());
+
+            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            // can receive XOFF after sending `cc_xoff_exit` bytes
+            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            assert!(x.received_xoff(&params).is_ok());
+            // but cannot receive another XOFF even after sending another `cc_xoff_exit` bytes
+            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            assert!(x.received_xoff(&params).is_err());
+
+            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            // can receive XOFF after sending `cc_xoff_exit` bytes
+            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            assert!(x.received_xoff(&params).is_ok());
+            // and can immediately receive an XON
+            assert!(x.received_xon(&params).is_ok());
+            // and can receive another XOFF after sending another `cc_xoff_exit` bytes
+            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            assert!(x.received_xoff(&params).is_ok());
+
+            // initial XON limit
+            let limit = std::cmp::min(
+                params.cc_xoff_exit.as_bytes(),
+                params.cc_xon_rate.as_bytes(),
+            );
+
+            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            // cannot receive XON after sending fewer than `min(cc_xoff_exit, cc_xon_rate)` bytes
+            x.sent_stream_data(limit as usize - 1);
+            assert!(x.received_xon(&params).is_err());
+        }
+    }
 }

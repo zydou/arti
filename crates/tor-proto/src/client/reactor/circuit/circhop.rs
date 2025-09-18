@@ -4,7 +4,9 @@ use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
 use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::client::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
+use crate::client::stream::flow_ctrl::state::{
+    StreamEndpointType, StreamFlowCtrl, StreamRateLimit,
+};
 use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::stream::{AnyCmdChecker, StreamStatus};
@@ -27,7 +29,7 @@ use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat, RelayCmd,
-    RelayMsg, StreamId, UnparsedRelayMsg,
+    StreamId, UnparsedRelayMsg,
 };
 
 use tor_error::{Bug, internal};
@@ -424,10 +426,10 @@ impl CircHop {
     /// See [`OpenStreamEnt::take_capacity_to_send`].
     //
     // TODO prop340: This should take a cell or similar, not a message.
-    pub(crate) fn take_capacity_to_send<M: RelayMsg>(
+    pub(crate) fn take_capacity_to_send(
         &mut self,
         stream_id: StreamId,
-        msg: &M,
+        msg: &AnyRelayMsg,
     ) -> Result<()> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = hop_map.get_mut(stream_id) else {
@@ -576,7 +578,20 @@ impl CircHop {
         } else {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
-                    Ok(StreamFlowCtrl::new_xon_xoff(params, rate_limit_updater, drain_rate_requester))
+                    // TODO: Currently arti only supports clients, and we don't support connecting
+                    // to onion services while using congestion control, so we hardcode these. In
+                    // the future we will need to somehow tell the `CircHop` these things so that we
+                    // can set them correctly.
+                    let our_endpoint = StreamEndpointType::Client;
+                    let peer_endpoint = StreamEndpointType::Exit;
+
+                    Ok(StreamFlowCtrl::new_xon_xoff(
+                        params,
+                        our_endpoint,
+                        peer_endpoint,
+                        rate_limit_updater,
+                        drain_rate_requester,
+                    ))
                 } else {
                     drop(rate_limit_updater);
                     drop(drain_rate_requester);

@@ -4,7 +4,7 @@ use crate::client::circuit::StreamMpscReceiver;
 use crate::client::halfstream::HalfStream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
 use crate::client::stream::AnyCmdChecker;
-use crate::client::stream::flow_ctrl::state::{FlowCtrlMethods, StreamFlowCtrl};
+use crate::client::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};
 use crate::client::stream::queue::StreamQueueSender;
 use crate::congestion::sendme;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
@@ -131,7 +131,7 @@ impl OpenStreamEnt {
     //
     // TODO: Consider not exposing this, and instead taking the capacity in
     // `StreamMap::take_ready_msg`.
-    pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
+    pub(crate) fn take_capacity_to_send(&mut self, msg: &AnyRelayMsg) -> Result<()> {
         self.flow_ctrl.take_capacity_to_send(msg)
     }
 }
