@@ -307,6 +307,13 @@ impl SidechannelMitigation {
         // advisory XON that was too early, before we check if we received the advisory XON too
         // frequently.
 
+        // Ensure that we have sent some bytes. This might be covered by other checks below, but this
+        // is the most important check so we do it explicitly here first.
+        if self.bytes_sent_total.0 == 0 {
+            const MSG: &str = "Received XON before sending any data";
+            return Err(Error::CircProto(MSG.into()));
+        }
+
         // is this an advisory XON?
         let is_advisory = match self.last_recvd_xon_xoff {
             // if we last received an XON, then this is advisory since we are already sending data
@@ -369,6 +376,13 @@ impl SidechannelMitigation {
         // The ordering is important here. For example we first want to disallow consecutive XOFFs,
         // then check if we received an XOFF that was too early, and finally check if we received
         // the XOFF too frequently.
+
+        // Ensure that we have sent some bytes. This might be covered by other checks below, but this
+        // is the most important check so we do it explicitly here first.
+        if self.bytes_sent_total.0 == 0 {
+            const MSG: &str = "Received XOFF before sending any data";
+            return Err(Error::CircProto(MSG.into()));
+        }
 
         // disallow consecutive XOFF messages
         if self.last_recvd_xon_xoff == Some(XonXoff::Xoff) {
