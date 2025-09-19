@@ -538,7 +538,8 @@
 #
 #    [onion_services."allium-cepa"]
 
-# Whether this service should be started.
+# Whether this service should be started. If not set, defaults to true with a
+# warning.
 #
 #    enabled = true
 

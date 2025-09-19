@@ -184,13 +184,14 @@ impl Proxy {
         let OnionServiceProxyConfig { svc_cfg, proxy_cfg } = config;
         let nickname = svc_cfg.nickname().clone();
 
-        if !svc_cfg.enabled() {
+        if let tor_config::BoolOrAuto::Explicit(false) = svc_cfg.enabled() {
                 debug!(
                     "Onion service {} didn't start (disabled in config)",
                     nickname
                 );
                 return Ok(None);
         }
+
         let (svc, request_stream) = client.launch_onion_service(svc_cfg)?;
         let proxy = OnionServiceReverseProxy::new(proxy_cfg);
 
