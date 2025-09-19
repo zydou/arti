@@ -1709,9 +1709,9 @@ impl Circuit {
         self.padding_block = None;
     }
 
-    /// The approximate value of the circuit build timeout.
-    pub(super) fn estimate_cbt(&self) -> Duration {
-        self.timeouts.circuit_build_timeout(self.hops.len())
+    /// The estimated circuit build timeout for a circuit of the specified length.
+    pub(super) fn estimate_cbt(&self, length: usize) -> Duration {
+        self.timeouts.circuit_build_timeout(length)
     }
 }
 

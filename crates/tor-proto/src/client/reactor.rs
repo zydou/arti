@@ -1056,10 +1056,15 @@ impl Reactor {
                         .unwrap_or_default()
                 };
 
+                // The length of the circuit up until the hop that has the half-streeam.
+                //
+                // +1, because HopNums are zero-based.
+                let circ_len = usize::from(hop_num) + 1;
+
                 // We double the CBT to account for rend circuits,
                 // which are twice as long (otherwise we risk expiring
                 // the rend half-streams too soon).
-                let timeout = std::cmp::max(max_rtt, 2 * leg.estimate_cbt());
+                let timeout = std::cmp::max(max_rtt, 2 * leg.estimate_cbt(circ_len));
                 let expire_at = self.runtime.now() + timeout;
 
                 let res: Result<()> = leg
