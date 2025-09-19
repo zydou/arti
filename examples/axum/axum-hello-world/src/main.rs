@@ -42,37 +42,34 @@ async fn main() {
         .build()
         .unwrap();
 
-    if let Some((service, request_stream)) = client.launch_onion_service(svc_cfg).unwrap() {
-        println!("{}", service.onion_address().unwrap().display_unredacted());
+    let (service, request_stream) = client.launch_onion_service(svc_cfg).unwrap();
+    println!("{}", service.onion_address().unwrap().display_unredacted());
 
-        // Wait until the service is believed to be fully reachable.
-        eprintln!("waiting for service to become fully reachable");
-        while let Some(status) = service.status_events().next().await {
-            if status.state().is_fully_reachable() {
-                break;
-            }
+    // Wait until the service is believed to be fully reachable.
+    eprintln!("waiting for service to become fully reachable");
+    while let Some(status) = service.status_events().next().await {
+        if status.state().is_fully_reachable() {
+            break;
         }
-
-        let stream_requests = tor_hsservice::handle_rend_requests(request_stream);
-        tokio::pin!(stream_requests);
-        eprintln!("ready to serve connections");
-
-        while let Some(stream_request) = stream_requests.next().await {
-            let router = router.clone();
-
-            tokio::spawn(async move {
-                let request = stream_request.request().clone();
-                if let Err(err) = handle_stream_request(stream_request, router).await {
-                    eprintln!("error serving connection {:?}: {}", sensitive(request), err);
-                };
-            });
-        }
-
-        drop(service);
-        eprintln!("onion service exited cleanly");
-    } else {
-        eprintln!("onion service was disabled in config");
     }
+
+    let stream_requests = tor_hsservice::handle_rend_requests(request_stream);
+    tokio::pin!(stream_requests);
+    eprintln!("ready to serve connections");
+
+    while let Some(stream_request) = stream_requests.next().await {
+        let router = router.clone();
+
+        tokio::spawn(async move {
+            let request = stream_request.request().clone();
+            if let Err(err) = handle_stream_request(stream_request, router).await {
+                eprintln!("error serving connection {:?}: {}", sensitive(request), err);
+            };
+        });
+    }
+
+    drop(service);
+    eprintln!("onion service exited cleanly");
 }
 
 async fn handle_stream_request(stream_request: StreamRequest, router: Router) -> Result<()> {

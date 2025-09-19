@@ -1729,8 +1729,6 @@ impl<R: Runtime> TorClient<R> {
 
     /// Try to launch an onion service with a given configuration.
     ///
-    /// Returns `Ok(None)` if the service specified is disabled in the config.
-    ///
     /// This onion service will not actually handle any requests on its own: you
     /// will need to
     /// pull [`RendRequest`](tor_hsservice::RendRequest) objects from the returned stream,
@@ -1747,22 +1745,10 @@ impl<R: Runtime> TorClient<R> {
     pub fn launch_onion_service(
         &self,
         config: tor_hsservice::OnionServiceConfig,
-    ) -> crate::Result<
-        Option<(
-            Arc<tor_hsservice::RunningOnionService>,
-            impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
-        )>,
-    > {
-        let nickname = config.nickname();
-
-        if !config.enabled() {
-            info!(
-                nickname=%nickname,
-                "Skipping onion service because it was disabled in the config"
-            );
-            return Ok(None);
-        }
-
+    ) -> crate::Result<(
+        Arc<tor_hsservice::RunningOnionService>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
+    )> {
         let keymgr = self
             .inert_client
             .keymgr
@@ -1789,15 +1775,13 @@ impl<R: Runtime> TorClient<R> {
             )
             .map_err(ErrorDetail::LaunchOnionService)?;
 
-        Ok(Some((service, stream)))
+        Ok((service, stream))
     }
 
     /// Try to launch an onion service with a given configuration and provided
     /// [`HsIdKeypair`]. If an onion service with the given nickname already has an
     /// associated `HsIdKeypair`  in this `TorClient`'s `KeyMgr`, then this operation
     /// fails rather than overwriting the existing key.
-    ///
-    /// Returns `Ok(None)` if the service specified is disabled in the config.
     ///
     /// The specified `HsIdKeypair` will be inserted in the primary keystore.
     ///
@@ -1824,12 +1808,10 @@ impl<R: Runtime> TorClient<R> {
         &self,
         config: tor_hsservice::OnionServiceConfig,
         id_keypair: HsIdKeypair,
-    ) -> crate::Result<
-        Option<(
-            Arc<tor_hsservice::RunningOnionService>,
-            impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
-        )>,
-    > {
+    ) -> crate::Result<(
+        Arc<tor_hsservice::RunningOnionService>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest> + use<R>,
+    )> {
         let nickname = config.nickname();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
         let selector = KeystoreSelector::Primary;
