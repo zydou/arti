@@ -219,7 +219,7 @@ pub(super) struct EndSentStreamEnt {
     ///
     /// This is the amount of time we are willing to wait for
     /// an END ack before removing the half-stream from the map.
-    expiry: Instant,
+    pub(super) expiry: Instant,
 }
 
 /// The entry for a stream.

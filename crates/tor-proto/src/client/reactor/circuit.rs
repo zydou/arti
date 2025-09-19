@@ -58,7 +58,7 @@ use futures::{SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
 use postage::watch;
 use safelog::sensitive as sv;
-use tor_rtcompat::DynTimeProvider;
+use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 use tracing::{debug, trace, warn};
 
 use super::{
@@ -717,6 +717,8 @@ impl Circuit {
         streamid: StreamId,
         msg: UnparsedRelayMsg,
     ) -> Result<Option<CircuitCmd>> {
+        let now = self.runtime.now();
+
         #[cfg(feature = "conflux")]
         if let Some(conflux) = self.conflux_handler.as_mut() {
             conflux.inc_last_seq_delivered(&msg);
@@ -727,7 +729,7 @@ impl Circuit {
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
-        let res = hop.handle_msg(cell_counts_toward_windows, streamid, msg)?;
+        let res = hop.handle_msg(cell_counts_toward_windows, streamid, msg, now)?;
 
         // If it was an incoming stream request, we don't need to worry about
         // sending an XOFF as there's no stream data within this message.

@@ -523,6 +523,7 @@ impl CircHop {
         cell_counts_toward_windows: bool,
         streamid: StreamId,
         msg: UnparsedRelayMsg,
+        now: Instant,
     ) -> Result<Option<UnparsedRelayMsg>> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
         match hop_map.get_mut(streamid) {
@@ -534,6 +535,11 @@ impl CircHop {
                 if message_closes_stream {
                     hop_map.ending_msg_received(streamid)?;
                 }
+            }
+            Some(StreamEntMut::EndSent(EndSentStreamEnt { expiry, .. })) if now >= *expiry => {
+                return Err(Error::CircProto(
+                    "Cell received on expired half-stream!?".into(),
+                ));
             }
             #[cfg(feature = "hs-service")]
             Some(StreamEntMut::EndSent(_))
