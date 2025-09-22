@@ -7,7 +7,6 @@
 use educe::Educe;
 use futures::Stream;
 use futures::stream::FusedStream;
-use futures::task::noop_waker_ref;
 use pin_project::pin_project;
 
 use crate::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
@@ -130,7 +129,7 @@ impl<S: Stream> UnobtrusivePeekableStream for StreamUnobtrusivePeeker<S> {
             let waker = if let Some(waker) = self_.poll_waker.as_ref() {
                 waker
             } else {
-                noop_waker_ref()
+                Waker::noop()
             };
 
             match inner.poll_next(&mut Context::from_waker(waker)) {

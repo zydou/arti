@@ -32,8 +32,10 @@ pub(crate) use futures::{
     FutureExt as _, Sink, SinkExt as _, Stream, StreamExt as _,
     channel::mpsc,
     stream::FusedStream,
-    task::{Spawn, SpawnError, SpawnExt as _, noop_waker_ref},
+    task::{Spawn, SpawnError, SpawnExt as _},
 };
+
+pub(crate) use std::task::Waker;
 
 pub(crate) use {
     derive_deftly::{Deftly, define_derive_deftly, derive_deftly_adhoc},
