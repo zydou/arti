@@ -50,7 +50,7 @@ use std::mem::size_of;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage, trace_report, warn_report};
+use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage, debug_report, warn_report};
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 use cfg_if::cfg_if;
@@ -765,7 +765,7 @@ impl Reactor {
         const MSG: &str = "Tunnel reactor stopped";
         match &result {
             Ok(()) => trace!(tunnel_id = %self.tunnel_id, "{MSG}"),
-            Err(e) => trace_report!(e, tunnel_id = %self.tunnel_id, "{MSG}"),
+            Err(e) => debug_report!(e, tunnel_id = %self.tunnel_id, "{MSG}"),
         }
 
         result
