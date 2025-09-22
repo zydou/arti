@@ -724,12 +724,21 @@ impl Circuit {
             conflux.inc_last_seq_delivered(&msg);
         }
 
-        // Returns the original message if it's an an incoming stream request
-        // that we need to handle.
+        let path = self.mutable.path();
+
+        let nonexistent_hop_err = || Error::CircProto("Cell from nonexistent hop!".into());
         let hop = self
             .hop_mut(hopnum)
-            .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
-        let res = hop.handle_msg(cell_counts_toward_windows, streamid, msg, now)?;
+            .ok_or_else(nonexistent_hop_err)?;
+
+        let hop_detail = path
+            .iter()
+            .nth(usize::from(hopnum))
+            .ok_or_else(nonexistent_hop_err)?;
+
+        // Returns the original message if it's an an incoming stream request
+        // that we need to handle.
+        let res = hop.handle_msg(hop_detail, cell_counts_toward_windows, streamid, msg, now)?;
 
         // If it was an incoming stream request, we don't need to worry about
         // sending an XOFF as there's no stream data within this message.

@@ -50,7 +50,7 @@ use std::mem::size_of;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage, debug_report, warn_report};
+use tor_error::{Bug, bad_api_usage, debug_report, internal, into_bad_api_usage, warn_report};
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 use cfg_if::cfg_if;

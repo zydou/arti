@@ -3,6 +3,7 @@
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
+use crate::client::reactor::circuit::path::PathEntry;
 use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::client::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
@@ -520,12 +521,19 @@ impl CircHop {
     // back and forth like this.
     pub(super) fn handle_msg(
         &self,
+        hop_detail: &PathEntry,
         cell_counts_toward_windows: bool,
         streamid: StreamId,
         msg: UnparsedRelayMsg,
         now: Instant,
     ) -> Result<Option<UnparsedRelayMsg>> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
+
+        let possible_proto_violation_err = || Error::UnknownStream {
+            src: sv(hop_detail.clone()),
+            streamid,
+        };
+
         match hop_map.get_mut(streamid) {
             Some(StreamEntMut::Open(ent)) => {
                 // Can't have a stream level SENDME when congestion control is enabled.
@@ -537,9 +545,7 @@ impl CircHop {
                 }
             }
             Some(StreamEntMut::EndSent(EndSentStreamEnt { expiry, .. })) if now >= *expiry => {
-                return Err(Error::CircProto(
-                    "Cell received on expired half-stream!?".into(),
-                ));
+                return Err(possible_proto_violation_err());
             }
             #[cfg(feature = "hs-service")]
             Some(StreamEntMut::EndSent(_))
@@ -574,9 +580,7 @@ impl CircHop {
             }
             _ => {
                 // No stream wants this message, or ever did.
-                return Err(Error::CircProto(
-                    "Cell received on nonexistent stream!?".into(),
-                ));
+                return Err(possible_proto_violation_err());
             }
         }
 

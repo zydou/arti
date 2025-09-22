@@ -1,4 +1,5 @@
 //! Define an error type for the tor-proto crate.
+use safelog::Sensitive;
 use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tor_cell::relaycell::{StreamId, msg::EndReason};
@@ -6,6 +7,7 @@ use tor_error::{Bug, ErrorKind, HasKind};
 use tor_linkspec::RelayIdType;
 
 use crate::HopNum;
+use crate::client::circuit::PathEntry;
 
 /// An error type for the tor-proto crate.
 ///
@@ -117,6 +119,19 @@ pub enum Error {
     /// Received a cell with a stream ID of zero.
     #[error("Received a cell with a stream ID of zero")]
     StreamIdZero,
+    /// Received a cell on a closed or non-existent stream.
+    #[error(
+        "Received a cell from {} on a closed or non-existent stream {}. \
+         Either they are violating the protocol, or we are expiring streams too aggressively",
+        src,
+        streamid
+    )]
+    UnknownStream {
+        /// The hop the cell originated from.
+        src: Sensitive<PathEntry>,
+        /// The stream ID of the cell.
+        streamid: StreamId,
+    },
     /// Couldn't extend a circuit because the extending relay or the
     /// target relay refused our request.
     #[error("Circuit extension refused: {0}")]
@@ -252,6 +267,7 @@ impl From<Error> for std::io::Error {
             | MissingId(_)
             | IdUnavailable(_)
             | StreamIdZero
+            | UnknownStream { .. }
             | ExcessInboundCells
             | ExcessOutboundCells
             | ExcessPadding(_, _) => ErrorKind::InvalidData,
@@ -304,6 +320,7 @@ impl HasKind for Error {
             E::MissingId(_) => EK::BadApiUsage,
             E::IdUnavailable(_) => EK::BadApiUsage,
             E::StreamIdZero => EK::BadApiUsage,
+            E::UnknownStream { .. } => EK::TorProtocolViolation,
             E::ExcessInboundCells => EK::TorProtocolViolation,
             E::ExcessOutboundCells => EK::Internal,
             E::ExcessPadding(_, _) => EK::TorProtocolViolation,
