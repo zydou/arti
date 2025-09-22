@@ -446,7 +446,7 @@ impl KeyMgr {
             .collect::<Result<Vec<_>>>()
     }
 
-    /// List keys and certificates of a specific keystore.
+    /// List all the configured keystore.
     #[cfg(feature = "onion-service-cli-extra")]
     pub fn list_keystores(&self) -> Vec<KeystoreId> {
         self.all_stores()
