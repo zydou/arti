@@ -595,7 +595,7 @@ impl<T: Debug + Send + 'static, C: ChannelSpec> Drop for ReceiverState<T, C> {
 
         // try to free whatever is in the queue, in case the stream doesn't do that itself
         // No-one can poll us any more, so we are no longer interested in wakeups
-        let mut noop_cx = Context::from_waker(noop_waker_ref());
+        let mut noop_cx = Context::from_waker(Waker::noop());
 
         // prevent further sends, so that our drain doesn't race indefinitely with the sender
         if let Some(mut rx_inner) =

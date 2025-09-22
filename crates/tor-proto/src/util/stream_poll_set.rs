@@ -8,10 +8,10 @@ use std::{
     future::Future,
     hash::Hash,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
 
-use futures::{FutureExt, StreamExt as _, task::noop_waker_ref};
+use futures::{FutureExt, StreamExt as _};
 use tor_async_utils::peekable_stream::PeekableStream;
 
 use crate::util::keyed_futures_unordered::KeyedFuturesUnordered;
@@ -299,9 +299,7 @@ where
             // This stream isn't in the ready list.
             return None;
         };
-        match Pin::new(&mut stream)
-            .poll_peek(&mut Context::from_waker(&futures::task::noop_waker()))
-        {
+        match Pin::new(&mut stream).poll_peek(&mut Context::from_waker(Waker::noop())) {
             Poll::Ready(Some(_val)) => (), // Stream is ready, and has an item. Proceed.
             Poll::Ready(None) => {
                 // Stream is ready, but is terminated.
@@ -349,7 +347,7 @@ where
         };
         // We don't have a waker registered here, so we can just use the noop waker.
         // TODO: Create a mut future for `PeekableStream`.
-        Some(Pin::new(peekable).poll_peek_mut(&mut Context::from_waker(noop_waker_ref())))
+        Some(Pin::new(peekable).poll_peek_mut(&mut Context::from_waker(Waker::noop())))
     }
 
     /// Get a reference to the stream for `key`.
