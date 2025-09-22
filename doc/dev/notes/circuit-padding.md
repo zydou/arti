@@ -11,8 +11,8 @@ As of this writing, our circuit padding support is not fully built,
 so some of this document is speculative.
 
 This document describes both client-side and relay-side Maybenot instantiation, but
-our implementation efforts are focused on client-side Maybenot framework support
-at this time. The relay-side information is provided to enable accurate
+our we have only implemented client-side Maybenot framework support
+at this time (Sep 2025). The relay-side information is provided to enable accurate
 simulation in the Maybenot simulator framework, to support research into
 Tor-specific Maybenot defense machines.
 
