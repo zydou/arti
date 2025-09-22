@@ -170,3 +170,12 @@ impl XonKbpsEwma {
         }
     }
 }
+
+impl std::fmt::Display for XonKbpsEwma {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Limited(rate) => write!(f, "{rate} kbps"),
+            Self::Unlimited => write!(f, "unlimited"),
+        }
+    }
+}
