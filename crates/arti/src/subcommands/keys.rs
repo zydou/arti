@@ -208,41 +208,50 @@ fn run_check_integrity<R: Runtime>(
     // TODO: `TorClient` should have a `KeyMgr` accessor.
     let keymgr = inert_client.keymgr()?;
 
-    let entries = match &args.keystore_id {
-        Some(id) => keymgr.list_by_id(id)?,
-        None => keymgr.list()?,
+    let mut keystores = Vec::new();
+    match &args.keystore_id {
+        Some(id) => keystores.push((id.to_owned(), keymgr.list_by_id(id)?)),
+        None => {
+            let ids = keymgr.list_keystores();
+            for id in ids {
+                keystores.push((id.clone(), keymgr.list_by_id(&id)?));
+            }
+        },
     };
 
-    let mut invalid_entries = entries
-        .into_iter()
-        .filter(|entry| match entry {
-            Ok(e) => keymgr.validate_entry_integrity(e).is_err(),
-            Err(_) => true,
-        })
-        .collect::<Vec<_>>();
+    for (_, entries) in keystores {
+        let mut invalid_entries = entries
+            .into_iter()
+            .filter(|entry| match entry {
+                Ok(e) => keymgr.validate_entry_integrity(e).is_err(),
+                Err(_) => true,
+            })
+            .collect::<Vec<_>>();
 
-    display_invalid_keystore_entries(&invalid_entries, keymgr, "Invalid keystore entries");
+        display_invalid_keystore_entries(&invalid_entries, keymgr, "Invalid keystore entries");
 
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "onion-service-service")] {
-            let services = create_all_services(config, client_config)?;
-            let expired_entries = get_expired_keys(&services, &client)?;
-            display_invalid_keystore_entries(
-                &expired_entries,
-                keymgr,
-                "Expired keystore entries"
-            );
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "onion-service-service")] {
+                let services = create_all_services(config, client_config)?;
+                let expired_entries = get_expired_keys(&services, &client)?;
+                display_invalid_keystore_entries(
+                    &expired_entries,
+                    keymgr,
+                    "Expired keystore entries"
+                );
 
-            invalid_entries.extend(expired_entries)
+                invalid_entries.extend(expired_entries)
+            }
         }
+
+        if invalid_entries.is_empty() {
+            println!("OK.");
+            return Ok(());
+        }
+
+        maybe_remove_invalid_entries(args, &invalid_entries, keymgr)?;
     }
 
-    if invalid_entries.is_empty() {
-        println!("OK.");
-        return Ok(());
-    }
-
-    maybe_remove_invalid_entries(args, &invalid_entries, keymgr)?;
 
     Ok(())
 }
