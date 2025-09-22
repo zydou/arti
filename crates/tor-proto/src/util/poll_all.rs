@@ -147,7 +147,7 @@ mod test {
                 panic!("future polled after completion?!");
             } else {
                 // Immediately wake the waker
-                cx.waker().clone().wake();
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
         }
@@ -162,7 +162,7 @@ mod test {
 
     #[test]
     fn poll_multiple() {
-        MockRuntime::test_with_various(|runtime| async move {
+        MockRuntime::test_with_various(|_| async move {
             let mut poll_all = PollAll::<RES_COUNT, usize>::new();
 
             let (never_fut, never_count) = PollCounter::new(futures::future::pending::<usize>());
