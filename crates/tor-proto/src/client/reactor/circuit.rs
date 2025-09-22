@@ -736,7 +736,7 @@ impl Circuit {
             .nth(usize::from(hopnum))
             .ok_or_else(nonexistent_hop_err)?;
 
-        // Returns the original message if it's an an incoming stream request
+        // Returns the original message if it's an incoming stream request
         // that we need to handle.
         let res = hop.handle_msg(hop_detail, cell_counts_toward_windows, streamid, msg, now)?;
 
