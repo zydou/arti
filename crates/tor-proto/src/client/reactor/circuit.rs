@@ -727,9 +727,7 @@ impl Circuit {
         let path = self.mutable.path();
 
         let nonexistent_hop_err = || Error::CircProto("Cell from nonexistent hop!".into());
-        let hop = self
-            .hop_mut(hopnum)
-            .ok_or_else(nonexistent_hop_err)?;
+        let hop = self.hop_mut(hopnum).ok_or_else(nonexistent_hop_err)?;
 
         let hop_detail = path
             .iter()
