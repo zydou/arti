@@ -805,14 +805,13 @@ impl ConfluxSet {
         Ok(!join_circhop.ccontrol().can_send())
     }
 
-    /// Returns the `HopNum` of the join point
-    /// if [`next_circ_action`](Self::next_circ_action)
+    /// Returns whether [`next_circ_action`](Self::next_circ_action)
     /// should avoid polling the join point streams entirely.
     #[cfg(feature = "conflux")]
-    fn should_skip_join_point(&self) -> Result<Option<HopNum>, Bug> {
+    fn should_skip_join_point(&self) -> Result<bool, Bug> {
         let Some(primary_join_point) = self.primary_join_point() else {
             // Single-path, there is no join point
-            return Ok(None);
+            return Ok(false);
         };
 
         let join_hop = primary_join_point.1;
@@ -825,12 +824,12 @@ impl ConfluxSet {
 
         if !primary_blocked_on_cc {
             // Easy, we can just carry on
-            return Ok(None);
+            return Ok(false);
         }
 
         // Now, if the primary *is* blocked on cc, we may still be able to poll
         // the join point streams (if we're using the right desired UX)
-        let exclude = if self.desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
+        let should_skip = if self.desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
             // The primary leg is blocked on cc, and we can't switch because we're
             // not using the high throughput algorithm, so we must stop reading
             // the join point streams.
@@ -846,7 +845,7 @@ impl ConfluxSet {
                 "Pausing join point stream reads"
             );
 
-            Some(join_hop)
+            true
         } else {
             // Ah-ha, the desired UX is HIGH_THROUGHPUT, which means we can switch
             // to an unblocked leg before sending any cells over the join point,
@@ -871,15 +870,15 @@ impl ConfluxSet {
                     "Pausing join point stream reads"
                 );
 
-                Some(join_hop)
+                true
             } else {
                 // At least one leg is not blocked, so we can continue reading
                 // from the join point streams
-                None
+                false
             }
         };
 
-        Ok(exclude)
+        Ok(should_skip)
     }
 
     /// Returns the next ready [`CircuitAction`],
@@ -898,7 +897,7 @@ impl ConfluxSet {
         // leg is blocked on cc
         cfg_if::cfg_if! {
             if #[cfg(feature = "conflux")] {
-                let mut should_poll_join_point = self.should_skip_join_point()?.is_none();
+                let mut should_poll_join_point = !self.should_skip_join_point()?;
             } else {
                 let mut should_poll_join_point = true;
             }
