@@ -129,13 +129,13 @@ impl Estimator {
 
 impl tor_proto::client::circuit::TimeoutEstimator for Estimator {
     fn circuit_build_timeout(&self, length: usize) -> Duration {
-        let (_timeout, abandon) = self
+        let (timeout, _abandon) = self
             .inner
             .lock()
             .expect("poisoned lock")
             .timeouts(&Action::BuildCircuit { length });
 
-        abandon
+        timeout
     }
 }
 
