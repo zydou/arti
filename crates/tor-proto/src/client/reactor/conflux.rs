@@ -898,11 +898,12 @@ impl ConfluxSet {
         // leg is blocked on cc
         cfg_if::cfg_if! {
             if #[cfg(feature = "conflux")] {
-                let exclude_hop = self.should_skip_join_point()?;
+                let mut should_poll_join_point = self.should_skip_join_point()?.is_none();
             } else {
-                let exclude_hop: Option<HopNum> = None;
+                let mut should_poll_join_point = true;
             }
         };
+        let join_point = self.primary_join_point().map(|join_point| join_point.1);
 
         let mut poll_all = PollAll::<CIRC_ACTION_COUNT, CircuitAction>::new();
 
@@ -973,10 +974,14 @@ impl ConfluxSet {
                 Pin::new(&mut leg.chan_sender).poll_ready(cx)
             });
 
-            // XXX: this will poll the streams on the join point hop
-            // multiple times (once for each circuit leg) per reactor loop,
-            // which is not good, because it might cause us to send a cell
-            // in violation of cc
+            let exclude_hop = if should_poll_join_point {
+                // Avoid polling the join point more than once per reactor loop.
+                should_poll_join_point = false;
+                None
+            } else {
+                join_point
+            };
+
             let mut ready_streams = leg.hops.ready_streams_iterator(exclude_hop);
             let next_ready_stream = async move {
                 // Avoid polling the application streams if the outgoing sink is blocked
