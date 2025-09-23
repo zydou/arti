@@ -250,6 +250,8 @@ fn run_check_integrity<R: Runtime>(
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "onion-service-service")] {
+                // For the current keystore, transfer its expired keys from `expired_entries`
+                // to `invalid_entries`.
                 expired_entries = expired_entries
                     .into_iter()
                     .filter(|res| {
