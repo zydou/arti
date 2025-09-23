@@ -966,6 +966,9 @@ impl ConfluxSet {
             });
             poll_all.push(input);
 
+            // This future resolves when the chan_sender sink (i.e. the outgoing TCP connection)
+            // becomes ready. We need it inside the next_ready_stream future below,
+            // to prevent reading from the application streams before we are ready to send.
             let chan_ready_fut = futures::future::poll_fn(|cx| {
                 use futures::Sink as _;
 
