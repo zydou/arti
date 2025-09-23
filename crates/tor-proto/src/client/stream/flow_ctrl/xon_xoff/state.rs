@@ -37,6 +37,7 @@ use postage::watch;
 use tor_cell::relaycell::flow_ctrl::{FlowCtrlVersion, Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
+use tracing::trace;
 
 use super::reader::DrainRateRequest;
 
@@ -148,6 +149,8 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
             sidechannel_mitigation.received_xon(&self.params)?;
         }
 
+        trace!("Received an XON with rate {}", xon.kbps_ewma());
+
         let rate = match xon.kbps_ewma() {
             XonKbpsEwma::Limited(rate_kbps) => {
                 let rate_kbps = u64::from(rate_kbps.get());
@@ -178,6 +181,8 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
             sidechannel_mitigation.received_xoff(&self.params)?;
         }
 
+        trace!("Received an XOFF");
+
         // update the rate limit and notify the `DataWriter`
         *self.rate_limit_updater.borrow_mut() = StreamRateLimit::ZERO;
 
@@ -196,6 +201,8 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
         }
 
         self.last_sent_xon_xoff = Some(XonXoffMsg::Xon(rate));
+
+        trace!("Want to send an XON with rate {rate}");
 
         Ok(Some(Xon::new(FlowCtrlVersion::V0, rate)))
     }
@@ -217,6 +224,8 @@ impl FlowCtrlHooks for XonXoffFlowCtrl {
 
         // inform the stream reader that we need a new drain rate
         self.drain_rate_requester.notify();
+
+        trace!("Want to send an XOFF");
 
         Ok(Some(Xoff::new(FlowCtrlVersion::V0)))
     }
