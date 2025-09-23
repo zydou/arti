@@ -1,13 +1,11 @@
 //! Define helpers for working with types in constant time.
 
+use derive_deftly::{Deftly, define_derive_deftly};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroize;
 
 #[cfg(feature = "memquota-memcost")]
-use {
-    derive_deftly::{Deftly, define_derive_deftly},
-    tor_memquota::derive_deftly_template_HasMemoryCost,
-};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 define_derive_deftly! {
     /// Derives [`subtle::ConstantTimeEq`] on types for which all fields already

@@ -11,11 +11,12 @@
 
 use base64ct::{Base64Unpadded, Encoding as _};
 use curve25519_dalek::Scalar;
+use derive_deftly::Deftly;
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
 #[cfg(feature = "memquota-memcost")]
-use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use ed25519_dalek::hazmat::ExpandedSecretKey;
 use ed25519_dalek::{Signer as _, Verifier as _};
