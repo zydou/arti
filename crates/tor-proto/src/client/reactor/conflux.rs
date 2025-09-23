@@ -904,6 +904,13 @@ impl ConfluxSet {
         };
         let join_point = self.primary_join_point().map(|join_point| join_point.1);
 
+        // IMPORTANT: if you want to push additional futures into this,
+        // bear in mind that the ordering matters!
+        // If multiple futures resolve at the same time, their results will be processed
+        // in the order their corresponding futures were inserted into `PollAll`.
+        // So if futures A and B resolve at the same time, and future A was pushed
+        // into `PollAll` before future B, the result of future A will come
+        // before future B's result in the result list returned by poll_all.await.
         let mut poll_all = PollAll::<CIRC_ACTION_COUNT, CircuitAction>::new();
 
         for leg in &mut self.legs {
