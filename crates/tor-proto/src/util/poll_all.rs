@@ -13,9 +13,19 @@ type BoxedFut<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// Helper for driving multiple futures in lockstep.
 ///
 /// When `.await`ed, a [`PollAll`] will unconditionally poll *all* of its
-/// underlying futures, until one or more of them resolves.
+/// underlying futures, in the order they were [`push`](PollAll::push)ed,
+/// until one or more of them resolves.
 /// Any remaining unresolved futures will be dropped.
 /// An empty `PollAll` will resolve immediately, yielding an empty list.
+///
+/// `PollAll` resolves to an *ordered* list of results, obtained from polling
+/// the futures in insertion order. Because some of the futures may not
+/// get a chance to resolve, the number of results will always
+/// be less than or equal to the number of inserted futures.
+///
+/// Because `PollAll` drives the futures in lockstep,
+/// if one future becomes ready, all of the futures will get polled,
+/// even if they didn't generate a wakeup notification.
 ///
 /// ### Invariants
 ///
