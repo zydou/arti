@@ -223,38 +223,50 @@ fn run_check_integrity<R: Runtime>(
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
             let services = create_all_services(config, client_config)?;
+            let mut expired_entries: Vec<_> = get_expired_keys(&services, &client)?
+                .into_iter()
+                .map(|entry| (entry, "The entry is expired.".to_string()))
+                .collect();
         }
     }
+
     for (id, entries) in keystores {
         let mut invalid_entries = entries
             .into_iter()
             .filter_map(|entry| match entry {
-                Ok(ref e) => {
+                Ok(e) => {
                     if let Err(err) = keymgr.validate_entry_integrity(&e) {
-                        Some((entry, err.to_string()))
+                        Some((Ok(e), err.to_string()))
                     } else {
                         None
                     }
                 }
-                // XXX: clone
-                Err(ref err) => Some((entry.clone(), err.error().to_string())),
+                Err(err) => {
+                    let error = err.error().to_string();
+                    Some((Err(err), error))
+                }
             })
             .collect::<Vec<_>>();
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "onion-service-service")] {
-                let expired_entries: Vec<_> = get_expired_keys(&services, &client)?
+                expired_entries = expired_entries
                     .into_iter()
-                    .map(|entry| (entry, "The entry is expired.".to_string()))
-                    .collect();
-                if !expired_entries.is_empty() {
-                    invalid_entries.extend(expired_entries);
-                }
+                    .filter(|res| {
+                        // `res` will always be true, see `get_expired_keys`.
+                        if let (Ok(entry), _) = res {
+                            if entry.keystore_id() == &id {
+                                invalid_entries.push(res.clone());
+                                return false;
+                            }
+                        }
+                        true
+                    }).collect()
             }
         }
 
         if invalid_entries.is_empty() {
-            println!("{}: OK.", id);
+            println!("{}: OK.\n", id);
             continue;
         }
 
