@@ -263,7 +263,7 @@ fn run_check_integrity<R: Runtime>(
 
     display_invalid_keystore_entries(&affected_keystores);
 
-    // maybe_remove_invalid_entries(args, &invalid_entries, keymgr)?;
+    maybe_remove_invalid_entries(args, &affected_keystores, keymgr)?;
 
     Ok(())
 }
@@ -422,10 +422,13 @@ fn get_expired_keys<'a, R: Runtime>(
 /// Returns `Err` if an I/O error occurs.
 fn maybe_remove_invalid_entries(
     args: &CheckIntegrityArgs,
-    entries: &[KeystoreEntryResult<KeystoreEntry<'_>>],
+    affected_keystores: &[(
+        KeystoreId,
+        Vec<(KeystoreEntryResult<KeystoreEntry>, String)>,
+    )],
     keymgr: &KeyMgr,
 ) -> Result<()> {
-    if entries.is_empty() || !args.sweep {
+    if affected_keystores.is_empty() || !args.sweep {
         return Ok(());
     }
 
@@ -435,17 +438,19 @@ fn maybe_remove_invalid_entries(
         return Ok(());
     }
 
-    for res in entries.iter() {
-        let raw_entry = match res {
-            Ok(e) => &e.raw_entry(),
-            Err(e) => e.entry().deref(),
-        };
+    for (_, entries) in affected_keystores {
+        for (res, _) in entries.iter() {
+            let raw_entry = match res {
+                Ok(e) => &e.raw_entry(),
+                Err(e) => e.entry().deref(),
+            };
 
-        if keymgr
-            .remove_unchecked(&raw_entry.raw_id().to_string(), raw_entry.keystore_id())
-            .is_err()
-        {
-            eprintln!("Failed to remove entry at location: {}", raw_entry.raw_id());
+            if keymgr
+                .remove_unchecked(&raw_entry.raw_id().to_string(), raw_entry.keystore_id())
+                .is_err()
+            {
+                eprintln!("Failed to remove entry at location: {}", raw_entry.raw_id());
+            }
         }
     }
 
