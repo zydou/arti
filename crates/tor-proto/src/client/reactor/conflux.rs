@@ -7,7 +7,7 @@ use std::pin::Pin;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex};
 
-use futures::{FutureExt as _, StreamExt};
+use futures::{FutureExt as _, StreamExt, select_biased};
 use itertools::Itertools;
 use itertools::structs::ExactlyOneError;
 use smallvec::{SmallVec, smallvec};
@@ -53,7 +53,7 @@ const MAX_CONFLUX_LEGS: usize = 16;
 /// The expected number of circuit actions to be returned from
 /// [`ConfluxSet::next_circ_action`]
 /// (2 * number of futures, because there are usually at most 2 legs in a conflux tunnel).
-const CIRC_ACTION_COUNT: usize = 8;
+const CIRC_ACTION_COUNT: usize = 4;
 
 /// A set with one or more circuits.
 ///
@@ -904,6 +904,13 @@ impl ConfluxSet {
         };
         let join_point = self.primary_join_point().map(|join_point| join_point.1);
 
+        // Each circuit leg has a PollAll future (see poll_all_circ below)
+        // that drives two futures: one that reads from input channel,
+        // and another drives the application streams.
+        //
+        // *This* PollAll drives the PollAll futures of all circuit legs in lockstep,
+        // ensuring they all get a chance to make some progress on every reactor iteration.
+        //
         // IMPORTANT: if you want to push additional futures into this,
         // bear in mind that the ordering matters!
         // If multiple futures resolve at the same time, their results will be processed
@@ -911,7 +918,11 @@ impl ConfluxSet {
         // So if futures A and B resolve at the same time, and future A was pushed
         // into `PollAll` before future B, the result of future A will come
         // before future B's result in the result list returned by poll_all.await.
-        let mut poll_all = PollAll::<CIRC_ACTION_COUNT, CircuitAction>::new();
+        //
+        // This means that the actions corresponding to the first circuit in the tunnel
+        // will be executed first, followed by the actions issued by the next circuit,
+        // and s on.
+        let mut poll_all = PollAll::<2, SmallVec<[CircuitAction; 2]>>::new();
 
         for leg in &mut self.legs {
             let unique_id = leg.unique_id();
@@ -931,35 +942,9 @@ impl ConfluxSet {
             // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
             // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
             // implementation currently uses Circuit Build Timeout).
-            if let Some(timeout) = leg.conflux_hs_timeout() {
-                // TODO: ask Diziet if we can have a sleep_until_instant() function
-                let timeout = async move { runtime.sleep_until_wallclock(timeout).await };
-                let conflux_hs_timeout = timeout.map(move |_| {
-                    warn!(
-                        tunnel_id = %tunnel_id,
-                        circ_id = %unique_id,
-                        "Conflux handshake timed out on circuit"
-                    );
+            let conflux_hs_timeout = leg.conflux_hs_timeout();
 
-                    // Conflux handshake has timed out, time to remove this circuit leg,
-                    // and notify the handshake initiator.
-                    CircuitAction::RemoveLeg {
-                        leg: unique_id,
-                        reason: RemoveLegReason::ConfluxHandshakeTimeout,
-                    }
-                });
-
-                poll_all.push(conflux_hs_timeout);
-            };
-
-            let padding_stream = leg.padding_event_stream.next().map(move |padding_action| {
-                CircuitAction::PaddingAction {
-                    leg: unique_id,
-                    padding_action: padding_action
-                        .expect("PaddingEventStream, surprisingly, was terminated!"),
-                }
-            });
-            poll_all.push(padding_stream);
+            let mut poll_all_circ = PollAll::<2, CircuitAction>::new();
 
             let input = leg.input.next().map(move |res| match res {
                 Some(cell) => CircuitAction::HandleCell {
@@ -971,7 +956,7 @@ impl ConfluxSet {
                     reason: RemoveLegReason::ChannelClosed,
                 },
             });
-            poll_all.push(input);
+            poll_all_circ.push(input);
 
             // This future resolves when the chan_sender sink (i.e. the outgoing TCP connection)
             // becomes ready. We need it inside the next_ready_stream future below,
@@ -1013,13 +998,63 @@ impl ConfluxSet {
                 }
             };
 
-            poll_all.push(next_ready_stream.map(move |cmd| CircuitAction::RunCmd {
+            poll_all_circ.push(next_ready_stream.map(move |cmd| CircuitAction::RunCmd {
                 leg: unique_id,
                 cmd,
             }));
+
+            let mut next_padding_event_fut = leg.padding_event_stream.next();
+
+            // This selects between 3 actions that cannot be handled concurrently.
+            //
+            // If the conflux handshake times out, we need to remove the circuit leg
+            // (any pending padding events or application stream data should be discarded;
+            // in fact, there shouldn't even be any open streams on circuits that are
+            // in the conflux handshake phase).
+            //
+            // If there's a padding event, we need to handle it immediately,
+            // because it might tell us to start blocking the chan_sender sink,
+            // which, in turn, means we need to stop trying to read from the application streams.
+            poll_all.push(
+                async move {
+                    let conflux_hs_timeout = if let Some(timeout) = conflux_hs_timeout {
+                        // TODO: ask Diziet if we can have a sleep_until_instant() function
+                        Box::pin(runtime.sleep_until_wallclock(timeout))
+                            as Pin<Box<dyn Future<Output = ()> + Send>>
+                    } else {
+                        Box::pin(std::future::pending())
+                    };
+                    select_biased! {
+                        () = conflux_hs_timeout.fuse() => {
+                            warn!(
+                                tunnel_id = %tunnel_id,
+                                circ_id = %unique_id,
+                                "Conflux handshake timed out on circuit"
+                            );
+
+                            // Conflux handshake has timed out, time to remove this circuit leg,
+                            // and notify the handshake initiator.
+                            smallvec![CircuitAction::RemoveLeg {
+                                leg: unique_id,
+                                reason: RemoveLegReason::ConfluxHandshakeTimeout,
+                            }]
+                        }
+                        padding_action = next_padding_event_fut => {
+                            smallvec![CircuitAction::PaddingAction {
+                                leg: unique_id,
+                                padding_action:
+                                    padding_action.expect("PaddingEventStream, surprisingly, was terminated!"),
+                            }]
+                        }
+                        ret = poll_all_circ.fuse() => ret,
+                    }
+                }
+            );
         }
 
-        Ok(poll_all.await)
+        // Flatten the nested SmallVecs to simplify the calling code
+        // (which will handle all the returned actions sequentially).
+        Ok(poll_all.await.into_iter().flatten().collect())
     }
 
     /// The join point on the current primary leg.
