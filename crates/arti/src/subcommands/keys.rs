@@ -277,8 +277,45 @@ fn display_invalid_keystore_entries(
     )],
     keymgr: &KeyMgr,
 ) {
-    for (id, _) in affected_keystores.iter() {
-        println!("id: {}", id);
+    if affected_keystores.is_empty() {
+        return;
+    }
+
+    let len = affected_keystores.len();
+
+    let mut incipit = "Found problem in keystore".to_string();
+    if len > 1 {
+        incipit.push('s');
+    }
+    incipit.push(':');
+    for (id, _) in affected_keystores {
+        incipit.push(' ');
+        incipit.push_str(&id.to_string());
+        incipit.push(',');
+    }
+    // XXX: it's always some
+    if incipit.pop().is_some() {
+        incipit.push('.');
+    }
+    println!("{}", incipit);
+
+    for (id, entries) in affected_keystores {
+        println!("\nInvalid keystore entries in keystore {}:\n", id);
+        for (entry, error) in entries {
+            let raw_id = match entry {
+                Ok(e) => {
+                    // XXX: clone
+                    let entry = e.raw_entry();
+                    entry.raw_id().clone()
+                }
+                Err(e) => {
+                    let entry = e.entry();
+                    entry.raw_id().clone()
+                }
+            };
+            println!("{}", raw_id);
+            println!("\tError: {}", error);
+        }
     }
 }
 
