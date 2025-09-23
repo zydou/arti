@@ -7,6 +7,7 @@
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 
+use derive_deftly::Deftly;
 use digest::Digest;
 use itertools::{Itertools, chain};
 use safelog::DisplayRedacted;
@@ -19,8 +20,7 @@ use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Ed25519SigningKey};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
 use tor_llcrypto::{
-    derive_deftly::Deftly, derive_deftly_template_ConstantTimeEq,
-    derive_deftly_template_PartialEqFromCtEq,
+    derive_deftly_template_ConstantTimeEq, derive_deftly_template_PartialEqFromCtEq,
 };
 
 use crate::macros::{define_bytes, define_pk_keypair};
