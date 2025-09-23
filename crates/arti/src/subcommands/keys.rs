@@ -261,59 +261,38 @@ fn run_check_integrity<R: Runtime>(
         affected_keystores.push((id, invalid_entries));
     }
 
-    display_invalid_keystore_entries(&affected_keystores, keymgr);
+    display_invalid_keystore_entries(&affected_keystores);
 
     // maybe_remove_invalid_entries(args, &invalid_entries, keymgr)?;
 
     Ok(())
 }
 
-/// Helper function of `run_check_integrity`, reduces cognitive complexity.
-// XXX: comment
+/// Helper function for `run_check_integrity` that reduces cognitive complexity.
+///
+/// Displays invalid keystore entries grouped by `KeystoreId`, showing the `raw_id`
+/// of each key and the associated error message in a unified report to the user.
+/// If no invalid entries are provided, nothing is printed.
 fn display_invalid_keystore_entries(
     affected_keystores: &[(
         KeystoreId,
         Vec<(KeystoreEntryResult<KeystoreEntry>, String)>,
     )],
-    keymgr: &KeyMgr,
 ) {
     if affected_keystores.is_empty() {
         return;
     }
 
-    let len = affected_keystores.len();
-
-    let mut incipit = "Found problem in keystore".to_string();
-    if len > 1 {
-        incipit.push('s');
-    }
-    incipit.push(':');
-    for (id, _) in affected_keystores {
-        incipit.push(' ');
-        incipit.push_str(&id.to_string());
-        incipit.push(',');
-    }
-    // XXX: it's always some
-    if incipit.pop().is_some() {
-        incipit.push('.');
-    }
-    println!("{}", incipit);
+    print_check_integrity_incipit(affected_keystores);
 
     for (id, entries) in affected_keystores {
         println!("\nInvalid keystore entries in keystore {}:\n", id);
         for (entry, error) in entries {
-            let raw_id = match entry {
-                Ok(e) => {
-                    // XXX: clone
-                    let entry = e.raw_entry();
-                    entry.raw_id().clone()
-                }
-                Err(e) => {
-                    let entry = e.entry();
-                    entry.raw_id().clone()
-                }
+            let raw_entry = match entry {
+                Ok(e) => e.raw_entry(),
+                Err(e) => e.entry().into(),
             };
-            println!("{}", raw_id);
+            println!("{}", raw_entry.raw_id());
             println!("\tError: {}", error);
         }
     }
@@ -471,4 +450,33 @@ fn maybe_remove_invalid_entries(
     }
 
     Ok(())
+}
+
+/// Helper function for `display_invalid_keystore_entries` that reduces cognitive complexity.
+///
+/// Produces and displays the opening section of the final output, given a list of keystores
+/// containing invalid entries and their IDs. This function does not check whether
+/// `affected_keystores` or the inner collections are empty.
+fn print_check_integrity_incipit(
+    affected_keystores: &[(
+        KeystoreId,
+        Vec<(KeystoreEntryResult<KeystoreEntry>, String)>,
+    )],
+) {
+    let len = affected_keystores.len();
+
+    let mut incipit = "Found problems in keystore".to_string();
+    if len > 1 {
+        incipit.push('s');
+    }
+    incipit.push(':');
+    for (id, _) in affected_keystores {
+        incipit.push(' ');
+        incipit.push_str(&id.to_string());
+        incipit.push(',');
+    }
+    let _ = incipit.pop();
+    incipit.push('.');
+
+    println!("{}", incipit);
 }
