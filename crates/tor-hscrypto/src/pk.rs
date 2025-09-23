@@ -7,6 +7,7 @@
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 
+use derive_deftly::Deftly;
 use digest::Digest;
 use itertools::{Itertools, chain};
 use safelog::DisplayRedacted;
@@ -19,7 +20,10 @@ use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Ed25519SigningKey};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
 
-use crate::macros::{define_bytes, define_pk_keypair};
+use crate::macros::{
+    define_bytes, define_pk_keypair, derive_deftly_template_ConstantTimeEq,
+    derive_deftly_template_PartialEqFromCtEq,
+};
 use crate::time::TimePeriod;
 
 #[allow(deprecated)]
@@ -55,6 +59,8 @@ define_pk_keypair! {
 //
 // NOTE: This is called the "master" key in rend-spec-v3, but we're deprecating
 // that vocabulary generally.
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
 pub struct HsIdKey(ed25519::PublicKey) /
     ///
     /// This is stored as an expanded secret key, for compatibility with the C
@@ -69,6 +75,8 @@ pub struct HsIdKey(ed25519::PublicKey) /
     /// major drawback is that once you have found a good `a`, you can't get an
     /// `s` for it, since you presumably can't find SHA512 preimages.  And that
     /// is why we store the private key in (a,r) form.)
+    #[derive(Deftly)]
+    #[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
     HsIdKeypair(ed25519::ExpandedKeypair);
 }
 
@@ -102,42 +110,6 @@ impl From<&HsIdKeypair> for HsIdKey {
 impl From<HsIdKeypair> for HsIdKey {
     fn from(value: HsIdKeypair) -> Self {
         Self(*value.0.public())
-    }
-}
-
-impl ConstantTimeEq for HsIdKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsIdKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl ConstantTimeEq for HsIdKeypair {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_keypair) = self;
-        let Self(other_keypair) = other;
-
-        self_keypair
-            .public()
-            .as_bytes()
-            .ct_eq(other_keypair.public().as_bytes())
-            & self_keypair
-                .to_secret_key_bytes()
-                .ct_eq(&other_keypair.to_secret_key_bytes())
-    }
-}
-
-impl PartialEq for HsIdKeypair {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
     }
 }
 
@@ -405,48 +377,18 @@ define_pk_keypair! {
 ///
 /// Note: This is a separate type from [`HsBlindId`] because it is about 6x
 /// larger.  It is an expanded form, used for doing actual cryptography.
-pub struct HsBlindIdKey(ed25519::PublicKey) / HsBlindIdKeypair(ed25519::ExpandedKeypair);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsBlindIdKey(ed25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsBlindIdKeypair(ed25519::ExpandedKeypair);
 }
 
 impl From<HsBlindIdKeypair> for HsBlindIdKey {
     fn from(kp: HsBlindIdKeypair) -> HsBlindIdKey {
         HsBlindIdKey(kp.0.into())
-    }
-}
-
-impl ConstantTimeEq for HsBlindIdKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsBlindIdKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl ConstantTimeEq for HsBlindIdKeypair {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_keypair) = self;
-        let Self(other_keypair) = other;
-
-        self_keypair
-            .public()
-            .as_bytes()
-            .ct_eq(other_keypair.public().as_bytes())
-            & self_keypair
-                .to_secret_key_bytes()
-                .ct_eq(&other_keypair.to_secret_key_bytes())
-    }
-}
-
-impl PartialEq for HsBlindIdKeypair {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
     }
 }
 
@@ -519,41 +461,13 @@ define_pk_keypair! {
 /// Note: we use a separate signing key here, rather than using the
 /// `HsBlindIdKey` directly, so that the [`HsBlindIdKeypair`]
 /// can be kept offline.
-pub struct HsDescSigningKey(ed25519::PublicKey) / HsDescSigningKeypair(ed25519::Keypair);
-}
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsDescSigningKey(ed25519::PublicKey) /
 
-impl ConstantTimeEq for HsDescSigningKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsDescSigningKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl ConstantTimeEq for HsDescSigningKeypair {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_keypair) = self;
-        let Self(other_keypair) = other;
-
-        self_keypair.as_bytes().ct_eq(other_keypair.as_bytes())
-            & self_keypair
-                .verifying_key()
-                .as_bytes()
-                .ct_eq(other_keypair.verifying_key().as_bytes())
-    }
-}
-
-impl PartialEq for HsDescSigningKeypair {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsDescSigningKeypair(ed25519::Keypair);
 }
 
 define_pk_keypair! {
@@ -564,41 +478,13 @@ define_pk_keypair! {
 /// used at each introduction point.  Introduction points don't know the
 /// relation of this key to the onion service: they only recognize the same key
 /// when they see it again.
-pub struct HsIntroPtSessionIdKey(ed25519::PublicKey) / HsIntroPtSessionIdKeypair(ed25519::Keypair);
-}
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsIntroPtSessionIdKey(ed25519::PublicKey) /
 
-impl ConstantTimeEq for HsIntroPtSessionIdKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsIntroPtSessionIdKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl ConstantTimeEq for HsIntroPtSessionIdKeypair {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_keypair) = self;
-        let Self(other_keypair) = other;
-
-        self_keypair.as_bytes().ct_eq(other_keypair.as_bytes())
-            & self_keypair
-                .verifying_key()
-                .as_bytes()
-                .ct_eq(other_keypair.verifying_key().as_bytes())
-    }
-}
-
-impl PartialEq for HsIntroPtSessionIdKeypair {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsIntroPtSessionIdKeypair(ed25519::Keypair);
 }
 
 define_pk_keypair! {
@@ -608,48 +494,31 @@ define_pk_keypair! {
 /// The onion service chooses a different one of these to use with each
 /// introduction point, though it does not need to tell the introduction points
 /// about these keys.
-pub struct HsSvcNtorKey(curve25519::PublicKey) / HsSvcNtorSecretKey(curve25519::StaticSecret);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsSvcNtorKey(curve25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsSvcNtorSecretKey(curve25519::StaticSecret);
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
 curve25519_pair as HsSvcNtorKeypair;
-}
-
-impl ConstantTimeEq for HsSvcNtorKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsSvcNtorKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl ConstantTimeEq for HsSvcNtorSecretKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsSvcNtorSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
 }
 
 mod hs_client_intro_auth {
     #![allow(deprecated)]
     //! Key type wrappers for the deprecated `HsClientIntroKey`/`HsClientIntroKeypair` types.
 
+    use derive_deftly::Deftly;
     use subtle::ConstantTimeEq;
     use tor_llcrypto::pk::ed25519;
 
-    use crate::macros::define_pk_keypair;
+    use crate::macros::{
+        define_pk_keypair, derive_deftly_template_ConstantTimeEq,
+        derive_deftly_template_PartialEqFromCtEq,
+    };
 
     define_pk_keypair! {
     /// First type of client authorization key, used for the introduction protocol.
@@ -658,43 +527,14 @@ mod hs_client_intro_auth {
     /// This is used to sign a nonce included in an extension in the encrypted
     /// portion of an introduce cell.
     #[deprecated(note = "This key type is not used in the protocol implemented today.")]
+    #[derive(Deftly)]
+    #[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
     pub struct HsClientIntroAuthKey(ed25519::PublicKey) /
+
     #[deprecated(note = "This key type is not used in the protocol implemented today.")]
+    #[derive(Deftly)]
+    #[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
     HsClientIntroAuthKeypair(ed25519::Keypair);
-    }
-
-    impl ConstantTimeEq for HsClientIntroAuthKey {
-        fn ct_eq(&self, other: &Self) -> subtle::Choice {
-            let Self(self_key) = self;
-            let Self(other_key) = other;
-
-            self_key.as_bytes().ct_eq(other_key.as_bytes())
-        }
-    }
-
-    impl PartialEq for HsClientIntroAuthKey {
-        fn eq(&self, other: &Self) -> bool {
-            self.ct_eq(other).into()
-        }
-    }
-
-    impl ConstantTimeEq for HsClientIntroAuthKeypair {
-        fn ct_eq(&self, other: &Self) -> subtle::Choice {
-            let Self(self_keypair) = self;
-            let Self(other_keypair) = other;
-
-            self_keypair.as_bytes().ct_eq(other_keypair.as_bytes())
-                & self_keypair
-                    .verifying_key()
-                    .as_bytes()
-                    .ct_eq(other_keypair.verifying_key().as_bytes())
-        }
-    }
-
-    impl PartialEq for HsClientIntroAuthKeypair {
-        fn eq(&self, other: &Self) -> bool {
-            self.ct_eq(other).into()
-        }
     }
 }
 
@@ -729,23 +569,17 @@ define_pk_keypair! {
 /// // The keys are identical
 /// assert_eq!(key1, key2);
 /// ```
-pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsClientDescEncKey(curve25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsClientDescEncSecretKey(curve25519::StaticSecret);
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
 curve25519_pair as HsClientDescEncKeypair;
-}
-
-impl ConstantTimeEq for HsClientDescEncKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsClientDescEncKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
 }
 
 impl Eq for HsClientDescEncKey {}
@@ -793,21 +627,6 @@ impl FromStr for HsClientDescEncKey {
     }
 }
 
-impl ConstantTimeEq for HsClientDescEncSecretKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsClientDescEncSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
 /// Error that can occur parsing an `HsClientDescEncKey` from C Tor format.
 #[derive(Error, Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -838,37 +657,13 @@ define_pk_keypair! {
 /// (`KP_hss_desc_enc`)
 ///
 /// This key is created for a single descriptor, and then thrown away.
-pub struct HsSvcDescEncKey(curve25519::PublicKey) / HsSvcDescEncSecretKey(curve25519::StaticSecret);
-}
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsSvcDescEncKey(curve25519::PublicKey) /
 
-impl ConstantTimeEq for HsSvcDescEncKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsSvcDescEncKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
-}
-
-impl ConstantTimeEq for HsSvcDescEncSecretKey {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self(self_key) = self;
-        let Self(other_key) = other;
-
-        self_key.as_bytes().ct_eq(other_key.as_bytes())
-    }
-}
-
-impl PartialEq for HsSvcDescEncSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsSvcDescEncSecretKey(curve25519::StaticSecret);
 }
 
 impl From<&HsClientDescEncSecretKey> for HsClientDescEncKey {
@@ -886,33 +681,13 @@ impl From<&HsClientDescEncKeypair> for HsClientDescEncKey {
 /// An ephemeral x25519 keypair, generated by an onion service
 /// and used to for onion service encryption.
 #[allow(clippy::exhaustive_structs)]
-#[derive(Debug)]
+#[derive(Debug, Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
 pub struct HsSvcDescEncKeypair {
     /// The public part of the key.
     pub public: HsSvcDescEncKey,
     /// The secret part of the key.
     pub secret: HsSvcDescEncSecretKey,
-}
-
-impl ConstantTimeEq for HsSvcDescEncKeypair {
-    fn ct_eq(&self, other: &Self) -> subtle::Choice {
-        let Self {
-            public: self_public,
-            secret: self_secret,
-        } = self;
-        let Self {
-            public: other_public,
-            secret: other_secret,
-        } = other;
-
-        self_public.ct_eq(other_public) & self_secret.ct_eq(other_secret)
-    }
-}
-
-impl PartialEq for HsSvcDescEncKeypair {
-    fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
-    }
 }
 
 // TODO: let the define_ed25519_keypair/define_curve25519_keypair macros
