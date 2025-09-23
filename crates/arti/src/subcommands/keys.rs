@@ -216,66 +216,69 @@ fn run_check_integrity<R: Runtime>(
             for id in ids {
                 keystores.push((id.clone(), keymgr.list_by_id(&id)?));
             }
-        },
+        }
     };
 
-    for (_, entries) in keystores {
+    let mut affected_keystores = Vec::new();
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-service")] {
+            let services = create_all_services(config, client_config)?;
+        }
+    }
+    for (id, entries) in keystores {
         let mut invalid_entries = entries
             .into_iter()
-            .filter(|entry| match entry {
-                Ok(e) => keymgr.validate_entry_integrity(e).is_err(),
-                Err(_) => true,
+            .filter_map(|entry| match entry {
+                Ok(ref e) => {
+                    if let Err(err) = keymgr.validate_entry_integrity(&e) {
+                        Some((entry, err.to_string()))
+                    } else {
+                        None
+                    }
+                }
+                // XXX: clone
+                Err(ref err) => Some((entry.clone(), err.error().to_string())),
             })
             .collect::<Vec<_>>();
 
-        display_invalid_keystore_entries(&invalid_entries, keymgr, "Invalid keystore entries");
-
         cfg_if::cfg_if! {
             if #[cfg(feature = "onion-service-service")] {
-                let services = create_all_services(config, client_config)?;
-                let expired_entries = get_expired_keys(&services, &client)?;
-                display_invalid_keystore_entries(
-                    &expired_entries,
-                    keymgr,
-                    "Expired keystore entries"
-                );
-
-                invalid_entries.extend(expired_entries)
+                let expired_entries: Vec<_> = get_expired_keys(&services, &client)?
+                    .into_iter()
+                    .map(|entry| (entry, "The entry is expired.".to_string()))
+                    .collect();
+                if !expired_entries.is_empty() {
+                    invalid_entries.extend(expired_entries);
+                }
             }
         }
 
         if invalid_entries.is_empty() {
-            println!("OK.");
-            return Ok(());
+            println!("{}: OK.", id);
+            continue;
         }
 
-        maybe_remove_invalid_entries(args, &invalid_entries, keymgr)?;
+        affected_keystores.push((id, invalid_entries));
     }
 
+    display_invalid_keystore_entries(&affected_keystores, keymgr);
+
+    // maybe_remove_invalid_entries(args, &invalid_entries, keymgr)?;
 
     Ok(())
 }
 
 /// Helper function of `run_check_integrity`, reduces cognitive complexity.
-// TODO: code duplication with `display_keystore_entries`.
+// XXX: comment
 fn display_invalid_keystore_entries(
-    entries: &[KeystoreEntryResult<KeystoreEntry>],
+    affected_keystores: &[(
+        KeystoreId,
+        Vec<(KeystoreEntryResult<KeystoreEntry>, String)>,
+    )],
     keymgr: &KeyMgr,
-    header: &str,
 ) {
-    if entries.is_empty() {
-        return;
-    }
-    println!(" ===== {} =====\n\n", header);
-    for entry in entries {
-        match entry {
-            Ok(entry) => {
-                display_entry(entry, keymgr);
-            }
-            Err(entry) => {
-                display_unrecognized_entry(entry);
-            }
-        }
+    for (id, _) in affected_keystores.iter() {
+        println!("id: {}", id);
     }
 }
 
