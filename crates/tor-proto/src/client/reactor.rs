@@ -156,6 +156,7 @@ impl Default for CloseStreamBehavior {
 
 /// One or more [`RunOnceCmdInner`] to run inside [`Reactor::run_once`].
 #[derive(From, Debug)]
+#[allow(clippy::large_enum_variant)] // TODO #2003: resolve this
 enum RunOnceCmd {
     /// Run a single `RunOnceCmdInner` command.
     Single(RunOnceCmdInner),
