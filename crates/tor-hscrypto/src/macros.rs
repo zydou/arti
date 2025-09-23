@@ -3,8 +3,6 @@
 //! (These macros are not likely to work outside of the context used in this
 //! crate without additional help.)
 
-use derive_deftly::define_derive_deftly;
-
 /// Define a public key type and a private key type to wrap a given inner key.
 //
 // TODO This macro needs proper formal documentation of its its input syntax and semantics.
@@ -142,57 +140,4 @@ macro_rules! define_bytes {
 }
 }
 
-// TODO: Ideally, these would both live in tor-llcrypto::util::ct or some other
-// crate, rather than being duplicated.
-
-define_derive_deftly! {
-    /// Derives [`subtle::ConstantTimeEq`] on types for which all fields already
-    /// implement it. Note that this does NOT work on fields which are arrays of
-    /// type `T`, even if `T` implements [`subtle::ConstantTimeEq`]. Arrays do
-    /// not directly implement [`subtle::ConstantTimeEq`] and instead
-    /// dereference to a slice, `[T]`, which does. See subtle!114 for a possible
-    /// future resolution.
-    ConstantTimeEq:
-
-    impl<$tgens> ConstantTimeEq for $ttype
-    where $twheres
-          $( $ftype : ConstantTimeEq , )
-    {
-        fn ct_eq(&self, other: &Self) -> subtle::Choice {
-            match (self, other) {
-                $(
-                    (${vpat fprefix=self_}, ${vpat fprefix=other_}) => {
-                        $(
-                            $<self_ $fname>.ct_eq($<other_ $fname>) &
-                        )
-                        0_u8.ct_eq(&0_u8)
-                    },
-                )
-            }
-        }
-    }
-}
-
-define_derive_deftly! {
-    /// Derives [`core::cmp::PartialEq`] on types which implement
-    /// [`subtle::ConstantTimeEq`] by calling [`subtle::ConstantTimeEq::ct_eq`].
-    PartialEqFromCtEq:
-
-    impl<$tgens> PartialEq for $ttype
-    where $twheres
-          $ttype : ConstantTimeEq
-    {
-        fn eq(&self, other: &Self) -> bool {
-            self.ct_eq(other).into()
-        }
-    }
-}
-
-#[expect(
-    clippy::single_component_path_imports,
-    reason = "I cannot figure out how to make the lint happy while keeping things working."
-)]
-pub(crate) use {
-    define_bytes, define_pk_keypair, derive_deftly_template_ConstantTimeEq,
-    derive_deftly_template_PartialEqFromCtEq,
-};
+pub(crate) use {define_bytes, define_pk_keypair};

@@ -7,7 +7,6 @@
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 
-use derive_deftly::Deftly;
 use digest::Digest;
 use itertools::{Itertools, chain};
 use safelog::DisplayRedacted;
@@ -19,11 +18,12 @@ use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Ed25519SigningKey};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
-
-use crate::macros::{
-    define_bytes, define_pk_keypair, derive_deftly_template_ConstantTimeEq,
+use tor_llcrypto::{
+    derive_deftly::Deftly, derive_deftly_template_ConstantTimeEq,
     derive_deftly_template_PartialEqFromCtEq,
 };
+
+use crate::macros::{define_bytes, define_pk_keypair};
 use crate::time::TimePeriod;
 
 #[allow(deprecated)]
@@ -511,14 +511,14 @@ mod hs_client_intro_auth {
     #![allow(deprecated)]
     //! Key type wrappers for the deprecated `HsClientIntroKey`/`HsClientIntroKeypair` types.
 
-    use derive_deftly::Deftly;
     use subtle::ConstantTimeEq;
     use tor_llcrypto::pk::ed25519;
-
-    use crate::macros::{
-        define_pk_keypair, derive_deftly_template_ConstantTimeEq,
+    use tor_llcrypto::{
+        derive_deftly::Deftly, derive_deftly_template_ConstantTimeEq,
         derive_deftly_template_PartialEqFromCtEq,
     };
+
+    use crate::macros::define_pk_keypair;
 
     define_pk_keypair! {
     /// First type of client authorization key, used for the introduction protocol.

@@ -8,16 +8,13 @@ use zeroize::Zeroize;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 define_derive_deftly! {
-    /// Derives [`subtle::ConstantTimeEq`] on types for which all fields already
-    /// implement it. Note that this does NOT work on fields which are arrays of
-    /// type `T`, even if `T` implements [`subtle::ConstantTimeEq`]. Arrays do
-    /// not directly implement [`subtle::ConstantTimeEq`] and instead
+    /// Derives [`subtle::ConstantTimeEq`] on structs for which all fields
+    /// already implement it. Note that this does NOT work on fields which are
+    /// arrays of type `T`, even if `T` implements [`subtle::ConstantTimeEq`].
+    /// Arrays do not directly implement [`subtle::ConstantTimeEq`] and instead
     /// dereference to a slice, `[T]`, which does. See subtle!114 for a possible
     /// future resolution.
-    // TODO: Ideally, this macro and the PartialEqFromCtEq macro would both live
-    // here in the ct module or some external crate, rather than duplicating
-    // the macros.
-    ConstantTimeEq:
+    export ConstantTimeEq for struct:
 
     impl<$tgens> ConstantTimeEq for $ttype
     where $twheres
@@ -30,7 +27,7 @@ define_derive_deftly! {
                         $(
                             $<self_ $fname>.ct_eq($<other_ $fname>) &
                         )
-                        0_u8.ct_eq(&0_u8)
+                        subtle::Choice::from(1)
                     },
                 )
             }
@@ -40,7 +37,7 @@ define_derive_deftly! {
 define_derive_deftly! {
     /// Derives [`core::cmp::PartialEq`] on types which implement
     /// [`subtle::ConstantTimeEq`] by calling [`subtle::ConstantTimeEq::ct_eq`].
-    PartialEqFromCtEq:
+    export PartialEqFromCtEq:
 
     impl<$tgens> PartialEq for $ttype
     where $twheres
