@@ -122,10 +122,14 @@ circuit.
 > transmission, cause it to discard legs, and/or cause it to abandon the tunnel entirely
 > and build a new one.
 >
-> Accounting for arbitrary artificial delay of control cells would require very
-> invasive integration between Maybenot and the rest of Arti, so that relevant
-> components can subtract the actual wall-clock quantity of delay from their
-> measurements, for the specific control cell that was delayed.
+> While defenses that add a fixed amount of delay to *all* cells (for example to spoof
+> location-based network latency) theoretically do not have this problem, this
+> defense is far better implemented via `tq` or other mechanisms to apply delay
+> at network interfaces (for example, by running arti in a container, or via
+> onionmasq).
+>
+> Additionally, our current understanding of these attacks is that they are not worth
+> this complexity. See Proposal 344 for details.
 
 Additionally, SENDME cells SHOULD NOT be blocked, as they will cause congestion
 control to reduce throughput of _**the other direction of traffic**_, in proportion
