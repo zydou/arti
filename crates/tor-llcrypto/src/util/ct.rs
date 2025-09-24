@@ -1,10 +1,54 @@
 //! Define helpers for working with types in constant time.
 
+use derive_deftly::{Deftly, define_derive_deftly};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroize;
 
 #[cfg(feature = "memquota-memcost")]
-use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
+
+define_derive_deftly! {
+    /// Derives [`subtle::ConstantTimeEq`] on structs for which all fields
+    /// already implement it. Note that this does NOT work on fields which are
+    /// arrays of type `T`, even if `T` implements [`subtle::ConstantTimeEq`].
+    /// Arrays do not directly implement [`subtle::ConstantTimeEq`] and instead
+    /// dereference to a slice, `[T]`, which does. See subtle!114 for a possible
+    /// future resolution.
+    export ConstantTimeEq for struct:
+
+    impl<$tgens> ConstantTimeEq for $ttype
+    where $twheres
+          $( $ftype : ConstantTimeEq , )
+    {
+        fn ct_eq(&self, other: &Self) -> subtle::Choice {
+            match (self, other) {
+                $(
+                    (${vpat fprefix=self_}, ${vpat fprefix=other_}) => {
+                        $(
+                            $<self_ $fname>.ct_eq($<other_ $fname>) &
+                        )
+                        subtle::Choice::from(1)
+                    },
+                )
+            }
+        }
+    }
+}
+define_derive_deftly! {
+    /// Derives [`core::cmp::PartialEq`] on types which implement
+    /// [`subtle::ConstantTimeEq`] by calling [`subtle::ConstantTimeEq::ct_eq`].
+    export PartialEqFromCtEq:
+
+    impl<$tgens> PartialEq for $ttype
+    where $twheres
+          $ttype : ConstantTimeEq
+    {
+        fn eq(&self, other: &Self) -> bool {
+            self.ct_eq(other).into()
+        }
+    }
+}
+pub(crate) use {derive_deftly_template_ConstantTimeEq, derive_deftly_template_PartialEqFromCtEq};
 
 /// A byte array of length N for which comparisons are performed in constant
 /// time.

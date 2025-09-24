@@ -13,8 +13,11 @@ pub mod rsa;
 /// key-agreement trait, but for now we are just re-using the APIs from
 /// [`x25519_dalek`].
 pub mod curve25519 {
+    use derive_deftly::Deftly;
     use educe::Educe;
+    use subtle::ConstantTimeEq;
 
+    use crate::util::ct::derive_deftly_template_PartialEqFromCtEq;
     use crate::util::rng::RngCompat;
 
     /// A keypair containing a [`StaticSecret`] and its corresponding public key.
@@ -51,11 +54,30 @@ pub mod curve25519 {
     #[derive(Clone)]
     pub struct StaticSecret(x25519_dalek::StaticSecret);
 
+    impl ConstantTimeEq for StaticSecret {
+        fn ct_eq(&self, other: &Self) -> subtle::Choice {
+            let Self { 0: self_secret } = self;
+            let Self { 0: other_secret } = other;
+
+            self_secret.as_bytes().ct_eq(other_secret.as_bytes())
+        }
+    }
+
     /// A curve15519 public key.
     ///
     /// See [`x25519_dalek::PublicKey`] for more information.
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[derive(Clone, Copy, Debug, Eq, Deftly)]
+    #[derive_deftly(PartialEqFromCtEq)]
     pub struct PublicKey(x25519_dalek::PublicKey);
+
+    impl ConstantTimeEq for PublicKey {
+        fn ct_eq(&self, other: &Self) -> subtle::Choice {
+            let Self { 0: self_secret } = self;
+            let Self { 0: other_secret } = other;
+
+            self_secret.as_bytes().ct_eq(other_secret.as_bytes())
+        }
+    }
 
     /// A shared secret negotiated using curve25519.
     ///
@@ -111,6 +133,10 @@ pub mod curve25519 {
         /// Return the bytes that represent this key.
         pub fn to_bytes(&self) -> [u8; 32] {
             self.0.to_bytes()
+        }
+        /// Return a reference to the bytes that represent this key.
+        pub fn as_bytes(&self) -> &[u8; 32] {
+            self.0.as_bytes()
         }
     }
     impl SharedSecret {

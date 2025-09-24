@@ -50,3 +50,9 @@ pub mod pk;
 pub mod rng;
 pub mod traits;
 pub mod util;
+
+#[doc(hidden)]
+pub use derive_deftly;
+
+// Use the current version of derive_deftly here:
+derive_deftly::template_export_semver_check!("1.3.0");

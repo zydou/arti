@@ -7,9 +7,11 @@
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 
+use derive_deftly::Deftly;
 use digest::Digest;
 use itertools::{Itertools, chain};
 use safelog::DisplayRedacted;
+use subtle::ConstantTimeEq;
 use thiserror::Error;
 use tor_basic_utils::{StrExt as _, impl_debug_hex};
 use tor_key_forge::ToEncodableKey;
@@ -17,6 +19,9 @@ use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Ed25519SigningKey};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 use tor_llcrypto::util::ct::CtByteArray;
+use tor_llcrypto::{
+    derive_deftly_template_ConstantTimeEq, derive_deftly_template_PartialEqFromCtEq,
+};
 
 use crate::macros::{define_bytes, define_pk_keypair};
 use crate::time::TimePeriod;
@@ -54,6 +59,8 @@ define_pk_keypair! {
 //
 // NOTE: This is called the "master" key in rend-spec-v3, but we're deprecating
 // that vocabulary generally.
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
 pub struct HsIdKey(ed25519::PublicKey) /
     ///
     /// This is stored as an expanded secret key, for compatibility with the C
@@ -68,6 +75,8 @@ pub struct HsIdKey(ed25519::PublicKey) /
     /// major drawback is that once you have found a good `a`, you can't get an
     /// `s` for it, since you presumably can't find SHA512 preimages.  And that
     /// is why we store the private key in (a,r) form.)
+    #[derive(Deftly)]
+    #[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
     HsIdKeypair(ed25519::ExpandedKeypair);
 }
 
@@ -368,7 +377,13 @@ define_pk_keypair! {
 ///
 /// Note: This is a separate type from [`HsBlindId`] because it is about 6x
 /// larger.  It is an expanded form, used for doing actual cryptography.
-pub struct HsBlindIdKey(ed25519::PublicKey) / HsBlindIdKeypair(ed25519::ExpandedKeypair);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsBlindIdKey(ed25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsBlindIdKeypair(ed25519::ExpandedKeypair);
 }
 
 impl From<HsBlindIdKeypair> for HsBlindIdKey {
@@ -446,7 +461,13 @@ define_pk_keypair! {
 /// Note: we use a separate signing key here, rather than using the
 /// `HsBlindIdKey` directly, so that the [`HsBlindIdKeypair`]
 /// can be kept offline.
-pub struct HsDescSigningKey(ed25519::PublicKey) / HsDescSigningKeypair(ed25519::Keypair);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsDescSigningKey(ed25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsDescSigningKeypair(ed25519::Keypair);
 }
 
 define_pk_keypair! {
@@ -457,7 +478,13 @@ define_pk_keypair! {
 /// used at each introduction point.  Introduction points don't know the
 /// relation of this key to the onion service: they only recognize the same key
 /// when they see it again.
-pub struct HsIntroPtSessionIdKey(ed25519::PublicKey) / HsIntroPtSessionIdKeypair(ed25519::Keypair);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsIntroPtSessionIdKey(ed25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsIntroPtSessionIdKeypair(ed25519::Keypair);
 }
 
 define_pk_keypair! {
@@ -467,7 +494,16 @@ define_pk_keypair! {
 /// The onion service chooses a different one of these to use with each
 /// introduction point, though it does not need to tell the introduction points
 /// about these keys.
-pub struct HsSvcNtorKey(curve25519::PublicKey) / HsSvcNtorSecretKey(curve25519::StaticSecret);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsSvcNtorKey(curve25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsSvcNtorSecretKey(curve25519::StaticSecret);
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
 curve25519_pair as HsSvcNtorKeypair;
 }
 
@@ -475,7 +511,12 @@ mod hs_client_intro_auth {
     #![allow(deprecated)]
     //! Key type wrappers for the deprecated `HsClientIntroKey`/`HsClientIntroKeypair` types.
 
+    use subtle::ConstantTimeEq;
     use tor_llcrypto::pk::ed25519;
+    use tor_llcrypto::{
+        derive_deftly::Deftly, derive_deftly_template_ConstantTimeEq,
+        derive_deftly_template_PartialEqFromCtEq,
+    };
 
     use crate::macros::define_pk_keypair;
 
@@ -486,8 +527,13 @@ mod hs_client_intro_auth {
     /// This is used to sign a nonce included in an extension in the encrypted
     /// portion of an introduce cell.
     #[deprecated(note = "This key type is not used in the protocol implemented today.")]
+    #[derive(Deftly)]
+    #[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
     pub struct HsClientIntroAuthKey(ed25519::PublicKey) /
+
     #[deprecated(note = "This key type is not used in the protocol implemented today.")]
+    #[derive(Deftly)]
+    #[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
     HsClientIntroAuthKeypair(ed25519::Keypair);
     }
 }
@@ -523,14 +569,17 @@ define_pk_keypair! {
 /// // The keys are identical
 /// assert_eq!(key1, key2);
 /// ```
-pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
-curve25519_pair as HsClientDescEncKeypair;
-}
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsClientDescEncKey(curve25519::PublicKey) /
 
-impl PartialEq for HsClientDescEncKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsClientDescEncSecretKey(curve25519::StaticSecret);
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+curve25519_pair as HsClientDescEncKeypair;
 }
 
 impl Eq for HsClientDescEncKey {}
@@ -608,7 +657,13 @@ define_pk_keypair! {
 /// (`KP_hss_desc_enc`)
 ///
 /// This key is created for a single descriptor, and then thrown away.
-pub struct HsSvcDescEncKey(curve25519::PublicKey) / HsSvcDescEncSecretKey(curve25519::StaticSecret);
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+pub struct HsSvcDescEncKey(curve25519::PublicKey) /
+
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
+HsSvcDescEncSecretKey(curve25519::StaticSecret);
 }
 
 impl From<&HsClientDescEncSecretKey> for HsClientDescEncKey {
@@ -626,7 +681,8 @@ impl From<&HsClientDescEncKeypair> for HsClientDescEncKey {
 /// An ephemeral x25519 keypair, generated by an onion service
 /// and used to for onion service encryption.
 #[allow(clippy::exhaustive_structs)]
-#[derive(Debug)]
+#[derive(Debug, Deftly)]
+#[derive_deftly(ConstantTimeEq, PartialEqFromCtEq)]
 pub struct HsSvcDescEncKeypair {
     /// The public part of the key.
     pub public: HsSvcDescEncKey,

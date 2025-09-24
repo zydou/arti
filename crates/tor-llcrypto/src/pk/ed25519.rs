@@ -11,16 +11,23 @@
 
 use base64ct::{Base64Unpadded, Encoding as _};
 use curve25519_dalek::Scalar;
+use derive_deftly::Deftly;
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
 #[cfg(feature = "memquota-memcost")]
-use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use ed25519_dalek::hazmat::ExpandedSecretKey;
 use ed25519_dalek::{Signer as _, Verifier as _};
 
-use crate::util::{ct::CtByteArray, rng::RngCompat};
+use crate::util::{
+    ct::{
+        CtByteArray, derive_deftly_template_ConstantTimeEq,
+        derive_deftly_template_PartialEqFromCtEq,
+    },
+    rng::RngCompat,
+};
 
 /// An Ed25519 signature.
 ///
@@ -33,18 +40,26 @@ pub struct Signature(pub(crate) ed25519_dalek::Signature);
 /// (We do not provide a separate "private key only" type.)
 ///
 /// See [`ed25519_dalek::SigningKey`] for more information.
-#[derive(Debug)]
+#[derive(Debug, Deftly)]
+#[derive_deftly(ConstantTimeEq)]
 pub struct Keypair(pub(crate) ed25519_dalek::SigningKey);
 
 /// An Ed25519 public key.
 ///
 /// See [`ed25519_dalek::VerifyingKey`] for more information.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Deftly)]
+#[derive_deftly(PartialEqFromCtEq)]
 pub struct PublicKey(pub(crate) ed25519_dalek::VerifyingKey);
 
 impl<'a> From<&'a Keypair> for PublicKey {
     fn from(value: &'a Keypair) -> Self {
         PublicKey((&value.0).into())
+    }
+}
+
+impl ConstantTimeEq for PublicKey {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.as_bytes().ct_eq(other.as_bytes())
     }
 }
 
@@ -148,6 +163,8 @@ pub const ED25519_SIGNATURE_LEN: usize = 64;
 /// SHA-512 transformation of a SecretKey, we cannot use the regular `Keypair`
 /// type.
 #[allow(clippy::exhaustive_structs)]
+#[derive(Deftly)]
+#[derive_deftly(ConstantTimeEq)]
 pub struct ExpandedKeypair {
     /// The secret part of the key.
     pub(crate) secret: ExpandedSecretKey,
