@@ -106,6 +106,9 @@ We satisfy these constraints through modification of the Maybenot [blocking rule
 [Padding flag behaviors](#padding-flags), and through some additional conventions for
 acceptable Padding machines.
 
+This section contains the non-normative motivation and explanation for those
+rules and flag behaviors.
+
 ### Control Cells Must Not Be Blocked
 
 Padding machines MUST NOT block circuit activity during circuit setup, confux,
