@@ -922,7 +922,8 @@ impl ConfluxSet {
         // This means that the actions corresponding to the first circuit in the tunnel
         // will be executed first, followed by the actions issued by the next circuit,
         // and s on.
-        let mut poll_all = PollAll::<2, SmallVec<[CircuitAction; 2]>>::new();
+        //
+        let mut poll_all = PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitAction; 2]>>::new();
 
         for leg in &mut self.legs {
             let unique_id = leg.unique_id();
