@@ -85,6 +85,17 @@ circuit setup, conflux, and onion service handshakes. They require much less
 traffic, and will be negotiated with a middle hop. The adversary model in this
 case is a malicious Guard, as well as one that can observe the TLS connection.
 
+> NOTE: This does NOT mean that we are ignoring the website traffic fingeprinting
+> attacks with respect to the malicious Guard threat model. As Proposal 344
+> explains: eliminating handshake fingerprinting will removes onion service
+> circuit oracles, which will reduce accuracy of website fingerprinting attacks
+> against onion services, and to a lesser extent, regular circuits as well.
+
+> In order to support any further defenses against this threat model that require
+> larger amounts of padding traffic during actual stream usage, we will need
+> improvements to congestion control, such as
+> [backward ECN](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/ideas/xxx-backward-ecn.txt).
+
 ## Constraints on Maybenot Padding and Blocking
 
 In order to avoid excessive queueing and negative interactions with
