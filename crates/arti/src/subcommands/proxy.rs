@@ -27,7 +27,7 @@ use crate::onion_proxy;
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
 
 /// Run the `proxy` subcommand.
-#[instrument(level = "trace")]
+#[instrument(skip_all, level = "trace")]
 #[allow(clippy::cognitive_complexity)]
 pub(crate) fn run<R: ToplevelRuntime>(
     runtime: R,
