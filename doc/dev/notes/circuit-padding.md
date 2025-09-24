@@ -147,10 +147,16 @@ in the [Blocking for Relay-side Machines](#blocking-for-relay-side-machines) sec
 
 ### Interacting with congestion control
 
-We do not have any interaction between padding and congestion control at
+For both client-side and relay-side machines, there are no *direct* interactions
+between padding machines and congestion control. Padding machine induced blocking
+is NOT a congestion signal to the congestion control system (unlike TLS-induced blocking,
+which is such a signal).
+
+Addtionally, we do not have *any* interaction between padding and congestion control at
 client-side machines, because our [Client-side Blocking Design](#blocking-for-client-side-machines)
 only operates on the packaging of DATA cells from streams. With this design, client-side blocking
-is always safe to use.
+is always safe to use, because blocking at this point only causes _local pushback_ on streams,
+and does not interfere with the RTT measurement of DATA cell delivery vs SENDME responses.
 
 However, since our [Relay-Side Blocking Design](#blocking-for-relay-side-machines) allows
 a circuit's inbound (toward-the-client) cell queue to become blocked for reasons other
@@ -296,6 +302,11 @@ circuit queue. Outbound traffic must be blocked by client-side machines.
 On client-side machines, blocking requests cause us to treat the per-circuit
 outbound queue as "full" with respect to adding more normal DATA messages to
 that circuit.
+
+Crucially, this blocking must happen such that congestion control does NOT measure
+it as additional delay on these DATA cells, during its RTT calculations. So long as
+this blocking happens such that no further DATA cells are packaged, there will be
+no such interference.
 
 Non-DATA messages can still be enqueued, since arti breaks badly if they can't.
 Additionally, this also means that non-DATA won't be delayed by blocking, which
