@@ -337,9 +337,11 @@ where
             && !(otel_http_config.endpoint.starts_with("http://localhost")
                 || otel_http_config.endpoint.starts_with("http://127.0.0.1"))
         {
-            panic!(
-                "OpenTelemetry endpoint is set to HTTP on a non-localhost address! For security reasons, this is not supported."
-            );
+            return Err(ConfigBuildError::Invalid {
+                field: "logging.opentelemetry.http.endpoint".into(),
+                problem: "OpenTelemetry endpoint is set to HTTP on a non-localhost address! For security reasons, this is not supported.".into(),
+            }
+            .into());
         }
         let exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
