@@ -2001,8 +2001,22 @@ impl<R: Runtime> TorClient<R> {
     /// [`OnionService`](tor_hsservice::OnionService)
     /// using the given configuration.
     ///
+    /// This is useful for managing an onion service without needing to start a `TorClient` or the
+    /// onion service itself.
+    /// If you only wish to run the onion service, see
+    /// [`TorClient::launch_onion_service()`]
+    /// which allows you to launch an onion service from a running `TorClient`.
+    ///
     /// The returned `OnionService` can be launched using
     /// [`OnionService::launch()`](tor_hsservice::OnionService::launch).
+    /// Note that `launch()` requires a [`NetDirProvider`],
+    /// [`HsCircPool`](tor_circmgr::hspool::HsCircPool), etc,
+    /// which you should obtain from a running `TorClient`.
+    /// But these are only accessible from a `TorClient` if the "experimental-api" feature is
+    /// enabled.
+    /// The behaviour is not specified if you create the `OnionService` with
+    /// `create_onion_service()` using one [`TorClientConfig`],
+    /// but launch it using a `TorClient` generated from a different `TorClientConfig`.
     #[cfg(feature = "onion-service-service")]
     pub fn create_onion_service(
         config: &TorClientConfig,
