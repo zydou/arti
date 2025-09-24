@@ -81,6 +81,7 @@ use oneshot_fused_workaround as oneshot;
 use futures::FutureExt as _;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tor_memquota::mq_queue::{self, MpscSpec};
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -993,6 +994,7 @@ impl PendingClientTunnel {
         memquota: CircuitAccount,
         padding_ctrl: PaddingController,
         padding_stream: PaddingEventStream,
+        timeouts: Arc<dyn TimeoutEstimator>,
     ) -> (PendingClientTunnel, crate::client::reactor::Reactor) {
         let time_provider = channel.time_provider().clone();
         let (reactor, control_tx, command_tx, reactor_closed_rx, mutable) = Reactor::new(
@@ -1004,6 +1006,7 @@ impl PendingClientTunnel {
             memquota.clone(),
             padding_ctrl,
             padding_stream,
+            timeouts,
         );
 
         let circuit = ClientCirc {
@@ -1173,6 +1176,16 @@ impl PendingClientTunnel {
     }
 }
 
+/// An object used by circuits to compute various timeouts.
+///
+// This is implemented for the timeout `Estimator` from tor-circmgr.
+pub trait TimeoutEstimator: Send + Sync {
+    /// The estimated circuit build timeout for a circuit of the specified length.
+    ///
+    // Used by the circuit reactor for deciding when to expire half-streams.
+    fn circuit_build_timeout(&self, length: usize) -> Duration;
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -1199,6 +1212,7 @@ pub(crate) mod test {
     use crate::crypto::cell::RelayCellBody;
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
     use crate::memquota::SpecificAccount as _;
+    use crate::util::DummyTimeoutEstimator;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -1361,6 +1375,7 @@ pub(crate) mod test {
             CircuitAccount::new_noop(),
             padding_ctrl,
             padding_stream,
+            Arc::new(DummyTimeoutEstimator),
         );
 
         rt.spawn(async {
@@ -1577,6 +1592,7 @@ pub(crate) mod test {
             CircuitAccount::new_noop(),
             padding_ctrl,
             padding_stream,
+            Arc::new(DummyTimeoutEstimator),
         );
 
         rt.spawn(async {
@@ -2036,6 +2052,86 @@ pub(crate) mod test {
     #[test]
     fn close_stream() {
         close_stream_helper(false);
+    }
+
+    #[traced_test]
+    #[test]
+    fn expire_halfstreams() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let (chan, mut rx, _sink) = working_fake_channel(&rt);
+            let (tunnel, mut sink) = newtunnel(&rt, chan).await;
+
+            let client_fut = async move {
+                let stream = tunnel
+                    .begin_stream("www.example.com", 80, None)
+                    .await
+                    .unwrap();
+
+                let (r, mut w) = stream.split();
+                // Close the stream
+                w.close().await.unwrap();
+                (Some(r), tunnel)
+            };
+            let exit_fut = async {
+                // Read the BEGIN message.
+                let (_, msg) = rx.next().await.unwrap().into_circid_and_msg();
+                let rmsg = match msg {
+                    AnyChanMsg::Relay(r) => {
+                        AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                            .unwrap()
+                    }
+                    other => panic!("{:?}", other),
+                };
+                let (streamid, rmsg) = rmsg.into_streamid_and_msg();
+                assert_eq!(rmsg.cmd(), RelayCmd::BEGIN);
+
+                // Reply with a CONNECTED.
+                let connected =
+                    relaymsg::Connected::new_with_addr("10.0.0.1".parse().unwrap(), 1234).into();
+                sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+
+                (rx, streamid, sink) // keep these alive or the reactor will exit.
+            };
+
+            let ((_opt_reader, tunnel), (_rx, streamid, mut sink)) =
+                futures::join!(client_fut, exit_fut);
+
+            // Progress all futures to ensure the reactor has a chance to notice
+            // we closed the stream.
+            rt.progress_until_stalled().await;
+
+            // The tunnel should remain open
+            assert!(!tunnel.is_closed());
+
+            // Write some more data on the half-stream.
+            // The half-stream hasn't expired yet, so it will simply be ignored.
+            let data = relaymsg::Data::new(b"hello").unwrap();
+            sink.send(rmsg_to_ccmsg(streamid, AnyRelayMsg::Data(data)))
+                .await
+                .unwrap();
+            rt.progress_until_stalled().await;
+
+            // This was not a protocol violation, so the tunnel is still alive.
+            assert!(!tunnel.is_closed());
+
+            // Advance the time to cause the half-streams to get garbage collected.
+            //
+            // Advancing it by 2 * CBT ought to be enough, because the RTT estimator
+            // won't yet have an estimate for the max_rtt.
+            let stream_timeout = DummyTimeoutEstimator.circuit_build_timeout(3);
+            rt.advance_by(2 * stream_timeout).await;
+
+            // Sending this cell is a protocol violation now
+            // that the half-stream expired.
+            let data = relaymsg::Data::new(b"hello").unwrap();
+            sink.send(rmsg_to_ccmsg(streamid, AnyRelayMsg::Data(data)))
+                .await
+                .unwrap();
+            rt.progress_until_stalled().await;
+
+            // The tunnel shut down because of the proto violation.
+            assert!(tunnel.is_closed());
+        });
     }
 
     // Set up a circuit and stream that expects some incoming SENDMEs.

@@ -13,7 +13,7 @@ use futures::{FutureExt as _, select_biased, stream::FuturesUnordered};
 use itertools::Itertools;
 use itertools::structs::ExactlyOneError;
 use smallvec::{SmallVec, smallvec};
-use tor_rtcompat::SleepProviderExt as _;
+use tor_rtcompat::{SleepProvider as _, SleepProviderExt as _};
 use tracing::{info, trace, warn};
 
 use tor_async_utils::SinkPrepareExt as _;
@@ -923,6 +923,15 @@ impl ConfluxSet {
                 } else {
                     Box::pin(std::future::pending())
                 };
+
+                // Garbage-collect all halfstreams that have expired.
+                //
+                // Note: this will iterate over the closed streams of all hops.
+                // If we think this will cause perf issues, one idea would be to make
+                // StreamMap::closed_streams into a min-heap, and add a branch to the
+                // select_biased! below to sleep until the first expiry is due
+                // (but my gut feeling is that iterating is cheaper)
+                leg.remove_expired_halfstreams(runtime.now());
 
                 let mut ready_streams = leg.ready_streams_iterator(exclude_hop);
                 let input = &mut leg.input;

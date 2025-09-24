@@ -63,8 +63,8 @@ mod unique_id;
 pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
-use crate::client::circuit::PendingClientTunnel;
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
+use crate::client::circuit::{PendingClientTunnel, TimeoutEstimator};
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::oneshot_broadcast;
@@ -778,6 +778,7 @@ impl Channel {
     /// [crate::client::circuit::PendingClientTunnel] to build the circuit.
     pub async fn new_tunnel(
         self: &Arc<Self>,
+        timeouts: Arc<dyn TimeoutEstimator>,
     ) -> Result<(PendingClientTunnel, client::reactor::Reactor)> {
         if self.is_closing() {
             return Err(ChannelClosed.into());
@@ -812,6 +813,7 @@ impl Channel {
             memquota,
             padding_ctrl,
             padding_stream,
+            timeouts,
         ))
     }
 

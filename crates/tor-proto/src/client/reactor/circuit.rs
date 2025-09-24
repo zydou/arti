@@ -15,7 +15,7 @@ use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
-use crate::client::circuit::{HopSettings, path};
+use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
 use crate::client::stream::flow_ctrl::state::StreamRateLimit;
@@ -58,7 +58,7 @@ use futures::{SinkExt as _, Stream};
 use oneshot_fused_workaround as oneshot;
 use postage::watch;
 use safelog::sensitive as sv;
-use tor_rtcompat::DynTimeProvider;
+use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 use tracing::{debug, trace, warn};
 
 use super::{
@@ -71,7 +71,7 @@ use std::borrow::Borrow;
 use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use create::{Create2Wrap, CreateFastWrap, CreateHandshakeWrap};
 use extender::HandshakeAuxDataHandler;
@@ -154,6 +154,10 @@ pub(crate) struct Circuit {
     /// Current rules for blocking traffic, according to the padding controller.
     #[cfg(feature = "circ-padding")]
     padding_block: Option<padding::StartBlocking>,
+    /// The circuit timeout estimator.
+    ///
+    /// Used for computing half-stream expiration.
+    timeouts: Arc<dyn TimeoutEstimator>,
     /// Memory quota account
     #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
     memquota: CircuitAccount,
@@ -239,6 +243,7 @@ impl Circuit {
         mutable: Arc<MutableState>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
+        timeouts: Arc<dyn TimeoutEstimator>,
     ) -> Self {
         let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
 
@@ -260,6 +265,7 @@ impl Circuit {
             padding_event_stream,
             #[cfg(feature = "circ-padding")]
             padding_block: None,
+            timeouts,
             memquota,
         }
     }
@@ -711,17 +717,26 @@ impl Circuit {
         streamid: StreamId,
         msg: UnparsedRelayMsg,
     ) -> Result<Option<CircuitCmd>> {
+        let now = self.runtime.now();
+
         #[cfg(feature = "conflux")]
         if let Some(conflux) = self.conflux_handler.as_mut() {
             conflux.inc_last_seq_delivered(&msg);
         }
 
-        // Returns the original message if it's an an incoming stream request
+        let path = self.mutable.path();
+
+        let nonexistent_hop_err = || Error::CircProto("Cell from nonexistent hop!".into());
+        let hop = self.hop_mut(hopnum).ok_or_else(nonexistent_hop_err)?;
+
+        let hop_detail = path
+            .iter()
+            .nth(usize::from(hopnum))
+            .ok_or_else(nonexistent_hop_err)?;
+
+        // Returns the original message if it's an incoming stream request
         // that we need to handle.
-        let hop = self
-            .hop_mut(hopnum)
-            .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
-        let res = hop.handle_msg(cell_counts_toward_windows, streamid, msg)?;
+        let res = hop.handle_msg(hop_detail, cell_counts_toward_windows, streamid, msg, now)?;
 
         // If it was an incoming stream request, we don't need to worry about
         // sending an XOFF as there's no stream data within this message.
@@ -1419,6 +1434,11 @@ impl Circuit {
         self.hops.ready_streams_iterator(exclude)
     }
 
+    /// Remove all halfstreams that are expired at `now`.
+    pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
+        self.hops.remove_expired_halfstreams(now);
+    }
+
     /// Return a reference to the hop corresponding to `hopnum`, if there is one.
     pub(super) fn hop(&self, hopnum: HopNum) -> Option<&CircHop> {
         self.hops.hop(hopnum)
@@ -1466,9 +1486,10 @@ impl Circuit {
         sid: StreamId,
         behav: CloseStreamBehavior,
         reason: streammap::TerminateReason,
+        expiry: Instant,
     ) -> Result<()> {
         if let Some(hop) = self.hop_mut(hop_num) {
-            let res = hop.close_stream(sid, behav, reason)?;
+            let res = hop.close_stream(sid, behav, reason, expiry)?;
             if let Some(cell) = res {
                 self.send_relay_cell(cell).await?;
             }
@@ -1713,6 +1734,11 @@ impl Circuit {
     pub(super) fn stop_blocking_for_padding(&mut self) {
         self.chan_sender.stop_blocking();
         self.padding_block = None;
+    }
+
+    /// The estimated circuit build timeout for a circuit of the specified length.
+    pub(super) fn estimate_cbt(&self, length: usize) -> Duration {
+        self.timeouts.circuit_build_timeout(length)
     }
 }
 

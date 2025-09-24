@@ -44,3 +44,17 @@ impl<T, S: Sink<T>> SinkExt<T> for S {}
 pub(crate) fn fake_mq<A: crate::memquota::SpecificAccount>() -> A {
     A::new_noop()
 }
+
+/// A timeout estimator that returns dummy values.
+///
+/// Used in the tests where the timeout estimates aren't relevant.
+#[cfg(test)]
+pub(crate) struct DummyTimeoutEstimator;
+
+#[cfg(test)]
+impl crate::client::circuit::TimeoutEstimator for DummyTimeoutEstimator {
+    fn circuit_build_timeout(&self, _length: usize) -> std::time::Duration {
+        // Dummy value
+        std::time::Duration::from_millis(1000)
+    }
+}

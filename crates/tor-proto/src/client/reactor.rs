@@ -22,9 +22,9 @@ mod control;
 pub(super) mod syncview;
 
 use crate::circuit::UniqId;
-use crate::client::circuit::CircuitRxReceiver;
 use crate::client::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
+use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
 use crate::client::stream::AnyCmdChecker;
 use crate::client::stream::flow_ctrl::state::StreamRateLimit;
 use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
@@ -50,8 +50,8 @@ use std::mem::size_of;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{Bug, bad_api_usage, internal, into_bad_api_usage, trace_report, warn_report};
-use tor_rtcompat::DynTimeProvider;
+use tor_error::{Bug, bad_api_usage, debug_report, internal, into_bad_api_usage, warn_report};
+use tor_rtcompat::{DynTimeProvider, SleepProvider};
 
 use cfg_if::cfg_if;
 use futures::StreamExt;
@@ -61,6 +61,7 @@ use oneshot_fused_workaround as oneshot;
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::channel::Channel;
 use crate::client::circuit::StreamMpscSender;
@@ -155,6 +156,7 @@ impl Default for CloseStreamBehavior {
 
 /// One or more [`RunOnceCmdInner`] to run inside [`Reactor::run_once`].
 #[derive(From, Debug)]
+#[allow(clippy::large_enum_variant)] // TODO #2003: resolve this
 enum RunOnceCmd {
     /// Run a single `RunOnceCmdInner` command.
     Single(RunOnceCmdInner),
@@ -690,6 +692,7 @@ impl Reactor {
         memquota: CircuitAccount,
         padding_ctrl: PaddingController,
         padding_stream: PaddingEventStream,
+        timeouts: Arc<dyn TimeoutEstimator + Send>,
     ) -> (
         Self,
         mpsc::UnboundedSender<CtrlMsg>,
@@ -721,6 +724,7 @@ impl Reactor {
             Arc::clone(&mutable),
             padding_ctrl,
             padding_stream,
+            timeouts,
         );
 
         let (circuits, mutable) = ConfluxSet::new(tunnel_id, circuit_leg);
@@ -762,7 +766,7 @@ impl Reactor {
         const MSG: &str = "Tunnel reactor stopped";
         match &result {
             Ok(()) => trace!(tunnel_id = %self.tunnel_id, "{MSG}"),
-            Err(e) => trace_report!(e, tunnel_id = %self.tunnel_id, "{MSG}"),
+            Err(e) => debug_report!(e, tunnel_id = %self.tunnel_id, "{MSG}"),
         }
 
         result
@@ -1015,18 +1019,16 @@ impl Reactor {
                 reason,
                 done,
             } => {
-                let result = (move || {
-                    // this is needed to force the closure to be FnOnce rather than FnMut :(
-                    let self_ = self;
-                    let (leg_id, hop_num) = self_
+                let result = {
+                    let (leg_id, hop_num) = self
                         .resolve_hop_location(hop)
                         .map_err(into_bad_api_usage!("Could not resolve {hop:?}"))?;
-                    let leg = self_
+                    let leg = self
                         .circuits
                         .leg_mut(leg_id)
                         .ok_or(bad_api_usage!("No leg for id {:?}", leg_id))?;
                     Ok::<_, Bug>((leg, hop_num))
-                })();
+                };
 
                 let (leg, hop_num) = match result {
                     Ok(x) => x,
@@ -1040,7 +1042,35 @@ impl Reactor {
                     }
                 };
 
-                let res: Result<()> = leg.close_stream(hop_num, sid, behav, reason).await;
+                let max_rtt = {
+                    let hop = leg
+                        .hop(hop_num)
+                        .ok_or_else(|| internal!("the hop we resolved disappeared?!"))?;
+                    let ccontrol = hop.ccontrol();
+
+                    // Note: if we have no measurements for the RTT, this will be set to 0,
+                    // and the timeout will be 2 * CBT.
+                    ccontrol
+                        .rtt()
+                        .max_rtt_usec()
+                        .map(|rtt| Duration::from_millis(u64::from(rtt)))
+                        .unwrap_or_default()
+                };
+
+                // The length of the circuit up until the hop that has the half-streeam.
+                //
+                // +1, because HopNums are zero-based.
+                let circ_len = usize::from(hop_num) + 1;
+
+                // We double the CBT to account for rend circuits,
+                // which are twice as long (otherwise we risk expiring
+                // the rend half-streams too soon).
+                let timeout = std::cmp::max(max_rtt, 2 * leg.estimate_cbt(circ_len));
+                let expire_at = self.runtime.now() + timeout;
+
+                let res: Result<()> = leg
+                    .close_stream(hop_num, sid, behav, reason, expire_at)
+                    .await;
 
                 if let Some(done) = done {
                     // don't care if the sender goes away

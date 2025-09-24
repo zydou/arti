@@ -394,9 +394,6 @@ impl CongestionControl {
     }
 
     /// Return a reference to the RTT estimator.
-    ///
-    /// Used for conflux, for choosing the best circuit to send on.
-    #[cfg(feature = "conflux")]
     pub(crate) fn rtt(&self) -> &RoundtripTimeEstimator {
         &self.rtt
     }

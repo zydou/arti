@@ -3,6 +3,7 @@
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
+use crate::client::reactor::circuit::path::PathEntry;
 use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::client::stream::flow_ctrl::state::{
     StreamEndpointType, StreamFlowCtrl, StreamRateLimit,
@@ -40,6 +41,7 @@ use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
+use std::time::Instant;
 
 #[cfg(test)]
 use tor_cell::relaycell::msg::SendmeTag;
@@ -166,6 +168,16 @@ impl CircHopList {
                 }))
             })
             .collect::<FuturesUnordered<_>>()
+    }
+
+    /// Remove all halfstreams that are expired at `now`.
+    pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
+        for hop in self.hops.iter_mut() {
+            hop.map
+                .lock()
+                .expect("lock poisoned")
+                .remove_expired_halfstreams(now);
+        }
     }
 
     /// Returns true if there are any streams on this circuit
@@ -317,8 +329,13 @@ impl CircHop {
         id: StreamId,
         message: CloseStreamBehavior,
         why: streammap::TerminateReason,
+        expiry: Instant,
     ) -> Result<Option<SendRelayCell>> {
-        let should_send_end = self.map.lock().expect("lock poisoned").terminate(id, why)?;
+        let should_send_end = self
+            .map
+            .lock()
+            .expect("lock poisoned")
+            .terminate(id, why, expiry)?;
         trace!(
             circ_id = %self.unique_id,
             stream_id = %id,
@@ -502,11 +519,19 @@ impl CircHop {
     // back and forth like this.
     pub(super) fn handle_msg(
         &self,
+        hop_detail: &PathEntry,
         cell_counts_toward_windows: bool,
         streamid: StreamId,
         msg: UnparsedRelayMsg,
+        now: Instant,
     ) -> Result<Option<UnparsedRelayMsg>> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
+
+        let possible_proto_violation_err = || Error::UnknownStream {
+            src: sv(hop_detail.clone()),
+            streamid,
+        };
+
         match hop_map.get_mut(streamid) {
             Some(StreamEntMut::Open(ent)) => {
                 // Can't have a stream level SENDME when congestion control is enabled.
@@ -516,6 +541,9 @@ impl CircHop {
                 if message_closes_stream {
                     hop_map.ending_msg_received(streamid)?;
                 }
+            }
+            Some(StreamEntMut::EndSent(EndSentStreamEnt { expiry, .. })) if now >= *expiry => {
+                return Err(possible_proto_violation_err());
             }
             #[cfg(feature = "hs-service")]
             Some(StreamEntMut::EndSent(_))
@@ -550,9 +578,7 @@ impl CircHop {
             }
             _ => {
                 // No stream wants this message, or ever did.
-                return Err(Error::CircProto(
-                    "Cell received on nonexistent stream!?".into(),
-                ));
+                return Err(possible_proto_violation_err());
             }
         }
 
