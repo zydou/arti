@@ -50,10 +50,15 @@ use {
 /// Note: this value was picked arbitrarily and may not be suitable.
 const MAX_CONFLUX_LEGS: usize = 16;
 
+/// The number of futures we add to the per-circuit [`PollAll`] future in
+/// [`ConfluxSet::next_circ_action`].
+///
+/// Used for the SmallVec size estimate;
+const NUM_CIRC_FUTURES: usize = 2;
+
 /// The expected number of circuit actions to be returned from
 /// [`ConfluxSet::next_circ_action`]
-/// (2 * number of futures, because there are usually at most 2 legs in a conflux tunnel).
-const CIRC_ACTION_COUNT: usize = 4;
+const CIRC_ACTION_COUNT: usize = MAX_CONFLUX_LEGS * NUM_CIRC_FUTURES;
 
 /// A set with one or more circuits.
 ///
@@ -923,7 +928,7 @@ impl ConfluxSet {
         // will be executed first, followed by the actions issued by the next circuit,
         // and s on.
         //
-        let mut poll_all = PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitAction; 2]>>::new();
+        let mut poll_all = PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitAction; NUM_CIRC_FUTURES]>>::new();
 
         for leg in &mut self.legs {
             let unique_id = leg.unique_id();
@@ -945,7 +950,7 @@ impl ConfluxSet {
             // implementation currently uses Circuit Build Timeout).
             let conflux_hs_timeout = leg.conflux_hs_timeout();
 
-            let mut poll_all_circ = PollAll::<2, CircuitAction>::new();
+            let mut poll_all_circ = PollAll::<NUM_CIRC_FUTURES, CircuitAction>::new();
 
             let input = leg.input.next().map(move |res| match res {
                 Some(cell) => CircuitAction::HandleCell {
