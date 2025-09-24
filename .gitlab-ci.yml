@@ -122,6 +122,7 @@ maint-checks:
     - ./maint/common/update-shell-includes --check --all
     - ./maint/cargo-check-publishable
     - ./maint/check_case_sensitive
+    - ./maint/check_instrument_macros
 
 maint-check-changelog:
   stage: test
