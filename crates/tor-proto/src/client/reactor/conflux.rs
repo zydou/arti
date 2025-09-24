@@ -928,7 +928,8 @@ impl ConfluxSet {
         // will be executed first, followed by the actions issued by the next circuit,
         // and s on.
         //
-        let mut poll_all = PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitAction; NUM_CIRC_FUTURES]>>::new();
+        let mut poll_all =
+            PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitAction; NUM_CIRC_FUTURES]>>::new();
 
         for leg in &mut self.legs {
             let unique_id = leg.unique_id();
