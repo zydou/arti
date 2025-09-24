@@ -389,6 +389,14 @@ We treat the Maybenot flags as follows:
 > Therefore, per-circuit queues will _usually_ be empty
 > unless we have queued a cell with non-DATA message
 > when the Channel's queue was blocked.
+>
+> Additionally, as of Sep 2025, Arti only partially implements the replace flag.
+> When the replace flag is set,  Arti _does_ decline to send padding
+> when there are already messages on the relevant queue(s).
+> But Arti _does not yet_ honor the replace flag
+> by packaging pending data from streams. This means that
+> in practice, the replace flag will usually only replace control cells,
+> and only when the channel's queue is blocked.
 
 ## Receiving padding
 
