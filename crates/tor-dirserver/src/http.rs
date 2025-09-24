@@ -4,11 +4,7 @@
 //! things in Tor, most notably the ".z" extensions.
 
 use cache::StoreCache;
-#[allow(unused_imports)]
-use std::pin::Pin;
 use strum::EnumString;
-#[allow(unused_imports)]
-use tokio::sync::RwLock;
 
 use std::{
     collections::VecDeque,
