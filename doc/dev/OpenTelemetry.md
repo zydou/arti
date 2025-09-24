@@ -62,4 +62,4 @@ Function calls are not instrumented by default. If you want to see something, yo
 
 It is worthwhile to familiarize yourself with [the options available](https://docs.rs/tracing/latest/tracing/attr.instrument.html). I typically use `level = "trace"` and often use `skip_all` to avoid logging function arguments where I don't want to. You can also use `skip` to avoid logging specific fields, if you want to capture some fields but not others. In general, you should add `skip_all` to everything that you don't have a good reason to, and if you omit `skip_all`, you should think through the security implications carefully.
 
-If you add instrumentation to something, please be sure to submit a MR for it!
+So far, we've just added instrumentation for a few things that have been useful for specific debugging, but we would like more instrumentation — if you add instrumentation to something, please be sure to submit a MR for it!
