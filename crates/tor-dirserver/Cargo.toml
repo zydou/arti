@@ -35,6 +35,7 @@ hex = "0.4.3"
 http-body-util = "0.1.3"
 lzma-rs = "0.3.0"
 sha2 = "0.10.9"
+tempfile = "3.23.0"
 tokio-stream = { version = "0.1.17", features = ["full"] }
 zstd = "0.13.3"
 

@@ -3,7 +3,12 @@
 //! This module is not inteded to provide a high-level ORM, instead it serves
 //! the purpose of initializing and upgrading the database, if necessary.
 
-use rusqlite::Connection;
+use std::path::PathBuf;
+
+use deadpool::managed::Pool;
+use deadpool_sqlite::{Config, Manager};
+use rusqlite::params;
+use tor_error::internal;
 
 use crate::err::DatabaseError;
 
@@ -12,6 +17,9 @@ use crate::err::DatabaseError;
 pub(crate) type Sha256 = String;
 
 /// Version 1 of the database schema.
+///
+/// TODO DIRMIRROR: Should we rename arti_dirmirror_schema_version to say
+/// dirserver or something more generic?
 const V1_SCHEMA: &str = "
 PRAGMA journal_mode=WAL;
 
@@ -169,41 +177,68 @@ INSERT INTO arti_dirmirror_schema_version VALUES ('1');
 COMMIT;
 ";
 
-/// Prepares a database for operation that is, initializing and upgrading it
-/// if neccessary.
+/// Opens a database from disk, creating a [`Pool`] for it.
 ///
-/// This function also enables the `PRAGMA foreign_keys=ON` because it is,
-/// unfortuantely, connection specific.
-pub(crate) fn prepare_db(conn: &mut Connection) -> Result<(), DatabaseError> {
-    conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+/// This function should be the entry point for all things requiring a database
+/// handle, as this function prepares all necessary steps required for operating
+/// on the database correctly, such as:
+/// * Schema initialization.
+/// * Schema upgrade.
+/// * Setting connection specific settings.
+pub(crate) async fn open<P: Into<PathBuf>>(path: P) -> Result<Pool<Manager>, DatabaseError> {
+    let pool = Config::new(path)
+        .create_pool(deadpool::Runtime::Tokio1)
+        .map_err(|e| internal!("pool creation failed?: {e}"))?;
 
-    let schema_version = init_db(conn)?;
-    match schema_version.as_str() {
-        "1" => Ok(()),
-        _ => Err(DatabaseError::IncompatibleSchema(schema_version)),
-    }
-}
+    // Prepare the database, doing the following steps:
+    // 1. Setting `foreign_keys=ON`.
+    // 2. Checking the database schema.
+    // 3. Upgrading (in future) or initializing the database schema (if empty).
+    pool.get()
+        .await?
+        .interact(|conn| {
+            // Set global pragmas.
+            conn.execute("PRAGMA foreign_keys=ON", params![])?;
 
-/// Initializes the database schema if the database is not already initialized.
-///
-/// Always returns database schema version.
-fn init_db(conn: &mut Connection) -> Result<String, DatabaseError> {
-    // TODO DIRMIRROR: The error handling here is quite poor.
-    let version: Option<String> = conn
-        .query_one(
-            "SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1",
-            [],
-            |row| row.get(0),
-        )
-        .ok();
+            let has_arti_dirmirror_schema_version = match conn.query_one(
+                "
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'arti_dirmirror_schema_version'
+                ",
+                params![],
+                |_| Ok(()),
+            ) {
+                Ok(()) => true,
+                Err(rusqlite::Error::QueryReturnedNoRows) => false,
+                Err(e) => return Err(DatabaseError::LowLevel(e)),
+            };
 
-    if let Some(v) = version {
-        Ok(v)
-    } else {
-        // Initialize the database schema.
-        conn.execute_batch(V1_SCHEMA)?;
-        Ok(String::from("1"))
-    }
+            if has_arti_dirmirror_schema_version {
+                let version = conn.query_one(
+                    "SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1",
+                    params![],
+                    |row| row.get::<_, String>(0),
+                )?;
+
+                match version.as_ref() {
+                    "1" => {}
+                    unknown => {
+                        return Err(DatabaseError::IncompatibleSchema {
+                            version: unknown.into(),
+                        })
+                    }
+                }
+            } else {
+                conn.execute_batch(V1_SCHEMA)?;
+            }
+
+            Ok::<_, DatabaseError>(())
+        })
+        .await
+        .map_err(|e| internal!("pool interaction failed?: {e}"))??;
+
+    Ok(pool)
 }
 
 #[cfg(test)]
@@ -221,66 +256,40 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use rusqlite::Connection;
+    use tempfile::tempdir;
+
     use super::*;
 
-    use deadpool_sqlite::Config;
-
     #[tokio::test]
-    async fn schema() {
-        // Create the database connection.
-        let pool = Config::new("")
-            .create_pool(deadpool::Runtime::Tokio1)
-            .unwrap();
+    async fn open() {
+        let db_dir = tempdir().unwrap();
+        let db_path = db_dir.path().join("db");
 
-        // Initialize the database.
-        pool.get()
-            .await
-            .unwrap()
-            .interact(prepare_db)
-            .await
-            .unwrap()
-            .unwrap();
+        super::open(&db_path).await.unwrap();
+        let conn = Connection::open(&db_path).unwrap();
 
-        // Initialize the database again (no-op).
-        pool.get()
-            .await
-            .unwrap()
-            .interact(prepare_db)
-            .await
-            .unwrap()
+        // Check if the version was initialized properly.
+        let version = conn
+            .query_one(
+                "SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1",
+                params![],
+                |row| row.get::<_, String>(0),
+            )
             .unwrap();
+        assert_eq!(version, "1");
 
-        // Initialize it again to get the schema version.
-        let schema_version = pool
-            .get()
-            .await
-            .unwrap()
-            .interact(init_db)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(schema_version, "1");
+        // Set the version to something unknown.
+        conn.execute(
+            "UPDATE arti_dirmirror_schema_version SET version = 42",
+            params![],
+        )
+        .unwrap();
+        drop(conn);
 
-        // Modify the schema version to trigger an error.
-        pool.get()
-            .await
-            .unwrap()
-            .interact(|conn| {
-                conn.execute_batch("UPDATE arti_dirmirror_schema_version SET version = 42;")
-            })
-            .await
-            .unwrap()
-            .unwrap();
-
-        // Initialize again and get an error.
-        let err = pool
-            .get()
-            .await
-            .unwrap()
-            .interact(prepare_db)
-            .await
-            .unwrap()
-            .unwrap_err();
-        assert_eq!(err.to_string(), "unrecognized schema version: 42");
+        assert_eq!(
+            super::open(&db_path).await.unwrap_err().to_string(),
+            "incompatible schema version: 42"
+        );
     }
 }
