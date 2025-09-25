@@ -76,10 +76,6 @@ impl StoreCache {
     }
 
     /// Obtains a [`Sha256`] from the database without consulting the cache first.
-    ///
-    /// TODO DIRMIRROR: This function is only intended for use in [`StoreCache::get`].
-    /// Consider to either remove it entirely or move [`StoreCache`] into its own
-    /// module.
     fn get_db(tx: &Transaction, sha256: &Sha256) -> Result<Arc<[u8]>, DatabaseError> {
         let mut stmt = tx.prepare_cached("SELECT content FROM store WHERE sha256 = ?1")?;
         let document: Vec<u8> = stmt.query_one(params![sha256], |row| row.get(0))?;
