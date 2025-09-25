@@ -5,6 +5,7 @@
 
 use cache::StoreCache;
 use strum::EnumString;
+use tor_error::internal;
 
 use std::{
     collections::VecDeque,
@@ -163,7 +164,7 @@ impl HttpServer {
     /// occur, occur in further sub-tasks spawned by it and handled appropriately,
     /// that is ususally logging the error and continuing the exeuction.
     #[allow(clippy::cognitive_complexity)]
-    pub(crate) async fn serve<I, S, E>(self, mut listener: I) -> Result<(), Infallible>
+    pub(crate) async fn serve<I, S, E>(self, mut listener: I) -> Result<(), tor_error::Bug>
     where
         I: Stream<Item = Result<S, E>> + Unpin,
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -203,8 +204,7 @@ impl HttpServer {
                     }
 
                     // This should not happen due to ownership.
-                    // TODO DIRMIRROR: Replace this with an error by all means.
-                    None => unreachable!("listener was closed externally?"),
+                    None => return Err(internal!("listener was closed externally?")),
                 },
 
                 // A hyper task we monitored in our tasks has exiteed.
