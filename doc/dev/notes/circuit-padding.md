@@ -96,6 +96,15 @@ tracking padding sent to and from that hop of the circuit.
 
 Each framework has at least one padding machine.
 
+> NOTE: Because our guard-negotiated machines only concern themselves with a
+> TLS-observing adversary (as per the [Intended Usage](#intended-usage-of-maybenot)
+> section above), there is no benefit from using a separate guard-negotiated maybenot
+> framework for each circuit. As a
+> [future optimization](https://gitlab.torproject.org/tpo/core/arti/-/issues/2189),
+> we intend to refactor the implementation so that guard-negotiated machines only have
+> one framework for all circuits, to eliminate the likelihood of redundtant padding.
+> Middle-negotiated machines, on the other hand will retain one framework per circuit.
+
 ## Constraints on Maybenot Padding and Blocking
 
 In order to avoid excessive queueing and negative interactions with
