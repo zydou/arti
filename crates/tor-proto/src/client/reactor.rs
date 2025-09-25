@@ -70,6 +70,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use circuit::CircuitCmd;
 use derive_deftly::Deftly;
 use derive_more::From;
+use smallvec::smallvec;
 use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -808,7 +809,7 @@ impl Reactor {
         #[cfg(feature = "conflux")]
         self.try_dequeue_ooo_msgs().await?;
 
-        let action = select_biased! {
+        let actions = select_biased! {
             res = self.command.next() => {
                 let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
                 return ControlHandler::new(self).handle_cmd(cmd);
@@ -823,62 +824,64 @@ impl Reactor {
             // circuit is ready for sending.
             ret = self.control.next() => {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
-                CircuitAction::HandleControl(msg)
+                smallvec![CircuitAction::HandleControl(msg)]
             },
-            res = self.circuits.next_circ_action(&self.runtime)?.fuse() => res?,
+            res = self.circuits.next_circ_action(&self.runtime).fuse() => res?,
         };
 
-        let cmd = match action {
-            CircuitAction::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
-                RunOnceCmdInner::from_circuit_cmd(leg, cmd),
-            )),
-            CircuitAction::HandleControl(ctrl) => ControlHandler::new(self)
-                .handle_msg(ctrl)?
-                .map(RunOnceCmd::Single),
-            CircuitAction::HandleCell { leg, cell } => {
-                let circ = self
-                    .circuits
-                    .leg_mut(leg)
-                    .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
+        for action in actions {
+            let cmd = match action {
+                CircuitAction::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
+                    RunOnceCmdInner::from_circuit_cmd(leg, cmd),
+                )),
+                CircuitAction::HandleControl(ctrl) => ControlHandler::new(self)
+                    .handle_msg(ctrl)?
+                    .map(RunOnceCmd::Single),
+                CircuitAction::HandleCell { leg, cell } => {
+                    let circ = self
+                        .circuits
+                        .leg_mut(leg)
+                        .ok_or_else(|| internal!("the circuit leg we just had disappeared?!"))?;
 
-                let circ_cmds = circ.handle_cell(&mut self.cell_handlers, leg, cell)?;
-                if circ_cmds.is_empty() {
-                    None
-                } else {
-                    // TODO: we return RunOnceCmd::Multiple even if there's a single command.
-                    //
-                    // See the TODO on `Circuit::handle_cell`.
-                    let cmd = RunOnceCmd::Multiple(
-                        circ_cmds
-                            .into_iter()
-                            .map(|cmd| RunOnceCmdInner::from_circuit_cmd(leg, cmd))
-                            .collect(),
-                    );
-
-                    Some(cmd)
-                }
-            }
-            CircuitAction::RemoveLeg { leg, reason } => {
-                Some(RunOnceCmdInner::RemoveLeg { leg, reason }.into())
-            }
-            CircuitAction::PaddingAction {
-                leg,
-                padding_action,
-            } => {
-                cfg_if! {
-                    if #[cfg(feature = "circ-padding")] {
-                        Some(RunOnceCmdInner::PaddingAction { leg, padding_action }.into())
+                    let circ_cmds = circ.handle_cell(&mut self.cell_handlers, leg, cell)?;
+                    if circ_cmds.is_empty() {
+                        None
                     } else {
-                        // If padding isn't enabled, we never generate a padding action,
-                        // so we can be sure this case will never be called.
-                        void::unreachable(padding_action.0);
+                        // TODO: we return RunOnceCmd::Multiple even if there's a single command.
+                        //
+                        // See the TODO on `Circuit::handle_cell`.
+                        let cmd = RunOnceCmd::Multiple(
+                            circ_cmds
+                                .into_iter()
+                                .map(|cmd| RunOnceCmdInner::from_circuit_cmd(leg, cmd))
+                                .collect(),
+                        );
+
+                        Some(cmd)
                     }
                 }
-            }
-        };
+                CircuitAction::RemoveLeg { leg, reason } => {
+                    Some(RunOnceCmdInner::RemoveLeg { leg, reason }.into())
+                }
+                CircuitAction::PaddingAction {
+                    leg,
+                    padding_action,
+                } => {
+                    cfg_if! {
+                        if #[cfg(feature = "circ-padding")] {
+                            Some(RunOnceCmdInner::PaddingAction { leg, padding_action }.into())
+                        } else {
+                            // If padding isn't enabled, we never generate a padding action,
+                            // so we can be sure this case will never be called.
+                            void::unreachable(padding_action.0);
+                        }
+                    }
+                }
+            };
 
-        if let Some(cmd) = cmd {
-            self.handle_run_once_cmd(cmd).await?;
+            if let Some(cmd) = cmd {
+                self.handle_run_once_cmd(cmd).await?;
+            }
         }
 
         Ok(())

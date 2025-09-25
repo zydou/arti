@@ -95,6 +95,8 @@ impl ConfluxMsgHandler {
     }
 
     /// Get the wallclock time when the handshake on this circuit is supposed to time out.
+    ///
+    /// Returns `None` if the handshake is not currently in progress.
     pub(crate) fn handshake_timeout(&self) -> Option<SystemTime> {
         self.handler.handshake_timeout()
     }
@@ -242,7 +244,7 @@ pub(crate) trait AbstractConfluxMsgHandler {
 
     /// Get the wallclock time when the handshake on this circuit is supposed to time out.
     ///
-    /// Returns `None` if this handler hasn't started the handshake yet.
+    /// Returns `None` if the handshake is not currently in progress.
     fn handshake_timeout(&self) -> Option<SystemTime>;
 
     /// Returns the initial RTT measured by this handler.

@@ -54,7 +54,7 @@ use tor_linkspec::RelayIds;
 use tor_llcrypto::pk;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 
-use futures::{SinkExt as _, Stream};
+use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use postage::watch;
 use safelog::sensitive as sv;
@@ -127,7 +127,7 @@ pub(crate) struct Circuit {
     /// The cryptographic state for this circuit for outbound cells.
     crypto_out: OutboundClientCrypt,
     /// List of hops state objects used by the reactor
-    hops: CircHopList,
+    pub(super) hops: CircHopList,
     /// Mutable information about this circuit,
     /// shared with the reactor's `ConfluxSet`.
     mutable: Arc<MutableState>,
@@ -330,7 +330,7 @@ impl Circuit {
 
     /// Get the wallclock time when the handshake on this circuit is supposed to time out.
     ///
-    /// Returns `None` if this handler hasn't started the handshake yet.
+    /// Returns `None` if the handshake is not currently in progress.
     pub(super) fn conflux_hs_timeout(&self) -> Option<SystemTime> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "conflux")] {
@@ -1415,25 +1415,6 @@ impl Circuit {
         Ok(())
     }
 
-    /// Returns a [`Stream`] of [`CircuitCmd`] to poll from the main loop.
-    ///
-    /// The iterator contains at most one [`CircuitCmd`] for each hop,
-    /// (excluding the `exclude` hop, if specified),
-    /// representing the instructions for handling the ready-item, if any,
-    /// of its highest priority stream.
-    ///
-    /// IMPORTANT: this stream locks the stream map mutexes of each `CircHop`!
-    /// To avoid contention, never create more than one [`Circuit::ready_streams_iterator`]
-    /// stream at a time!
-    ///
-    /// This is cancellation-safe.
-    pub(super) fn ready_streams_iterator(
-        &self,
-        exclude: Option<HopNum>,
-    ) -> impl Stream<Item = Result<CircuitCmd>> + use<> {
-        self.hops.ready_streams_iterator(exclude)
-    }
-
     /// Remove all halfstreams that are expired at `now`.
     pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
         self.hops.remove_expired_halfstreams(now);
@@ -1501,7 +1482,7 @@ impl Circuit {
     ///
     /// Important: this function locks the stream map of its each of the [`CircHop`]s
     /// in this circuit, so it must **not** be called from any function where the
-    /// stream map lock is held (such as [`ready_streams_iterator`](Self::ready_streams_iterator).
+    /// stream map lock is held.
     pub(super) fn has_streams(&self) -> bool {
         self.hops.has_streams()
     }

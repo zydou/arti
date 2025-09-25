@@ -3,21 +3,17 @@
 #[cfg(feature = "conflux")]
 pub(crate) mod msghandler;
 
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex};
 
-use futures::StreamExt;
-use futures::{FutureExt as _, select_biased, stream::FuturesUnordered};
+use futures::{FutureExt as _, StreamExt, select_biased};
 use itertools::Itertools;
 use itertools::structs::ExactlyOneError;
 use smallvec::{SmallVec, smallvec};
 use tor_rtcompat::{SleepProvider as _, SleepProviderExt as _};
 use tracing::{info, trace, warn};
 
-use tor_async_utils::SinkPrepareExt as _;
-use tor_basic_utils::flatten;
 use tor_cell::relaycell::AnyRelayMsgOuter;
 use tor_error::{Bug, bad_api_usage, internal};
 use tor_linkspec::HasRelayIds as _;
@@ -34,6 +30,7 @@ use crate::congestion::params::CongestionWindowParams;
 use crate::crypto::cell::HopNum;
 use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
+use crate::util::poll_all::PollAll;
 
 use super::circuit::CircHop;
 use super::{Circuit, CircuitAction, SendRelayCell};
@@ -52,6 +49,16 @@ use {
 ///
 /// Note: this value was picked arbitrarily and may not be suitable.
 const MAX_CONFLUX_LEGS: usize = 16;
+
+/// The number of futures we add to the per-circuit [`PollAll`] future in
+/// [`ConfluxSet::next_circ_action`].
+///
+/// Used for the SmallVec size estimate;
+const NUM_CIRC_FUTURES: usize = 2;
+
+/// The expected number of circuit actions to be returned from
+/// [`ConfluxSet::next_circ_action`]
+const CIRC_ACTION_COUNT: usize = MAX_CONFLUX_LEGS * NUM_CIRC_FUTURES;
 
 /// A set with one or more circuits.
 ///
@@ -803,14 +810,13 @@ impl ConfluxSet {
         Ok(!join_circhop.ccontrol().can_send())
     }
 
-    /// Returns the `HopNum` of the join point
-    /// if [`next_circ_action`](Self::next_circ_action)
+    /// Returns whether [`next_circ_action`](Self::next_circ_action)
     /// should avoid polling the join point streams entirely.
     #[cfg(feature = "conflux")]
-    fn should_skip_join_point(&self) -> Result<Option<HopNum>, Bug> {
+    fn should_skip_join_point(&self) -> Result<bool, Bug> {
         let Some(primary_join_point) = self.primary_join_point() else {
             // Single-path, there is no join point
-            return Ok(None);
+            return Ok(false);
         };
 
         let join_hop = primary_join_point.1;
@@ -823,12 +829,12 @@ impl ConfluxSet {
 
         if !primary_blocked_on_cc {
             // Easy, we can just carry on
-            return Ok(None);
+            return Ok(false);
         }
 
         // Now, if the primary *is* blocked on cc, we may still be able to poll
         // the join point streams (if we're using the right desired UX)
-        let exclude = if self.desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
+        let should_skip = if self.desired_ux != V1DesiredUx::HIGH_THROUGHPUT {
             // The primary leg is blocked on cc, and we can't switch because we're
             // not using the high throughput algorithm, so we must stop reading
             // the join point streams.
@@ -844,7 +850,7 @@ impl ConfluxSet {
                 "Pausing join point stream reads"
             );
 
-            Some(join_hop)
+            true
         } else {
             // Ah-ha, the desired UX is HIGH_THROUGHPUT, which means we can switch
             // to an unblocked leg before sending any cells over the join point,
@@ -869,15 +875,15 @@ impl ConfluxSet {
                     "Pausing join point stream reads"
                 );
 
-                Some(join_hop)
+                true
             } else {
                 // At least one leg is not blocked, so we can continue reading
                 // from the join point streams
-                None
+                false
             }
         };
 
-        Ok(exclude)
+        Ok(should_skip)
     }
 
     /// Returns the next ready [`CircuitAction`],
@@ -888,105 +894,143 @@ impl ConfluxSet {
     ///
     /// This is cancellation-safe.
     #[allow(clippy::unnecessary_wraps)] // Can return Err if conflux is enabled
-    pub(super) fn next_circ_action<'a>(
-        &'a mut self,
-        runtime: &'a tor_rtcompat::DynTimeProvider,
-    ) -> Result<impl Future<Output = Result<CircuitAction, crate::Error>> + 'a, Bug> {
+    pub(super) async fn next_circ_action(
+        &mut self,
+        runtime: &tor_rtcompat::DynTimeProvider,
+    ) -> Result<SmallVec<[CircuitAction; CIRC_ACTION_COUNT]>, crate::Error> {
         // Avoid polling the streams on the join point if our primary
         // leg is blocked on cc
         cfg_if::cfg_if! {
             if #[cfg(feature = "conflux")] {
-                let exclude_hop = self.should_skip_join_point()?;
+                let mut should_poll_join_point = !self.should_skip_join_point()?;
             } else {
-                let exclude_hop: Option<HopNum> = None;
+                let mut should_poll_join_point = true;
             }
         };
+        let join_point = self.primary_join_point().map(|join_point| join_point.1);
 
-        Ok(self.legs
-            .iter_mut()
-            .map(|leg| {
-                let unique_id = leg.unique_id();
-                let tunnel_id = self.tunnel_id;
+        // Each circuit leg has a PollAll future (see poll_all_circ below)
+        // that drives two futures: one that reads from input channel,
+        // and another drives the application streams.
+        //
+        // *This* PollAll drives the PollAll futures of all circuit legs in lockstep,
+        // ensuring they all get a chance to make some progress on every reactor iteration.
+        //
+        // IMPORTANT: if you want to push additional futures into this,
+        // bear in mind that the ordering matters!
+        // If multiple futures resolve at the same time, their results will be processed
+        // in the order their corresponding futures were inserted into `PollAll`.
+        // So if futures A and B resolve at the same time, and future A was pushed
+        // into `PollAll` before future B, the result of future A will come
+        // before future B's result in the result list returned by poll_all.await.
+        //
+        // This means that the actions corresponding to the first circuit in the tunnel
+        // will be executed first, followed by the actions issued by the next circuit,
+        // and s on.
+        //
+        let mut poll_all =
+            PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitAction; NUM_CIRC_FUTURES]>>::new();
 
-                // The client SHOULD abandon and close circuit if the LINKED message takes too long to
-                // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
-                // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
-                // implementation currently uses Circuit Build Timeout).
-                let conflux_hs_timeout = if leg.conflux_status() == Some(ConfluxStatus::Pending) {
-                    if let Some(timeout) = leg.conflux_hs_timeout() {
+        for leg in &mut self.legs {
+            let unique_id = leg.unique_id();
+            let tunnel_id = self.tunnel_id;
+            let runtime = runtime.clone();
+
+            // Garbage-collect all halfstreams that have expired.
+            //
+            // Note: this will iterate over the closed streams of all hops.
+            // If we think this will cause perf issues, one idea would be to make
+            // StreamMap::closed_streams into a min-heap, and add a branch to the
+            // select_biased! below to sleep until the first expiry is due
+            // (but my gut feeling is that iterating is cheaper)
+            leg.remove_expired_halfstreams(runtime.now());
+
+            // The client SHOULD abandon and close circuit if the LINKED message takes too long to
+            // arrive. This timeout MUST be no larger than the normal SOCKS/stream timeout in use for
+            // RELAY_BEGIN, but MAY be the Circuit Build Timeout value, instead. (The C-Tor
+            // implementation currently uses Circuit Build Timeout).
+            let conflux_hs_timeout = leg.conflux_hs_timeout();
+
+            let mut poll_all_circ = PollAll::<NUM_CIRC_FUTURES, CircuitAction>::new();
+
+            let input = leg.input.next().map(move |res| match res {
+                Some(cell) => CircuitAction::HandleCell {
+                    leg: unique_id,
+                    cell,
+                },
+                None => CircuitAction::RemoveLeg {
+                    leg: unique_id,
+                    reason: RemoveLegReason::ChannelClosed,
+                },
+            });
+            poll_all_circ.push(input);
+
+            // This future resolves when the chan_sender sink (i.e. the outgoing TCP connection)
+            // becomes ready. We need it inside the next_ready_stream future below,
+            // to prevent reading from the application streams before we are ready to send.
+            let chan_ready_fut = futures::future::poll_fn(|cx| {
+                use futures::Sink as _;
+
+                // Ensure the chan sender sink is ready before polling the ready streams.
+                Pin::new(&mut leg.chan_sender).poll_ready(cx)
+            });
+
+            let exclude_hop = if should_poll_join_point {
+                // Avoid polling the join point more than once per reactor loop.
+                should_poll_join_point = false;
+                None
+            } else {
+                join_point
+            };
+
+            let mut ready_streams = leg.hops.ready_streams_iterator(exclude_hop);
+            let next_ready_stream = async move {
+                // Avoid polling the application streams if the outgoing sink is blocked
+                let _ = chan_ready_fut.await;
+
+                match ready_streams.next().await {
+                    Some(x) => x,
+                    None => {
+                        info!(circ_id=%unique_id, "no ready streams (maybe blocked on cc?)");
+                        // There are no ready streams (for example, they may all be
+                        // blocked due to congestion control), so there is nothing
+                        // to do.
+                        // We await an infinitely pending future so that we don't
+                        // immediately return a `None` in the `select_biased!` below.
+                        // We'd rather wait on `input.next()` than immediately return with
+                        // no `CircuitAction`, which could put the reactor into a spin loop.
+                        let () = std::future::pending().await;
+                        unreachable!();
+                    }
+                }
+            };
+
+            poll_all_circ.push(next_ready_stream.map(move |cmd| CircuitAction::RunCmd {
+                leg: unique_id,
+                cmd,
+            }));
+
+            let mut next_padding_event_fut = leg.padding_event_stream.next();
+
+            // This selects between 3 actions that cannot be handled concurrently.
+            //
+            // If the conflux handshake times out, we need to remove the circuit leg
+            // (any pending padding events or application stream data should be discarded;
+            // in fact, there shouldn't even be any open streams on circuits that are
+            // in the conflux handshake phase).
+            //
+            // If there's a padding event, we need to handle it immediately,
+            // because it might tell us to start blocking the chan_sender sink,
+            // which, in turn, means we need to stop trying to read from the application streams.
+            poll_all.push(
+                async move {
+                    let conflux_hs_timeout = if let Some(timeout) = conflux_hs_timeout {
                         // TODO: ask Diziet if we can have a sleep_until_instant() function
                         Box::pin(runtime.sleep_until_wallclock(timeout))
                             as Pin<Box<dyn Future<Output = ()> + Send>>
                     } else {
                         Box::pin(std::future::pending())
-                    }
-                } else {
-                    Box::pin(std::future::pending())
-                };
-
-                // Garbage-collect all halfstreams that have expired.
-                //
-                // Note: this will iterate over the closed streams of all hops.
-                // If we think this will cause perf issues, one idea would be to make
-                // StreamMap::closed_streams into a min-heap, and add a branch to the
-                // select_biased! below to sleep until the first expiry is due
-                // (but my gut feeling is that iterating is cheaper)
-                leg.remove_expired_halfstreams(runtime.now());
-
-                let mut ready_streams = leg.ready_streams_iterator(exclude_hop);
-                let input = &mut leg.input;
-                // TODO: we don't really need prepare_send_from here
-                // because the inner select_biased! is cancel-safe.
-                // We should replace this with a simple sink readiness check
-                let send_fut = leg.chan_sender.prepare_send_from(async move {
-                    // A future to wait for the next ready stream.
-                    let next_ready_stream = async {
-                        match ready_streams.next().await {
-                            Some(x) => x,
-                            None => {
-                                info!(circ_id=%unique_id, "no ready streams (maybe blocked on cc?)");
-                                // There are no ready streams (for example, they may all be
-                                // blocked due to congestion control), so there is nothing
-                                // to do.
-                                // We await an infinitely pending future so that we don't
-                                // immediately return a `None` in the `select_biased!` below.
-                                // We'd rather wait on `input.next()` than immediately return with
-                                // no `CircuitAction`, which could put the reactor into a spin loop.
-                                let () = std::future::pending().await;
-                                unreachable!();
-                            }
-                        }
                     };
-
-                    // NOTE: the stream returned by this function is polled in the select_biased!
-                    // from Reactor::run_once(), so each block from *this* select_biased! must be
-                    // cancellation-safe
-                    select_biased! {
-                        // Check whether we've got an input message pending.
-                        ret = input.next().fuse() => {
-                            let Some(cell) = ret else {
-                                return Ok(CircuitAction::RemoveLeg {
-                                    leg: unique_id,
-                                    reason: RemoveLegReason::ChannelClosed,
-                                });
-                            };
-
-                            Ok(CircuitAction::HandleCell { leg: unique_id, cell })
-                        },
-                        ret = next_ready_stream.fuse() => {
-                            let ret = ret.map(|cmd| {
-                                Ok(CircuitAction::RunCmd { leg: unique_id, cmd })
-                            });
-
-                            flatten(ret)
-                        },
-                    }
-                });
-
-                let mut send_fut = Box::pin(send_fut);
-                let mut next_padding_event_fut = leg.padding_event_stream.next();
-
-                async move {
                     select_biased! {
                         () = conflux_hs_timeout.fuse() => {
                             warn!(
@@ -997,32 +1041,27 @@ impl ConfluxSet {
 
                             // Conflux handshake has timed out, time to remove this circuit leg,
                             // and notify the handshake initiator.
-                            Ok(Ok(CircuitAction::RemoveLeg {
+                            smallvec![CircuitAction::RemoveLeg {
                                 leg: unique_id,
                                 reason: RemoveLegReason::ConfluxHandshakeTimeout,
-                            }))
+                            }]
                         }
                         padding_action = next_padding_event_fut => {
-                            Ok(Ok(CircuitAction::PaddingAction {
+                            smallvec![CircuitAction::PaddingAction {
                                 leg: unique_id,
-                                padding_action: padding_action.expect("PaddingEventStream, surprisingly, was terminated!"),
-                            }))
+                                padding_action:
+                                    padding_action.expect("PaddingEventStream, surprisingly, was terminated!"),
+                            }]
                         }
-                        ret = send_fut => {
-                            // Note: We don't actually use the returned SinkSendable,
-                            // and continue writing to the SometimesUboundedSink in the reactor :(
-                            ret.map(|ret| ret.0)
-                        }
+                        ret = poll_all_circ.fuse() => ret,
                     }
                 }
-            })
-            .collect::<FuturesUnordered<_>>()
-            // We only return the first ready action as a Future.
-            // Can't use `next()` since it borrows the stream.
-            .into_future()
-            .map(|(next, _)| next.ok_or(internal!("empty conflux set").into()))
-            // Clean up the nested `Result`s before returning to the caller.
-            .map(|res| flatten(flatten(res))))
+            );
+        }
+
+        // Flatten the nested SmallVecs to simplify the calling code
+        // (which will handle all the returned actions sequentially).
+        Ok(poll_all.await.into_iter().flatten().collect())
     }
 
     /// The join point on the current primary leg.
