@@ -249,13 +249,7 @@ fn run_check_integrity<R: Runtime>(
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
             let services = create_all_services(config, client_config)?;
-            let mut expired_entries: Vec<_> = get_expired_keys(&services, &client)?
-                .into_iter()
-                .map(|entry| InvalidKeystoreEntry {
-                    entry,
-                    error_msg: "The entry is expired.".to_string(),
-                })
-                .collect();
+            let mut expired_entries: Vec<_> = get_expired_keys(&services, &client)?;
         }
     }
 
@@ -462,7 +456,7 @@ fn create_all_services(
 fn get_expired_keys<'a, R: Runtime>(
     services: &'a Vec<OnionService>,
     client: &TorClient<R>,
-) -> Result<Vec<KeystoreEntryResult<KeystoreEntry<'a>>>> {
+) -> Result<Vec<InvalidKeystoreEntry<'a>>> {
     let netdir = client.dirmgr().timely_netdir()?;
 
     let mut expired_keys = Vec::new();
@@ -471,7 +465,10 @@ fn get_expired_keys<'a, R: Runtime>(
             &mut service
                 .list_expired_keys(&netdir)?
                 .into_iter()
-                .map(Ok)
+                .map(|entry| InvalidKeystoreEntry {
+                    entry: Ok(entry),
+                    error_msg: "The entry is expired.".to_string(),
+                })
                 .collect(),
         );
     }
