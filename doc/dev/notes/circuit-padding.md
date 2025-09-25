@@ -52,14 +52,6 @@ never for data.)
 > implement proper circuit-mux support, so it might not be so worthwhile
 > messing with it right now.
 
-## Frameworks and circuits
-
-We assume that each hop of a circuit
-has zero or one `maybenot::Framework`s,
-tracking padding sent to and from that hop of the circuit.
-
-Each framework has at least one padding machine.
-
 ## Intended Usage of Maybenot
 
 We intend to use the Maybenot framework in two places in the Tor network, with
@@ -95,6 +87,14 @@ case is a malicious Guard, as well as one that can observe the TLS connection.
 > larger amounts of padding traffic during actual stream usage, we will need
 > improvements to congestion control, such as
 > [backward ECN](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/ideas/xxx-backward-ecn.txt).
+
+## Frameworks and circuits
+
+We assume that each hop of a circuit
+has zero or one `maybenot::Framework`s,
+tracking padding sent to and from that hop of the circuit.
+
+Each framework has at least one padding machine.
 
 ## Constraints on Maybenot Padding and Blocking
 
