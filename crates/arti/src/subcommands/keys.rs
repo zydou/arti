@@ -311,6 +311,20 @@ fn run_check_integrity<R: Runtime>(
         });
     }
 
+    // Expired entries are obtained from the registered keystore. Since we have iterated over every
+    // registered keystore and removed all entries associated with the current keystore, the
+    // collection `expired_entries` should be empty. If it is not, there is a bug (see
+    // [`OnionService::list_expired_keys`]).
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-service")] {
+            if !expired_entries.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "Encoutered an expired key that doesn't belong to a registered keystore."
+                ));
+            }
+        }
+    }
+
     display_invalid_keystore_entries(&affected_keystores);
 
     maybe_remove_invalid_entries(args, &affected_keystores, keymgr)?;
