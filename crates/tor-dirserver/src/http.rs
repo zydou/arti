@@ -36,7 +36,7 @@ use tokio::{
 };
 use tracing::warn;
 
-use crate::{err::DatabaseError, schema::Sha256};
+use crate::database::Sha256;
 
 mod cache;
 
@@ -184,10 +184,7 @@ impl HttpServer {
             let mut cache = cache.clone();
             async move {
                 loop {
-                    match cache.gc() {
-                        Ok(()) => {}
-                        Err(e) => warn!("gc failed: {e}"),
-                    };
+                    cache.gc();
                     time::sleep(Duration::from_secs(60)).await;
                 }
             }
@@ -579,7 +576,7 @@ impl HttpServer {
         tx: &Transaction,
         sha256: &Sha256,
         encoding: ContentEncoding,
-    ) -> Result<Sha256, DatabaseError> {
+    ) -> Result<Sha256, rusqlite::Error> {
         let sha256 = sha256.clone();
 
         // If the encoding is the identity, do not bother about it any further.
@@ -624,6 +621,8 @@ pub(in crate::http) mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use crate::database;
+
     use super::*;
 
     use std::{
@@ -631,7 +630,6 @@ pub(in crate::http) mod test {
         str::FromStr,
     };
 
-    use deadpool_sqlite::Config;
     use flate2::{
         write::{DeflateDecoder, DeflateEncoder, GzEncoder},
         Compression,
@@ -646,8 +644,6 @@ pub(in crate::http) mod test {
     };
     use tokio_stream::wrappers::TcpListenerStream;
 
-    use crate::schema::prepare_db;
-
     pub(in crate::http) const IDENTITY: &str = "Lorem ipsum dolor sit amet.";
     pub(in crate::http) const IDENTITY_SHA256: &str =
         "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
@@ -661,29 +657,18 @@ pub(in crate::http) mod test {
         "B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239";
 
     pub(in crate::http) async fn create_test_db_pool() -> Pool<Manager> {
-        let pool = Config::new("")
-            .create_pool(deadpool::Runtime::Tokio1)
-            .unwrap();
-
+        let pool = database::open("").await.unwrap();
         pool.get()
             .await
             .unwrap()
-            .interact(init_test_db)
+            .interact(|conn| init_test_db(conn))
             .await
             .unwrap();
 
         pool
     }
 
-    pub(in crate::http) fn create_test_db_connection() -> Connection {
-        let mut conn = Connection::open_in_memory().unwrap();
-        init_test_db(&mut conn);
-        conn
-    }
-
-    pub(in crate::http) fn init_test_db(conn: &mut Connection) {
-        prepare_db(conn).unwrap();
-
+    fn init_test_db(conn: &mut Connection) {
         // Create a document and compressed versions of it.
         let identity_sha256 = hex::encode_upper(sha2::Sha256::new().chain(IDENTITY).finalize());
         assert_eq!(identity_sha256, IDENTITY_SHA256);
@@ -905,26 +890,33 @@ pub(in crate::http) mod test {
         check_match!("/.z", 3);
     }
 
-    #[test]
-    fn map_encoding() {
-        let mut conn = create_test_db_connection();
+    #[tokio::test]
+    async fn map_encoding() {
+        let pool = create_test_db_pool().await;
+        pool.get()
+            .await
+            .unwrap()
+            .interact(|conn| {
+                let data = [
+                    (ContentEncoding::Identity, IDENTITY_SHA256),
+                    (ContentEncoding::Deflate, DEFLATE_SHA256),
+                    (ContentEncoding::Gzip, GZIP_SHA256),
+                    (ContentEncoding::XZstd, XZ_STD_SHA256),
+                    (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
+                ];
 
-        let data = [
-            (ContentEncoding::Identity, IDENTITY_SHA256),
-            (ContentEncoding::Deflate, DEFLATE_SHA256),
-            (ContentEncoding::Gzip, GZIP_SHA256),
-            (ContentEncoding::XZstd, XZ_STD_SHA256),
-            (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
-        ];
-
-        let tx = conn.transaction().unwrap();
-        for (encoding, compressed_sha256) in data {
-            println!("{encoding}");
-            assert_eq!(
-                HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
-                compressed_sha256
-            );
-        }
+                let tx = conn.transaction().unwrap();
+                for (encoding, compressed_sha256) in data {
+                    println!("{encoding}");
+                    assert_eq!(
+                        HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding)
+                            .unwrap(),
+                        compressed_sha256
+                    );
+                }
+            })
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
