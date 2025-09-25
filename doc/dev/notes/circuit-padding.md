@@ -405,7 +405,9 @@ We treat the Maybenot flags as follows:
 > But Arti _does not yet_ honor the replace flag
 > by packaging pending data from streams. This means that
 > in practice, the replace flag will usually only replace control cells,
-> and only when the channel's queue is blocked.
+> and only when the channel's queue is blocked. A proper implementation
+> of replace is [complicated and may require changes to
+> maybenot](https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3276/diffs#note_3263262)
 
 ## Receiving padding
 
