@@ -173,7 +173,8 @@ keystore are displayed. When the `--sweep` flag is used, you will be
 prompted to remove the detected invalid elements. If the `--batch` flag
 is used in conjunction with `-s`, invalid elements are removed without a prompt.
 
-The output consists of two sections: invalid keystore entries and expired entries.
+The output displays invalid entries grouped by keystores and indicates whether no
+invalid entries are found in a given keystore.
 
 Some keys are time-bound and may expire. Expired entries correspond to keys
 associated with time periods (obtained from a consensus document) for which the
@@ -187,99 +188,49 @@ Example usage:
 
 ```ignore
 $ arti keys check-integrity
- ===== Invalid keystore entries =====
+Found problems in keystores: arti, ctor.
 
+Invalid keystore entries in keystore arti:
 
- Unrecognized entry
- Keystore ID: arti
- Location: hss/allium-cepa/erba-spontanea
- Error: Key has invalid path: hss/allium-cepa/erba-spontanea
+hss/allium-cepa/Ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+	Error: Key has invalid path: hss/allium-cepa/Ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+hss/allium-cepa/ks_hs_id.ed25519_expanded_private
+	Error: Failed to parse OpenSSH with type Ed25519ExpandedKeypair
+asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200.ed25519_expanded_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200
+asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae
+asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53
+asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.x25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de
+asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de
+asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.x25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae
+asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.x25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53
+asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200
+asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200
+asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200
+asdf/allium-cepa/ks_hs_id.ed25519_expanded_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_id
+hss/allium-cepa/ks_hs_desc_sign+20300_1440_43200.ed25519_private
+	Error: The entry is expired.
+hss/allium-cepa/ks_hs_desc_sign+20299_1440_43200.ed25519_private
+	Error: The entry is expired.
+hss/allium-cepa/ks_hs_blind_id+20300_1440_43200.ed25519_expanded_private
+	Error: The entry is expired.
+hss/allium-cepa/ks_hs_blind_id+20299_1440_43200.ed25519_expanded_private
+	Error: The entry is expired.
 
- --------------------------------------------------------------------------------
+Invalid keystore entries in keystore ctor:
 
- Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200.ed25519_expanded_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.x25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.x25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.x25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_id.ed25519_expanded_private
-
- --------------------------------------------------------------------------------
- Unrecognized entry
- Keystore ID: ctor
- Location: hostname
- Error: Key hostname is malformed
-
- --------------------------------------------------------------------------------
-
- ===== Expired keystore entries =====
-
-
- Keystore ID: arti
- Role: ks_hs_desc_sign
- Summary: Descriptor signing key
- KeystoreItemType: Ed25519Keypair
- Location: hss/allium-cepa/ks_hs_desc_sign+20300_1440_43200.ed25519_private
- Extra info:
- - nickname: allium-cepa
- - period: #20300 2025-07-31T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
- Keystore ID: arti
- Role: ks_hs_desc_sign
- Summary: Descriptor signing key
- KeystoreItemType: Ed25519Keypair
- Location: hss/allium-cepa/ks_hs_desc_sign+20299_1440_43200.ed25519_private
- Extra info:
- - nickname: allium-cepa
- - period: #20299 2025-07-30T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
- Keystore ID: arti
- Role: ks_hs_blind_id
- Summary: Blinded signing keypair
- KeystoreItemType: Ed25519ExpandedKeypair
- Location: hss/allium-cepa/ks_hs_blind_id+20300_1440_43200.ed25519_expanded_private
- Extra info:
- - nickname: allium-cepa
- - period: #20300 2025-07-31T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
- Keystore ID: arti
- Role: ks_hs_blind_id
- Summary: Blinded signing keypair
- KeystoreItemType: Ed25519ExpandedKeypair
- Location: hss/allium-cepa/ks_hs_blind_id+20299_1440_43200.ed25519_expanded_private
- Extra info:
- - nickname: allium-cepa
- - period: #20299 2025-07-30T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
+hostname
+	Error: Key hostname is malformed
 ```
 </details>
 
@@ -288,101 +239,54 @@ $ arti keys check-integrity
 
 ```ignore
 $ arti keys check-integrity -k arti -s
- ===== Invalid keystore entries =====
+Found problems in keystore: arti.
 
+Invalid keystore entries in keystore arti:
 
- Unrecognized entry
- Keystore ID: arti
- Location: hss/allium-cepa/erba-spontanea
- Error: Key has invalid path: hss/allium-cepa/erba-spontanea
-
- --------------------------------------------------------------------------------
-
- Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200.ed25519_expanded_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.x25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.x25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.x25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200.ed25519_private
-
- --------------------------------------------------------------------------------
- Unrecognized path asdf/allium-cepa/ks_hs_id.ed25519_expanded_private
-
- --------------------------------------------------------------------------------
- Unrecognized entry
- Keystore ID: ctor
- Location: hostname
- Error: Key hostname is malformed
-
- --------------------------------------------------------------------------------
-
- ===== Expired keystore entries =====
-
-
- Keystore ID: arti
- Role: ks_hs_desc_sign
- Summary: Descriptor signing key
- KeystoreItemType: Ed25519Keypair
- Location: hss/allium-cepa/ks_hs_desc_sign+20300_1440_43200.ed25519_private
- Extra info:
- - nickname: allium-cepa
- - period: #20300 2025-07-31T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
- Keystore ID: arti
- Role: ks_hs_desc_sign
- Summary: Descriptor signing key
- KeystoreItemType: Ed25519Keypair
- Location: hss/allium-cepa/ks_hs_desc_sign+20299_1440_43200.ed25519_private
- Extra info:
- - nickname: allium-cepa
- - period: #20299 2025-07-30T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
- Keystore ID: arti
- Role: ks_hs_blind_id
- Summary: Blinded signing keypair
- KeystoreItemType: Ed25519ExpandedKeypair
- Location: hss/allium-cepa/ks_hs_blind_id+20300_1440_43200.ed25519_expanded_private
- Extra info:
- - nickname: allium-cepa
- - period: #20300 2025-07-31T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
- Keystore ID: arti
- Role: ks_hs_blind_id
- Summary: Blinded signing keypair
- KeystoreItemType: Ed25519ExpandedKeypair
- Location: hss/allium-cepa/ks_hs_blind_id+20299_1440_43200.ed25519_expanded_private
- Extra info:
- - nickname: allium-cepa
- - period: #20299 2025-07-30T12:00:00Z..+24:00
-
- --------------------------------------------------------------------------------
-
+hss/allium-cepa/Ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+	Error: Key has invalid path: hss/allium-cepa/Ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+hss/allium-cepa/ks_hs_id.ed25519_expanded_private
+	Error: Failed to parse OpenSSH with type Ed25519ExpandedKeypair
+asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200.ed25519_expanded_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_blind_id+20242_1440_43200
+asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_sid+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae
+asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_sid+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53
+asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.x25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_hss_ntor+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de
+asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_sid+bf2c5fb26446e00877757a126fcdf48fa460021497d46aac1afa78ef380003de
+asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae.x25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_hss_ntor+4a487c4a6e5b666a64e748848146e621e2a096f3e18f110696e42d16e11374ae
+asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53.x25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ipts/k_hss_ntor+6674c2d98191e632ff20c030e6f73ec4c7fec10e17d63d86a4f974e7da18ac53
+asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200.ed25519_expanded_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_blind_id+20241_1440_43200
+asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_desc_sign+20242_1440_43200
+asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200.ed25519_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_desc_sign+20241_1440_43200
+asdf/allium-cepa/ks_hs_id.ed25519_expanded_private
+	Error: Unrecognized path: asdf/allium-cepa/ks_hs_id
+hss/allium-cepa/ks_hs_desc_sign+20300_1440_43200.ed25519_private
+	Error: The entry is expired.
+hss/allium-cepa/ks_hs_desc_sign+20299_1440_43200.ed25519_private
+	Error: The entry is expired.
+hss/allium-cepa/ks_hs_blind_id+20300_1440_43200.ed25519_expanded_private
+	Error: The entry is expired.
+hss/allium-cepa/ks_hs_blind_id+20299_1440_43200.ed25519_expanded_private
+	Error: The entry is expired.
 Remove all invalid entries? (type yes or no):
+```
+</details>
+
+<details>
+<summary>If no invalid entry is encountered</summary>
+
+```ignore
+$ arti keys check-integrity -k arti
+arti: OK.
 
 ```
 </details>
