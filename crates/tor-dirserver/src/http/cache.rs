@@ -28,9 +28,9 @@ use crate::{database::Sha256, err::DatabaseError};
 pub(super) struct StoreCache {
     /// The actual data of the cache.
     ///
-    /// We use a [`Mutex`] instead of an [`RwLock`], because we want to assure
-    /// that a concurrent cache miss does not lead into two simultanous database
-    /// reads and copies into memory.
+    /// We use a [`Mutex`] instead of an [`RwLock`](std::sync::RwLock), because
+    /// we want to assure that a concurrent cache miss does not lead into two
+    /// simultanous database reads and copies into memory.
     data: Arc<Mutex<WeakValueHashMap<Sha256, Weak<[u8]>>>>,
 }
 
