@@ -451,8 +451,7 @@ impl BufferIsEmpty for DataReaderInner {
 struct DataStreamStatus {
     /// True if we've received a CONNECTED message.
     //
-    // TODO: This is redundant with `connected` in DataReaderImpl and
-    // `expecting_connected` in DataCmdChecker.
+    // TODO: This is redundant with `connected` in DataReaderImpl.
     received_connected: bool,
     /// True if we have decided to send an END message.
     //
@@ -495,10 +494,19 @@ impl DataStreamStatus {
 }
 
 restricted_msg! {
-    /// An allowable incoming message on a data stream.
-    enum DataStreamMsg:RelayMsg {
+    /// An allowable incoming message on a client data stream.
+    enum ClientDataStreamMsg:RelayMsg {
         // SENDME is handled by the reactor.
         Data, End, Connected,
+    }
+}
+
+#[cfg(feature = "hs-service")]
+restricted_msg! {
+    /// An allowable incoming message on an incoming data stream.
+    enum IncomingDataStreamMsg:RelayMsg {
+        // SENDME is handled by the reactor.
+        Data, End,
     }
 }
 
@@ -1121,10 +1129,10 @@ impl DataReaderImpl {
 
     /// Load self.pending with the contents of a new data cell.
     fn read_cell(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        use DataStreamMsg::*;
+        use ClientDataStreamMsg::*;
         let msg = match self.as_mut().project().s.poll_next(cx) {
             Poll::Pending => return Poll::Pending,
-            Poll::Ready(Some(Ok(unparsed))) => match unparsed.decode::<DataStreamMsg>() {
+            Poll::Ready(Some(Ok(unparsed))) => match unparsed.decode::<ClientDataStreamMsg>() {
                 Ok(cell) => cell.into_msg(),
                 Err(e) => {
                     self.s.protocol_error();
@@ -1238,7 +1246,7 @@ impl CmdChecker for DataCmdChecker {
 
     fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayMsg) -> Result<()> {
         let _ = msg
-            .decode::<DataStreamMsg>()
+            .decode::<ClientDataStreamMsg>()
             .map_err(|err| Error::from_bytes_err(err, "cell on half-closed stream"))?;
         Ok(())
     }
@@ -1250,16 +1258,43 @@ impl DataCmdChecker {
     pub(crate) fn new_any() -> AnyCmdChecker {
         Box::<Self>::default()
     }
+}
 
+/// A `CmdChecker` that enforces invariants for inbound data streams.
+#[derive(Debug, Default)]
+#[cfg(feature = "hs-service")]
+pub(crate) struct IncomingDataCmdChecker;
+
+#[cfg(feature = "hs-service")]
+impl CmdChecker for IncomingDataCmdChecker {
+    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
+        use StreamStatus::*;
+        match msg.cmd() {
+            RelayCmd::DATA => Ok(Open),
+            RelayCmd::END => Ok(Closed),
+            _ => Err(Error::StreamProto(format!(
+                "Unexpected {} on an incoming data stream!",
+                msg.cmd()
+            ))),
+        }
+    }
+
+    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayMsg) -> Result<()> {
+        let _ = msg
+            .decode::<IncomingDataStreamMsg>()
+            .map_err(|err| Error::from_bytes_err(err, "cell on half-closed stream"))?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "hs-service")]
+impl IncomingDataCmdChecker {
     /// Return a new boxed `DataCmdChecker` in a state suitable for a
     /// connection where an initial CONNECTED cell is not expected.
     ///
     /// This is used by hidden services, exit relays, and directory servers
     /// to accept streams.
-    #[cfg(feature = "hs-service")]
     pub(crate) fn new_connected() -> AnyCmdChecker {
-        Box::new(Self {
-            expecting_connected: false,
-        })
+        Box::new(Self)
     }
 }

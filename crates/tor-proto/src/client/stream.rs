@@ -34,6 +34,9 @@ pub use raw::StreamReceiver;
 pub use resolve::ResolveStream;
 pub(crate) use {data::DataCmdChecker, resolve::ResolveCmdChecker};
 
+#[cfg(feature = "hs-service")]
+pub(crate) use data::IncomingDataCmdChecker;
+
 pub use tor_cell::relaycell::msg::IpVersionPreference;
 
 #[cfg(feature = "stream-ctrl")]
