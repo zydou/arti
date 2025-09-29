@@ -20,7 +20,7 @@ use crate::{
 
 cfg_if! {
     if #[cfg(feature="circ-padding")] {
-        use crate::util::sink_blocker::{BooleanPolicy, CountingPolicy, SinkBlocker};
+        use crate::util::sink_blocker::{BooleanPolicy, SinkBlocker};
         /// Inner type used to implement a [`CircuitCellSender`].
         ///
         /// When `circ-padding` feature is enabled, this is a multi-level wrapper around
@@ -32,9 +32,15 @@ cfg_if! {
         /// - Then there is a [`SometimesUnboundedSink`] that we use to queue control messages
         ///   when the target `ChanSender` is full,
         ///   or when we traffic is blocked.
-        /// - Then there is a second `SinkBlocker` that permits us to trickle messages from the
-        ///   queue to the ChanSender even if traffic is blocked by our padding system.
         /// - Finally, there is the [`ChannelSender`] itself.
+        ///
+        /// NOTE: We once had a second `SinkBlocker` to keep messages from the
+        /// SometimesUnboundedSink from reaching the ChanSender
+        /// when we were blocked on padding.
+        /// We no longer use this SinkBlocker, since we decided in
+        /// our [padding design] that non-data messages
+        /// would never wait for a padding-based block.
+        /// We can reinstate it if we change our mind.
         ///
         /// TODO: Ideally, this type would participate in the memory quota system.
         ///
@@ -42,6 +48,8 @@ cfg_if! {
         /// an additional _bounded_ [`futures::sink::Buffer`]
         /// to queue cells before they are put onto the channel,
         /// or to queue data from loud streams.
+        ///
+        /// [padding design]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/notes/circuit-padding.md
         type InnerSink = SinkBlocker<
             SometimesUnbounded, BooleanPolicy,
         >;
@@ -50,7 +58,10 @@ cfg_if! {
         /// We use this to queue control cells.
         type SometimesUnbounded = SometimesUnboundedSink<
             ChanCellQueueEntry,
-            SinkBlocker<ChannelSender, CountingPolicy>
+            // This is what we would reinstate
+            // in order to have control messages blocked by padding frameworks:
+            //      SinkBlocker<ChannelSender, CountingPolicy>
+            ChannelSender
         >;
     } else {
         /// Inner type used to implement a [`CircuitCellSender`].
@@ -99,7 +110,7 @@ impl CircuitCellSender {
             if #[cfg(feature="circ-padding")] {
                 let sink = SinkBlocker::new(
                     SometimesUnboundedSink::new(
-                        SinkBlocker::new(inner, CountingPolicy::new_unlimited())
+                        inner
                     ),
                     BooleanPolicy::Unblocked
                 );
@@ -161,26 +172,20 @@ impl CircuitCellSender {
     ///
     /// When we are blocked, attempts to `send()` to this sink will fail.
     /// You can still queue items with `send_unbounded()`,
-    /// but such items will not be flushed until this sink is unblocked,
-    /// or when allowed by [`bypass_blocking_once()`](Self::bypass_blocking_once).
+    /// and they will be sent immediately.
+    //
+    // (Previously we would block those items too,
+    // and only allow them to be flushed one by one,
+    // but we changed that behavior so that non-DATA cells can _always_ be sent.)
     #[cfg(feature = "circ-padding")]
     pub(super) fn start_blocking(&mut self) {
         self.pre_queue_blocker_mut().set_blocked();
-        self.post_queue_blocker_mut().set_blocked();
     }
 
     /// Circpadding only: Put this sink into an unblocked state.
     #[cfg(feature = "circ-padding")]
     pub(super) fn stop_blocking(&mut self) {
         self.pre_queue_blocker_mut().set_unblocked();
-        self.post_queue_blocker_mut().set_unlimited();
-    }
-
-    /// Circpadding only: If this sink is currently blocked,
-    /// allow one queued item to bypass the block.
-    #[cfg(feature = "circ-padding")]
-    pub(super) fn bypass_blocking_once(&mut self) {
-        self.post_queue_blocker_mut().allow_n_additional_items(1);
     }
 
     /// Note: This is only async because we need a Context to check the underlying sink for readiness.
@@ -233,7 +238,7 @@ impl CircuitCellSender {
     fn chan_sender(&self) -> &ChannelSender {
         cfg_if! {
             if #[cfg(feature="circ-padding")] {
-                self.sink.as_inner().as_inner().as_inner()
+                self.sink.as_inner().as_inner()
             } else {
                 self.sink.as_inner()
             }
@@ -245,7 +250,7 @@ impl CircuitCellSender {
     fn chan_sender_mut(&mut self) -> &mut ChannelSender {
         cfg_if! {
             if #[cfg(feature="circ-padding")] {
-                self.sink.as_inner_mut().as_inner_mut().as_inner_mut()
+                self.sink.as_inner_mut().as_inner_mut()
             } else {
                 self.sink.as_inner_mut()
             }
@@ -256,15 +261,6 @@ impl CircuitCellSender {
     #[cfg(feature = "circ-padding")]
     fn pre_queue_blocker_mut(&mut self) -> &mut InnerSink {
         &mut self.sink
-    }
-
-    /// Helper: Return a mutable reference to our inner [`SinkBlocker`].
-    ///
-    /// q.v. the dire warnings on [`SometimesUnboundedSink::as_inner_mut()`]:
-    /// We must not use this reference to enqueue anything onto the returned sink directly.
-    #[cfg(feature = "circ-padding")]
-    fn post_queue_blocker_mut(&mut self) -> &mut SinkBlocker<ChannelSender, CountingPolicy> {
-        self.sink.as_inner_mut().as_inner_mut()
     }
 }
 

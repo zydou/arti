@@ -4,10 +4,14 @@
 #![cfg_attr(not(feature = "circ-padding"), expect(dead_code))]
 
 mod boolean_policy;
+// TODO: If we do not find a use for this, we should remove it.
+// It was once used to make an inner queue blocker
+// bypassable one cell at a time.
+// See discussion in cell_sender.rs
+#[expect(dead_code)]
 mod counting_policy;
 
 pub(crate) use boolean_policy::BooleanPolicy;
-pub(crate) use counting_policy::CountingPolicy;
 
 use std::{
     pin::Pin,
