@@ -9,7 +9,6 @@
 //!
 //! There is no fairness, rate-limiting, or flow control.
 
-mod cmdcheck;
 #[cfg(feature = "stream-ctrl")]
 mod ctrl;
 mod data;
@@ -20,7 +19,7 @@ pub(crate) mod queue;
 mod raw;
 mod resolve;
 
-pub(crate) use cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
+pub(crate) use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 pub use data::{DataReader, DataStream, DataWriter};
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
