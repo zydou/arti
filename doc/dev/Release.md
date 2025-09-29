@@ -49,8 +49,7 @@ to make sure we aren't going to break our users.
 
    Are they still relevant?
    (There are exceptions in
-   `cargo_audit`,
-   `check_doc_features`,
+   `cargo_audit`
    and
    `check_licenses`.)
 

@@ -153,16 +153,6 @@ maint-check-cbindgen:
     - ./maint/common/via-cargo-install-in-ci cbindgen --version 0.28.0
     - ./maint/cbindgen --check
 
-# non-blocking for now, see
-#      https://gitlab.torproject.org/tpo/core/arti/-/issues/581
-#      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
-doc-features:
-  stage: check
-  allow_failure: true
-  script:
-    - maint/common/apt-install python3-toml
-    - ./maint/check_doc_features
-
 # This should always be in the last testing stage, so that if it fails all the other steps still run
 # But it should run before any deployument.
 blocking-todos:
