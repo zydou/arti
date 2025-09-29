@@ -26,7 +26,7 @@ use digest::Digest;
 
 use super::ChannelFrame;
 
-use tracing::{debug, trace};
+use tracing::{debug, instrument, trace};
 
 /// A list of the link protocols that we support.
 static LINK_PROTOCOLS: &[u16] = &[4, 5];
@@ -345,6 +345,7 @@ impl<
     ///
     /// Takes a function that reports the current time.  In theory, this can just be
     /// `SystemTime::now()`.
+    #[instrument(skip_all, level = "trace")]
     pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedChannel<T, S>>
     where
         F: FnOnce() -> SystemTime,
@@ -424,6 +425,7 @@ impl<
     ///
     /// This is a separate function because it's likely to be somewhat
     /// CPU-intensive.
+    #[instrument(skip_all, level = "trace")]
     pub fn check<U: ChanTarget + ?Sized>(
         self,
         peer: &U,
@@ -664,6 +666,7 @@ impl<
     /// The channel is used to send cells, and to create outgoing circuits.
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
+    #[instrument(skip_all, level = "trace")]
     pub async fn finish(mut self) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.

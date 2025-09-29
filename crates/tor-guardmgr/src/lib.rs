@@ -66,7 +66,7 @@ use tor_linkspec::{OwnedChanTarget, OwnedCircTarget, RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
 use tor_units::BoundedInt32;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use tor_config::{ExplicitOrAuto, impl_standard_builder};
 use tor_config::{ReconfigureError, impl_not_auto_value};
@@ -866,6 +866,7 @@ impl GuardMgrInner {
     /// Update the status of all guards in the active set, based on the passage
     /// of time, our configuration, and the relevant Universe for our active
     /// set.
+    #[instrument(skip_all, level = "trace")]
     fn update(&mut self, wallclock: SystemTime, now: Instant) {
         self.with_opt_netdir(|this, netdir| {
             // Here we update our parameters from the latest NetDir, and check
@@ -1429,6 +1430,7 @@ impl GuardMgrInner {
 
     /// Run any periodic events that update guard status, and return a
     /// duration after which periodic events should next be run.
+    #[instrument(skip_all, level = "trace")]
     pub(crate) fn run_periodic_events(&mut self, wallclock: SystemTime, now: Instant) -> Duration {
         self.update(wallclock, now);
         self.expire_and_answer_pending_requests(now);

@@ -15,6 +15,7 @@ use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
 use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
+use tracing::instrument;
 
 use async_trait::async_trait;
 use futures::task::SpawnExt;
@@ -67,6 +68,7 @@ where
     R: tor_rtcompat::TlsProvider<H::Stream> + Send + Sync,
     H: Send + Sync,
 {
+    #[instrument(skip_all, level = "trace")]
     async fn connect_via_transport(
         &self,
         target: &OwnedChanTarget,
@@ -130,6 +132,7 @@ where
     H: Send + Sync,
 {
     /// Perform the work of `connect_via_transport`, but without enforcing a timeout.
+    #[instrument(skip_all, level = "trace")]
     async fn connect_no_timeout(
         &self,
         target: &OwnedChanTarget,

@@ -12,6 +12,7 @@ use rustls::client::danger;
 use rustls::crypto::{WebPkiSupportedAlgorithms, verify_tls12_signature, verify_tls13_signature};
 use rustls::{CertificateError, Error as TLSError};
 use rustls_pki_types::{CertificateDer, ServerName};
+use tracing::instrument;
 use webpki::EndEntityCert; // this is actually rustls_webpki.
 
 use std::{
@@ -102,6 +103,7 @@ where
 {
     type Conn = futures_rustls::client::TlsStream<S>;
 
+    #[instrument(skip_all, level = "trace")]
     async fn negotiate_unvalidated(&self, stream: S, sni_hostname: &str) -> IoResult<Self::Conn> {
         let name: ServerName<'_> = sni_hostname
             .try_into()

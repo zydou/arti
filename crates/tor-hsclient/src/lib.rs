@@ -61,7 +61,7 @@ use futures::stream::BoxStream;
 use futures::task::SpawnExt as _;
 
 use educe::Educe;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 use tor_circmgr::ClientOnionServiceDataTunnel;
 use tor_circmgr::hspool::HsCircPool;
@@ -157,6 +157,7 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     // Without this, it is possible for `Services::get_or_launch_connection`
     // to not return a `Send` future.
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1034#note_2881718
+    #[instrument(skip_all, level = "trace")]
     pub fn get_or_launch_tunnel<'r>(
         &'r self,
         netdir: &'r Arc<NetDir>,

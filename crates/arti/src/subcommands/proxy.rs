@@ -7,7 +7,7 @@ use cfg_if::cfg_if;
 use clap::ArgMatches;
 #[allow(unused)]
 use tor_config_path::CfgPathResolver;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 use arti_client::TorClientConfig;
 use tor_config::{ConfigurationSources, Listen};
@@ -27,6 +27,8 @@ use crate::onion_proxy;
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
 
 /// Run the `proxy` subcommand.
+#[instrument(skip_all, level = "trace")]
+#[allow(clippy::cognitive_complexity)]
 pub(crate) fn run<R: ToplevelRuntime>(
     runtime: R,
     proxy_matches: &ArgMatches,
@@ -102,6 +104,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
 /// Currently, might panic if things go badly enough wrong
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
+#[instrument(skip_all, level = "trace")]
 async fn run_proxy<R: ToplevelRuntime>(
     runtime: R,
     socks_listen: Listen,

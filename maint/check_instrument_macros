@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# The following scripts checks whether our invocations of the #[instrument] macro
+# use skip_all and are at trace level. It's okay to have instrument macros that
+# don't skip_all if the secuirty implications have been thought through. All of
+# our instrument macros should be at trace, level, however.
+
+set -euo pipefail
+
+if grep -oPr --include \*.rs "#\[(tracing::)?instrument[(][^)]+[)]\].*" ./crates | grep -v skip_all; then
+    echo "Instrument macro is missing skip_all!"
+    echo "If you have thought through the security implication and this is intentional, add a comment like the following:"
+    echo ""
+    echo "#[instrument] // Intentionally omitting skip_all"
+    exit 1
+fi
+
+if grep -oPr --include \*.rs "#\[(tracing::)?instrument[(][^)]+[)]\].*" ./crates | grep -v trace; then
+    echo "Instrument macro is not at trace level!"
+
+    exit 1
+fi

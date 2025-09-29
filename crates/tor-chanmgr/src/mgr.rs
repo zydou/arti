@@ -17,6 +17,7 @@ use tor_netdir::params::NetParameters;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount};
+use tracing::{instrument, trace};
 
 mod select;
 mod state;
@@ -184,6 +185,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     ///
     /// If no such channel exists already, but we have one that's in
     /// progress, wait for it to succeed or fail.
+    #[instrument(skip_all, level = "trace")]
     pub(crate) async fn get_or_launch(
         &self,
         target: CF::BuildSpec,
@@ -202,6 +204,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     }
 
     /// Get a channel whose identity is `ident` - internal implementation
+    #[allow(clippy::cognitive_complexity)]
     async fn get_or_launch_internal(
         &self,
         target: CF::BuildSpec,
@@ -239,10 +242,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
                 // Easy case: we have an error or a channel to return.
                 Some(Action::Return(v)) => {
+                    trace!("Returning existing channel");
                     return v.map(|chan| (chan, provenance));
                 }
                 // There's an in-progress channel.  Wait for it.
                 Some(Action::Wait(pend)) => {
+                    trace!("Waiting for in-progress channel");
                     match pend.await {
                         Ok(Ok(())) => {
                             // We were waiting for a channel, and it succeeded, or it
@@ -265,6 +270,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
                 // We need to launch a channel.
                 Some(Action::Launch((handle, send))) => {
+                    trace!("Launching channel");
                     // If the remainder of this code returns early or is cancelled, we still want to
                     // clean up our pending entry in the channel map. The following closure will be
                     // run when dropped to ensure that it's cleaned up properly.

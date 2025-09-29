@@ -582,6 +582,16 @@ mod test {
         );
 
         declare_exceptions(
+            None,
+            None,
+            Recognized,
+            &[
+                // Examples exist but are not auto-testable
+                "logging.opentelemetry",
+            ],
+        );
+
+        declare_exceptions(
             Some(InOld),
             Some(InNew),
             if cfg!(target_family = "windows") {
