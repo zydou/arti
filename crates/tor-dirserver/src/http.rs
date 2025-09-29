@@ -123,7 +123,6 @@ struct DocumentBody(VecDeque<Arc<[u8]>>);
 /// * `/tor/status-vote/current/*/diff/*/*`
 /// * `[Some(""), Some("tor"), Some("status-vote"), Some("current"), None, ...]`
 ///   Maybe a macro could help here though ...
-
 type Endpoint = (Method, &'static str, EndpointFn);
 
 /// Representation of the core HTTP server.
@@ -661,7 +660,7 @@ pub(in crate::http) mod test {
         pool.get()
             .await
             .unwrap()
-            .interact(|conn| init_test_db(conn))
+            .interact(init_test_db)
             .await
             .unwrap();
 

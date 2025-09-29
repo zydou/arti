@@ -27,7 +27,10 @@ pub(crate) enum DatabaseError {
     /// Future versions of this crate should continue with this promise in order
     /// to ensure forward compatability.
     #[error("incompatible schema version: {version}")]
-    IncompatibleSchema { version: String },
+    IncompatibleSchema {
+        /// The incompatible schema version found in the database.
+        version: String,
+    },
 
     /// Interaction with our database pool, [`deadpool`], has failed.
     ///
