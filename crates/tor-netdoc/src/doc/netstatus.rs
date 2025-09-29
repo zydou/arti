@@ -87,11 +87,7 @@ ns_export_each_flavor! {
 }
 
 ns_export_each_variety! {
-    ty: RouterStatus;
-}
-#[cfg(feature = "dangerous-expose-struct-fields")]
-ns_export_each_variety! {
-    ty: Header;
+    ty: RouterStatus, Header;
 }
 
 use void::ResultVoidExt as _;
@@ -380,47 +376,31 @@ impl ConsensusFlavor {
 }
 
 /// The signature of a single directory authority on a networkstatus document.
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Signature {
     /// The name of the digest algorithm used to make the signature.
     ///
     /// Currently sha1 and sh256 are recognized.  Here we only support
     /// sha256.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    digestname: String,
+    pub digestname: String,
     /// Fingerprints of the keys for the authority that made
     /// this signature.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    key_ids: AuthCertKeyIds,
+    pub key_ids: AuthCertKeyIds,
     /// The signature itself.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    signature: Vec<u8>,
+    pub signature: Vec<u8>,
 }
 
 /// A collection of signatures that can be checked on a networkstatus document
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct SignatureGroup {
     /// The sha256 of the document itself
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    sha256: Option<[u8; 32]>,
+    pub sha256: Option<[u8; 32]>,
     /// The sha1 of the document itself
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    sha1: Option<[u8; 20]>,
+    pub sha1: Option<[u8; 20]>,
     /// The signatures listed on the document.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    signatures: Vec<Signature>,
+    pub signatures: Vec<Signature>,
 }
 
 /// A shared random value produced by the directory authorities.
@@ -432,65 +412,45 @@ pub struct SharedRandVal([u8; 32]);
 
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    visibility::make(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    n_reveals: u8,
+    pub n_reveals: u8,
     /// The current random value.
     ///
     /// The properties of the secure shared-random system guarantee
     /// that this value isn't predictable before it first becomes
     /// live, and that a hostile party could not have forced it to
     /// have any more than a small number of possible random values.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    value: SharedRandVal,
+    pub value: SharedRandVal,
 
     /// The time when this SharedRandVal becomes (or became) the latest.
     ///
     /// (This is added per proposal 342, assuming that gets accepted.)
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    timestamp: Option<time::SystemTime>,
+    pub timestamp: Option<time::SystemTime>,
 }
 
 /// Description of an authority's identity and address.
 ///
 /// (Corresponds to a dir-source line.)
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    visibility::make(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
-struct DirSource {
+#[non_exhaustive]
+pub struct DirSource {
     /// human-readable nickname for this authority.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    nickname: String,
+    pub nickname: String,
     /// Fingerprint for the _authority_ identity key of this
     /// authority.
     ///
     /// This is the same key as the one that signs the authority's
     /// certificates.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    identity: RsaIdentity,
+    pub identity: RsaIdentity,
     /// IP address for the authority
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    ip: net::IpAddr,
+    pub ip: net::IpAddr,
     /// HTTP directory port for this authority
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    dir_port: u16,
+    pub dir_port: u16,
     /// OR port for this authority.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    or_port: u16,
+    pub or_port: u16,
 }
 
 bitflags! {
@@ -578,44 +538,28 @@ impl RelayWeight {
 }
 
 /// All information about a single authority, as represented in a consensus
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    visibility::make(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
-pub(crate) struct ConsensusVoterInfo {
+#[non_exhaustive]
+pub struct ConsensusVoterInfo {
     /// Contents of the dirsource line about an authority
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    dir_source: DirSource,
+    pub dir_source: DirSource,
     /// Human-readable contact information about the authority
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    contact: String,
+    pub contact: String,
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    vote_digest: Vec<u8>,
+    pub vote_digest: Vec<u8>,
 }
 
 /// The signed footer of a consensus netstatus.
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    visibility::make(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
-pub(crate) struct Footer {
+#[non_exhaustive]
+pub struct Footer {
     /// Weights to be applied to certain classes of relays when choosing
     /// for different roles.
     ///
     /// For example, we want to avoid choosing exits for non-exit
     /// roles when overall the proportion of exits is small.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    weights: NetParams<i32>,
+    pub weights: NetParams<i32>,
 }
 
 /// A consensus document that lists relays along with their
