@@ -418,6 +418,47 @@ enum CircuitAction {
     },
 }
 
+impl CircuitAction {
+    /// Return the ordering with which we should handle this action
+    /// within a list of actions returned by a single call to next_circ_action().
+    ///
+    /// NOTE: Please do not make this any more complicated:
+    /// It is a consequence of a kludge that we need this sorting at all.
+    /// Assuming that eventually, we switch away from the current
+    /// poll-oriented `next_circ_action` design,
+    /// we may be able to get rid of this entirely.
+    fn order_within_batch(&self) -> u8 {
+        use CircuitAction as CA;
+        use PaddingEvent as PE;
+        const EARLY: u8 = 0;
+        const NORMAL: u8 = 1;
+        const LATE: u8 = 2;
+
+        // We use this ordering to move any "StartBlocking" to the _end_ of a batch and
+        // "StopBlocking" to the start.
+        //
+        // This way, we can be sure that we will handle any "send data" operations
+        // (and tell the Padder about them) _before_  we tell the Padder
+        // that we have blocked the circuit.
+        //
+        // This keeps things a bit more logical.
+        match self {
+            CA::RunCmd { .. } => NORMAL,
+            CA::HandleControl(..) => NORMAL,
+            CA::HandleCell { .. } => NORMAL,
+            CA::RemoveLeg { .. } => NORMAL,
+            #[cfg(feature = "circ-padding")]
+            CA::PaddingAction { padding_action, .. } => match padding_action {
+                PE::StopBlocking => EARLY,
+                PE::SendPadding(..) => NORMAL,
+                PE::StartBlocking(..) => LATE,
+            },
+            #[cfg(not(feature = "circ-padding"))]
+            CA::PaddingAction { .. } => NORMAL,
+        }
+    }
+}
+
 /// An object that's waiting for a meta cell (one not associated with a stream) in order to make
 /// progress.
 ///
@@ -809,7 +850,7 @@ impl Reactor {
         #[cfg(feature = "conflux")]
         self.try_dequeue_ooo_msgs().await?;
 
-        let actions = select_biased! {
+        let mut actions = select_biased! {
             res = self.command.next() => {
                 let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
                 return ControlHandler::new(self).handle_cmd(cmd);
@@ -828,6 +869,12 @@ impl Reactor {
             },
             res = self.circuits.next_circ_action(&self.runtime).fuse() => res?,
         };
+
+        // Put the actions into the order that we need to execute them in.
+        //
+        // (Yes, this _does_ have to be a stable sort.  Not all actions may be freely re-ordered
+        // with respect to one another.)
+        actions.sort_by_key(|a| a.order_within_batch());
 
         for action in actions {
             let cmd = match action {
