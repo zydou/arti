@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import yaml
 
-from typing import Optional, Any
+from typing import Any
 
 SHADOW_DATA_DIR = "shadow.chutney.data"
 SHADOW_CONFIG_FILE = "shadow.chutney.yaml"
@@ -26,7 +26,7 @@ SHADOW_LOG_FILE = "shadow.log"
 TEST_DOMAIN = "example.com"
 
 
-def gen_shadow_config(seed: int, chutney_bin: Optional[str]) -> dict[str, Any]:
+def gen_shadow_config(seed: int) -> dict[str, Any]:
     """
     Generate a shadow config file, as a string, for the given parameters.
     """
@@ -43,8 +43,6 @@ def gen_shadow_config(seed: int, chutney_bin: Optional[str]) -> dict[str, Any]:
         # usual shell utilities are on it.
         "PATH": os.getenv("PATH"),
     }
-    if chutney_bin is not None:
-        env["CHUTNEY_BIN"] = chutney_bin
 
     return {
         "general": {
@@ -124,12 +122,9 @@ def main():
     )
     os.chdir(toplevel)
 
-    # Get CHUTNEY_BIN if it's set.
-    chutney_bin = os.getenv("CHUTNEY_BIN", None)
-
     # Write out shadow config. We could just pipe it directly to the shadow
     # process below, but writing it out is useful for debugging.
-    shadow_config = gen_shadow_config(args.seed, chutney_bin)
+    shadow_config = gen_shadow_config(args.seed)
     with open(SHADOW_CONFIG_FILE, "w") as f:
         f.write(yaml.safe_dump(shadow_config))
 
