@@ -320,7 +320,7 @@ impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
 /// let selector = ObjectSetSelector::<Option<String>>::default();
 /// let obj = item.object().map(|obj| {
 ///     let data = obj.decode_data().unwrap();
-///     TryFrom::try_from(data)
+///     String::from_utf8(data)
 /// }).transpose().unwrap();
 /// let obj = selector.resolve_option(obj).unwrap();
 /// assert_eq!(obj, Some("hello".to_owned()));
