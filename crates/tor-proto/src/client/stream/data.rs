@@ -140,7 +140,7 @@ pub struct DataStream {
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+    ctrl: Arc<ClientDataStreamCtrl>,
 }
 assert_impl_all! { DataStream: Send, Sync }
 
@@ -200,7 +200,7 @@ struct DataWriterInner {
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+    ctrl: Arc<ClientDataStreamCtrl>,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
@@ -414,7 +414,7 @@ pub(crate) struct DataReaderInner {
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+    ctrl: Arc<ClientDataStreamCtrl>,
 }
 
 impl BufferIsEmpty for DataReaderInner {
