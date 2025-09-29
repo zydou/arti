@@ -29,3 +29,5 @@ anywhere in our whole stack.
  * Somehow sabotage the affected method, eg by deleting or renaming it.
    If the whole stack still builds, the method isn't used.
    Be sure to do your whole arti stack build with `--all-features --workspace`.
+   (If the build fails, that doesn't necessarily mean the method is
+   actually used and called.  More analysis will be needed.)
