@@ -19,10 +19,9 @@ use authcert::DirAuthKeyCert;
 use std::fs;
 
 use humantime::parse_rfc3339;
-use testresult::TestResult;
 
 #[test]
-fn parse_consensus_ns() -> TestResult<()> {
+fn parse_consensus_ns() -> anyhow::Result<()> {
     let file = "testdata2/cached-consensus";
     let text = fs::read_to_string(&file)?;
     let now = parse_rfc3339("2000-01-01T00:02:05Z")?;
@@ -52,7 +51,7 @@ fn parse_consensus_ns() -> TestResult<()> {
 }
 
 #[test]
-fn parse_consensus_md() -> TestResult<()> {
+fn parse_consensus_md() -> anyhow::Result<()> {
     let file = "testdata2/cached-microdesc-consensus";
     let text = fs::read_to_string(&file)?;
 
@@ -64,7 +63,7 @@ fn parse_consensus_md() -> TestResult<()> {
 }
 
 #[test]
-fn parse_vote() -> TestResult<()> {
+fn parse_vote() -> anyhow::Result<()> {
     let file = "testdata2/v3-status-votes--1";
     let text = fs::read_to_string(file)?;
 
@@ -76,7 +75,7 @@ fn parse_vote() -> TestResult<()> {
 }
 
 #[test]
-fn parse_authcert() -> TestResult<()> {
+fn parse_authcert() -> anyhow::Result<()> {
     let file = "testdata2/cached-certs--1";
     let now = parse_rfc3339("2000-06-01T00:00:05Z")?;
     let doc: authcert::DirAuthKeyCertSigned = parse_netdoc(&fs::read_to_string(file)?, file)?;

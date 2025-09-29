@@ -31,7 +31,7 @@ use super::*;
 
 /// Error encountered when parsing a document, including its location
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
-#[error("failed to parse network document, type {doctype}: {file}:{lno}: {problem}")]
+#[error("failed to parse network document, type {doctype}: {file}:{lno}")]
 #[non_exhaustive]
 pub struct ParseError {
     /// What the problem was
@@ -86,7 +86,7 @@ pub enum ErrorProblem {
     #[error("no keyword when item keyword line expected")]
     MissingKeyword,
     /// No keyword when item keyword line expected
-    #[error("no keyword when item keyword line expected")]
+    #[error("no keyword when item keyword line expected: {0}")]
     InvalidKeyword(#[from] keyword::InvalidKeyword),
     /// Missing item {keyword}
     #[error("missing item {keyword}")]

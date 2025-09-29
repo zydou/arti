@@ -29,7 +29,7 @@ macro_rules! netdoc_ordering_check {
     { <=? subdoc    subdoc     $f1:ident } => {};
     // Not in the allowed list, must be an error:
     { <=? $k0:ident $k1:ident  $f1:ident } => {
-        compile_error(concat!(
+        compile_error!(concat!(
             "in netdoc, ", stringify!($k1)," field ", stringify!($f1),
             " may not come after ", stringify!($k0),
         ));
@@ -125,6 +125,19 @@ define_derive_deftly! {
     /// * **`#[deftly(netdoc(keyword = STR))]`**:
     ///
     ///   Use `STR` as the Keyword for this Item.
+    ///
+    /// * **`#[deftly(netdoc(single_arg))]`**:
+    ///
+    ///   The field type implements `ItemArgumentParseable`,
+    ///   instead of `ItemValueParseable`,
+    ///   and is parsed as if `(FIELD_TYPE,)` had been written.
+    ///
+    /// * **`#[deftly(netdoc(with = "MODULE"))]`**:
+    ///
+    ///   Instead of `ItemValueParseable`, the item is parsed with `MODULE::from_unparsed`,
+    ///   which must have the same signature as [`ItemValueParseable::from_unparsed`].
+    ///
+    ///   (Not supported for sub-documents, signature items, or field collections.)
     ///
     /// * **`#[deftly(netdoc(default))]`**:
     ///
@@ -277,7 +290,7 @@ define_derive_deftly! {
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
-        ) -> Result<$ttype, $P::ErrorProblem> {
+        ) -> $P::Result<$ttype, $P::ErrorProblem> {
             use $P::*;
 
             //----- compile-time check that fields are in the right order in the struct -----
@@ -311,10 +324,13 @@ define_derive_deftly! {
             //----- prepare item set selectors for every field -----
 
           $(
-            ${when not(any(F_INTRO, F_FLATTEN))}
+            ${when not(any(F_FLATTEN))}
 
             // See `mod multiplicity`.
+          ${if not(all(F_INTRO, fmeta(netdoc(with)))) {
+            // If the intro it has `with`, we don't check its trait impl, and this ends up unused
             let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
+          }}
 
             // Expands to `selector_FIELD.check_SOMETHING();`
             //
@@ -324,11 +340,20 @@ define_derive_deftly! {
             //
             // Without this, we just get a report that `item` doesn't implement the required
             // trait - but `item` is a local variable here, so the error points into the macro
+          ${if not(all(any(F_INTRO, F_NORMAL), fmeta(netdoc(with)))) {
             $<selector_ $fname> . ${paste_spanned $fname ${select1
-                    F_NORMAL    { check_item_value_parseable     }
+                    any(F_INTRO, F_NORMAL){
+                        // For the intro item, this is not completely precise, because the
+                        // it will allow Option<> and Vec<> which aren't allowed there.
+                        ${if
+                          fmeta(netdoc(single_arg)) { check_item_argument_parseable }
+                          else { check_item_value_parseable }
+                        }
+                    }
                     F_SIGNATURE { check_signature_item_parseable }
                     F_SUBDOC    { check_subdoc_parseable         }
             }} ();
+          }}
           )
 
             // Is this an intro item keyword ?
@@ -361,6 +386,20 @@ define_derive_deftly! {
             // Can panic if called without previous `peek_keyword`.
             ${define THIS_ITEM  {
                 input.next_item()?.expect("peeked")
+            }}
+
+            ${define ITEM_VALUE_FROM_UNPARSED {
+              ${if fmeta(netdoc(with)) {
+                ${fmeta(netdoc(with)) as path}
+                    ::${paste_spanned $fname from_unparsed}
+                    (item)?
+              } else if fmeta(netdoc(single_arg)) { {
+                let item = ItemValueParseable::from_unparsed(item)?;
+                let (item,) = item;
+                item
+              } } else {
+                ItemValueParseable::from_unparsed(item)?
+              }}
             }}
 
             // Accumulates `item` (which must be DataSet::Value) into `Putnam`
@@ -406,7 +445,7 @@ define_derive_deftly! {
             if !Self::is_intro_item_keyword(item.keyword()) {
                 Err(EP::WrongDocumentType)?;
             }
-            let $fpatname: $ftype = <$ftype as ItemValueParseable>::from_unparsed(item)?;
+            let $fpatname: $ftype = $ITEM_VALUE_FROM_UNPARSED;
 
           } F_FLATTEN {
 
@@ -435,7 +474,7 @@ define_derive_deftly! {
                     F_NORMAL {
                       let item = $THIS_ITEM;
                       dtrace!("is normal", item);
-                      let item = ItemValueParseable::from_unparsed(item)?;
+                      let item = $ITEM_VALUE_FROM_UNPARSED;
                       $ACCUMULATE_ITEM_VALUE
                     }
                     F_SIGNATURE {
@@ -541,11 +580,14 @@ define_derive_deftly! {
     ///  * Derives [`NetdocParseableFields`]
     ///  * The input struct can contain only normal non-structural items
     ///    (so it's not a sub-document with an intro item).
-    ///  * The only attribute supported is the field attribute
+    ///  * The only attributes supported are the field attributes
     ///    `#[deftly(netdoc(keyword = STR))]`
+    ///    `#[deftly(netdoc(default))]`
+    ///    `#[deftly(netdoc(single_arg))]`
+    ///    `#[deftly(netdoc(with = "MODULE"))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
-    // TODO deduplicate with copy in NetdocParseableafter after rust-derive-deftly#39
+    // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
@@ -556,7 +598,7 @@ define_derive_deftly! {
     // and substitute in the default at the end.
     //
     ${define F_EFFECTIVE_TYPE {
-        ${if all(fmeta(netdoc(default)), not(F_INTRO)) {
+        ${if all(fmeta(netdoc(default))) {
             Option::<$ftype>
         } else {
             $ftype
@@ -584,7 +626,10 @@ define_derive_deftly! {
     impl<$tgens> $P::NetdocParseableFields for $ttype {
         type Accumulator = $<$ttype NetdocParseAccumulator>;
 
-        fn is_item_keyword(kw: $P::KeywordRef<'_>) -> bool {
+        fn is_item_keyword(
+            #[allow(unused_variables)] // If there are no fields, this is unused
+            kw: $P::KeywordRef<'_>,
+        ) -> bool {
           ${for fields {
             kw == $F_KEYWORD ||
           }}
@@ -592,14 +637,26 @@ define_derive_deftly! {
         }
 
         fn accumulate_item(
+            #[allow(unused_variables)] // If there are no fields, this is unused
             acc: &mut Self::Accumulator,
+            #[allow(unused_variables)] // If there are no fields, this is unused
             item: $P::UnparsedItem<'_>,
-        ) -> Result<(), $P::ErrorProblem> {
+        ) -> $P::Result<(), $P::ErrorProblem> {
           $(
             if item.keyword() == $F_KEYWORD {
                 let selector = $F_ITEM_SET_SELECTOR;
+              ${if fmeta(netdoc(with)) {
+                let item = ${fmeta(netdoc(with)) as path}
+                    ::${paste_spanned $fname from_unparsed}
+                    (item)?;
+              } else if fmeta(netdoc(single_arg)) {
+                selector.${paste_spanned $fname check_item_argument_parseable}();
+                let item = ItemValueParseable::from_unparsed(item)?;
+                let (item,) = item;
+              } else {
                 selector.${paste_spanned $fname check_item_value_parseable}();
                 let item = ItemValueParseable::from_unparsed(item)?;
+              }}
                 selector.accumulate(&mut acc.$fname, item)
             } else
           )
@@ -608,12 +665,17 @@ define_derive_deftly! {
             }
         }
 
-        fn finish(acc: Self::Accumulator) -> Result<Self, $P::ErrorProblem> {
-            Ok($tname {
-              $(
-                $fname: $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?,
-              )
-            })
+        fn finish(
+            #[allow(unused_variables)] // If there are no fields, this is unused
+            acc: Self::Accumulator
+        ) -> $P::Result<Self, $P::ErrorProblem> {
+          $(
+            let $fpatname = $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
+          ${if fmeta(netdoc(default)) {
+            let $fpatname = Option::unwrap_or_default($fpatname);
+          }}
+          )
+            Ok($vpat)
         }
     }
 }
@@ -697,7 +759,7 @@ define_derive_deftly! {
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
-        ) -> Result<$<$ttype Signed>, $P::ErrorProblem> {
+        ) -> $P::Result<$<$ttype Signed>, $P::ErrorProblem> {
             input.parse_signed(outer_stop)
         }
     }
@@ -756,15 +818,42 @@ define_derive_deftly! {
     ///
     /// ### Field-level attributes:
     ///
+    ///  * **`#[deftly(netdoc(rest))]**:
+    ///
+    ///    The field is the whole rest of the line.
+    ///    Must come after any other normal argument fields.
+    ///
+    ///    The field type must implement `FromStr`.
+    ///
     ///  * **`#[deftly(netdoc(object))]**:
     ///
     ///    The field is the Object.
     ///    It must implement [`ItemObjectParseable`]
-    ///    (so it can be be `Option<impl ItemObjectParseable>`
-    ///    for an optional item.)
+    ///    (or be `Option<impl ItemObjectParseable>`).
     ///
     ///    Only allowed once.
     ///    If omittted, any object is rejected.
+    ///
+    ///  * **`#[deftly(netdoc(object(label = "LABEL")))]**:
+    ///
+    ///    Sets the expected label for an Object.
+    ///    If not supplied, uses [`ItemObjectParseable::check_label`].
+    ///
+    ///  * **`#[deftly(netdoc(with = "MODULE")]**:
+    ///
+    ///    Instead of `ItemArgumentParseable`, the item is parsed with `MODULE::from_args`,
+    ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
+    ///
+    ///    With `#[deftly(netdoc(rest))]`, FUNCTION replaces
+    ///    `<FIELD AS FromStr>::from_str`.
+    ///
+    ///    With `#[deftly(netdoc(objecte))]`, uses `MODULE::try_from`
+    ///    must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
+    ///    like `TryFrom::<Vec<u8>>>::try_from`.
+    ///    LABEL must also be specified
+    ///    unless the object also implements `ItemObjectParseable`.
+    ///    Errors from parsing will be discarded and replaced with
+    ///    [`ErrorProblem::ObjectInvalidData`].
     ///
     ///  * **`#[deftly(netdoc(sig_hash = "HASH_METHOD"))]**:
     ///
@@ -776,7 +865,7 @@ define_derive_deftly! {
     ///    which will be resolved with `sig_hash_methods::*` in scope.
     ///
     ///    `fn HASH_METHOD(body: &SignatureHashInputs) -> HASH_FIELD_VALUE`.
-    export ItemValueParseable for struct, expect items:
+    export ItemValueParseable for struct, expect items, beta_deftly:
 
     ${define P { $crate::parse2::internal_prelude }}
 
@@ -795,7 +884,7 @@ define_derive_deftly! {
           ${if T_IS_SIGNATURE {
             document_body: &SignatureHashInputs<'_>,
           }}
-        ) -> Result<Self, $P::EP>
+        ) -> $P::Result<Self, $P::EP>
         {
             #[allow(unused_imports)] // false positive when macro is used with prelude in scope
             use $P::*;
@@ -805,28 +894,50 @@ define_derive_deftly! {
             let mut args = input.args_mut();
           $(
             let $fpatname = ${select1
-              F_NORMAL {
-                  <$ftype as ItemArgumentParseable>::from_args(&mut args, stringify!($fname))?
-              }
-              all(F_OBJECT, not(fmeta(netdoc(object(label))))) {
-                  <$ftype as ItemObjectParseable>::from_bytes_option(
-                      object
-                          .map(|object| object.decode_data()).transpose()?
-                          .as_deref()
+              F_NORMAL { {
+                  let selector = ArgumentSetSelector::<$ftype>::default();
+                ${if not(fmeta(netdoc(with))) {
+                  selector.${paste_spanned $fname check_argument_value_parseable}();
+                }}
+                  selector.parse_with(
+                      &mut args,
+                      stringify!($fname),
+                      ${fmeta(netdoc(with))
+                        as path,
+                        default { ItemArgumentParseable::from_args }},
                   )?
-              }
-              all(F_OBJECT, fmeta(netdoc(object(label)))) { {
-                  let object = object.ok_or_else(|| EP::MissingObject)?;
-                  if object.label() != ${fmeta(netdoc(object(label))) as str} {
-                      return Err(EP::ObjectIncorrectLabel)
-                  }
-                  object.decode_data()?
               } }
-              F_REST {
+              F_OBJECT { {
+                  let selector = ObjectSetSelector::<$ftype>::default();
+                  let object = object.map(|object| {
+                      let data = object.decode_data()?;
+                      ${if fmeta(netdoc(object(label))) {
+                          if object.label() != ${fmeta(netdoc(object(label))) as str} {
+                              return Err(EP::ObjectIncorrectLabel)
+                          }
+                      } else {
+                          selector.check_label(object.label())?;
+                      }}
+                      ${if fmeta(netdoc(with)) {
+                          ${fmeta(netdoc(with)) as path}::${paste_spanned $fname try_from}
+                              (data)
+                              .map_err(|_| EP::ObjectInvalidData)
+                      } else {
+                          selector.${paste_spanned $fname check_object_parseable}();
+                          ItemObjectParseable::from_bytes(&data)
+                      }}
+                  }).transpose()?;
+                  selector.resolve_option(object)?
+              } }
+              F_REST { {
                   // consumes `args`, leading to compile error if the rest field
                   // isn't last (or is combined with no_extra_args).
-                  <$ftype as FromStr>::parse(args.into_rest())?
-              }
+                  let args_consume = args;
+                  ${fmeta(netdoc(with))
+                    as path,
+                    default { <$ftype as FromStr>::from_str }}(args_consume.into_remaining())
+                      .map_err(|_| EP::InvalidArgument { field: stringify!($fname) })?
+              } }
               F_SIG_HASH { {
                   #[allow(unused_imports)]
                   use $P::sig_hash_methods::*;

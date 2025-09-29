@@ -47,6 +47,9 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
+#[cfg(feature = "parse2")]
+#[macro_use]
+pub mod parse2;
 #[cfg(feature = "hs-service")]
 pub(crate) mod build;
 #[macro_use]
@@ -56,8 +59,6 @@ mod err;
 pub mod types;
 mod util;
 
-#[cfg(feature = "parse2")]
-pub mod parse2;
 #[doc(hidden)]
 pub use derive_deftly;
 

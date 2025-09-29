@@ -123,6 +123,12 @@ pub trait ItemSetMethods: Copy + Sized {
         Self::Each: NetdocParseable,
     {
     }
+    /// Check that the element type is an argument
+    fn check_item_argument_parseable(self)
+    where
+        Self::Each: ItemArgumentParseable,
+    {
+    }
 }
 impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
     type Each = T;
@@ -191,13 +197,13 @@ impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
 ///
 /// ```
 /// use tor_netdoc::parse2::multiplicity::{ArgumentSetSelector, ArgumentSetMethods as _};
-/// use tor_netdoc::parse2::ItemStream;
+/// use tor_netdoc::parse2::{ItemArgumentParseable, ItemStream};
 /// let doc = "intro-item 12 66\n";
 /// let mut items = ItemStream::new(doc).unwrap();
 /// let mut item = items.next().unwrap().unwrap();
 ///
 /// let args = ArgumentSetSelector::<Vec<i32>>::default()
-///     .parse(item.args_mut(), "number")
+///     .parse_with(item.args_mut(), "number", ItemArgumentParseable::from_args)
 ///     .unwrap();
 /// assert_eq!(args, [12, 66]);
 /// ```
@@ -211,6 +217,9 @@ pub struct ArgumentSetSelector<Field>(PhantomData<fn() -> Field>);
 ///
 /// See [`ArgumentSetSelector`] and the [module-level docs](multiplicity).
 pub trait ArgumentSetMethods: Copy + Sized {
+    /// The value for each Item.
+    type Each: Sized;
+
     /// The output type: the type of the field in the Item struct.
     ///
     /// This is *not* the type of an individual netdoc argument;
@@ -218,30 +227,149 @@ pub trait ArgumentSetMethods: Copy + Sized {
     type Field: Sized;
 
     /// Parse zero or more argument(s) into `Self::Field`.
-    fn parse(self, args: &mut ArgumentStream<'_>, field: &'static str) -> Result<Self::Field, EP>;
+    fn parse_with<P>(
+        self,
+        args: &mut ArgumentStream<'_>,
+        field: &'static str,
+        parser: P,
+    ) -> Result<Self::Field, EP>
+    where
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>;
+
+    /// Check that the element type is an Argument
+    ///
+    /// For providing better error messages when struct fields don't implement the right trait.
+    /// See `derive.rs`, and search for this method name.
+    fn check_argument_value_parseable(self)
+    where
+        Self::Each: ItemArgumentParseable,
+    {
+    }
 }
-impl<T: ItemArgumentParseable> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
+impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
+    type Each = T;
     type Field = Vec<T>;
-    fn parse<'s>(self, args: &mut ArgumentStream<'s>, f: &'static str) -> Result<Vec<T>, EP> {
+    fn parse_with<P>(
+        self,
+        args: &mut ArgumentStream<'_>,
+        field: &'static str,
+        parser: P,
+    ) -> Result<Self::Field, EP>
+    where
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+    {
         let mut acc = vec![];
         while args.is_nonempty_after_trim_start() {
-            acc.push(T::from_args(args, f)?);
+            acc.push(parser(args, field)?);
         }
         Ok(acc)
     }
 }
-impl<T: ItemArgumentParseable> ArgumentSetMethods for ArgumentSetSelector<Option<T>> {
+impl<T> ArgumentSetMethods for ArgumentSetSelector<Option<T>> {
+    type Each = T;
     type Field = Option<T>;
-    fn parse<'s>(self, args: &mut ArgumentStream<'s>, f: &'static str) -> Result<Option<T>, EP> {
+    fn parse_with<P>(
+        self,
+        args: &mut ArgumentStream<'_>,
+        field: &'static str,
+        parser: P,
+    ) -> Result<Self::Field, EP>
+    where
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+    {
         if !args.is_nonempty_after_trim_start() {
             return Ok(None);
         }
-        Ok(Some(T::from_args(args, f)?))
+        Ok(Some(parser(args, field)?))
     }
 }
-impl<T: ItemArgumentParseable> ArgumentSetMethods for &ArgumentSetSelector<T> {
+impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
+    type Each = T;
     type Field = T;
-    fn parse<'s>(self, args: &mut ArgumentStream<'s>, f: &'static str) -> Result<T, EP> {
-        T::from_args(args, f)
+    fn parse_with<P>(
+        self,
+        args: &mut ArgumentStream<'_>,
+        field: &'static str,
+        parser: P,
+    ) -> Result<Self::Field, EP>
+    where
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+    {
+        parser(args, field)
+    }
+}
+
+/// Helper type that allows us to select an impl of `ObjectSetMethods`
+///
+/// **For use by macros**.
+///
+/// See the [module-level docs](multiplicity), and
+/// [Field type in `ItemValueParseable`](derive_deftly_template_ItemValueParseable#field-type).
+///
+/// # Example
+///
+/// The code in the (derive) macro output is roughly like this:
+///
+/// ```
+/// use tor_netdoc::parse2::multiplicity::{ObjectSetSelector, ObjectSetMethods as _};
+/// use tor_netdoc::parse2::ItemStream;
+/// let doc = "intro-item\n-----BEGIN OBJECT-----\naGVsbG8=\n-----END OBJECT-----\n";
+/// let mut items = ItemStream::new(doc).unwrap();
+/// let mut item = items.next().unwrap().unwrap();
+///
+/// let selector = ObjectSetSelector::<Option<String>>::default();
+/// let obj = item.object().map(|obj| {
+///     let data = obj.decode_data().unwrap();
+///     String::from_utf8(data)
+/// }).transpose().unwrap();
+/// let obj = selector.resolve_option(obj).unwrap();
+/// assert_eq!(obj, Some("hello".to_owned()));
+/// ```
+#[derive(Educe)]
+#[educe(Clone, Copy, Default)]
+pub struct ObjectSetSelector<Field>(PhantomData<fn() -> Field>);
+
+/// Method for handling some multiplicity of Objects
+///
+/// **For use by macros**.
+///
+/// See [`ObjectSetSelector`] and the [module-level docs](multiplicity).
+pub trait ObjectSetMethods: Copy + Sized {
+    /// The value for each Item.
+    type Each: Sized;
+
+    /// The output type: the type of the field in the Item struct.
+    type Field: Sized;
+
+    /// Parse zero or more argument(s) into `Self::Field`.
+    fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP>;
+
+    /// If the contained type is `ItemObjectParseable`, call its `check_label`
+    fn check_label(self, label: &str) -> Result<(), EP>
+    where
+        Self::Each: ItemObjectParseable,
+    {
+        Self::Each::check_label(label)
+    }
+
+    /// Check that the contained type can be parsed as an object
+    fn check_object_parseable(self)
+    where
+        Self::Each: ItemObjectParseable,
+    {
+    }
+}
+impl<T> ObjectSetMethods for ObjectSetSelector<Option<T>> {
+    type Field = Option<T>;
+    type Each = T;
+    fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP> {
+        Ok(found)
+    }
+}
+impl<T> ObjectSetMethods for &ObjectSetSelector<T> {
+    type Field = T;
+    type Each = T;
+    fn resolve_option(self, found: Option<Self::Each>) -> Result<Self::Field, EP> {
+        found.ok_or(EP::MissingObject)
     }
 }

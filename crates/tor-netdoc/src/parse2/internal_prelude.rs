@@ -8,6 +8,7 @@ pub use std::io::Write as _;
 pub use std::marker::PhantomData;
 pub use std::mem;
 pub use std::ops::RangeInclusive;
+pub use std::result::Result;
 pub use std::slice;
 pub use std::str::FromStr;
 pub use std::time::{Duration, SystemTime};
@@ -31,7 +32,10 @@ pub use super::{
     keyword::KeywordRef,
     lex::{ArgumentStream, ItemStream, UnparsedItem, WS},
     lines::{Lines, StrExt as _},
-    multiplicity::{ItemSetMethods, ItemSetSelector},
+    multiplicity::{
+        ArgumentSetMethods, ArgumentSetSelector, ItemSetMethods, ItemSetSelector, ObjectSetMethods,
+        ObjectSetSelector,
+    },
     signatures::{
         SignatureHashInputs, SignatureItemParseable, SignedDocumentBody, sig_hash_methods,
     },
