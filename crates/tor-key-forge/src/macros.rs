@@ -441,7 +441,7 @@ define_derive_deftly! {
         }
 
         /// Sign the given message.
-        $tvis fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rsa::Error> {
+        $tvis fn sign(&self, message: &[u8]) -> Result<Vec<u8>, $crate::macro_deps::rsa::Error> {
             self.0.sign(message)
         }
 

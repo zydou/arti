@@ -4,7 +4,7 @@ use ssh_key::{
     Algorithm, LineEnding, PrivateKey, PublicKey, private::KeypairData, public::KeyData,
 };
 use tor_error::{internal, into_internal};
-use tor_llcrypto::pk::{curve25519, ed25519};
+use tor_llcrypto::pk::{curve25519, ed25519, rsa};
 
 use crate::{ErasedKey, Error, KeyType, Result};
 
@@ -74,6 +74,7 @@ macro_rules! ssh_to_internal_erased {
             convert_ed25519_kp,
             convert_expanded_ed25519_kp,
             convert_x25519_kp,
+            convert_rsa_kp,
             KeypairData
         )
     }};
@@ -85,11 +86,12 @@ macro_rules! ssh_to_internal_erased {
             convert_ed25519_pk,
             convert_expanded_ed25519_pk,
             convert_x25519_pk,
+            convert_rsa_pk,
             KeyData
         )
     }};
 
-    ($key:expr, $algo:expr, $ed25519_fn:path, $expanded_ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
+    ($key:expr, $algo:expr, $ed25519_fn:path, $expanded_ed25519_fn:path, $x25519_fn:path, $rsa_fn:path, $key_data_ty:tt) => {{
         let key = $key;
         let algo = SshKeyAlgorithm::from($algo);
 
@@ -97,6 +99,7 @@ macro_rules! ssh_to_internal_erased {
         // we're using internally).
         match key {
             $key_data_ty::Ed25519(key) => Ok($ed25519_fn(&key).map(Box::new)?),
+            $key_data_ty::Rsa(key) => Ok($rsa_fn(&key).map(Box::new)?),
             $key_data_ty::Other(other) => match algo {
                 SshKeyAlgorithm::X25519 => Ok($x25519_fn(&other).map(Box::new)?),
                 SshKeyAlgorithm::Ed25519Expanded => Ok($expanded_ed25519_fn(&other).map(Box::new)?),
@@ -160,6 +163,20 @@ fn convert_expanded_ed25519_kp(
     Ok(keypair)
 }
 
+/// Try to convert an [`RsaKeypair`](ssh_key::private::RsaKeypair) to a [`rsa::KeyPair`].
+fn convert_rsa_kp(key: &ssh_key::private::RsaKeypair) -> Result<rsa::KeyPair> {
+    // TODO #1598:
+    //
+    // Right now, this will always fail, because ssh-key doesn't support keys less than 2048 bits.
+    //
+    // However, this will be lowered in the future to allow the 1024-bit keys that we use:
+    //
+    // https://github.com/RustCrypto/SSH/issues/336
+    Ok(TryInto::<::rsa::RsaPrivateKey>::try_into(key)
+        .map_err(|_| internal!("bad RSA keypair"))?
+        .into())
+}
+
 /// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
 fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
     Ok(ed25519::PublicKey::from_bytes(key.as_ref())
@@ -190,6 +207,13 @@ fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve2551
     Ok(curve25519::PublicKey::from(public))
 }
 
+/// Try to convert an [`RsaKeypair`](ssh_key::public::RsaPublicKey) to a [`rsa::PublicKey`].
+fn convert_rsa_pk(key: &ssh_key::public::RsaPublicKey) -> Result<rsa::PublicKey> {
+    Ok(TryInto::<::rsa::RsaPublicKey>::try_into(key)
+        .map_err(|_| internal!("bad RSA keypair"))?
+        .into())
+}
+
 /// A public key or a keypair.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -213,6 +237,7 @@ impl SshKeyData {
         let algo = SshKeyAlgorithm::from(key.algorithm());
         let () = match key {
             KeyData::Ed25519(_) => Ok(()),
+            KeyData::Rsa(_) => Ok(()),
             KeyData::Other(_) => match algo {
                 SshKeyAlgorithm::X25519 => Ok(()),
                 _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
@@ -233,6 +258,7 @@ impl SshKeyData {
         );
         let () = match key {
             KeypairData::Ed25519(_) => Ok(()),
+            KeypairData::Rsa(_) => Ok(()),
             KeypairData::Other(_) => match algo {
                 SshKeyAlgorithm::X25519 => Ok(()),
                 SshKeyAlgorithm::Ed25519Expanded => Ok(()),

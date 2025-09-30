@@ -101,6 +101,9 @@ impl<R: Runtime> TorRelay<R> {
             &mut rng,
         )?;
 
+        // TODO #1598: We need to get_or_generate RSA keys here, but that currently fails because
+        // upstream ssh-key doesn't support 1024 bit keys. Once they do, we should add that here.
+
         // TODO: Once certificate supports is added to the KeyMgr, we need to get/gen the
         // RelaySigning (KP_relaysign_ed) certs from the native persistent store.
         //
