@@ -170,6 +170,7 @@ define_derive_deftly! {
 /// }
 /// ```
     export DynMethod:
+    #[allow(clippy::incompatible_msrv)] // https://github.com/rust-lang/rust-clippy/issues/15792
     const _: () = {
         ${if not(tmeta(rpc(bypass_method_dispatch))) {
             impl $crate::DynMethod for $ttype {
@@ -197,7 +198,7 @@ define_derive_deftly! {
             $crate::inventory::submit! {
                 $crate::MethodInfo_ {
                     method_name : ${tmeta(rpc(method_name)) as str},
-                    typeid : std::any::TypeId::of::<$ttype>,
+                    typeid : std::any::TypeId::of::<$ttype>, // trips rust-clippy#15792
                     output_name: std::any::type_name::<<$ttype as $crate::RpcMethod>::Output>,
                     update_name: std::any::type_name::<<$ttype as $crate::RpcMethod>::Update>,
                 }

@@ -424,7 +424,7 @@ mod test {
         }
     }
 
-    #[derive(Deftly)]
+    #[derive(Deftly, Default)]
     #[derive_deftly(Object)]
     struct Opossum {}
 
@@ -478,11 +478,20 @@ mod test {
         assert!(Arc::ptr_eq(&err_arc, &erased_arc_bytes));
     }
 
-    #[derive(Deftly)]
+    #[derive(Deftly, Default)]
     #[derive_deftly(Object)]
     #[deftly(rpc(delegate_with = "|cage: &Self| Some(cage.possum.clone())"))]
     #[deftly(rpc(delegate_type = "Opossum"))]
     struct PossumCage {
         possum: Arc<Opossum>,
     }
+
+    // #[allow(unused)] isn't effective for `make_cast_table` because the d-d macro doesn't
+    // pass it through.  We don't want to add #[allow(unused)] in the macro, because (I think)
+    // `make_cast_table` being unused is indeed telling us that we haven't registered any
+    // method impls for this object.
+    const _: fn() = || {
+        // closure gives us a non-context in which to call ::default()
+        let _: &dyn Object = &PossumCage::default();
+    };
 }
