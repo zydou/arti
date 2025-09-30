@@ -9,7 +9,7 @@ use ssh_key::{
 };
 use tor_error::internal;
 use tor_llcrypto::{
-    pk::{curve25519, ed25519},
+    pk::{curve25519, ed25519, rsa},
     rng::EntropicRng,
 };
 
@@ -347,5 +347,53 @@ impl ItemType for crate::ParsedEd25519Cert {
 impl EncodableItem for crate::EncodedEd25519Cert {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         Ok(CertData::TorEd25519Cert(self.clone()).into())
+    }
+}
+
+impl Keygen for rsa::KeyPair {
+    fn generate(mut rng: &mut dyn KeygenRng) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(rsa::KeyPair::generate(&mut rng)?)
+    }
+}
+
+impl ItemType for rsa::KeyPair {
+    fn item_type() -> KeystoreItemType
+    where
+        Self: Sized,
+    {
+        KeyType::RsaKeypair.into()
+    }
+}
+
+impl EncodableItem for rsa::KeyPair {
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
+        let keypair = self.as_key().try_into().map_err(tor_error::into_internal!(
+            "Error converting rsa::PrivateKey into ssh_key::private::RsaKeypair."
+        ))?;
+
+        SshKeyData::try_from_keypair_data(KeypairData::Rsa(keypair)).map(KeystoreItem::from)
+    }
+}
+
+impl ItemType for rsa::PublicKey {
+    fn item_type() -> KeystoreItemType
+    where
+        Self: Sized,
+    {
+        KeyType::RsaPublicKey.into()
+    }
+}
+
+impl EncodableItem for rsa::PublicKey {
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
+        let key_data = self.as_key().try_into().map_err(tor_error::into_internal!(
+            "Error converting rsa::PublicKey into ssh_key::public::rsa::RsaPublicKey."
+        ))?;
+
+        SshKeyData::try_from_key_data(ssh_key::public::KeyData::Rsa(key_data))
+            .map(KeystoreItem::from)
     }
 }
