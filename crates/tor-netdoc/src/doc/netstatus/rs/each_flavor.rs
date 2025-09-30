@@ -12,8 +12,6 @@
 
 use super::*;
 
-// TODO: These methods should probably become, in whole or in part,
-// methods on the RouterStatus trait.
 impl RouterStatus {
     /// Return an iterator of ORPort addresses for this routerstatus
     pub fn addrs(&self) -> impl Iterator<Item = net::SocketAddr> {
