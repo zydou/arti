@@ -501,15 +501,6 @@ restricted_msg! {
     }
 }
 
-#[cfg(feature = "hs-service")]
-restricted_msg! {
-    /// An allowable incoming message on an incoming data stream.
-    enum IncomingDataStreamMsg:RelayMsg {
-        // SENDME is handled by the reactor.
-        Data, End,
-    }
-}
-
 // TODO RPC: Should we also implement this trait for everything that holds a
 // ClientDataStreamCtrl?
 #[cfg(feature = "stream-ctrl")]
@@ -1257,44 +1248,5 @@ impl DataCmdChecker {
     /// constructed connection.
     pub(crate) fn new_any() -> AnyCmdChecker {
         Box::<Self>::default()
-    }
-}
-
-/// A `CmdChecker` that enforces invariants for inbound data streams.
-#[derive(Debug, Default)]
-#[cfg(feature = "hs-service")]
-pub(crate) struct IncomingDataCmdChecker;
-
-#[cfg(feature = "hs-service")]
-impl CmdChecker for IncomingDataCmdChecker {
-    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
-        use StreamStatus::*;
-        match msg.cmd() {
-            RelayCmd::DATA => Ok(Open),
-            RelayCmd::END => Ok(Closed),
-            _ => Err(Error::StreamProto(format!(
-                "Unexpected {} on an incoming data stream!",
-                msg.cmd()
-            ))),
-        }
-    }
-
-    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayMsg) -> Result<()> {
-        let _ = msg
-            .decode::<IncomingDataStreamMsg>()
-            .map_err(|err| Error::from_bytes_err(err, "cell on half-closed stream"))?;
-        Ok(())
-    }
-}
-
-#[cfg(feature = "hs-service")]
-impl IncomingDataCmdChecker {
-    /// Return a new boxed `DataCmdChecker` in a state suitable for a
-    /// connection where an initial CONNECTED cell is not expected.
-    ///
-    /// This is used by hidden services, exit relays, and directory servers
-    /// to accept streams.
-    pub(crate) fn new_connected() -> AnyCmdChecker {
-        Box::new(Self)
     }
 }

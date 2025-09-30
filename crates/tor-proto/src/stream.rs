@@ -5,3 +5,6 @@
 
 pub(crate) mod cmdcheck;
 pub(crate) mod flow_ctrl;
+
+#[cfg(any(feature = "hs-service", feature = "relay"))]
+pub(crate) mod incoming;
