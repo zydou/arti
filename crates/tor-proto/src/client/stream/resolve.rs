@@ -2,8 +2,8 @@
 
 use crate::client::stream::StreamReceiver;
 use crate::memquota::StreamAccount;
-use crate::{Error, Result};
 use crate::stream::cmdcheck::AnyCmdChecker;
+use crate::{Error, Result};
 
 use futures::StreamExt;
 use tor_cell::relaycell::RelayCmd;

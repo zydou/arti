@@ -4,8 +4,8 @@
 //! we might still receive some cells.
 
 use crate::Result;
-use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::congestion::sendme::{StreamRecvWindow, cmd_counts_towards_windows};
+use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 

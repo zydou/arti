@@ -24,13 +24,12 @@ pub use crate::client::circuit::padding::{
 };
 use crate::client::stream::queue::stream_queue;
 use crate::client::stream::{
-    DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
-    StreamReceiver,
+    DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters, StreamReceiver,
 };
-use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::util::notify::NotifySender;

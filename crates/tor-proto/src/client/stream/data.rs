@@ -35,6 +35,7 @@ use educe::Educe;
 use crate::client::stream::StreamReceiver;
 use crate::client::{ClientTunnel, StreamTarget};
 use crate::memquota::StreamAccount;
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
@@ -43,7 +44,6 @@ use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
-use crate::stream::cmdcheck::AnyCmdChecker;
 
 /// A stream of [`RateLimitedWriterConfig`] used to update a [`DynamicRateLimitedWriter`].
 ///
