@@ -52,6 +52,8 @@ use tor_dircommon::{
     config::{DirTolerance, DownloadScheduleConfig},
 };
 
+mod operation;
+
 /// Core data type of a directory mirror.
 ///
 /// # External Notes

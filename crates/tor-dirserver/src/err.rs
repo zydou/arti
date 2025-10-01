@@ -1,8 +1,35 @@
 //! Error module for `tor-dirserver`.
 
+use std::time::{Duration, SystemTime};
+
 use deadpool::managed::PoolError;
 use thiserror::Error;
 use void::Void;
+
+/// An error while selecting a consensus from a database.
+///
+/// This error may be returned by all functions requiring to select a consensus
+/// from a database.
+#[derive(Debug, Error)]
+pub(crate) enum ConsensusSelectionError {
+    /// An arithmetic operation on a [`SystemTime`] has failed.
+    ///
+    /// These errors are highly unlikely and probably only possible when providing
+    /// a very weird [`SystemTime`], such as anything before the epoch.
+    #[error("cannot perform time artihmetic: {time:?} ± {duration:?}: {reason}")]
+    TimeArithmetic {
+        /// The [`SystemTime`] on which the artihmetic operation has been performed.
+        time: SystemTime,
+        /// The [`Duration`] that has been either added or subtracted from `time`.
+        duration: Duration,
+        /// The actual reason why this failed.
+        reason: String,
+    },
+
+    /// See [`DatabaseError::LowLevel`].
+    #[error("database error: {0}")]
+    Database(#[from] DatabaseError),
+}
 
 /// An error while interacting with a database.
 ///
