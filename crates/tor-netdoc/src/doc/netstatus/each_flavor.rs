@@ -25,30 +25,21 @@ ns_use_this_variety! {
 ///
 /// TODO: This should possibly turn into a parameterized type, to represent
 /// votes and ns consensuses.
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Consensus {
     /// Part of the header shared by all consensus types.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) header: Header,
+    pub header: Header,
     /// List of voters whose votes contributed to this consensus.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) voters: Vec<ConsensusVoterInfo>,
+    pub voters: Vec<ConsensusVoterInfo>,
     /// A list of routerstatus entries for the relays on the network,
     /// with one entry per relay.
     ///
     /// These are currently ordered by the router's RSA identity, but this is not
     /// to be relied on, since we may want to even abolish RSA at some point!
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) relays: Vec<RouterStatus>,
+    pub relays: Vec<RouterStatus>,
     /// Footer for the consensus object.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    pub(crate) footer: Footer,
+    pub footer: Footer,
 }
 
 impl Consensus {
@@ -430,26 +421,19 @@ impl Header {
 /// check_signature() on that result with the set of certs that you
 /// have.  Make sure only to provide authority certificates representing
 /// real authorities!
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    non_exhaustive
-)]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct UnvalidatedConsensus {
     /// The consensus object. We don't want to expose this until it's
     /// validated.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    consensus: Consensus,
+    pub consensus: Consensus,
     /// The signatures that need to be validated before we can call
     /// this consensus valid.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    siggroup: SignatureGroup,
+    pub siggroup: SignatureGroup,
     /// The total number of authorities that we believe in.  We need
     /// this information in order to validate the signatures, since it
     /// determines how many signatures we need to find valid in `siggroup`.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    n_authorities: Option<u16>,
+    pub n_authorities: Option<u16>,
 }
 
 impl UnvalidatedConsensus {

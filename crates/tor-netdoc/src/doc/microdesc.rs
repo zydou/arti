@@ -56,39 +56,27 @@ pub struct MicrodescAnnotation {
 pub type MdDigest = [u8; DOC_DIGEST_LEN];
 
 /// A single microdescriptor.
-#[allow(dead_code)]
-#[cfg_attr(
-    feature = "dangerous-expose-struct-fields",
-    visible::StructFields(pub),
-    non_exhaustive
-)]
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Microdesc {
     /// The SHA256 digest of the text of this microdescriptor.  This
     /// value is used to identify the microdescriptor when downloading
     /// it, and when listing it in a consensus document.
     // TODO: maybe this belongs somewhere else. Once it's used to store
     // correlate the microdesc to a consensus, it's never used again.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    sha256: MdDigest,
+    pub sha256: MdDigest,
     /// Public key used for the ntor circuit extension protocol.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    ntor_onion_key: curve25519::PublicKey,
+    pub ntor_onion_key: curve25519::PublicKey,
     /// Declared family for this relay.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    family: Arc<RelayFamily>,
+    pub family: Arc<RelayFamily>,
     /// List of IPv4 ports to which this relay will exit
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    ipv4_policy: Arc<PortPolicy>,
+    pub ipv4_policy: Arc<PortPolicy>,
     /// List of IPv6 ports to which this relay will exit
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    ipv6_policy: Arc<PortPolicy>,
+    pub ipv6_policy: Arc<PortPolicy>,
     /// Ed25519 identity for this relay
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    ed25519_id: ed25519::Ed25519Identity,
+    pub ed25519_id: ed25519::Ed25519Identity,
     /// Family identities for this relay.
-    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    family_ids: Vec<RelayFamilyId>,
+    pub family_ids: Vec<RelayFamilyId>,
     // addr is obsolete and doesn't go here any more
     // pr is obsolete and doesn't go here any more.
     // The legacy "tap" onion-key is obsolete, and though we parse it, we don't

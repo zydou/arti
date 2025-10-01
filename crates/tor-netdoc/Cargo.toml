@@ -84,16 +84,8 @@ hs-pow-full = ["tor-hscrypto/hs-pow-full", "__is_experimental"]
 # feature voids your "semver warrantee".
 experimental-api = ["testing", "__is_experimental"]
 
-# Expose various struct fields as "pub", for testing.
-#
-# This feature is *super* dangerous for stability and correctness. If you use it
-# for anything besides testing, you are probably putting your users in danger.
-#
-# The struct fields exposed by this feature are not covered by semantic version.
-# In fact, using this feature will give you the opposite of a "semver
-# guarantee": you should be mildly surprised when your code _doesn't_ break from
-# version to version.
-dangerous-expose-struct-fields = ["visible", "visibility", "__is_experimental"]
+# Obsolete cargo feature.  The items exposed by this are now exposed by default.
+dangerous-expose-struct-fields = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
