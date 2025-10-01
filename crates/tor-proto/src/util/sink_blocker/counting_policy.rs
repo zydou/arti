@@ -121,6 +121,11 @@ impl<S> super::SinkBlocker<S, CountingPolicy> {
         // This is the permitted way to make a SinkBlocker unblocked.
         self.update_policy(self.policy.saturating_add(n));
     }
+
+    /// Return true if there is no limit on this policy.
+    pub(crate) fn is_unlimited(&self) -> bool {
+        self.policy.remaining.is_none()
+    }
 }
 
 #[cfg(test)]

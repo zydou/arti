@@ -633,6 +633,7 @@ impl Channel {
             padding_timer,
             padding_ctrl,
             padding_event_stream,
+            padding_blocker: None,
             special_outgoing: Default::default(),
         };
 

@@ -8,7 +8,9 @@
 
 use super::circmap::{CircEnt, CircMap};
 use crate::client::circuit::halfcirc::HalfCirc;
-use crate::client::circuit::padding::{PaddingController, PaddingEventStream, SendPadding};
+use crate::client::circuit::padding::{
+    PaddingController, PaddingEvent, PaddingEventStream, SendPadding, StartBlocking,
+};
 use crate::util::err::ReactorError;
 use crate::util::oneshot_broadcast;
 use crate::{Error, HopNum, Result};
@@ -162,8 +164,9 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// An event stream telling us about padding-related events.
     ///
     /// (This is used for experimental maybenot-based padding.)
-    #[expect(dead_code)]
     pub(super) padding_event_stream: PaddingEventStream<DynTimeProvider>,
+    /// If present, the current rules for blocking the output based on the padding framework.
+    pub(super) padding_blocker: Option<StartBlocking>,
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
@@ -317,6 +320,11 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 self.handle_control(ctrl).await?;
             }
 
+            ret = self.padding_event_stream.next() => {
+                let event = ret.ok_or_else(|| Error::from(internal!("Padding event stream was exhausted")))?;
+                self.handle_padding_event(event).await?;
+            }
+
             ret = self.input.next() => {
                 let item = ret
                     .ok_or(ReactorError::Shutdown)??;
@@ -399,6 +407,37 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 }
             }
             CtrlMsg::KistConfigUpdate(kist) => self.apply_kist_params(&kist),
+        }
+        Ok(())
+    }
+
+    /// Take the action described in `action`.
+    ///
+    /// (With circuit padding disabled, PaddingEvent can't be constructed.)
+    #[cfg(not(feature = "circ-padding"))]
+    async fn handle_padding_event(&mut self, action: PaddingEvent) -> Result<()> {
+        void::unreachable(action.0)
+    }
+
+    /// Take the action described in `action`.
+    #[cfg(feature = "circ-padding")]
+    async fn handle_padding_event(&mut self, action: PaddingEvent) -> Result<()> {
+        use PaddingEvent as PE;
+        match action {
+            PE::SendPadding(send_padding) => {
+                // XXXX implement this
+                let _ = send_padding;
+                unimplemented!()
+            }
+            PE::StartBlocking(start_blocking) => {
+                if self.output.is_unlimited() {
+                    self.output.set_blocked();
+                }
+                self.padding_blocker = Some(start_blocking);
+            }
+            PE::StopBlocking => {
+                self.output.set_unlimited();
+            }
         }
         Ok(())
     }

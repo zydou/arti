@@ -8,7 +8,7 @@ mod boolean_policy;
 // It was once used to make an inner queue blocker
 // bypassable one cell at a time.
 // See discussion in cell_sender.rs
-#[expect(dead_code)]
+#[expect(dead_code)] // XXXX remove this.
 mod counting_policy;
 
 pub(crate) use boolean_policy::BooleanPolicy;
