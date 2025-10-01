@@ -13,7 +13,6 @@ mod cmdcheck;
 #[cfg(feature = "stream-ctrl")]
 mod ctrl;
 mod data;
-pub(crate) mod flow_ctrl;
 #[cfg(feature = "hs-service")]
 mod incoming;
 mod params;

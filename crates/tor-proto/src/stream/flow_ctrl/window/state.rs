@@ -4,12 +4,12 @@ use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
-use crate::client::stream::flow_ctrl::state::FlowCtrlHooks;
+use crate::stream::flow_ctrl::state::FlowCtrlHooks;
 use crate::congestion::sendme::{self, StreamSendWindow};
 use crate::{Error, Result};
 
 #[cfg(doc)]
-use crate::client::stream::flow_ctrl::state::StreamFlowCtrl;
+use crate::stream::flow_ctrl::state::StreamFlowCtrl;
 
 /// State for window-based flow control.
 #[derive(Debug)]

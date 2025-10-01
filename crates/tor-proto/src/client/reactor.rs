@@ -27,8 +27,8 @@ use crate::client::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
 use crate::client::stream::AnyCmdChecker;
-use crate::client::stream::flow_ctrl::state::StreamRateLimit;
-use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
+use crate::stream::flow_ctrl::state::StreamRateLimit;
+use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::client::stream::queue::StreamQueueReceiver;
 #[cfg(feature = "hs-service")]
 use crate::client::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};

@@ -53,7 +53,7 @@ use crate::client::CircuitPadder;
 use crate::client::circuit::celltypes::*;
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
-use crate::client::stream::flow_ctrl::params::FlowCtrlParameters;
+use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::congestion::params::CongestionControlParams;
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;

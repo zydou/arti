@@ -22,8 +22,8 @@ use crate::circuit::UniqId;
 pub use crate::client::circuit::padding::{
     CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError,
 };
-use crate::client::stream::flow_ctrl::state::StreamRateLimit;
-use crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
+use crate::stream::flow_ctrl::state::StreamRateLimit;
+use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::client::stream::queue::stream_queue;
 use crate::client::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
