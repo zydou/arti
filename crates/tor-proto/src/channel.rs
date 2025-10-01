@@ -610,6 +610,13 @@ impl Channel {
         // We start disabled; the channel manager will `reconfigure` us soon after creation.
         let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov.clone(), None)?);
 
+        cfg_if! {
+            if #[cfg(feature = "circ-padding")] {
+                use crate::util::sink_blocker::{SinkBlocker,CountingPolicy};
+                let sink = SinkBlocker::new(sink, CountingPolicy::new_unlimited());
+            }
+        }
+
         let reactor = Reactor {
             runtime: sleep_prov,
             control: control_rx,

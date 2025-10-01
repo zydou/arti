@@ -53,6 +53,17 @@ pub(super) type BoxedChannelStreamOps = Box<dyn StreamOps + Send + Unpin + 'stat
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
+cfg_if::cfg_if! {
+    if #[cfg(feature = "circ-padding")] {
+        use crate::util::sink_blocker::{SinkBlocker, CountingPolicy};
+        /// Type used by a channel reactor to send cells to the network.
+        pub(super) type ChannelOutputSink = SinkBlocker<BoxedChannelSink, CountingPolicy>;
+    } else {
+        /// Type used by a channel reactor to send cells to the network.
+        pub(super) type ChannelOutputSink = BoxedChannelSink;
+    }
+}
+
 /// A message telling the channel reactor to do something.
 #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #[derive(Debug)]
@@ -119,7 +130,7 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// A Sink to which we can write `ChanCell`s.
     ///
     /// This should also be backed by a TLS connection if you want it to be secure.
-    pub(super) output: BoxedChannelSink,
+    pub(super) output: ChannelOutputSink,
     /// A handler for setting stream options on the underlying stream.
     #[cfg_attr(not(target_os = "linux"), allow(unused))]
     pub(super) streamops: BoxedChannelStreamOps,

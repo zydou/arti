@@ -12,6 +12,7 @@ mod boolean_policy;
 mod counting_policy;
 
 pub(crate) use boolean_policy::BooleanPolicy;
+pub(crate) use counting_policy::CountingPolicy;
 
 use std::{
     pin::Pin,
