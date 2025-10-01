@@ -159,7 +159,9 @@ impl CircuitCellSender {
     pub(super) async fn send_unbounded(&mut self, entry: ChanCellQueueEntry) -> crate::Result<()> {
         Pin::new(self.sometimes_unbounded_mut())
             .send_unbounded(entry)
-            .await
+            .await?;
+        self.chan_sender().note_cell_queued();
+        Ok(())
     }
 
     /// Return the time provider used by the underlying channel sender
@@ -283,8 +285,10 @@ impl Sink<ChanCellQueueEntry> for CircuitCellSender {
         self.project().sink.poll_ready(cx)
     }
 
-    fn start_send(self: Pin<&mut Self>, item: ChanCellQueueEntry) -> Result<(), Self::Error> {
-        self.project().sink.start_send(item)
+    fn start_send(mut self: Pin<&mut Self>, item: ChanCellQueueEntry) -> Result<(), Self::Error> {
+        self.as_mut().project().sink.start_send(item)?;
+        self.chan_sender().note_cell_queued();
+        Ok(())
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {

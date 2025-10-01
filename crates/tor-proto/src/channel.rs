@@ -375,7 +375,6 @@ pub(crate) struct ChannelSender {
     unique_id: UniqId,
     /// Padding controller for this channel:
     /// used to report when we queue data that will eventually wind up on the channel.
-    #[expect(dead_code)]
     padding_ctrl: PaddingController,
 }
 
@@ -427,6 +426,13 @@ impl ChannelSender {
     #[cfg(feature = "circ-padding")]
     pub(crate) fn approx_count(&self) -> usize {
         self.cell_tx.approx_count()
+    }
+
+    /// Note that a cell has been queued that will eventually be placed onto this sender.
+    ///
+    /// We use this as an input for padding machines.
+    pub(crate) fn note_cell_queued(&self) {
+        self.padding_ctrl.queued_data(crate::HopNum::from(0));
     }
 }
 
