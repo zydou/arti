@@ -489,10 +489,20 @@ From the point of view of the "replace" flag,
 we treat our outbound queue as having a message already
 if there are any data cells in the TLS framing queue.
 
+The Tor protocol already has a simple channel padding mechanism,
+used to resist netflow-based adversaries.
+Since this padding is not created by a padding machine,
+we treat its outgoing PADDING cells as _normal_ cells
+(from maybenot's point of view).
+We treat all incoming PADDING or VPADDING cells as received padding cells
+(from maybenot's point of view).
+
+
 Other differences from circuit padding are as follows:
 
 - For channel-level blocking, we _do_ support the padding "replace" flag
   fully.  If real data is waiting, we'll package it.
+- PADDING and VPADDING cells are always allowed.
 - Channel-level blocking does not make any exception for different cell types.
 - Channel-level blocking is treated as opaque from the point of view of
   congestion control: if it makes the MPSC channel look full,
