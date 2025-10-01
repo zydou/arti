@@ -109,7 +109,7 @@ release?" above.
    they will tell you about things that we tried to upgrade in the past,
    but weren't able to upgrade.  (This might save you some headaches.)
 
-   [Upgrade Blocker]: https://gitlab.torproject.org/tpo/core/arti/-/issues/&state=opened&label_name[]=Upgrade%20Blocker
+   [Upgrade Blocker]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?sort=created_date&state=opened&label_name%5B%5D=Upgrade%20Blocker
 
    Then, upgrade these dependencies.
    Note that in some cases, this will be nontrivial:
