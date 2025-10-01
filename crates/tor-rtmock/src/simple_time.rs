@@ -63,9 +63,9 @@ pub struct SleepFuture {
 ///
 /// Each sleep ([`Id`], [`SleepFuture`]) is in one of the following states:
 ///
-/// | state       | [`SleepFuture`]  | `futures`         | `unready`          |
+/// | state       | [`SleepFuture`]  | `futures`        | `unready`          |
 /// |-------------|------------------|------------------|--------------------|
-/// | UNPOLLLED   | exists           | present, `None`  | present, `> now`   |
+/// | UNPOLLED    | exists           | present, `None`  | present, `> now`   |
 /// | WAITING     | exists           | present, `Some`  | present, `> now`   |
 /// | READY       | exists           | present, `None`  | absent             |
 /// | DROPPED     | dropped          | absent           | absent             |
@@ -208,7 +208,7 @@ impl SleepProvider for Provider {
             prov: self.clone(),
         };
 
-        // This sleep is now UNPOLLLED, except that its time might be `<= now`:
+        // This sleep is now UNPOLLED, except that its time might be `<= now`:
 
         // Possibly, `until` isn't *strictly* after than `state.now`, since d might be 0.
         // If so, .wake_any() will restore the invariant by immediately waking.
