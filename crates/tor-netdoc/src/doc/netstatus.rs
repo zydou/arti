@@ -1322,8 +1322,8 @@ mod test {
         assert!(!pv.supports_subver("HSDir", 3));
         let ip4 = "127.0.0.1:5002".parse::<SocketAddr>().unwrap();
         let ip6 = "[::1]:5002".parse::<SocketAddr>().unwrap();
-        assert!(r0.orport_addrs().any(|a| a == &ip4));
-        assert!(r0.orport_addrs().any(|a| a == &ip6));
+        assert!(r0.addrs().any(|a| a == ip4));
+        assert!(r0.addrs().any(|a| a == ip6));
 
         Ok(())
     }

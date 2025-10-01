@@ -909,7 +909,7 @@ impl PartialNetDir {
                 .c_relays()
                 .iter()
                 .map(|rs| {
-                    db.lookup_country_code_multi(rs.addrs().iter().map(|x| x.ip()))
+                    db.lookup_country_code_multi(rs.addrs().map(|x| x.ip()))
                         .cloned()
                 })
                 .collect()
@@ -2102,7 +2102,7 @@ pub enum RelayLookupError {
 
 impl<'a> HasAddrs for Relay<'a> {
     fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
-        self.rs.addrs().iter().copied()
+        self.rs.addrs()
     }
 }
 #[cfg(feature = "geoip")]

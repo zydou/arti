@@ -16,16 +16,12 @@ use super::*;
 // methods on the RouterStatus trait.
 impl RouterStatus {
     /// Return an iterator of ORPort addresses for this routerstatus
-    pub fn orport_addrs(&self) -> impl Iterator<Item = &net::SocketAddr> {
-        self.addrs().iter()
+    pub fn addrs(&self) -> impl Iterator<Item = net::SocketAddr> {
+        self.addrs.iter().copied()
     }
     /// Return the declared weight of this routerstatus in the directory.
     pub fn weight(&self) -> &RelayWeight {
         &self.weight
-    }
-    /// Return the ORPort addresses of this routerstatus
-    pub fn addrs(&self) -> &[net::SocketAddr] {
-        &self.addrs[..]
     }
     /// Return the protovers that this routerstatus says it implements.
     pub fn protovers(&self) -> &Protocols {
