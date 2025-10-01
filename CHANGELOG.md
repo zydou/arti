@@ -21,7 +21,7 @@ which are documented below.
 
 ### Breaking changes
 
-* Increased MSRV from 1.85 to 1.85.1 ([!3240])
+* Arti now required Rust 1.85.1 or later. ([!3240])
 
 ### Security fixes
 
