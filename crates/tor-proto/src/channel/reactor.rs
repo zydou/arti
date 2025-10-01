@@ -143,12 +143,16 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// A padding controller to which padding-related events should be reported.
     ///
     /// (This is used for experimental maybenot-based padding.)
-    pub(super) padding_ctrl: PaddingController,
+    //
+    // TODO: It would be good to use S here instead of DynTimeProvider,
+    // but we still need the latter for the clones of padding_ctrl that we hand out
+    // inside ChannelSender.
+    pub(super) padding_ctrl: PaddingController<DynTimeProvider>,
     /// An event stream telling us about padding-related events.
     ///
     /// (This is used for experimental maybenot-based padding.)
     #[expect(dead_code)]
-    pub(super) padding_event_stream: PaddingEventStream,
+    pub(super) padding_event_stream: PaddingEventStream<DynTimeProvider>,
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
