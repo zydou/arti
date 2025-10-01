@@ -45,7 +45,6 @@ full = [
     "arti-rpcserver?/full",
     "fs-mistrust/full",
     "rpc",
-    "opentelemetry",
     "safelog/full",
     "tor-config/full",
     "tor-error/full",
@@ -137,7 +136,7 @@ experimental = [
     "ctor-keystore",
     "onion-service-cli-extra",
     "flowctl-cc",
-    "counter-galois-onion",
+    "counter-galois-onion", "opentelemetry",
 ]
 metrics = [
     "dep:metrics-exporter-prometheus",

@@ -41,6 +41,7 @@ full = [
     "oneshot-fused-workaround/full",
     "tor-memquota/full",
     "tor-units/full",
+    "tor-dircommon/full",
 ]
 specific-relay = []
 vanguards = ["tor-guardmgr/vanguards"]
