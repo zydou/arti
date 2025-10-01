@@ -4,8 +4,8 @@ use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
-use crate::stream::flow_ctrl::state::FlowCtrlHooks;
 use crate::congestion::sendme::{self, StreamSendWindow};
+use crate::stream::flow_ctrl::state::FlowCtrlHooks;
 use crate::{Error, Result};
 
 #[cfg(doc)]

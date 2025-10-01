@@ -18,8 +18,6 @@ use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver
 use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
-use crate::stream::flow_ctrl::state::StreamRateLimit;
-use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::client::stream::queue::{StreamQueueSender, stream_queue};
 use crate::client::stream::{AnyCmdChecker, StreamStatus};
 use crate::client::streammap;
@@ -35,6 +33,8 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
+use crate::stream::flow_ctrl::state::StreamRateLimit;
+use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
