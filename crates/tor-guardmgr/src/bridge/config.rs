@@ -112,7 +112,7 @@ impl HasChanMethod for BridgeConfig {
 }
 
 impl HasAddrs for BridgeConfig {
-    fn addrs(&self) -> &[SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
         self.0.addrs.addrs()
     }
 }

@@ -55,6 +55,7 @@
 
 use futures::channel::mpsc;
 use futures::task::SpawnExt;
+use itertools::Either;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -1760,10 +1761,10 @@ impl FirstHop {
 
 // This is somewhat redundant with the implementations in crate::guard::Guard.
 impl tor_linkspec::HasAddrs for FirstHop {
-    fn addrs(&self) -> &[SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
         match &self.inner {
-            FirstHopInner::Chan(ct) => ct.addrs(),
-            FirstHopInner::Circ(ct) => ct.addrs(),
+            FirstHopInner::Chan(ct) => Either::Left(ct.addrs()),
+            FirstHopInner::Circ(ct) => Either::Right(ct.addrs()),
         }
     }
 }
@@ -2095,7 +2096,7 @@ mod test {
             guardmgr.install_test_netdir(&netdir);
             let (guard, _mon, _usable) = guardmgr.select_guard(u).unwrap();
             // Make sure that the filter worked.
-            let addr = guard.addrs()[0];
+            let addr = guard.addrs().next().unwrap();
             assert_eq!(addr, "2.0.0.3:9001".parse().unwrap());
         });
     }

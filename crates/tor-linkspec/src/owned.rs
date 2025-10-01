@@ -129,8 +129,8 @@ impl OwnedChanTargetBuilder {
 }
 
 impl HasAddrs for OwnedChanTarget {
-    fn addrs(&self) -> &[SocketAddr] {
-        &self.addrs[..]
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
+        self.addrs.iter().copied()
     }
 }
 
@@ -155,7 +155,7 @@ impl OwnedChanTarget {
         C: ChanTarget + ?Sized,
     {
         OwnedChanTarget {
-            addrs: target.addrs().to_vec(),
+            addrs: target.addrs().collect(),
             method: target.chan_method(),
             ids: RelayIds::from_relay_ids(target),
         }
@@ -227,7 +227,7 @@ impl OwnedCircTarget {
 }
 
 impl HasAddrs for OwnedCircTarget {
-    fn addrs(&self) -> &[SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
         self.chan_target.addrs()
     }
 }
@@ -299,6 +299,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use itertools::Itertools;
 
     #[test]
     #[allow(clippy::redundant_clone)]
@@ -311,7 +312,7 @@ mod test {
             .unwrap();
 
         let ti2 = OwnedChanTarget::from_chan_target(&ti);
-        assert_eq!(ti.addrs(), ti2.addrs());
+        assert_eq!(ti.addrs().collect_vec(), ti2.addrs().collect_vec());
         assert!(ti.same_relay_ids(&ti2));
 
         assert_eq!(format!("{:?}", ti), format!("{:?}", ti2));
@@ -334,7 +335,7 @@ mod test {
             .unwrap();
         let ch = ct.chan_target.clone();
 
-        assert_eq!(ct.addrs(), ch.addrs());
+        assert_eq!(ct.addrs().collect_vec(), ch.addrs().collect_vec());
         assert!(ct.same_relay_ids(&ch));
         assert_eq!(ct.ntor_onion_key().as_bytes(), &[99; 32]);
         assert_eq!(&ct.protovers().to_string(), "FlowCtrl=7");

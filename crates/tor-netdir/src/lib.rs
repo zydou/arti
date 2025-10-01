@@ -225,9 +225,8 @@ impl SubnetConfig {
         T: tor_linkspec::HasAddrs,
         U: tor_linkspec::HasAddrs,
     {
-        a.addrs().iter().any(|aa| {
+        a.addrs().any(|aa| {
             b.addrs()
-                .iter()
                 .any(|bb| self.addrs_in_same_subnet(&aa.ip(), &bb.ip()))
         })
     }
@@ -2102,8 +2101,8 @@ pub enum RelayLookupError {
 }
 
 impl<'a> HasAddrs for Relay<'a> {
-    fn addrs(&self) -> &[std::net::SocketAddr] {
-        self.rs.addrs()
+    fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
+        self.rs.addrs().iter().copied()
     }
 }
 #[cfg(feature = "geoip")]

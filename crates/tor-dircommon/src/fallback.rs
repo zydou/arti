@@ -141,8 +141,8 @@ pub(crate) fn default_fallbacks() -> Vec<FallbackDirBuilder> {
 }
 
 impl tor_linkspec::HasAddrs for FallbackDir {
-    fn addrs(&self) -> &[SocketAddr] {
-        &self.orports[..]
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
+        self.orports.iter().copied()
     }
 }
 impl tor_linkspec::HasRelayIdsLegacy for FallbackDir {

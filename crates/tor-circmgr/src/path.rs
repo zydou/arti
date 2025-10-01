@@ -19,6 +19,7 @@ pub(crate) mod hspath;
 use std::result::Result as StdResult;
 use std::time::SystemTime;
 
+use itertools::Either;
 use rand::Rng;
 
 use tor_dircommon::fallback::FallbackDir;
@@ -102,10 +103,10 @@ impl<'a> From<Relay<'a>> for MaybeOwnedRelay<'a> {
     }
 }
 impl<'a> HasAddrs for MaybeOwnedRelay<'a> {
-    fn addrs(&self) -> &[std::net::SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
         match self {
-            MaybeOwnedRelay::Relay(r) => r.addrs(),
-            MaybeOwnedRelay::Owned(r) => r.addrs(),
+            MaybeOwnedRelay::Relay(r) => Either::Left(r.addrs()),
+            MaybeOwnedRelay::Owned(r) => Either::Right(r.addrs()),
         }
     }
 }
