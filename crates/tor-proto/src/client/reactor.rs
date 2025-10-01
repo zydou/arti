@@ -7,9 +7,10 @@
 //! 1. Is the message contextually appropriate? (e.g., no more than one
 //!    `CONNECTED` message per stream.) This is handled by calling
 //!    [`CmdChecker::check_msg`](crate::client::stream::CmdChecker::check_msg).
-//! 2. Does the message comply with flow-control rules? (e.g., no more data than
-//!    we've gotten SENDMEs for.) For open streams, the stream itself handles
-//!    this; for half-closed streams, the reactor handles it using the
+//! 2. Does the message comply with flow-control rules? (e.g., no more SENDMEs
+//!    than we've sent data for.) This is handled within the reactor by the
+//!    `StreamFlowCtrl`. For half-closed streams which don't send stream
+//!    SENDMEs, an additional receive-window check is performed in the
 //!    `halfstream` module.
 //! 3. Does the message have an acceptable command type, and is the message
 //!    well-formed? For open streams, the streams themselves handle this check.
