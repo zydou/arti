@@ -596,6 +596,12 @@ impl<S: SleepProvider> PaddingController<S> {
         shared.trigger_events(info.target_hop, &[maybenot::TriggerEvent::TunnelSent]);
     }
 
+    /// Report that we've flushed a cell from the per-channel queue.
+    pub(crate) fn flushed_channel_cell(&self) {
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events(HopNum::from(0), &[maybenot::TriggerEvent::TunnelSent]);
+    }
+
     /// Report that we have decrypted a non-padding cell from our queue
     /// from a given hop.
     ///

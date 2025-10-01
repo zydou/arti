@@ -8,13 +8,13 @@
 
 use super::circmap::{CircEnt, CircMap};
 use crate::client::circuit::halfcirc::HalfCirc;
-use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
+use crate::client::circuit::padding::{PaddingController, PaddingEventStream, SendPadding};
 use crate::util::err::ReactorError;
 use crate::util::oneshot_broadcast;
-use crate::{Error, Result};
+use crate::{Error, HopNum, Result};
 use tor_async_utils::SinkPrepareExt as _;
 use tor_cell::chancell::ChanMsg;
-use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
+use tor_cell::chancell::msg::{Destroy, DestroyReason, Padding, PaddingNegotiate};
 use tor_cell::chancell::{AnyChanCell, CircId, msg::AnyChanMsg};
 use tor_error::debug_report;
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
@@ -143,7 +143,6 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// A padding controller to which padding-related events should be reported.
     ///
     /// (This is used for experimental maybenot-based padding.)
-    #[expect(dead_code)]
     pub(super) padding_ctrl: PaddingController,
     /// An event stream telling us about padding-related events.
     ///
@@ -158,8 +157,10 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
 /// Outgoing cells introduced at the channel reactor
 #[derive(Default, Debug, Clone)]
 pub(super) struct SpecialOutgoing {
-    /// If we must send a `PaddingNegotiate`
-    pub(super) padding_negotiate: Option<PaddingNegotiate>,
+    /// If we must send a `PaddingNegotiate`, this is present.
+    padding_negotiate: Option<PaddingNegotiate>,
+    /// A number of pending PADDING cells that we have to send, once there is space.
+    n_padding: u16,
 }
 
 impl SpecialOutgoing {
@@ -168,13 +169,24 @@ impl SpecialOutgoing {
     /// Called by the reactor before looking for cells from the reactor's clients.
     /// The returned message *must* be sent by the caller, not dropped!
     #[must_use = "SpecialOutgoing::next()'s return value must be actually sent"]
-    pub(super) fn next(&mut self) -> Option<AnyChanCell> {
+    fn next(&mut self) -> Option<AnyChanCell> {
         // If this gets more cases, consider making SpecialOutgoing into a #[repr(C)]
         // enum, so that we can fast-path the usual case of "no special message to send".
         if let Some(p) = self.padding_negotiate.take() {
             return Some(p.into());
         }
+        if self.n_padding > 0 {
+            self.n_padding -= 1;
+            return Some(Padding::new().into());
+        }
         None
+    }
+
+    /// Try to queue a padding cell to be sent.
+    #[expect(dead_code)]
+    fn queue_padding_cell(&mut self, padding_ctrl: &PaddingController, send_padding: SendPadding) {
+        padding_ctrl.queued_padding(HopNum::from(0), send_padding);
+        self.n_padding = self.n_padding.saturating_add(1);
     }
 }
 
@@ -257,10 +269,17 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                     },
                     p = self.padding_timer.as_mut().next() => {
                         // eprintln!("PADDING - SENDING PADDING: {:?}", &p);
+
+                        // Note that we treat padding from the padding_timer as a normal cell,
+                        // since it doesn't have a padding machine.
+                        self.padding_ctrl.queued_data(HopNum::from(0));
+
+                        self.padding_timer.as_mut().note_cell_sent();
                         Some((p.into(), None))
                     },
                 }
             }) => {
+                self.padding_ctrl.flushed_channel_cell();
                 let (queued, sendable) = ret?;
                 let (msg, cell_padding_info) = queued.ok_or(ReactorError::Shutdown)?;
                 // Tell the relevant circuit padder that this cell is getting flushed.
@@ -383,6 +402,15 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 msg.cmd(),
                 CircId::get_or_zero(circid)
             ),
+        }
+
+        // Report the message to the padding controller.
+        match msg {
+            Padding(_) | Vpadding(_) => {
+                // We always accept channel padding, even if we haven't negotiated any.
+                let _always_acceptable = self.padding_ctrl.decrypted_padding(HopNum::from(0));
+            }
+            _ => self.padding_ctrl.decrypted_data(HopNum::from(0)),
         }
 
         match msg {
