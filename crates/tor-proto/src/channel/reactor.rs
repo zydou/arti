@@ -123,7 +123,12 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// A handler for setting stream options on the underlying stream.
     #[cfg_attr(not(target_os = "linux"), allow(unused))]
     pub(super) streamops: BoxedChannelStreamOps,
-    /// Timer tracking when to generate channel padding
+    /// Timer tracking when to generate channel padding.
+    ///
+    /// Note that this is _distinct_ from the experimental maybenot-based padding
+    /// implemented with padding_ctrl and padding_stream.
+    /// This is the existing per-channel padding
+    /// in the tor protocol used to resist netflow attacks.
     pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
     /// Outgoing cells introduced at the channel reactor
     pub(super) special_outgoing: SpecialOutgoing,
@@ -135,6 +140,16 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     pub(super) details: Arc<ChannelDetails>,
     /// Context for allocating unique circuit log identifiers.
     pub(super) circ_unique_id_ctx: unique_id::CircUniqIdContext,
+    /// A padding controller to which padding-related events should be reported.
+    ///
+    /// (This is used for experimental maybenot-based padding.)
+    #[expect(dead_code)]
+    pub(super) padding_ctrl: PaddingController,
+    /// An event stream telling us about padding-related events.
+    ///
+    /// (This is used for experimental maybenot-based padding.)
+    #[expect(dead_code)]
+    pub(super) padding_event_stream: PaddingEventStream,
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,

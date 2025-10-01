@@ -588,6 +588,14 @@ impl Channel {
         // We start disabled; the channel manager will `reconfigure` us soon after creation.
         let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov.clone(), None)?);
 
+        // We might be using experimental maybenot padding; this creates the padding framework for that.
+        //
+        // TODO: This backend is currently optimized for circuit padding,
+        // so it might allocate a bit more than necessary to account for multiple hops.
+        // We should tune it when we deploy padding in production.
+        let (padding_ctrl, padding_event_stream) =
+            client::circuit::padding::new_padding(DynTimeProvider::new(sleep_prov.clone()));
+
         let reactor = Reactor {
             runtime: sleep_prov,
             control: control_rx,
@@ -602,6 +610,8 @@ impl Channel {
             unique_id,
             details,
             padding_timer,
+            padding_ctrl,
+            padding_event_stream,
             special_outgoing: Default::default(),
         };
 
