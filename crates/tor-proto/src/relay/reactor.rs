@@ -5,7 +5,6 @@ use crate::Result;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::memquota::CircuitAccount;
-use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 
 use tor_cell::chancell::CircId;
@@ -20,7 +19,6 @@ use tracing::trace;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 
-use crate::client::reactor::unwrap_or_shutdown;
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 
 /// A message telling the reactor to do something.
@@ -61,6 +59,8 @@ pub(crate) enum RelayCtrlCmd {
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub(crate) struct RelayReactor<T: HasRelayIds> {
+    /// An identifier for logging about this reactor's circuit.
+    unique_id: UniqId,
     /// Receiver for control messages for this reactor, sent by reactor handle objects.
     control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
     /// Receiver for command messages for this reactor, sent by reactor handle objects.
@@ -96,8 +96,6 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: oneshot::Sender<void::Void>,
-    /// An identifier for logging about this reactor.
-    tunnel_id: TunnelId,
     /// The time provider.
     runtime: DynTimeProvider,
 }
@@ -131,23 +129,20 @@ impl<T: HasRelayIds> RelayReactor<T> {
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T>>,
         memquota: CircuitAccount,
     ) -> (Self, RelayReactorHandle) {
-        let tunnel_id = TunnelId::next();
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
-        let unique_id = TunnelScopedCircId::new(tunnel_id, unique_id);
-
         let reactor = Self {
+            unique_id,
             control: control_rx,
             command: command_rx,
             chan_provider,
             outgoing_chan_tx,
             outgoing_chan_rx,
             reactor_closed_tx,
-            tunnel_id,
             runtime,
         };
 
@@ -167,7 +162,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
     /// used again.
     pub(crate) async fn run(mut self) -> Result<()> {
         trace!(
-            tunnel_id = %self.tunnel_id,
+            circ_id = %self.unique_id,
             "Running relay circuit reactor",
         );
 
@@ -183,8 +178,8 @@ impl<T: HasRelayIds> RelayReactor<T> {
         // May log at a higher level depending on the error kind.
         const MSG: &str = "Relay circuit reactor stopped";
         match &result {
-            Ok(()) => trace!("{}: {MSG}", self.tunnel_id),
-            Err(e) => trace_report!(e, "{}: {}", self.tunnel_id, MSG),
+            Ok(()) => trace!("{}: {MSG}", self.unique_id),
+            Err(e) => trace_report!(e, "{}: {}", self.unique_id, MSG),
         }
 
         result
@@ -196,10 +191,32 @@ impl<T: HasRelayIds> RelayReactor<T> {
         // TODO(relay): implement
         let () = select_biased! {
             res = self.command.next() => {
-                let _cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
+                let Some(_cmd) = res else {
+                    trace!(
+                        circ_id = %self.unique_id,
+                        reason = "command channel drop",
+                        "reactor shutdown",
+                    );
+
+                    return Err(ReactorError::Shutdown);
+                };
+
+                // TODO
+                return Ok(());
             },
             res = self.control.next() => {
-                let _msg = unwrap_or_shutdown!(self, res, "control drop")?;
+                let Some(_msg) = res else {
+                    trace!(
+                        circ_id = %self.unique_id,
+                        reason = "control channel drop",
+                        "reactor shutdown",
+                    );
+
+                    return Err(ReactorError::Shutdown);
+                };
+
+                // TODO
+                return Ok(());
             },
             res = self.outgoing_chan_rx.next() => {
                 let chan_res = res
