@@ -735,7 +735,9 @@ impl HasAddrs for PtTargetAddr {
         match self {
             PtTargetAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
             PtTargetAddr::HostPort(..) | PtTargetAddr::None => &[],
-        }.iter().copied()
+        }
+        .iter()
+        .copied()
     }
 }
 

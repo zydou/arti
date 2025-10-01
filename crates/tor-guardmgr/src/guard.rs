@@ -971,7 +971,10 @@ mod test {
 
         assert_eq!(g.guard_id(), &id);
         assert!(g.same_relay_ids(&FirstHopId::in_sample(GuardSetSelector::Default, id)));
-        assert_eq!(g.addrs().collect_vec(), &["127.0.0.7:7777".parse().unwrap()]);
+        assert_eq!(
+            g.addrs().collect_vec(),
+            &["127.0.0.7:7777".parse().unwrap()]
+        );
         assert_eq!(g.reachable(), Reachable::Untried);
         assert_eq!(g.reachable(), Reachable::default());
 
