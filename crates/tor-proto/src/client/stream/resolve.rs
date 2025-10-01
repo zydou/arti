@@ -83,10 +83,7 @@ impl ResolveStream {
 pub(crate) struct ResolveCmdChecker {}
 
 impl CmdChecker for ResolveCmdChecker {
-    fn check_msg(
-        &mut self,
-        msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<StreamStatus> {
+    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
         use StreamStatus::Closed;
         match msg.cmd() {
             RelayCmd::RESOLVED => Ok(Closed),

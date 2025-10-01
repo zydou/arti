@@ -1206,10 +1206,7 @@ impl Default for DataCmdChecker {
 }
 
 impl CmdChecker for DataCmdChecker {
-    fn check_msg(
-        &mut self,
-        msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<StreamStatus> {
+    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
         use StreamStatus::*;
         match msg.cmd() {
             RelayCmd::CONNECTED => {
