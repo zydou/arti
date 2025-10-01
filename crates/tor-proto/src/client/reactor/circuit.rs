@@ -19,7 +19,7 @@ use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
 use crate::client::stream::queue::{StreamQueueSender, stream_queue};
-use crate::client::stream::{AnyCmdChecker, StreamStatus};
+use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::client::streammap;
 use crate::congestion::CongestionSignals;
 use crate::congestion::sendme;

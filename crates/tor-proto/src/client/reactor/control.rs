@@ -12,7 +12,7 @@ use crate::client::circuit::padding;
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::circuit::circ_extensions_from_settings;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
-use crate::client::stream::AnyCmdChecker;
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::{HopLocation, TargetHop, streammap};
 use crate::crypto::binding::CircuitBinding;

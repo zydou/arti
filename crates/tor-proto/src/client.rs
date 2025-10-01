@@ -24,9 +24,10 @@ pub use crate::client::circuit::padding::{
 };
 use crate::client::stream::queue::stream_queue;
 use crate::client::stream::{
-    AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
+    DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReceiver,
 };
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};

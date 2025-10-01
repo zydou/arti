@@ -19,7 +19,6 @@ pub(crate) mod queue;
 mod raw;
 mod resolve;
 
-pub(crate) use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 pub use data::{DataReader, DataStream, DataWriter};
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]

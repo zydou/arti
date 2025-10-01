@@ -3,13 +3,12 @@
 use crate::client::stream::StreamReceiver;
 use crate::memquota::StreamAccount;
 use crate::{Error, Result};
+use crate::stream::cmdcheck::AnyCmdChecker;
 
 use futures::StreamExt;
 use tor_cell::relaycell::RelayCmd;
 use tor_cell::relaycell::msg::Resolved;
 use tor_cell::restricted_msg;
-
-use super::AnyCmdChecker;
 
 /// A ResolveStream represents a pending DNS request made with a RESOLVE
 /// cell.
@@ -83,12 +82,12 @@ impl ResolveStream {
 #[derive(Debug, Default)]
 pub(crate) struct ResolveCmdChecker {}
 
-impl super::CmdChecker for ResolveCmdChecker {
+impl crate::stream::cmdcheck::CmdChecker for ResolveCmdChecker {
     fn check_msg(
         &mut self,
         msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<super::StreamStatus> {
-        use super::StreamStatus::Closed;
+    ) -> Result<crate::stream::cmdcheck::StreamStatus> {
+        use crate::stream::cmdcheck::StreamStatus::Closed;
         match msg.cmd() {
             RelayCmd::RESOLVED => Ok(Closed),
             RelayCmd::END => Ok(Closed),

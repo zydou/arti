@@ -43,8 +43,7 @@ use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
-
-use super::AnyCmdChecker;
+use crate::stream::cmdcheck::AnyCmdChecker;
 
 /// A stream of [`RateLimitedWriterConfig`] used to update a [`DynamicRateLimitedWriter`].
 ///
@@ -1206,12 +1205,12 @@ impl Default for DataCmdChecker {
     }
 }
 
-impl super::CmdChecker for DataCmdChecker {
+impl crate::stream::cmdcheck::CmdChecker for DataCmdChecker {
     fn check_msg(
         &mut self,
         msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<super::StreamStatus> {
-        use super::StreamStatus::*;
+    ) -> Result<crate::stream::cmdcheck::StreamStatus> {
+        use crate::stream::cmdcheck::StreamStatus::*;
         match msg.cmd() {
             RelayCmd::CONNECTED => {
                 if !self.expecting_connected {
