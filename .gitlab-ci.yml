@@ -739,6 +739,22 @@ cli-help:
   script:
     - ./maint/check-cli-help
 
+# TODO: in the future we may want to build and run the fuzz tests, but checking is good enough for now
+# https://gitlab.torproject.org/tpo/core/arti/-/issues/1350
+fuzz-check:
+  stage: test
+  # cargo-fuzz needs nightly
+  image: docker.io/rustlang/rust:nightly
+  # fuzz tests don't currently build
+  allow_failure: true
+  # this job doesn't depend on anything
+  needs: []
+  script:
+    - ./maint/common/apt-install libclang-dev
+    - rustup show
+    - ./maint/common/via-cargo-install-in-ci cargo-fuzz --version 0.13.1
+    - ./maint/fuzz_it_all -c
+
 # TODO: this should be folded in one of the other test jobs.
 #
 # Since this is testing an additional combination of features,
