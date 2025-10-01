@@ -904,7 +904,7 @@ define_derive_deftly! {
                       stringify!($fname),
                       ${fmeta(netdoc(with))
                         as path,
-                        default { ItemArgumentParseable::from_args }},
+                        default { ItemArgumentParseable }}::${paste_spanned $fname from_args},
                   )?
               } }
               F_OBJECT { {
