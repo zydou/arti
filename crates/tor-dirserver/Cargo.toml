@@ -25,6 +25,7 @@ rusqlite = "0.37.0"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full"] }
+tor-dircommon = { version = "0.36.0", path = "../tor-dircommon" }
 tor-error = { version = "0.36.0", path = "../tor-error" }
 tracing = "0.1.41"
 void = "1.0.2"
