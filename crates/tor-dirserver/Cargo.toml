@@ -37,3 +37,6 @@ lzma-rs = "0.3.0"
 sha2 = "0.10.9"
 tokio-stream = { version = "0.1.17", features = ["full"] }
 zstd = "0.13.3"
+
+[features]
+full = ["tor-error/full"]

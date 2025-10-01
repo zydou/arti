@@ -32,3 +32,13 @@ tracing = "0.1.41"
 
 [dev-dependencies]
 toml = "0.9.6"
+
+[features]
+full = [
+    "tor-basic-utils/full",
+    "tor-checkable/full",
+    "tor-config/full",
+    "tor-linkspec/full",
+    "tor-llcrypto/full",
+    "tor-netdoc/full",
+]
