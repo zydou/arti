@@ -2,7 +2,7 @@
 
 use crate::client::stream::StreamReceiver;
 use crate::memquota::StreamAccount;
-use crate::stream::cmdcheck::AnyCmdChecker;
+use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::{Error, Result};
 
 use futures::StreamExt;
@@ -82,12 +82,12 @@ impl ResolveStream {
 #[derive(Debug, Default)]
 pub(crate) struct ResolveCmdChecker {}
 
-impl crate::stream::cmdcheck::CmdChecker for ResolveCmdChecker {
+impl CmdChecker for ResolveCmdChecker {
     fn check_msg(
         &mut self,
         msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<crate::stream::cmdcheck::StreamStatus> {
-        use crate::stream::cmdcheck::StreamStatus::Closed;
+    ) -> Result<StreamStatus> {
+        use StreamStatus::Closed;
         match msg.cmd() {
             RelayCmd::RESOLVED => Ok(Closed),
             RelayCmd::END => Ok(Closed),

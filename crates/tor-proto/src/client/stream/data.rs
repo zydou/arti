@@ -35,9 +35,9 @@ use educe::Educe;
 use crate::client::stream::StreamReceiver;
 use crate::client::{ClientTunnel, StreamTarget};
 use crate::memquota::StreamAccount;
-use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
+use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
 use crate::util::token_bucket::writer::{RateLimitedWriter, RateLimitedWriterConfig};
 use tor_basic_utils::skip_fmt;
@@ -1205,12 +1205,12 @@ impl Default for DataCmdChecker {
     }
 }
 
-impl crate::stream::cmdcheck::CmdChecker for DataCmdChecker {
+impl CmdChecker for DataCmdChecker {
     fn check_msg(
         &mut self,
         msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<crate::stream::cmdcheck::StreamStatus> {
-        use crate::stream::cmdcheck::StreamStatus::*;
+    ) -> Result<StreamStatus> {
+        use StreamStatus::*;
         match msg.cmd() {
             RelayCmd::CONNECTED => {
                 if !self.expecting_connected {
