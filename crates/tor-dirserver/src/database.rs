@@ -16,11 +16,27 @@ use crate::err::DatabaseError;
 // TODO: Make this a real type that actually enforces the constraints.
 pub(crate) type Sha256 = String;
 
+/// A no-op macro just returning the supplied.
+///
+/// The purpose of this macro is to semantically mark [`str`] literals to be
+/// SQL statement.
+///
+/// Keep in mind that the compiler will not notice if you forget this macro.
+/// Unfortunately, you have to ensure it yourself.
+macro_rules! sql {
+    ($s:literal) => {
+        $s
+    };
+}
+
+pub(crate) use sql;
+
 /// Version 1 of the database schema.
 ///
 /// TODO DIRMIRROR: Should we rename arti_dirmirror_schema_version to say
 /// dirserver or something more generic?
-const V1_SCHEMA: &str = "
+const V1_SCHEMA: &str = sql!(
+    "
 PRAGMA journal_mode=WAL;
 
 BEGIN TRANSACTION;
@@ -175,7 +191,8 @@ CREATE TABLE consensus_authority_voter(
 INSERT INTO arti_dirmirror_schema_version VALUES ('1');
 
 COMMIT;
-";
+"
+);
 
 /// Opens a database from disk, creating a [`Pool`] for it.
 ///

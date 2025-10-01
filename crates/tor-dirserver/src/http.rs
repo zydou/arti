@@ -2,6 +2,8 @@
 //!
 //! This module is unfortunately necessary as a middleware due to some obscure
 //! things in Tor, most notably the ".z" extensions.
+//!
+//! TODO DIRMIRROR: Use the `sql!` macro.
 
 use cache::StoreCache;
 use strum::EnumString;

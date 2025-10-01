@@ -1,6 +1,8 @@
 //! Module for providing cache implementations for the [`http`] module.
 //!
 //! Each cache is outlined comprehensively in its own section.
+//!
+//! TODO DIRMIRROR: Use the `sql!` macro.
 
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
