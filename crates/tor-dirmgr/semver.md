@@ -1,1 +1,0 @@
-BREAKING: `Authority`, `AuthorityBuilder`, `DownloadScheduleConfigBuilder`, `DownloadScheduleBuilder`, `DownloadScheduleConfig`, `DirToleranceBuilder`, `NetworkConfigBuilder`, `DownloadSchedule`, `DirTolerance`, `config::NetworkConfig`, and related items have been moved to the new `tor-dircommon` crate.
