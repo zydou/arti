@@ -264,15 +264,13 @@ fn run_check_integrity<R: Runtime>(
         let mut invalid_entries = entries
             .into_iter()
             .filter_map(|entry| match entry {
-                Ok(e) => {
-                    keymgr
-                        .validate_entry_integrity(&e)
-                        .map_err(|err| InvalidKeystoreEntry {
-                            entry: Ok(e),
-                            error_msg: err.to_string(),
-                        })
-                        .err()
-                }
+                Ok(e) => keymgr
+                    .validate_entry_integrity(&e)
+                    .map_err(|err| InvalidKeystoreEntry {
+                        entry: Ok(e),
+                        error_msg: err.to_string(),
+                    })
+                    .err(),
                 Err(err) => {
                     let error = err.error().to_string();
                     Some(InvalidKeystoreEntry {
@@ -288,11 +286,15 @@ fn run_check_integrity<R: Runtime>(
                 // For the current keystore, transfer its expired keys from `expired_entries`
                 // to `invalid_entries`.
                 expired_entries.retain(|invalid_entry| {
-                    // `invalid_entry.entry` will always be `Ok`, see `get_expired_keys`.
-                    if let Ok(entry) = &invalid_entry.entry {
-                        if entry.keystore_id() == &id {
-                            invalid_entries.push(invalid_entry.clone());
-                            return false;
+                    match &invalid_entry.entry {
+                        Ok(entry) => {
+                            if entry.keystore_id() == &id {
+                                invalid_entries.push(invalid_entry.clone());
+                                return false;
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("WARNING: Unexpected invalid keystore entry encountered: {}", err);
                         }
                     }
                     true
