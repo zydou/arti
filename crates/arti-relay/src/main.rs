@@ -56,8 +56,11 @@ use std::io::IsTerminal as _;
 
 use anyhow::Context;
 use clap::Parser;
+use futures::FutureExt;
+use futures::task::SpawnExt;
 use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::{PreferredRuntime, Runtime, ToplevelBlockOn};
+use tracing::{info, trace};
 use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -121,8 +124,6 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
 // Pass by value so that we don't need to clone fields, which keeps the code simpler.
 #[allow(clippy::needless_pass_by_value)]
 fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Result<()> {
-    let runtime = init_runtime().context("Failed to initialize the runtime")?;
-
     let mut cfg_sources = global_args
         .config()
         .context("Failed to get configuration sources")?;
@@ -169,18 +170,60 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
     let logger = tracing::Dispatch::new(logger);
 
     tracing::dispatcher::with_default(&logger, || {
-        let path_resolver = base_resolver();
-        let relay =
-            TorRelay::new(runtime, &config, path_resolver).context("Failed to initialize relay")?;
-        run_relay(relay)
-    })?;
+        let runtime = init_runtime().context("Failed to initialize the runtime")?;
 
-    Ok(())
+        let path_resolver = base_resolver();
+        let relay = TorRelay::new(runtime.clone(), &config, path_resolver)
+            .context("Failed to initialize the relay")?;
+
+        match mainloop(&runtime, run_relay(runtime.clone(), relay))? {
+            MainloopStatus::Finished(result) => result,
+            MainloopStatus::CtrlC => {
+                info!("Received a ctrl-c; stopping the relay");
+                Ok(())
+            }
+        }
+    })
+}
+
+/// A helper to drive a future using a runtime.
+///
+/// This calls `block_on` on the runtime.
+/// The future will be cancelled on a ctrl-c event.
+fn mainloop<T: Send + 'static>(
+    runtime: &(impl Runtime + ToplevelBlockOn),
+    fut: impl Future<Output = T> + Send + 'static,
+) -> anyhow::Result<MainloopStatus<T>> {
+    trace!("Starting runtime");
+
+    let rv = runtime.block_on(async {
+        // Code running in 'block_on' runs slower than in a task (in tokio at least),
+        // so the future is run on a task.
+        let mut handle = runtime
+            .spawn_with_handle(fut)
+            .context("Failed to spawn task")?
+            .fuse();
+
+        futures::select!(
+            // Signal handler is registered on the first poll.
+            res = tokio::signal::ctrl_c().fuse() => {
+                let () = res.context("Failed to listen for ctrl-c event")?;
+                trace!("Received a ctrl-c");
+                // Dropping the handle will cancel the task, so we do that explicitly here.
+                drop(handle);
+                Ok(MainloopStatus::CtrlC)
+            }
+            x = handle => Ok(MainloopStatus::Finished(x)),
+        )
+    });
+
+    trace!("Finished runtime");
+    rv
 }
 
 /// Run the relay.
 #[allow(clippy::unnecessary_wraps)] // TODO: not implemented yet; remove me
-fn run_relay<R: Runtime>(_relay: TorRelay<R>) -> anyhow::Result<()> {
+async fn run_relay<R: Runtime>(_runtime: R, _relay: TorRelay<R>) -> anyhow::Result<()> {
     Ok(())
 }
 
@@ -191,4 +234,12 @@ fn init_runtime() -> std::io::Result<impl Runtime + ToplevelBlockOn> {
     // Use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
     // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
     PreferredRuntime::create()
+}
+
+/// The result of [`mainloop`].
+enum MainloopStatus<T> {
+    /// The result from the completed future.
+    Finished(T),
+    /// The future was cancelled due to a ctrl-c event.
+    CtrlC,
 }
