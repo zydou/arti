@@ -67,7 +67,7 @@ use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::config::{DEFAULT_LOG_LEVEL, TorRelayConfig, base_resolver};
-use crate::relay::TorRelay;
+use crate::relay::InertTorRelay;
 
 fn main() {
     // Will exit if '--help' used or there's a parse error.
@@ -179,7 +179,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
         let runtime = init_runtime().context("Failed to initialize the runtime")?;
 
         let path_resolver = base_resolver();
-        let relay = TorRelay::new(runtime.clone(), &config, path_resolver)
+        let relay = InertTorRelay::new(&config, path_resolver)
             .context("Failed to initialize the relay")?;
 
         match mainloop(&runtime, run_relay(runtime.clone(), relay))? {
@@ -229,7 +229,7 @@ fn mainloop<T: Send + 'static>(
 
 /// Run the relay.
 #[allow(clippy::unnecessary_wraps)] // TODO: not implemented yet; remove me
-async fn run_relay<R: Runtime>(_runtime: R, _relay: TorRelay<R>) -> anyhow::Result<()> {
+async fn run_relay<R: Runtime>(_runtime: R, _relay: InertTorRelay) -> anyhow::Result<()> {
     Ok(())
 }
 

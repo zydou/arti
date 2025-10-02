@@ -18,44 +18,29 @@ use tracing::info;
 use crate::config::TorRelayConfig;
 use crate::err::ErrorDetail;
 
-/// Represent an active Relay on the Tor network.
+/// An initialized but unbootstrapped relay.
+///
+/// This intentionally does not have access to the runtime to prevent it from doing network io.
 #[derive(Clone)]
-pub(crate) struct TorRelay<R: Runtime> {
-    /// Asynchronous runtime object.
-    #[allow(unused)] // TODO RELAY remove
-    runtime: R,
+pub(crate) struct InertTorRelay {
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
     #[allow(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
-    /// Channel manager, used by circuits etc.,
-    #[allow(unused)] // TODO RELAY remove
-    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
     /// Key manager holding all relay keys and certificates.
     #[allow(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
 }
 
-impl<R: Runtime> TorRelay<R> {
-    /// Create a new Tor relay with the given [runtime][tor_rtcompat] and configuration.
+impl InertTorRelay {
+    /// Create a new Tor relay with the given configuration.
     pub(crate) fn new(
-        runtime: R,
         config: &TorRelayConfig,
         path_resolver: CfgPathResolver,
     ) -> Result<Self, ErrorDetail> {
         let keymgr = Self::create_keymgr(config, &path_resolver)?;
-        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
-            runtime.clone(),
-            &config.channel,
-            Dormancy::Active,
-            &NetParameters::default(),
-            ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
-            Some(keymgr.clone()),
-        ));
 
         Ok(Self {
-            runtime,
             path_resolver,
-            chanmgr,
             keymgr,
         })
     }
