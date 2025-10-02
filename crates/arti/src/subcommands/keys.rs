@@ -285,11 +285,11 @@ fn run_check_integrity<R: Runtime>(
             if #[cfg(feature = "onion-service-service")] {
                 // For the current keystore, transfer its expired keys from `expired_entries`
                 // to `invalid_entries`.
-                expired_entries.retain(|invalid_entry| {
-                    match &invalid_entry.entry {
+                expired_entries.retain(|expired_entry| {
+                    match &expired_entry.entry {
                         Ok(entry) => {
                             if entry.keystore_id() == &id {
-                                invalid_entries.push(invalid_entry.clone());
+                                invalid_entries.push(expired_entry.clone());
                                 return false;
                             }
                         }
