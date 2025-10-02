@@ -52,6 +52,7 @@ mod config;
 mod err;
 mod relay;
 
+use std::fmt::Display;
 use std::io::IsTerminal as _;
 
 use anyhow::Context;
@@ -60,7 +61,7 @@ use futures::FutureExt;
 use futures::task::SpawnExt;
 use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::{PreferredRuntime, Runtime, ToplevelBlockOn};
-use tracing::{info, trace};
+use tracing::{debug, info, trace};
 use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -127,6 +128,11 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
     let mut cfg_sources = global_args
         .config()
         .context("Failed to get configuration sources")?;
+
+    debug!(
+        "Using override options: {}",
+        iter_join(", ", cfg_sources.options()),
+    );
 
     // A Mistrust object to use for loading our configuration.
     // Elsewhere, we use the value _from_ the configuration.
@@ -242,4 +248,29 @@ enum MainloopStatus<T> {
     Finished(T),
     /// The future was cancelled due to a ctrl-c event.
     CtrlC,
+}
+
+/// Formats an iterator as an object whose display implementation is a `separator`-separated string
+/// of items from `iter`.
+fn iter_join(separator: &str, iter: impl Iterator<Item: Display> + Clone) -> impl Display {
+    struct Fmt<'a, I: Iterator<Item: Display> + Clone> {
+        /// Separates items in `iter`.
+        separator: &'a str,
+        /// Iterator to join.
+        iter: I,
+    }
+    impl<'a, I: Iterator<Item: Display> + Clone> Display for Fmt<'a, I> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let Self { separator, iter } = self;
+            let mut iter = iter.clone();
+            if let Some(first) = iter.next() {
+                write!(f, "{first}")?;
+            }
+            for x in iter {
+                write!(f, "{separator}{x}")?;
+            }
+            Ok(())
+        }
+    }
+    Fmt { separator, iter }
 }
