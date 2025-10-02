@@ -57,7 +57,7 @@ use std::io::IsTerminal as _;
 use anyhow::Context;
 use clap::Parser;
 use safelog::with_safe_logging_suppressed;
-use tor_rtcompat::{PreferredRuntime, Runtime};
+use tor_rtcompat::{PreferredRuntime, Runtime, ToplevelBlockOn};
 use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -187,7 +187,7 @@ fn run_relay<R: Runtime>(_relay: TorRelay<R>) -> anyhow::Result<()> {
 /// Initialize a runtime.
 ///
 /// Any commands that need a runtime should call this so that we use a consistent runtime.
-fn init_runtime() -> std::io::Result<impl Runtime> {
+fn init_runtime() -> std::io::Result<impl Runtime + ToplevelBlockOn> {
     // Use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
     // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
     PreferredRuntime::create()
