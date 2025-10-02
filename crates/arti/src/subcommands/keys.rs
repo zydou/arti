@@ -265,14 +265,13 @@ fn run_check_integrity<R: Runtime>(
             .into_iter()
             .filter_map(|entry| match entry {
                 Ok(e) => {
-                    if let Err(err) = keymgr.validate_entry_integrity(&e) {
-                        Some(InvalidKeystoreEntry {
+                    keymgr
+                        .validate_entry_integrity(&e)
+                        .map_err(|err| InvalidKeystoreEntry {
                             entry: Ok(e),
                             error_msg: err.to_string(),
                         })
-                    } else {
-                        None
-                    }
+                        .err()
                 }
                 Err(err) => {
                     let error = err.error().to_string();
