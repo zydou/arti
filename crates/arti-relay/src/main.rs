@@ -91,14 +91,10 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
         .with_default_directive(level.into())
         .parse("")
         .expect("empty filter directive should be trivially parsable");
-    #[allow(clippy::print_stderr)]
     FmtSubscriber::builder()
         .with_env_filter(filter)
         .with_ansi(std::io::stderr().is_terminal())
-        .with_writer(|| {
-            eprint!("arti-relay: ");
-            std::io::stderr()
-        })
+        .with_writer(std::io::stderr)
         .finish()
         .init();
 
@@ -165,14 +161,10 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
                 config.logging.console,
             )
         })?;
-    #[allow(clippy::print_stderr)]
     let logger = tracing_subscriber::FmtSubscriber::builder()
         .with_env_filter(filter)
         .with_ansi(std::io::stderr().is_terminal())
-        .with_writer(|| {
-            eprint!("arti-relay: ");
-            std::io::stderr()
-        })
+        .with_writer(std::io::stderr)
         .finish();
     let logger = tracing::Dispatch::new(logger);
 
