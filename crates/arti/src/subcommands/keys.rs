@@ -234,16 +234,14 @@ fn run_check_integrity<R: Runtime>(
     // TODO: `TorClient` should have a `KeyMgr` accessor.
     let keymgr = inert_client.keymgr()?;
 
-    let mut keystores = Vec::new();
-    match &args.keystore_id {
-        Some(id) => keystores.push((id.to_owned(), keymgr.list_by_id(id)?)),
-        None => {
-            let ids = keymgr.list_keystores();
-            for id in ids {
-                keystores.push((id.clone(), keymgr.list_by_id(&id)?));
-            }
-        }
+    let keystore_ids = match &args.keystore_id {
+        Some(id) => vec![id.to_owned()],
+        None => keymgr.list_keystores(),
     };
+    let keystores: Vec<(_, Vec<KeystoreEntryResult<KeystoreEntry>>)> = keystore_ids
+        .into_iter()
+        .map(|id| keymgr.list_by_id(&id).map(|entries| (id, entries)))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // Unlike `keystores`, which has type `Vec<(KeystoreId, Vec<KeystoreEntryResult<KeystoreEntry>>)>`,
     // `affected_keystores` has type `InvalidKeystoreEntries`. This distinction is
