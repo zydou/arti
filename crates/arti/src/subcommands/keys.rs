@@ -245,6 +245,11 @@ fn run_check_integrity<R: Runtime>(
         }
     };
 
+    // Unlike `keystores`, which has type `Vec<(KeystoreId, Vec<KeystoreEntryResult<KeystoreEntry>>)>`,
+    // `affected_keystores` has type `InvalidKeystoreEntries`. This distinction is
+    // necessary because the entries in `keystores` will be evaluated, and if any are
+    // found to be invalid, the associated error messages must be stored somewhere
+    // for later display.
     let mut affected_keystores = Vec::new();
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
