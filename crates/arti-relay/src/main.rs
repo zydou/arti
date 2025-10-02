@@ -229,7 +229,8 @@ fn mainloop<T: Send + 'static>(
 
 /// Run the relay.
 #[allow(clippy::unnecessary_wraps)] // TODO: not implemented yet; remove me
-async fn run_relay<R: Runtime>(_runtime: R, _relay: InertTorRelay) -> anyhow::Result<()> {
+async fn run_relay<R: Runtime>(runtime: R, relay: InertTorRelay) -> anyhow::Result<()> {
+    let _relay = relay.bootstrap(runtime).await?;
     Ok(())
 }
 
