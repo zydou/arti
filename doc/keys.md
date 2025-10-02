@@ -287,7 +287,6 @@ Remove all invalid entries? (type yes or no):
 ```ignore
 $ arti keys check-integrity -k arti
 arti: OK.
-
 ```
 </details>
 
