@@ -238,6 +238,13 @@ impl ConfigurationSources {
         self.options.push(option.into());
     }
 
+    /// All given override options.
+    ///
+    /// See [`push_option`](Self::push_option).
+    pub fn options(&self) -> impl Iterator<Item = &String> + Clone {
+        self.options.iter()
+    }
+
     /// Sets the filesystem permission mistrust
     ///
     /// This value only indicates whether and how to check permissions
