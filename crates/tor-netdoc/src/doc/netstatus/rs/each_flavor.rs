@@ -112,7 +112,7 @@ impl RouterStatus {
         let r_item = sec.required(RS_R)?;
         let nickname = r_item.required_arg(0)?.parse()?;
         let ident = r_item.required_arg(1)?;
-        let identity = ident.parse::<Base64Fingerprint>()?.0;
+        let identity = ident.parse::<Base64Fingerprint>()?;
         // Fields to skip in the "r" line.
         let n_skip = match FLAVOR {
             ConsensusFlavor::Microdesc => 0,

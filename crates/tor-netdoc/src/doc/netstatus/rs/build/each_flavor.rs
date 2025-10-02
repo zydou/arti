@@ -148,7 +148,7 @@ impl RouterStatusBuilder {
 
         Ok(RouterStatus {
             nickname,
-            identity,
+            identity: Base64Fingerprint(identity),
             addrs: self.addrs.clone(),
             doc_digest,
             version,
