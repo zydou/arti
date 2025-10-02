@@ -253,6 +253,8 @@ fn run_check_integrity<R: Runtime>(
     let mut affected_keystores = Vec::new();
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
+            // `service` cannot be dropped as long as `expired_entries` is in use, since
+            // `expired_entries` holds references to `services`.
             let services = create_all_services(config, client_config)?;
             let mut expired_entries: Vec<_> = get_expired_keys(&services, &client)?;
         }
