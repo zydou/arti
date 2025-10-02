@@ -26,10 +26,9 @@ pub(crate) struct InertTorRelay {
     /// The configuration options for the relay.
     config: TorRelayConfig,
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
-    #[allow(unused)] // TODO RELAY remove
+    #[expect(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
     /// Key manager holding all relay keys and certificates.
-    #[allow(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
 }
 
@@ -117,15 +116,15 @@ impl InertTorRelay {
 #[derive(Clone)]
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
-    #[allow(unused)] // TODO RELAY remove
+    #[expect(unused)] // TODO RELAY remove
     runtime: R,
 
     /// Channel manager, used by circuits etc.
-    #[allow(unused)] // TODO RELAY remove
+    #[expect(unused)] // TODO RELAY remove
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
 
     /// Key manager holding all relay keys and certificates.
-    #[allow(unused)] // TODO RELAY remove
+    #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
 }
 
