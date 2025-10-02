@@ -54,6 +54,9 @@ pub mod vote;
 #[cfg(feature = "build_docs")]
 mod build;
 
+#[cfg(feature = "parse2")]
+use crate::parse2;
+
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
@@ -1043,6 +1046,28 @@ impl RelayWeight {
             None | Some(0) => Ok(RelayWeight::Measured(bw)),
             Some(1) => Ok(RelayWeight::Unmeasured(bw)),
             _ => Err(EK::BadArgument.with_msg("unmeasured value")),
+        }
+    }
+}
+
+/// `parse2` impls for types in this module
+///
+/// Separate module to save on repeated `cfg` and for a separate namespace.
+#[cfg(feature = "parse2")]
+mod parse2_impls {
+    use super::*;
+    use parse2::ErrorProblem as EP;
+    use parse2::ItemValueParseable;
+    use std::result::Result;
+
+    impl ItemValueParseable for RelayWeight {
+        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            (|| {
+                let params = item.args_copy().into_remaining().parse()?;
+                Self::from_net_params(&params)
+            })()
+            .map_err(item.invalid_argument_handler("weights"))
         }
     }
 }
