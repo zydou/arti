@@ -25,8 +25,8 @@ pub struct RouterStatusIntroItem {
     pub identity: Base64Fingerprint,
     /// Digest of the document for this relay (except md consensuses)
     // TODO SPEC rename in the spec from `digest` to "doc_digest"
-    // TODO in votes, the digest is in a separate `m` item!  So this is wrong in votes.
-    pub doc_digest: DocDigest,
+    // TODO SPEC in md consensuses the referenced document digest is in a separate `m` item
+    pub doc_digest: ns_type!( DocDigest, ArgumentNotPresent, DocDigest ),
     /// IPv4 address
     pub ip: std::net::Ipv4Addr,
     /// Relay port
@@ -39,6 +39,10 @@ pub struct RouterStatusIntroItem {
 pub struct RouterStatus {
     /// `r` item, introducing a routerstatus entry
     pub r: RouterStatusIntroItem,
+    /// Digest of the document for this relay (md consensuses only)
+    // We call this field `m` rather than `doc_digest` because it's not always the doc digest.
+    // TODO SPEC in all but md consensuses the referenced document digest is in the `r` intro item
+    pub m: ns_type!( Option<Ignored>, DocDigest, Option<Ignored> ),
     /// A list of address:port values where this relay can be reached.
     pub a: Vec<net::SocketAddr>,
     /// Flags applied by the authorities to this relay.
@@ -60,6 +64,10 @@ impl RouterStatus {
     /// to help paper over the protocol anomaly, that the digest is in a different place
     /// in md routerstatus entries.
     pub fn doc_digest(&self) -> &DocDigest {
-        &self.r.doc_digest
+        ns_expr!(
+            &self.r.doc_digest,
+            &self.m,
+            &self.r.doc_digest,
+        )
     }
 }

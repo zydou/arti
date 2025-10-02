@@ -168,14 +168,26 @@ impl RouterStatus {
             ConsensusFlavor::Plain => DocDigest::decode(r_item.required_arg(2)?)?,
         };
 
+        ns_choose! { (
+            let r_doc_digest = doc_digest;
+            let m_doc_digest = None;
+        ) (
+            let r_doc_digest = ArgumentNotPresent;
+            let m_doc_digest = doc_digest;
+        ) (
+            let r_doc_digest = doc_digest;
+            let m_doc_digest = None;
+        ) };
+
         Ok(RouterStatus {
             r: RouterStatusIntroItem {
                 nickname,
                 identity,
                 or_port,
-                doc_digest,
+                doc_digest: r_doc_digest,
                 ip,
             },
+            m: m_doc_digest,
             a,
             flags,
             version,

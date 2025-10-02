@@ -158,14 +158,25 @@ impl RouterStatusBuilder {
         }).collect::<Vec<_>>();
         let ip = ip.ok_or_else(|| Error::CannotBuild("No IPv4 address"))?;
 
+        ns_choose! { (
+            let r_doc_digest = doc_digest;
+            let m_doc_digest = None;
+        ) (
+            let r_doc_digest = ArgumentNotPresent;
+            let m_doc_digest = doc_digest;
+        ) (
+            compile_error!("no builder for votes");
+        ) };
+
         Ok(RouterStatus {
             r: RouterStatusIntroItem {
                 nickname,
                 identity: Base64Fingerprint(identity),
-                doc_digest,
+                doc_digest: r_doc_digest,
                 ip: *ip.ip(),
                 or_port: ip.port(),
             },
+            m: m_doc_digest,
             a,
             version,
             protos: doc::PROTOVERS_CACHE.intern(protos),
