@@ -57,7 +57,7 @@ pub struct RelayIdentityRsaKeypairSpecifier;
 #[derive(Deftly, PartialEq, Debug, Constructor)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
-#[deftly(role = "KP_relayid_ed")]
+#[deftly(role = "KP_relayid_rsa")]
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
 /// The public part of the long-term identity key of the relay.
 pub struct RelayIdentityRsaPublicKeySpecifier;
