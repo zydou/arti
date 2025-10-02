@@ -182,8 +182,6 @@ impl ConfigurationSources {
     // The other inputs are always used and therefore
     // don't need to be lifted into FnOnce() -> Result.
     ///
-    /// `mistrust` is used to check whether the configuration files have appropriate permissions.
-    ///
     /// `ConfigurationSource::Dir`s
     /// will be scanned for files whose name ends in `.toml`.
     /// All those files (if any) will be read (in lexical order by filename).
