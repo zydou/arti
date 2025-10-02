@@ -532,7 +532,6 @@ impl<S: SleepProvider> PaddingController<S> {
     ///
     /// Return a QueuedCellPaddingInfo if we need to alert the padding subsystem
     /// when this cell is flushed.
-    #[allow(dead_code)] // This functionality is not implemented in arti.
     pub(crate) fn queued_data_as_padding(
         &self,
         hop: HopNum,

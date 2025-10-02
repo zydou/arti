@@ -201,9 +201,7 @@ impl SpecialOutgoing {
     }
 
     /// Try to queue a padding cell to be sent.
-    #[expect(dead_code)]
-    fn queue_padding_cell(&mut self, padding_ctrl: &PaddingController, send_padding: SendPadding) {
-        padding_ctrl.queued_padding(HopNum::from(0), send_padding);
+    fn queue_padding_cell(&mut self) {
         self.n_padding = self.n_padding.saturating_add(1);
     }
 }
@@ -411,7 +409,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
         Ok(())
     }
 
-    /// Take the action described in `action`.
+    /// Take the padding action described in `action`.
     ///
     /// (With circuit padding disabled, PaddingEvent can't be constructed.)
     #[cfg(not(feature = "circ-padding"))]
@@ -419,15 +417,13 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
         void::unreachable(action.0)
     }
 
-    /// Take the action described in `action`.
+    /// Take the padding action described in `action`.
     #[cfg(feature = "circ-padding")]
     async fn handle_padding_event(&mut self, action: PaddingEvent) -> Result<()> {
         use PaddingEvent as PE;
         match action {
             PE::SendPadding(send_padding) => {
-                // XXXX implement this
-                let _ = send_padding;
-                unimplemented!()
+                self.handle_send_padding(send_padding).await?;
             }
             PE::StartBlocking(start_blocking) => {
                 if self.output.is_unlimited() {
@@ -440,6 +436,97 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             }
         }
         Ok(())
+    }
+
+    /// Send the padding described in `padding`.
+    #[cfg(feature = "circ-padding")]
+    async fn handle_send_padding(&mut self, padding: SendPadding) -> Result<()> {
+        // TODO circpad: This is somewhat duplicative of the logic in `Circuit::send_padding` and
+        // `Circuit::padding_disposition`.  It might be good to unify them at some point.
+        // For now (Oct 2025), though, they have slightly different inputs and behaviors.
+
+        use crate::client::circuit::padding::{Bypass::*, Replace::*};
+        // multihop padding belongs in circuit padders, not here.
+        let hop = HopNum::from(0);
+        assert_eq!(padding.hop, hop);
+
+        // If true, there is blocking, but we are allowed to bypass it.
+        let blocking_bypassed = matches!(
+            (&self.padding_blocker, padding.may_bypass_block()),
+            (
+                Some(StartBlocking {
+                    is_bypassable: true
+                }),
+                BypassBlocking
+            )
+        );
+        // If true, there is blocking, and we can't bypass it.
+        let this_padding_blocked = self.padding_blocker.is_some() && !blocking_bypassed;
+
+        if padding.may_replace_with_data() == Replaceable {
+            if self.output_is_full().await? {
+                // When the output buffer is full,
+                // we _always_ treat it as satisfying our replaceable padding.
+                //
+                // TODO circpad: It would be better to check whether
+                // the output has any bytes at all, but futures_codec doesn't seem to give us a
+                // way to check that.  If we manage to do so in the future, we should change the
+                // logic in this function.
+                self.padding_ctrl
+                    .replaceable_padding_already_queued(hop, padding);
+                return Ok(());
+            } else if self.cells.approx_count() > 0 {
+                // We can replace the padding with outbound cells!
+                if this_padding_blocked {
+                    // In the blocked case, we just declare that the pending data _is_ the queued padding.
+                    self.padding_ctrl
+                        .replaceable_padding_already_queued(hop, padding);
+                } else {
+                    // Otherwise we report that queued data _became_ padding,
+                    // and we allow it to pass any blocking that's present.
+                    self.padding_ctrl.queued_data_as_padding(hop, padding);
+                    if blocking_bypassed {
+                        self.output.allow_n_additional_items(1);
+                    }
+                }
+                return Ok(());
+            } else {
+                // There's nothing to replace this with, so fall through.
+            }
+        }
+
+        // There's no replacement, so we queue unconditionally.
+        self.special_outgoing.queue_padding_cell();
+        self.padding_ctrl.queued_padding(hop, padding);
+        if blocking_bypassed {
+            self.output.allow_n_additional_items(1);
+        }
+
+        Ok(())
+    }
+
+    /// Return true if the output stream is full.
+    ///
+    /// We use this in circuit padding to implement replaceable padding.
+    //
+    // TODO circpad: We'd rather check whether there is any data at all queued in self.output,
+    // but futures_codec doesn't give us a way to do that.
+    #[cfg(feature = "circ-padding")]
+    async fn output_is_full(&mut self) -> Result<bool> {
+        use futures::future::poll_fn;
+        use std::task::Poll;
+        // We use poll_fn to get a cx that we can pass to poll_ready_unpin.
+        poll_fn(|cx| {
+            Poll::Ready(match self.output.poll_ready_unpin(cx) {
+                // If if's ready to send, it isn't full.
+                Poll::Ready(Ok(())) => Ok(false),
+                // If it isn't ready to send, it's full.
+                Poll::Pending => Ok(true),
+                // Propagate errors:
+                Poll::Ready(Err(e)) => Err(e),
+            })
+        })
+        .await
     }
 
     /// Helper: process a cell on a channel.  Most cell types get ignored
