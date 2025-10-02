@@ -13,7 +13,7 @@
 use super::*;
 
 ns_use_this_variety! {
-    use [crate::doc::netstatus::rs]::?::{DocDigest, RouterStatus};
+    use [crate::doc::netstatus::rs]::?::{DocDigest, RouterStatus, RouterStatusIntroItem};
 }
 
 /// A Builder object for creating a RouterStatus and adding it to a
@@ -23,7 +23,7 @@ ns_use_this_variety! {
 pub struct RouterStatusBuilder {
     /// See [`RouterStatus::nickname`].
     nickname: Option<String>,
-    /// See [`RouterStatus::identity`].
+    /// See [`RouterStatusIntroItem::identity`].
     identity: Option<RsaIdentity>,
     /// See [`RouterStatus::addrs`].
     addrs: Vec<SocketAddr>,
@@ -146,11 +146,27 @@ impl RouterStatusBuilder {
         let weight = self.weight.unwrap_or(RelayWeight::Unmeasured(0));
         let version = self.version.as_deref().map(str::parse).transpose()?;
 
+        let mut ip = None;
+        let a = self.addrs.iter().filter_map(|a| match a {
+            SocketAddr::V4(a) if ip.is_none() => {
+                ip = Some(a);
+                None
+            }
+            other => {
+                Some(*other)
+            }
+        }).collect::<Vec<_>>();
+        let ip = ip.ok_or_else(|| Error::CannotBuild("No IPv4 address"))?;
+
         Ok(RouterStatus {
-            nickname,
-            identity: Base64Fingerprint(identity),
-            addrs: self.addrs.clone(),
-            doc_digest,
+            r: RouterStatusIntroItem {
+                nickname,
+                identity: Base64Fingerprint(identity),
+                doc_digest,
+                ip: *ip.ip(),
+                or_port: ip.port(),
+            },
+            a,
             version,
             protos: doc::PROTOVERS_CACHE.intern(protos),
             flags: self.flags,

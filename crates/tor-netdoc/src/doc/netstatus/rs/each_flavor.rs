@@ -15,7 +15,10 @@ use super::*;
 impl RouterStatus {
     /// Return an iterator of ORPort addresses for this routerstatus
     pub fn addrs(&self) -> impl Iterator<Item = net::SocketAddr> {
-        self.addrs.iter().copied()
+        chain!(
+            [std::net::SocketAddrV4::new(self.r.ip, self.r.or_port).into()],
+            self.a.iter().copied(),
+        )
     }
     /// Return the declared weight of this routerstatus in the directory.
     pub fn weight(&self) -> &RelayWeight {
@@ -27,7 +30,7 @@ impl RouterStatus {
     }
     /// Return the nickname of this routerstatus.
     pub fn nickname(&self) -> &str {
-        self.nickname.as_str()
+        self.r.nickname.as_str()
     }
     /// Return the relay flags of this routerstatus.
     pub fn flags(&self) -> &RelayFlags {
@@ -79,13 +82,13 @@ impl RouterStatus {
 impl RouterStatus {
     /// Return RSA identity for the relay described by this RouterStatus
     pub fn rsa_identity(&self) -> &RsaIdentity {
-        &self.identity
+        &self.r.identity
     }
 
     /// Return the digest of the document identified by this
     /// routerstatus.
     pub fn doc_digest(&self) -> &DocDigest {
-        &self.doc_digest
+        &self.r.doc_digest
     }
 
     /// Return the networkstatus consensus flavor in which this
@@ -124,19 +127,15 @@ impl RouterStatus {
             p.push_str(r_item.required_arg(3 + n_skip)?);
             p.parse::<Iso8601TimeSp>()?.into()
         };
-        let ipv4addr = r_item.required_arg(4 + n_skip)?.parse::<net::Ipv4Addr>()?;
+        let ip = r_item.required_arg(4 + n_skip)?.parse::<net::Ipv4Addr>()?;
         let or_port = r_item.required_arg(5 + n_skip)?.parse::<u16>()?;
         let _ = r_item.required_arg(6 + n_skip)?.parse::<u16>()?;
 
         // main address and A lines.
         let a_items = sec.slice(RS_A);
-        let mut addrs = Vec::with_capacity(1 + a_items.len());
-        addrs.push(net::SocketAddr::V4(net::SocketAddrV4::new(
-            ipv4addr, or_port,
-        )));
-        for a_item in a_items {
-            addrs.push(a_item.required_arg(0)?.parse::<net::SocketAddr>()?);
-        }
+        let a = a_items.iter().map(|a_item| {
+            Ok(a_item.required_arg(0)?.parse::<net::SocketAddr>()?)
+        }).collect::<Result<Vec<_>>>()?;
 
         // S line
         let flags = RelayFlags::from_item(sec.required(RS_S)?)?;
@@ -176,10 +175,14 @@ impl RouterStatus {
         };
 
         Ok(RouterStatus {
-            nickname,
-            identity,
-            addrs,
-            doc_digest,
+            r: RouterStatusIntroItem {
+                nickname,
+                identity,
+                or_port,
+                doc_digest,
+                ip,
+            },
+            a,
             flags,
             version,
             protos,

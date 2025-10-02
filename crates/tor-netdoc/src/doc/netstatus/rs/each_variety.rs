@@ -12,10 +12,10 @@
 
 use super::*;
 
-/// A single relay's status, in a network status document.
+/// Intro item for a router status entry
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct RouterStatus {
+pub struct RouterStatusIntroItem {
     /// The nickname for this relay.
     ///
     /// Nicknames can be used for convenience purpose, but no more:
@@ -23,10 +23,24 @@ pub struct RouterStatus {
     pub nickname: Nickname,
     /// Fingerprint of the old-style RSA identity for this relay.
     pub identity: Base64Fingerprint,
-    /// A list of address:port values where this relay can be reached.
-    pub addrs: Vec<net::SocketAddr>,
-    /// Digest of the document for this relay.
+    /// Digest of the document for this relay (except md consensuses)
+    // TODO SPEC rename in the spec from `digest` to "doc_digest"
+    // TODO in votes, the digest is in a separate `m` item!  So this is wrong in votes.
     pub doc_digest: DocDigest,
+    /// IPv4 address
+    pub ip: std::net::Ipv4Addr,
+    /// Relay port
+    pub or_port: u16,
+}
+
+/// A single relay's status, in a network status document.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RouterStatus {
+    /// `r` item, introducing a routerstatus entry
+    pub r: RouterStatusIntroItem,
+    /// A list of address:port values where this relay can be reached.
+    pub a: Vec<net::SocketAddr>,
     /// Flags applied by the authorities to this relay.
     pub flags: RelayFlags,
     /// Version of the software that this relay is running.
