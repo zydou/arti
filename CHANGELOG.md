@@ -176,7 +176,6 @@ for funding the development of Arti!
 [!3205]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3205
 [!3207]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3207
 [!3209]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3209
-[!3210]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3210
 [!3211]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3211
 [!3212]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3212
 [!3213]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3213
@@ -247,7 +246,6 @@ for funding the development of Arti!
 [!3299]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3299
 [!3304]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3304
 [!3306]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3306
-[!3308]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3308
 [#2177]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2177
 [Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
