@@ -272,6 +272,14 @@ impl<'s> UnparsedItem<'s> {
     pub fn args_copy(&self) -> ArgumentStream<'s> {
         self.args.clone()
     }
+
+    /// Check that this item has no Object.
+    pub fn check_no_object(&self) -> Result<(), EP> {
+        if self.object.is_some() {
+            return Err(EP::ObjectUnexpected);
+        }
+        Ok(())
+    }
 }
 
 /// End of an argument list that does not accept any further (unknown) arguments
