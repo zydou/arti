@@ -129,7 +129,7 @@
 //!
 //! * **`ns_const_name!( BASE_CONST_NAME )`**:
 //!
-//!   Expands to `PLAIN_BASE_CONST_NAME`, `VOTE_BASE_CONST_NAME`, or `MD_BASE_CONST_NAME`.
+//!   Expands to `PLAIN_BASE_CONST_NAME`, `MD_BASE_CONST_NAME`, or `VOTE_BASE_CONST_NAME`.
 //!
 //! * **`ns_type!( TypeForPlainConsensus, TypeForMdConsensus, [TypeForVote] )`**:
 //!
