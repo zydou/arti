@@ -47,7 +47,7 @@ impl Change {
                     .as_array_mut()
                     .ok_or_else(|| anyhow!("features.{from} wasn't an array!"))?;
                 if !array.iter().any(|val| value_is_str(val, to)) {
-                    array.push(to);
+                    push_indented_string(array, to);
                 }
             }
             Change::Annotate(feature_name, annotation) => {
@@ -87,4 +87,38 @@ impl Changes {
             .iter()
             .try_for_each(|change| change.apply(features))
     }
+}
+
+// Return the indentation for a single value
+fn value_indentation(val: &Value) -> Option<&str> {
+    let prefix = val.decor().prefix()?.as_str()?;
+    let candidate = if let Some(last_nl_idx) = prefix.rfind('\n') {
+        &prefix[last_nl_idx..]
+    } else {
+        prefix
+    };
+    if candidate.chars().all(|c| c.is_ascii_whitespace()) {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+// Return the most common indentation for values in an array.
+fn array_values_indentation(arr: &Array) -> Option<&str> {
+    use itertools::Itertools as _;
+    // makes a map from indentation to count.
+    arr.iter()
+        .filter_map(|v| value_indentation(v))
+        .counts()
+        .iter()
+        .max_by_key(|(_, count)| *count)
+        .map(|(indent, _)| *indent)
+}
+
+fn push_indented_string(array: &mut Array, val: &str) {
+    let mut v: Value = val.into();
+    let indent = array_values_indentation(array).unwrap_or("\n    ");
+    v.decor_mut().set_prefix(indent);
+    array.push_formatted(v);
 }
