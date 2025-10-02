@@ -542,17 +542,13 @@ fn print_check_integrity_incipit(affected_keystores: &[InvalidKeystoreEntries]) 
     if len > 1 {
         incipit.push('s');
     }
-    incipit.push(':');
-    for InvalidKeystoreEntries {
-        keystore_id,
-        entries: _,
-    } in affected_keystores
-    {
-        incipit.push(' ');
-        incipit.push_str(&keystore_id.to_string());
-        incipit.push(',');
-    }
-    let _ = incipit.pop();
+    incipit.push_str(": ");
+
+    let keystore_names: Vec<_> = affected_keystores
+        .iter()
+        .map(|x| x.keystore_id.to_string())
+        .collect();
+    incipit.push_str(&keystore_names.join(", "));
     incipit.push('.');
 
     println!("{}", incipit);
