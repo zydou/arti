@@ -487,7 +487,12 @@ We trigger `TunnelSent` when a cell is given to the TLS framing queue.
 
 From the point of view of the "replace" flag,
 we treat our outbound queue as having a message already
-if there are any data cells in the TLS framing queue.
+if the TLS framing queue is _full_.
+
+>We would prefer to treat the outbound queue as having a message ready
+>if it has _any_ data cells.
+>But the current TLS and `futures_codec` implementations
+>don't give us a way to do that.
 
 The Tor protocol already has a simple channel padding mechanism,
 used to resist netflow-based adversaries.
