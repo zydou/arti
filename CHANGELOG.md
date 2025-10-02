@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.6.0 — 2 October 2025
+# Arti 1.6.0 — 6 October 2025
 
 Arti 1.6.0 brings experimental support for [circuit padding][circuit-padding.md],
 [mitigations for DropMark side channel attacks][prop349],
