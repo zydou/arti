@@ -106,6 +106,14 @@ pub enum CtrlMsg {
     /// the sender of these messages is responsible for the optimisation of
     /// ensuring that "no-change" messages are elided.
     KistConfigUpdate(KistParams),
+    /// Change the current padding implementation to the one provided.
+    #[cfg(feature = "circ-padding-manual")]
+    SetChannelPadder {
+        /// The padder to install, or None to remove any existing padder.
+        padder: Option<crate::client::CircuitPadder>,
+        /// A oneshot channel to use in reporting the outcome.
+        sender: oneshot::Sender<Result<()>>,
+    },
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -405,6 +413,12 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 }
             }
             CtrlMsg::KistConfigUpdate(kist) => self.apply_kist_params(&kist),
+            #[cfg(feature = "circ-padding-manual")]
+            CtrlMsg::SetChannelPadder { padder, sender } => {
+                self.padding_ctrl
+                    .install_padder_padding_at_hop(HopNum::from(0), padder);
+                let _ignore = sender.send(Ok(()));
+            }
         }
         Ok(())
     }

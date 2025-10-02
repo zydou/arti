@@ -886,6 +886,36 @@ impl Channel {
             })
     }
 
+    /// Install a [`CircuitPadder`](client::CircuitPadder) for this channel.
+    ///
+    /// Replaces any previous padder installed.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn start_padding(self: &Arc<Self>, padder: client::CircuitPadder) -> Result<()> {
+        self.set_padder_impl(Some(padder)).await
+    }
+
+    /// Remove any [`CircuitPadder`](client::CircuitPadder) installed for this channel.
+    ///
+    /// Does nothing if there was not a padder installed there.
+    #[cfg(feature = "circ-padding-manual")]
+    pub async fn stop_padding(self: &Arc<Self>) -> Result<()> {
+        self.set_padder_impl(None).await
+    }
+
+    /// Replace the [`CircuitPadder`](client::CircuitPadder) installed for this channel with `padder`.
+    #[cfg(feature = "circ-padding-manual")]
+    async fn set_padder_impl(
+        self: &Arc<Self>,
+        padder: Option<client::CircuitPadder>,
+    ) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        let msg = CtrlMsg::SetChannelPadder { padder, sender: tx };
+        self.control
+            .unbounded_send(msg)
+            .map_err(|_| Error::ChannelClosed(ChannelClosed))?;
+        rx.await.map_err(|_| Error::ChannelClosed(ChannelClosed))?
+    }
+
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     ///
     /// Returns the receiver end of the control message mpsc.
