@@ -179,8 +179,8 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
         let runtime = init_runtime().context("Failed to initialize the runtime")?;
 
         let path_resolver = base_resolver();
-        let relay = InertTorRelay::new(&config, path_resolver)
-            .context("Failed to initialize the relay")?;
+        let relay =
+            InertTorRelay::new(config, path_resolver).context("Failed to initialize the relay")?;
 
         match mainloop(&runtime, run_relay(runtime.clone(), relay))? {
             MainloopStatus::Finished(result) => result,

@@ -23,6 +23,8 @@ use crate::err::ErrorDetail;
 /// This intentionally does not have access to the runtime to prevent it from doing network io.
 #[derive(Clone)]
 pub(crate) struct InertTorRelay {
+    /// The configuration options for the relay.
+    config: TorRelayConfig,
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
     #[allow(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
@@ -34,12 +36,13 @@ pub(crate) struct InertTorRelay {
 impl InertTorRelay {
     /// Create a new Tor relay with the given configuration.
     pub(crate) fn new(
-        config: &TorRelayConfig,
+        config: TorRelayConfig,
         path_resolver: CfgPathResolver,
     ) -> Result<Self, ErrorDetail> {
-        let keymgr = Self::create_keymgr(config, &path_resolver)?;
+        let keymgr = Self::create_keymgr(&config, &path_resolver)?;
 
         Ok(Self {
+            config,
             path_resolver,
             keymgr,
         })
