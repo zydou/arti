@@ -321,7 +321,7 @@ fn run_check_integrity<R: Runtime>(
         if #[cfg(feature = "onion-service-service")] {
             if !expired_entries.is_empty() {
                 return Err(anyhow::anyhow!(
-                    "Encoutered an expired key that doesn't belong to a registered keystore."
+                    "Encountered an expired key that doesn't belong to a registered keystore."
                 ));
             }
         }
