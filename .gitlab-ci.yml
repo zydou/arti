@@ -685,6 +685,10 @@ rust-recent-test-all-features:
   script:
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
+  tags:
+    # We are currently having issues on some non-TPA runners.
+    # https://gitlab.torproject.org/tpo/tpa/team/-/issues/42283
+    - tpa
 
 every-crate:
   stage: test
