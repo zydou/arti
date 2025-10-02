@@ -171,6 +171,8 @@ release?" above.
 5. [ ] Determine what semver/version update to do to each crate.
 
    We need to sort our crates into the following tiers.
+    * Crates that we do not publish (E.g. `maint/*`, `examples/*`).
+      (Do not bump version)
     * Unstable (0.x) `tor-*` and `arti-*` crates.
       (Bump minor version, to the same value for each crate.)
     * No changes were made.
