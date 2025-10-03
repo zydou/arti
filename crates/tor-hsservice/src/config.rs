@@ -223,6 +223,8 @@ impl OnionServiceConfig {
         fields! {
             nickname: unchangeable,
 
+            // TODO: allow starting/stopping onion services while the client is
+            // running
             enabled: unchangeable,
 
             // IPT manager will respond by adding or removing IPTs as desired.
