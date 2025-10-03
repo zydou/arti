@@ -5,7 +5,6 @@ use crate::internal_prelude::*;
 use amplify::Getters;
 use derive_deftly::derive_deftly_adhoc;
 use tor_cell::relaycell::hs::est_intro;
-use tor_config::BoolOrAuto;
 
 use crate::config::restricted_discovery::{
     RestrictedDiscoveryConfig, RestrictedDiscoveryConfigBuilder,
@@ -34,10 +33,8 @@ pub struct OnionServiceConfig {
 
     /// If true, this service will be started. It should be available to
     /// commands that don't require it to start regardless.
-    ///
-    /// The default (Auto) will start the service with a warning.
-    #[builder(default)]
-    pub(crate) enabled: BoolOrAuto,
+    #[builder(default = "true")]
+    pub(crate) enabled: bool,
 
     /// Number of intro points; defaults to 3; max 20.
     #[builder(default = "DEFAULT_NUM_INTRO_POINTS")]

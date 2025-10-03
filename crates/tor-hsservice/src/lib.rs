@@ -286,14 +286,8 @@ impl OnionService {
         let selector = KeystoreSelector::Primary;
         maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid, selector)?;
 
-        match config.enabled() {
-            tor_config::BoolOrAuto::Auto => {
-                warn!(nickname=%nickname, "Onion service not explicitly enabled in config");
-            }
-            tor_config::BoolOrAuto::Explicit(true) => (),
-            tor_config::BoolOrAuto::Explicit(false) => {
-                return Err(StartupError::DisabledInConfig);
-            }
+        if !config.enabled() {
+            return Err(StartupError::DisabledInConfig);
         }
 
         if config.restricted_discovery.enabled {
