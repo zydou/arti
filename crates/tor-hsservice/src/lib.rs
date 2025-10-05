@@ -253,6 +253,8 @@ impl OnionService {
     /// Tell this onion service to begin running, and return a
     /// [`RunningOnionService`] and its stream of rendezvous requests.
     ///
+    /// Returns `Ok(None)` if the service specified is disabled in the config.
+    ///
     /// You can turn the resulting stream into a stream of [`StreamRequest`]
     /// using the [`handle_rend_requests`] helper function.
     ///
@@ -265,7 +267,7 @@ impl OnionService {
         netdir_provider: Arc<dyn NetDirProvider>,
         circ_pool: Arc<HsCircPool<R>>,
         path_resolver: Arc<tor_config_path::CfgPathResolver>,
-    ) -> Result<(Arc<RunningOnionService>, impl Stream<Item = RendRequest>), StartupError>
+    ) -> Result<Option<(Arc<RunningOnionService>, impl Stream<Item = RendRequest>)>, StartupError>
     where
         R: Runtime,
     {
@@ -287,7 +289,7 @@ impl OnionService {
         maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid, selector)?;
 
         if !config.enabled() {
-            return Err(StartupError::DisabledInConfig);
+            return Ok(None);
         }
 
         if config.restricted_discovery.enabled {
@@ -391,7 +393,7 @@ impl OnionService {
         });
 
         let stream = svc.launch()?;
-        Ok((svc, stream))
+        Ok(Some((svc, stream)))
     }
 
     /// Return the onion address of this service.
