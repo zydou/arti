@@ -8,13 +8,15 @@
 
 use super::circmap::{CircEnt, CircMap};
 use crate::client::circuit::halfcirc::HalfCirc;
-use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
+use crate::client::circuit::padding::{
+    PaddingController, PaddingEvent, PaddingEventStream, SendPadding, StartBlocking,
+};
 use crate::util::err::ReactorError;
 use crate::util::oneshot_broadcast;
-use crate::{Error, Result};
+use crate::{Error, HopNum, Result};
 use tor_async_utils::SinkPrepareExt as _;
 use tor_cell::chancell::ChanMsg;
-use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
+use tor_cell::chancell::msg::{Destroy, DestroyReason, Padding, PaddingNegotiate};
 use tor_cell::chancell::{AnyChanCell, CircId, msg::AnyChanMsg};
 use tor_error::debug_report;
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
@@ -52,6 +54,17 @@ pub(super) type BoxedChannelSink =
 pub(super) type BoxedChannelStreamOps = Box<dyn StreamOps + Send + Unpin + 'static>;
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "circ-padding")] {
+        use crate::util::sink_blocker::{SinkBlocker, CountingPolicy};
+        /// Type used by a channel reactor to send cells to the network.
+        pub(super) type ChannelOutputSink = SinkBlocker<BoxedChannelSink, CountingPolicy>;
+    } else {
+        /// Type used by a channel reactor to send cells to the network.
+        pub(super) type ChannelOutputSink = BoxedChannelSink;
+    }
+}
 
 /// A message telling the channel reactor to do something.
 #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
@@ -93,6 +106,14 @@ pub enum CtrlMsg {
     /// the sender of these messages is responsible for the optimisation of
     /// ensuring that "no-change" messages are elided.
     KistConfigUpdate(KistParams),
+    /// Change the current padding implementation to the one provided.
+    #[cfg(feature = "circ-padding-manual")]
+    SetChannelPadder {
+        /// The padder to install, or None to remove any existing padder.
+        padder: Option<crate::client::CircuitPadder>,
+        /// A oneshot channel to use in reporting the outcome.
+        sender: oneshot::Sender<Result<()>>,
+    },
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -119,11 +140,16 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     /// A Sink to which we can write `ChanCell`s.
     ///
     /// This should also be backed by a TLS connection if you want it to be secure.
-    pub(super) output: BoxedChannelSink,
+    pub(super) output: ChannelOutputSink,
     /// A handler for setting stream options on the underlying stream.
     #[cfg_attr(not(target_os = "linux"), allow(unused))]
     pub(super) streamops: BoxedChannelStreamOps,
-    /// Timer tracking when to generate channel padding
+    /// Timer tracking when to generate channel padding.
+    ///
+    /// Note that this is _distinct_ from the experimental maybenot-based padding
+    /// implemented with padding_ctrl and padding_stream.
+    /// This is the existing per-channel padding
+    /// in the tor protocol used to resist netflow attacks.
     pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
     /// Outgoing cells introduced at the channel reactor
     pub(super) special_outgoing: SpecialOutgoing,
@@ -135,6 +161,20 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
     pub(super) details: Arc<ChannelDetails>,
     /// Context for allocating unique circuit log identifiers.
     pub(super) circ_unique_id_ctx: unique_id::CircUniqIdContext,
+    /// A padding controller to which padding-related events should be reported.
+    ///
+    /// (This is used for experimental maybenot-based padding.)
+    //
+    // TODO: It would be good to use S here instead of DynTimeProvider,
+    // but we still need the latter for the clones of padding_ctrl that we hand out
+    // inside ChannelSender.
+    pub(super) padding_ctrl: PaddingController<DynTimeProvider>,
+    /// An event stream telling us about padding-related events.
+    ///
+    /// (This is used for experimental maybenot-based padding.)
+    pub(super) padding_event_stream: PaddingEventStream<DynTimeProvider>,
+    /// If present, the current rules for blocking the output based on the padding framework.
+    pub(super) padding_blocker: Option<StartBlocking>,
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
@@ -143,8 +183,10 @@ pub struct Reactor<S: SleepProvider + CoarseTimeProvider> {
 /// Outgoing cells introduced at the channel reactor
 #[derive(Default, Debug, Clone)]
 pub(super) struct SpecialOutgoing {
-    /// If we must send a `PaddingNegotiate`
-    pub(super) padding_negotiate: Option<PaddingNegotiate>,
+    /// If we must send a `PaddingNegotiate`, this is present.
+    padding_negotiate: Option<PaddingNegotiate>,
+    /// A number of pending PADDING cells that we have to send, once there is space.
+    n_padding: u16,
 }
 
 impl SpecialOutgoing {
@@ -153,13 +195,22 @@ impl SpecialOutgoing {
     /// Called by the reactor before looking for cells from the reactor's clients.
     /// The returned message *must* be sent by the caller, not dropped!
     #[must_use = "SpecialOutgoing::next()'s return value must be actually sent"]
-    pub(super) fn next(&mut self) -> Option<AnyChanCell> {
+    fn next(&mut self) -> Option<AnyChanCell> {
         // If this gets more cases, consider making SpecialOutgoing into a #[repr(C)]
         // enum, so that we can fast-path the usual case of "no special message to send".
         if let Some(p) = self.padding_negotiate.take() {
             return Some(p.into());
         }
+        if self.n_padding > 0 {
+            self.n_padding -= 1;
+            return Some(Padding::new().into());
+        }
         None
+    }
+
+    /// Try to queue a padding cell to be sent.
+    fn queue_padding_cell(&mut self) {
+        self.n_padding = self.n_padding.saturating_add(1);
     }
 }
 
@@ -242,10 +293,17 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                     },
                     p = self.padding_timer.as_mut().next() => {
                         // eprintln!("PADDING - SENDING PADDING: {:?}", &p);
+
+                        // Note that we treat padding from the padding_timer as a normal cell,
+                        // since it doesn't have a padding machine.
+                        self.padding_ctrl.queued_data(HopNum::from(0));
+
+                        self.padding_timer.as_mut().note_cell_sent();
                         Some((p.into(), None))
                     },
                 }
             }) => {
+                self.padding_ctrl.flushed_channel_cell();
                 let (queued, sendable) = ret?;
                 let (msg, cell_padding_info) = queued.ok_or(ReactorError::Shutdown)?;
                 // Tell the relevant circuit padder that this cell is getting flushed.
@@ -266,6 +324,11 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                     Some(x) => x,
                 };
                 self.handle_control(ctrl).await?;
+            }
+
+            ret = self.padding_event_stream.next() => {
+                let event = ret.ok_or_else(|| Error::from(internal!("Padding event stream was exhausted")))?;
+                self.handle_padding_event(event).await?;
             }
 
             ret = self.input.next() => {
@@ -350,8 +413,134 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 }
             }
             CtrlMsg::KistConfigUpdate(kist) => self.apply_kist_params(&kist),
+            #[cfg(feature = "circ-padding-manual")]
+            CtrlMsg::SetChannelPadder { padder, sender } => {
+                self.padding_ctrl
+                    .install_padder_padding_at_hop(HopNum::from(0), padder);
+                let _ignore = sender.send(Ok(()));
+            }
         }
         Ok(())
+    }
+
+    /// Take the padding action described in `action`.
+    ///
+    /// (With circuit padding disabled, PaddingEvent can't be constructed.)
+    #[cfg(not(feature = "circ-padding"))]
+    async fn handle_padding_event(&mut self, action: PaddingEvent) -> Result<()> {
+        void::unreachable(action.0)
+    }
+
+    /// Take the padding action described in `action`.
+    #[cfg(feature = "circ-padding")]
+    async fn handle_padding_event(&mut self, action: PaddingEvent) -> Result<()> {
+        use PaddingEvent as PE;
+        match action {
+            PE::SendPadding(send_padding) => {
+                self.handle_send_padding(send_padding).await?;
+            }
+            PE::StartBlocking(start_blocking) => {
+                if self.output.is_unlimited() {
+                    self.output.set_blocked();
+                }
+                self.padding_blocker = Some(start_blocking);
+            }
+            PE::StopBlocking => {
+                self.output.set_unlimited();
+            }
+        }
+        Ok(())
+    }
+
+    /// Send the padding described in `padding`.
+    #[cfg(feature = "circ-padding")]
+    async fn handle_send_padding(&mut self, padding: SendPadding) -> Result<()> {
+        // TODO circpad: This is somewhat duplicative of the logic in `Circuit::send_padding` and
+        // `Circuit::padding_disposition`.  It might be good to unify them at some point.
+        // For now (Oct 2025), though, they have slightly different inputs and behaviors.
+
+        use crate::client::circuit::padding::{Bypass::*, Replace::*};
+        // multihop padding belongs in circuit padders, not here.
+        let hop = HopNum::from(0);
+        assert_eq!(padding.hop, hop);
+
+        // If true, there is blocking, but we are allowed to bypass it.
+        let blocking_bypassed = matches!(
+            (&self.padding_blocker, padding.may_bypass_block()),
+            (
+                Some(StartBlocking {
+                    is_bypassable: true
+                }),
+                BypassBlocking
+            )
+        );
+        // If true, there is blocking, and we can't bypass it.
+        let this_padding_blocked = self.padding_blocker.is_some() && !blocking_bypassed;
+
+        if padding.may_replace_with_data() == Replaceable {
+            if self.output_is_full().await? {
+                // When the output buffer is full,
+                // we _always_ treat it as satisfying our replaceable padding.
+                //
+                // TODO circpad: It would be better to check whether
+                // the output has any bytes at all, but futures_codec doesn't seem to give us a
+                // way to check that.  If we manage to do so in the future, we should change the
+                // logic in this function.
+                self.padding_ctrl
+                    .replaceable_padding_already_queued(hop, padding);
+                return Ok(());
+            } else if self.cells.approx_count() > 0 {
+                // We can replace the padding with outbound cells!
+                if this_padding_blocked {
+                    // In the blocked case, we just declare that the pending data _is_ the queued padding.
+                    self.padding_ctrl
+                        .replaceable_padding_already_queued(hop, padding);
+                } else {
+                    // Otherwise we report that queued data _became_ padding,
+                    // and we allow it to pass any blocking that's present.
+                    self.padding_ctrl.queued_data_as_padding(hop, padding);
+                    if blocking_bypassed {
+                        self.output.allow_n_additional_items(1);
+                    }
+                }
+                return Ok(());
+            } else {
+                // There's nothing to replace this with, so fall through.
+            }
+        }
+
+        // There's no replacement, so we queue unconditionally.
+        self.special_outgoing.queue_padding_cell();
+        self.padding_ctrl.queued_padding(hop, padding);
+        if blocking_bypassed {
+            self.output.allow_n_additional_items(1);
+        }
+
+        Ok(())
+    }
+
+    /// Return true if the output stream is full.
+    ///
+    /// We use this in circuit padding to implement replaceable padding.
+    //
+    // TODO circpad: We'd rather check whether there is any data at all queued in self.output,
+    // but futures_codec doesn't give us a way to do that.
+    #[cfg(feature = "circ-padding")]
+    async fn output_is_full(&mut self) -> Result<bool> {
+        use futures::future::poll_fn;
+        use std::task::Poll;
+        // We use poll_fn to get a cx that we can pass to poll_ready_unpin.
+        poll_fn(|cx| {
+            Poll::Ready(match self.output.poll_ready_unpin(cx) {
+                // If if's ready to send, it isn't full.
+                Poll::Ready(Ok(())) => Ok(false),
+                // If it isn't ready to send, it's full.
+                Poll::Pending => Ok(true),
+                // Propagate errors:
+                Poll::Ready(Err(e)) => Err(e),
+            })
+        })
+        .await
     }
 
     /// Helper: process a cell on a channel.  Most cell types get ignored
@@ -368,6 +557,15 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
                 msg.cmd(),
                 CircId::get_or_zero(circid)
             ),
+        }
+
+        // Report the message to the padding controller.
+        match msg {
+            Padding(_) | Vpadding(_) => {
+                // We always accept channel padding, even if we haven't negotiated any.
+                let _always_acceptable = self.padding_ctrl.decrypted_padding(HopNum::from(0));
+            }
+            _ => self.padding_ctrl.decrypted_data(HopNum::from(0)),
         }
 
         match msg {

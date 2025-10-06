@@ -532,7 +532,6 @@ impl<S: SleepProvider> PaddingController<S> {
     ///
     /// Return a QueuedCellPaddingInfo if we need to alert the padding subsystem
     /// when this cell is flushed.
-    #[allow(dead_code)] // This functionality is not implemented in arti.
     pub(crate) fn queued_data_as_padding(
         &self,
         hop: HopNum,
@@ -594,6 +593,12 @@ impl<S: SleepProvider> PaddingController<S> {
         // Every hop up to the last
         let mut shared = self.shared.lock().expect("Lock poisoned");
         shared.trigger_events(info.target_hop, &[maybenot::TriggerEvent::TunnelSent]);
+    }
+
+    /// Report that we've flushed a cell from the per-channel queue.
+    pub(crate) fn flushed_channel_cell(&self) {
+        let mut shared = self.shared.lock().expect("Lock poisoned");
+        shared.trigger_events(HopNum::from(0), &[maybenot::TriggerEvent::TunnelSent]);
     }
 
     /// Report that we have decrypted a non-padding cell from our queue

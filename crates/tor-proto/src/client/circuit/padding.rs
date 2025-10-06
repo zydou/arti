@@ -49,6 +49,10 @@ cfg_if::cfg_if! {
 }
 
 // These types are made public using the super-experimental circ-padding-manual feature.
+//
+// TODO circpad: When we stabilize padding support, we should probably rename these,
+// since they are not exclusively for circuits: They can also be used to send padding to
+// padding on channels.
 #[cfg(feature = "circ-padding-manual")]
 #[cfg_attr(docsrs, doc(cfg(feature = "circ-padding-manual")))]
 pub use maybenot_padding::{CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError};

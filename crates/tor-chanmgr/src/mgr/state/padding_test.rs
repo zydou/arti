@@ -30,6 +30,7 @@ use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
 use tor_proto::memquota::{ChannelAccount, ToplevelAccount};
+use tor_rtcompat::{Runtime, test_with_all_runtimes};
 
 use crate::ChannelUsage;
 use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
@@ -168,14 +169,20 @@ struct Expected {
     nego: Option<(PaddingNegotiateCmd, [u32; 2])>,
 }
 
-async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> CaseContext {
+async fn case(
+    rt: &impl Runtime,
+    level: PaddingLevel,
+    dormancy: Dormancy,
+    usage: ChannelUsage,
+) -> CaseContext {
     let mut cconfig = ChannelConfig::builder();
     cconfig.padding(level);
     let cconfig = cconfig.build().unwrap();
 
     eprintln!("\n---- {:?} {:?} {:?} ----", &cconfig, &dormancy, &usage);
 
-    let (channel, recv) = Channel::new_fake(tor_proto::channel::ChannelType::ClientInitiator);
+    let (channel, recv) =
+        Channel::new_fake(rt.clone(), tor_proto::channel::ChannelType::ClientInitiator);
     let peer_id = channel.target().ed_identity().unwrap().clone();
     let relay_ids = RelayIds::builder()
         .ed_identity(peer_id.clone())
@@ -273,13 +280,24 @@ impl CaseContext {
 /// once (assuming it can be sent before the channel is closed or the next one arrives).
 /// The timing parameters, and enablement, are passed directly to the padding timer.
 #[async_test]
-async fn padding_control_through_layers() {
+async fn padding_control_through_layer() {
+    test_with_all_runtimes!(padding_control_through_layer_impl);
+}
+
+/// Helper for padding_control_through_layer: takes a runtime as an argument.
+async fn padding_control_through_layer_impl(rt: impl tor_rtcompat::Runtime) {
     const STOP_MSG: (PaddingNegotiateCmd, [u32; 2]) = (PaddingNegotiateCmd::STOP, [0, 0]);
     const START_CMD: PaddingNegotiateCmd = PaddingNegotiateCmd::START;
 
     // ---- simple case, active exit, defaults ----
 
-    let mut c = case(PL::default(), Dormancy::Active, ChannelUsage::UserTraffic).await;
+    let mut c = case(
+        &rt,
+        PL::default(),
+        Dormancy::Active,
+        ChannelUsage::UserTraffic,
+    )
+    .await;
     c.expect_1(Expected {
         enabled: Some(true),
         timing: Some(DEF_MS),
@@ -288,7 +306,13 @@ async fn padding_control_through_layers() {
 
     // ---- reduced padding ----
 
-    let mut c = case(PL::Reduced, Dormancy::Active, ChannelUsage::UserTraffic).await;
+    let mut c = case(
+        &rt,
+        PL::Reduced,
+        Dormancy::Active,
+        ChannelUsage::UserTraffic,
+    )
+    .await;
     c.expect_1(Expected {
         enabled: Some(true),
         timing: Some(REDUCED_MS),
@@ -297,7 +321,13 @@ async fn padding_control_through_layers() {
 
     // ---- dormant ----
 
-    let mut c = case(PL::default(), Dormancy::Dormant, ChannelUsage::UserTraffic).await;
+    let mut c = case(
+        &rt,
+        PL::default(),
+        Dormancy::Dormant,
+        ChannelUsage::UserTraffic,
+    )
+    .await;
     c.expect_1(Expected {
         enabled: None,
         timing: None,
@@ -312,7 +342,7 @@ async fn padding_control_through_layers() {
         cconfig.build().unwrap()
     };
 
-    let mut c = case(PL::default(), Dormancy::Active, ChannelUsage::Dir).await;
+    let mut c = case(&rt, PL::default(), Dormancy::Active, ChannelUsage::Dir).await;
     // directory circuits don't get padding (and we don't need to tell the peer to disable)
     c.expect_0();
 
