@@ -82,7 +82,7 @@ fn parse_authcert() -> anyhow::Result<()> {
     let doc = doc.verify_selfcert(now)?;
     println!("{doc:?}");
     assert_eq!(
-        doc.h_kp_auth_id_rsa.0.to_string(),
+        doc.h_kp_auth_id_rsa.0.0.to_string(),
         "$cbc82f96a5000a5fe0d6fb69519b79ea0c03ebe1",
     );
     Ok(())

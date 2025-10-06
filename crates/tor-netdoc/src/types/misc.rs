@@ -413,6 +413,8 @@ mod edcert {
 /// Types for decoding RSA fingerprints
 mod fingerprint {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use base64ct::{Base64Unpadded, Encoding as _};
+    use std::fmt::{self, Display};
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
@@ -473,11 +475,23 @@ mod fingerprint {
         }
     }
 
+    impl Display for Base64Fingerprint {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&Base64Unpadded::encode_string(self.as_bytes()), f)
+        }
+    }
+
     impl std::str::FromStr for Fingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<Fingerprint> {
             let ident = parse_hex_ident(s).map_err(|e| e.at_pos(Pos::at(s)))?;
             Ok(Fingerprint(ident))
+        }
+    }
+
+    impl Display for Fingerprint {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&hex::encode_upper(self.as_bytes()), f)
         }
     }
 
@@ -896,6 +910,7 @@ mod test {
         assert_eq!(RsaIdentity::from(fp2.parse::<Fingerprint>()?), k);
         assert!(fp3.parse::<Fingerprint>().is_err());
         assert!(fp4.parse::<Fingerprint>().is_err());
+        assert_eq!(Fingerprint(k).to_string(), fp2);
 
         assert!(fp1.parse::<LongIdent>().is_err());
         assert_eq!(RsaIdentity::from(fp2.parse::<LongIdent>()?), k);
@@ -907,6 +922,7 @@ mod test {
 
         let fp_b64 = "dGepfRnNK08rwDiKqZxeZ3EPhH4";
         assert_eq!(RsaIdentity::from(fp_b64.parse::<Base64Fingerprint>()?), k);
+        assert_eq!(Base64Fingerprint(k).to_string(), fp_b64);
 
         Ok(())
     }
