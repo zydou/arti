@@ -350,6 +350,9 @@ before you continue!
    If so, you need to make sure that they are owned (on crates.io)
    by the right set of developers.
    If you aren't sure, run `maint/cargo-crate-owners`.
+   You can then use `cargo owner --add <username> <crate-name>`
+   to add them as owners for the new crates.
+
 
 4. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 
