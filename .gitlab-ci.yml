@@ -114,7 +114,7 @@ python3-checks:
 maint-checks:
   stage: check
   script:
-    - maint/common/apt-install git python3-toml python3-requests
+    - maint/common/apt-install git python3-toml python3-requests python3-mistune
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/common/forbid-absolute-shebangs
@@ -123,11 +123,6 @@ maint-checks:
     - ./maint/cargo-check-publishable
     - ./maint/check_case_sensitive
     - ./maint/check_instrument_macros
-
-maint-check-changelog:
-  stage: test
-  script:
-    - maint/common/apt-install python3-mistune git
     - git fetch --unshallow $ORIGIN
     - ./maint/update-md-links --check CHANGELOG.md
 
