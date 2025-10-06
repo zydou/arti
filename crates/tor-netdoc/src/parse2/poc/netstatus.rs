@@ -13,7 +13,7 @@ ns_per_flavour_macros::ns_export_flavoured_types! {
 }
 
 /// `network-status-version` version value
-#[derive(Debug, Clone, Copy, Eq, PartialEq, strum::EnumString)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, strum::EnumString, strum::Display)]
 #[non_exhaustive]
 pub enum NdaNetworkStatusVersion {
     /// The currently supported version, `3`

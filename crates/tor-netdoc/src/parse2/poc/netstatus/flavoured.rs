@@ -135,6 +135,12 @@ impl FromStr for NdaVoteStatus {
     }
 }
 
+impl Display for NdaVoteStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(NDA_VOTE_STATUS, f)
+    }
+}
+
 /// `voting-delay` value
 #[derive(Deftly, Clone, Debug, Hash, Eq, PartialEq)]
 #[derive_deftly(ItemValueParseable)]

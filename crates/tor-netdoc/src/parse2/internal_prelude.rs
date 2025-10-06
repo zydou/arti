@@ -3,7 +3,7 @@
 //! This is also exported, but with `#[doc(hidden)]`, for the benefit of our public macros.
 
 pub use std::collections::HashSet;
-pub use std::fmt::Debug;
+pub use std::fmt::{self, Debug, Display};
 pub use std::io::Write as _;
 pub use std::marker::PhantomData;
 pub use std::mem;
