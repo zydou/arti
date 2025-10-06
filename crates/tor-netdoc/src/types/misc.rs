@@ -904,6 +904,10 @@ mod test {
 
         assert!("xxxx".parse::<Fingerprint>().is_err());
         assert!("ffffffffff".parse::<Fingerprint>().is_err());
+
+        let fp_b64 = "dGepfRnNK08rwDiKqZxeZ3EPhH4";
+        assert_eq!(RsaIdentity::from(fp_b64.parse::<Base64Fingerprint>()?), k);
+
         Ok(())
     }
 
