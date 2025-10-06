@@ -22,7 +22,3 @@ $CARGO update \
       -p filetime \
       -p tap:1.0.0 \
       -p paste
-
-# The downgraded 'async-fs@2.0.0' lib specifies a dependency of 'futures-lite' 1.2.0,
-# but uses `FutureExt::poll()` which wasn't available until 'futures-lite' 1.9.0.
-$CARGO update --precise 1.9.0 futures-lite@1.2.0
