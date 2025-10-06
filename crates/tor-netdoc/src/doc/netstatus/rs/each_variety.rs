@@ -51,3 +51,15 @@ pub struct RouterStatus {
     /// relay at random.
     pub weight: RelayWeight,
 }
+
+impl RouterStatus {
+    /// Return the digest of the document identified by this
+    /// routerstatus.
+    ///
+    /// The `doc_digest` method is provided on all varieties of routerstatus entry
+    /// to help paper over the protocol anomaly, that the digest is in a different place
+    /// in md routerstatus entries.
+    pub fn doc_digest(&self) -> &DocDigest {
+        &self.r.doc_digest
+    }
+}

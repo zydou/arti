@@ -85,12 +85,6 @@ impl RouterStatus {
         &self.r.identity
     }
 
-    /// Return the digest of the document identified by this
-    /// routerstatus.
-    pub fn doc_digest(&self) -> &DocDigest {
-        &self.r.doc_digest
-    }
-
     /// Return the networkstatus consensus flavor in which this
     /// routerstatus appears.
     pub(crate) fn flavor() -> ConsensusFlavor {
