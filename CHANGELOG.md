@@ -403,7 +403,7 @@ which are documented below.
   What it costs in build time, it should save in runtime. ([!3157])
 - Refactor how our `check_licenses` script handles per-crate
   exceptions. ([!3195])
-- Fixed `minimal-versions` CI pipeline. (![3327])
+- Fixed `minimal-versions` CI pipeline. ([!3327])
 
 ### Cleanups, minor features, and bugfixes
 
