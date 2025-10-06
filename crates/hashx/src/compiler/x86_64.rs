@@ -134,7 +134,7 @@ fn emit_save_regs<A: DynasmApi>(asm: &mut A) {
     dynasm!(asm; sub rsp, stack_size());
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
         let offset = (i * mem::size_of::<u64>()) as i32;
-        dynasm!(asm; mov [rsp + offset], Rq(*reg as u8));
+        dynasm!(asm; mov [rsp + offset], Rq(*reg));
     }
 }
 
@@ -143,7 +143,7 @@ fn emit_save_regs<A: DynasmApi>(asm: &mut A) {
 fn emit_restore_regs<A: DynasmApi>(asm: &mut A) {
     for (i, reg) in REGS_TO_SAVE.as_ref().iter().enumerate() {
         let offset = (i * mem::size_of::<u64>()) as i32;
-        dynasm!(asm; mov Rq(*reg as u8), [rsp + offset]);
+        dynasm!(asm; mov Rq(*reg), [rsp + offset]);
     }
     dynasm!(asm; add rsp, stack_size());
 }
@@ -151,6 +151,7 @@ fn emit_restore_regs<A: DynasmApi>(asm: &mut A) {
 /// Emit code to move all input values from the RegisterFile into their
 /// actual hardware registers.
 #[inline(always)]
+#[allow(clippy::useless_conversion)]
 fn emit_load_input<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
         dynasm!(asm; mov Rq(reg.rq()), [register_file_ptr + reg.offset()]);
@@ -160,6 +161,7 @@ fn emit_load_input<A: DynasmApi>(asm: &mut A) {
 /// Emit code to move all output values from machine registers back into
 /// their RegisterFile slots.
 #[inline(always)]
+#[allow(clippy::useless_conversion)]
 fn emit_store_output<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
         dynasm!(asm; mov [register_file_ptr + reg.offset()], Rq(reg.rq()));
@@ -174,6 +176,7 @@ fn emit_return<A: DynasmApi>(asm: &mut A) {
 
 /// Emit code for a single [`Instruction`] in the hash program.
 #[inline(always)]
+#[allow(clippy::useless_conversion)]
 fn emit_instruction(asm: &mut Assembler, inst: &Instruction) {
     /// Common implementation for binary operations on registers
     macro_rules! reg_op {
