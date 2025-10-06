@@ -24,6 +24,8 @@ suitable for middle relay usage, at the earliest.
 For reference, here's a diagram of how our queues work
 for outbound RELAY cells today.
 
+<div id="queue-diagram">
+
 ```text
              Per-circuit queues
                |
@@ -35,6 +37,8 @@ for outbound RELAY cells today.
             |---------------------|
               SometimesUnboundSink
 ```
+
+</div>
 
 Note that every Tor channel has a single MPSC sender/receiver pair
 that circuits use to send it cells.
@@ -464,6 +468,61 @@ but we don't plan to support e.g. consensus-provided padding machines.
 > Or we could say that each "Padding" capability corresponds
 > to a group of sets of padding machines that are available.
 
+## Per-Channel padding
+
+In addition to per-circuit padding with maybenot,
+we also support per-channel padding.
+We expect that this will give better performance and security
+than would using a separate framework for the first hop of each circuit
+on the same channel.
+
+We implement per-channel padding in the channel reactor,
+marked "Channel" in our [queue diagram](#queue-diagram) above.
+
+Every time _any_ cell is queued on a circuit queue,
+we trigger a `NormalSent` event for the channel padding framework.
+We only give the channel padding framework `PaddingSent` events for padding
+that it tells us to generate.
+We trigger `TunnelSent` when a cell is given to the TLS framing queue.
+
+From the point of view of the "replace" flag,
+we treat our outbound queue as having a message already
+if the TLS framing queue is _full_.
+
+>We would prefer to treat the outbound queue as having a message ready
+>if it has _any_ data cells.
+>But the current TLS and `futures_codec` implementations
+>don't give us a way to do that.
+
+The Tor protocol already has a simple channel padding mechanism,
+used to resist netflow-based adversaries.
+Since this padding is not created by a padding machine,
+we treat its outgoing PADDING cells as _normal_ cells
+(from maybenot's point of view).
+We treat all incoming PADDING or VPADDING cells as received padding cells
+(from maybenot's point of view).
+
+
+Other differences from circuit padding are as follows:
+
+- For channel-level blocking, we _do_ support the padding "replace" flag
+  fully.  If real data is waiting, we'll package it.
+- PADDING and VPADDING cells are always allowed.
+- Channel-level blocking does not make any exception for different cell types.
+- Channel-level blocking is treated as opaque from the point of view of
+  congestion control: if it makes the MPSC channel look full,
+  then from the circuits' point of view, the MPSC channel _is_ full.
+
+> We expect that the last two behaviors may have performance implications:
+> when experimenting with per-channel padding,
+> we'll need to be careful to test the effects on congestion control,
+> and revisit these decisions.
+
+
+
+
+
+
 ## Optimization assumptions.
 
 Here are some assumptions we're making,
@@ -477,6 +536,12 @@ with respect to how to optimize:
 - We will never need to support an arbitrary chain of
   UptimeTimer->TimerBegin->UpdateTimer triggers and actions;
   it's okay to end them after 3..4 cycles.
+
+
+
+
+
+
 
 # Future work
 
