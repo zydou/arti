@@ -22,7 +22,7 @@ use tor_error::{Bug, internal};
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::tag_keywords_ok;
-use crate::types::misc::{Iso8601TimeNoSp, Iso8601TimeSp};
+use crate::types::misc::Iso8601TimeSp;
 
 /// Encoder, representing a partially-built document.
 ///
@@ -177,39 +177,20 @@ impl ItemArgument for str {
     }
 }
 
-impl ItemArgument for String {
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        ItemArgument::write_onto(&self.as_str(), out)
-    }
-}
-
 impl ItemArgument for &str {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         <str as ItemArgument>::write_onto(self, out)
     }
 }
 
-/// Implement [`ItemArgument`] for `$ty` in terms of `<$ty as Display>`
-///
-/// Checks that the syntax is acceptable.
-macro_rules! impl_item_argument_as_display { { $( $ty:ty $(,)? )* } => { $(
-    impl ItemArgument for $ty {
-        fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-            let arg = self.to_string();
-            out.add_arg(&arg.as_str());
-            Ok(())
-        }
+impl<T: crate::NormalItemArgument> ItemArgument for T {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        let arg = self.to_string();
+        out.add_arg(&arg.as_str());
+        Ok(())
     }
-)* } }
+}
 
-impl_item_argument_as_display! { usize, u8, u16, u32, u64, u128 }
-impl_item_argument_as_display! { isize, i8, i16, i32, i64, i128 }
-// TODO: should we implement ItemArgument for, say, tor_llcrypto::pk::rsa::RsaIdentity ?
-// It's not clear whether it's always formatted the same way in all parts of the spec.
-// The Display impl of RsaIdentity adds a `$` which is not supposed to be present
-// in (for example) an authority certificate (authcert)'s "fingerprint" line.
-
-impl_item_argument_as_display! {Iso8601TimeNoSp}
 impl ItemArgument for Iso8601TimeSp {
     // Unlike the macro'd formats, contains a space while still being one argument
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
@@ -353,6 +334,7 @@ mod test {
     use super::*;
     use std::str::FromStr;
 
+    use crate::types::misc::Iso8601TimeNoSp;
     use base64ct::{Base64Unpadded, Encoding};
 
     #[test]
