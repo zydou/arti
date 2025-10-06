@@ -9,15 +9,12 @@ use derive_more::Constructor;
 use derive_more::derive::{From, Into};
 
 use tor_error::Bug;
-use tor_key_forge::define_ed25519_keypair;
+use tor_key_forge::{define_ed25519_keypair, define_rsa_keypair};
 use tor_keymgr::{
     InvalidKeyPathComponentValue, KeySpecifier, KeySpecifierComponent,
     derive_deftly_template_KeySpecifier,
 };
 use tor_persist::slug::{Slug, timestamp::Iso8601TimeSlug};
-
-// TODO: The legacy RSA key is needed. Require support in tor-key-forge and keystore.
-// See https://gitlab.torproject.org/tpo/core/arti/-/work_items/1598
 
 define_ed25519_keypair!(
     /// [KP_relayid_ed] Long-term identity keypair. Never rotates.
@@ -41,6 +38,29 @@ pub struct RelayIdentityKeypairSpecifier;
 #[deftly(summary = "Public part of the relay long-term identity keypair")]
 /// The public part of the long-term identity key of the relay.
 pub struct RelayIdentityPublicKeySpecifier;
+
+define_rsa_keypair!(
+    /// [KP_relayid_rsa] Legacy RSA long-term identity keypair. Never rotates.
+    pub RelayIdentityRsa
+);
+
+#[non_exhaustive]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "relay")]
+#[deftly(role = "KS_relayid_rsa")]
+#[deftly(summary = "Legacy RSA long-term relay identity keypair")]
+/// The key specifier of the legacy RSA relay long-term identity key (RelayIdentityRsaKeypair)
+pub struct RelayIdentityRsaKeypairSpecifier;
+
+#[non_exhaustive]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "relay")]
+#[deftly(role = "KP_relayid_rsa")]
+#[deftly(summary = "Public part of the relay long-term identity keypair")]
+/// The public part of the long-term identity key of the relay.
+pub struct RelayIdentityRsaPublicKeySpecifier;
 
 define_ed25519_keypair!(
     /// [KP_relaysign_ed] Medium-term signing keypair. Rotated periodically.

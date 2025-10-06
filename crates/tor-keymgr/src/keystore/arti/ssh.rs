@@ -75,6 +75,7 @@ fn ssh_algorithm(key_type: &KeyType) -> Result<SshKeyAlgorithm> {
         KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => Ok(SshKeyAlgorithm::Ed25519),
         KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => Ok(SshKeyAlgorithm::X25519),
         KeyType::Ed25519ExpandedKeypair => Ok(SshKeyAlgorithm::Ed25519Expanded),
+        KeyType::RsaKeypair | KeyType::RsaPublicKey => Ok(SshKeyAlgorithm::Rsa),
         &_ => {
             Err(ArtiNativeKeystoreError::Bug(internal!("Unknown SSH key type {key_type:?}")).into())
         }
@@ -100,10 +101,9 @@ impl UnparsedOpenSshKey {
         match key_type {
             KeyType::Ed25519Keypair
             | KeyType::X25519StaticKeypair
-            | KeyType::Ed25519ExpandedKeypair => {
-                Ok(parse_openssh!(PRIVATE self, key_type).into_erased()?)
-            }
-            KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
+            | KeyType::Ed25519ExpandedKeypair
+            | KeyType::RsaKeypair => Ok(parse_openssh!(PRIVATE self, key_type).into_erased()?),
+            KeyType::Ed25519PublicKey | KeyType::X25519PublicKey | KeyType::RsaPublicKey => {
                 Ok(parse_openssh!(PUBLIC self, key_type).into_erased()?)
             }
             &_ => Err(ArtiNativeKeystoreError::Bug(internal!("Unknown SSH key type")).into()),

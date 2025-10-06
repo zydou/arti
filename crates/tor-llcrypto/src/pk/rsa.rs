@@ -24,6 +24,8 @@ use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
 
 use crate::util::{ct::CtByteArray, rng::RngCompat};
 
+pub use rsa::Error;
+
 /// How many bytes are in an "RSA ID"?  (This is a legacy tor
 /// concept, and refers to identifying a relay by a SHA1 digest
 /// of its RSA public identity key.)
@@ -323,6 +325,18 @@ impl PublicKey {
 impl<'a> From<&'a KeyPair> for PublicKey {
     fn from(value: &'a KeyPair) -> Self {
         PublicKey(value.to_public_key().0)
+    }
+}
+
+impl From<rsa::RsaPrivateKey> for KeyPair {
+    fn from(value: rsa::RsaPrivateKey) -> Self {
+        Self(value)
+    }
+}
+
+impl From<rsa::RsaPublicKey> for PublicKey {
+    fn from(value: rsa::RsaPublicKey) -> Self {
+        Self(value)
     }
 }
 
