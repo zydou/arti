@@ -1022,8 +1022,16 @@ impl RelayWeight {
             );
         }
 
-        let params: NetParams<u32> = item.args_as_str().parse()?;
+        let params = item.args_as_str().parse()?;
 
+        Self::from_net_params(&params)
+            .map_err(|e| e.at_pos(item.pos()))
+    }
+
+    /// Parse a routerweight from partially-parsed `w` line in the form of a `NetParams`
+    ///
+    /// This function is the common part shared between `parse2` and `parse`.
+    fn from_net_params(params: &NetParams<u32>) -> Result<RelayWeight> {
         let bw = params.params.get("Bandwidth");
         let unmeas = params.params.get("Unmeasured");
 
@@ -1036,7 +1044,6 @@ impl RelayWeight {
             None | Some(0) => Ok(RelayWeight::Measured(bw)),
             Some(1) => Ok(RelayWeight::Unmeasured(bw)),
             _ => Err(EK::BadArgument
-                .at_pos(item.pos())
                 .with_msg("unmeasured value")),
         }
     }
