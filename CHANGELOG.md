@@ -403,6 +403,7 @@ which are documented below.
   What it costs in build time, it should save in runtime. ([!3157])
 - Refactor how our `check_licenses` script handles per-crate
   exceptions. ([!3195])
+- Fixed `minimal-versions` CI pipeline. (![3327])
 
 ### Cleanups, minor features, and bugfixes
 
@@ -522,6 +523,7 @@ for funding the development of Arti!
 [!3195]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3195
 [!3197]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3197
 [!3198]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3198
+[!3327]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3327
 [#2057]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2057
 [#2064]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2064
 [#2079]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2079
