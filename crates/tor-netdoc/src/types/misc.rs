@@ -13,7 +13,7 @@ pub(crate) use ed25519impl::*;
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
-pub(crate) use timeimpl::*;
+pub use timeimpl::*;
 
 #[cfg(feature = "parse2")]
 use derive_deftly::Deftly;
@@ -231,7 +231,8 @@ mod timeimpl {
     ///
     /// (Example: "2020-10-09 17:38:12")
     #[derive(derive_more::Into, derive_more::From)]
-    pub(crate) struct Iso8601TimeSp(SystemTime);
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Iso8601TimeSp(SystemTime);
 
     /// Formatting object for parsing the space-separated Iso8601 format.
     const ISO_8601SP_FMT: &[FormatItem] =
@@ -278,7 +279,8 @@ mod timeimpl {
     ///
     /// (Example: "2020-10-09T17:38:12")
     #[derive(derive_more::Into, derive_more::From)]
-    pub(crate) struct Iso8601TimeNoSp(SystemTime);
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Iso8601TimeNoSp(SystemTime);
 
     /// Formatting object for parsing the space-separated Iso8601 format.
     const ISO_8601NOSP_FMT: &[FormatItem] =
