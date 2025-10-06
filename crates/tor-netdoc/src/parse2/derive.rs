@@ -630,6 +630,9 @@ define_derive_deftly! {
             #[allow(unused_variables)] // If there are no fields, this is unused
             kw: $P::KeywordRef<'_>,
         ) -> bool {
+            #[allow(unused_imports)] // false positives in some situations
+            use $P::*;
+
           ${for fields {
             kw == $F_KEYWORD ||
           }}
@@ -642,6 +645,9 @@ define_derive_deftly! {
             #[allow(unused_variables)] // If there are no fields, this is unused
             item: $P::UnparsedItem<'_>,
         ) -> $P::Result<(), $P::ErrorProblem> {
+            #[allow(unused_imports)] // false positives in some situations
+            use $P::*;
+
           $(
             if item.keyword() == $F_KEYWORD {
                 let selector = $F_ITEM_SET_SELECTOR;
@@ -669,6 +675,9 @@ define_derive_deftly! {
             #[allow(unused_variables)] // If there are no fields, this is unused
             acc: Self::Accumulator
         ) -> $P::Result<Self, $P::ErrorProblem> {
+            #[allow(unused_imports)] // false positives in some situations
+            use $P::*;
+
           $(
             let $fpatname = $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
           ${if fmeta(netdoc(default)) {
