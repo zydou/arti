@@ -298,6 +298,8 @@ mod timeimpl {
             write!(f, "{}", fmt_with(self.0, ISO_8601NOSP_FMT)?)
         }
     }
+
+    impl crate::NormalItemArgument for Iso8601TimeNoSp {}
 }
 
 /// Types for decoding RSA keys
@@ -508,6 +510,9 @@ mod fingerprint {
             Ok(LongIdent(ident))
         }
     }
+
+    impl crate::NormalItemArgument for Fingerprint {}
+    impl crate::NormalItemArgument for Base64Fingerprint {}
 }
 
 /// A type for relay nicknames
@@ -561,6 +566,8 @@ mod nickname {
             }
         }
     }
+
+    impl crate::NormalItemArgument for Nickname {}
 }
 
 #[cfg(test)]

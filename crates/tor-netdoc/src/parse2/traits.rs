@@ -139,7 +139,7 @@ pub trait ItemObjectParseable: Sized {
 
 //---------- provided blanket impls ----------
 
-impl<T: FromStr> ItemArgumentParseable for T {
+impl<T: NormalItemArgument> ItemArgumentParseable for T {
     fn from_args<'s>(args: &mut ArgumentStream<'s>, field: &'static str) -> Result<Self, EP> {
         let v = args
             .next()

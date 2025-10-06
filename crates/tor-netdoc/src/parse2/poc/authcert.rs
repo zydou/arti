@@ -60,6 +60,8 @@ pub enum NdaDirKeyCertificateVersion {
     V3,
 }
 
+impl NormalItemArgument for NdaDirKeyCertificateVersion {}
+
 /// RSA signature
 ///
 /// Used for `dir-key-certification`

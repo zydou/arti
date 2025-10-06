@@ -21,6 +21,8 @@ pub enum NdaNetworkStatusVersion {
     V3,
 }
 
+impl NormalItemArgument for NdaNetworkStatusVersion {}
+
 /// `params` value
 #[derive(Clone, Debug, Default, Deftly)]
 #[derive_deftly(ItemValueParseable)]

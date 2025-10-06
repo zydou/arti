@@ -45,7 +45,7 @@ pub use super::{
         NetdocSigned,
     },
 };
-pub use crate::{netdoc_ordering_check, stop_at};
+pub use crate::{NormalItemArgument, netdoc_ordering_check, stop_at};
 
 pub use ErrorProblem as EP;
 pub use VerifyFailed as VF;

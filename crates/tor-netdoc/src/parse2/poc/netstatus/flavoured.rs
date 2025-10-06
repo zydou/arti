@@ -141,6 +141,8 @@ impl Display for NdaVoteStatus {
     }
 }
 
+impl NormalItemArgument for NdaVoteStatus {}
+
 /// `voting-delay` value
 #[derive(Deftly, Clone, Debug, Hash, Eq, PartialEq)]
 #[derive_deftly(ItemValueParseable)]
