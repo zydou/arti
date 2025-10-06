@@ -59,6 +59,10 @@ default:
     # Support installing software to ~/.local
     - mkdir -p ~/.local
     - 'export PATH=$HOME/.local/bin:$PATH'
+    # Tell cargo to limit parallelism.
+    # See https://gitlab.torproject.org/tpo/tpa/team/-/issues/42283
+    - export CARGO_BUILD_JOBS="$(maint/get-max-parallelism 1024)"
+    - echo "set CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS"
 
   after_script:
     # In every case, if we have a working `cargo` we should clean up
