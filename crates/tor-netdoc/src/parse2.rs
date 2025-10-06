@@ -108,6 +108,7 @@ pub mod multiplicity;
 mod signatures;
 mod traits;
 
+#[cfg(feature = "plain-consensus")]
 pub mod poc;
 
 #[cfg(test)]

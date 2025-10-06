@@ -20,6 +20,13 @@ const TOPLEVEL_DOCTYPE_FOR_ERROR: &str = ns_expr!(
     "NetworkStatusMd",
 );
 
+/// The real router status entry type.
+pub type Router = ns_type!(
+    crate::doc::netstatus::VoteRouterStatus,
+    crate::doc::netstatus::PlainRouterStatus,
+    crate::doc::netstatus::MdRouterStatus,
+);
+
 /// Network status document (vote, consensus, or microdescriptor consensus) - body
 ///
 /// The preamble items are members of this struct.
@@ -152,15 +159,6 @@ pub struct NdiVotingDelay {
     pub vote_seconds: u32,
     /// DistSeconds
     pub dist_seconds: u32,
-}
-
-/// Router entry in a network status
-#[derive(Deftly, Clone, Debug)]
-#[derive_deftly(NetdocParseable)]
-#[non_exhaustive]
-pub struct Router {
-    /// `r`
-    pub r: NdiR,
 }
 
 /// `directory-footer` section
