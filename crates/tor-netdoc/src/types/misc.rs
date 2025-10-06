@@ -432,7 +432,7 @@ mod fingerprint {
     /// A base64-encoded fingerprint (unpadded)
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Base64Fingerprint(pub RsaIdentity);
 
