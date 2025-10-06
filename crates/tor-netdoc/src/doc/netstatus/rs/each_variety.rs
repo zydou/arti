@@ -27,6 +27,8 @@ pub struct RouterStatusIntroItem {
     // TODO SPEC rename in the spec from `digest` to "doc_digest"
     // TODO SPEC in md consensuses the referenced document digest is in a separate `m` item
     pub doc_digest: ns_type!( DocDigest, ArgumentNotPresent, DocDigest ),
+    /// Publication time.
+    pub publication: ns_type!( IgnoredPublicationTimeSp, IgnoredPublicationTimeSp, Iso8601TimeSp ),
     /// IPv4 address
     pub ip: std::net::Ipv4Addr,
     /// Relay port

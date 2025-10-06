@@ -173,6 +173,7 @@ impl RouterStatusBuilder {
                 nickname,
                 identity: Base64Fingerprint(identity),
                 doc_digest: r_doc_digest,
+                publication: IgnoredPublicationTimeSp,
                 ip: *ip.ip(),
                 or_port: ip.port(),
             },

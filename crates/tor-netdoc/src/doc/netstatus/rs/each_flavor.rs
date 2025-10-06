@@ -185,6 +185,7 @@ impl RouterStatus {
                 identity,
                 or_port,
                 doc_digest: r_doc_digest,
+                publication: IgnoredPublicationTimeSp,
                 ip,
             },
             m: m_doc_digest,

@@ -14,7 +14,7 @@ pub(crate) mod vote;
 use super::ConsensusFlavor;
 use crate::doc;
 use crate::doc::netstatus::NetstatusKwd;
-use crate::doc::netstatus::{Protocols, RelayFlags, RelayWeight};
+use crate::doc::netstatus::{IgnoredPublicationTimeSp, Protocols, RelayFlags, RelayWeight};
 use crate::parse::parser::Section;
 use crate::types::misc::*;
 use crate::types::version::TorVersion;

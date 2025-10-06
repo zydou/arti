@@ -108,6 +108,17 @@ pub use UncheckedPlainConsensus as UncheckedNsConsensus;
 #[cfg(feature = "ns_consensus")]
 pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
+/// `published` field in routerstatus entry intro item other than in votes
+///
+/// Two arguments which are both ignored.
+/// This used to be an ISO8601 timestamp in anomalous two-argument format.
+///
+/// Nowadays, according to the spec, it can be a dummy value.
+/// So it can be a unit type.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+#[allow(clippy::exhaustive_structs)]
+pub struct IgnoredPublicationTimeSp;
+
 /// The lifetime of a networkstatus document.
 ///
 /// In a consensus, this type describes when the consensus may safely
@@ -1085,8 +1096,9 @@ impl RelayWeight {
 #[cfg(feature = "parse2")]
 mod parse2_impls {
     use super::*;
+    use parse2::ArgumentError as AE;
     use parse2::ErrorProblem as EP;
-    use parse2::ItemValueParseable;
+    use parse2::{ArgumentStream, ItemArgumentParseable, ItemValueParseable};
     use std::result::Result;
 
     impl ItemValueParseable for RelayWeight {
@@ -1120,6 +1132,15 @@ mod parse2_impls {
                 .into_remaining()
                 .parse()
                 .map_err(item.invalid_argument_handler("version"))
+        }
+    }
+
+    impl ItemArgumentParseable for IgnoredPublicationTimeSp {
+        fn from_args(a: &mut ArgumentStream) -> Result<IgnoredPublicationTimeSp, AE> {
+            let mut next_arg = || a.next().ok_or(AE::Missing);
+            let _: &str = next_arg()?;
+            let _: &str = next_arg()?;
+            Ok(IgnoredPublicationTimeSp)
         }
     }
 }
