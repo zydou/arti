@@ -213,12 +213,12 @@ tracing-journald = { version = "0.3.0", optional = true }
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 visibility = { version = "0.1.0", optional = true }
 
-tracing-opentelemetry = { version = "0.31.0", optional = true }
-opentelemetry = { version = "0.30.0", optional = true }
-opentelemetry_sdk = { version = "0.30.0", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
-opentelemetry-otlp = { version = "0.30.0", optional = true }
-opentelemetry-appender-tracing = { version = "0.30.0", optional = true }
-opentelemetry-proto = { version = "0.30.0", optional = true }
+tracing-opentelemetry = { version = "0.32.0", optional = true }
+opentelemetry = { version = "0.31.0", optional = true }
+opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"], optional = true } # TODO: what's up with this feature
+opentelemetry-otlp = { version = "0.31.0", optional = true }
+opentelemetry-appender-tracing = { version = "0.31.1", optional = true }
+opentelemetry-proto = { version = "0.31.0", optional = true }
 serde_json = "1.0.50"
 
 [dev-dependencies]
