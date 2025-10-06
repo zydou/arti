@@ -200,9 +200,12 @@ mod ed25519impl {
 
 /// Ignored part of a network document.
 ///
-/// With `parse2`, can be used as an item, argument, object, or even flattened-fields.
+/// With `parse2`, can be used as an item, object, or even flattened-fields.
 ///
-/// If an optional item, argument or object is wanted, use `Option<Ignore>`.
+/// If an optional item or object is wanted, use `Option<Ignore>`.
+///
+/// Not useable as a (positional) argument, because when the document is
+/// output we wouldn't know what to emit.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "parse2",
