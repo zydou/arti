@@ -232,8 +232,9 @@ mod timeimpl {
     /// (Example: "2020-10-09 17:38:12")
     #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)] //
     #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[repr(transparent)]
     #[allow(clippy::exhaustive_structs)]
-    pub struct Iso8601TimeSp(SystemTime);
+    pub struct Iso8601TimeSp(pub SystemTime);
 
     /// Formatting object for parsing the space-separated Iso8601 format.
     const ISO_8601SP_FMT: &[FormatItem] =
@@ -281,8 +282,9 @@ mod timeimpl {
     /// (Example: "2020-10-09T17:38:12")
     #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)] //
     #[derive(derive_more::Into, derive_more::From, derive_more::Deref)]
+    #[repr(transparent)]
     #[allow(clippy::exhaustive_structs)]
-    pub struct Iso8601TimeNoSp(SystemTime);
+    pub struct Iso8601TimeNoSp(pub SystemTime);
 
     /// Formatting object for parsing the space-separated Iso8601 format.
     const ISO_8601NOSP_FMT: &[FormatItem] =
