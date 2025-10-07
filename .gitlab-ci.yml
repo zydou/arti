@@ -1,5 +1,4 @@
 stages:
-  - check
   - build
   - test
   - deploy
@@ -68,20 +67,20 @@ default:
     - if command -v cargo && test -d ./target; then cargo clean; fi
 
 check-editorconfig:
-  stage: check
+  stage: build
   image: docker.io/mstruebing/editorconfig-checker
   script:
     - ec
 
 shellcheck:
-  stage: check
+  stage: build
   image: docker.io/koalaman/shellcheck-alpine
   script:
     - apk add git bash
     - ./maint/common/shellcheck-all
 
 python3-checks:
-  stage: check
+  stage: build
   variables:
     # Updated 2025-09-15
     BLACK_VERSION: "25.1.0"
@@ -112,7 +111,7 @@ python3-checks:
     - ./maint/python-lints
 
 maint-checks:
-  stage: check
+  stage: build
   script:
     - maint/common/apt-install git python3-toml python3-requests python3-mistune
     - ./maint/check_toposort
