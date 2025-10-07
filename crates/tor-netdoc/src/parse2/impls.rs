@@ -54,6 +54,7 @@ pub(crate) mod times {
         ) -> Result<Self, ErrorProblem> {
             let t;
             (t, *args) = (|| {
+                let whole_line_len = args.whole_line_len();
                 let args = args.clone().into_remaining();
                 let spc2 = args
                     .match_indices(WS)
@@ -64,7 +65,7 @@ pub(crate) mod times {
                 let t: crate::types::misc::Iso8601TimeSp =
                     t.parse().map_err(|_| EP::InvalidArgument { field })?;
                 let t = NdaSystemTimeDeprecatedSyntax(t.into());
-                Ok::<_, EP>((t, ArgumentStream::new(rest)))
+                Ok::<_, EP>((t, ArgumentStream::new(rest, whole_line_len)))
             })()?;
             Ok(t)
         }

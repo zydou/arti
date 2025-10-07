@@ -67,6 +67,11 @@ pub struct ArgumentStream<'s> {
     ///
     /// Can start with WS, which is usually trimmed
     rest: &'s str,
+
+    /// Original line length
+    ///
+    /// Used for reporting column of argument errors.
+    whole_line_len: usize,
 }
 
 /// An Object that has been lexed but not parsed
@@ -220,7 +225,7 @@ impl<'s> ItemStream<'s> {
         let keyword = peeked.keyword;
         let line = self.lines.consume_peeked(peeked.line);
         let args = &line[keyword.len()..];
-        let args = ArgumentStream::new(args);
+        let args = ArgumentStream::new(args, line.len());
 
         let object = if self.lines.remaining().starts_with('-') {
             fn pem_delimiter<'s>(lines: &mut Lines<'s>, start: &str) -> Result<&'s str, EP> {
@@ -306,8 +311,8 @@ impl<'s> ArgumentStream<'s> {
     /// Make a new `ArgumentStream` from a string
     ///
     /// The string may start with whitespace (which will be ignored).
-    pub fn new(rest: &'s str) -> Self {
-        ArgumentStream { rest }
+    pub fn new(rest: &'s str, whole_line_len: usize) -> Self {
+        ArgumentStream { rest, whole_line_len }
     }
 
     /// Consume this whole `ArgumnetStream`, giving the remaining arguments as a string
@@ -319,6 +324,13 @@ impl<'s> ArgumentStream<'s> {
     pub fn into_remaining(&mut self) -> &'s str {
         self.trim_start();
         mem::take(&mut self.rest)
+    }
+
+    /// Return the component parts of this `ArgumnetStream`
+    ///
+    /// The returned string might start with whitespace.
+    pub fn whole_line_len(&self) -> usize {
+        self.whole_line_len
     }
 
     /// Trim leading WS from `rest`
