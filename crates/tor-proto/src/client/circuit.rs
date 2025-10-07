@@ -744,6 +744,8 @@ impl ClientCirc {
     where
         Tg: CircTarget,
     {
+        #![allow(deprecated)]
+
         // For now we use the simplest decision-making mechanism:
         // we use ntor_v3 whenever it is present; and otherwise we use ntor.
         //
@@ -767,6 +769,7 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
+    #[deprecated(since = "1.6.1", note = "Use extend instead.")]
     pub async fn extend_ntor<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
     where
         Tg: CircTarget,
@@ -809,6 +812,7 @@ impl ClientCirc {
 
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
+    #[deprecated(since = "1.6.1", note = "Use extend instead.")]
     pub async fn extend_ntor_v3<Tg>(&self, target: &Tg, params: CircParameters) -> Result<()>
     where
         Tg: CircTarget,
@@ -1075,6 +1079,7 @@ impl PendingClientTunnel {
     where
         Tg: tor_linkspec::CircTarget,
     {
+        #![allow(deprecated)]
         // (See note in ClientCirc::extend.)
         if target
             .protovers()
@@ -1090,6 +1095,7 @@ impl PendingClientTunnel {
     ///
     /// Note that the provided 'target' must match the channel's target,
     /// or the handshake will fail.
+    #[deprecated(since = "1.6.1", note = "Use create_firsthop instead.")]
     pub async fn create_firsthop_ntor<Tg>(
         self,
         target: &Tg,
@@ -1138,6 +1144,7 @@ impl PendingClientTunnel {
     ///
     /// Note that the provided 'target' must match the channel's target,
     /// or the handshake will fail.
+    #[deprecated(since = "1.6.1", note = "Use create_firsthop instead.")]
     pub async fn create_firsthop_ntor_v3<Tg>(
         self,
         target: &Tg,
@@ -1352,6 +1359,7 @@ pub(crate) mod test {
         NtorV3,
     }
 
+    #[allow(deprecated)]
     async fn test_create<R: Runtime>(rt: &R, handshake_type: HandshakeType, with_cc: bool) {
         // We want to try progressing from a pending circuit to a circuit
         // via a crate_fast handshake.
@@ -1675,6 +1683,7 @@ pub(crate) mod test {
             .collect()
     }
 
+    #[allow(deprecated)]
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
         use crate::crypto::handshake::{ServerHandshake, ntor::NtorServer};
 
@@ -1792,6 +1801,7 @@ pub(crate) mod test {
         });
     }
 
+    #[allow(deprecated)]
     async fn bad_extend_test_impl<R: Runtime>(
         rt: &R,
         reply_hop: HopNum,
