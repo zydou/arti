@@ -56,7 +56,8 @@ pub struct ParseError {
 /// The column, if there is one, is not printed by the `Display` impl.
 /// This is so that it can be properly formatted as part of a file-and-line-and-column,
 /// by the `Display` impl for [`ParseError`].
-#[derive(Error, Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Error, Copy, Clone, Debug, Eq, PartialEq, Deftly)]
+#[derive_deftly(ErrorProblem)]
 #[non_exhaustive]
 pub enum ErrorProblem {
     /// Empty document
@@ -208,6 +209,32 @@ impl From<signature::Error> for VerifyFailed {
         VerifyFailed::VerifyFailed
     }
 }
+
+define_derive_deftly! {
+    /// Bespoke derives for `ErrorProblem`
+    ///
+    /// Currently, provides the `column` function.
+    ErrorProblem:
+
+    impl ErrorProblem {
+        /// Obtain the `column` of this error
+        //
+        // Our usual getters macro is `amplify` but it doesn't support conditional
+        // getters of enum fields, like we want here.
+        pub fn column(&self) -> Option<usize> {
+            Some(match self {
+              // Iterate over all fields in all variants.  There's only one field `column`
+              // in any variant, so this is precisely all variants with such a field.
+              ${for fields {
+                ${when approx_equal($fname, column)}
+                $vtype { column, .. } => *column,
+              }}
+                _ => return None,
+            })
+        }
+    }
+}
+use derive_deftly_template_ErrorProblem;
 
 impl From<UnexpectedArgument> for ErrorProblem {
     fn from(ua: UnexpectedArgument) -> ErrorProblem {
