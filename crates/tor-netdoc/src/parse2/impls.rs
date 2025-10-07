@@ -50,7 +50,6 @@ pub(crate) mod times {
     impl ItemArgumentParseable for NdaSystemTimeDeprecatedSyntax {
         fn from_args<'s>(
             args: &mut ArgumentStream<'s>,
-            _field: &'static str,
         ) -> Result<Self, ArgumentError> {
             let t;
             (t, *args) = (|| {

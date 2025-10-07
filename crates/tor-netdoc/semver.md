@@ -7,4 +7,5 @@ BREAKING: `ArgumentStream::is_nonempty_after_trim_start` renamed to `something_t
 BREAKING: `ArgumentStream::reject_extra_args` now throws new `UnexpectedArgument` error type
 BREAKING: `ItemArgumentParseable` etc. now throws new `ArgumentError` enum
 ADDED: `ArgumentStream::handle_error` and `error_handler` for converting `ArgumentError`
+BREAKING: `ItemArgumentParseable` etc. no longer take `field: &'static str`
 ADDED: `parse2::UnparsedItem::args()` accessor

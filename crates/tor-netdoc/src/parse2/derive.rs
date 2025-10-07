@@ -910,7 +910,6 @@ define_derive_deftly! {
                 }}
                   selector.parse_with(
                       &mut args,
-                      stringify!($fname), // XXXX remove duplication
                       ${fmeta(netdoc(with))
                         as path,
                         default { ItemArgumentParseable }}::${paste_spanned $fname from_args},

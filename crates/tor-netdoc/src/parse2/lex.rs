@@ -305,7 +305,7 @@ impl<'s> UnparsedItem<'s> {
 pub struct NoFurtherArguments;
 
 impl ItemArgumentParseable for NoFurtherArguments {
-    fn from_args(args: &mut ArgumentStream, _field: &'static str) -> Result<Self, AE> {
+    fn from_args(args: &mut ArgumentStream) -> Result<Self, AE> {
         Ok(args.reject_extra_args()?)
     }
 }

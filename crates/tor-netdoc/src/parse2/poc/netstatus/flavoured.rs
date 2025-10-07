@@ -104,7 +104,7 @@ pub struct NdaNetworkStatusVersionFlavour {}
 const NDA_NETWORK_STATUS_VERSION_FLAVOUR: Option<&str> = ns_expr!(None, None, Some("microdesc"));
 
 impl ItemArgumentParseable for NdaNetworkStatusVersionFlavour {
-    fn from_args<'s>(args: &mut ArgumentStream<'s>, _field: &'static str)
+    fn from_args<'s>(args: &mut ArgumentStream<'s>)
                      -> Result<Self, AE>
     {
         let exp: Option<&str> = NDA_NETWORK_STATUS_VERSION_FLAVOUR;

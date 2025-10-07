@@ -143,7 +143,6 @@ mod needs_with_arg {
     use super::*;
     pub(super) fn from_args(
         args: &mut ArgumentStream,
-        _field: &'static str,
     ) -> Result<NeedsWith, AE> {
         NeedsWith::parse_expecting("arg", args)
     }
