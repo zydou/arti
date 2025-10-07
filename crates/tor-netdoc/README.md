@@ -28,9 +28,6 @@ the parsers for the documents themselves.
 
 ## Features
 
-`build_docs`: enable code to construct the objects representing different
-network documents.
-
 `routerdesc`: enable support for the "router descriptor" document type, which
 is needed by bridge clients and relays.
 
@@ -43,6 +40,11 @@ some relays cache and serve.
 
 There are also other features includijng experimental ones
 which aren't documented here and shouldn't be relied on.
+
+#### Deprecated features
+
+`build_docs`: enable code to construct the objects representing different
+network documents, with builder patterns.
 
 ## Caveat haxxor: limitations and infelicities
 
