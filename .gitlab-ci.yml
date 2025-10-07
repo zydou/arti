@@ -63,8 +63,14 @@ default:
     # See https://gitlab.torproject.org/tpo/tpa/team/-/issues/42283
     - export CARGO_BUILD_JOBS="$(maint/get-max-parallelism 1024)"
     - echo "set CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS"
+    # Get some load stats as a crude debugging aid.
+    - cat /proc/loadavg
+    - for x in cpu io memory ; do echo /proc/pressure/$x; cat /proc/pressure/$x || true; done
 
   after_script:
+    # Get some load stats as a crude debugging aid.
+    - cat /proc/loadavg
+    - for x in cpu io memory ; do echo /proc/pressure/$x; cat /proc/pressure/$x || true; done
     # In every case, if we have a working `cargo` we should clean up
     # our target directory before we exit.  (Leaving big hunks of data
     # on the builders make our admins sad.)
