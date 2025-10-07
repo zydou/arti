@@ -5,6 +5,11 @@
 # re-upgrades a few second-order dependencies that aren't actually
 # supported by our first-order dependencies in their oldest versions.)
 #
+# If running this script causes a build failure that can be fixed by adding a
+# exception, go ahead and add the exception. In the long term, we should switch
+# to --direct-minimal-versions, which should not require any exceptions, but it
+# will take some work to get that to work - see arti#2032.
+#
 # The purpose of this script is to make sure that we are actually
 # compatible with the versions listed in our Cargo.toml files.
 # Without testing this, we could wind up with code that built
