@@ -16,13 +16,16 @@ pub(crate) use rsa::*;
 pub use timeimpl::*;
 
 #[cfg(feature = "parse2")]
-use derive_deftly::Deftly;
+use {
+    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable},
+    derive_deftly::Deftly,
+};
 
 pub use nickname::Nickname;
 
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
-pub use ignored_impl::Ignored;
+pub use ignored_impl::{ArgumentNotPresent, Ignored};
 
 /// Describes a value that van be decoded from a bunch of bytes.
 ///
@@ -220,6 +223,22 @@ mod ignored_impl {
     )]
     #[allow(clippy::exhaustive_structs)]
     pub struct Ignored;
+
+    /// "Argument" in a netdoc item keyword line, that isn't actually there
+    ///
+    /// Used as a standin for a missing argument.
+    //
+    // TODO we'll need to implement ItemArgument, for encoding, too.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct ArgumentNotPresent;
+
+    #[cfg(feature = "parse2")]
+    impl ItemArgumentParseable for ArgumentNotPresent {
+        fn from_args(_: &mut ArgumentStream) -> Result<ArgumentNotPresent, ArgumentError> {
+            Ok(ArgumentNotPresent)
+        }
+    }
 }
 
 // ============================================================
