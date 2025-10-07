@@ -157,8 +157,7 @@ fn relay_has_addr_in_set(relay: &Relay<'_>, patterns: &[AddrPortPattern]) -> boo
     // where the transport doesn't use an address.
     relay
         .addrs()
-        .iter()
-        .any(|addr| patterns.iter().any(|pat| pat.matches_sockaddr(addr)))
+        .any(|addr| patterns.iter().any(|pat| pat.matches_sockaddr(&addr)))
 }
 
 /// A set of relays that we must not use when picking a given
@@ -265,7 +264,7 @@ impl<'a> RelayExclusion<'a> {
         }
 
         let exclude_ids = ct.identities().map(|id_ref| id_ref.to_owned()).collect();
-        let exclude_addr_families = ct.addrs().iter().map(|a| a.ip()).collect();
+        let exclude_addr_families = ct.addrs().map(|a| a.ip()).collect();
 
         Self {
             exclude_ids,
@@ -341,7 +340,7 @@ impl<'a> LowLevelRelayPredicate for RelayExclusion<'a> {
             return false;
         }
 
-        if relay.addrs().iter().any(|addr| {
+        if relay.addrs().any(|addr| {
             self.exclude_subnets
                 .iter()
                 .any(|fam| self.subnet_config.addrs_in_same_subnet(&addr.ip(), fam))
@@ -560,7 +559,7 @@ mod test {
         assert_eq!(no.len(), 24);
 
         let expected = ["1.0.0.3".parse().unwrap(), "2.0.0.3".parse().unwrap()];
-        let p = |r: &Relay<'_>| expected.contains(&r.addrs()[0].ip());
+        let p = |r: &Relay<'_>| expected.contains(&r.addrs().next().unwrap().ip());
         assert!(yes.iter().all(p));
         assert!(no.iter().all(|r| !p(r)));
     }

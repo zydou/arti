@@ -2,6 +2,7 @@
 //! that Tor can connect to, directly or indirectly.
 
 use derive_deftly::derive_deftly_adhoc;
+use itertools::Itertools;
 use safelog::Redactable;
 use std::{fmt, iter::FusedIterator, net::SocketAddr};
 use tor_llcrypto::pk;
@@ -265,11 +266,11 @@ pub trait HasAddrs {
     // TODO: This is a questionable API. I'd rather return an iterator
     // of addresses or references to addresses, but both of those options
     // make defining the right associated types rather tricky.
-    fn addrs(&self) -> &[SocketAddr];
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr>;
 }
 
 impl<T: HasAddrs> HasAddrs for &T {
-    fn addrs(&self) -> &[SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
         // Be explicit about the type here so that we don't end up in an infinite loop by accident.
         <T as HasAddrs>::addrs(self)
     }
@@ -291,7 +292,7 @@ pub trait DirectChanMethodsHelper: HasAddrs {}
 
 impl<D: DirectChanMethodsHelper> HasChanMethod for D {
     fn chan_method(&self) -> ChannelMethod {
-        ChannelMethod::Direct(self.addrs().to_vec())
+        ChannelMethod::Direct(self.addrs().collect_vec())
     }
 }
 
@@ -432,8 +433,8 @@ mod test {
         pv: tor_protover::Protocols,
     }
     impl HasAddrs for Example {
-        fn addrs(&self) -> &[SocketAddr] {
-            &self.addrs[..]
+        fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
+            self.addrs.iter().copied()
         }
     }
     impl DirectChanMethodsHelper for Example {}

@@ -54,8 +54,6 @@ impl<'a> BridgeRelay<'a> {
     pub(crate) fn new(bridge_line: &'a BridgeConfig, desc: Option<BridgeDesc>) -> Self {
         let addrs = bridge_line
             .addrs()
-            .iter()
-            .copied()
             .chain(desc.iter().flat_map(|d| d.as_ref().or_ports()))
             .unique()
             .collect();
@@ -92,8 +90,8 @@ impl<'a> HasAddrs for BridgeRelay<'a> {
     /// not necessarily addresses _at which the Bridge can be reached_. For
     /// those, use `chan_method`.  These addresses are used for establishing
     /// GeoIp and family info.
-    fn addrs(&self) -> &[std::net::SocketAddr] {
-        &self.addrs[..]
+    fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
+        self.addrs.iter().copied()
     }
 }
 
@@ -115,7 +113,7 @@ impl<'a> HasAddrs for BridgeRelayWithDesc<'a> {
     /// not necessarily addresses _at which the Bridge can be reached_. For
     /// those, use `chan_method`.  These addresses are used for establishing
     /// GeoIp and family info.
-    fn addrs(&self) -> &[std::net::SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
         self.0.addrs()
     }
 }

@@ -225,9 +225,8 @@ impl SubnetConfig {
         T: tor_linkspec::HasAddrs,
         U: tor_linkspec::HasAddrs,
     {
-        a.addrs().iter().any(|aa| {
+        a.addrs().any(|aa| {
             b.addrs()
-                .iter()
                 .any(|bb| self.addrs_in_same_subnet(&aa.ip(), &bb.ip()))
         })
     }
@@ -910,7 +909,7 @@ impl PartialNetDir {
                 .c_relays()
                 .iter()
                 .map(|rs| {
-                    db.lookup_country_code_multi(rs.addrs().iter().map(|x| x.ip()))
+                    db.lookup_country_code_multi(rs.addrs().map(|x| x.ip()))
                         .cloned()
                 })
                 .collect()
@@ -2102,7 +2101,7 @@ pub enum RelayLookupError {
 }
 
 impl<'a> HasAddrs for Relay<'a> {
-    fn addrs(&self) -> &[std::net::SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
         self.rs.addrs()
     }
 }

@@ -11,6 +11,7 @@ use std::net::SocketAddr;
 use std::slice;
 use std::str::FromStr;
 
+use itertools::Either;
 use safelog::Redactable;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -730,21 +731,31 @@ pub enum RetainAddrsError {
 }
 
 impl HasAddrs for PtTargetAddr {
-    fn addrs(&self) -> &[SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
         match self {
             PtTargetAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
             PtTargetAddr::HostPort(..) | PtTargetAddr::None => &[],
         }
+        .iter()
+        .copied()
     }
 }
 
 impl HasAddrs for ChannelMethod {
-    fn addrs(&self) -> &[SocketAddr] {
-        match self {
-            ChannelMethod::Direct(addrs) => addrs,
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
+        let r = match self {
+            ChannelMethod::Direct(addrs) => Either::Left(addrs.iter().copied()),
             #[cfg(feature = "pt-client")]
-            ChannelMethod::Pluggable(pt) => pt.addr.addrs(),
-        }
+            ChannelMethod::Pluggable(pt) => Either::Right(pt.addr.addrs()),
+        };
+
+        // Unfortunately, when pt-client is configured out, the compiler can't infer
+        // the type for Either::Right.  Ideally we'd use Void rather than iter::Empty
+        // but Void doesn't implement Iterator.
+        #[cfg(not(feature = "pt-client"))]
+        let _: &Either<_, std::iter::Empty<_>> = &r;
+
+        r
     }
 }
 
@@ -764,6 +775,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use itertools::Itertools;
 
     #[test]
     fn builtin() {
@@ -844,7 +856,7 @@ mod test {
             assert_eq!(&a.to_string(), addr);
 
             let sa: SocketAddr = addr.parse().unwrap();
-            assert_eq!(a.addrs(), &[sa]);
+            assert_eq!(a.addrs().collect_vec(), &[sa]);
 
             chk_bridge_addr(&a, addr);
         }
@@ -852,7 +864,7 @@ mod test {
         for addr in &["www.example.com:9100", "-"] {
             let a: PtTargetAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
-            assert_eq!(a.addrs(), &[]);
+            assert_eq!(a.addrs().collect_vec(), &[]);
 
             if a == PtTargetAddr::None {
                 let e = BridgeAddr::from_str(addr).unwrap_err();

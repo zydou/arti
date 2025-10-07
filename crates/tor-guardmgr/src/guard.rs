@@ -2,6 +2,7 @@
 
 use tor_basic_utils::retry::RetryDelay;
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -296,7 +297,7 @@ impl Guard {
 
         Self::new(
             GuardId::from_relay_ids(relay),
-            relay.addrs().into(),
+            relay.addrs().collect_vec(),
             pt_target,
             added_at,
         )
@@ -566,7 +567,7 @@ impl Guard {
                 sensitivity,
             }) => {
                 // Update address information.
-                self.orports = owned_target.addrs().into();
+                self.orports = owned_target.addrs().collect_vec();
                 // Update Pt information.
                 self.pt_targets = match owned_target.chan_method() {
                     #[cfg(feature = "pt-client")]
@@ -804,8 +805,8 @@ impl Guard {
 }
 
 impl tor_linkspec::HasAddrs for Guard {
-    fn addrs(&self) -> &[SocketAddr] {
-        &self.orports[..]
+    fn addrs(&self) -> impl Iterator<Item = SocketAddr> {
+        self.orports.iter().copied()
     }
 }
 
@@ -970,7 +971,10 @@ mod test {
 
         assert_eq!(g.guard_id(), &id);
         assert!(g.same_relay_ids(&FirstHopId::in_sample(GuardSetSelector::Default, id)));
-        assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
+        assert_eq!(
+            g.addrs().collect_vec(),
+            &["127.0.0.7:7777".parse().unwrap()]
+        );
         assert_eq!(g.reachable(), Reachable::Untried);
         assert_eq!(g.reachable(), Reachable::default());
 
@@ -1244,14 +1248,14 @@ mod test {
         assert_eq!(guard22.listed_in(&netdir), Some(true));
         guard22.update_from_universe(&netdir);
         assert_eq!(guard22.unlisted_since, None); // It's listed.
-        assert_eq!(&guard22.orports, relay22.addrs()); // Addrs are set.
+        assert_eq!(guard22.orports, relay22.addrs().collect_vec()); // Addrs are set.
         assert_eq!(guard22.listed_in(&netdir2), Some(false));
         guard22.update_from_universe(&netdir2);
         assert_eq!(
             guard22.unlisted_since,
             Some(netdir2.lifetime().valid_after())
         );
-        assert_eq!(&guard22.orports, relay22.addrs()); // Addrs still set.
+        assert_eq!(guard22.orports, relay22.addrs().collect_vec()); // Addrs still set.
         assert!(!guard22.dir_info_missing);
 
         // Now see what happens for a guard that's in the consensus, but missing an MD.

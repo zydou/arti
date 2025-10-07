@@ -40,7 +40,7 @@ impl<T: HasRelayIds> HasRelayIds for VerbatimLinkSpecCircTarget<T> {
     }
 }
 impl<T: HasAddrs> HasAddrs for VerbatimLinkSpecCircTarget<T> {
-    fn addrs(&self) -> &[std::net::SocketAddr] {
+    fn addrs(&self) -> impl Iterator<Item = std::net::SocketAddr> {
         self.target.addrs()
     }
 }
@@ -80,9 +80,10 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::OwnedCircTarget;
-
     use super::*;
+    use crate::OwnedCircTarget;
+    use itertools::Itertools;
+
     #[test]
     fn verbatim_linkspecs() {
         let mut builder = OwnedCircTarget::builder();
@@ -102,7 +103,7 @@ mod test {
         )];
         let wrapped = VerbatimLinkSpecCircTarget::new(inner.clone(), weird_linkspecs.clone());
 
-        assert_eq!(wrapped.addrs(), inner.addrs());
+        assert_eq!(wrapped.addrs().collect_vec(), inner.addrs().collect_vec());
         assert!(wrapped.same_relay_ids(&inner));
         assert_eq!(wrapped.ntor_onion_key(), inner.ntor_onion_key());
         assert_eq!(wrapped.protovers(), inner.protovers());
