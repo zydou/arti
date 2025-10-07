@@ -22,6 +22,8 @@ pub use nickname::Nickname;
 
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
+pub use ignored_impl::Ignored;
+
 /// Describes a value that van be decoded from a bunch of bytes.
 ///
 /// Used for decoding the objects between BEGIN and END tags.
@@ -198,22 +200,27 @@ mod ed25519impl {
 
 // ============================================================
 
-/// Ignored part of a network document.
-///
-/// With `parse2`, can be used as an item, object, or even flattened-fields.
-///
-/// If an optional item or object is wanted, use `Option<Ignore>`.
-///
-/// Not useable as a (positional) argument, because when the document is
-/// output we wouldn't know what to emit.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
-#[cfg_attr(
-    feature = "parse2",
-    derive(Deftly),
-    derive_deftly(ItemValueParseable, NetdocParseableFields)
-)]
-#[allow(clippy::exhaustive_structs)]
-pub struct Ignored;
+/// Dummy types like [`Ignored`]
+mod ignored_impl {
+    use super::*;
+
+    /// Ignored part of a network document.
+    ///
+    /// With `parse2`, can be used as an item, object, or even flattened-fields.
+    ///
+    /// If an optional item or object is wanted, use `Option<Ignore>`.
+    ///
+    /// Not useable as a (positional) argument, because when the document is
+    /// output we wouldn't know what to emit.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+    #[cfg_attr(
+        feature = "parse2",
+        derive(Deftly),
+        derive_deftly(ItemValueParseable, NetdocParseableFields)
+    )]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Ignored;
+}
 
 // ============================================================
 
