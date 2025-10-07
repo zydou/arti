@@ -316,7 +316,11 @@ impl<'s> ArgumentStream<'s> {
     /// The string may start with whitespace (which will be ignored).
     pub fn new(rest: &'s str, whole_line_len: usize) -> Self {
         let previous_rest_len = whole_line_len;
-        ArgumentStream { rest, whole_line_len, previous_rest_len }
+        ArgumentStream {
+            rest,
+            whole_line_len,
+            previous_rest_len,
+        }
     }
 
     /// Consume this whole `ArgumnetStream`, giving the remaining arguments as a string
