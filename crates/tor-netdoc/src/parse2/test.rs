@@ -16,6 +16,7 @@
 use super::*;
 use anyhow::Context as _;
 use testresult::TestResult;
+use tor_error::ErrorReport as _;
 
 fn default<T: Default>() -> T {
     Default::default()
@@ -231,6 +232,24 @@ where
     t_err_raw::<D>(exp_lno, exp_col, exp_err, &doc)
 }
 
+/// Test an error case with embedded error message
+///
+/// `case` should be the input document, but exactly one line should
+/// contain `" # "`, with the expected error message as a "comment".
+///
+/// Iff the expected message is supposed to have a line number,
+/// the comment part should end with ` @<column>`.
+///
+/// `t_err` will check that that error is reported, at that line.
+fn t_err_chk_msg<D>(case: &str, msg: &str) -> TestResult
+where
+    D: NetdocParseable + Debug,
+{
+    let err = t_err::<D>(case)?;
+    assert_eq!(err.report().to_string(), msg);
+    Ok(())
+}
+
 #[test]
 fn various_docs() -> TestResult<()> {
     let val = |s: &str| (s.to_owned(),);
@@ -390,9 +409,11 @@ sub4-field D
 
     t_err_raw::<Top>(0, None, "empty document", r#""#)?;
 
-    t_err::<Top>(
-        r#"wrong-keyword # wrong document type
-"#,
+    let wrong_document = r#"wrong-keyword # wrong document type
+"#;
+    t_err_chk_msg::<Top>(
+        wrong_document,
+        "error: failed to parse network document, type top-intro: <massaged>:1: wrong document type",
     )?;
 
     t_err::<Top>(
@@ -456,11 +477,13 @@ sub2-intro # missing argument in needs with
 "#,
     )?;
 
-    t_err::<Top>(
-        r#"top-intro
+    let wrong_value = r#"top-intro
 needed N
 sub2-intro wrong-value # invalid value for argument in needs with @12
-"#,
+"#;
+    t_err_chk_msg::<Top>(
+        wrong_value,
+        "error: failed to parse network document, type top-intro: <massaged>:3.12: invalid value for argument in needs with",
     )?;
 
     t_err::<Top>(
