@@ -227,11 +227,7 @@ pub trait ArgumentSetMethods: Copy + Sized {
     type Field: Sized;
 
     /// Parse zero or more argument(s) into `Self::Field`.
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        parser: P,
-    ) -> Result<Self::Field, AE>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
         P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>;
 
@@ -248,11 +244,7 @@ pub trait ArgumentSetMethods: Copy + Sized {
 impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
     type Each = T;
     type Field = Vec<T>;
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        parser: P,
-    ) -> Result<Self::Field, AE>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
         P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
     {
@@ -266,11 +258,7 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
 impl<T> ArgumentSetMethods for ArgumentSetSelector<Option<T>> {
     type Each = T;
     type Field = Option<T>;
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        parser: P,
-    ) -> Result<Self::Field, AE>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
         P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
     {
@@ -283,11 +271,7 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Option<T>> {
 impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
     type Each = T;
     type Field = T;
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        parser: P,
-    ) -> Result<Self::Field, AE>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
         P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
     {

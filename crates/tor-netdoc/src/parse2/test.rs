@@ -141,9 +141,7 @@ mod needs_with_intro {
 }
 mod needs_with_arg {
     use super::*;
-    pub(super) fn from_args(
-        args: &mut ArgumentStream,
-    ) -> Result<NeedsWith, AE> {
+    pub(super) fn from_args(args: &mut ArgumentStream) -> Result<NeedsWith, AE> {
         NeedsWith::parse_expecting("arg", args)
     }
     pub(super) fn from_rest(s: &str) -> Result<NeedsWith, ()> {

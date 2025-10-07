@@ -117,9 +117,7 @@ pub trait ItemValueParseable: Sized {
 /// use a manual implementation or a wrapper type.
 pub trait ItemArgumentParseable: Sized {
     /// Parse the argument
-    fn from_args<'s>(
-        args: &mut ArgumentStream<'s>,
-    ) -> Result<Self, ArgumentError>;
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError>;
 }
 
 /// A possibly-optional Object value that can appear in netdoc

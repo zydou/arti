@@ -48,9 +48,7 @@ pub(crate) mod times {
     pub struct NdaSystemTimeDeprecatedSyntax(#[deref] pub SystemTime);
 
     impl ItemArgumentParseable for NdaSystemTimeDeprecatedSyntax {
-        fn from_args<'s>(
-            args: &mut ArgumentStream<'s>,
-        ) -> Result<Self, ArgumentError> {
+        fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError> {
             let t;
             (t, *args) = (|| {
                 let whole_line_len = args.whole_line_len();
