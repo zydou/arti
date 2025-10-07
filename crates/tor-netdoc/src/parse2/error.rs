@@ -52,6 +52,10 @@ pub struct ParseError {
 ///
 /// We are quite minimal:
 /// we do not report the `Display` of argument parse errors, for example.
+///
+/// The column, if there is one, is not printed by the `Display` impl.
+/// This is so that it can be properly formatted as part of a file-and-line-and-column,
+/// by the `Display` impl for [`ParseError`].
 #[derive(Error, Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ErrorProblem {
@@ -105,10 +109,15 @@ pub enum ErrorProblem {
     InvalidArgument {
         /// Field name for argument that had invalid value
         field: &'static str,
+        /// Column of the bad argument value.
+        column: usize,
     },
     /// Unexpected additional argument(s)
     #[error("too many arguments")]
-    UnexpectedArgument,
+    UnexpectedArgument {
+        /// Column of the unexpdcted argument value.
+        column: usize,
+    },
     /// Base64-encoded Object footer not found
     #[error("base64-encoded Object footer not found")]
     ObjectMissingFooter,
@@ -161,9 +170,13 @@ pub enum ArgumentError {
 ///
 /// Returned by [`ArgumentStream::reject_extra_args`],
 /// and convertible to [`ErrorProblem`] and [`ArgumentError`].
+///
+/// Includes some information about the location of the error,
+/// as is necessary for those conversions.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-#[non_exhaustive] // XXXX delete
 pub struct UnexpectedArgument {
+    /// Column of the start of the unexpected argument.
+    pub(super) column: usize,
 }
 
 /// Error from signature verification (and timeliness check)
@@ -197,8 +210,8 @@ impl From<signature::Error> for VerifyFailed {
 }
 
 impl From<UnexpectedArgument> for ErrorProblem {
-    fn from(_ua: UnexpectedArgument) -> ErrorProblem {
-        EP::UnexpectedArgument
+    fn from(ua: UnexpectedArgument) -> ErrorProblem {
+        EP::UnexpectedArgument { column: ua.column }
     }
 }
 

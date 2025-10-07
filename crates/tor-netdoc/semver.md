@@ -9,3 +9,4 @@ BREAKING: `ItemArgumentParseable` etc. now throws new `ArgumentError` enum
 ADDED: `ArgumentStream::handle_error` and `error_handler` for converting `ArgumentError`
 BREAKING: `ItemArgumentParseable` etc. no longer take `field: &'static str`
 ADDED: `parse2::UnparsedItem::args()` accessor
+BREAKING: Some `parse2::ErrorProblem` variants have new `column` field.
