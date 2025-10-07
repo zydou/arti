@@ -1,3 +1,4 @@
+#![allow(clippy::useless_format)] // TODO MSRV 1.89, see ParseError, below
 //! Parsing errors
 //!
 //! # Error philosophy
@@ -36,8 +37,11 @@ use super::*;
 #[error(
     "failed to parse network document, type {doctype}: {file}:{lno}{}",
     match column {
-        Some(column) => format_args!(".{}", *column),
-        None => format_args!(""),
+        // TODO MSRV 1.89 (or maybe earlier): change format! to format_args!
+        // https://releases.rs/docs/1.89.0/#libraries
+        // 2x here, and remove the clippy allow at the module top-level.
+        Some(column) => format!(".{}", *column),
+        None => format!(""),
     },
 )]
 #[non_exhaustive]
