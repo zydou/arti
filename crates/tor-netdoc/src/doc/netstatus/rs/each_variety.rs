@@ -22,7 +22,7 @@ pub struct RouterStatus {
     /// there is no mechanism to enforce their uniqueness.
     pub nickname: Nickname,
     /// Fingerprint of the old-style RSA identity for this relay.
-    pub identity: RsaIdentity,
+    pub identity: Base64Fingerprint,
     /// A list of address:port values where this relay can be reached.
     pub addrs: Vec<net::SocketAddr>,
     /// Digest of the document for this relay.
