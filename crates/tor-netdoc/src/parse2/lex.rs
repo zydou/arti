@@ -72,6 +72,9 @@ pub struct ArgumentStream<'s> {
     ///
     /// Used for reporting column of argument errors.
     whole_line_len: usize,
+
+    /// Remaining length *before* we last yielded.
+    previous_rest_len: usize,
 }
 
 /// An Object that has been lexed but not parsed
@@ -312,7 +315,8 @@ impl<'s> ArgumentStream<'s> {
     ///
     /// The string may start with whitespace (which will be ignored).
     pub fn new(rest: &'s str, whole_line_len: usize) -> Self {
-        ArgumentStream { rest, whole_line_len }
+        let previous_rest_len = whole_line_len;
+        ArgumentStream { rest, whole_line_len, previous_rest_len }
     }
 
     /// Consume this whole `ArgumnetStream`, giving the remaining arguments as a string
@@ -336,13 +340,16 @@ impl<'s> ArgumentStream<'s> {
     /// Prepares to yield an argument (or the rest)
     ///
     ///  * Trims leading WS from `rest`.
+    ///  * Records the `previous_rest_len`
     fn prep_yield(&mut self) {
         self.rest = self.rest.trim_start_matches(WS);
+        self.previous_rest_len = self.rest.len();
     }
 
     /// Prepares to yield, and then determines if there *is* anything to yield.
     ///
     ///  * Trim leading whitespace
+    ///  * Records the `previous_rest_len`
     ///  * See if we're now empty
     pub fn something_to_yield(&mut self) -> bool {
         self.prep_yield();
