@@ -169,7 +169,7 @@ fn t_err_raw<D>(
     exp_col: Option<usize>,
     exp_err: &str,
     doc: &str,
-) -> TestResult
+) -> TestResult<ParseError>
 where
     D: NetdocParseable + Debug,
 {
@@ -186,7 +186,7 @@ where
         "doc\n====\n{doc}====\n got={}\n exp={exp_err}",
         got_err
     );
-    Ok(())
+    Ok(got)
 }
 
 /// Test an error case with embedded error message
@@ -198,7 +198,7 @@ where
 /// the comment part should end with ` @<column>`.
 ///
 /// `t_err` will check that that error is reported, at that line.
-fn t_err<D>(mut case: &str) -> TestResult
+fn t_err<D>(mut case: &str) -> TestResult<ParseError>
 where
     D: NetdocParseable + Debug,
 {
@@ -228,8 +228,7 @@ where
         (exp_err, None)
     };
     println!("==== 8<- ====\n{doc}==== ->8 ====");
-    t_err_raw::<D>(exp_lno, exp_col, exp_err, &doc)?;
-    Ok(())
+    t_err_raw::<D>(exp_lno, exp_col, exp_err, &doc)
 }
 
 #[test]
