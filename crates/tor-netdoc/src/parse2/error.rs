@@ -135,6 +135,15 @@ pub enum ErrorProblem {
     Other(&'static str),
 }
 
+/// An unexpected argument was encountered
+///
+/// Returned by [`ArgumentStream::reject_extra_args`],
+/// and convertible to [`ErrorProblem`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[non_exhaustive] // XXXX delete
+pub struct UnexpectedArgument {
+}
+
 /// Error from signature verification (and timeliness check)
 #[derive(Error, Debug, Clone, Copy)]
 #[non_exhaustive]
@@ -162,5 +171,11 @@ pub enum VerifyFailed {
 impl From<signature::Error> for VerifyFailed {
     fn from(_: signature::Error) -> VerifyFailed {
         VerifyFailed::VerifyFailed
+    }
+}
+
+impl From<UnexpectedArgument> for ErrorProblem {
+    fn from(_ua: UnexpectedArgument) -> ErrorProblem {
+        EP::UnexpectedArgument
     }
 }

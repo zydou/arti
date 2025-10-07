@@ -4,4 +4,5 @@ BREAKING: Replace `ItemArgumentParseable for impl FromStr` with `NormalItemParse
 ADDED: `Fingerprint` and `Base64Fingerprint` are now `Display`
 ADDED: `impl From<Base64Fingerprint> for RsaIdentity`
 BREAKING: `ArgumentStream::is_nonempty_after_trim_start` renamed to `something_to_yield`
+BREAKING: `ArgumentStream::reject_extra_args` now throws new `UnexpectedArgument` error type
 ADDED: `parse2::UnparsedItem::args()` accessor

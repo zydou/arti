@@ -28,7 +28,7 @@ pub const PEM_FOOTER_START: &str = crate::parse::tokenize::object::END_STR;
 pub const PEM_AFTER_LABEL: &str = crate::parse::tokenize::object::TAG_END;
 
 pub use super::{
-    error::{ErrorProblem, ParseError, VerifyFailed},
+    error::{ErrorProblem, ParseError, UnexpectedArgument, VerifyFailed},
     keyword::KeywordRef,
     lex::{ArgumentStream, ItemStream, UnparsedItem, WS},
     lines::{Lines, StrExt as _},

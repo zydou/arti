@@ -306,7 +306,7 @@ pub struct NoFurtherArguments;
 
 impl ItemArgumentParseable for NoFurtherArguments {
     fn from_args(args: &mut ArgumentStream, _field: &'static str) -> Result<Self, EP> {
-        args.reject_extra_args()
+        Ok(args.reject_extra_args()?)
     }
 }
 
@@ -370,9 +370,9 @@ impl<'s> ArgumentStream<'s> {
     /// Throw and error if there are further arguments
     //
     // (We don't take `self` by value because that makes use with `UnparsedItem` annoying.)
-    pub fn reject_extra_args(&mut self) -> Result<NoFurtherArguments, EP> {
+    pub fn reject_extra_args(&mut self) -> Result<NoFurtherArguments, UnexpectedArgument> {
         if self.something_to_yield() {
-            Err(EP::UnexpectedArgument)
+            Err(UnexpectedArgument {})
         } else {
             Ok(NoFurtherArguments)
         }
