@@ -206,7 +206,7 @@ mod ed25519impl {
 ///
 /// Not useable as a (positional) argument, because when the document is
 /// output we wouldn't know what to emit.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
 #[cfg_attr(
     feature = "parse2",
     derive(Deftly),
