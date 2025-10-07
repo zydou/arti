@@ -944,7 +944,8 @@ define_derive_deftly! {
                   ${fmeta(netdoc(with))
                     as path,
                     default { <$ftype as FromStr>::from_str }}(args_consume.into_remaining())
-                      .map_err(|_| EP::InvalidArgument { field: stringify!($fname) })?
+                      .map_err(|_| AE::Invalid)
+                      .map_err(args_consume.error_handler(stringify!($fname)))?
               } }
               F_SIG_HASH { {
                   #[allow(unused_imports)]
