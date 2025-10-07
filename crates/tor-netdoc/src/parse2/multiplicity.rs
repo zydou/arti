@@ -259,7 +259,7 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
         P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
     {
         let mut acc = vec![];
-        while args.is_nonempty_after_trim_start() {
+        while args.something_to_yield() {
             acc.push(parser(args, field)?);
         }
         Ok(acc)
@@ -277,7 +277,7 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Option<T>> {
     where
         P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
     {
-        if !args.is_nonempty_after_trim_start() {
+        if !args.something_to_yield() {
             return Ok(None);
         }
         Ok(Some(parser(args, field)?))

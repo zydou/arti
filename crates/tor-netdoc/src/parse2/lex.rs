@@ -322,7 +322,7 @@ impl<'s> ArgumentStream<'s> {
     /// `self` will be empty on return.
     // (We don't take `self` by value because that makes use with `UnparsedItem` annoying.)
     pub fn into_remaining(&mut self) -> &'s str {
-        self.trim_start();
+        self.prep_yield();
         mem::take(&mut self.rest)
     }
 
@@ -333,14 +333,19 @@ impl<'s> ArgumentStream<'s> {
         self.whole_line_len
     }
 
-    /// Trim leading WS from `rest`
-    fn trim_start(&mut self) {
+    /// Prepares to yield an argument (or the rest)
+    ///
+    ///  * Trims leading WS from `rest`.
+    fn prep_yield(&mut self) {
         self.rest = self.rest.trim_start_matches(WS);
     }
 
-    /// Trim leading whitespace, and then see if it's empty
-    pub fn is_nonempty_after_trim_start(&mut self) -> bool {
-        self.trim_start();
+    /// Prepares to yield, and then determines if there *is* anything to yield.
+    ///
+    ///  * Trim leading whitespace
+    ///  * See if we're now empty
+    pub fn something_to_yield(&mut self) -> bool {
+        self.prep_yield();
         !self.rest.is_empty()
     }
 
@@ -348,7 +353,7 @@ impl<'s> ArgumentStream<'s> {
     //
     // (We don't take `self` by value because that makes use with `UnparsedItem` annoying.)
     pub fn reject_extra_args(&mut self) -> Result<NoFurtherArguments, EP> {
-        if self.is_nonempty_after_trim_start() {
+        if self.something_to_yield() {
             Err(EP::UnexpectedArgument)
         } else {
             Ok(NoFurtherArguments)
@@ -359,7 +364,7 @@ impl<'s> ArgumentStream<'s> {
 impl<'s> Iterator for ArgumentStream<'s> {
     type Item = &'s str;
     fn next(&mut self) -> Option<&'s str> {
-        if !self.is_nonempty_after_trim_start() {
+        if !self.something_to_yield() {
             return None;
         }
         let arg;
