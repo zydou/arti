@@ -65,15 +65,15 @@ type Assembler = util::Assembler<aarch64::Aarch64Relocation, BUFFER_CAPACITY>;
 /// Map RegisterId in our abstract program to concrete registers and addresses.
 trait RegisterMapper {
     /// Map RegisterId(0)..RegisterId(7) to r1..r8
-    fn x(&self) -> u32;
+    fn x(&self) -> u8;
     /// Byte offset in a raw RegisterFile
     fn offset(&self) -> u32;
 }
 
 impl RegisterMapper for RegisterId {
     #[inline(always)]
-    fn x(&self) -> u32 {
-        1 + (self.as_usize() as u32)
+    fn x(&self) -> u8 {
+        1 + self.as_u8()
     }
 
     #[inline(always)]
