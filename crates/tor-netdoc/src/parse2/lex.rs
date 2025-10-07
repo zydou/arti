@@ -281,6 +281,13 @@ impl<'s> UnparsedItem<'s> {
         self.args.clone()
     }
 
+    /// Access the arguments (readonly)
+    ///
+    /// When using this, be careful not to process any arguments twice.
+    pub fn args(&self) -> &ArgumentStream<'s> {
+        &self.args
+    }
+
     /// Check that this item has no Object.
     pub fn check_no_object(&self) -> Result<(), EP> {
         if self.object.is_some() {
