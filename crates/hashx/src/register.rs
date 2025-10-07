@@ -31,6 +31,12 @@ impl RegisterId {
         self.0 as usize
     }
 
+    /// Return the underlying u8 for this RegisterId.
+    #[inline(always)]
+    pub(crate) fn as_u8(&self) -> u8 {
+        self.0
+    }
+
     /// Create an iterator over all RegisterId
     #[inline(always)]
     pub(crate) fn all() -> impl Iterator<Item = RegisterId> {
