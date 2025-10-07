@@ -37,6 +37,13 @@ is needed by bridge clients and relays.
 `plain-consensus`: enable support for the "plain (unflavoured) consensus" document type, which
 some relays cache and serve.
 
+`hs-client`: enable support for parsing hidden service descriptors.
+
+`hs-service`: enable support for generating hidden service descriptors.
+
+There are also other features includijng experimental ones
+which aren't documented here and shouldn't be relied on.
+
 ## Caveat haxxor: limitations and infelicities
 
 TODO: This crate requires that all of its inputs be valid UTF-8:
