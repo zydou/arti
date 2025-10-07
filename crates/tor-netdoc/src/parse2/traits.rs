@@ -166,7 +166,7 @@ macro_rules! item_value_parseable_for_tuple {
                         stringify!($i),
                     )?,
                 )* );
-                if item.object().is_some() { return Err(EP::ObjectUnexpected) }
+                item.check_no_object()?;
                 Ok(r)
             }
         }

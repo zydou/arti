@@ -500,7 +500,7 @@ struct TestItem0 {
 #[derive_deftly(ItemValueParseable)]
 struct TestItem {
     needed: String,
-    #[deftly(netdoc(with = "needs_with_arg::from_args"))]
+    #[deftly(netdoc(with = "needs_with_arg"))]
     optional: Option<NeedsWith>,
     rest: Vec<String>,
     #[deftly(netdoc(object))]
