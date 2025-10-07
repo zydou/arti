@@ -183,6 +183,8 @@ release?" above.
       (Bump patchlevel if major == 0; else bump minor.)
     * APIs were broken.
       (Bump minor if major == 0; else bump major.)
+    * Crates that we do not publish (E.g. `maint/*`, `examples/*`).
+      (Do not bump version)
 
    For all `tor-*` and `arti-*` crates with 0.x version numbers
    (which, as of March 2024 includes all `tor-*` crates,
