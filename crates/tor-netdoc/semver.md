@@ -13,3 +13,4 @@ BREAKING: Some `parse2::ErrorProblem` variants have new `column` field.
 ADDED: `parse2::ErrorProblem::column()`
 ADDED: `parse2::ParseError.column`
 ADDED: `Iso8601TimeSp`, `Iso8601TimeNoSp`
+ADDED: `parse2::UnparsedItem::invalid_argument_handler`
