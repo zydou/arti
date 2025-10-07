@@ -403,6 +403,9 @@ mod test {
 
             let (module, mut rx) = create_module().await;
 
+            config_builder.logging().log_sensitive_information(true);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
+
             // Use a fake sighup stream to wait until run_watcher()'s select_biased!
             // loop is entered
             let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
@@ -418,21 +421,10 @@ mod test {
                 ).await.unwrap();
             }).unwrap();
 
-            config_builder.logging().log_sensitive_information(true);
-            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
             sighup_tx.send(()).await.unwrap();
 
             // The reconfigurable modules should've been reloaded in response to sighup
-            let mut config = rx.next().await.unwrap();
-
-            // However, there is a race: the file watcher may have chosen to re-read the file
-            // before this, sending a event with the old config. If this is the case, the next
-            // event will be the one caused by the SIGHUP, so just wait for that one.
-            //
-            // This feels like a bit of a hack, but it seems alright.
-            if config.0 != config_builder.build().unwrap() {
-                config = rx.next().await.unwrap();
-            }
+            let config = rx.next().await.unwrap();
 
             assert_eq!(config.0, config_builder.build().unwrap());
 
