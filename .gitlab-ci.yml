@@ -683,10 +683,6 @@ rust-recent-test-all-features:
   script:
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
-  tags:
-    # We are currently having issues on some non-TPA runners.
-    # https://gitlab.torproject.org/tpo/tpa/team/-/issues/42283
-    - tpa
 
 every-crate:
   stage: test
@@ -695,10 +691,6 @@ every-crate:
   script:
     - maint/common/apt-install python3-toml
     - ./maint/every-crate
-  tags:
-    # We are currently having issues on some non-TPA runners.
-    # https://gitlab.torproject.org/tpo/tpa/team/-/issues/42283
-    - tpa
 
 matrix-check:
   stage: test
@@ -724,10 +716,6 @@ minimal-features-test:
     - export RUSTFLAGS="$RUSTFLAGS --cfg arti_features_precise"
     - maint/common/apt-install python3-toml
     - maint/test-all-crates --enable-conditional-options=minimal -- --target x86_64-unknown-linux-gnu --no-default-features
-  tags:
-    # We are currently having issues on some non-TPA runners.
-    # https://gitlab.torproject.org/tpo/tpa/team/-/issues/42283
-    - tpa
 
 matrix-test-cfg:
   stage: test
