@@ -115,7 +115,7 @@ mod test;
 
 use internal_prelude::*;
 
-pub use error::{ErrorProblem, ParseError, VerifyFailed};
+pub use error::{ArgumentError, ErrorProblem, ParseError, UnexpectedArgument, VerifyFailed};
 pub use impls::raw_data_object;
 pub use impls::times::NdaSystemTimeDeprecatedSyntax;
 pub use keyword::KeywordRef;
