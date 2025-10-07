@@ -164,7 +164,12 @@ where
 }
 
 #[allow(clippy::unnecessary_wraps)] // Result for consistency
-fn t_err_raw<D>(exp_lno: usize, exp_col: Option<usize>, exp_err: &str, doc: &str) -> TestResult
+fn t_err_raw<D>(
+    exp_lno: usize,
+    exp_col: Option<usize>,
+    exp_err: &str,
+    doc: &str,
+) -> TestResult
 where
     D: NetdocParseable + Debug,
 {
