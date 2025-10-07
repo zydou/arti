@@ -51,7 +51,7 @@
 #[macro_use]
 pub mod parse2;
 #[cfg(feature = "hs-service")]
-pub(crate) mod build;
+pub(crate) mod encode;
 #[macro_use]
 pub(crate) mod parse;
 pub mod doc;
@@ -71,7 +71,7 @@ pub use err::{BuildError, Error, NetdocErrorKind, Pos};
 
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub use build::NetdocBuilder;
+pub use encode::NetdocBuilder;
 
 /// Alias for the Result type returned by most objects in this module.
 pub type Result<T> = std::result::Result<T, Error>;

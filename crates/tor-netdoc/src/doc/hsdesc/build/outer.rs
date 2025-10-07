@@ -4,7 +4,7 @@
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
-use crate::build::{NetdocBuilder, NetdocEncoder};
+use crate::encode::{NetdocBuilder, NetdocEncoder};
 use crate::doc::hsdesc::outer::{HS_DESC_SIGNATURE_PREFIX, HS_DESC_VERSION_CURRENT, HsOuterKwd};
 
 use rand::{CryptoRng, RngCore};

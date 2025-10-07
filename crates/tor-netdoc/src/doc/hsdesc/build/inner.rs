@@ -5,8 +5,8 @@
 //! hidden service descriptors.
 
 use crate::NetdocBuilder;
-use crate::build::ItemArgument;
-use crate::build::NetdocEncoder;
+use crate::encode::ItemArgument;
+use crate::encode::NetdocEncoder;
 use crate::doc::hsdesc::IntroAuthType;
 use crate::doc::hsdesc::IntroPointDesc;
 use crate::doc::hsdesc::inner::HsInnerKwd;

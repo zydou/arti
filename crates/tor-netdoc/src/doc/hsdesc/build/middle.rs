@@ -5,7 +5,7 @@
 //! hidden service descriptors.
 
 use crate::NetdocBuilder;
-use crate::build::NetdocEncoder;
+use crate::encode::NetdocEncoder;
 use crate::doc::hsdesc::build::ClientAuth;
 use crate::doc::hsdesc::desc_enc::{
     HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN, build_descriptor_cookie_key,
