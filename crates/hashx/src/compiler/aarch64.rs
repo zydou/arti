@@ -85,15 +85,23 @@ impl RegisterMapper for RegisterId {
 /// Wrapper for `dynasm!`, sets the architecture and defines register aliases
 macro_rules! dynasm {
     ($asm:ident $($t:tt)*) => {
-        dynasmrt::dynasm!($asm
-            ; .arch aarch64
-            ; .alias register_file_ptr, x0
-            ; .alias mulh_result32, w9
-            ; .alias branch_prohibit_flag, w10
-            ; .alias const_temp_64, x11
-            ; .alias const_temp_32, w11
-            $($t)*
-        )
+        // These all arise from the dynasm output: we can't do much about them here.
+        #[allow(
+            clippy::as_conversions,
+            clippy::cast_lossless,
+            clippy::useless_conversion
+        )]
+        {
+            dynasmrt::dynasm!($asm
+                ; .arch aarch64
+                ; .alias register_file_ptr, x0
+                ; .alias mulh_result32, w9
+                ; .alias branch_prohibit_flag, w10
+                ; .alias const_temp_64, x11
+                ; .alias const_temp_32, w11
+                $($t)*
+            )
+        }
     }
 }
 
