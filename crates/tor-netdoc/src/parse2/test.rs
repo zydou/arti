@@ -164,15 +164,15 @@ where
 }
 
 #[allow(clippy::unnecessary_wraps)] // Result for consistency
-fn t_err_raw<D>(exp_lno: usize, exp_err: &str, doc: &str) -> TestResult
+fn t_err_raw<D>(exp_lno: usize, exp_col: Option<usize>, exp_err: &str, doc: &str) -> TestResult
 where
     D: NetdocParseable + Debug,
 {
     let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
     let got_err = got.problem.to_string();
     assert_eq!(
-        got.lno,
-        exp_lno,
+        (got.lno, got.column),
+        (exp_lno, exp_col),
         "doc\n====\n{doc}====\n got={}\n exp={exp_err}",
         got_err
     );
@@ -188,6 +188,9 @@ where
 ///
 /// `case` should be the input document, but exactly one line should
 /// contain `" # "`, with the expected error message as a "comment".
+///
+/// Iff the expected message is supposed to have a line number,
+/// the comment part should end with ` @<column>`.
 ///
 /// `t_err` will check that that error is reported, at that line.
 fn t_err<D>(mut case: &str) -> TestResult
@@ -214,8 +217,13 @@ where
         panic!("missing final newline");
     }
     let (exp_lno, exp_err) = exp.expect("missing # error indication in test case");
+    let (exp_err, exp_col) = if let Some((l, r)) = exp_err.rsplit_once(" @") {
+        (l, Some(r.parse().unwrap()))
+    } else {
+        (exp_err, None)
+    };
     println!("==== 8<- ====\n{doc}==== ->8 ====");
-    t_err_raw::<D>(exp_lno, exp_err, &doc)?;
+    t_err_raw::<D>(exp_lno, exp_col, exp_err, &doc)?;
     Ok(())
 }
 
@@ -376,7 +384,7 @@ sub4-field D
         }],
     )?;
 
-    t_err_raw::<Top>(0, "empty document", r#""#)?;
+    t_err_raw::<Top>(0, None, "empty document", r#""#)?;
 
     t_err::<Top>(
         r#"wrong-keyword # wrong document type
@@ -447,7 +455,7 @@ sub2-intro # missing argument in needs with
     t_err::<Top>(
         r#"top-intro
 needed N
-sub2-intro wrong-value # invalid value for argument in needs with
+sub2-intro wrong-value # invalid value for argument in needs with @12
 "#,
     )?;
 
@@ -619,7 +627,7 @@ test-item-rest-with   rest of line
     )?;
 
     t_err::<TopMinimal>(
-        r#"test-item0 wrong # too many arguments
+        r#"test-item0 wrong # too many arguments @12
 "#,
     )?;
     t_err::<TopMinimal>(
