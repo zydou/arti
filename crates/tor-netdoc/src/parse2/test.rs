@@ -171,7 +171,8 @@ where
     let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
     let got_err = got.problem.to_string();
     assert_eq!(
-        got.lno, exp_lno,
+        got.lno,
+        exp_lno,
         "doc\n====\n{doc}====\n got={}\n exp={exp_err}",
         got_err
     );
