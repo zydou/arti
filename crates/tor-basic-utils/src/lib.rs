@@ -54,6 +54,7 @@ use std::time::Duration;
 pub mod iter;
 pub mod n_key_list;
 pub mod n_key_set;
+pub mod rand_hostname;
 pub mod rangebounds;
 pub mod retry;
 pub mod test_rng;

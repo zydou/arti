@@ -10,12 +10,21 @@ description = "Non-standard certificate formats used by Tor"
 keywords = ["tor", "arti", "certificate"]
 categories = ["parser-implementations"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = []
 experimental = ["encode", "experimental-api"]
 encode = ["derive_builder", "__is_experimental"]
-full = ["caret/full", "tor-bytes/full", "tor-checkable/full", "tor-llcrypto/full"]
+full = [
+    "caret/full",
+    "tor-bytes/full",
+    "tor-checkable/full",
+    "tor-llcrypto/full",
+    "x509",
+]
+x509 = ["rand", "rsa", "x509-cert"]
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
@@ -30,15 +39,18 @@ caret = { path = "../caret", version = "0.7.0" }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti", optional = true }
 derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
+rand = { version = "0.9.1", optional = true }
+rsa = { version = "0.9.2", features = ["sha2"], optional = true }
 thiserror = "2"
 tor-bytes = { path = "../tor-bytes", version = "0.35.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.35.0" }
+tor-error = { path = "../tor-error", version = "0.35.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.35.0" }
+x509-cert = { version = "0.2.5", features = ["builder", "hazmat"], optional = true }
 
 [dev-dependencies]
 base64ct = "1.5.1"
 hex-literal = "1.0"
 humantime = "2"
 rand = "0.9.1"
-[package.metadata.docs.rs]
-all-features = true
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.35.0" }
