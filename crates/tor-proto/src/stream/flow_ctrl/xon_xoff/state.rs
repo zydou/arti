@@ -47,7 +47,7 @@ use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
 #[cfg(doc)]
-use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
+use {crate::client::stream::DataStream, crate::stream::flow_ctrl::state::StreamFlowCtrl};
 
 /// State for XON/XOFF flow control.
 #[derive(Debug)]
@@ -55,7 +55,7 @@ pub(crate) struct XonXoffFlowCtrl {
     /// Consensus parameters.
     params: Arc<FlowCtrlParameters>,
     /// How we communicate rate limit updates to the
-    /// [`DataWriter`](crate::client::stream::data::DataWriter).
+    /// [`DataWriter`](crate::client::stream::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
     /// How we communicate requests for new drain rate updates to the
     /// [`XonXoffReader`](crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
