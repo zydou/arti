@@ -119,12 +119,11 @@ struct SubSub {
 struct NeedsWith;
 
 impl NeedsWith {
-    fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, EP> {
-        let field = "in needs with";
-        let got = args.next().ok_or(EP::MissingArgument { field })?;
+    fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, AE> {
+        let got = args.next().ok_or(AE::Missing)?;
         (got == exp)
             .then_some(NeedsWith)
-            .ok_or(EP::InvalidArgument { field })
+            .ok_or(AE::Invalid)
     }
 }
 
@@ -132,12 +131,14 @@ mod needs_with_parse {
     use super::*;
     pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
         NeedsWith::parse_expecting("normal", item.args_mut())
+            .map_err(item.args().error_handler("in needs with"))
     }
 }
 mod needs_with_intro {
     use super::*;
     pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
         NeedsWith::parse_expecting("intro", item.args_mut())
+            .map_err(item.args().error_handler("in needs with"))
     }
 }
 mod needs_with_arg {
@@ -145,7 +146,7 @@ mod needs_with_arg {
     pub(super) fn from_args(
         args: &mut ArgumentStream,
         _field: &'static str,
-    ) -> Result<NeedsWith, EP> {
+    ) -> Result<NeedsWith, AE> {
         NeedsWith::parse_expecting("arg", args)
     }
     pub(super) fn from_rest(s: &str) -> Result<NeedsWith, ()> {

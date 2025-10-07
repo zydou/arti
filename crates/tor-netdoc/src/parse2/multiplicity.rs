@@ -232,9 +232,9 @@ pub trait ArgumentSetMethods: Copy + Sized {
         args: &mut ArgumentStream<'_>,
         field: &'static str,
         parser: P,
-    ) -> Result<Self::Field, EP>
+    ) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>;
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str /*XXXX*/) -> Result<Self::Each, AE>;
 
     /// Check that the element type is an Argument
     ///
@@ -254,9 +254,9 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
         args: &mut ArgumentStream<'_>,
         field: &'static str,
         parser: P,
-    ) -> Result<Self::Field, EP>
+    ) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, AE>,
     {
         let mut acc = vec![];
         while args.something_to_yield() {
@@ -273,9 +273,9 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Option<T>> {
         args: &mut ArgumentStream<'_>,
         field: &'static str,
         parser: P,
-    ) -> Result<Self::Field, EP>
+    ) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, AE>,
     {
         if !args.something_to_yield() {
             return Ok(None);
@@ -291,9 +291,9 @@ impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
         args: &mut ArgumentStream<'_>,
         field: &'static str,
         parser: P,
-    ) -> Result<Self::Field, EP>
+    ) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, AE>,
     {
         parser(args, field)
     }

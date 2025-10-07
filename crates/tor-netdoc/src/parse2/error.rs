@@ -135,10 +135,32 @@ pub enum ErrorProblem {
     Other(&'static str),
 }
 
+/// Problem found when parsing an individual argument in a netdoc keyword item
+///
+/// Just the nature of the problem.
+/// We are quite minimal:
+/// we do not report the `Display` of argument parse errors, for example.
+///
+/// The field name and location in the line will be added when this is converted
+/// to an `ErrorProblem`.
+#[derive(Error, Copy, Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ArgumentError {
+    /// Missing argument {field}
+    #[error("missing argument")]
+    Missing,
+    /// Invalid value for argument {field}
+    #[error("invalid value for argument")]
+    Invalid,
+    /// Unexpected additional argument(s)
+    #[error("too many arguments")]
+    Unexpected,
+}
+
 /// An unexpected argument was encountered
 ///
 /// Returned by [`ArgumentStream::reject_extra_args`],
-/// and convertible to [`ErrorProblem`].
+/// and convertible to [`ErrorProblem`] and [`ArgumentError`].
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[non_exhaustive] // XXXX delete
 pub struct UnexpectedArgument {
@@ -177,5 +199,11 @@ impl From<signature::Error> for VerifyFailed {
 impl From<UnexpectedArgument> for ErrorProblem {
     fn from(_ua: UnexpectedArgument) -> ErrorProblem {
         EP::UnexpectedArgument
+    }
+}
+
+impl From<UnexpectedArgument> for ArgumentError {
+    fn from(_ua: UnexpectedArgument) -> ArgumentError {
+        AE::Unexpected
     }
 }

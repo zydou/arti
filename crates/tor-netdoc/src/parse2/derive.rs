@@ -910,11 +910,11 @@ define_derive_deftly! {
                 }}
                   selector.parse_with(
                       &mut args,
-                      stringify!($fname),
+                      stringify!($fname), // XXXX remove duplication
                       ${fmeta(netdoc(with))
                         as path,
                         default { ItemArgumentParseable }}::${paste_spanned $fname from_args},
-                  )?
+                  ).map_err(args.error_handler(stringify!($fname)))?
               } }
               F_OBJECT { {
                   let selector = ObjectSetSelector::<$ftype>::default();

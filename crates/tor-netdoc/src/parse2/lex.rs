@@ -305,7 +305,7 @@ impl<'s> UnparsedItem<'s> {
 pub struct NoFurtherArguments;
 
 impl ItemArgumentParseable for NoFurtherArguments {
-    fn from_args(args: &mut ArgumentStream, _field: &'static str) -> Result<Self, EP> {
+    fn from_args(args: &mut ArgumentStream, _field: &'static str) -> Result<Self, AE> {
         Ok(args.reject_extra_args()?)
     }
 }
@@ -375,6 +375,27 @@ impl<'s> ArgumentStream<'s> {
             Err(UnexpectedArgument {})
         } else {
             Ok(NoFurtherArguments)
+        }
+    }
+
+    /// Convert an `ArgumentError` to an `ErrorProblem`.
+    ///
+    /// The caller must supply the field name.
+    pub fn handle_error(&self, field: &'static str, ae: ArgumentError) -> ErrorProblem {
+        self.error_handler(field)(ae)
+    }
+
+    /// Return a converter from `ArgumentError` to `ErrorProblem`.
+    ///
+    /// Useful in `.map_err`.
+    pub fn error_handler(
+        &self,
+        field: &'static str,
+    ) -> impl Fn(ArgumentError) -> ErrorProblem + 'static {
+        move |ae| match ae {
+            AE::Missing => EP::MissingArgument { field },
+            AE::Invalid => EP::InvalidArgument { field },
+            AE::Unexpected => EP::UnexpectedArgument,
         }
     }
 }
