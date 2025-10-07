@@ -121,9 +121,7 @@ struct NeedsWith;
 impl NeedsWith {
     fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, AE> {
         let got = args.next().ok_or(AE::Missing)?;
-        (got == exp)
-            .then_some(NeedsWith)
-            .ok_or(AE::Invalid)
+        (got == exp).then_some(NeedsWith).ok_or(AE::Invalid)
     }
 }
 
