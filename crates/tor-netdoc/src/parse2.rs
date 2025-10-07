@@ -149,6 +149,7 @@ fn parse_internal<T, D: NetdocParseable>(
         doctype: D::doctype_for_error(),
         file: file.to_owned(),
         lno: items.lno_for_error(),
+        column: problem.column(),
     })
 }
 

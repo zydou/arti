@@ -10,6 +10,8 @@
 //!    For a problem with an item keyword line, that line is reported.
 //!    For an Object, a line somewhere in or just after the object is reported.
 //!
+//!  * The column number of an invalid or unexpected item argument.
+//!
 //!  * The expected keyword of a missing item.
 //!
 //!  * The struct field name of a missing or invalid argument.
@@ -20,7 +22,7 @@
 //!
 //! We do not report:
 //!
-//!  * Column numbers or byte offsets.
+//!  * Byte offsets.
 //!
 //!  * Any more details of the error for syntactically invalid arguments,
 //!    bad base64 or bad binary data, etc. (eg we discard the `FromStr::Err`)
@@ -31,7 +33,13 @@ use super::*;
 
 /// Error encountered when parsing a document, including its location
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
-#[error("failed to parse network document, type {doctype}: {file}:{lno}")]
+#[error(
+    "failed to parse network document, type {doctype}: {file}:{lno}{}",
+    match column {
+        Some(column) => format_args!(".{}", *column),
+        None => format_args!(""),
+    },
+)]
 #[non_exhaustive]
 pub struct ParseError {
     /// What the problem was
@@ -43,6 +51,8 @@ pub struct ParseError {
     pub file: String,
     /// Line number
     pub lno: usize,
+    /// Column number
+    pub column: Option<usize>,
 }
 
 /// Problem found when parsing a document
