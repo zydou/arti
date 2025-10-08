@@ -74,7 +74,7 @@ trait RegisterMapper {
 impl RegisterMapper for RegisterId {
     #[inline(always)]
     fn rq(&self) -> u8 {
-        8 + (self.as_usize() as u8)
+        8 + self.as_u8()
     }
 
     #[inline(always)]
