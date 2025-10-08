@@ -21,6 +21,23 @@ use crate::err::ErrorDetail;
 /// An initialized but unbootstrapped relay.
 ///
 /// This intentionally does not have access to the runtime to prevent it from doing network io.
+///
+/// The idea is that we can build up the relay's components in an `InertTorRelay` without a runtime,
+/// and then call `bootstrap()` on it and provide a runtime to turn it into a network-capable relay.
+/// This gives us two advantages:
+///
+/// - We can initialize the internal data structures in the `InertTorRelay` (load the keystores,
+///   configure memquota, etc), which leaves `TorRelay` to just "running" the relay (bootstrapping,
+///   setting up listening sockets, etc). We don't need to combine the initialization and "running
+///   the relay" all within the same object.
+/// - We will likely want to share some of arti's key management subcommands in the future.
+///   arti-client has an `InertTorClient` which is used so that arti subcommands can access the
+///   keystore. If we do a similar thing here in arti-relay in the future, it might be nice to have
+///   an `InertTorRelay` which has these internal data structures, but doesn't need a runtime or
+///   have any networking capabilities.
+///
+/// Time will tell if this ends up being a bad design decision in practice, and we can always change
+/// it later.
 #[derive(Clone)]
 pub(crate) struct InertTorRelay {
     /// The configuration options for the relay.
