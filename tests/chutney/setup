@@ -103,6 +103,43 @@ class ArtiBinResolver:
         return res
 
 
+class ArtiBenchBinResolver:
+    def __init__(self, parser: ArgumentParser) -> None:
+        parser.add_argument("--arti-bench-bin", help="arti-bench executable")
+
+    def resolve(self, args: Namespace) -> Path:
+        res_str = args.arti_bin
+        if res_str is None:
+            for s in [
+                "target/x86_64-unknown-linux-gnu/release/arti-bench",
+                "target/release/arti-bench",
+                "target/x86_64-unknown-linux-gnu/quicktest/arti-bench",
+                "target/quicktest/arti-bench",
+                "target/x86_64-unknown-linux-gnu/debug/arti-bench",
+                "target/debug/arti-bench",
+            ]:
+                p = _TOP_LEVEL.joinpath(Path(s))
+                if p.exists():
+                    res_str = str(p)
+                    break
+        if res_str is None:
+            print(
+                textwrap.dedent(
+                    """
+                    arti-bench not found.
+                    Try setting --arti-bench-bin or building one in this repo:
+                    cargo build --locked --profile=quicktest -p arti-bench
+                    """
+                )
+            )
+            sys.exit(1)
+        res = Path(res_str)
+        if not os.access(res, os.X_OK):
+            print(f"arti-bench resolved to {res}, but it isn't an executable file")
+            sys.exit(1)
+        return res
+
+
 class ChutneyDataDirResolver:
     def __init__(self, parser: ArgumentParser) -> None:
         parser.add_argument(
@@ -129,6 +166,7 @@ class ChutneyNetworkResolver:
 class Config:
     chutney: Path
     arti: Path
+    arti_bench: Path
     jq: Path
     chutney_data_dir: Path
     network: str
@@ -139,6 +177,7 @@ class ConfigResolver:
         self._jq_resolver = JqBinResolver(parser)
         self._chutney_resolver = ChutneyBinResolver(parser)
         self._arti_resolver = ArtiBinResolver(parser)
+        self._arti_bench_resolver = ArtiBenchBinResolver(parser)
         self._chutney_data_dir_resolver = ChutneyDataDirResolver(parser)
         self._network_resolver = ChutneyNetworkResolver(parser)
 
@@ -146,6 +185,7 @@ class ConfigResolver:
         return Config(
             chutney=self._chutney_resolver.resolve(args),
             arti=self._arti_resolver.resolve(args),
+            arti_bench=self._arti_bench_resolver.resolve(args),
             jq=self._jq_resolver.resolve(args),
             chutney_data_dir=self._chutney_data_dir_resolver.resolve(args),
             network=self._network_resolver.resolve(args),
@@ -164,6 +204,7 @@ def _main() -> None:
     with Path(_SCRIPT_DIR).joinpath("arti.run").open("w") as c:
         print(f'target="{config.network}"', file=c)
         print(f'jq_bin="{config.jq}"', file=c)
+        print(f'arti_bench_bin="{config.arti_bench}"', file=c)
         print(f'chutney_bin="{config.chutney}"', file=c)
         print(f'export CHUTNEY_ARTI="{config.arti}"', file=c)
         print(f'export CHUTNEY_DATA_DIR="{config.chutney_data_dir}"', file=c)
