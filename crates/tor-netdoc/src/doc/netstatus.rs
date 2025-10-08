@@ -1099,6 +1099,19 @@ mod parse2_impls {
             .map_err(item.invalid_argument_handler("weights"))
         }
     }
+
+    impl ItemValueParseable for RelayFlags {
+        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            let mut flags = RelayFlagsParser::new();
+            for arg in item.args_copy() {
+                flags
+                    .add(arg)
+                    .map_err(item.invalid_argument_handler("flags"))?;
+            }
+            Ok(flags.finish())
+        }
+    }
 }
 
 impl Footer {
