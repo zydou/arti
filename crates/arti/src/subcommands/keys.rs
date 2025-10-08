@@ -88,6 +88,32 @@ pub(crate) struct CheckIntegrityArgs {
     batch: bool,
 }
 
+/// A set of invalid keystore entries associated with a keystore ID.
+/// This struct is used solely to reduce type complexity; it does not
+/// perform any validation (e.g., whether the entries actually belong
+/// to the keystore indicated by the ID).
+#[derive(Clone)]
+struct InvalidKeystoreEntries<'a> {
+    /// The `KeystoreId` that the entries are expected to belong to.
+    keystore_id: KeystoreId,
+    /// The list of invalid entries that logically belong to the keystore identified
+    /// by `keystore_id`.
+    entries: Vec<InvalidKeystoreEntry<'a>>,
+}
+
+/// An invalid keystore entry associated with the error that caused it to be
+/// invalid. This struct is used solely to reduce type complexity; it does not
+/// perform any validation (e.g., whether the `error_msg` actually corresponds
+/// to the error that caused the invalid entry).
+#[derive(Clone)]
+struct InvalidKeystoreEntry<'a> {
+    /// The entry
+    entry: KeystoreEntryResult<KeystoreEntry<'a>>,
+    /// The error message derived from the error that caused the entry to be invalid.
+    /// This field is needed (even if `Err(UnrecognizedEntryError)` contains the error) because `Ok(KeystoreEntry)`s could be invalid too.
+    error_msg: String,
+}
+
 /// Run the `keys` subcommand.
 pub(crate) fn run<R: Runtime>(
     runtime: R,
@@ -208,64 +234,129 @@ fn run_check_integrity<R: Runtime>(
     // TODO: `TorClient` should have a `KeyMgr` accessor.
     let keymgr = inert_client.keymgr()?;
 
-    let entries = match &args.keystore_id {
-        Some(id) => keymgr.list_by_id(id)?,
-        None => keymgr.list()?,
+    let keystore_ids = match &args.keystore_id {
+        Some(id) => vec![id.to_owned()],
+        None => keymgr.list_keystores(),
     };
-
-    let mut invalid_entries = entries
+    let keystores: Vec<(_, Vec<KeystoreEntryResult<KeystoreEntry>>)> = keystore_ids
         .into_iter()
-        .filter(|entry| match entry {
-            Ok(e) => keymgr.validate_entry_integrity(e).is_err(),
-            Err(_) => true,
-        })
-        .collect::<Vec<_>>();
+        .map(|id| keymgr.list_by_id(&id).map(|entries| (id, entries)))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    display_invalid_keystore_entries(&invalid_entries, keymgr, "Invalid keystore entries");
-
+    // Unlike `keystores`, which has type `Vec<(KeystoreId, Vec<KeystoreEntryResult<KeystoreEntry>>)>`,
+    // `affected_keystores` has type `InvalidKeystoreEntries`. This distinction is
+    // necessary because the entries in `keystores` will be evaluated, and if any are
+    // found to be invalid, the associated error messages must be stored somewhere
+    // for later display.
+    let mut affected_keystores = Vec::new();
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
+            // `service` cannot be dropped as long as `expired_entries` is in use, since
+            // `expired_entries` holds references to `services`.
             let services = create_all_services(config, client_config)?;
-            let expired_entries = get_expired_keys(&services, &client)?;
-            display_invalid_keystore_entries(
-                &expired_entries,
-                keymgr,
-                "Expired keystore entries"
-            );
-
-            invalid_entries.extend(expired_entries)
+            let mut expired_entries: Vec<_> = get_expired_keys(&services, &client)?;
         }
     }
 
-    if invalid_entries.is_empty() {
-        println!("OK.");
-        return Ok(());
+    for (id, entries) in keystores {
+        let mut invalid_entries = entries
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(e) => keymgr
+                    .validate_entry_integrity(&e)
+                    .map_err(|err| InvalidKeystoreEntry {
+                        entry: Ok(e),
+                        error_msg: err.to_string(),
+                    })
+                    .err(),
+                Err(err) => {
+                    let error = err.error().to_string();
+                    Some(InvalidKeystoreEntry {
+                        entry: Err(err),
+                        error_msg: error,
+                    })
+                }
+            })
+            .collect::<Vec<_>>();
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "onion-service-service")] {
+                // For the current keystore, transfer its expired keys from `expired_entries`
+                // to `invalid_entries`.
+                expired_entries.retain(|expired_entry| {
+                    match &expired_entry.entry {
+                        Ok(entry) => {
+                            if entry.keystore_id() == &id {
+                                invalid_entries.push(expired_entry.clone());
+                                return false;
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("WARNING: Unexpected invalid keystore entry encountered: {}", err);
+                        }
+                    }
+                    true
+                })
+            }
+        }
+
+        if invalid_entries.is_empty() {
+            println!("{}: OK.\n", id);
+            continue;
+        }
+
+        affected_keystores.push(InvalidKeystoreEntries {
+            keystore_id: id,
+            entries: invalid_entries,
+        });
     }
 
-    maybe_remove_invalid_entries(args, &invalid_entries, keymgr)?;
+    // Expired entries are obtained from the registered keystore. Since we have iterated over every
+    // registered keystore and removed all entries associated with the current keystore, the
+    // collection `expired_entries` should be empty. If it is not, there is a bug (see
+    // [`OnionService::list_expired_keys`]).
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-service")] {
+            if !expired_entries.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "Encountered an expired key that doesn't belong to a registered keystore."
+                ));
+            }
+        }
+    }
+
+    display_invalid_keystore_entries(&affected_keystores);
+
+    maybe_remove_invalid_entries(args, &affected_keystores, keymgr)?;
 
     Ok(())
 }
 
-/// Helper function of `run_check_integrity`, reduces cognitive complexity.
-// TODO: code duplication with `display_keystore_entries`.
-fn display_invalid_keystore_entries(
-    entries: &[KeystoreEntryResult<KeystoreEntry>],
-    keymgr: &KeyMgr,
-    header: &str,
-) {
-    if entries.is_empty() {
+/// Helper function for `run_check_integrity` that reduces cognitive complexity.
+///
+/// Displays invalid keystore entries grouped by `KeystoreId`, showing the `raw_id`
+/// of each key and the associated error message in a unified report to the user.
+/// If no invalid entries are provided, nothing is printed.
+fn display_invalid_keystore_entries(affected_keystores: &[InvalidKeystoreEntries]) {
+    if affected_keystores.is_empty() {
         return;
     }
-    println!(" ===== {} =====\n\n", header);
-    for entry in entries {
-        match entry {
-            Ok(entry) => {
-                display_entry(entry, keymgr);
-            }
-            Err(entry) => {
-                display_unrecognized_entry(entry);
-            }
+
+    print_check_integrity_incipit(affected_keystores);
+
+    for InvalidKeystoreEntries {
+        keystore_id,
+        entries,
+    } in affected_keystores
+    {
+        println!("\nInvalid keystore entries in keystore {}:\n", keystore_id);
+        for InvalidKeystoreEntry { entry, error_msg } in entries {
+            let raw_entry = match entry {
+                Ok(e) => e.raw_entry(),
+                Err(e) => e.entry().into(),
+            };
+            println!("{}", raw_entry.raw_id());
+            println!("\tError: {}", error_msg);
         }
     }
 }
@@ -371,7 +462,7 @@ fn create_all_services(
 fn get_expired_keys<'a, R: Runtime>(
     services: &'a Vec<OnionService>,
     client: &TorClient<R>,
-) -> Result<Vec<KeystoreEntryResult<KeystoreEntry<'a>>>> {
+) -> Result<Vec<InvalidKeystoreEntry<'a>>> {
     let netdir = client.dirmgr().timely_netdir()?;
 
     let mut expired_keys = Vec::new();
@@ -380,7 +471,10 @@ fn get_expired_keys<'a, R: Runtime>(
             &mut service
                 .list_expired_keys(&netdir)?
                 .into_iter()
-                .map(Ok)
+                .map(|entry| InvalidKeystoreEntry {
+                    entry: Ok(entry),
+                    error_msg: "The entry is expired.".to_string(),
+                })
                 .collect(),
         );
     }
@@ -394,10 +488,10 @@ fn get_expired_keys<'a, R: Runtime>(
 /// Returns `Err` if an I/O error occurs.
 fn maybe_remove_invalid_entries(
     args: &CheckIntegrityArgs,
-    entries: &[KeystoreEntryResult<KeystoreEntry<'_>>],
+    affected_keystores: &[InvalidKeystoreEntries],
     keymgr: &KeyMgr,
 ) -> Result<()> {
-    if entries.is_empty() || !args.sweep {
+    if affected_keystores.is_empty() || !args.sweep {
         return Ok(());
     }
 
@@ -407,19 +501,53 @@ fn maybe_remove_invalid_entries(
         return Ok(());
     }
 
-    for res in entries.iter() {
-        let raw_entry = match res {
-            Ok(e) => &e.raw_entry(),
-            Err(e) => e.entry().deref(),
-        };
-
-        if keymgr
-            .remove_unchecked(&raw_entry.raw_id().to_string(), raw_entry.keystore_id())
-            .is_err()
+    for InvalidKeystoreEntries {
+        keystore_id: _,
+        entries,
+    } in affected_keystores
+    {
+        for InvalidKeystoreEntry {
+            entry,
+            error_msg: _,
+        } in entries.iter()
         {
-            eprintln!("Failed to remove entry at location: {}", raw_entry.raw_id());
+            let raw_entry = match entry {
+                Ok(e) => &e.raw_entry(),
+                Err(e) => e.entry().deref(),
+            };
+
+            if keymgr
+                .remove_unchecked(&raw_entry.raw_id().to_string(), raw_entry.keystore_id())
+                .is_err()
+            {
+                eprintln!("Failed to remove entry at location: {}", raw_entry.raw_id());
+            }
         }
     }
 
     Ok(())
+}
+
+/// Helper function for `display_invalid_keystore_entries` that reduces cognitive complexity.
+///
+/// Produces and displays the opening section of the final output, given a list of keystores
+/// containing invalid entries and their IDs. This function does not check whether
+/// `affected_keystores` or the inner collections are empty.
+fn print_check_integrity_incipit(affected_keystores: &[InvalidKeystoreEntries]) {
+    let len = affected_keystores.len();
+
+    let mut incipit = "Found problems in keystore".to_string();
+    if len > 1 {
+        incipit.push('s');
+    }
+    incipit.push_str(": ");
+
+    let keystore_names: Vec<_> = affected_keystores
+        .iter()
+        .map(|x| x.keystore_id.to_string())
+        .collect();
+    incipit.push_str(&keystore_names.join(", "));
+    incipit.push('.');
+
+    println!("{}", incipit);
 }
