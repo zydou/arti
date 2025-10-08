@@ -182,8 +182,6 @@ impl ConfigurationSources {
     // The other inputs are always used and therefore
     // don't need to be lifted into FnOnce() -> Result.
     ///
-    /// `mistrust` is used to check whether the configuration files have appropriate permissions.
-    ///
     /// `ConfigurationSource::Dir`s
     /// will be scanned for files whose name ends in `.toml`.
     /// All those files (if any) will be read (in lexical order by filename).
@@ -236,6 +234,13 @@ impl ConfigurationSources {
     /// The format for `s` is as in [`CmdLine`].
     pub fn push_option(&mut self, option: impl Into<String>) {
         self.options.push(option.into());
+    }
+
+    /// All given override options.
+    ///
+    /// See [`push_option`](Self::push_option).
+    pub fn options(&self) -> impl Iterator<Item = &String> + Clone {
+        self.options.iter()
     }
 
     /// Sets the filesystem permission mistrust

@@ -45,7 +45,17 @@ fn cli_cmd_post_processing(cli: Command) -> Command {
         let help = help.map(|x| format!("{x}\n\n")).unwrap_or("".to_string());
         let paths: Vec<_> = paths
             .iter()
-            .map(|x| x.anonymize_home().to_string())
+            .map(|path| {
+                let mut anon = path.anonymize_home().to_string();
+                // Best-effort attempt to re-add the trailing '/'
+                // if it was stripped by `anonymize_home()`.
+                // If the original string ended with '/' and the anonymized
+                // path doesn't, then re-add it.
+                if path.to_string_lossy().ends_with('/') && !anon.ends_with('/') {
+                    anon.push('/');
+                }
+                anon
+            })
             .collect();
         let paths = paths.join("\n");
 
@@ -81,7 +91,7 @@ pub(crate) enum Commands {
 }
 
 /// Global arguments for all commands.
-// NOTE: `global = true` should be set for each field
+// NOTE: `global = true` should be set for each field (see the `global_args_are_global` unit test)
 #[derive(Clone, Debug, Args)]
 pub(crate) struct GlobalArgs {
     /// Override the log level from the configuration.

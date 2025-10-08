@@ -18,46 +18,58 @@ use tracing::info;
 use crate::config::TorRelayConfig;
 use crate::err::ErrorDetail;
 
-/// Represent an active Relay on the Tor network.
+/// An initialized but unbootstrapped relay.
+///
+/// This intentionally does not have access to the runtime to prevent it from doing network io.
+///
+/// The idea is that we can build up the relay's components in an `InertTorRelay` without a runtime,
+/// and then call `bootstrap()` on it and provide a runtime to turn it into a network-capable relay.
+/// This gives us two advantages:
+///
+/// - We can initialize the internal data structures in the `InertTorRelay` (load the keystores,
+///   configure memquota, etc), which leaves `TorRelay` to just "running" the relay (bootstrapping,
+///   setting up listening sockets, etc). We don't need to combine the initialization and "running
+///   the relay" all within the same object.
+/// - We will likely want to share some of arti's key management subcommands in the future.
+///   arti-client has an `InertTorClient` which is used so that arti subcommands can access the
+///   keystore. If we do a similar thing here in arti-relay in the future, it might be nice to have
+///   an `InertTorRelay` which has these internal data structures, but doesn't need a runtime or
+///   have any networking capabilities.
+///
+/// Time will tell if this ends up being a bad design decision in practice, and we can always change
+/// it later.
 #[derive(Clone)]
-pub(crate) struct TorRelay<R: Runtime> {
-    /// Asynchronous runtime object.
-    #[allow(unused)] // TODO RELAY remove
-    runtime: R,
+pub(crate) struct InertTorRelay {
+    /// The configuration options for the relay.
+    config: TorRelayConfig,
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
-    #[allow(unused)] // TODO RELAY remove
+    #[expect(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
-    /// Channel manager, used by circuits etc.,
-    #[allow(unused)] // TODO RELAY remove
-    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
     /// Key manager holding all relay keys and certificates.
-    #[allow(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
 }
 
-impl<R: Runtime> TorRelay<R> {
-    /// Create a new Tor relay with the given [runtime][tor_rtcompat] and configuration.
+impl InertTorRelay {
+    /// Create a new Tor relay with the given configuration.
     pub(crate) fn new(
-        runtime: R,
-        config: &TorRelayConfig,
+        config: TorRelayConfig,
         path_resolver: CfgPathResolver,
     ) -> Result<Self, ErrorDetail> {
-        let keymgr = Self::create_keymgr(config, &path_resolver)?;
-        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
-            runtime.clone(),
-            &config.channel,
-            Dormancy::Active,
-            &NetParameters::default(),
-            ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
-            Some(keymgr.clone()),
-        ));
+        let keymgr = Self::create_keymgr(&config, &path_resolver)?;
 
         Ok(Self {
-            runtime,
+            config,
             path_resolver,
-            chanmgr,
             keymgr,
         })
+    }
+
+    /// Connect the [`InertTorRelay`] to the Tor network.
+    pub(crate) async fn bootstrap<R: Runtime>(
+        self,
+        runtime: R,
+    ) -> Result<TorRelay<R>, ErrorDetail> {
+        TorRelay::bootstrap(runtime, self).await
     }
 
     /// Create the [key manager](KeyMgr).
@@ -114,5 +126,45 @@ impl<R: Runtime> TorRelay<R> {
         // by the RelaySigning cert.
 
         Ok(())
+    }
+}
+
+/// Represent an active Relay on the Tor network.
+#[derive(Clone)]
+pub(crate) struct TorRelay<R: Runtime> {
+    /// Asynchronous runtime object.
+    #[expect(unused)] // TODO RELAY remove
+    runtime: R,
+
+    /// Channel manager, used by circuits etc.
+    #[expect(unused)] // TODO RELAY remove
+    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
+
+    /// Key manager holding all relay keys and certificates.
+    #[expect(unused)] // TODO RELAY remove
+    keymgr: Arc<KeyMgr>,
+}
+
+impl<R: Runtime> TorRelay<R> {
+    /// Create a new Tor relay with the given [`runtime`][tor_rtcompat].
+    ///
+    /// Expected to be called from [`InertTorRelay::bootstrap()`].
+    async fn bootstrap(runtime: R, inert: InertTorRelay) -> Result<Self, ErrorDetail> {
+        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
+            runtime.clone(),
+            &inert.config.channel,
+            Dormancy::Active,
+            &NetParameters::default(),
+            ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
+            Some(inert.keymgr.clone()),
+        ));
+
+        // TODO: missing the actual bootstrapping
+
+        Ok(Self {
+            runtime,
+            chanmgr,
+            keymgr: inert.keymgr,
+        })
     }
 }
