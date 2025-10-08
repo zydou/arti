@@ -1024,8 +1024,7 @@ impl RelayWeight {
 
         let params = item.args_as_str().parse()?;
 
-        Self::from_net_params(&params)
-            .map_err(|e| e.at_pos(item.pos()))
+        Self::from_net_params(&params).map_err(|e| e.at_pos(item.pos()))
     }
 
     /// Parse a routerweight from partially-parsed `w` line in the form of a `NetParams`
@@ -1043,8 +1042,7 @@ impl RelayWeight {
         match unmeas {
             None | Some(0) => Ok(RelayWeight::Measured(bw)),
             Some(1) => Ok(RelayWeight::Unmeasured(bw)),
-            _ => Err(EK::BadArgument
-                .with_msg("unmeasured value")),
+            _ => Err(EK::BadArgument.with_msg("unmeasured value")),
         }
     }
 }
