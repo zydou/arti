@@ -95,6 +95,34 @@ pub enum AllowAnnotations {
     AnnotationsNotAllowed,
 }
 
+/// A "normally formatted" argument to a netdoc item
+///
+/// A type that is represented as a single argument
+/// whose representation is as for the type's `FromStr` and `Display`.
+///
+/// Implementing this trait enables a blanket impl of `parse2::ItemArgumentParseable`.
+pub trait NormalItemArgument: std::str::FromStr + std::fmt::Display {}
+// TODO: should we implement ItemArgument for, say, tor_llcrypto::pk::rsa::RsaIdentity ?
+// It's not clear whether it's always formatted the same way in all parts of the spec.
+// The Display impl of RsaIdentity adds a `$` which is not supposed to be present
+// in (for example) an authority certificate (authcert)'s "fingerprint" line.
+
+impl NormalItemArgument for usize {}
+impl NormalItemArgument for u8 {}
+impl NormalItemArgument for u16 {}
+impl NormalItemArgument for u32 {}
+impl NormalItemArgument for u64 {}
+impl NormalItemArgument for u128 {}
+
+impl NormalItemArgument for isize {}
+impl NormalItemArgument for i8 {}
+impl NormalItemArgument for i16 {}
+impl NormalItemArgument for i32 {}
+impl NormalItemArgument for i64 {}
+impl NormalItemArgument for i128 {}
+
+impl NormalItemArgument for String {}
+
 /// Return a list of the protocols [supported](tor_protover::doc_supported)
 /// by this crate.
 pub fn supported_protocols() -> tor_protover::Protocols {

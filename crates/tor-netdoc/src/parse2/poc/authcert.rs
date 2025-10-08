@@ -52,13 +52,15 @@ pub struct DirAuthKeyCertSignatures {
 }
 
 /// `network-status-version` version value
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString, strum::Display)]
 #[non_exhaustive]
 pub enum NdaDirKeyCertificateVersion {
     /// The currently supported version, `3`
     #[strum(serialize = "3")]
     V3,
 }
+
+impl NormalItemArgument for NdaDirKeyCertificateVersion {}
 
 /// RSA signature
 ///

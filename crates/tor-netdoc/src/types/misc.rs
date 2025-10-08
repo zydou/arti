@@ -200,9 +200,12 @@ mod ed25519impl {
 
 /// Ignored part of a network document.
 ///
-/// With `parse2`, can be used as an item, argument, object, or even flattened-fields.
+/// With `parse2`, can be used as an item, object, or even flattened-fields.
 ///
-/// If an optional item, argument or object is wanted, use `Option<Ignore>`.
+/// If an optional item or object is wanted, use `Option<Ignore>`.
+///
+/// Not useable as a (positional) argument, because when the document is
+/// output we wouldn't know what to emit.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "parse2",
@@ -298,6 +301,8 @@ mod timeimpl {
             write!(f, "{}", fmt_with(self.0, ISO_8601NOSP_FMT)?)
         }
     }
+
+    impl crate::NormalItemArgument for Iso8601TimeNoSp {}
 }
 
 /// Types for decoding RSA keys
@@ -413,6 +418,8 @@ mod edcert {
 /// Types for decoding RSA fingerprints
 mod fingerprint {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
+    use base64ct::{Base64Unpadded, Encoding as _};
+    use std::fmt::{self, Display};
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
     /// A hex-encoded RSA key identity (fingerprint) with spaces in it.
@@ -432,7 +439,7 @@ mod fingerprint {
     /// A base64-encoded fingerprint (unpadded)
     ///
     /// Netdoc parsing adapter for [`RsaIdentity`]
-    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref)]
+    #[derive(Debug, Clone, Eq, PartialEq, derive_more::Deref, derive_more::Into)]
     #[allow(clippy::exhaustive_structs)]
     pub struct Base64Fingerprint(pub RsaIdentity);
 
@@ -473,11 +480,23 @@ mod fingerprint {
         }
     }
 
+    impl Display for Base64Fingerprint {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&Base64Unpadded::encode_string(self.as_bytes()), f)
+        }
+    }
+
     impl std::str::FromStr for Fingerprint {
         type Err = Error;
         fn from_str(s: &str) -> Result<Fingerprint> {
             let ident = parse_hex_ident(s).map_err(|e| e.at_pos(Pos::at(s)))?;
             Ok(Fingerprint(ident))
+        }
+    }
+
+    impl Display for Fingerprint {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&hex::encode_upper(self.as_bytes()), f)
         }
     }
 
@@ -494,6 +513,9 @@ mod fingerprint {
             Ok(LongIdent(ident))
         }
     }
+
+    impl crate::NormalItemArgument for Fingerprint {}
+    impl crate::NormalItemArgument for Base64Fingerprint {}
 }
 
 /// A type for relay nicknames
@@ -547,6 +569,8 @@ mod nickname {
             }
         }
     }
+
+    impl crate::NormalItemArgument for Nickname {}
 }
 
 #[cfg(test)]
@@ -896,6 +920,7 @@ mod test {
         assert_eq!(RsaIdentity::from(fp2.parse::<Fingerprint>()?), k);
         assert!(fp3.parse::<Fingerprint>().is_err());
         assert!(fp4.parse::<Fingerprint>().is_err());
+        assert_eq!(Fingerprint(k).to_string(), fp2);
 
         assert!(fp1.parse::<LongIdent>().is_err());
         assert_eq!(RsaIdentity::from(fp2.parse::<LongIdent>()?), k);
@@ -904,6 +929,11 @@ mod test {
 
         assert!("xxxx".parse::<Fingerprint>().is_err());
         assert!("ffffffffff".parse::<Fingerprint>().is_err());
+
+        let fp_b64 = "dGepfRnNK08rwDiKqZxeZ3EPhH4";
+        assert_eq!(RsaIdentity::from(fp_b64.parse::<Base64Fingerprint>()?), k);
+        assert_eq!(Base64Fingerprint(k).to_string(), fp_b64);
+
         Ok(())
     }
 

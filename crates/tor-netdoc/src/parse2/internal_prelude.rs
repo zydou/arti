@@ -3,7 +3,7 @@
 //! This is also exported, but with `#[doc(hidden)]`, for the benefit of our public macros.
 
 pub use std::collections::HashSet;
-pub use std::fmt::Debug;
+pub use std::fmt::{self, Debug, Display};
 pub use std::io::Write as _;
 pub use std::marker::PhantomData;
 pub use std::mem;
@@ -45,7 +45,7 @@ pub use super::{
         NetdocSigned,
     },
 };
-pub use crate::{netdoc_ordering_check, stop_at};
+pub use crate::{NormalItemArgument, netdoc_ordering_check, stop_at};
 
 pub use ErrorProblem as EP;
 pub use VerifyFailed as VF;

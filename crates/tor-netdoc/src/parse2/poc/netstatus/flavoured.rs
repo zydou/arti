@@ -100,11 +100,14 @@ pub struct NdaVoteStatus {}
 #[non_exhaustive]
 pub struct NdaNetworkStatusVersionFlavour {}
 
+/// The argument in `network-status-version` that is there iff it's a microdesc consensus.
+const NDA_NETWORK_STATUS_VERSION_FLAVOUR: Option<&str> = ns_expr!(None, None, Some("microdesc"));
+
 impl ItemArgumentParseable for NdaNetworkStatusVersionFlavour {
     fn from_args<'s>(args: &mut ArgumentStream<'s>, field: &'static str)
                      -> Result<Self, ErrorProblem>
     {
-        let exp: Option<&str> = ns_expr!(None, None, Some("microdesc"));
+        let exp: Option<&str> = NDA_NETWORK_STATUS_VERSION_FLAVOUR;
         if let Some(exp) = exp {
             let got = args.next().ok_or(EP::MissingArgument { field })?;
             if got != exp { return Err(EP::InvalidArgument { field } ) };
@@ -118,17 +121,27 @@ impl ItemArgumentParseable for NdaNetworkStatusVersionFlavour {
     }
 }
 
+/// The document type argumnet in `vote-status`
+const NDA_VOTE_STATUS: &str = ns_expr!("vote", "consensus", "consensus");
+
 impl FromStr for NdaVoteStatus {
     type Err = InvalidNetworkStatusVoteStatus;
     fn from_str(s: &str) -> Result<Self, InvalidNetworkStatusVoteStatus> {
-        let exp = ns_expr!("vote", "consensus", "consensus");
-        if s == exp {
+        if s == NDA_VOTE_STATUS {
             Ok(Self {})
         } else {
             Err(InvalidNetworkStatusVoteStatus { })
         }
     }
 }
+
+impl Display for NdaVoteStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(NDA_VOTE_STATUS, f)
+    }
+}
+
+impl NormalItemArgument for NdaVoteStatus {}
 
 /// `voting-delay` value
 #[derive(Deftly, Clone, Debug, Hash, Eq, PartialEq)]
