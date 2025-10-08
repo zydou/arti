@@ -73,6 +73,7 @@ trait RegisterMapper {
 impl RegisterMapper for RegisterId {
     #[inline(always)]
     fn x(&self) -> u8 {
+        // This is fine, since self.as_u8() is always in range 0..=7.
         1 + self.as_u8()
     }
 

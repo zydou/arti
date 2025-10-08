@@ -32,6 +32,9 @@ impl RegisterId {
     }
 
     /// Return the underlying u8 for this RegisterId.
+    ///
+    /// (Recall that hashx has 8 virtual registers,
+    /// so the output of this method is always in range 0..=7.)
     #[inline(always)]
     pub(crate) fn as_u8(&self) -> u8 {
         self.0
