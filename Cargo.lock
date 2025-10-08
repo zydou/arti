@@ -6689,6 +6689,7 @@ dependencies = [
  "tokio-stream",
  "tor-error",
  "tracing",
+ "void",
  "weak-table",
  "zstd",
 ]

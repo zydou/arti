@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use deadpool::managed::Pool;
+use deadpool::managed::{Pool, PoolError};
 use deadpool_sqlite::{Config, Manager};
 use rusqlite::params;
 use tor_error::internal;
@@ -195,7 +195,16 @@ pub(crate) async fn open<P: Into<PathBuf>>(path: P) -> Result<Pool<Manager>, Dat
     // 2. Checking the database schema.
     // 3. Upgrading (in future) or initializing the database schema (if empty).
     pool.get()
-        .await?
+        .await
+        .map_err(|e| match e {
+            PoolError::Backend(e) => DatabaseError::LowLevel(e),
+            PoolError::Closed => DatabaseError::Pool(PoolError::Closed),
+            PoolError::NoRuntimeSpecified => DatabaseError::Pool(PoolError::NoRuntimeSpecified),
+            PoolError::PostCreateHook(e) => {
+                DatabaseError::Bug(internal!("post create hook error? {e}"))
+            }
+            PoolError::Timeout(e) => DatabaseError::Pool(PoolError::Timeout(e)),
+        })?
         .interact(|conn| {
             // Set global pragmas.
             conn.execute("PRAGMA foreign_keys=ON", params![])?;

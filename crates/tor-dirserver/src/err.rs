@@ -2,6 +2,7 @@
 
 use deadpool::managed::PoolError;
 use thiserror::Error;
+use void::Void;
 
 /// An error while interacting with a database.
 ///
@@ -34,16 +35,22 @@ pub(crate) enum DatabaseError {
 
     /// Interaction with our database pool, [`deadpool`], has failed.
     ///
-    /// Unfortuantely, those errors may overlap with [`DatabaseError::LowLevel`]
-    /// under a few circumstances, but separating them is still crucial because
-    /// they differ in their origin.  [`DatabaseError::Pool`] is a direct mapping
-    /// to [`PoolError`], which only gets returned by functions from the
-    /// [`deadpool`] and [`deadpool_sqlite`] crates, whereas
-    /// [`DatabaseError::LowLevel`] refers to low-level SQLite errors directly
-    /// triggered by our code in the places where we interact with parts of
-    /// [`rusqlite`], such as the interaction methods of [`deadpool`].
+    /// This error is only constructed by **some** error-variants of [`PoolError`].
+    /// In general, this application handles [`PoolError`] types as follows:
+    /// * [`PoolError::Backend`] is mapped to [`DatabaseError::LowLevel`].
+    /// * [`PoolError::PostCreateHook`] is mapped to [`DatabaseError::Bug`].
+    /// * Everything else is mapped to [`DatabaseError::Pool`].
+    ///
+    /// The motivation for this is, that [`PoolError::Backend`] and
+    /// [`PoolError::PostCreateHook`] contain [`rusqlite::Error`] as their
+    /// generic argument in the way we use it across the code base.  However,
+    /// for handling [`PoolError::Backend`], we already have
+    /// [`DatabaseError::LowLevel`], which exists to indicate underlying issues
+    /// with the database driver.  For handling [`PoolError::PostCreateHook`],
+    /// we opt for going with [`DatabaseError::Bug`], as we do not make use of
+    /// any post create hooks.
     #[error("pool error: {0}")]
-    Pool(#[from] PoolError<rusqlite::Error>),
+    Pool(#[from] PoolError<Void>),
 
     /// An internal error.
     #[error("Internal error")]
