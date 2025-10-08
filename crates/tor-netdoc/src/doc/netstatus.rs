@@ -1112,6 +1112,16 @@ mod parse2_impls {
             Ok(flags.finish())
         }
     }
+
+    impl ItemValueParseable for rs::Version {
+        fn from_unparsed(mut item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            item.args_mut()
+                .into_remaining()
+                .parse()
+                .map_err(item.invalid_argument_handler("version"))
+        }
+    }
 }
 
 impl Footer {
