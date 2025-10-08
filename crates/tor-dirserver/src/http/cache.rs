@@ -53,16 +53,21 @@ impl StoreCache {
     ///
     /// If we got a cache miss, this function automatically queries the database
     /// and inserts the result into the cache, before returning it.
+    ///
+    /// We do not keep a lock throughout the entire method.  This risks storing
+    /// the same document in memory for a very short amount of time, based upon
+    /// the number of worker threads we are using.  However, this is fine,
+    /// given that reading from the store table is a large performance bottleneck.
+    /// Also, the number of simultanous copies that might be risked by that is
+    /// limited to the amount of worker threads, which is usually very low
+    /// compared to the number of async tasks, which might be in the thousands.
     pub(super) fn get(
         &mut self,
         tx: &Transaction,
         sha256: &Sha256,
     ) -> Result<Arc<[u8]>, DatabaseError> {
-        // TODO DIRMIRROR: Do we want to keep the lock while doing db queries?
-        let mut lock = self.lock();
-
         // Query the cache for the relevant document.
-        if let Some(document) = lock.get(sha256) {
+        if let Some(document) = self.lock().get(sha256) {
             return Ok(document);
         }
 
@@ -70,9 +75,11 @@ impl StoreCache {
         let document = Self::get_db(tx, sha256)?;
 
         // Insert it into the cache.
-        lock.insert(sha256.clone(), document.clone());
-
-        Ok(document)
+        //
+        // We obtain the lock and check again if it has been added in the
+        // meantime.  The idea is to only return one copy of it, not two
+        // simultanous ones.
+        Ok(self.lock().entry(sha256.clone()).or_insert(document))
     }
 
     /// Obtains a [`Sha256`] from the database without consulting the cache first.
