@@ -978,6 +978,45 @@ impl std::str::FromStr for RelayFlags {
     }
 }
 
+/// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
+struct RelayFlagsParser<'s> {
+    /// Flags so far, including the implied onces
+    flags: RelayFlags,
+
+    /// The previous argument, if any
+    ///
+    /// Used only for checking that the arguments are sorted, as per the spec.
+    prev: Option<&'s str>,
+}
+
+impl<'s> RelayFlagsParser<'s> {
+    /// Start parsing relay flags
+    fn new() -> Self {
+        // These flags are implicit.
+        RelayFlagsParser {
+            flags: RelayFlags::RUNNING | RelayFlags::VALID,
+            prev: None,
+        }
+    }
+    /// Parse the next relay flag argument
+    fn add(&mut self, arg: &'s str) -> StdResult<(), &'static str> {
+        if let Some(prev) = self.prev {
+            if prev >= arg {
+                // Arguments out of order.
+                return Err("Flags out of order");
+            }
+        }
+        let fl = arg.parse().void_unwrap();
+        self.flags |= fl;
+        self.prev = Some(arg);
+        Ok(())
+    }
+    /// Finish parsing relay flags
+    fn finish(self) -> RelayFlags {
+        self.flags
+    }
+}
+
 impl RelayFlags {
     /// Parse a relay-flags entry from an "s" line.
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<RelayFlags> {
@@ -987,25 +1026,19 @@ impl RelayFlags {
                     .at_pos(item.pos()),
             );
         }
-        // These flags are implicit.
-        let mut flags: RelayFlags = RelayFlags::RUNNING | RelayFlags::VALID;
+        let mut flags = RelayFlagsParser::new();
 
-        let mut prev: Option<&str> = None;
         for s in item.args() {
-            if let Some(p) = prev {
-                if p >= s {
-                    // Arguments out of order.
-                    return Err(EK::BadArgument
+            flags
+                .add(s)
+                .map_err(|msg| {
+                    EK::BadArgument
                         .at_pos(item.pos())
-                        .with_msg("Flags out of order"));
-                }
-            }
-            let fl = s.parse().void_unwrap();
-            flags |= fl;
-            prev = Some(s);
+                        .with_msg(msg)
+                })?;
         }
 
-        Ok(flags)
+        Ok(flags.finish())
     }
 }
 
