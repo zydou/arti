@@ -589,8 +589,6 @@ impl HopSettings {
     /// these circuit hop parameters.
     #[allow(clippy::unnecessary_wraps)]
     pub(super) fn circuit_request_extensions(&self) -> Result<Vec<CircRequestExt>> {
-        let params = self; // XXXX remove
-
         // allow 'unused_mut' because of the combinations of `cfg` conditions below
         #[allow(unused_mut)]
         let mut client_extensions = Vec::new();
@@ -598,7 +596,7 @@ impl HopSettings {
         #[allow(unused, unused_mut)]
         let mut cc_extension_set = false;
 
-        if params.ccontrol.is_enabled() {
+        if self.ccontrol.is_enabled() {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
                     client_extensions.push(CircRequestExt::CcRequest(CcRequest::default()));
@@ -628,7 +626,7 @@ impl HopSettings {
         let mut required_protocol_capabilities: Vec<tor_protover::NamedSubver> = Vec::new();
 
         #[cfg(feature = "counter-galois-onion")]
-        if matches!(params.relay_crypt_protocol(), RelayCryptLayerProtocol::Cgo) {
+        if matches!(self.relay_crypt_protocol(), RelayCryptLayerProtocol::Cgo) {
             if !cc_extension_set {
                 return Err(tor_error::internal!("Tried to negotiate CGO without CC.").into());
             }
