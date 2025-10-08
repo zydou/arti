@@ -1031,11 +1031,7 @@ impl RelayFlags {
         for s in item.args() {
             flags
                 .add(s)
-                .map_err(|msg| {
-                    EK::BadArgument
-                        .at_pos(item.pos())
-                        .with_msg(msg)
-                })?;
+                .map_err(|msg| EK::BadArgument.at_pos(item.pos()).with_msg(msg))?;
         }
 
         Ok(flags.finish())
