@@ -93,6 +93,7 @@ mod test {
 
     use tor_rtmock::MockRuntime;
 
+    use core::cmp;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -151,14 +152,14 @@ mod test {
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             self.poll_count += 1;
 
-            if self.poll_count == self.resolve_after {
-                Poll::Ready(self.resolve_after)
-            } else if self.poll_count > self.resolve_after {
-                panic!("future polled after completion?!");
-            } else {
-                // Immediately wake the waker
-                cx.waker().wake_by_ref();
-                Poll::Pending
+            match self.poll_count.cmp(&self.resolve_after) {
+                cmp::Ordering::Equal => Poll::Ready(self.resolve_after),
+                cmp::Ordering::Greater => panic!("future polled after completion?!"),
+                cmp::Ordering::Less => {
+                    // Immediately wake the waker
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                }
             }
         }
     }
