@@ -19,8 +19,8 @@
 //!
 //! # Ordering
 //!
-//! We don't parse things into a sorted order.
-//! Sorting will be done on output.
+//! We don't always parse things into a sorted order.
+//! Sorting will be done when assembling documents, before outputting.
 // TODO we don't implement deriving output yet.
 //!
 //! # Types, and signature handling

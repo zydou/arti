@@ -145,6 +145,23 @@ impl<T> ItemSetMethods for ItemSetSelector<Vec<T>> {
         Ok(acc.unwrap_or_default())
     }
 }
+impl<T: Ord> ItemSetMethods for ItemSetSelector<BTreeSet<T>> {
+    type Each = T;
+    type Field = BTreeSet<T>;
+    // We always have None, or Some(nonempty)
+    fn can_accumulate(self, _acc: &Option<BTreeSet<T>>) -> Result<(), EP> {
+        Ok(())
+    }
+    fn accumulate(self, acc: &mut Option<BTreeSet<T>>, item: T) -> Result<(), EP> {
+        if !acc.get_or_insert_default().insert(item) {
+            return Err(EP::ItemRepeated);
+        }
+        Ok(())
+    }
+    fn finish(self, acc: Option<BTreeSet<T>>, _keyword: &'static str) -> Result<BTreeSet<T>, EP> {
+        Ok(acc.unwrap_or_default())
+    }
+}
 impl<T> ItemSetMethods for ItemSetSelector<Option<T>> {
     type Each = T;
     type Field = Option<T>;
@@ -251,6 +268,22 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
         let mut acc = vec![];
         while args.something_to_yield() {
             acc.push(parser(args)?);
+        }
+        Ok(acc)
+    }
+}
+impl<T: Ord> ArgumentSetMethods for ArgumentSetSelector<BTreeSet<T>> {
+    type Each = T;
+    type Field = BTreeSet<T>;
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
+    where
+        P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
+    {
+        let mut acc = BTreeSet::new();
+        while args.something_to_yield() {
+            if !acc.insert(parser(args)?) {
+                return Err(AE::Invalid);
+            }
         }
         Ok(acc)
     }

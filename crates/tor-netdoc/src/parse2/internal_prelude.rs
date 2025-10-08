@@ -2,7 +2,7 @@
 //!
 //! This is also exported, but with `#[doc(hidden)]`, for the benefit of our public macros.
 
-pub use std::collections::HashSet;
+pub use std::collections::{BTreeSet, HashSet};
 pub use std::fmt::{self, Debug, Display};
 pub use std::io::Write as _;
 pub use std::marker::PhantomData;
