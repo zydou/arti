@@ -169,7 +169,7 @@ impl HttpServer {
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         E: std::error::Error,
     {
-        let cache = StoreCache::new();
+        let cache = Arc::new(StoreCache::new());
         let endpoints: Arc<[Endpoint]> = self.endpoints.into();
         let pool = self.pool;
 
@@ -181,7 +181,7 @@ impl HttpServer {
         // Spawn a simple garbage collection task that periodically removes
         // dead references, just in case, from the StoreCache.
         misc_tasks.spawn({
-            let mut cache = cache.clone();
+            let cache = cache.clone();
             async move {
                 loop {
                     cache.gc();
@@ -224,7 +224,7 @@ impl HttpServer {
 
     /// Dispatches a new [`Stream`] into an existing [`JoinSet`].
     fn dispatch_stream<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
-        cache: &StoreCache,
+        cache: &Arc<StoreCache>,
         endpoints: &Arc<[Endpoint]>,
         pool: &Pool<Manager>,
         tasks: &mut JoinSet<Result<(), hyper::Error>>,
@@ -256,7 +256,7 @@ impl HttpServer {
     /// A small wrapper function that creates a [`Transaction`] and continues
     /// execution in [`Self::handler_tx`].
     async fn handler(
-        cache: StoreCache,
+        cache: Arc<StoreCache>,
         endpoints: Arc<[Endpoint]>,
         pool: Pool<Manager>,
         requ: Request<Incoming>,
@@ -281,7 +281,7 @@ impl HttpServer {
                     }
                 };
 
-                let res = Self::handler_tx(cache, &endpoints, tx, &requ);
+                let res = Self::handler_tx(&cache, &endpoints, tx, &requ);
                 Ok(res)
             })
             .await;
@@ -313,7 +313,7 @@ impl HttpServer {
     /// TODO DIRMIRROR: Implement [`Method::HEAD`].
     #[allow(clippy::cognitive_complexity)]
     fn handler_tx(
-        mut cache: StoreCache,
+        cache: &Arc<StoreCache>,
         endpoints: &[Endpoint],
         tx: Transaction,
         requ: &Request<Incoming>,

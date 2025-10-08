@@ -18,34 +18,34 @@ use crate::{database::Sha256, err::DatabaseError};
 /// We believe that SQLite and the operating system itself do a good job at
 /// buffering reads for us here.
 ///
-/// The cache itself is wrapped in an [`Arc`] as well as in a [`Mutex`],
-/// meaning it is safe to share and access around threads/tasks.
+/// The cache itself is wrapped in a [`Mutex`] to ensure secure access across
+/// thread boundaries.  Keep in mind, that it is a **synchronous** mutex.
 ///
 /// All hash lookups in the `store` table should be performed through this
 /// interface, because it will automatically select them from the database in
 /// case they are missing.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(super) struct StoreCache {
     /// The actual data of the cache.
     ///
     /// We use a [`Mutex`] instead of an [`RwLock`](std::sync::RwLock), because
     /// we want to assure that a concurrent cache miss does not lead into two
     /// simultanous database reads and copies into memory.
-    data: Arc<Mutex<WeakValueHashMap<Sha256, Weak<[u8]>>>>,
+    data: Mutex<WeakValueHashMap<Sha256, Weak<[u8]>>>,
 }
 
 impl StoreCache {
     /// Creates a new empty [`StoreCache`].
     pub(super) fn new() -> Self {
         Self {
-            data: Arc::new(Mutex::new(WeakValueHashMap::new())),
+            data: Mutex::new(WeakValueHashMap::new()),
         }
     }
 
     /// Removes all mappings whose values have expired.
     ///
     /// Takes O(n) time.
-    pub(super) fn gc(&mut self) {
+    pub(super) fn gc(&self) {
         self.lock().remove_expired();
     }
 
@@ -62,7 +62,7 @@ impl StoreCache {
     /// limited to the amount of worker threads, which is usually very low
     /// compared to the number of async tasks, which might be in the thousands.
     pub(super) fn get(
-        &mut self,
+        &self,
         tx: &Transaction,
         sha256: &Sha256,
     ) -> Result<Arc<[u8]>, DatabaseError> {
@@ -99,7 +99,7 @@ impl StoreCache {
     ///
     /// TODO DIRMIRROR: Consider cleaning the poison, although that would probably
     /// involve much more complexity and wrapping around the parent type.
-    fn lock(&mut self) -> MutexGuard<'_, WeakValueHashMap<Sha256, Weak<[u8]>>> {
+    fn lock(&self) -> MutexGuard<'_, WeakValueHashMap<Sha256, Weak<[u8]>>> {
         self.data.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
@@ -132,7 +132,7 @@ mod test {
             .await
             .unwrap()
             .interact(|conn| {
-                let mut cache = StoreCache::new();
+                let cache = StoreCache::new();
 
                 let tx = conn.transaction().unwrap();
 
