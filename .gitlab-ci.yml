@@ -232,6 +232,8 @@ cargo-audit:
 rust-recent:
   stage: build
   image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   script:
     - *rust-recent-script
     - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti target/x86_64-unknown-linux-gnu/release/arti-bench
@@ -244,6 +246,8 @@ rust-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: docker.io/amd64/rust:bookworm
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -275,6 +279,8 @@ rust-latest:
 rust-recent-arti-extra-features:
   stage: build
   image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   script:
     - *rust-recent-arti-extra-features-script
     - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti
@@ -315,6 +321,8 @@ rust-clippy-nontest:
 rust-nightly:
   stage: test
   image: docker.io/rustlang/rust:nightly
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   # In case there is a bug in rust:nightly, you can instead pin an older
   # version of the Docker image until that bug is fixed.  To find the
   # SHA256 ID of the last working version of nightly, look at the logs
@@ -419,6 +427,8 @@ coverage:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
   image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   script:
     - maint/common/apt-install python3-pip python3-setuptools python3-bs4 python3-lxml
     - rustup component add llvm-tools
@@ -686,6 +696,8 @@ integration-shadow:
 rust-recent-test-all-features:
   stage: test
   image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   script:
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
@@ -693,6 +705,8 @@ rust-recent-test-all-features:
 every-crate:
   stage: test
   image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
     - maint/common/apt-install python3-toml
@@ -717,6 +731,8 @@ matrix-check:
 minimal-features-test:
   stage: test
   image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   script:
     # See crates/arti/build.rs.  Here, rather than in `variables:`, so it appears in the log.
     - export RUSTFLAGS="$RUSTFLAGS --cfg arti_features_precise"
