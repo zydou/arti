@@ -13,13 +13,13 @@ use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::circuit::circ_extensions_from_settings;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::client::stream::AnyCmdChecker;
-use crate::client::stream::flow_ctrl::state::StreamRateLimit;
-use crate::client::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::{HopLocation, TargetHop, streammap};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
+use crate::stream::flow_ctrl::state::StreamRateLimit;
+use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 #[cfg(test)]

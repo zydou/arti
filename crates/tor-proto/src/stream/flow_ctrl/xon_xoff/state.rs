@@ -41,13 +41,13 @@ use tracing::trace;
 
 use super::reader::DrainRateRequest;
 
-use crate::client::stream::flow_ctrl::params::{CellCount, FlowCtrlParameters};
-use crate::client::stream::flow_ctrl::state::{FlowCtrlHooks, StreamEndpointType, StreamRateLimit};
+use crate::stream::flow_ctrl::params::{CellCount, FlowCtrlParameters};
+use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamEndpointType, StreamRateLimit};
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
 
 #[cfg(doc)]
-use crate::client::stream::{data::DataStream, flow_ctrl::state::StreamFlowCtrl};
+use {crate::client::stream::DataStream, crate::stream::flow_ctrl::state::StreamFlowCtrl};
 
 /// State for XON/XOFF flow control.
 #[derive(Debug)]
@@ -55,10 +55,10 @@ pub(crate) struct XonXoffFlowCtrl {
     /// Consensus parameters.
     params: Arc<FlowCtrlParameters>,
     /// How we communicate rate limit updates to the
-    /// [`DataWriter`](crate::client::stream::data::DataWriter).
+    /// [`DataWriter`](crate::client::stream::DataWriter).
     rate_limit_updater: watch::Sender<StreamRateLimit>,
     /// How we communicate requests for new drain rate updates to the
-    /// [`XonXoffReader`](crate::client::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
+    /// [`XonXoffReader`](crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReader).
     drain_rate_requester: NotifySender<DrainRateRequest>,
     /// The last rate limit we sent.
     last_sent_xon_xoff: Option<XonXoffMsg>,
@@ -439,7 +439,7 @@ impl SidechannelMitigation {
 mod test {
     use super::*;
 
-    use crate::client::stream::flow_ctrl::params::CellCount;
+    use crate::stream::flow_ctrl::params::CellCount;
 
     #[test]
     fn sidechannel_mitigation() {
