@@ -60,7 +60,7 @@ use clap::Parser;
 use futures::FutureExt;
 use futures::task::SpawnExt;
 use safelog::with_safe_logging_suppressed;
-use tor_rtcompat::{PreferredRuntime, Runtime, ToplevelBlockOn};
+use tor_rtcompat::{PreferredRuntime, Runtime, ToplevelRuntime};
 use tracing::{debug, info, trace};
 use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
@@ -197,7 +197,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
 /// This calls `block_on` on the runtime.
 /// The future will be cancelled on a ctrl-c event.
 fn mainloop<T: Send + 'static>(
-    runtime: &(impl Runtime + ToplevelBlockOn),
+    runtime: &impl ToplevelRuntime,
     fut: impl Future<Output = T> + Send + 'static,
 ) -> anyhow::Result<MainloopStatus<T>> {
     trace!("Starting runtime");
@@ -237,7 +237,7 @@ async fn run_relay<R: Runtime>(runtime: R, relay: InertTorRelay) -> anyhow::Resu
 /// Initialize a runtime.
 ///
 /// Any commands that need a runtime should call this so that we use a consistent runtime.
-fn init_runtime() -> std::io::Result<impl Runtime + ToplevelBlockOn> {
+fn init_runtime() -> std::io::Result<impl ToplevelRuntime> {
     // Use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
     // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
     PreferredRuntime::create()
