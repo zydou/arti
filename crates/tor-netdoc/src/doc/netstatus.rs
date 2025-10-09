@@ -55,7 +55,10 @@ pub mod vote;
 mod build;
 
 #[cfg(feature = "parse2")]
-use crate::parse2;
+use {
+    crate::parse2::{self, ArgumentStream},
+    derive_deftly::Deftly,
+};
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
 use crate::parse::keyword::Keyword;
@@ -63,8 +66,8 @@ use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::PeekableIterator;
-use crate::{Error, NetdocErrorKind as EK, Pos, Result};
-use std::collections::{HashMap, HashSet};
+use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::{net, result, time};
@@ -192,6 +195,46 @@ impl Lifetime {
         fresh_until
             .duration_since(valid_after)
             .expect("Mis-formed lifetime")
+    }
+}
+
+/// A single consensus method
+///
+/// These are integers, but we don't do arithmetic on them.
+#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Copy)] //
+#[derive(derive_more::From, derive_more::Into, derive_more::Display, derive_more::FromStr)]
+pub struct ConsensusMethod(u32);
+impl NormalItemArgument for ConsensusMethod {}
+
+/// A set of consensus methods
+///
+/// Implements `ItemValueParseable` as required for `consensus-methods`,
+/// but there is also [`consensus_methods_comma_separated`] for `m` lines in votes.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[non_exhaustive]
+pub struct ConsensusMethods {
+    /// Consensus methods.
+    pub methods: BTreeSet<ConsensusMethod>,
+}
+
+/// Module for use with parse2's `with`, to parse one argument of comma-separated consensus methods
+#[cfg(feature = "parse2")]
+pub mod consensus_methods_comma_separated {
+    use super::*;
+    use parse2::ArgumentError as AE;
+    use std::result::Result;
+
+    /// Parse
+    pub fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<ConsensusMethods, AE> {
+        let mut methods = BTreeSet::new();
+        for ent in args.next().ok_or(AE::Missing)?.split(',') {
+            let ent = ent.parse().map_err(|_| AE::Invalid)?;
+            if !methods.insert(ent) {
+                return Err(AE::Invalid);
+            }
+        }
+        Ok(ConsensusMethods { methods })
     }
 }
 
