@@ -1393,7 +1393,7 @@ mod test {
     use hex_literal::hex;
     #[cfg(all(feature = "ns-vote", feature = "parse2"))]
     use {
-        crate::parse2::{parse_netdoc},
+        crate::parse2::{NetdocSigned as _, parse_netdoc},
         std::fs,
     };
 
@@ -1520,6 +1520,7 @@ mod test {
         let doc: NetworkStatusSignedVote = parse_netdoc(&text, file)?;
 
         println!("{doc:?}");
+        println!("{:#?}", doc.inspect_unverified().0.r[0]);
 
         Ok(())
     }
