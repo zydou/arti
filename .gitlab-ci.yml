@@ -226,23 +226,6 @@ cargo-audit:
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - section_end
 
-# Perform tests and compilations that build executable for use in integration testing, which
-# use the cargo $ARTI_CI_PROFILE profile, allowing compilation artifacts to be reused.
-#
-# For use with YAML anchor.  See
-#   https://docs.gitlab.com/ee/ci/yaml/yaml_optimization.html#yaml-anchors-for-scripts
-.rust-integration-template:
-  script: &rust-integration-script
-    - rustup show
-
-    - section_start "build arti-bench"
-    - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti-bench
-
-    - section_start "build arti"
-    - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti
-
-    - section_end
-
 rust-recent-dev-test:
   stage: build
   image: $RECENT_RUST_IMAGE
@@ -250,19 +233,6 @@ rust-recent-dev-test:
   timeout: 2h
   script:
     - *rust-dev-test-script
-
-rust-recent-integration:
-  stage: build
-  image: $RECENT_RUST_IMAGE
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
-  script:
-    - *rust-integration-script
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti-bench
-  artifacts:
-    paths:
-      - artifacts
-    expire_in: 1 day
 
 rust-latest-dev-test:
   stage: test
@@ -275,16 +245,28 @@ rust-latest-dev-test:
   script:
     - *rust-dev-test-script
 
-rust-latest-integration:
-  stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: docker.io/amd64/rust:bookworm
+# Perform tests and compilations that build executable for use in integration testing, which
+# use the cargo $ARTI_CI_PROFILE profile, allowing compilation artifacts to be reused.
+rust-recent-integration:
+  stage: build
+  image: $RECENT_RUST_IMAGE
   # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
   timeout: 2h
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
   script:
-    - *rust-integration-script
+    - rustup show
+
+    - section_start "build arti-bench"
+    - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti-bench
+
+    - section_start "build arti"
+    - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti
+
+    - section_end
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti-bench
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 1 day
 
 .rust-recent-arti-extra-features-template:
   script: &rust-recent-arti-extra-features-script
