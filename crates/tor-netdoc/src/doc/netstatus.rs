@@ -1391,6 +1391,11 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
+    #[cfg(all(feature = "ns-vote", feature = "parse2"))]
+    use {
+        crate::parse2::{parse_netdoc},
+        std::fs,
+    };
 
     const CERTS: &str = include_str!("../../testdata/authcerts2.txt");
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
@@ -1499,6 +1504,22 @@ mod test {
         assert!(consensus.key_is_correct(&certs).is_ok());
 
         let _consensus = consensus.check_signature(&certs)?;
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(all(feature = "ns-vote", feature = "parse2"))]
+    fn parse2_vote() -> anyhow::Result<()> {
+        let file = "testdata2/v3-status-votes--1";
+        let text = fs::read_to_string(file)?;
+
+        // TODO replace the poc struct here when we have parsing of proper whole votes
+        use crate::parse2::poc::netstatus::NetworkStatusSignedVote;
+
+        let doc: NetworkStatusSignedVote = parse_netdoc(&text, file)?;
+
+        println!("{doc:?}");
 
         Ok(())
     }
