@@ -195,7 +195,7 @@ where
 /// `case` should be the input document, but exactly one line should
 /// contain `" # "`, with the expected error message as a "comment".
 ///
-/// Iff the expected message is supposed to have a line number,
+/// Iff the expected message is supposed to have a column number,
 /// the comment part should end with ` @<column>`.
 ///
 /// `t_err` will check that that error is reported, at that line.
@@ -237,10 +237,10 @@ where
 /// `case` should be the input document, but exactly one line should
 /// contain `" # "`, with the expected error message as a "comment".
 ///
-/// Iff the expected message is supposed to have a line number,
+/// Iff the expected message is supposed to have a column number,
 /// the comment part should end with ` @<column>`.
 ///
-/// `t_err` will check that that error is reported, at that line.
+/// `t_err` will check that that error is reported, at that column.
 fn t_err_chk_msg<D>(case: &str, msg: &str) -> TestResult
 where
     D: NetdocParseable + Debug,
