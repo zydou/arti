@@ -76,7 +76,7 @@ impl ResolveStream {
 /// and eventually end up being returned from the reactor's `run_once`
 /// function, causing it to shut down.
 ///
-/// [`super::StreamStatus::Closed`] is handled in the `CircHop`'s
+/// [`StreamStatus::Closed`] is handled in the `CircHop`'s
 /// stream map (by marking the stream as closed, or returning
 /// a CircProto error, as appropriate).
 #[derive(Debug, Default)]
