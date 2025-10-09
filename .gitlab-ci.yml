@@ -204,8 +204,6 @@ cargo-audit:
 rust-test-recent:
   stage: build
   image: $RECENT_RUST_IMAGE
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
   script: &rust-test-script
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu
@@ -214,8 +212,6 @@ rust-test-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: docker.io/amd64/rust:bookworm
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -224,8 +220,6 @@ rust-test-latest:
 rust-dev-recent:
   stage: build
   image: $RECENT_RUST_IMAGE
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
   script: &rust-dev-test-script
     # While cargo "check", "clippy", and  "docs" all use the 'dev'
     # cargo profile, they don't appear to actually reuse artifacts from
@@ -251,8 +245,6 @@ rust-dev-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: docker.io/amd64/rust:bookworm
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -263,8 +255,6 @@ rust-dev-latest:
 rust-recent-integration:
   stage: build
   image: $RECENT_RUST_IMAGE
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
   script:
     - rustup show
 
@@ -307,8 +297,6 @@ rust-recent-integration:
 rust-recent-arti-extra-features:
   stage: build
   image: $RECENT_RUST_IMAGE
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
   script:
     - *rust-recent-arti-extra-features-script
     - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti
