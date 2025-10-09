@@ -201,7 +201,27 @@ cargo-audit:
     paths:
       - cache
 
-rust-recent-dev-test:
+rust-test-recent:
+  stage: build
+  image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
+  script: &rust-test-script
+    - rustup show
+    - cargo test --target x86_64-unknown-linux-gnu
+
+rust-test-latest:
+  stage: test
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: docker.io/amd64/rust:bookworm
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - *rust-test-script
+
+rust-dev-recent:
   stage: build
   image: $RECENT_RUST_IMAGE
   # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
@@ -211,9 +231,6 @@ rust-recent-dev-test:
 
     - section_start "cargo check"
     - cargo check --locked --target x86_64-unknown-linux-gnu
-
-    - section_start "cargo test"
-    - cargo test --target x86_64-unknown-linux-gnu
 
     - section_start "cargo clippy"
     - rustup component add clippy
@@ -225,7 +242,7 @@ rust-recent-dev-test:
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - section_end
 
-rust-latest-dev-test:
+rust-dev-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: docker.io/amd64/rust:bookworm
