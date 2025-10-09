@@ -111,6 +111,9 @@ pub use UncheckedPlainConsensus as UncheckedNsConsensus;
 #[cfg(feature = "ns_consensus")]
 pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
+#[cfg(feature = "ns-vote")]
+pub use rs::RouterStatusMdDigestsVote;
+
 /// `published` field in routerstatus entry intro item other than in votes
 ///
 /// Two arguments which are both ignored.

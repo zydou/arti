@@ -11,7 +11,7 @@ pub(crate) mod plain;
 #[cfg(feature = "ns-vote")]
 pub(crate) mod vote;
 
-use super::ConsensusFlavor;
+use super::{ConsensusFlavor, ConsensusMethods};
 use crate::doc;
 use crate::doc::netstatus::NetstatusKwd;
 use crate::doc::netstatus::{IgnoredPublicationTimeSp, Protocols, RelayFlags, RelayWeight};
@@ -25,6 +25,12 @@ use std::sync::Arc;
 use std::{net, time};
 use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
+
+#[cfg(feature = "parse2")]
+use {
+    super::consensus_methods_comma_separated, //
+    derive_deftly::Deftly,
+};
 
 /// A version as presented in a router status.
 ///
@@ -45,6 +51,35 @@ pub enum Version {
 /// We use this because we expect there not to be very many distinct versions of
 /// relay software in existence.
 static OTHER_VERSION_CACHE: InternCache<str> = InternCache::new();
+
+/// `m` item in votes
+///
+/// This is different to the `m` line in in microdesc consensuses.
+/// Plain consensuses don't have `m` lines at all.
+///
+/// ### Non-invariants
+///
+///  * There may be overlapping or even contradictory information.
+///  * It might not be sorted.
+///    Users of the structure who need to emit reproducible document encodings.
+///    must sort it.
+///  * These non-invariants apply both within one instance of this struct,
+///    and across multiple instances of it within a `RouterStatus`.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[cfg(feature = "ns-vote")]
+#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[non_exhaustive]
+pub struct RouterStatusMdDigestsVote {
+    /// The methods for which this document is applicable.
+    #[cfg_attr(
+        feature = "parse2",
+        deftly(netdoc(with = "consensus_methods_comma_separated"))
+    )]
+    pub consensus_methods: ConsensusMethods,
+
+    /// The various hashes of this document.
+    pub digests: Vec<IdentifiedDigest>,
+}
 
 impl std::str::FromStr for Version {
     type Err = Error;
