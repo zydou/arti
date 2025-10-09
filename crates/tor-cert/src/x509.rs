@@ -30,7 +30,7 @@ use x509_cert::{
 
 /// Legacy identity keys are required to have this length.
 const EXPECT_ID_BITS: usize = 1024;
-/// Legacy identity keys are required to
+/// Legacy identity keys are required to have this exponent.
 const EXPECT_ID_EXPONENT: u32 = 65537;
 /// Lifetime of generated id certs, in days.
 const ID_CERT_LIFETIME_DAYS: u32 = 365;
