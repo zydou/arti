@@ -64,12 +64,7 @@ pub fn create_legacy_rsa_id_cert<Rng: CryptoRng>(
     }
 
     let self_signed_profile = Profile::Manual { issuer: None };
-    let serial_number = {
-        const SER_NUMBER_LEN: usize = 16;
-        let mut buf = [0; SER_NUMBER_LEN];
-        rng.fill_bytes(&mut buf[..]);
-        SerialNumber::new(&buf[..]).map_err(into_internal!("Couldn't construct serial number!"))?
-    };
+    let serial_number = random_serial_number(rng)?;
     let validity = cert_validity(now, ID_CERT_LIFETIME_DAYS)?;
     // NOTE: This is how C Tor builds its DNs, but that doesn't mean it's a good idea.
     let subject: x509_cert::name::Name = format!("CN={hostname}")
@@ -131,6 +126,14 @@ fn cert_validity(now: SystemTime, lifetime_days: u32) -> Result<Validity, X509Ce
         not_before: start_of_day_containing(start_on_day)?,
         not_after: start_of_day_containing(end_on_day)?,
     })
+}
+
+/// Return a random serial number for use in a new certificate.
+fn random_serial_number<Rng: CryptoRng>(rng: &mut Rng) -> Result<SerialNumber, X509CertError> {
+    const SER_NUMBER_LEN: usize = 16;
+    let mut buf = [0; SER_NUMBER_LEN];
+    rng.fill_bytes(&mut buf[..]);
+    Ok(SerialNumber::new(&buf[..]).map_err(into_internal!("Couldn't construct serial number!"))?)
 }
 
 /// An error that has occurred while trying to create a certificate.
