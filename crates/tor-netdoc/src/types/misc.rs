@@ -44,10 +44,31 @@ pub(crate) trait FromBytes: Sized {
 mod b64impl {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64, Base64Unpadded, Encoding};
+    use std::fmt::{self, Display};
     use std::ops::RangeBounds;
+    use subtle::{Choice, ConstantTimeEq};
 
     /// A byte array, encoded in base64 with optional padding.
+    ///
+    /// On output (`Display`), output is unpadded.
+    #[derive(Clone)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(Hash, derive_more::Debug)]
+    #[debug(r#"B64("{self}")"#)]
     pub struct B64(Vec<u8>);
+
+    impl ConstantTimeEq for B64 {
+        fn ct_eq(&self, other: &B64) -> Choice {
+            self.0.ct_eq(&other.0)
+        }
+    }
+    /// `B64` is `Eq` via its constant-time implementation.
+    impl PartialEq for B64 {
+        fn eq(&self, other: &B64) -> bool {
+            self.ct_eq(other).into()
+        }
+    }
+    impl Eq for B64 {}
 
     impl std::str::FromStr for B64 {
         type Err = Error;
@@ -62,6 +83,12 @@ mod b64impl {
                     .at_pos(Pos::at(s))
             })?;
             Ok(B64(v))
+        }
+    }
+
+    impl Display for B64 {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&Base64Unpadded::encode_string(&self.0), f)
         }
     }
 
