@@ -41,7 +41,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::channel::{ChannelDetails, CloseInfo, kist::KistParams, padding, params::*, unique_id};
-use crate::client::circuit::{CircuitRxSender, celltypes::CreateResponse};
+use crate::circuit::celltypes::CreateResponse;
+use crate::client::circuit::CircuitRxSender;
 use tracing::{debug, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -972,7 +973,7 @@ pub(crate) mod test {
     #[test]
     fn deliver_relay() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::client::circuit::celltypes::ClientCircChanMsg;
+            use crate::circuit::celltypes::ClientCircChanMsg;
             use oneshot_fused_workaround as oneshot;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());
@@ -1068,7 +1069,7 @@ pub(crate) mod test {
     #[test]
     fn deliver_destroy() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::client::circuit::celltypes::*;
+            use crate::circuit::celltypes::*;
             use oneshot_fused_workaround as oneshot;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());

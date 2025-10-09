@@ -1,6 +1,6 @@
 //! Helpers for handling CREATE* cells.
 
-use crate::client::circuit::celltypes::CreateResponse;
+use crate::circuit::celltypes::CreateResponse;
 use crate::{Error, Result};
 use tor_cell::chancell;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType};

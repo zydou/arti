@@ -23,7 +23,7 @@ mod control;
 pub(super) mod syncview;
 
 use crate::circuit::UniqId;
-use crate::client::circuit::celltypes::ClientCircChanMsg;
+use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
 use crate::client::stream::AnyCmdChecker;

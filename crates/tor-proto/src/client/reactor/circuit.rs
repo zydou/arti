@@ -7,7 +7,7 @@ pub(super) mod extender;
 
 use crate::channel::Channel;
 use crate::circuit::UniqId;
-use crate::client::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 #[cfg(feature = "counter-galois-onion")]
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
