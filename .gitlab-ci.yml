@@ -201,12 +201,11 @@ cargo-audit:
     paths:
       - cache
 
-# Perform tests and compilations that use the cargo `dev` profile, and the
-# (largely-overlapping) `test` profile, allowing compilation artifacts to be reused.
-#
-# For use with YAML anchor.  See
-#   https://docs.gitlab.com/ee/ci/yaml/yaml_optimization.html#yaml-anchors-for-scripts
-.rust-dev-test-template:
+rust-recent-dev-test:
+  stage: build
+  image: $RECENT_RUST_IMAGE
+  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
+  timeout: 2h
   script: &rust-dev-test-script
     - rustup show
 
@@ -225,14 +224,6 @@ cargo-audit:
     - section_start "build docs"
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - section_end
-
-rust-recent-dev-test:
-  stage: build
-  image: $RECENT_RUST_IMAGE
-  # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
-  timeout: 2h
-  script:
-    - *rust-dev-test-script
 
 rust-latest-dev-test:
   stage: test
