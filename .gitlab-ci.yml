@@ -227,6 +227,11 @@ rust-dev-recent:
   # mitigate https://gitlab.torproject.org/tpo/tpa/team/-/issues/42317
   timeout: 2h
   script: &rust-dev-test-script
+    # While cargo "check", "clippy", and  "docs" all use the 'dev'
+    # cargo profile, they don't appear to actually reuse artifacts from
+    # each-other. If needed, we could split them out into their own jobs
+    # without increasing the total work performed beyond the overhead
+    # of the extrea gitlab jobs themselves.
     - rustup show
 
     - section_start "cargo check"
