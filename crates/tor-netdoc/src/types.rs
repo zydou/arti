@@ -16,3 +16,8 @@ pub mod version;
 pub use misc::Nickname;
 
 pub use misc::{Base64Fingerprint, Fingerprint, Ignored};
+
+use crate::NormalItemArgument;
+
+impl NormalItemArgument for std::net::Ipv4Addr {}
+impl NormalItemArgument for std::net::SocketAddr {}
