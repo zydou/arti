@@ -32,6 +32,8 @@ use x509_cert::{
 const EXPECT_ID_BITS: usize = 1024;
 /// Legacy identity keys are required to
 const EXPECT_ID_EXPONENT: u32 = 65537;
+/// Lifetime of generated id certs, in days.
+const ID_CERT_LIFETIME_DAYS: u32 = 365;
 
 /// Create an X.509 certificate, for use in a CERTS cell,
 /// self-certifying the provided RSA identity key.
@@ -68,7 +70,7 @@ pub fn create_legacy_rsa_id_cert<Rng: CryptoRng>(
         rng.fill_bytes(&mut buf[..]);
         SerialNumber::new(&buf[..]).map_err(into_internal!("Couldn't construct serial number!"))?
     };
-    let validity = identity_cert_validity(now)?;
+    let validity = cert_validity(now, ID_CERT_LIFETIME_DAYS)?;
     // NOTE: This is how C Tor builds its DNs, but that doesn't mean it's a good idea.
     let subject: x509_cert::name::Name = format!("CN={hostname}")
         .parse()
@@ -104,36 +106,30 @@ pub fn create_legacy_rsa_id_cert<Rng: CryptoRng>(
 
 // TODO: We'll need a method to generate a certificate or two for use with TLS.
 
-/// Return a Validity for an identity certificate generated at `now`.
+/// Return a Validity that includes `now`, and lasts for `lifetime_days` additionally.
 ///
-/// We ensure that our cert is valid at least a day into the past,
-/// and about a year into the future.
+/// We ensure that our cert is valid at least a day into the past.
 ///
-/// We obfuscate our current time a little by rounding to the nearest midnight.
-fn identity_cert_validity(now: SystemTime) -> Result<Validity, X509CertError> {
-    let (year, month, day) = {
-        let start_day = now - Duration::new(86400, 0);
-        let dt = x509_cert::der::DateTime::from_system_time(start_day).map_err(into_internal!(
-            "Couldn't represent our time as a DER DateTime"
-        ))?;
-        (dt.year(), dt.month(), dt.day())
+/// We obfuscate our current time a little by rounding to the nearest midnight UTC.
+fn cert_validity(now: SystemTime, lifetime_days: u32) -> Result<Validity, X509CertError> {
+    const ONE_DAY: Duration = Duration::new(86400, 0);
+
+    let start_of_day_containing = |when| -> Result<_, X509CertError> {
+        let dt = DateTime::from_system_time(when)
+            .map_err(into_internal!("Couldn't represent time as a DER DateTime"))?;
+        let dt = DateTime::new(dt.year(), dt.month(), dt.day(), 0, 0, 0)
+            .map_err(into_internal!("Couldn't construct DER DateTime"))?;
+        Ok(x509_cert::time::Time::GeneralTime(
+            GeneralizedTime::from_date_time(dt),
+        ))
     };
-    let time = |year, month, day| -> Result<_, X509CertError> {
-        {
-            let date_time = DateTime::new(
-                year, month, day, 0, // hour
-                0, // minutes
-                0, // seconds
-            )
-            .map_err(into_internal!("Could not construct start date"))?;
-            Ok(x509_cert::time::Time::GeneralTime(
-                GeneralizedTime::from_date_time(date_time),
-            ))
-        }
-    };
+
+    let start_on_day = now - ONE_DAY;
+    let end_on_day = start_on_day + ONE_DAY * lifetime_days;
+
     Ok(Validity {
-        not_before: time(year, month, day)?,
-        not_after: time(year + 1, month, day)?,
+        not_before: start_of_day_containing(start_on_day)?,
+        not_after: start_of_day_containing(end_on_day)?,
     })
 }
 
