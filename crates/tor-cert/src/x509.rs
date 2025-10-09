@@ -206,7 +206,7 @@ impl TlsCertifiedKey {
         let public_key = p256::ecdsa::VerifyingKey::from(&private_key);
 
         // Note that we'll discard this key after signing the certificate with it:
-        // The real certification for private_key is done in the SIGNING_V_TLS_LINK
+        // The real certification for private_key is done in the SIGNING_V_TLS_CERT
         // certificate.
         let issuer_private_key = p256::ecdsa::SigningKey::random(&mut RngCompat::new(&mut *rng));
 
