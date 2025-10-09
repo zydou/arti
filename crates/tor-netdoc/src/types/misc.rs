@@ -17,15 +17,23 @@ pub use timeimpl::*;
 
 #[cfg(feature = "parse2")]
 use {
-    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable},
-    derive_deftly::Deftly,
+    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable}, //
 };
 
 pub use nickname::Nickname;
 
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
+pub use identified_digest::{DigestName, IdentifiedDigest};
+
 pub use ignored_impl::{ArgumentNotPresent, Ignored};
+
+use crate::NormalItemArgument;
+use derive_deftly::{Deftly, define_derive_deftly};
+use std::fmt::{self, Display};
+use std::str::FromStr;
+use tor_error::ErrorReport as _;
+use void::{ResultVoidExt as _, Void};
 
 /// Describes a value that van be decoded from a bunch of bytes.
 ///
@@ -468,6 +476,138 @@ mod edcert {
         /// Consume this object and return the inner Ed25519 certificate.
         pub(crate) fn into_unchecked(self) -> KeyUnknownCert {
             self.0
+        }
+    }
+}
+
+/// Digest identifeirs, and digests in the form `ALGORITHM=BASE64U`
+///
+/// As found in a vote's `m` line.
+mod identified_digest {
+    use super::*;
+
+    define_derive_deftly! {
+        /// impl `FromStr` and `Display` for an enum with unit variants but also "unknown"
+        ///
+        /// Expected input: an enum whose variants are either
+        ///  * unit variants, perhaps with `#[deftly(string_repr = "string")]`
+        ///  * singleton tuple variant, containing `String` (or near equivalent)
+        ///
+        /// If `#[deftly(string_repro)]` is not specified,
+        /// the default is snake case of the variant name.
+        //
+        // This macro may seem overkill, but open-coding these impls gives opportunities
+        // for mismatches between FromStr, Display, and the variant name.
+        //
+        // TODO consider putting this in tor-basic-utils (maybe with a better name),
+        // or possibly asking if derive_more want their FromStr to have this.
+        StringReprUnitsOrUnknown for enum, expect items, beta_deftly:
+
+        ${define STRING_REPR {
+            ${vmeta(string_repr)
+              as str,
+              default { ${concat ${snake_case $vname}} }
+            }
+        }}
+
+        impl FromStr for $ttype {
+            type Err = Void;
+            fn from_str(s: &str) -> Result<Self, Void> {
+                $(
+                    ${when v_is_unit}
+                    if s == $STRING_REPR {
+                        return Ok($vtype)
+                    }
+                )
+                $(
+                    ${when not(v_is_unit)} // anything else had better be Unknown
+                    // not using `return ..;` makes this a syntax error if there are several.
+                    Ok($vtype { 0: s.into() })
+                )
+            }
+        }
+        impl Display for $ttype {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                let s: &str = match self {
+                    $(
+                        ${when v_is_unit}
+                        $vtype => $STRING_REPR,
+                    )
+                    $(
+                        ${when not(v_is_unit)}
+                        $vpat => f_0,
+                    )
+                };
+                Display::fmt(s, f)
+            }
+        }
+    }
+
+    /// The name of a digest algorithm.
+    ///
+    /// Can represent an unrecognised algorithm, so it's parsed and reproduced.
+    #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Deftly)]
+    #[derive_deftly(StringReprUnitsOrUnknown)]
+    #[non_exhaustive]
+    pub enum DigestName {
+        /// SHA-256
+        Sha256,
+        /// Unknown
+        Unknown(String),
+    }
+
+    /// A single digest made with a nominated digest algorithm, `ALGORITHM=DIGEST`
+    #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
+    #[display("{alg}={value}")]
+    #[non_exhaustive]
+    pub struct IdentifiedDigest {
+        /// The algorithm name.
+        alg: DigestName,
+
+        /// The digest value.
+        ///
+        /// Invariant: length is correct for `alg`, assuming `alg` is known.
+        value: B64,
+    }
+
+    impl NormalItemArgument for DigestName {}
+    impl NormalItemArgument for IdentifiedDigest {}
+
+    /// Invalid syntax parsing an `IdentifiedDigest`
+    #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, thiserror::Error)]
+    #[error("invalid syntax, espected ALGORITHM=DIGEST: {0}")]
+    pub struct IdentifiedDigestParseError(String);
+
+    impl FromStr for IdentifiedDigest {
+        type Err = IdentifiedDigestParseError;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            (|| {
+                let (alg, value) = s.split_once('=').ok_or("missing equals sign")?;
+
+                let alg = alg.parse().void_unwrap();
+                let value = value
+                    .parse::<B64>()
+                    .map_err(|e| format!("bad value: {}", e.report()))?;
+
+                if let Some(exp_len) = (|| {
+                    Some({
+                        use DigestName::*;
+                        match alg {
+                            Sha256 => 32,
+                            Unknown(_) => None?,
+                        }
+                    })
+                })() {
+                    let val_len = value.as_bytes().len();
+                    if val_len != exp_len {
+                        return Err(format!("got {val_len} bytes, expected {exp_len}"));
+                    }
+                }
+
+                Ok(IdentifiedDigest { alg, value })
+            })()
+            .map_err(IdentifiedDigestParseError)
         }
     }
 }
