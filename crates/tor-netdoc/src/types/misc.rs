@@ -6,7 +6,7 @@
 //! These types shouldn't be exposed outside of the netdoc crate.
 
 pub(crate) use b16impl::*;
-pub(crate) use b64impl::*;
+pub use b64impl::*;
 pub(crate) use curve25519impl::*;
 pub(crate) use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
@@ -47,7 +47,7 @@ mod b64impl {
     use std::ops::RangeBounds;
 
     /// A byte array, encoded in base64 with optional padding.
-    pub(crate) struct B64(Vec<u8>);
+    pub struct B64(Vec<u8>);
 
     impl std::str::FromStr for B64 {
         type Err = Error;
@@ -67,7 +67,7 @@ mod b64impl {
 
     impl B64 {
         /// Return the byte array from this object.
-        pub(crate) fn as_bytes(&self) -> &[u8] {
+        pub fn as_bytes(&self) -> &[u8] {
             &self.0[..]
         }
         /// Return this object if its length is within the provided bounds
@@ -83,7 +83,7 @@ mod b64impl {
         /// Try to convert this object into an array of N bytes.
         ///
         /// Return an error if the length is wrong.
-        pub(crate) fn into_array<const N: usize>(self) -> Result<[u8; N]> {
+        pub fn into_array<const N: usize>(self) -> Result<[u8; N]> {
             self.0
                 .try_into()
                 .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))

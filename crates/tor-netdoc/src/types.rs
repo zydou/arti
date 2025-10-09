@@ -15,6 +15,7 @@ pub mod version;
 
 pub use misc::{ArgumentNotPresent, Nickname};
 
+pub use misc::B64;
 pub use misc::{Base64Fingerprint, Fingerprint, Ignored};
 
 pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
