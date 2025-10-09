@@ -220,7 +220,7 @@ cargo-audit:
     - cargo clippy --all-features --all-targets -- -D warnings
 
     - section_start "build arti-bench"
-    - cargo build --release -p arti-bench --target x86_64-unknown-linux-gnu
+    - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti-bench
 
     - section_start "build arti"
     - cargo build --profile $ARTI_CI_PROFILE --locked --target x86_64-unknown-linux-gnu -p arti
@@ -236,7 +236,7 @@ rust-recent:
   timeout: 2h
   script:
     - *rust-recent-script
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti target/x86_64-unknown-linux-gnu/$ARTI_CI_PROFILE_PATH/arti-bench
   artifacts:
     paths:
       - artifacts
