@@ -48,12 +48,10 @@ pub(crate) mod times {
     pub struct NdaSystemTimeDeprecatedSyntax(#[deref] pub SystemTime);
 
     impl ItemArgumentParseable for NdaSystemTimeDeprecatedSyntax {
-        fn from_args<'s>(
-            args: &mut ArgumentStream<'s>,
-            field: &'static str,
-        ) -> Result<Self, ErrorProblem> {
+        fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError> {
             let t;
             (t, *args) = (|| {
+                let whole_line_len = args.whole_line_len();
                 let args = args.clone().into_remaining();
                 let spc2 = args
                     .match_indices(WS)
@@ -62,9 +60,9 @@ pub(crate) mod times {
                     .unwrap_or_else(|| args.len());
                 let (t, rest) = args.split_at(spc2);
                 let t: crate::types::misc::Iso8601TimeSp =
-                    t.parse().map_err(|_| EP::InvalidArgument { field })?;
+                    t.parse().map_err(|_| ArgumentError::Invalid)?;
                 let t = NdaSystemTimeDeprecatedSyntax(t.into());
-                Ok::<_, EP>((t, ArgumentStream::new(rest)))
+                Ok::<_, AE>((t, ArgumentStream::new(rest, whole_line_len)))
             })()?;
             Ok(t)
         }

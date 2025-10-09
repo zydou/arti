@@ -142,11 +142,14 @@ impl SignatureItemParseable for NdiDirectorySignature {
         let rsa_signature = object.ok_or(EP::MissingObject)?.decode_data()?;
 
         let mut fingerprint_arg = |field: &'static str| {
-            args.next()
-                .ok_or(EP::MissingArgument { field })?
-                .parse::<types::Fingerprint>()
-                .map_err(|_e| EP::InvalidArgument { field })
-                .map(pk::rsa::RsaIdentity::from)
+            (|| {
+                args.next()
+                    .ok_or(AE::Missing)?
+                    .parse::<types::Fingerprint>()
+                    .map_err(|_e| AE::Invalid)
+                    .map(pk::rsa::RsaIdentity::from)
+            })()
+            .map_err(args.error_handler(field))
         };
 
         Ok(NdiDirectorySignature::Known {

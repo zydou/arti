@@ -16,6 +16,7 @@
 use super::*;
 use anyhow::Context as _;
 use testresult::TestResult;
+use tor_error::ErrorReport as _;
 
 fn default<T: Default>() -> T {
     Default::default()
@@ -119,12 +120,9 @@ struct SubSub {
 struct NeedsWith;
 
 impl NeedsWith {
-    fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, EP> {
-        let field = "in needs with";
-        let got = args.next().ok_or(EP::MissingArgument { field })?;
-        (got == exp)
-            .then_some(NeedsWith)
-            .ok_or(EP::InvalidArgument { field })
+    fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, AE> {
+        let got = args.next().ok_or(AE::Missing)?;
+        (got == exp).then_some(NeedsWith).ok_or(AE::Invalid)
     }
 }
 
@@ -132,20 +130,19 @@ mod needs_with_parse {
     use super::*;
     pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
         NeedsWith::parse_expecting("normal", item.args_mut())
+            .map_err(item.args().error_handler("in needs with"))
     }
 }
 mod needs_with_intro {
     use super::*;
     pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
         NeedsWith::parse_expecting("intro", item.args_mut())
+            .map_err(item.args().error_handler("in needs with"))
     }
 }
 mod needs_with_arg {
     use super::*;
-    pub(super) fn from_args(
-        args: &mut ArgumentStream,
-        _field: &'static str,
-    ) -> Result<NeedsWith, EP> {
+    pub(super) fn from_args(args: &mut ArgumentStream) -> Result<NeedsWith, AE> {
         NeedsWith::parse_expecting("arg", args)
     }
     pub(super) fn from_rest(s: &str) -> Result<NeedsWith, ()> {
@@ -168,14 +165,20 @@ where
 }
 
 #[allow(clippy::unnecessary_wraps)] // Result for consistency
-fn t_err_raw<D>(exp_lno: usize, exp_err: &str, doc: &str) -> TestResult
+fn t_err_raw<D>(
+    exp_lno: usize,
+    exp_col: Option<usize>,
+    exp_err: &str,
+    doc: &str,
+) -> TestResult<ParseError>
 where
     D: NetdocParseable + Debug,
 {
     let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
     let got_err = got.problem.to_string();
     assert_eq!(
-        got.lno, exp_lno,
+        (got.lno, got.column),
+        (exp_lno, exp_col),
         "doc\n====\n{doc}====\n got={}\n exp={exp_err}",
         got_err
     );
@@ -184,7 +187,7 @@ where
         "doc\n====\n{doc}====\n got={}\n exp={exp_err}",
         got_err
     );
-    Ok(())
+    Ok(got)
 }
 
 /// Test an error case with embedded error message
@@ -192,8 +195,11 @@ where
 /// `case` should be the input document, but exactly one line should
 /// contain `" # "`, with the expected error message as a "comment".
 ///
+/// Iff the expected message is supposed to have a column number,
+/// the comment part should end with ` @<column>`.
+///
 /// `t_err` will check that that error is reported, at that line.
-fn t_err<D>(mut case: &str) -> TestResult
+fn t_err<D>(mut case: &str) -> TestResult<ParseError>
 where
     D: NetdocParseable + Debug,
 {
@@ -217,8 +223,30 @@ where
         panic!("missing final newline");
     }
     let (exp_lno, exp_err) = exp.expect("missing # error indication in test case");
+    let (exp_err, exp_col) = if let Some((l, r)) = exp_err.rsplit_once(" @") {
+        (l, Some(r.parse().unwrap()))
+    } else {
+        (exp_err, None)
+    };
     println!("==== 8<- ====\n{doc}==== ->8 ====");
-    t_err_raw::<D>(exp_lno, exp_err, &doc)?;
+    t_err_raw::<D>(exp_lno, exp_col, exp_err, &doc)
+}
+
+/// Test an error case with embedded error message
+///
+/// `case` should be the input document, but exactly one line should
+/// contain `" # "`, with the expected error message as a "comment".
+///
+/// Iff the expected message is supposed to have a column number,
+/// the comment part should end with ` @<column>`.
+///
+/// `t_err` will check that that error is reported, at that column.
+fn t_err_chk_msg<D>(case: &str, msg: &str) -> TestResult
+where
+    D: NetdocParseable + Debug,
+{
+    let err = t_err::<D>(case)?;
+    assert_eq!(err.report().to_string(), msg);
     Ok(())
 }
 
@@ -379,11 +407,13 @@ sub4-field D
         }],
     )?;
 
-    t_err_raw::<Top>(0, "empty document", r#""#)?;
+    t_err_raw::<Top>(0, None, "empty document", r#""#)?;
 
-    t_err::<Top>(
-        r#"wrong-keyword # wrong document type
-"#,
+    let wrong_document = r#"wrong-keyword # wrong document type
+"#;
+    t_err_chk_msg::<Top>(
+        wrong_document,
+        "error: failed to parse network document, type top-intro: <massaged>:1: wrong document type",
     )?;
 
     t_err::<Top>(
@@ -447,11 +477,13 @@ sub2-intro # missing argument in needs with
 "#,
     )?;
 
-    t_err::<Top>(
-        r#"top-intro
+    let wrong_value = r#"top-intro
 needed N
-sub2-intro wrong-value # invalid value for argument in needs with
-"#,
+sub2-intro wrong-value # invalid value for argument in needs with @12
+"#;
+    t_err_chk_msg::<Top>(
+        wrong_value,
+        "error: failed to parse network document, type top-intro: <massaged>:3.12: invalid value for argument in needs with",
     )?;
 
     t_err::<Top>(
@@ -622,7 +654,7 @@ test-item-rest-with   rest of line
     )?;
 
     t_err::<TopMinimal>(
-        r#"test-item0 wrong # too many arguments
+        r#"test-item0 wrong # too many arguments @12
 "#,
     )?;
     t_err::<TopMinimal>(

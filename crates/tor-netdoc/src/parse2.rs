@@ -115,7 +115,7 @@ mod test;
 
 use internal_prelude::*;
 
-pub use error::{ErrorProblem, ParseError, VerifyFailed};
+pub use error::{ArgumentError, ErrorProblem, ParseError, UnexpectedArgument, VerifyFailed};
 pub use impls::raw_data_object;
 pub use impls::times::NdaSystemTimeDeprecatedSyntax;
 pub use keyword::KeywordRef;
@@ -149,6 +149,7 @@ fn parse_internal<T, D: NetdocParseable>(
         doctype: D::doctype_for_error(),
         file: file.to_owned(),
         lno: items.lno_for_error(),
+        column: problem.column(),
     })
 }
 

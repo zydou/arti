@@ -67,6 +67,14 @@ pub struct ArgumentStream<'s> {
     ///
     /// Can start with WS, which is usually trimmed
     rest: &'s str,
+
+    /// Original line length
+    ///
+    /// Used for reporting column of argument errors.
+    whole_line_len: usize,
+
+    /// Remaining length *before* we last yielded.
+    previous_rest_len: usize,
 }
 
 /// An Object that has been lexed but not parsed
@@ -220,7 +228,7 @@ impl<'s> ItemStream<'s> {
         let keyword = peeked.keyword;
         let line = self.lines.consume_peeked(peeked.line);
         let args = &line[keyword.len()..];
-        let args = ArgumentStream::new(args);
+        let args = ArgumentStream::new(args, line.len());
 
         let object = if self.lines.remaining().starts_with('-') {
             fn pem_delimiter<'s>(lines: &mut Lines<'s>, start: &str) -> Result<&'s str, EP> {
@@ -273,6 +281,13 @@ impl<'s> UnparsedItem<'s> {
         self.args.clone()
     }
 
+    /// Access the arguments (readonly)
+    ///
+    /// When using this, be careful not to process any arguments twice.
+    pub fn args(&self) -> &ArgumentStream<'s> {
+        &self.args
+    }
+
     /// Check that this item has no Object.
     pub fn check_no_object(&self) -> Result<(), EP> {
         if self.object.is_some() {
@@ -290,8 +305,8 @@ impl<'s> UnparsedItem<'s> {
 pub struct NoFurtherArguments;
 
 impl ItemArgumentParseable for NoFurtherArguments {
-    fn from_args(args: &mut ArgumentStream, _field: &'static str) -> Result<Self, EP> {
-        args.reject_extra_args()
+    fn from_args(args: &mut ArgumentStream) -> Result<Self, AE> {
+        Ok(args.reject_extra_args()?)
     }
 }
 
@@ -306,8 +321,13 @@ impl<'s> ArgumentStream<'s> {
     /// Make a new `ArgumentStream` from a string
     ///
     /// The string may start with whitespace (which will be ignored).
-    pub fn new(rest: &'s str) -> Self {
-        ArgumentStream { rest }
+    pub fn new(rest: &'s str, whole_line_len: usize) -> Self {
+        let previous_rest_len = whole_line_len;
+        ArgumentStream {
+            rest,
+            whole_line_len,
+            previous_rest_len,
+        }
     }
 
     /// Consume this whole `ArgumnetStream`, giving the remaining arguments as a string
@@ -317,29 +337,92 @@ impl<'s> ArgumentStream<'s> {
     /// `self` will be empty on return.
     // (We don't take `self` by value because that makes use with `UnparsedItem` annoying.)
     pub fn into_remaining(&mut self) -> &'s str {
-        self.trim_start();
+        self.prep_yield();
         mem::take(&mut self.rest)
     }
 
-    /// Trim leading WS from `rest`
-    fn trim_start(&mut self) {
-        self.rest = self.rest.trim_start_matches(WS);
+    /// Return the component parts of this `ArgumnetStream`
+    ///
+    /// The returned string might start with whitespace.
+    pub fn whole_line_len(&self) -> usize {
+        self.whole_line_len
     }
 
-    /// Trim leading whitespace, and then see if it's empty
-    pub fn is_nonempty_after_trim_start(&mut self) -> bool {
-        self.trim_start();
+    /// Prepares to yield an argument (or the rest)
+    ///
+    ///  * Trims leading WS from `rest`.
+    ///  * Records the `previous_rest_len`
+    fn prep_yield(&mut self) {
+        self.rest = self.rest.trim_start_matches(WS);
+        self.previous_rest_len = self.rest.len();
+    }
+
+    /// Prepares to yield, and then determines if there *is* anything to yield.
+    ///
+    ///  * Trim leading whitespace
+    ///  * Records the `previous_rest_len`
+    ///  * See if we're now empty
+    pub fn something_to_yield(&mut self) -> bool {
+        self.prep_yield();
         !self.rest.is_empty()
     }
 
     /// Throw and error if there are further arguments
     //
     // (We don't take `self` by value because that makes use with `UnparsedItem` annoying.)
-    pub fn reject_extra_args(&mut self) -> Result<NoFurtherArguments, EP> {
-        if self.is_nonempty_after_trim_start() {
-            Err(EP::UnexpectedArgument)
+    pub fn reject_extra_args(&mut self) -> Result<NoFurtherArguments, UnexpectedArgument> {
+        if self.something_to_yield() {
+            let column = self.next_arg_column();
+            Err(UnexpectedArgument { column })
         } else {
             Ok(NoFurtherArguments)
+        }
+    }
+
+    /// Convert a "length of `rest`" into the corresponding column number.
+    fn arg_column_from_rest_len(&self, rest_len: usize) -> usize {
+        // Can't underflow since rest is always part of the whole.
+        // Can't overflow since that would mean the document was as big as the address space.
+        self.whole_line_len - rest_len + 1
+    }
+
+    /// Obtain the column number of the previously yielded argument.
+    ///
+    /// (After `into_remaining`, gives the column number
+    /// of the start of the returned remaining argument string.)
+    pub fn prev_arg_column(&self) -> usize {
+        self.arg_column_from_rest_len(self.previous_rest_len)
+    }
+
+    /// Obtains the column number of the *next* argument.
+    ///
+    /// Should be called after `something_to_yield`; otherwise the returned value
+    /// may point to whitespace which is going to be skipped.
+    // ^ this possible misuse doesn't seem worth defending against with type-fu,
+    //   for a private function with few call sites.
+    fn next_arg_column(&self) -> usize {
+        self.arg_column_from_rest_len(self.rest.len())
+    }
+
+    /// Convert an `ArgumentError` to an `ErrorProblem`.
+    ///
+    /// The caller must supply the field name.
+    pub fn handle_error(&self, field: &'static str, ae: ArgumentError) -> ErrorProblem {
+        self.error_handler(field)(ae)
+    }
+
+    /// Return a converter from `ArgumentError` to `ErrorProblem`.
+    ///
+    /// Useful in `.map_err`.
+    pub fn error_handler(
+        &self,
+        field: &'static str,
+    ) -> impl Fn(ArgumentError) -> ErrorProblem + 'static {
+        let column = self.prev_arg_column();
+        move |ae| match ae {
+            AE::Missing => EP::MissingArgument { field },
+            AE::Invalid => EP::InvalidArgument { field, column },
+            AE::Unexpected => EP::UnexpectedArgument { column },
         }
     }
 }
@@ -347,7 +430,7 @@ impl<'s> ArgumentStream<'s> {
 impl<'s> Iterator for ArgumentStream<'s> {
     type Item = &'s str;
     fn next(&mut self) -> Option<&'s str> {
-        if !self.is_nonempty_after_trim_start() {
+        if !self.something_to_yield() {
             return None;
         }
         let arg;

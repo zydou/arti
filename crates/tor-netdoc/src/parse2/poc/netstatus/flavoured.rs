@@ -104,13 +104,13 @@ pub struct NdaNetworkStatusVersionFlavour {}
 const NDA_NETWORK_STATUS_VERSION_FLAVOUR: Option<&str> = ns_expr!(None, None, Some("microdesc"));
 
 impl ItemArgumentParseable for NdaNetworkStatusVersionFlavour {
-    fn from_args<'s>(args: &mut ArgumentStream<'s>, field: &'static str)
-                     -> Result<Self, ErrorProblem>
+    fn from_args<'s>(args: &mut ArgumentStream<'s>)
+                     -> Result<Self, AE>
     {
         let exp: Option<&str> = NDA_NETWORK_STATUS_VERSION_FLAVOUR;
         if let Some(exp) = exp {
-            let got = args.next().ok_or(EP::MissingArgument { field })?;
-            if got != exp { return Err(EP::InvalidArgument { field } ) };
+            let got = args.next().ok_or(AE::Missing)?;
+            if got != exp { return Err(AE::Invalid) };
         } else {
             // NS consensus, or vote.  Reject additional arguments, since they
             // might be an unknown flavour.  See

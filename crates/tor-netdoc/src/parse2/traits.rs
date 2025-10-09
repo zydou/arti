@@ -117,10 +117,7 @@ pub trait ItemValueParseable: Sized {
 /// use a manual implementation or a wrapper type.
 pub trait ItemArgumentParseable: Sized {
     /// Parse the argument
-    fn from_args<'s>(
-        args: &mut ArgumentStream<'s>,
-        field: &'static str,
-    ) -> Result<Self, ErrorProblem>;
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError>;
 }
 
 /// A possibly-optional Object value that can appear in netdoc
@@ -140,12 +137,12 @@ pub trait ItemObjectParseable: Sized {
 //---------- provided blanket impls ----------
 
 impl<T: NormalItemArgument> ItemArgumentParseable for T {
-    fn from_args<'s>(args: &mut ArgumentStream<'s>, field: &'static str) -> Result<Self, EP> {
+    fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, AE> {
         let v = args
             .next()
-            .ok_or(EP::MissingArgument { field })?
+            .ok_or(AE::Missing)?
             .parse()
-            .map_err(|_e| EP::InvalidArgument { field })?;
+            .map_err(|_e| AE::Missing)?;
         Ok(v)
     }
 }
@@ -163,8 +160,7 @@ macro_rules! item_value_parseable_for_tuple {
                 let r = ( $(
                     <[<T$i>] as ItemArgumentParseable>::from_args(
                         item.args_mut(),
-                        stringify!($i),
-                    )?,
+                    ).map_err(item.args().error_handler(stringify!($i)))?,
                 )* );
                 item.check_no_object()?;
                 Ok(r)

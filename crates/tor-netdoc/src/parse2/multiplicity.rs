@@ -203,7 +203,7 @@ impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
 /// let mut item = items.next().unwrap().unwrap();
 ///
 /// let args = ArgumentSetSelector::<Vec<i32>>::default()
-///     .parse_with(item.args_mut(), "number", ItemArgumentParseable::from_args)
+///     .parse_with(item.args_mut(), ItemArgumentParseable::from_args)
 ///     .unwrap();
 /// assert_eq!(args, [12, 66]);
 /// ```
@@ -227,14 +227,9 @@ pub trait ArgumentSetMethods: Copy + Sized {
     type Field: Sized;
 
     /// Parse zero or more argument(s) into `Self::Field`.
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        field: &'static str,
-        parser: P,
-    ) -> Result<Self::Field, EP>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>;
+        P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>;
 
     /// Check that the element type is an Argument
     ///
@@ -249,18 +244,13 @@ pub trait ArgumentSetMethods: Copy + Sized {
 impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
     type Each = T;
     type Field = Vec<T>;
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        field: &'static str,
-        parser: P,
-    ) -> Result<Self::Field, EP>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+        P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
     {
         let mut acc = vec![];
-        while args.is_nonempty_after_trim_start() {
-            acc.push(parser(args, field)?);
+        while args.something_to_yield() {
+            acc.push(parser(args)?);
         }
         Ok(acc)
     }
@@ -268,34 +258,24 @@ impl<T> ArgumentSetMethods for ArgumentSetSelector<Vec<T>> {
 impl<T> ArgumentSetMethods for ArgumentSetSelector<Option<T>> {
     type Each = T;
     type Field = Option<T>;
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        field: &'static str,
-        parser: P,
-    ) -> Result<Self::Field, EP>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+        P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
     {
-        if !args.is_nonempty_after_trim_start() {
+        if !args.something_to_yield() {
             return Ok(None);
         }
-        Ok(Some(parser(args, field)?))
+        Ok(Some(parser(args)?))
     }
 }
 impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
     type Each = T;
     type Field = T;
-    fn parse_with<P>(
-        self,
-        args: &mut ArgumentStream<'_>,
-        field: &'static str,
-        parser: P,
-    ) -> Result<Self::Field, EP>
+    fn parse_with<P>(self, args: &mut ArgumentStream<'_>, parser: P) -> Result<Self::Field, AE>
     where
-        P: for<'s> Fn(&mut ArgumentStream<'s>, &'static str) -> Result<Self::Each, EP>,
+        P: for<'s> Fn(&mut ArgumentStream<'s>) -> Result<Self::Each, AE>,
     {
-        parser(args, field)
+        parser(args)
     }
 }
 
