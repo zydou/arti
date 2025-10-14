@@ -8,8 +8,7 @@ specifying the TOML configuration file. Using the correct configuration file is
 important, because the state and keys managed by `arti hss` are relative to the
 state directory, which you might have overridden in the configuration.
 
-> [!note]
-> To use `arti hss` you will need to compile `arti` with the
+> Note: to use `arti hss` you will need to compile `arti` with the
 > `onion-service-service` feature enabled.
 
 ## Displaying your .onion address
@@ -28,8 +27,7 @@ Arti has experimental support for C Tor's key format.
 This means you can configure Arti to use the identity key from the
 `HiddenServiceDirectory` directory of your C Tor service.
 
-> [!note]
-> This feature is only available in builds that have the experimental
+> Note: this feature is only available in builds that have the experimental
 > `onion-service-cli-extra` feature enabled.
 
 For example:
@@ -61,14 +59,14 @@ Each C Tor keystore **must**:
 Arti supports importing C Tor onion service keys to Arti's keystore
 using the experimental `arti hss ctor-migrate` command.
 
-> [!note]
-> The `ctor-migrate` subcommand is only available in builds that
+> Note: the `ctor-migrate` subcommand is only available in builds that
 > have the experimental `onion-service-cli-extra` feature enabled.
 
 `arti hss ctor-migrate` converts the identity key of a C Tor onion service
 to the Arti native key format (OpenSSH key format), and copies it to Arti's keystore.
 
-> [!caution]
+> ⚠️**WARNING** ⚠️
+>
 > `arti hss ctor-migrate` will **not** remove the migrated C Tor keys from disk.
 > After running this command, the identity key of your
 > service will exist both in its original location, and in the
@@ -91,12 +89,12 @@ If the service with the specified `--nickname` already has some keys in the Arti
 they will be removed as part of the migration (by default, `ctor-migrate` prompts before removal,
 but you can disable that behavior using `--batch`).
 
-> [!caution]
+> ⚠️**WARNING** ⚠️
+>
 > To avoid data loss, `arti hss ctor-migrate` should only be run when
 > no other process is accessing either keystore.
 > So, you must shut down your hidden service while you do the migration.
 
-> [!note]
-> In the future, we plan to support running `ctor-migrate`
+> Note: in the future, we plan to support running `ctor-migrate`
 > without having to configure a C Tor keystore in
 > the TOML config (#2087)
