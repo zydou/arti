@@ -64,8 +64,9 @@ pub(crate) struct XonXoffFlowCtrl {
     last_sent_xon_xoff: Option<XonXoffMsg>,
     /// The buffer limit at which we should send an XOFF.
     ///
-    /// This will be either `cc_xoff_client` or `cc_xoff_exit` depending on whether we're a
-    /// client/hs or exit.
+    /// In prop324 it says that this will be either `cc_xoff_client` or `cc_xoff_exit` depending on
+    /// whether we're a client/hs or exit, but we deviate from the spec here (see how it is set
+    /// below).
     xoff_limit: CellCount<{ tor_cell::relaycell::PAYLOAD_MAX_SIZE_ALL as u32 }>,
     /// DropMark sidechannel mitigations.
     ///
@@ -88,14 +89,13 @@ impl XonXoffFlowCtrl {
     ) -> Self {
         // only use dropmark sidechannel mitigations at clients, not exits
         let sidechannel_mitigation = match our_endpoint {
-            StreamEndpointType::Client => Some(SidechannelMitigation::new(peer_endpoint)),
+            StreamEndpointType::Client => Some(SidechannelMitigation::new()),
             StreamEndpointType::Exit => None,
         };
 
-        let xoff_limit = match our_endpoint {
-            StreamEndpointType::Client => params.cc_xoff_client,
-            StreamEndpointType::Exit => params.cc_xoff_exit,
-        };
+        // We use the same XOFF limit regardless of if we're a client or exit.
+        // See https://gitlab.torproject.org/tpo/core/torspec/-/issues/371#note_3260658
+        let xoff_limit = std::cmp::max(params.cc_xoff_client, params.cc_xoff_exit);
 
         Self {
             params,
@@ -273,13 +273,11 @@ struct SidechannelMitigation {
     bytes_sent_since_recvd_last_advisory_xon: Saturating<u32>,
     /// Number of sent stream bytes since the last XOFF was received.
     bytes_sent_since_recvd_last_xoff: Saturating<u32>,
-    /// The type of peer we are connected to, either an onion service (client) or exit.
-    peer: StreamEndpointType,
 }
 
 impl SidechannelMitigation {
     /// A new [`SidechannelMitigation`].
-    fn new(peer: StreamEndpointType) -> Self {
+    fn new() -> Self {
         Self {
             last_recvd_xon_xoff: None,
             bytes_sent_total: Saturating(0),
@@ -288,18 +286,21 @@ impl SidechannelMitigation {
             // from 32 bits to 64 bits.
             bytes_sent_since_recvd_last_advisory_xon: Saturating(0),
             bytes_sent_since_recvd_last_xoff: Saturating(0),
-            peer,
         }
     }
 
-    /// The XOFF limit that the other endpoint should be using.
-    ///
-    /// This may be different from our XOFF limit, since clients and exits use different limits.
-    fn peer_xoff_limit_bytes(&self, params: &FlowCtrlParameters) -> u64 {
-        match self.peer {
-            StreamEndpointType::Client => params.cc_xoff_client.as_bytes(),
-            StreamEndpointType::Exit => params.cc_xoff_exit.as_bytes(),
-        }
+    /// A (likely underestimated) guess of the XOFF limit that the other endpoint is using.
+    fn peer_xoff_limit_bytes(params: &FlowCtrlParameters) -> u64 {
+        // We need to consider that `xoff_client` and `xoff_exit` may be different, we don't know
+        // here exactly what kind of peer we're connected to, and that we may have a different view
+        // of the consensus than the peer.
+        // We deviate from prop324 here and use a more relaxed threshold.
+        // See https://gitlab.torproject.org/tpo/core/torspec/-/issues/371#note_3260658
+        let min = std::cmp::min(
+            params.cc_xoff_client.as_bytes(),
+            params.cc_xoff_exit.as_bytes(),
+        );
+        min / 2
     }
 
     /// Notify that we have sent stream data.
@@ -354,8 +355,10 @@ impl SidechannelMitigation {
 
         // > Clients also SHOULD ensure that advisory XONs do not arrive before the minimum of the
         // > XOFF limit and 'cc_xon_rate' full cells worth of bytes have been transmitted.
+        //
+        // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
         let advisory_not_expected_before = std::cmp::min(
-            self.peer_xoff_limit_bytes(params),
+            Self::peer_xoff_limit_bytes(params),
             params.cc_xon_rate.as_bytes(),
         );
         if u64::from(self.bytes_sent_total.0) < advisory_not_expected_before {
@@ -410,7 +413,9 @@ impl SidechannelMitigation {
         // > clients MUST ensure that an XOFF does not arrive before it has sent the appropriate
         // > XOFF limit of bytes on a stream ('cc_xoff_exit' for exits, 'cc_xoff_client' for
         // > onions).
-        if u64::from(self.bytes_sent_total.0) < self.peer_xoff_limit_bytes(params) {
+        //
+        // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
+        if u64::from(self.bytes_sent_total.0) < Self::peer_xoff_limit_bytes(params) {
             const MSG: &str = "Received XOFF too early";
             return Err(Error::CircProto(MSG.into()));
         }
@@ -424,7 +429,10 @@ impl SidechannelMitigation {
         // does not exceed a frequency of `xoff_{client/exit}`. Instead here we check that two XOFF
         // messages never arrive at an interval that would exceed a frequency of
         // `xoff_{client/exit}`.
-        if u64::from(self.bytes_sent_since_recvd_last_xoff.0) < self.peer_xoff_limit_bytes(params) {
+        //
+        // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
+        if u64::from(self.bytes_sent_since_recvd_last_xoff.0) < Self::peer_xoff_limit_bytes(params)
+        {
             return Err(Error::CircProto("Received XOFF too frequently".into()));
         }
 
