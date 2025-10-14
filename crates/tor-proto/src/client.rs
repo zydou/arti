@@ -339,7 +339,6 @@ impl ClientTunnel {
     ///
     /// The caller will typically want to see the first cell in response,
     /// to see whether it is e.g. an END or a CONNECTED.
-    #[allow(unreachable_code, unused_variables)] // TODO(conflux)
     async fn begin_stream_impl(
         self: &Arc<Self>,
         begin_msg: AnyRelayMsg,
