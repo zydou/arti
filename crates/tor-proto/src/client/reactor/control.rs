@@ -6,7 +6,7 @@ use super::{
     RunOnceCmdInner, SendRelayCell,
 };
 use crate::Result;
-use crate::client::circuit::celltypes::CreateResponse;
+use crate::circuit::celltypes::CreateResponse;
 #[cfg(feature = "circ-padding-manual")]
 use crate::client::circuit::padding;
 use crate::client::circuit::{HopSettings, path};

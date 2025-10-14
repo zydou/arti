@@ -35,7 +35,6 @@
 //!
 //! This is client-only.
 
-pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 
 #[cfg(feature = "hs-common")]
@@ -48,9 +47,9 @@ pub(crate) mod padding;
 pub(super) mod path;
 
 use crate::channel::Channel;
+use crate::circuit::celltypes::*;
 #[cfg(feature = "circ-padding-manual")]
 use crate::client::CircuitPadder;
-use crate::client::circuit::celltypes::*;
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 use crate::client::reactor::{CircuitHandshake, CtrlCmd, CtrlMsg, Reactor};
 use crate::congestion::params::CongestionControlParams;

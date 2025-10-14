@@ -2,6 +2,7 @@
 //!
 //! This code is shared between the client and relay implementations.
 
+pub(crate) mod celltypes;
 pub(crate) mod unique_id;
 
 pub use crate::memquota::StreamAccount;

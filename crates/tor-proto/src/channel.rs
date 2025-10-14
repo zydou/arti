@@ -97,7 +97,7 @@ use tor_async_utils::counting_streams::{self, CountingSink, CountingStream};
 mod testing_exports {
     #![allow(unreachable_pub)]
     pub use super::reactor::CtrlMsg;
-    pub use crate::client::circuit::celltypes::CreateResponse;
+    pub use crate::circuit::celltypes::CreateResponse;
 }
 #[cfg(feature = "testing")]
 pub use testing_exports::*;
