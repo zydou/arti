@@ -23,6 +23,7 @@ use futures::Stream;
 use futures::stream::FuturesUnordered;
 use postage::watch;
 use safelog::sensitive as sv;
+use smallvec::SmallVec;
 use tor_cell::chancell::BoxedCellBody;
 use tor_cell::relaycell::flow_ctrl::{Xoff, Xon, XonKbpsEwma};
 use tor_cell::relaycell::msg::AnyRelayMsg;
@@ -44,11 +45,16 @@ use std::time::Instant;
 #[cfg(test)]
 use tor_cell::relaycell::msg::SendmeTag;
 
+/// The "usual" number of hops in a [`CircHopList`].
+///
+/// This saves us a heap allocation when the number of hops is less than or equal to this value.
+const NUM_HOPS: usize = 3;
+
 /// Represents the reactor's view of a circuit's hop.
 #[derive(Default)]
 pub(crate) struct CircHopList {
     /// The list of hops.
-    hops: Vec<CircHop>,
+    hops: SmallVec<[CircHop; NUM_HOPS]>,
 }
 
 impl CircHopList {
