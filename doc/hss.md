@@ -75,7 +75,7 @@ to the Arti native key format (OpenSSH key format), and copies it to Arti's keys
 > Arti native keystore. **You will need to manually remove one
 > of the copies at the end of the migration** (the C Tor one, if
 > you are confident you no longer want to run the service
-> using C Tor, or the Arti one if you wish to switch to Arti)
+> using C Tor, or the Arti one if you don't wish to switch to Arti)
 
 To use this command, you will first need to configure Arti
 with a C Tor keystore pointing to the `HiddenServiceDirectory`
