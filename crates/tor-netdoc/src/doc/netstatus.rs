@@ -1037,7 +1037,7 @@ impl std::str::FromStr for RelayFlags {
 
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 struct RelayFlagsParser<'s> {
-    /// Flags so far, including the implied onces
+    /// Flags so far, including the implied ones
     flags: RelayFlags,
 
     /// The previous argument, if any

@@ -20,7 +20,7 @@ use super::*;
 //  RouterStatus.r.doc_digest aka RouterStatusIntroItem.doc_digest
 //  RouterStatus.m
 //
-// This would have been a bit easier of the various DocDigest types implemented parse2 traits,
+// This would have been a bit easier if the various DocDigest types implemented parse2 traits,
 // but they're just byte arrays and such impls would imply that byte arrays are always
 // represented the same way in netdocs which is very far from being true.
 // TODO consider introducing newtypes for routerdesc and microdesc hashes?
