@@ -57,6 +57,7 @@
 mod cli;
 mod config;
 mod relay;
+mod tasks;
 
 use std::fmt::Display;
 use std::io::IsTerminal as _;
