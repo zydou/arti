@@ -14,6 +14,10 @@ use super::*;
 
 // Explicit parsing arrangements for document digest fields in `r` and `m` items.
 //
+// https://spec.torproject.org/dir-spec/consensus-formats.html#item:r
+// https://spec.torproject.org/dir-spec/consensus-formats.html#item:m
+// https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc
+//
 // The document digest moves about, and vote `m` items are even more exciting.
 // This is for the benefit of the `with` annotations for theses two fields:
 //
@@ -37,6 +41,11 @@ ns_choose! { (
 ) }
 
 /// Intro item for a router status entry
+/// 
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:r>
+///
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
+/// `r` item.
 #[cfg_attr(
     feature = "parse2",
     derive(Deftly),
@@ -66,6 +75,11 @@ pub struct RouterStatusIntroItem {
 }
 
 /// A single relay's status, in a network status document.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:router-status>
+///
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
+/// under "Changes to router status entries".
 //
 // In most netdocs we would use the item keywords as the field names.  But routerstatus
 // entry keywords are chosen to be very short to minimise the consensus size, so we
@@ -78,27 +92,52 @@ pub struct RouterStatusIntroItem {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RouterStatus {
-    /// `r` item, introducing a routerstatus entry
+    /// `r` --- Introduce a routerstatus entry
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:r>
+    /// (and, the the md version, which is different).
     pub r: RouterStatusIntroItem,
-    /// Digest of the document for this relay (md consensuses only)
+
+    /// `m` --- Microdescriptor or document digest
+    ///
+    /// In an md consensus, the hash of the document for this relay.
+    /// In a vote, microdescriptor hashes for the various consensus methods.
+    ///
+    /// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
+    /// `r` item.
     // We call this field `m` rather than `doc_digest` because it's not always the doc digest.
     // TODO SPEC in all but md consensuses the referenced document digest is in the `r` intro item
     #[cfg_attr(feature = "parse2", deftly(netdoc(with = "doc_digest_parse2_m")))]
     pub m: ns_type!( Option<Ignored>, DocDigest, Vec<RouterStatusMdDigestsVote> ),
-    /// A list of address:port values where this relay can be reached.
+
+    /// `a` --- Further router address(es) (IPv6)
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:a>
+    /// (and, the the md version, which is different).
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub a: Vec<net::SocketAddr>,
-    /// Flags applied by the authorities to this relay.
+
+    /// `s` --- Router status flags
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
     #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "s")))]
     pub flags: RelayFlags,
-    /// Version of the software that this relay is running.
+
+    /// `v` --- Relay's Tor software version
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
     #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "v")))]
     pub version: Option<Version>,
-    /// List of subprotocol versions supported by this relay.
+
+    /// `pr` --- Subprotocol capabilities supported
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
     #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "pr")))]
     pub protos: Arc<Protocols>,
-    /// Information about how to weight this relay when choosing a
-    /// relay at random.
+
+    /// `w` --- Bandwidth estimates
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
     #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "w")))]
     pub weight: RelayWeight,
 }

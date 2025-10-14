@@ -114,13 +114,19 @@ pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 #[cfg(feature = "ns-vote")]
 pub use rs::RouterStatusMdDigestsVote;
 
-/// `published` field in routerstatus entry intro item other than in votes
+/// `publiscation` field in routerstatus entry intro item other than in votes
 ///
 /// Two arguments which are both ignored.
 /// This used to be an ISO8601 timestamp in anomalous two-argument format.
 ///
 /// Nowadays, according to the spec, it can be a dummy value.
 /// So it can be a unit type.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:r>,
+/// except in votes which use [`Iso8601TimeSp`] instead.
+///
+/// **Not the same as** the `published` item:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
 #[allow(clippy::exhaustive_structs)]
 pub struct IgnoredPublicationTimeSp;
@@ -130,17 +136,22 @@ pub struct IgnoredPublicationTimeSp;
 /// In a consensus, this type describes when the consensus may safely
 /// be used.  In a vote, this type describes the proposed lifetime for a
 /// consensus.
+///
+/// Aggregate of three netdoc preamble fields.
 #[derive(Clone, Debug)]
 pub struct Lifetime {
-    /// Time at which the document becomes valid
-    valid_after: time::SystemTime,
-    /// Time after which there is expected to be a better version
-    /// of this consensus
-    fresh_until: time::SystemTime,
-    /// Time after which this consensus is expired.
+    /// `valid-after` --- Time at which the document becomes valid
     ///
-    /// (In practice, Tor clients will keep using documents for a while
-    /// after this expiration time, if no better one can be found.)
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+    valid_after: time::SystemTime,
+    /// `fresh-until` --- Time after which there is expected to be a better version
+    /// of this consensus
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+    fresh_until: time::SystemTime,
+    /// `valid-until` --- Time after which this consensus is expired.
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
     valid_until: time::SystemTime,
 }
 
@@ -204,6 +215,13 @@ impl Lifetime {
 /// A single consensus method
 ///
 /// These are integers, but we don't do arithmetic on them.
+///
+/// As defined here:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
+///
+/// As used in a `consensus-method` item:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-method>
 #[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Copy)] //
 #[derive(derive_more::From, derive_more::Into, derive_more::Display, derive_more::FromStr)]
 pub struct ConsensusMethod(u32);
@@ -212,7 +230,9 @@ impl NormalItemArgument for ConsensusMethod {}
 /// A set of consensus methods
 ///
 /// Implements `ItemValueParseable` as required for `consensus-methods`,
-/// but there is also [`consensus_methods_comma_separated`] for `m` lines in votes.
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
+///
+/// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 #[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
 #[non_exhaustive]
@@ -222,6 +242,9 @@ pub struct ConsensusMethods {
 }
 
 /// Module for use with parse2's `with`, to parse one argument of comma-separated consensus methods
+///
+/// As found in an `m` item in a vote:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:m>
 #[cfg(feature = "parse2")]
 pub mod consensus_methods_comma_separated {
     use super::*;
@@ -249,6 +272,13 @@ pub mod consensus_methods_comma_separated {
 ///
 /// A `NetParams<i32>` is part of the validated directory manager configuration,
 /// where it is built (in the builder-pattern sense) from a transparent HashMap.
+///
+/// As found in `params` in a network status:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:params>
+///
+/// The same syntax is also used, and this type used for parsing, in various other places,
+/// for example routerstatus entry `w` items (bandwith weights):
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct NetParams<T> {
     /// Map from keys to values.
@@ -306,14 +336,23 @@ where
 
 /// A list of subprotocol versions that implementors should/must provide.
 ///
+/// This struct represents a pair of (optional) items:
+/// `recommended-FOO-protocols` and `required-FOO-protocols`.
+///
 /// Each consensus has two of these: one for relays, and one for clients.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:required-relay-protocols>
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatus {
     /// Set of protocols that are recommended; if we're missing a protocol
     /// in this list we should warn the user.
+    ///
+    /// `recommended-client-protocols` or `recommended-relay-protocols`
     recommended: Protocols,
     /// Set of protocols that are required; if we're missing a protocol
     /// in this list we should refuse to start.
+    ///
+    /// `required-client-protocols` or `required-relay-protocols`
     required: Protocols,
 }
 
@@ -378,6 +417,10 @@ impl HasKind for ProtocolSupportError {
 
 /// A set of recommended and required protocols when running
 /// in various scenarios.
+///
+/// Represents the collection of four items: `{recommended,required}-{client,relay}-protocols`.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:required-relay-protocols>
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatuses {
     /// Lists of recommended and required subprotocol versions for clients
@@ -399,6 +442,8 @@ impl ProtoStatuses {
 }
 
 /// A recognized 'flavor' of consensus document.
+///
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavors>
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[non_exhaustive]
 pub enum ConsensusFlavor {
