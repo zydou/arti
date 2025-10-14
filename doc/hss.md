@@ -94,6 +94,7 @@ but you can disable that behavior using `--batch`).
 > [!caution]
 > To avoid data loss, `arti hss ctor-migrate` should only be run when
 > no other process is accessing either keystore.
+> So, you must shut down your hidden service while you do the migration.
 
 > [!note]
 > In the future, we plan to support running `ctor-migrate`
