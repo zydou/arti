@@ -83,3 +83,19 @@ pub(crate) enum DatabaseError {
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
 }
+
+/// An unrecoverable error during daemon operation.
+///
+/// This error is inteded for functions that generally run forever, unless they
+/// encounter an error that is not recoverable, in which case, they will return
+/// this error type.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum FatalError {
+    /// The selection of a consensus from the database has failed.
+    ///
+    /// This most likely indicates that something with the underlying database
+    /// is wrong in a persistent fashion, i.e. retries will not work anymore.
+    #[error("consensus selection error: {0}")]
+    ConsensusSelection(DatabaseError),
+}
