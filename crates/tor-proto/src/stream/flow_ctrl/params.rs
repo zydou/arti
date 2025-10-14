@@ -44,7 +44,7 @@ impl FlowCtrlParameters {
 /// A cell count that can be converted into a byte count using a constant conversion rate.
 ///
 /// The const generic is the conversion multiplier when converting from cells to bytes.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct CellCount<const BYTES_PER_CELL: u32>(u32);
 
 impl<const BYTES_PER_CELL: u32> CellCount<BYTES_PER_CELL> {
