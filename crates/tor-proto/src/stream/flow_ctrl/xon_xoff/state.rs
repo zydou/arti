@@ -475,53 +475,50 @@ mod test {
         ];
 
         for params in params {
-            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            let xon_limit = SidechannelMitigation::peer_xon_limit_bytes(&params);
+            let xoff_limit = SidechannelMitigation::peer_xoff_limit_bytes(&params);
+
+            let mut x = SidechannelMitigation::new();
             // cannot receive XON as first message
             assert!(x.received_xon(&params).is_err());
 
-            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
+            let mut x = SidechannelMitigation::new();
             // cannot receive XOFF as first message
             assert!(x.received_xoff(&params).is_err());
 
-            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
-            // cannot receive XOFF after sending fewer than `cc_xoff_exit` bytes
-            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize - 1);
+            let mut x = SidechannelMitigation::new();
+            // cannot receive XOFF after sending fewer than `xoff_limit` bytes
+            x.sent_stream_data(xoff_limit as usize - 1);
             assert!(x.received_xoff(&params).is_err());
 
-            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
-            // can receive XOFF after sending `cc_xoff_exit` bytes
-            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            let mut x = SidechannelMitigation::new();
+            // can receive XOFF after sending `xoff_limit` bytes
+            x.sent_stream_data(xoff_limit as usize);
             assert!(x.received_xoff(&params).is_ok());
             // but cannot receive another XOFF immediately after
             assert!(x.received_xoff(&params).is_err());
 
-            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
-            // can receive XOFF after sending `cc_xoff_exit` bytes
-            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            let mut x = SidechannelMitigation::new();
+            // can receive XOFF after sending `xoff_limit` bytes
+            x.sent_stream_data(xoff_limit as usize);
             assert!(x.received_xoff(&params).is_ok());
-            // but cannot receive another XOFF even after sending another `cc_xoff_exit` bytes
-            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            // but cannot receive another XOFF even after sending another `xoff_limit` bytes
+            x.sent_stream_data(xoff_limit as usize);
             assert!(x.received_xoff(&params).is_err());
 
-            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
-            // can receive XOFF after sending `cc_xoff_exit` bytes
-            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            let mut x = SidechannelMitigation::new();
+            // can receive XOFF after sending `xoff_limit` bytes
+            x.sent_stream_data(xoff_limit as usize);
             assert!(x.received_xoff(&params).is_ok());
             // and can immediately receive an XON
             assert!(x.received_xon(&params).is_ok());
-            // and can receive another XOFF after sending another `cc_xoff_exit` bytes
-            x.sent_stream_data(params.cc_xoff_exit.as_bytes() as usize);
+            // and can receive another XOFF after sending another `xoff_limit` bytes
+            x.sent_stream_data(xoff_limit as usize);
             assert!(x.received_xoff(&params).is_ok());
 
-            // initial XON limit
-            let limit = std::cmp::min(
-                params.cc_xoff_exit.as_bytes(),
-                params.cc_xon_rate.as_bytes(),
-            );
-
-            let mut x = SidechannelMitigation::new(StreamEndpointType::Exit);
-            // cannot receive XON after sending fewer than `min(cc_xoff_exit, cc_xon_rate)` bytes
-            x.sent_stream_data(limit as usize - 1);
+            let mut x = SidechannelMitigation::new();
+            // cannot receive XON after sending fewer than `xon_limit` bytes
+            x.sent_stream_data(xon_limit as usize - 1);
             assert!(x.received_xon(&params).is_err());
         }
     }
