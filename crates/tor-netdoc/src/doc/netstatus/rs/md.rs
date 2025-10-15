@@ -22,3 +22,23 @@ impl RouterStatus {
         self.doc_digest()
     }
 }
+
+/// Netdoc format helper module for referenced doc digest field in `m` (where it's an item)
+///
+/// See `doc_digest_parse2_real` in `rs/each_variety.rs`.
+/// This is in `md.rs` because it's needed only for md consensuses.
+/// Elsewhere, the value is in the `r` item, so is merely `ItemArgumentParseable`.
+#[cfg(feature = "parse2")]
+pub(crate) mod doc_digest_parse2_real_item {
+    use super::*;
+    use crate::parse2::ErrorProblem as EP;
+    use crate::parse2::UnparsedItem;
+    use std::result::Result;
+
+    /// Parse the whole `m` item
+    pub(crate) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<DocDigest, EP> {
+        item.check_no_object()?;
+        doc_digest_parse2_real::from_args(item.args_mut())
+            .map_err(item.args().error_handler("doc_digest"))
+    }
+}

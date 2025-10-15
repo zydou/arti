@@ -54,14 +54,20 @@ pub mod vote;
 #[cfg(feature = "build_docs")]
 mod build;
 
+#[cfg(feature = "parse2")]
+use {
+    crate::parse2::{self, ArgumentStream},
+    derive_deftly::Deftly,
+};
+
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::PeekableIterator;
-use crate::{Error, NetdocErrorKind as EK, Pos, Result};
-use std::collections::{HashMap, HashSet};
+use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::{net, result, time};
@@ -105,22 +111,47 @@ pub use UncheckedPlainConsensus as UncheckedNsConsensus;
 #[cfg(feature = "ns_consensus")]
 pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 
+#[cfg(feature = "ns-vote")]
+pub use rs::RouterStatusMdDigestsVote;
+
+/// `publiscation` field in routerstatus entry intro item other than in votes
+///
+/// Two arguments which are both ignored.
+/// This used to be an ISO8601 timestamp in anomalous two-argument format.
+///
+/// Nowadays, according to the spec, it can be a dummy value.
+/// So it can be a unit type.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:r>,
+/// except in votes which use [`Iso8601TimeSp`] instead.
+///
+/// **Not the same as** the `published` item:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+#[allow(clippy::exhaustive_structs)]
+pub struct IgnoredPublicationTimeSp;
+
 /// The lifetime of a networkstatus document.
 ///
 /// In a consensus, this type describes when the consensus may safely
 /// be used.  In a vote, this type describes the proposed lifetime for a
 /// consensus.
+///
+/// Aggregate of three netdoc preamble fields.
 #[derive(Clone, Debug)]
 pub struct Lifetime {
-    /// Time at which the document becomes valid
-    valid_after: time::SystemTime,
-    /// Time after which there is expected to be a better version
-    /// of this consensus
-    fresh_until: time::SystemTime,
-    /// Time after which this consensus is expired.
+    /// `valid-after` --- Time at which the document becomes valid
     ///
-    /// (In practice, Tor clients will keep using documents for a while
-    /// after this expiration time, if no better one can be found.)
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+    valid_after: time::SystemTime,
+    /// `fresh-until` --- Time after which there is expected to be a better version
+    /// of this consensus
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+    fresh_until: time::SystemTime,
+    /// `valid-until` --- Time after which this consensus is expired.
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
     valid_until: time::SystemTime,
 }
 
@@ -181,6 +212,58 @@ impl Lifetime {
     }
 }
 
+/// A single consensus method
+///
+/// These are integers, but we don't do arithmetic on them.
+///
+/// As defined here:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
+///
+/// As used in a `consensus-method` item:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-method>
+#[derive(Debug, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Copy)] //
+#[derive(derive_more::From, derive_more::Into, derive_more::Display, derive_more::FromStr)]
+pub struct ConsensusMethod(u32);
+impl NormalItemArgument for ConsensusMethod {}
+
+/// A set of consensus methods
+///
+/// Implements `ItemValueParseable` as required for `consensus-methods`,
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:consensus-methods>
+///
+/// There is also [`consensus_methods_comma_separated`] for `m` lines in votes.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[non_exhaustive]
+pub struct ConsensusMethods {
+    /// Consensus methods.
+    pub methods: BTreeSet<ConsensusMethod>,
+}
+
+/// Module for use with parse2's `with`, to parse one argument of comma-separated consensus methods
+///
+/// As found in an `m` item in a vote:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:m>
+#[cfg(feature = "parse2")]
+pub mod consensus_methods_comma_separated {
+    use super::*;
+    use parse2::ArgumentError as AE;
+    use std::result::Result;
+
+    /// Parse
+    pub fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<ConsensusMethods, AE> {
+        let mut methods = BTreeSet::new();
+        for ent in args.next().ok_or(AE::Missing)?.split(',') {
+            let ent = ent.parse().map_err(|_| AE::Invalid)?;
+            if !methods.insert(ent) {
+                return Err(AE::Invalid);
+            }
+        }
+        Ok(ConsensusMethods { methods })
+    }
+}
+
 /// A set of named network parameters.
 ///
 /// These are used to describe current settings for the Tor network,
@@ -189,6 +272,13 @@ impl Lifetime {
 ///
 /// A `NetParams<i32>` is part of the validated directory manager configuration,
 /// where it is built (in the builder-pattern sense) from a transparent HashMap.
+///
+/// As found in `params` in a network status:
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:params>
+///
+/// The same syntax is also used, and this type used for parsing, in various other places,
+/// for example routerstatus entry `w` items (bandwith weights):
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:w>
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct NetParams<T> {
     /// Map from keys to values.
@@ -246,14 +336,23 @@ where
 
 /// A list of subprotocol versions that implementors should/must provide.
 ///
+/// This struct represents a pair of (optional) items:
+/// `recommended-FOO-protocols` and `required-FOO-protocols`.
+///
 /// Each consensus has two of these: one for relays, and one for clients.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:required-relay-protocols>
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatus {
     /// Set of protocols that are recommended; if we're missing a protocol
     /// in this list we should warn the user.
+    ///
+    /// `recommended-client-protocols` or `recommended-relay-protocols`
     recommended: Protocols,
     /// Set of protocols that are required; if we're missing a protocol
     /// in this list we should refuse to start.
+    ///
+    /// `required-client-protocols` or `required-relay-protocols`
     required: Protocols,
 }
 
@@ -318,6 +417,10 @@ impl HasKind for ProtocolSupportError {
 
 /// A set of recommended and required protocols when running
 /// in various scenarios.
+///
+/// Represents the collection of four items: `{recommended,required}-{client,relay}-protocols`.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:required-relay-protocols>
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProtoStatuses {
     /// Lists of recommended and required subprotocol versions for clients
@@ -339,6 +442,8 @@ impl ProtoStatuses {
 }
 
 /// A recognized 'flavor' of consensus document.
+///
+/// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavors>
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[non_exhaustive]
 pub enum ConsensusFlavor {
@@ -975,6 +1080,45 @@ impl std::str::FromStr for RelayFlags {
     }
 }
 
+/// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
+struct RelayFlagsParser<'s> {
+    /// Flags so far, including the implied ones
+    flags: RelayFlags,
+
+    /// The previous argument, if any
+    ///
+    /// Used only for checking that the arguments are sorted, as per the spec.
+    prev: Option<&'s str>,
+}
+
+impl<'s> RelayFlagsParser<'s> {
+    /// Start parsing relay flags
+    fn new() -> Self {
+        // These flags are implicit.
+        RelayFlagsParser {
+            flags: RelayFlags::RUNNING | RelayFlags::VALID,
+            prev: None,
+        }
+    }
+    /// Parse the next relay flag argument
+    fn add(&mut self, arg: &'s str) -> StdResult<(), &'static str> {
+        if let Some(prev) = self.prev {
+            if prev >= arg {
+                // Arguments out of order.
+                return Err("Flags out of order");
+            }
+        }
+        let fl = arg.parse().void_unwrap();
+        self.flags |= fl;
+        self.prev = Some(arg);
+        Ok(())
+    }
+    /// Finish parsing relay flags
+    fn finish(self) -> RelayFlags {
+        self.flags
+    }
+}
+
 impl RelayFlags {
     /// Parse a relay-flags entry from an "s" line.
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<RelayFlags> {
@@ -984,25 +1128,15 @@ impl RelayFlags {
                     .at_pos(item.pos()),
             );
         }
-        // These flags are implicit.
-        let mut flags: RelayFlags = RelayFlags::RUNNING | RelayFlags::VALID;
+        let mut flags = RelayFlagsParser::new();
 
-        let mut prev: Option<&str> = None;
         for s in item.args() {
-            if let Some(p) = prev {
-                if p >= s {
-                    // Arguments out of order.
-                    return Err(EK::BadArgument
-                        .at_pos(item.pos())
-                        .with_msg("Flags out of order"));
-                }
-            }
-            let fl = s.parse().void_unwrap();
-            flags |= fl;
-            prev = Some(s);
+            flags
+                .add(s)
+                .map_err(|msg| EK::BadArgument.at_pos(item.pos()).with_msg(msg))?;
         }
 
-        Ok(flags)
+        Ok(flags.finish())
     }
 }
 
@@ -1022,8 +1156,15 @@ impl RelayWeight {
             );
         }
 
-        let params: NetParams<u32> = item.args_as_str().parse()?;
+        let params = item.args_as_str().parse()?;
 
+        Self::from_net_params(&params).map_err(|e| e.at_pos(item.pos()))
+    }
+
+    /// Parse a routerweight from partially-parsed `w` line in the form of a `NetParams`
+    ///
+    /// This function is the common part shared between `parse2` and `parse`.
+    fn from_net_params(params: &NetParams<u32>) -> Result<RelayWeight> {
         let bw = params.params.get("Bandwidth");
         let unmeas = params.params.get("Unmeasured");
 
@@ -1035,9 +1176,62 @@ impl RelayWeight {
         match unmeas {
             None | Some(0) => Ok(RelayWeight::Measured(bw)),
             Some(1) => Ok(RelayWeight::Unmeasured(bw)),
-            _ => Err(EK::BadArgument
-                .at_pos(item.pos())
-                .with_msg("unmeasured value")),
+            _ => Err(EK::BadArgument.with_msg("unmeasured value")),
+        }
+    }
+}
+
+/// `parse2` impls for types in this module
+///
+/// Separate module to save on repeated `cfg` and for a separate namespace.
+#[cfg(feature = "parse2")]
+mod parse2_impls {
+    use super::*;
+    use parse2::ArgumentError as AE;
+    use parse2::ErrorProblem as EP;
+    use parse2::{ArgumentStream, ItemArgumentParseable, ItemValueParseable};
+    use std::result::Result;
+
+    impl ItemValueParseable for RelayWeight {
+        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            (|| {
+                let params = item.args_copy().into_remaining().parse()?;
+                Self::from_net_params(&params)
+            })()
+            .map_err(item.invalid_argument_handler("weights"))
+        }
+    }
+
+    impl ItemValueParseable for RelayFlags {
+        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            let mut flags = RelayFlagsParser::new();
+            for arg in item.args_copy() {
+                flags
+                    .add(arg)
+                    .map_err(item.invalid_argument_handler("flags"))?;
+            }
+            Ok(flags.finish())
+        }
+    }
+
+    impl ItemValueParseable for rs::Version {
+        fn from_unparsed(mut item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            item.args_mut()
+                .into_remaining()
+                .parse()
+                .map_err(item.invalid_argument_handler("version"))
+        }
+    }
+
+    impl ItemArgumentParseable for IgnoredPublicationTimeSp {
+        fn from_args(a: &mut ArgumentStream) -> Result<IgnoredPublicationTimeSp, AE> {
+            let mut next_arg = || a.next().ok_or(AE::Missing);
+            let _: &str = next_arg()?;
+            let _: &str = next_arg()?;
+            Ok(IgnoredPublicationTimeSp)
         }
     }
 }
@@ -1242,6 +1436,11 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use hex_literal::hex;
+    #[cfg(all(feature = "ns-vote", feature = "parse2"))]
+    use {
+        crate::parse2::{NetdocSigned as _, parse_netdoc},
+        std::fs,
+    };
 
     const CERTS: &str = include_str!("../../testdata/authcerts2.txt");
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
@@ -1350,6 +1549,23 @@ mod test {
         assert!(consensus.key_is_correct(&certs).is_ok());
 
         let _consensus = consensus.check_signature(&certs)?;
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(all(feature = "ns-vote", feature = "parse2"))]
+    fn parse2_vote() -> anyhow::Result<()> {
+        let file = "testdata2/v3-status-votes--1";
+        let text = fs::read_to_string(file)?;
+
+        // TODO replace the poc struct here when we have parsing of proper whole votes
+        use crate::parse2::poc::netstatus::NetworkStatusSignedVote;
+
+        let doc: NetworkStatusSignedVote = parse_netdoc(&text, file)?;
+
+        println!("{doc:?}");
+        println!("{:#?}", doc.inspect_unverified().0.r[0]);
 
         Ok(())
     }

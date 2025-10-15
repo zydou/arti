@@ -63,18 +63,6 @@ fn parse_consensus_md() -> anyhow::Result<()> {
 }
 
 #[test]
-fn parse_vote() -> anyhow::Result<()> {
-    let file = "testdata2/v3-status-votes--1";
-    let text = fs::read_to_string(file)?;
-
-    let doc: netstatus::vote::NetworkStatusSigned = parse_netdoc(&text, file)?;
-
-    println!("{doc:?}");
-
-    Ok(())
-}
-
-#[test]
 fn parse_authcert() -> anyhow::Result<()> {
     let file = "testdata2/cached-certs--1";
     let now = parse_rfc3339("2000-06-01T00:00:05Z")?;

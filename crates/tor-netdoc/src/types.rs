@@ -13,10 +13,11 @@ pub(crate) mod misc;
 pub mod policy;
 pub mod version;
 
-pub use misc::Nickname;
+pub use misc::{ArgumentNotPresent, Nickname};
 
+pub use misc::B64;
 pub use misc::{Base64Fingerprint, Fingerprint, Ignored};
-
+pub use misc::{DigestName, IdentifiedDigest};
 pub use misc::{Iso8601TimeNoSp, Iso8601TimeSp};
 
 use crate::NormalItemArgument;

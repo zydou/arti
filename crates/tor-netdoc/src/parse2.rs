@@ -19,8 +19,8 @@
 //!
 //! # Ordering
 //!
-//! We don't parse things into a sorted order.
-//! Sorting will be done on output.
+//! We don't always parse things into a sorted order.
+//! Sorting will be done when assembling documents, before outputting.
 // TODO we don't implement deriving output yet.
 //!
 //! # Types, and signature handling
@@ -108,6 +108,7 @@ pub mod multiplicity;
 mod signatures;
 mod traits;
 
+#[cfg(feature = "plain-consensus")]
 pub mod poc;
 
 #[cfg(test)]
@@ -127,7 +128,7 @@ pub use signatures::{
 pub use structural::{StopAt, StopPredicate};
 pub use traits::{
     ItemArgumentParseable, ItemObjectParseable, ItemValueParseable, NetdocParseable,
-    NetdocParseableFields,
+    NetdocParseableFields, NetdocSigned,
 };
 
 #[doc(hidden)]

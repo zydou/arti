@@ -54,4 +54,4 @@ pub mod routerdesc {
 //
 /// This only holds weak references to the objects, so we don't
 /// need to worry about running out of space because of stale entries.
-static PROTOVERS_CACHE: InternCache<tor_protover::Protocols> = InternCache::new();
+pub(crate) static PROTOVERS_CACHE: InternCache<tor_protover::Protocols> = InternCache::new();

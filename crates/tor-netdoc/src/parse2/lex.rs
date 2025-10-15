@@ -295,6 +295,20 @@ impl<'s> UnparsedItem<'s> {
         }
         Ok(())
     }
+    /// Convenience method for handling an error parsing an arguemnt
+    ///
+    /// Returns a closure that converts every error into [`ArgumentError::Invalid`]
+    /// and then to an [`ErrorProblem`] using
+    /// [`.args().handle_error()`](ArgumentStream::handle_error).
+    ///
+    /// Useful in manual `ItemValueParseable` impls, when parsing arguments ad-hoc.
+    pub fn invalid_argument_handler<E>(
+        &self,
+        field: &'static str,
+    ) -> impl FnOnce(E) -> ErrorProblem {
+        let error = self.args().handle_error(field, AE::Invalid);
+        move |_any_error| error
+    }
 }
 
 /// End of an argument list that does not accept any further (unknown) arguments

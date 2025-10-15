@@ -70,6 +70,29 @@ pub(crate) mod times {
     }
 }
 
+/// Protocol versions (from `tor-protover`)
+pub(crate) mod protovers {
+    use super::*;
+    use tor_protover::Protocols;
+
+    impl ItemValueParseable for Protocols {
+        fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, ErrorProblem> {
+            item.check_no_object()?;
+            item.args_copy()
+                .into_remaining()
+                .parse()
+                .map_err(item.invalid_argument_handler("protocols"))
+        }
+    }
+
+    impl ItemValueParseable for Arc<Protocols> {
+        fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, ErrorProblem> {
+            let pr = Protocols::from_unparsed(item)?;
+            Ok(crate::doc::PROTOVERS_CACHE.intern(pr))
+        }
+    }
+}
+
 /// Implementations on `Void`
 pub(crate) mod void_impls {
     use super::*;

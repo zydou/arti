@@ -6,7 +6,7 @@
 //! These types shouldn't be exposed outside of the netdoc crate.
 
 pub(crate) use b16impl::*;
-pub(crate) use b64impl::*;
+pub use b64impl::*;
 pub(crate) use curve25519impl::*;
 pub(crate) use ed25519impl::*;
 #[cfg(any(feature = "routerdesc", feature = "hs-common"))]
@@ -16,11 +16,24 @@ pub(crate) use rsa::*;
 pub use timeimpl::*;
 
 #[cfg(feature = "parse2")]
-use derive_deftly::Deftly;
+use {
+    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable}, //
+};
 
 pub use nickname::Nickname;
 
 pub use fingerprint::{Base64Fingerprint, Fingerprint};
+
+pub use identified_digest::{DigestName, IdentifiedDigest};
+
+pub use ignored_impl::{ArgumentNotPresent, Ignored};
+
+use crate::NormalItemArgument;
+use derive_deftly::{Deftly, define_derive_deftly};
+use std::fmt::{self, Display};
+use std::str::FromStr;
+use tor_error::ErrorReport as _;
+use void::{ResultVoidExt as _, Void};
 
 /// Describes a value that van be decoded from a bunch of bytes.
 ///
@@ -39,10 +52,31 @@ pub(crate) trait FromBytes: Sized {
 mod b64impl {
     use crate::{Error, NetdocErrorKind as EK, Pos, Result};
     use base64ct::{Base64, Base64Unpadded, Encoding};
+    use std::fmt::{self, Display};
     use std::ops::RangeBounds;
+    use subtle::{Choice, ConstantTimeEq};
 
     /// A byte array, encoded in base64 with optional padding.
-    pub(crate) struct B64(Vec<u8>);
+    ///
+    /// On output (`Display`), output is unpadded.
+    #[derive(Clone)]
+    #[allow(clippy::derived_hash_with_manual_eq)]
+    #[derive(Hash, derive_more::Debug)]
+    #[debug(r#"B64("{self}")"#)]
+    pub struct B64(Vec<u8>);
+
+    impl ConstantTimeEq for B64 {
+        fn ct_eq(&self, other: &B64) -> Choice {
+            self.0.ct_eq(&other.0)
+        }
+    }
+    /// `B64` is `Eq` via its constant-time implementation.
+    impl PartialEq for B64 {
+        fn eq(&self, other: &B64) -> bool {
+            self.ct_eq(other).into()
+        }
+    }
+    impl Eq for B64 {}
 
     impl std::str::FromStr for B64 {
         type Err = Error;
@@ -60,9 +94,15 @@ mod b64impl {
         }
     }
 
+    impl Display for B64 {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&Base64Unpadded::encode_string(&self.0), f)
+        }
+    }
+
     impl B64 {
         /// Return the byte array from this object.
-        pub(crate) fn as_bytes(&self) -> &[u8] {
+        pub fn as_bytes(&self) -> &[u8] {
             &self.0[..]
         }
         /// Return this object if its length is within the provided bounds
@@ -78,7 +118,7 @@ mod b64impl {
         /// Try to convert this object into an array of N bytes.
         ///
         /// Return an error if the length is wrong.
-        pub(crate) fn into_array<const N: usize>(self) -> Result<[u8; N]> {
+        pub fn into_array<const N: usize>(self) -> Result<[u8; N]> {
             self.0
                 .try_into()
                 .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))
@@ -198,22 +238,43 @@ mod ed25519impl {
 
 // ============================================================
 
-/// Ignored part of a network document.
-///
-/// With `parse2`, can be used as an item, object, or even flattened-fields.
-///
-/// If an optional item or object is wanted, use `Option<Ignore>`.
-///
-/// Not useable as a (positional) argument, because when the document is
-/// output we wouldn't know what to emit.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[cfg_attr(
-    feature = "parse2",
-    derive(Deftly),
-    derive_deftly(ItemValueParseable, NetdocParseableFields)
-)]
-#[allow(clippy::exhaustive_structs)]
-pub struct Ignored;
+/// Dummy types like [`Ignored`]
+mod ignored_impl {
+    use super::*;
+
+    /// Ignored part of a network document.
+    ///
+    /// With `parse2`, can be used as an item, object, or even flattened-fields.
+    ///
+    /// If an optional item or object is wanted, use `Option<Ignore>`.
+    ///
+    /// Not useable as a (positional) argument, because when the document is
+    /// output we wouldn't know what to emit.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+    #[cfg_attr(
+        feature = "parse2",
+        derive(Deftly),
+        derive_deftly(ItemValueParseable, NetdocParseableFields)
+    )]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct Ignored;
+
+    /// "Argument" in a netdoc item keyword line, that isn't actually there
+    ///
+    /// Used as a standin for a missing argument.
+    //
+    // TODO we'll need to implement ItemArgument, for encoding, too.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+    #[allow(clippy::exhaustive_structs)]
+    pub struct ArgumentNotPresent;
+
+    #[cfg(feature = "parse2")]
+    impl ItemArgumentParseable for ArgumentNotPresent {
+        fn from_args(_: &mut ArgumentStream) -> Result<ArgumentNotPresent, ArgumentError> {
+            Ok(ArgumentNotPresent)
+        }
+    }
+}
 
 // ============================================================
 
@@ -415,6 +476,138 @@ mod edcert {
         /// Consume this object and return the inner Ed25519 certificate.
         pub(crate) fn into_unchecked(self) -> KeyUnknownCert {
             self.0
+        }
+    }
+}
+
+/// Digest identifeirs, and digests in the form `ALGORITHM=BASE64U`
+///
+/// As found in a vote's `m` line.
+mod identified_digest {
+    use super::*;
+
+    define_derive_deftly! {
+        /// impl `FromStr` and `Display` for an enum with unit variants but also "unknown"
+        ///
+        /// Expected input: an enum whose variants are either
+        ///  * unit variants, perhaps with `#[deftly(string_repr = "string")]`
+        ///  * singleton tuple variant, containing `String` (or near equivalent)
+        ///
+        /// If `#[deftly(string_repro)]` is not specified,
+        /// the default is snake case of the variant name.
+        //
+        // This macro may seem overkill, but open-coding these impls gives opportunities
+        // for mismatches between FromStr, Display, and the variant name.
+        //
+        // TODO consider putting this in tor-basic-utils (maybe with a better name),
+        // or possibly asking if derive_more want their FromStr to have this.
+        StringReprUnitsOrUnknown for enum, expect items, beta_deftly:
+
+        ${define STRING_REPR {
+            ${vmeta(string_repr)
+              as str,
+              default { ${concat ${snake_case $vname}} }
+            }
+        }}
+
+        impl FromStr for $ttype {
+            type Err = Void;
+            fn from_str(s: &str) -> Result<Self, Void> {
+                $(
+                    ${when v_is_unit}
+                    if s == $STRING_REPR {
+                        return Ok($vtype)
+                    }
+                )
+                $(
+                    ${when not(v_is_unit)} // anything else had better be Unknown
+                    // not using `return ..;` makes this a syntax error if there are several.
+                    Ok($vtype { 0: s.into() })
+                )
+            }
+        }
+        impl Display for $ttype {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                let s: &str = match self {
+                    $(
+                        ${when v_is_unit}
+                        $vtype => $STRING_REPR,
+                    )
+                    $(
+                        ${when not(v_is_unit)}
+                        $vpat => f_0,
+                    )
+                };
+                Display::fmt(s, f)
+            }
+        }
+    }
+
+    /// The name of a digest algorithm.
+    ///
+    /// Can represent an unrecognised algorithm, so it's parsed and reproduced.
+    #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Deftly)]
+    #[derive_deftly(StringReprUnitsOrUnknown)]
+    #[non_exhaustive]
+    pub enum DigestName {
+        /// SHA-256
+        Sha256,
+        /// Unknown
+        Unknown(String),
+    }
+
+    /// A single digest made with a nominated digest algorithm, `ALGORITHM=DIGEST`
+    #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Display)]
+    #[display("{alg}={value}")]
+    #[non_exhaustive]
+    pub struct IdentifiedDigest {
+        /// The algorithm name.
+        alg: DigestName,
+
+        /// The digest value.
+        ///
+        /// Invariant: length is correct for `alg`, assuming `alg` is known.
+        value: B64,
+    }
+
+    impl NormalItemArgument for DigestName {}
+    impl NormalItemArgument for IdentifiedDigest {}
+
+    /// Invalid syntax parsing an `IdentifiedDigest`
+    #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, thiserror::Error)]
+    #[error("invalid syntax, espected ALGORITHM=DIGEST: {0}")]
+    pub struct IdentifiedDigestParseError(String);
+
+    impl FromStr for IdentifiedDigest {
+        type Err = IdentifiedDigestParseError;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            (|| {
+                let (alg, value) = s.split_once('=').ok_or("missing equals sign")?;
+
+                let alg = alg.parse().void_unwrap();
+                let value = value
+                    .parse::<B64>()
+                    .map_err(|e| format!("bad value: {}", e.report()))?;
+
+                if let Some(exp_len) = (|| {
+                    Some({
+                        use DigestName::*;
+                        match alg {
+                            Sha256 => 32,
+                            Unknown(_) => None?,
+                        }
+                    })
+                })() {
+                    let val_len = value.as_bytes().len();
+                    if val_len != exp_len {
+                        return Err(format!("got {val_len} bytes, expected {exp_len}"));
+                    }
+                }
+
+                Ok(IdentifiedDigest { alg, value })
+            })()
+            .map_err(IdentifiedDigestParseError)
         }
     }
 }

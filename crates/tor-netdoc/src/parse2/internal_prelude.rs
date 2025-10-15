@@ -2,7 +2,7 @@
 //!
 //! This is also exported, but with `#[doc(hidden)]`, for the benefit of our public macros.
 
-pub use std::collections::HashSet;
+pub use std::collections::{BTreeSet, HashSet};
 pub use std::fmt::{self, Debug, Display};
 pub use std::io::Write as _;
 pub use std::marker::PhantomData;
@@ -11,6 +11,7 @@ pub use std::ops::RangeInclusive;
 pub use std::result::Result;
 pub use std::slice;
 pub use std::str::FromStr;
+pub use std::sync::Arc;
 pub use std::time::{Duration, SystemTime};
 
 pub use derive_deftly::{Deftly, define_derive_deftly};
