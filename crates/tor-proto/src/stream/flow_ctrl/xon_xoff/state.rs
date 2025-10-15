@@ -299,6 +299,14 @@ impl SidechannelMitigation {
         min / 2
     }
 
+    /// A (likely underestimated) guess of the advisory XON limit that the other endpoint is using.
+    fn peer_xon_limit_bytes(params: &FlowCtrlParameters) -> u64 {
+        // We need to consider that we may have a different view of the consensus than the peer.
+        // We deviate from prop324 here and use a more relaxed threshold.
+        // See https://gitlab.torproject.org/tpo/core/torspec/-/issues/371#note_3260658
+        params.cc_xon_rate.as_bytes() / 2
+    }
+
     /// Notify that we have sent stream data.
     fn sent_stream_data(&mut self, stream_bytes: usize) {
         // perform a saturating conversion to u32
@@ -352,10 +360,10 @@ impl SidechannelMitigation {
         // > Clients also SHOULD ensure that advisory XONs do not arrive before the minimum of the
         // > XOFF limit and 'cc_xon_rate' full cells worth of bytes have been transmitted.
         //
-        // NOTE: We use a more relaxed threshold for the XOFF limit than in prop324.
+        // NOTE: We use a more relaxed threshold for the XON and XOFF limits than in prop324.
         let advisory_not_expected_before = std::cmp::min(
             Self::peer_xoff_limit_bytes(params),
-            params.cc_xon_rate.as_bytes(),
+            Self::peer_xon_limit_bytes(params),
         );
         if u64::from(self.bytes_sent_total.0) < advisory_not_expected_before {
             const MSG: &str = "Received advisory XON too early";
@@ -371,8 +379,10 @@ impl SidechannelMitigation {
         // does not exceed a frequency of `MIN(xoff_{client/exit}, xon_rate_bytes)`. Instead here we
         // check that two XON messages never arrive at an interval that would exceed a frequency of
         // `cc_xon_rate`.
+        //
+        // NOTE: We use a more relaxed threshold for the XON limit than in prop324.
         if u64::from(self.bytes_sent_since_recvd_last_advisory_xon.0)
-            < params.cc_xon_rate.as_bytes()
+            < Self::peer_xon_limit_bytes(params)
         {
             const MSG: &str = "Received advisory XON too frequently";
             return Err(Error::CircProto(MSG.into()));
