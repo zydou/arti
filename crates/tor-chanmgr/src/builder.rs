@@ -8,6 +8,7 @@ use crate::transport::TransportImplHelper;
 use crate::{Error, event::ChanMgrEventSender};
 
 use std::time::Duration;
+use tor_basic_utils::rand_hostname;
 use tor_error::internal;
 use tor_keymgr::KeyMgr;
 use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
@@ -177,10 +178,11 @@ where
 
         // 1b. Negotiate TLS.
 
-        // TODO: add a random hostname here if it will be used for SNI?
+        let hostname = rand_hostname::random_hostname(&mut rand::rng());
+
         let tls = self
             .tls_connector
-            .negotiate_unvalidated(stream, "ignored")
+            .negotiate_unvalidated(stream, hostname.as_str())
             .await
             .map_err(map_ioe("TLS negotiation"))?;
 
