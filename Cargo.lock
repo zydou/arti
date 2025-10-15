@@ -6683,11 +6683,13 @@ dependencies = [
  "rusqlite",
  "sha2",
  "strum",
+ "tempfile",
  "thiserror 2.0.17",
  "tokio",
  "tokio-stream",
  "tor-error",
  "tracing",
+ "void",
  "weak-table",
  "zstd",
 ]

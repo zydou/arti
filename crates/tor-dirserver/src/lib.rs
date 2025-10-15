@@ -47,7 +47,7 @@
 // TODO DIRMIRROR: Remove this before release.
 #![allow(dead_code)]
 
+mod database;
 pub mod err;
 mod http;
 pub mod mirror;
-mod schema;

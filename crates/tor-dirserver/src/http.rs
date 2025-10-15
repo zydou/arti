@@ -3,11 +3,8 @@
 //! This module is unfortunately necessary as a middleware due to some obscure
 //! things in Tor, most notably the ".z" extensions.
 
-#[allow(unused_imports)]
-use std::pin::Pin;
+use cache::StoreCache;
 use strum::EnumString;
-#[allow(unused_imports)]
-use tokio::sync::RwLock;
 use tor_error::internal;
 
 use std::{
@@ -15,7 +12,7 @@ use std::{
     convert::Infallible,
     panic::{catch_unwind, AssertUnwindSafe},
     str::FromStr,
-    sync::{Arc, Mutex, Weak},
+    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -39,12 +36,10 @@ use tokio::{
     time,
 };
 use tracing::warn;
-use weak_table::WeakValueHashMap;
 
-use crate::{
-    err::{BuilderError, DatabaseError, StoreCacheError},
-    schema::Sha256,
-};
+use crate::database::Sha256;
+
+mod cache;
 
 /// A type alias for the functions implementing endpoint logic.
 ///
@@ -102,51 +97,41 @@ struct DocumentBody(VecDeque<Arc<[u8]>>);
 /// Representation of an endpoint, uniquely identified by a [`Method`] and path
 /// pair followed by an appropriate [`EndpointFn`].
 ///
-/// TODO: Replace the [`Vec`] with a [`str`] and do splitting in the core code.
-type Endpoint = (Method, Vec<&'static str>, EndpointFn);
+/// The path itself is a special string that refers to the endpoint at which this
+/// resource should be available.  It supports a pattern-matching like syntax
+/// through the use of the asterisk `*` character.
+///
+/// For example:
+/// `/tor/status-vote/current/consensus` will match the URL exactly, whereas
+/// `/tor/status-vote/current/*` will match every string that is in the
+/// fourth component; such as `/tor/status-vote/current/consensus` or
+/// `/tor/status-vote/current/consensus-microdesc`; it will however not
+/// match in a prefix-like syntax, such as
+/// `/tor/status-vote/current/consensus-microdesc/diff`.
+///
+/// In the case of non-unique matches, the first match wins.  Also, because
+/// of wildcards, matching takes place in a `O(n)` fashion, so be sure to
+/// to keep the `n` at a reasonable size.  This should not be much of a
+/// problem for Tor applications though, because the list of endpoints is
+/// reasonable (less than 30).
+///
+/// TODO: The entire asterisk matching is not so super nice, primarily because
+/// it removes compile-time semantic checks; however, I cannot really think
+/// of a much cleaner way that would not involve lots of boilerplate.
+/// The most minimal "clean" way could be to do `path: &Option<&'static str>`
+/// but I am not sure if this overhead is worth it, i.e.:
+/// * `/tor/status-vote/current/*/diff/*/*`
+/// * `[Some(""), Some("tor"), Some("status-vote"), Some("current"), None, ...]`
+///   Maybe a macro could help here though ...
+type Endpoint = (Method, &'static str, EndpointFn);
 
 /// Representation of the core HTTP server.
+#[derive(Debug)]
 pub(crate) struct HttpServer {
-    /// The [`HttpServerBuilder`] used to generate this [`HttpServer`].
-    builder: HttpServerBuilder,
-}
-
-/// A builder for [`HttpServer`].
-///
-/// TODO DIRMIRROR: Get rid of this structure and just access the stuff in
-/// [`HttpServer`] directly, which is fine given that this is an internal module
-/// anyways.
-#[derive(Default)]
-pub(crate) struct HttpServerBuilder {
-    /// The [`Pool`] from deapool to manage database connections.
-    pool: Option<Pool<Manager>>,
-    /// The HTTP endpoints.
+    /// List of [`Endpoint`] entries.
     endpoints: Vec<Endpoint>,
-}
-
-/// Representation of the store cache.
-///
-/// The cache serves the purpose to not store the same document multiple times
-/// in memory, when multiple clients request it simultanously.
-///
-/// It *DOES NOT* serve the purpose to reduce the amount of read system calls.
-/// We believe that SQLite and the operating system itself do a good job at
-/// buffering reads for us here.
-///
-/// The cache itself is wrapped in an [`Arc`] as well as in a [`Mutex`],
-/// meaning it is safe to share and access around threads/tasks.
-///
-/// All hash lookups in the `store` table should be performed through this
-/// interface, because it will automatically select them from the database in
-/// case they are missing.
-#[derive(Debug, Clone)]
-pub(crate) struct StoreCache {
-    /// The actual data of the cache.
-    ///
-    /// We use a [`Mutex`] instead of an [`RwLock`], because we want to assure
-    /// that a concurrent cache miss does not lead into two simultanous database
-    /// reads and copies into memory.
-    data: Arc<Mutex<WeakValueHashMap<Sha256, Weak<[u8]>>>>,
+    /// Access to the database pool.
+    pool: Pool<Manager>,
 }
 
 impl Body for DocumentBody {
@@ -166,9 +151,10 @@ impl Body for DocumentBody {
 }
 
 impl HttpServer {
-    /// Creates a new [`HttpServerBuilder`].
-    pub(crate) fn builder() -> HttpServerBuilder {
-        HttpServerBuilder::default()
+    /// Creates a new [`HttpServer`] with a given [`Vec`] of [`Endpoint`] entries
+    /// alongside access to the database [`Pool`].
+    pub(crate) fn new(endpoints: Vec<Endpoint>, pool: Pool<Manager>) -> Self {
+        Self { endpoints, pool }
     }
 
     /// Runs the server endlessly in the current task.
@@ -177,15 +163,15 @@ impl HttpServer {
     /// occur, occur in further sub-tasks spawned by it and handled appropriately,
     /// that is ususally logging the error and continuing the exeuction.
     #[allow(clippy::cognitive_complexity)]
-    pub(crate) async fn serve<I, S, E>(self, mut listener: I) -> Result<(), Infallible>
+    pub(crate) async fn serve<I, S, E>(self, mut listener: I) -> Result<(), tor_error::Bug>
     where
         I: Stream<Item = Result<S, E>> + Unpin,
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         E: std::error::Error,
     {
-        let cache = StoreCache::new();
-        let endpoints: Arc<[Endpoint]> = self.builder.endpoints.into();
-        let pool = self.builder.pool.expect("builder ensured this is Some");
+        let cache = Arc::new(StoreCache::new());
+        let endpoints: Arc<[Endpoint]> = self.endpoints.into();
+        let pool = self.pool;
 
         // We operate exclusively in JoinSets so that everything gets aborted
         // nicely in order without causing any sort of leaks.
@@ -195,13 +181,10 @@ impl HttpServer {
         // Spawn a simple garbage collection task that periodically removes
         // dead references, just in case, from the StoreCache.
         misc_tasks.spawn({
-            let mut cache = cache.clone();
+            let cache = cache.clone();
             async move {
                 loop {
-                    match cache.gc() {
-                        Ok(()) => {}
-                        Err(e) => warn!("gc failed: {e}"),
-                    };
+                    cache.gc();
                     time::sleep(Duration::from_secs(60)).await;
                 }
             }
@@ -220,8 +203,7 @@ impl HttpServer {
                     }
 
                     // This should not happen due to ownership.
-                    // TODO DIRMIRROR: Replace this with an error by all means.
-                    None => unreachable!("listener was closed externally?"),
+                    None => return Err(internal!("listener was closed externally?")),
                 },
 
                 // A hyper task we monitored in our tasks has exiteed.
@@ -242,7 +224,7 @@ impl HttpServer {
 
     /// Dispatches a new [`Stream`] into an existing [`JoinSet`].
     fn dispatch_stream<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
-        cache: &StoreCache,
+        cache: &Arc<StoreCache>,
         endpoints: &Arc<[Endpoint]>,
         pool: &Pool<Manager>,
         tasks: &mut JoinSet<Result<(), hyper::Error>>,
@@ -274,7 +256,7 @@ impl HttpServer {
     /// A small wrapper function that creates a [`Transaction`] and continues
     /// execution in [`Self::handler_tx`].
     async fn handler(
-        cache: StoreCache,
+        cache: Arc<StoreCache>,
         endpoints: Arc<[Endpoint]>,
         pool: Pool<Manager>,
         requ: Request<Incoming>,
@@ -299,7 +281,7 @@ impl HttpServer {
                     }
                 };
 
-                let res = Self::handler_tx(cache, &endpoints, tx, &requ);
+                let res = Self::handler_tx(&cache, &endpoints, tx, &requ);
                 Ok(res)
             })
             .await;
@@ -331,7 +313,7 @@ impl HttpServer {
     /// TODO DIRMIRROR: Implement [`Method::HEAD`].
     #[allow(clippy::cognitive_complexity)]
     fn handler_tx(
-        mut cache: StoreCache,
+        cache: &Arc<StoreCache>,
         endpoints: &[Endpoint],
         tx: Transaction,
         requ: &Request<Incoming>,
@@ -535,6 +517,7 @@ impl HttpServer {
         let mut res = None;
         for tuple in endpoints.iter() {
             let (method, path, _endpoint_fn) = tuple;
+            let path = path.split('/').collect::<Vec<_>>();
 
             // Filter the method out first.
             if requ.method() != method {
@@ -592,7 +575,7 @@ impl HttpServer {
         tx: &Transaction,
         sha256: &Sha256,
         encoding: ContentEncoding,
-    ) -> Result<Sha256, DatabaseError> {
+    ) -> Result<Sha256, rusqlite::Error> {
         let sha256 = sha256.clone();
 
         // If the encoding is the identity, do not bother about it any further.
@@ -622,126 +605,8 @@ impl HttpServer {
     }
 }
 
-impl HttpServerBuilder {
-    /// Creates a new [`HttpServerBuilder`] with default values.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
-    /// Sets the database pool which is mandatory.
-    pub(crate) fn pool(mut self, pool: Pool<Manager>) -> Self {
-        self.pool = Some(pool);
-        self
-    }
-
-    /// Adds a new [`Method::GET`] endpoint.
-    ///
-    /// `path` is a special string that refers to the endpoint at which this
-    /// resource should be available.  It supports a pattern-matching like
-    /// syntax through the use of the asterisk `*` character.
-    ///
-    /// For example:
-    /// `/tor/status-vote/current/consensus` will match the URL exactly, whereas
-    /// `/tor/status-vote/current/*` will match every string that is in the
-    /// fourth component; such as `/tor/status-vote/current/consensus` or
-    /// `/tor/status-vote/current/consensus-microdesc`; it will however not
-    /// match in a prefix-like syntax, such as
-    /// `/tor/status-vote/current/consensus-microdesc/diff`.
-    ///
-    /// In the case of non-unique matches, the first match wins.  Also, because
-    /// of wildcards, matching takes place in a `O(n)` fashion, so be sure to
-    /// to keep the `n` at a reasonable size.  This should not be much of a
-    /// problem for Tor applications though, because the list of endpoints is
-    /// reasonable (less than 30).
-    ///
-    /// TODO: The entire asterisk matching is not so super nice, primarily because
-    /// it removes compile-time semantic checks; however, I cannot really think
-    /// of a much cleaner way that would not involve lots of boilerplate.
-    /// The most minimal "clean" way could be to do `path: &Option<&'static str>`
-    /// but I am not sure if this overhead is worth it, i.e.:
-    /// * `/tor/status-vote/current/*/diff/*/*`
-    /// * `[Some(""), Some("tor"), Some("status-vote"), Some("current"), None, ...]`
-    ///   Maybe a macro could help here though ...
-    pub(crate) fn get(mut self, path: &'static str, endpoint_fn: EndpointFn) -> Self {
-        self.endpoints
-            .push((Method::GET, path.split('/').collect(), endpoint_fn));
-        self
-    }
-
-    /// Consumes the [`HttpServerBuilder`] to build an [`HttpServer`].
-    pub(crate) fn build(self) -> Result<HttpServer, BuilderError> {
-        // Check the presence of mandatory fields.
-        if self.pool.is_none() {
-            return Err(BuilderError::MissingField("pool"));
-        }
-
-        Ok(HttpServer { builder: self })
-    }
-}
-
-impl StoreCache {
-    /// Creates a new empty [`StoreCache`].
-    pub(crate) fn new() -> Self {
-        Self {
-            data: Arc::new(Mutex::new(WeakValueHashMap::new())),
-        }
-    }
-
-    /// Removes all mappings whose values have expired.
-    ///
-    /// Takes O(n) time.
-    pub(crate) fn gc(&mut self) -> Result<(), StoreCacheError> {
-        self.data
-            .lock()
-            .map_err(|_| internal!("poisoned lock"))?
-            .remove_expired();
-        Ok(())
-    }
-
-    /// Looks up a [`Sha256`] in the cache or the database.
-    ///
-    /// If we got a cache miss, this function automatically queries the database
-    /// and inserts the result into the cache, before returning it.
-    pub(crate) fn get(
-        &mut self,
-        tx: &Transaction,
-        sha256: &Sha256,
-    ) -> Result<Arc<[u8]>, StoreCacheError> {
-        // TODO DIRMIRROR: Do we want to keep the lock while doing db queries?
-        let mut lock = self.data.lock().map_err(|_| internal!("poisoned lock"))?;
-
-        // Query the cache for the relevant document.
-        if let Some(document) = lock.get(sha256) {
-            return Ok(document);
-        }
-
-        // Cache miss, let us query the database.
-        let document = Self::get_db(tx, sha256)?;
-
-        // Insert it into the cache.
-        lock.insert(sha256.clone(), document.clone());
-
-        Ok(document)
-    }
-
-    /// Obtains a [`Sha256`] from the database without consulting the cache first.
-    ///
-    /// TODO DIRMIRROR: This function is only intended for use in [`StoreCache::get`].
-    /// Consider to either remove it entirely or move [`StoreCache`] into its own
-    /// module.
-    fn get_db(tx: &Transaction, sha256: &Sha256) -> Result<Arc<[u8]>, StoreCacheError> {
-        let mut stmt = tx
-            .prepare_cached("SELECT content FROM store WHERE sha256 = ?1")
-            .map_err(DatabaseError::from)?;
-        let document: Vec<u8> = stmt
-            .query_one(params![sha256], |row| row.get(0))
-            .map_err(DatabaseError::from)?;
-        Ok(Arc::from(document))
-    }
-}
-
 #[cfg(test)]
-mod test {
+pub(in crate::http) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -755,6 +620,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use crate::database;
+
     use super::*;
 
     use std::{
@@ -762,7 +629,6 @@ mod test {
         str::FromStr,
     };
 
-    use deadpool_sqlite::Config;
     use flate2::{
         write::{DeflateDecoder, DeflateEncoder, GzEncoder},
         Compression,
@@ -777,22 +643,20 @@ mod test {
     };
     use tokio_stream::wrappers::TcpListenerStream;
 
-    use crate::schema::prepare_db;
-
-    const IDENTITY: &str = "Lorem ipsum dolor sit amet.";
-    const IDENTITY_SHA256: &str =
+    pub(in crate::http) const IDENTITY: &str = "Lorem ipsum dolor sit amet.";
+    pub(in crate::http) const IDENTITY_SHA256: &str =
         "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
-    const DEFLATE_SHA256: &str = "07564DD13A7F4A6AD98B997F2938B1CEE11F8C7F358C444374521BA54D50D05E";
-    const GZIP_SHA256: &str = "1518107D3EF1EC6EAC3F3249DF26B2F845BC8226C326309F4822CAEF2E664104";
-    const XZ_STD_SHA256: &str = "17416948501F8E627CC9A8F7EFE7A2F32788D53CB84A5F67AC8FD4C1B59184CF";
-    const X_TOR_LZMA_SHA256: &str =
+    pub(in crate::http) const DEFLATE_SHA256: &str =
+        "07564DD13A7F4A6AD98B997F2938B1CEE11F8C7F358C444374521BA54D50D05E";
+    pub(in crate::http) const GZIP_SHA256: &str =
+        "1518107D3EF1EC6EAC3F3249DF26B2F845BC8226C326309F4822CAEF2E664104";
+    pub(in crate::http) const XZ_STD_SHA256: &str =
+        "17416948501F8E627CC9A8F7EFE7A2F32788D53CB84A5F67AC8FD4C1B59184CF";
+    pub(in crate::http) const X_TOR_LZMA_SHA256: &str =
         "B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239";
 
-    async fn create_test_db_pool() -> Pool<Manager> {
-        let pool = Config::new("")
-            .create_pool(deadpool::Runtime::Tokio1)
-            .unwrap();
-
+    pub(in crate::http) async fn create_test_db_pool() -> Pool<Manager> {
+        let pool = database::open("").await.unwrap();
         pool.get()
             .await
             .unwrap()
@@ -803,15 +667,7 @@ mod test {
         pool
     }
 
-    fn create_test_db_connection() -> Connection {
-        let mut conn = Connection::open_in_memory().unwrap();
-        init_test_db(&mut conn);
-        conn
-    }
-
     fn init_test_db(conn: &mut Connection) {
-        prepare_db(conn).unwrap();
-
         // Create a document and compressed versions of it.
         let identity_sha256 = hex::encode_upper(sha2::Sha256::new().chain(IDENTITY).finalize());
         assert_eq!(identity_sha256, IDENTITY_SHA256);
@@ -986,10 +842,10 @@ mod test {
         }
 
         let endpoints: Vec<Endpoint> = vec![
-            (Method::GET, vec!["", "foo", "bar", "baz"], dummy),
-            (Method::GET, vec!["", "foo", "*", "baz"], dummy),
-            (Method::GET, vec!["", "bar", "*"], dummy),
-            (Method::GET, vec!["", ""], dummy),
+            (Method::GET, "/foo/bar/baz", dummy),
+            (Method::GET, "/foo/*/baz", dummy),
+            (Method::GET, "/bar/*", dummy),
+            (Method::GET, "/", dummy),
         ];
 
         /// Basically a domain specific [`assert_eq`] that works by comparing
@@ -1033,26 +889,33 @@ mod test {
         check_match!("/.z", 3);
     }
 
-    #[test]
-    fn map_encoding() {
-        let mut conn = create_test_db_connection();
+    #[tokio::test]
+    async fn map_encoding() {
+        let pool = create_test_db_pool().await;
+        pool.get()
+            .await
+            .unwrap()
+            .interact(|conn| {
+                let data = [
+                    (ContentEncoding::Identity, IDENTITY_SHA256),
+                    (ContentEncoding::Deflate, DEFLATE_SHA256),
+                    (ContentEncoding::Gzip, GZIP_SHA256),
+                    (ContentEncoding::XZstd, XZ_STD_SHA256),
+                    (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
+                ];
 
-        let data = [
-            (ContentEncoding::Identity, IDENTITY_SHA256),
-            (ContentEncoding::Deflate, DEFLATE_SHA256),
-            (ContentEncoding::Gzip, GZIP_SHA256),
-            (ContentEncoding::XZstd, XZ_STD_SHA256),
-            (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
-        ];
-
-        let tx = conn.transaction().unwrap();
-        for (encoding, compressed_sha256) in data {
-            println!("{encoding}");
-            assert_eq!(
-                HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
-                compressed_sha256
-            );
-        }
+                let tx = conn.transaction().unwrap();
+                for (encoding, compressed_sha256) in data {
+                    println!("{encoding}");
+                    assert_eq!(
+                        HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding)
+                            .unwrap(),
+                        compressed_sha256
+                    );
+                }
+            })
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1067,11 +930,10 @@ mod test {
         }
 
         let pool = create_test_db_pool().await;
-        let server = HttpServer::builder()
-            .pool(pool)
-            .get("/tor/status-vote/current/consensus", identity)
-            .build()
-            .unwrap();
+        let server = HttpServer::new(
+            vec![(Method::GET, "/tor/status-vote/current/consensus", identity)],
+            pool,
+        );
 
         let listener = TcpListener::bind("[::]:0").await.unwrap();
         let local_addr = listener.local_addr().unwrap();
@@ -1121,56 +983,5 @@ mod test {
         decoder.write_all(&resp_body).unwrap();
         let decoded_resp = decoder.finish().unwrap();
         assert_eq!(IDENTITY, String::from_utf8_lossy(&decoded_resp));
-    }
-
-    #[test]
-    fn store_cache() {
-        let mut conn = create_test_db_connection();
-        let mut cache = StoreCache::new();
-
-        let tx = conn.transaction().unwrap();
-
-        // Obtain the lipsum entry.
-        let entry = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
-        assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
-        assert_eq!(Arc::strong_count(&entry), 1);
-
-        // Obtain the lipsum entry again but ensure it is not copied in memory.
-        let entry2 = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
-        assert_eq!(Arc::strong_count(&entry), 2);
-        assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
-        assert_eq!(entry, entry2);
-
-        // Perform a garbage collection and ensure that entry is not removed.
-        assert!(cache
-            .data
-            .lock()
-            .unwrap()
-            .contains_key(&String::from(IDENTITY_SHA256)));
-        cache.gc().unwrap();
-        assert!(cache
-            .data
-            .lock()
-            .unwrap()
-            .contains_key(&String::from(IDENTITY_SHA256)));
-
-        // Now drop entry and entry2 and perform the gc again.
-        let weak_entry = Arc::downgrade(&entry);
-        assert_eq!(weak_entry.strong_count(), 2);
-        drop(entry);
-        drop(entry2);
-        assert_eq!(weak_entry.strong_count(), 0);
-
-        // The strong count zero should already make it impossible to access the element ...
-        assert!(!cache
-            .data
-            .lock()
-            .unwrap()
-            .contains_key(&String::from(IDENTITY_SHA256)));
-        // ... but it should not reduce the total size of the hash map ...
-        assert_eq!(cache.data.lock().unwrap().len(), 1);
-        cache.gc().unwrap();
-        // ... however, the garbage collection should actually do.
-        assert_eq!(cache.data.lock().unwrap().len(), 0);
     }
 }
