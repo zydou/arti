@@ -13,7 +13,7 @@ use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::stream::flow_ctrl::state::{StreamEndpointType, StreamFlowCtrl, StreamRateLimit};
+use crate::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
@@ -605,16 +605,14 @@ impl CircHop {
             cfg_if::cfg_if! {
                 if #[cfg(feature = "flowctl-cc")] {
                     // TODO: Currently arti only supports clients, and we don't support connecting
-                    // to onion services while using congestion control, so we hardcode these. In
-                    // the future we will need to somehow tell the `CircHop` these things so that we
-                    // can set them correctly.
-                    let our_endpoint = StreamEndpointType::Client;
-                    let peer_endpoint = StreamEndpointType::Exit;
+                    // to onion services while using congestion control, so we hardcode this. In the
+                    // future we will need to somehow tell the `CircHop` this so that we can set it
+                    // correctly, since we don't want to enable this at exits.
+                    let use_sidechannel_mitigations = true;
 
                     Ok(StreamFlowCtrl::new_xon_xoff(
                         params,
-                        our_endpoint,
-                        peer_endpoint,
+                        use_sidechannel_mitigations,
                         rate_limit_updater,
                         drain_rate_requester,
                     ))

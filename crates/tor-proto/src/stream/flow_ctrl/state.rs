@@ -47,16 +47,14 @@ impl StreamFlowCtrl {
     #[cfg(feature = "flowctl-cc")]
     pub(crate) fn new_xon_xoff(
         params: Arc<FlowCtrlParameters>,
-        our_endpoint: StreamEndpointType,
-        peer_endpoint: StreamEndpointType,
+        use_sidechannel_mitigations: bool,
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Self {
         Self {
             e: StreamFlowCtrlEnum::XonXoffBased(XonXoffFlowCtrl::new(
                 params,
-                our_endpoint,
-                peer_endpoint,
+                use_sidechannel_mitigations,
                 rate_limit_updater,
                 drain_rate_requester,
             )),
@@ -178,15 +176,4 @@ impl std::fmt::Display for StreamRateLimit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} bytes/s", self.rate)
     }
-}
-
-/// An endpoint of a stream.
-///
-/// This could be either our end of the stream, or the other end of the stream.
-#[derive(Copy, Clone, Debug)]
-pub(crate) enum StreamEndpointType {
-    /// A client, which could be an OP or an onion service.
-    Client,
-    /// An exit relay.
-    Exit,
 }
