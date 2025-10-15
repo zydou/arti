@@ -243,9 +243,13 @@ define_derive_deftly! {
     // Field keyword as `&str`
     ${define F_KEYWORD_STR { ${concat
         ${if any(F_FLATTEN, F_SUBDOC) {
+          ${if F_INTRO {
+            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
+          } else {
             // Sub-documents and flattened fields have their keywords inside;
             // if we ask for the field-based keyword name for one of those then that's a bug.
             ${error "internal error, subdoc KeywordRef"}
+          }}
         }}
         ${fmeta(netdoc(keyword)) as str,
           default ${concat ${kebab_case $fname}}}
