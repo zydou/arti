@@ -1,7 +1,8 @@
-//! Implement a simple SOCKS proxy that relays connections over Tor.
+//! Implement a simple proxy that relays connections over Tor.
 //!
-//! A proxy is launched with [`run_socks_proxy()`], which listens for new
-//! connections and then runs
+//! A proxy is launched with [`run_proxy()`], which listens for new
+//! connections, handles an appropriate handshake,
+//! and then relays traffic as appropriate.
 
 semipublic_mod! {
     mod socks;
@@ -40,14 +41,15 @@ pub(crate) enum RpcMgr {}
 /// the connection, the source IpAddr of the client, and the
 /// authentication string provided by the client).
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SocksIsolationKey(ConnIsolation, ProvidedIsolation);
+struct StreamIsolationKey(ListenerIsolation, ProvidedIsolation);
+
 /// Isolation information provided through the socks connection
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProvidedIsolation {
     /// The socks isolation itself.
-    Legacy(SocksAuth),
+    LegacySocks(SocksAuth),
     /// A bytestring provided as isolation with the extended Socks5 username/password protocol.
-    Extended {
+    ExtendedSocks {
         /// Which format was negotiated?
         ///
         /// (At present, different format codes can't share a circuit.)
@@ -57,7 +59,7 @@ enum ProvidedIsolation {
     },
 }
 
-impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
+impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
     fn compatible_same_type(&self, other: &Self) -> bool {
         self == other
     }
@@ -221,8 +223,8 @@ impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
 #[allow(dead_code)]
 mod socks_and_rpc {}
 
-/// Information used to implement a SOCKS connection.
-struct SocksConnContext<R: Runtime> {
+/// Information used to implement a proxy listener.
+struct ProxyContext<R: Runtime> {
     /// A TorClient to use (by default) to anonymize requests.
     tor_client: TorClient<R>,
     /// If present, an RpcMgr to use when for attaching requests to RPC
@@ -231,12 +233,12 @@ struct SocksConnContext<R: Runtime> {
     rpc_mgr: Option<Arc<arti_rpcserver::RpcMgr>>,
 }
 
-/// Type alias for the isolation information associated with a given SOCKS
-/// connection _before_ SOCKS is negotiated.
+/// Type alias for the isolation information associated with a given proxy
+/// connection _before_ any negotiation occurs.
 ///
 /// Currently this is an index for which listener accepted the connection, plus
-/// the address of the client that connected to the Socks port.
-type ConnIsolation = (usize, IpAddr);
+/// the address of the client that connected to the proxy port.
+type ListenerIsolation = (usize, IpAddr);
 
 /// write_all the data to the writer & flush the writer if write_all is successful.
 async fn write_all_and_flush<W>(writer: &mut W, buf: &[u8]) -> Result<()>
@@ -246,11 +248,11 @@ where
     writer
         .write_all(buf)
         .await
-        .context("Error while writing SOCKS reply")?;
+        .context("Error while writing proxy reply")?;
     writer
         .flush()
         .await
-        .context("Error while flushing SOCKS stream")
+        .context("Error while flushing proxy stream")
 }
 
 /// write_all the data to the writer & close the writer if write_all is successful.
@@ -261,11 +263,11 @@ where
     writer
         .write_all(buf)
         .await
-        .context("Error while writing SOCKS reply")?;
+        .context("Error while writing proxy reply")?;
     writer
         .close()
         .await
-        .context("Error while closing SOCKS stream")
+        .context("Error while closing proxy stream")
 }
 
 /// Copy all the data from `reader` into `writer` until we encounter an EOF or
@@ -349,7 +351,7 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
     }
 }
 
-/// Launch a SOCKS proxy to listen on a given localhost port, and run
+/// Launch a proxy to listen on a given localhost port, and run
 /// indefinitely.
 ///
 /// Requires a `runtime` to use for launching tasks and handling
@@ -358,7 +360,7 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor
 #[instrument(skip_all, level = "trace")]
-pub(crate) async fn run_socks_proxy<R: Runtime>(
+pub(crate) async fn run_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
@@ -377,14 +379,15 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
 
     if !listen.is_localhost_only() {
         warn!(
-            "Configured to listen for SOCKS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
+            "Configured to listen for proxy connections on non-local addresses. \
+            This is usually insecure! We recommend listening on localhost only."
         );
     }
 
     let mut listeners = Vec::new();
     let mut listening_on_addrs = Vec::new();
 
-    // Try to bind to the SOCKS ports.
+    // Try to bind to the listener ports.
     match listen.ip_addrs() {
         Ok(addrgroups) => {
             for addrgroup in addrgroups {
@@ -411,8 +414,8 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
 
     // We weren't able to bind any ports: There's nothing to do.
     if listeners.is_empty() {
-        error!("Couldn't open any SOCKS listeners.");
-        return Err(anyhow!("Couldn't open SOCKS listeners"));
+        error!("Couldn't open any listeners.");
+        return Err(anyhow!("Couldn't open listeners"));
     }
 
     cfg_if::cfg_if! {
@@ -425,13 +428,13 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
         }
     }
 
-    run_socks_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
+    run_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
 }
 
-/// Launch a SOCKS proxy from a given set of already bound listeners.
+/// Launch a proxy from a given set of already bound listeners.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[instrument(skip_all, level = "trace")]
-pub(crate) async fn run_socks_proxy_with_listeners<R: Runtime>(
+pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
     tor_client: TorClient<R>,
     listeners: Vec<<R as tor_rtcompat::NetStreamProvider>::Listener>,
     rpc_mgr: Option<Arc<RpcMgr>>,
@@ -455,14 +458,14 @@ pub(crate) async fn run_socks_proxy_with_listeners<R: Runtime>(
             Ok((s, a)) => (s, a),
             Err(err) => {
                 if accept_err_is_fatal(&err) {
-                    return Err(err).context("Failed to receive incoming stream on SOCKS port");
+                    return Err(err).context("Failed to receive incoming stream on proxy port");
                 } else {
                     warn_report!(err, "Incoming stream failed");
                     continue;
                 }
             }
         };
-        let socks_context = SocksConnContext {
+        let proxy_context = ProxyContext {
             tor_client: tor_client.clone(),
             #[cfg(feature = "rpc")]
             rpc_mgr: rpc_mgr.clone(),
@@ -470,7 +473,7 @@ pub(crate) async fn run_socks_proxy_with_listeners<R: Runtime>(
         let runtime_copy = tor_client.runtime().clone();
         tor_client.runtime().spawn(async move {
             let res =
-                socks::handle_socks_conn(runtime_copy, socks_context, stream, (sock_id, addr.ip()))
+                socks::handle_socks_conn(runtime_copy, proxy_context, stream, (sock_id, addr.ip()))
                     .await;
             if let Err(e) = res {
                 // TODO: warn_report doesn't work on anyhow::Error.

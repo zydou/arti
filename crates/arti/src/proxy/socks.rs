@@ -18,7 +18,7 @@ use tor_socksproto::{Handshake as _, SocksAddr, SocksAuth, SocksCmd, SocksReques
 use anyhow::{Context, Result, anyhow};
 
 use super::{
-    ConnIsolation, ProvidedIsolation, SocksConnContext, SocksIsolationKey, copy_interactive,
+    ListenerIsolation, ProvidedIsolation, ProxyContext, StreamIsolationKey, copy_interactive,
     write_all_and_close, write_all_and_flush,
 };
 cfg_if::cfg_if! {
@@ -150,7 +150,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
 
     let isolation = match auth {
         SocksAuth::Username(user, pass) => match interpret_socks5_username(user)? {
-            Uname::Legacy => ProvidedIsolation::Legacy(auth.clone()),
+            Uname::Legacy => ProvidedIsolation::LegacySocks(auth.clone()),
             Uname::Extended(b'1', b"") => {
                 return Err(anyhow!("Received empty RPC object ID"));
             }
@@ -164,13 +164,13 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
                     rpc_object: Some(rpc::ObjectId::from(
                         std::str::from_utf8(remainder).context("Rpc object ID was not utf-8")?,
                     )),
-                    isolation: ProvidedIsolation::Extended {
+                    isolation: ProvidedIsolation::ExtendedSocks {
                         format_code,
                         isolation: pass.clone().into(),
                     },
                 });
             }
-            Uname::Extended(format_code @ b'0', b"") => ProvidedIsolation::Extended {
+            Uname::Extended(format_code @ b'0', b"") => ProvidedIsolation::ExtendedSocks {
                 format_code,
                 isolation: pass.clone().into(),
             },
@@ -179,7 +179,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
             }
             _ => return Err(anyhow!("Unrecognized SOCKS format code")),
         },
-        _ => ProvidedIsolation::Legacy(auth.clone()),
+        _ => ProvidedIsolation::LegacySocks(auth.clone()),
     };
 
     Ok(AuthInterpretation {
@@ -189,7 +189,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
     })
 }
 
-impl<R: Runtime> super::SocksConnContext<R> {
+impl<R: Runtime> super::ProxyContext<R> {
     /// Interpret a SOCKS request and our input information to determine which
     /// TorClient / ClientConnectionTarget object and StreamPrefs we should use.
     ///
@@ -198,14 +198,14 @@ impl<R: Runtime> super::SocksConnContext<R> {
         &self,
         request: &SocksRequest,
         target_addr: &str,
-        conn_isolation: ConnIsolation,
+        conn_isolation: ListenerIsolation,
     ) -> Result<(StreamPrefs, ConnTarget<R>)> {
         // Determine whether we want to ask for IPv4/IPv6 addresses.
         let mut prefs = stream_preference(request, target_addr);
 
         // Interpret socks authentication to see whether we want to connect to an RPC connector.
         let interp = interpret_socks_auth(request.auth())?;
-        prefs.set_isolation(SocksIsolationKey(conn_isolation, interp.isolation));
+        prefs.set_isolation(StreamIsolationKey(conn_isolation, interp.isolation));
 
         #[cfg(feature = "rpc")]
         if let Some(session) = interp.rpc_object {
@@ -238,9 +238,9 @@ impl<R: Runtime> super::SocksConnContext<R> {
 #[instrument(skip_all, level = "trace")]
 pub(super) async fn handle_socks_conn<R, S>(
     runtime: R,
-    context: SocksConnContext<R>,
+    context: ProxyContext<R>,
     mut socks_stream: S,
-    isolation_info: ConnIsolation,
+    isolation_info: ListenerIsolation,
 ) -> Result<()>
 where
     R: Runtime,
