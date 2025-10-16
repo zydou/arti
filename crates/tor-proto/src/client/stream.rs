@@ -32,10 +32,10 @@ pub use incoming::{
 pub use params::StreamParameters;
 pub use raw::StreamReceiver;
 pub use resolve::ResolveStream;
-pub(crate) use {data::DataCmdChecker, resolve::ResolveCmdChecker};
+pub(crate) use {data::OutboundDataCmdChecker, resolve::ResolveCmdChecker};
 
 #[cfg(feature = "hs-service")]
-pub(crate) use crate::stream::incoming::IncomingDataCmdChecker;
+pub(crate) use crate::stream::incoming::InboundDataCmdChecker;
 
 pub use tor_cell::relaycell::msg::IpVersionPreference;
 

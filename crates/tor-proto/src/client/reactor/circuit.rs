@@ -78,7 +78,7 @@ use extender::HandshakeAuxDataHandler;
 
 #[cfg(feature = "hs-service")]
 use {
-    crate::client::stream::{IncomingDataCmdChecker, IncomingStreamRequest},
+    crate::client::stream::{InboundDataCmdChecker, IncomingStreamRequest},
     tor_cell::relaycell::msg::Begin,
 };
 
@@ -943,7 +943,7 @@ impl Circuit {
         let mut drain_rate_request_tx = NotifySender::new_typed();
         let drain_rate_request_rx = drain_rate_request_tx.subscribe();
 
-        let cmd_checker = IncomingDataCmdChecker::new_connected();
+        let cmd_checker = InboundDataCmdChecker::new_connected();
         hop.add_ent_with_id(
             sender,
             msg_rx,

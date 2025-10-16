@@ -8,7 +8,7 @@ use crate::{Error, Result};
 
 /// A `CmdChecker` that enforces invariants for inbound data streams.
 #[derive(Debug, Default)]
-pub(crate) struct IncomingDataCmdChecker;
+pub(crate) struct InboundDataCmdChecker;
 
 restricted_msg! {
     /// An allowable incoming message on an incoming data stream.
@@ -18,7 +18,7 @@ restricted_msg! {
     }
 }
 
-impl CmdChecker for IncomingDataCmdChecker {
+impl CmdChecker for InboundDataCmdChecker {
     fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
         use StreamStatus::*;
         match msg.cmd() {
@@ -39,7 +39,7 @@ impl CmdChecker for IncomingDataCmdChecker {
     }
 }
 
-impl IncomingDataCmdChecker {
+impl InboundDataCmdChecker {
     /// Return a new boxed `DataCmdChecker` in a state suitable for a
     /// connection where an initial CONNECTED cell is not expected.
     ///

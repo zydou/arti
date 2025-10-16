@@ -1191,12 +1191,12 @@ impl DataReaderImpl {
 
 /// A `CmdChecker` that enforces invariants for outbound data streams.
 #[derive(Debug)]
-pub(crate) struct DataCmdChecker {
+pub(crate) struct OutboundDataCmdChecker {
     /// True if we are expecting to receive a CONNECTED message on this stream.
     expecting_connected: bool,
 }
 
-impl Default for DataCmdChecker {
+impl Default for OutboundDataCmdChecker {
     fn default() -> Self {
         Self {
             expecting_connected: true,
@@ -1204,7 +1204,7 @@ impl Default for DataCmdChecker {
     }
 }
 
-impl CmdChecker for DataCmdChecker {
+impl CmdChecker for OutboundDataCmdChecker {
     fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
         use StreamStatus::*;
         match msg.cmd() {
@@ -1243,7 +1243,7 @@ impl CmdChecker for DataCmdChecker {
     }
 }
 
-impl DataCmdChecker {
+impl OutboundDataCmdChecker {
     /// Return a new boxed `DataCmdChecker` in a state suitable for a newly
     /// constructed connection.
     pub(crate) fn new_any() -> AnyCmdChecker {
