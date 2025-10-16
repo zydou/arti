@@ -436,6 +436,7 @@ impl Guard {
     }
 
     /// Change the reachability status for this guard.
+    #[allow(clippy::cognitive_complexity)]
     fn set_reachable(&mut self, r: Reachable) {
         use Reachable as R;
 
