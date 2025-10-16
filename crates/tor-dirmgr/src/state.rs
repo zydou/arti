@@ -1211,7 +1211,9 @@ fn client_download_range(lt: &Lifetime) -> (SystemTime, Duration) {
     // consensus is no longer fresh, and 7/8 of the time remaining
     // after that before the consensus is invalid."
     let lowbound = voting_interval + (voting_interval * 3) / 4;
-    let remainder = whole_lifetime - lowbound;
+    let remainder = whole_lifetime
+        .checked_sub(lowbound)
+        .expect("Arithmetic did not work as expected");
     let uncertainty = (remainder * 7) / 8;
 
     (valid_after + lowbound, uncertainty)

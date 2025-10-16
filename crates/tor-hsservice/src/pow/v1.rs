@@ -412,19 +412,23 @@ impl<R: Runtime, Q: MockableRendRequest + Send + 'static> PowManagerGeneric<R, Q
                 }
             }
 
-            let suggested_effort_update_delay =
-                HS_UPDATE_PERIOD - (runtime.now() - last_suggested_effort_update);
+            let suggested_effort_update_delay = HS_UPDATE_PERIOD.saturating_sub(
+                runtime
+                    .now()
+                    .saturating_duration_since(last_suggested_effort_update),
+            );
 
             // A new TimePeriod that we don't know about (and thus that isn't in next_update_time)
             // might get added at any point. Making sure that our maximum delay is the minimum
             // amount of time that it might take for a seed to expire means that we can be sure
             // that we will rotate newly-added seeds properly.
-            let max_delay =
-                Duration::from_secs(EXPIRATION_TIME_MINS_MIN * 60) - SEED_EARLY_ROTATION_TIME;
+            const MAX_DELAY: Duration = Duration::from_secs(EXPIRATION_TIME_MINS_MIN * 60)
+                .checked_sub(SEED_EARLY_ROTATION_TIME)
+                .expect("SEED_EARLY_ROTATION_TIME too high, or EXPIRATION_TIME_MINS_MIN too low.");
             let delay = next_update_time
-                .map(|x| x.duration_since(SystemTime::now()).unwrap_or(max_delay))
-                .unwrap_or(max_delay)
-                .min(max_delay)
+                .map(|x| x.duration_since(SystemTime::now()).unwrap_or(MAX_DELAY))
+                .unwrap_or(MAX_DELAY)
+                .min(MAX_DELAY)
                 .min(suggested_effort_update_delay);
 
             tracing::debug!(next_wakeup = ?delay, "Recalculated PoW seeds.");
