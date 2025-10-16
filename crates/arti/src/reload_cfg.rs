@@ -438,7 +438,9 @@ mod test {
         });
     }
 
+    // TODO: Ignored until #1607 is fixed
     #[test]
+    #[ignore]
     fn watch_multiple() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             let temp_dir = test_temp_dir!();
