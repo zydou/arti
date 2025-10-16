@@ -124,7 +124,7 @@ pub(crate) trait InboundRelayLayer {
 #[allow(dead_code)]
 #[cfg_attr(feature = "bench", visibility::make(pub))]
 pub(crate) trait OutboundRelayLayer {
-    /// Decrypt a RelayCellBody that is moving towards the client.
+    /// Decrypt a RelayCellBody that is coming from the client.
     ///
     /// Return an authentication tag if it is addressed to us.
     fn decrypt_outbound(&mut self, cmd: ChanCmd, cell: &mut RelayCellBody) -> Option<SendmeTag>;
