@@ -19,7 +19,6 @@ use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
 use crate::client::stream::queue::{StreamQueueSender, stream_queue};
-use crate::client::stream::{AnyCmdChecker, StreamStatus};
 use crate::client::streammap;
 use crate::congestion::CongestionSignals;
 use crate::congestion::sendme;
@@ -33,6 +32,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
+use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::tunnel::TunnelScopedCircId;
@@ -78,7 +78,7 @@ use extender::HandshakeAuxDataHandler;
 
 #[cfg(feature = "hs-service")]
 use {
-    crate::client::stream::{DataCmdChecker, IncomingStreamRequest},
+    crate::client::stream::{InboundDataCmdChecker, IncomingStreamRequest},
     tor_cell::relaycell::msg::Begin,
 };
 
@@ -943,7 +943,7 @@ impl Circuit {
         let mut drain_rate_request_tx = NotifySender::new_typed();
         let drain_rate_request_rx = drain_rate_request_tx.subscribe();
 
-        let cmd_checker = DataCmdChecker::new_connected();
+        let cmd_checker = InboundDataCmdChecker::new_connected();
         hop.add_ent_with_id(
             sender,
             msg_rx,

@@ -4,8 +4,8 @@
 //! we might still receive some cells.
 
 use crate::Result;
-use crate::client::stream::{AnyCmdChecker, StreamStatus};
 use crate::congestion::sendme::{StreamRecvWindow, cmd_counts_towards_windows};
+use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
@@ -100,7 +100,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::{
-        client::stream::DataCmdChecker,
+        client::stream::OutboundDataCmdChecker,
         congestion::sendme::{StreamRecvWindow, StreamSendWindow},
     };
     use rand::{CryptoRng, Rng};
@@ -134,7 +134,7 @@ mod test {
         let mut hs = HalfStream::new(
             StreamFlowCtrl::new_window(sendw),
             StreamRecvWindow::new(20),
-            DataCmdChecker::new_any(),
+            OutboundDataCmdChecker::new_any(),
         );
 
         // one sendme is fine
@@ -158,7 +158,7 @@ mod test {
         HalfStream::new(
             StreamFlowCtrl::new_window(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
-            DataCmdChecker::new_any(),
+            OutboundDataCmdChecker::new_any(),
         )
     }
 
@@ -209,7 +209,7 @@ mod test {
 
         // If we try that again _after getting a connected_,
         // accept any.
-        let mut cmd_checker = DataCmdChecker::new_any();
+        let mut cmd_checker = OutboundDataCmdChecker::new_any();
         {
             cmd_checker
                 .check_msg(&to_unparsed(&mut rng, msg::Connected::new_empty().into()))

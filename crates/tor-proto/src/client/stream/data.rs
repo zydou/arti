@@ -35,6 +35,7 @@ use educe::Educe;
 use crate::client::stream::StreamReceiver;
 use crate::client::{ClientTunnel, StreamTarget};
 use crate::memquota::StreamAccount;
+use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::{BufferIsEmpty, XonXoffReader, XonXoffReaderCtrl};
 use crate::util::token_bucket::dynamic_writer::DynamicRateLimitedWriter;
@@ -43,8 +44,6 @@ use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
 use tor_error::internal;
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
-
-use super::AnyCmdChecker;
 
 /// A stream of [`RateLimitedWriterConfig`] used to update a [`DynamicRateLimitedWriter`].
 ///
@@ -141,7 +140,7 @@ pub struct DataStream {
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+    ctrl: Arc<ClientDataStreamCtrl>,
 }
 assert_impl_all! { DataStream: Send, Sync }
 
@@ -201,7 +200,7 @@ struct DataWriterInner {
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+    ctrl: Arc<ClientDataStreamCtrl>,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
@@ -415,7 +414,7 @@ pub(crate) struct DataReaderInner {
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
-    ctrl: std::sync::Arc<ClientDataStreamCtrl>,
+    ctrl: Arc<ClientDataStreamCtrl>,
 }
 
 impl BufferIsEmpty for DataReaderInner {
@@ -452,8 +451,7 @@ impl BufferIsEmpty for DataReaderInner {
 struct DataStreamStatus {
     /// True if we've received a CONNECTED message.
     //
-    // TODO: This is redundant with `connected` in DataReaderImpl and
-    // `expecting_connected` in DataCmdChecker.
+    // TODO: This is redundant with `connected` in DataReaderImpl.
     received_connected: bool,
     /// True if we have decided to send an END message.
     //
@@ -496,8 +494,8 @@ impl DataStreamStatus {
 }
 
 restricted_msg! {
-    /// An allowable incoming message on a data stream.
-    enum DataStreamMsg:RelayMsg {
+    /// An allowable incoming message on a client data stream.
+    enum ClientDataStreamMsg:RelayMsg {
         // SENDME is handled by the reactor.
         Data, End, Connected,
     }
@@ -1122,10 +1120,10 @@ impl DataReaderImpl {
 
     /// Load self.pending with the contents of a new data cell.
     fn read_cell(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        use DataStreamMsg::*;
+        use ClientDataStreamMsg::*;
         let msg = match self.as_mut().project().s.poll_next(cx) {
             Poll::Pending => return Poll::Pending,
-            Poll::Ready(Some(Ok(unparsed))) => match unparsed.decode::<DataStreamMsg>() {
+            Poll::Ready(Some(Ok(unparsed))) => match unparsed.decode::<ClientDataStreamMsg>() {
                 Ok(cell) => cell.into_msg(),
                 Err(e) => {
                     self.s.protocol_error();
@@ -1193,12 +1191,12 @@ impl DataReaderImpl {
 
 /// A `CmdChecker` that enforces invariants for outbound data streams.
 #[derive(Debug)]
-pub(crate) struct DataCmdChecker {
+pub(crate) struct OutboundDataCmdChecker {
     /// True if we are expecting to receive a CONNECTED message on this stream.
     expecting_connected: bool,
 }
 
-impl Default for DataCmdChecker {
+impl Default for OutboundDataCmdChecker {
     fn default() -> Self {
         Self {
             expecting_connected: true,
@@ -1206,12 +1204,9 @@ impl Default for DataCmdChecker {
     }
 }
 
-impl super::CmdChecker for DataCmdChecker {
-    fn check_msg(
-        &mut self,
-        msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<super::StreamStatus> {
-        use super::StreamStatus::*;
+impl CmdChecker for OutboundDataCmdChecker {
+    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
+        use StreamStatus::*;
         match msg.cmd() {
             RelayCmd::CONNECTED => {
                 if !self.expecting_connected {
@@ -1242,28 +1237,16 @@ impl super::CmdChecker for DataCmdChecker {
 
     fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayMsg) -> Result<()> {
         let _ = msg
-            .decode::<DataStreamMsg>()
+            .decode::<ClientDataStreamMsg>()
             .map_err(|err| Error::from_bytes_err(err, "cell on half-closed stream"))?;
         Ok(())
     }
 }
 
-impl DataCmdChecker {
+impl OutboundDataCmdChecker {
     /// Return a new boxed `DataCmdChecker` in a state suitable for a newly
     /// constructed connection.
     pub(crate) fn new_any() -> AnyCmdChecker {
         Box::<Self>::default()
-    }
-
-    /// Return a new boxed `DataCmdChecker` in a state suitable for a
-    /// connection where an initial CONNECTED cell is not expected.
-    ///
-    /// This is used by hidden services, exit relays, and directory servers
-    /// to accept streams.
-    #[cfg(feature = "hs-service")]
-    pub(crate) fn new_connected() -> AnyCmdChecker {
-        Box::new(Self {
-            expecting_connected: false,
-        })
     }
 }

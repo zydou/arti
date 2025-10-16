@@ -9,7 +9,6 @@
 //!
 //! There is no fairness, rate-limiting, or flow control.
 
-mod cmdcheck;
 #[cfg(feature = "stream-ctrl")]
 mod ctrl;
 mod data;
@@ -20,7 +19,6 @@ pub(crate) mod queue;
 mod raw;
 mod resolve;
 
-pub(crate) use cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 pub use data::{DataReader, DataStream, DataWriter};
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
@@ -34,7 +32,10 @@ pub use incoming::{
 pub use params::StreamParameters;
 pub use raw::StreamReceiver;
 pub use resolve::ResolveStream;
-pub(crate) use {data::DataCmdChecker, resolve::ResolveCmdChecker};
+pub(crate) use {data::OutboundDataCmdChecker, resolve::ResolveCmdChecker};
+
+#[cfg(feature = "hs-service")]
+pub(crate) use crate::stream::incoming::InboundDataCmdChecker;
 
 pub use tor_cell::relaycell::msg::IpVersionPreference;
 

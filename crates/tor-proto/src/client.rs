@@ -24,12 +24,13 @@ pub use crate::client::circuit::padding::{
 };
 use crate::client::stream::queue::stream_queue;
 use crate::client::stream::{
-    AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
+    DataStream, OutboundDataCmdChecker, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReceiver,
 };
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::util::notify::NotifySender;
@@ -442,7 +443,7 @@ impl ClientTunnel {
         optimistic: bool,
     ) -> Result<DataStream> {
         let components = self
-            .begin_stream_impl(msg, DataCmdChecker::new_any())
+            .begin_stream_impl(msg, OutboundDataCmdChecker::new_any())
             .await?;
 
         let StreamComponents {

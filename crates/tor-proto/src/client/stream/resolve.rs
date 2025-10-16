@@ -2,14 +2,13 @@
 
 use crate::client::stream::StreamReceiver;
 use crate::memquota::StreamAccount;
+use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::{Error, Result};
 
 use futures::StreamExt;
 use tor_cell::relaycell::RelayCmd;
 use tor_cell::relaycell::msg::Resolved;
 use tor_cell::restricted_msg;
-
-use super::AnyCmdChecker;
 
 /// A ResolveStream represents a pending DNS request made with a RESOLVE
 /// cell.
@@ -77,18 +76,15 @@ impl ResolveStream {
 /// and eventually end up being returned from the reactor's `run_once`
 /// function, causing it to shut down.
 ///
-/// [`super::StreamStatus::Closed`] is handled in the `CircHop`'s
+/// [`StreamStatus::Closed`] is handled in the `CircHop`'s
 /// stream map (by marking the stream as closed, or returning
 /// a CircProto error, as appropriate).
 #[derive(Debug, Default)]
 pub(crate) struct ResolveCmdChecker {}
 
-impl super::CmdChecker for ResolveCmdChecker {
-    fn check_msg(
-        &mut self,
-        msg: &tor_cell::relaycell::UnparsedRelayMsg,
-    ) -> Result<super::StreamStatus> {
-        use super::StreamStatus::Closed;
+impl CmdChecker for ResolveCmdChecker {
+    fn check_msg(&mut self, msg: &tor_cell::relaycell::UnparsedRelayMsg) -> Result<StreamStatus> {
+        use StreamStatus::Closed;
         match msg.cmd() {
             RelayCmd::RESOLVED => Ok(Closed),
             RelayCmd::END => Ok(Closed),

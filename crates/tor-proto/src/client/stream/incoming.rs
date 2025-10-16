@@ -2,10 +2,11 @@
 
 use bitvec::prelude::*;
 
-use super::{AnyCmdChecker, DataStream, StreamStatus};
+use super::DataStream;
 use crate::client::StreamComponents;
 use crate::client::circuit::ClientCircSyncView;
 use crate::client::reactor::CloseStreamBehavior;
+use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::{Error, Result};
 use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;
@@ -167,7 +168,7 @@ impl IncomingCmdChecker {
     }
 }
 
-impl super::CmdChecker for IncomingCmdChecker {
+impl crate::stream::cmdcheck::CmdChecker for IncomingCmdChecker {
     fn check_msg(&mut self, msg: &UnparsedRelayMsg) -> Result<StreamStatus> {
         if self.allow_commands[u8::from(msg.cmd()) as usize] {
             Ok(StreamStatus::Open)

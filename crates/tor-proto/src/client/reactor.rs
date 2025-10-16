@@ -6,7 +6,7 @@
 //!
 //! 1. Is the message contextually appropriate? (e.g., no more than one
 //!    `CONNECTED` message per stream.) This is handled by calling
-//!    [`CmdChecker::check_msg`](crate::client::stream::CmdChecker::check_msg).
+//!    [`CmdChecker::check_msg`](crate::stream::cmdcheck::CmdChecker::check_msg).
 //! 2. Does the message comply with flow-control rules? (e.g., no more SENDMEs
 //!    than we've sent data for.) This is handled within the reactor by the
 //!    `StreamFlowCtrl`. For half-closed streams which don't send stream
@@ -26,7 +26,6 @@ use crate::circuit::UniqId;
 use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
-use crate::client::stream::AnyCmdChecker;
 use crate::client::stream::queue::StreamQueueReceiver;
 #[cfg(feature = "hs-service")]
 use crate::client::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
@@ -34,6 +33,7 @@ use crate::client::{HopLocation, TargetHop, streammap};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::tunnel::{TunnelId, TunnelScopedCircId};

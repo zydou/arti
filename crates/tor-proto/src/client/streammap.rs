@@ -3,9 +3,9 @@
 use crate::client::circuit::StreamMpscReceiver;
 use crate::client::halfstream::HalfStream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
-use crate::client::stream::AnyCmdChecker;
 use crate::client::stream::queue::StreamQueueSender;
 use crate::congestion::sendme;
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
@@ -584,7 +584,7 @@ mod test {
     use super::*;
     use crate::client::circuit::test::fake_mpsc;
     use crate::client::stream::queue::fake_stream_queue;
-    use crate::{client::stream::DataCmdChecker, congestion::sendme::StreamSendWindow};
+    use crate::{client::stream::OutboundDataCmdChecker, congestion::sendme::StreamSendWindow};
 
     #[test]
     fn test_wrapping_next_stream_id() {
@@ -615,7 +615,7 @@ mod test {
                 sink,
                 rx,
                 StreamFlowCtrl::new_window(StreamSendWindow::new(500)),
-                DataCmdChecker::new_any(),
+                OutboundDataCmdChecker::new_any(),
             )?;
             let expect_id: StreamId = next_id;
             assert_eq!(expect_id, id);
