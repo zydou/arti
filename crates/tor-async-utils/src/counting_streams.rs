@@ -5,7 +5,7 @@
 // `futures` crate adds this functionality, we can use that instead. )
 
 use std::{
-    pin::{Pin, pin},
+    pin::Pin,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},

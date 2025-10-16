@@ -228,7 +228,6 @@ pub use restricted_msg;
 
 #[cfg(test)]
 mod test {
-    use super::*;
     // Here we do a couple of other variations of the example in the doctest, to
     // make sure they work.
 
