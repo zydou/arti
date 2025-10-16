@@ -78,13 +78,13 @@ default:
 
 check-editorconfig:
   stage: build
-  image: docker.io/mstruebing/editorconfig-checker
+  image: docker.io/mstruebing/editorconfig-checker:v3.4.1
   script:
     - ec
 
 shellcheck:
   stage: build
-  image: docker.io/koalaman/shellcheck-alpine
+  image: docker.io/koalaman/shellcheck-alpine:v0.11.0
   script:
     - apk add git bash
     - ./maint/common/shellcheck-all
