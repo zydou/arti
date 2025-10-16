@@ -24,7 +24,8 @@ pub use crate::client::circuit::padding::{
 };
 use crate::client::stream::queue::stream_queue;
 use crate::client::stream::{
-    OutboundDataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters, StreamReceiver,
+    DataStream, OutboundDataCmdChecker, ResolveCmdChecker, ResolveStream, StreamParameters,
+    StreamReceiver,
 };
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
