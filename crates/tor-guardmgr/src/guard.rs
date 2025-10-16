@@ -447,7 +447,7 @@ impl Guard {
                     Some(retry_at) => warn!(
                         "Could not connect to guard {}. Retrying in {:?}.",
                         self,
-                        retry_at - Instant::now(),
+                        humantime::format_duration(retry_at - Instant::now()),
                     ),
                     None => warn!(
                         "Could not connect to guard {}. Next retry time unknown.",

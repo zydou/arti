@@ -19,7 +19,7 @@ pub enum PickGuardError {
         suitable.display_frac_rejected(),
         filtered.display_frac_rejected(),
         if let Some(retry_at) = retry_at {
-            format!(" Retrying in {:?}.", *retry_at - Instant::now())
+            format!(" Retrying in {:?}.", humantime::format_duration(*retry_at - Instant::now()))
         } else {
             "".to_string()
         },
