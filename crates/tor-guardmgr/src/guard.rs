@@ -436,6 +436,7 @@ impl Guard {
     }
 
     /// Change the reachability status for this guard.
+    #[allow(clippy::cognitive_complexity)]
     fn set_reachable(&mut self, r: Reachable) {
         use Reachable as R;
 
@@ -443,10 +444,17 @@ impl Guard {
             // High-level logs, if change is interesting to user.
             match (self.reachable, r) {
                 (_, R::Reachable) => info!("We have found that guard {} is usable.", self),
-                (R::Untried | R::Reachable, R::Unreachable) => warn!(
-                    "Could not connect to guard {}. We'll retry later, and let you know if it succeeds.",
-                    self
-                ),
+                (R::Untried | R::Reachable, R::Unreachable) => match self.retry_at {
+                    Some(retry_at) => warn!(
+                        "Could not connect to guard {}. Retrying in {:?}.",
+                        self,
+                        humantime::format_duration(retry_at - Instant::now()),
+                    ),
+                    None => warn!(
+                        "Could not connect to guard {}. Next retry time unknown.",
+                        self
+                    ),
+                },
                 (_, _) => {} // not interesting.
             }
             //
@@ -660,9 +668,6 @@ impl Guard {
     ///
     /// If `is_primary` is true, this is a primary guard (q.v.).
     pub(crate) fn record_failure(&mut self, now: Instant, is_primary: bool) {
-        self.set_reachable(Reachable::Unreachable);
-        self.exploratory_circ_pending = false;
-
         let mut rng = rand::rng();
         let retry_interval = self
             .retry_schedule
@@ -671,6 +676,9 @@ impl Guard {
 
         // TODO-SPEC: Document this behavior in guard-spec.
         self.retry_at = Some(now + retry_interval);
+
+        self.set_reachable(Reachable::Unreachable);
+        self.exploratory_circ_pending = false;
 
         self.circ_history.n_failures += 1;
     }
