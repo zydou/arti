@@ -15,7 +15,7 @@ use tor_rtcompat::ToplevelRuntime;
 
 #[cfg(feature = "dns-proxy")]
 use crate::dns;
-use crate::{ArtiConfig, TorClient, exit, process, reload_cfg, socks};
+use crate::{ArtiConfig, TorClient, exit, process, proxy, reload_cfg};
 
 #[cfg(feature = "rpc")]
 use crate::rpc;
@@ -180,7 +180,7 @@ async fn run_proxy<R: ToplevelRuntime>(
         let client = client.isolated_client();
         let socks_listen = socks_listen.clone();
         proxy.push(Box::pin(async move {
-            let res = socks::run_socks_proxy(runtime, client, socks_listen, rpc_data).await;
+            let res = proxy::run_socks_proxy(runtime, client, socks_listen, rpc_data).await;
             (res, "SOCKS")
         }));
     }
