@@ -133,6 +133,8 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
 // Pass by value so that we don't need to clone fields, which keeps the code simpler.
 #[allow(clippy::needless_pass_by_value)]
 fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Result<()> {
+    // TODO: Warn (or exit?) if running as root; see 'arti::process::running_as_root()'.
+
     let mut cfg_sources = global_args
         .config()
         .context("Failed to get configuration sources")?;
@@ -268,6 +270,7 @@ enum MainloopStatus<T> {
 
 /// Formats an iterator as an object whose display implementation is a `separator`-separated string
 /// of items from `iter`.
+// TODO: This can be replaced with `std::fmt::from_fn()` once stabilised and within our MSRV.
 fn iter_join(separator: &str, iter: impl Iterator<Item: Display> + Clone) -> impl Display {
     struct Fmt<'a, I: Iterator<Item: Display> + Clone> {
         /// Separates items in `iter`.
