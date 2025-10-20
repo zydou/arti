@@ -25,19 +25,30 @@ ns_use_this_variety! {
 /// instead, in `Consensus.flavor`, there's just the `ConsensusFlavor`.
 /// `parse2` doesn't (currently) support subdocuments which contain the parent's intro item
 /// (ie, `#[deftly(netdoc(flatten))]` is not supported on the first field.)
+//
+// TODO the *contents* of this struct is still wrong for votes.
+#[cfg_attr(
+    feature = "parse2",
+    derive(Deftly),
+    derive_deftly(NetdocParseableFields),
+)]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Preamble {
     /// Over what time is this consensus valid?  (For votes, this is
     /// the time over which the voted-upon consensus should be valid.)
+    #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
     pub lifetime: Lifetime,
     /// List of recommended Tor client versions.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub client_versions: Vec<String>,
     /// List of recommended Tor relay versions.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub server_versions: Vec<String>,
     /// Lists of recommended and required subprotocols.
     ///
     /// **`{recommended,required}-{client,relay}-protocols`**
+    #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
     pub proto_statuses: Arc<ProtoStatuses>,
     /// Declared parameters for tunable settings about how to the
     /// network should operator. Some of these adjust timeouts and
@@ -49,6 +60,7 @@ pub struct Preamble {
     /// What "method" was used to produce this consensus?  (A
     /// consensus method is a version number used by authorities to
     /// upgrade the consensus algorithm.)
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub consensus_method: u32,
     /// Global shared-random value for the previous shared-random period.
     pub shared_rand_previous_value: Option<SharedRandStatus>,
