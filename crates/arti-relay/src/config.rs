@@ -215,6 +215,12 @@ pub(crate) struct StorageConfig {
     keystore: ArtiKeystoreConfig,
 
     /// Configuration about which permissions we want to enforce on our files.
+    // NOTE: This 'build_for_arti()' hard-codes the config field name as `permissions` and the
+    // environment variable as `ARTI_FS_DISABLE_PERMISSION_CHECKS`. These things should be
+    // configured by the application, not lower-level libraries, but some other lower-level
+    // libraries like `tor-hsservice` also use 'build_for_arti()'. So we're stuck with it for now.
+    // It might be confusing in the future if relays use some environment variables prefixed with
+    // "ARTI_" and others with "ARTI_RELAY_", so we should probably stick to just "ARTI_".
     #[builder(sub_builder(fn_name = "build_for_arti"))]
     #[builder_field_attr(serde(default))]
     permissions: Mistrust,
