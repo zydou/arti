@@ -25,7 +25,10 @@ ns_use_this_variety! {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Consensus {
-    /// The preamble.
+    /// What kind of consensus document is this?  Absent in votes and
+    /// in ns-flavored consensuses.
+    pub flavor: ConsensusFlavor,
+    /// The preamble, except for the intro item.
     pub preamble: Preamble,
     /// List of voters whose votes contributed to this consensus.
     pub voters: Vec<ConsensusVoterInfo>,
@@ -196,7 +199,7 @@ impl Consensus {
         r: &mut NetDocReader<'a, NetstatusKwd>,
     ) -> Result<(&'a str, &'a str, UncheckedConsensus)> {
         use NetstatusKwd::*;
-        let (preamble, start_pos) = {
+        let ((flavor, preamble), start_pos) = {
             let mut h = r.pause_at(|i| i.is_ok_with_kwd_in(&[DIR_SOURCE]));
             let preamble_sec = NS_HEADER_RULES_CONSENSUS.parse(&mut h)?;
             // Unwrapping should be safe because above `.parse` would have
@@ -205,11 +208,11 @@ impl Consensus {
             let pos = preamble_sec.first_item().unwrap().offset_in(r.str()).unwrap();
             (Preamble::from_section(&preamble_sec)?, pos)
         };
-        if RouterStatus::flavor() != preamble.flavor {
+        if RouterStatus::flavor() != flavor {
             return Err(EK::BadDocumentType.with_msg(format!(
                 "Expected {:?}, got {:?}",
                 RouterStatus::flavor(),
-                preamble.flavor
+                flavor
             )));
         }
 
@@ -233,6 +236,7 @@ impl Consensus {
         let footer = Self::take_footer(r)?;
 
         let consensus = Consensus {
+            flavor,
             preamble,
             voters,
             relays,
@@ -299,7 +303,7 @@ impl Consensus {
 
 impl Preamble {
     /// Extract the CommonPreamble members from a single preamble section.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<Preamble> {
+    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<(ConsensusFlavor, Preamble)> {
         use NetstatusKwd::*;
 
         {
@@ -397,8 +401,7 @@ impl Preamble {
             None
         };
 
-        Ok(Preamble {
-            flavor,
+        let preamble = Preamble {
             lifetime,
             client_versions,
             relay_versions,
@@ -408,7 +411,9 @@ impl Preamble {
             consensus_method,
             shared_rand_prev,
             shared_rand_cur,
-        })
+        };
+
+        Ok((flavor, preamble))
     }
 }
 

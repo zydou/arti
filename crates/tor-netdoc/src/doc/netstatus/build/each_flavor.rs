@@ -33,7 +33,7 @@ use super::*;
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct ConsensusBuilder {
-    /// See [`Preamble::flavor`]
+    /// See [`Consensus::flavor`]
     flavor: ConsensusFlavor,
     /// See [`Preamble::lifetime`]
     lifetime: Option<Lifetime>,
@@ -244,7 +244,6 @@ impl ConsensusBuilder {
             .ok_or(Error::CannotBuild("Missing consensus method."))?;
 
         let preamble = Preamble {
-            flavor: self.flavor,
             lifetime,
             client_versions: self.client_versions.clone(),
             relay_versions: self.relay_versions.clone(),
@@ -265,6 +264,7 @@ impl ConsensusBuilder {
         // TODO: check for duplicates?
 
         Ok(Consensus {
+            flavor: self.flavor,
             preamble,
             voters: self.voters.clone(),
             relays,

@@ -16,15 +16,18 @@ ns_use_this_variety! {
     pub use [crate::doc::netstatus::rs]::?::{RouterStatus};
 }
 
-/// The preamble of a network status document
+/// The preamble of a network status document, except for the intro item.
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:preable>
+///
+/// **Does not include `network-status-version`**.
+/// In the old parser this is not represented directly;
+/// instead, in `, it's just the `ConsensusFlavor`.
+/// `parse2` doesn't (currently) support subdocuments which contain the parent's intro item
+/// (ie, `#[deftly(netdoc(flatten))]` is not supported on the first field.)
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Preamble {
-    /// What kind of consensus document is this?  Absent in votes and
-    /// in ns-flavored consensuses.
-    pub flavor: ConsensusFlavor,
     /// Over what time is this consensus valid?  (For votes, this is
     /// the time over which the voted-upon consensus should be valid.)
     pub lifetime: Lifetime,
