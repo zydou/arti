@@ -206,3 +206,12 @@ task or rector in arti relay.
   avoid attacks. As an example, C-tor requires to clip the TTL of replies and
   thus we likely need a full DNS component rather than a simple getaddrinfo().
 
+10. Enforce protocol recommendations
+
+  The relay should monitor the recommended and required protocols as specified
+  in the consensus, and either log or exit if the relay does not adhere to the
+  recommended/required protocols.
+
+  Arti clients already perform this check using
+  `arti_client::protostatus::enforce_protocol_recommendations`. We should make
+  this available to arti-relay and run it as a background task.
