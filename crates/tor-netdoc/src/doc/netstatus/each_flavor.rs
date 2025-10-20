@@ -21,10 +21,7 @@ ns_use_this_variety! {
     pub use [crate::doc::netstatus::rs::build]::?::{RouterStatusBuilder};
 }
 
-/// A single microdescriptor consensus netstatus
-///
-/// TODO: This should possibly turn into a parameterized type, to represent
-/// votes and ns consensuses.
+/// A single consensus netstatus, as produced by the old parser.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Consensus {
