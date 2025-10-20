@@ -101,6 +101,9 @@ impl InertTorRelay {
 
     /// Connect the [`InertTorRelay`] to the Tor network.
     pub(crate) async fn bootstrap<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
+        // Attempt to generate any missing keys/cert from the KeyMgr.
+        Self::try_generate_keys(&self.keymgr).context("Failed to generate keys")?;
+
         TorRelay::bootstrap(runtime, self).await
     }
 
@@ -122,9 +125,6 @@ impl InertTorRelay {
                 .build()
                 .context("Failed to build the 'KeyMgr'")?,
         );
-
-        // Attempt to generate any missing keys/cert from the KeyMgr.
-        Self::try_generate_keys(&keymgr).context("Failed to generate keys")?;
 
         Ok(keymgr)
     }
