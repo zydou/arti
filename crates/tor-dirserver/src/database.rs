@@ -1,14 +1,48 @@
 //! Access to the database schema.
 //!
-//! This module is not inteded to provide a high-level ORM, instead it serves
+//! This module is not intended to provide a high-level ORM, instead it serves
 //! the purpose of initializing and upgrading the database, if necessary.
+//!
+//! # Synchronous or Asynchronous?
+//!
+//! The question on whether the database and access to it shall be synchronous
+//! or asynchronous has been fairly long debate that eventually got settled
+//! after realizing that an asynchronous approach does not work.  This comment
+//! should serve as a reminder for future devs, wondering why we use certain
+//! synchronous primitives in an otherwise asynchronous codebase.
+//!
+//! Early on, it was clear that we would need some sort of connection pool,
+//! primarily for two reasons:
+//! 1. Performing frequent open and close calls in every task would be costly.
+//! 2. Sharing a single connection object with a Mutex would be a waste
+//!
+//! Because the application itself is primarily asynchronous, we decided to go
+//! with an asynchronous connection pool as well, leading to the choose of
+//! `deadpool` initially.
+//!
+//! However, soon thereafter, problems with `deadpool` became evident.  Those
+//! problems mostly stemmed from the synchronous nature of SQLite itself.  In our
+//! case, this problem was initially triggered by figuring out a way to solve
+//! `SQLITE_BUSY` handling.  In the end, we decided to settle upon the following
+//! approach: Set `PRAGMA busy_timeout` to a certain value and create write
+//! transactions with `BEGIN EXCLUSIVE`.  This way, SQLite would try to obtain
+//! a write transaction for `busy_timeout` milliseconds by blocking the current
+//! thread.  Due to this blocking, async no longer made any sense and was in
+//! fact quite counter-productive because those potential sleep could screw a
+//! lot of things up, which became very evident while trying to test this.
+//!
+//! Besides, throughout refactoring the code base, we realized that, even while
+//! still using `deadpool`, the actual "asynchronous" calls interfacing with the
+//! database became smaller and smaller.  In the end, the asynchronous code just
+//! involved parts of obtaining a connection and creating a transaction,
+//! eventually resulting in a calling a synchronous function taking the
+//! transaction handle to perform the lion's share of the operation.
 
-use std::path::PathBuf;
+use std::{num::NonZero, path::Path};
 
-use deadpool::managed::{Pool, PoolError};
-use deadpool_sqlite::{Config, Manager};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Transaction, TransactionBehavior};
-use tor_error::internal;
 
 use crate::err::DatabaseError;
 
@@ -205,10 +239,14 @@ PRAGMA busy_timeout=1000;
 /// * Schema initialization.
 /// * Schema upgrade.
 /// * Setting connection specific settings.
-pub(crate) async fn open<P: Into<PathBuf>>(path: P) -> Result<Pool<Manager>, DatabaseError> {
-    let pool = Config::new(path)
-        .create_pool(deadpool::Runtime::Tokio1)
-        .map_err(|e| internal!("pool creation failed?: {e}"))?;
+pub(crate) fn open<P: AsRef<Path>>(
+    path: P,
+) -> Result<Pool<SqliteConnectionManager>, DatabaseError> {
+    let num_cores = std::thread::available_parallelism()
+        .unwrap_or(NonZero::new(8).expect("8 == 0?"))
+        .get() as u32;
+    let manager = r2d2_sqlite::SqliteConnectionManager::file(path);
+    let pool = Pool::builder().max_size(num_cores).build(manager)?;
 
     rw_tx(&pool, |tx| {
         // Prepare the database, doing the following steps:
@@ -252,9 +290,7 @@ pub(crate) async fn open<P: Into<PathBuf>>(path: P) -> Result<Pool<Manager>, Dat
         }
 
         Ok::<_, DatabaseError>(())
-    })
-    .await
-    .map_err(|e| internal!("pool interaction failed?: {e}"))??;
+    })??;
 
     Ok(pool)
 }
@@ -268,33 +304,17 @@ pub(crate) async fn open<P: Into<PathBuf>>(path: P) -> Result<Pool<Manager>, Dat
 /// **The closure shall not perform write operations!**
 /// Not only do they get rolled back anyways, but upgrading the [`Transaction`]
 /// from a read to a write transaction will lead to other simultanous write upgrades
-/// to fail.  Unfortunately, there is no real programatic way to ensure this,
-/// at least not as long as [`deadpool_sqlite`] offers no solution to obtain a
-/// read-only [`Connection`](rusqlite::Connection).
-pub(crate) async fn read_tx<U, F>(pool: &Pool<Manager>, op: F) -> Result<U, DatabaseError>
+/// to fail.  Unfortunately, there is no real programatic way to ensure this.
+pub(crate) fn read_tx<U, F>(pool: &Pool<SqliteConnectionManager>, op: F) -> Result<U, DatabaseError>
 where
-    F: FnOnce(&Transaction<'_>) -> U + Send + 'static,
-    U: Send + 'static,
+    F: FnOnce(&Transaction<'_>) -> U,
 {
-    Ok(pool
-        .get()
-        .await
-        .map_err(|e| match e {
-            PoolError::Backend(e) => DatabaseError::LowLevel(e),
-            PoolError::Closed => DatabaseError::Bug(internal!("pool closed?")),
-            PoolError::NoRuntimeSpecified => DatabaseError::Bug(internal!("no runtime specified?")),
-            PoolError::PostCreateHook(e) => DatabaseError::Bug(internal!("post create hook?: {e}")),
-            PoolError::Timeout(_) => DatabaseError::Bug(internal!("pool timeout?")),
-        })?
-        .interact(|conn| {
-            conn.execute_batch(GLOBAL_OPTIONS)?;
-            let tx = conn.transaction_with_behavior(TransactionBehavior::Deferred)?;
-            let res = op(&tx);
-            tx.rollback()?;
-            Ok::<_, rusqlite::Error>(res)
-        })
-        .await
-        .map_err(|e| internal!("pool interaction failed?: {e}"))??)
+    let mut conn = pool.get()?;
+    conn.execute_batch(GLOBAL_OPTIONS)?;
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    let res = op(&tx);
+    tx.rollback()?;
+    Ok(res)
 }
 
 /// Executes a closure `op` with a given read-write [`Transaction`].
@@ -306,30 +326,16 @@ where
 /// The [`Transaction`] gets created with [`TransactionBehavior::Immediate`],
 /// meaning it will immediately exist as a write connection, retrying in the
 /// case of a [`rusqlite::ErrorCode::DatabaseBusy`] until it failed after 1s.
-pub(crate) async fn rw_tx<U, F>(pool: &Pool<Manager>, op: F) -> Result<U, DatabaseError>
+pub(crate) fn rw_tx<U, F>(pool: &Pool<SqliteConnectionManager>, op: F) -> Result<U, DatabaseError>
 where
-    F: FnOnce(&Transaction<'_>) -> U + Send + 'static,
-    U: Send + 'static,
+    F: FnOnce(&Transaction<'_>) -> U,
 {
-    Ok(pool
-        .get()
-        .await
-        .map_err(|e| match e {
-            PoolError::Backend(e) => DatabaseError::LowLevel(e),
-            PoolError::Closed => DatabaseError::Bug(internal!("pool closed?")),
-            PoolError::NoRuntimeSpecified => DatabaseError::Bug(internal!("no runtime specified?")),
-            PoolError::PostCreateHook(e) => DatabaseError::Bug(internal!("post create hook?: {e}")),
-            PoolError::Timeout(_) => DatabaseError::Bug(internal!("pool timeout?")),
-        })?
-        .interact(|conn| {
-            conn.execute_batch(GLOBAL_OPTIONS)?;
-            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let res = op(&tx);
-            tx.commit()?;
-            Ok::<_, rusqlite::Error>(res)
-        })
-        .await
-        .map_err(|e| internal!("pool interaction failed?: {e}"))??)
+    let mut conn = pool.get()?;
+    conn.execute_batch(GLOBAL_OPTIONS)?;
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Exclusive)?;
+    let res = op(&tx);
+    tx.commit()?;
+    Ok(res)
 }
 
 #[cfg(test)]
@@ -357,16 +363,15 @@ mod test {
 
     use rusqlite::Connection;
     use tempfile::tempdir;
-    use tokio::runtime::Runtime;
 
     use super::*;
 
-    #[tokio::test]
-    async fn open() {
+    #[test]
+    fn open() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        super::open(&db_path).await.unwrap();
+        super::open(&db_path).unwrap();
         let conn = Connection::open(&db_path).unwrap();
 
         // Check if the version was initialized properly.
@@ -388,17 +393,17 @@ mod test {
         drop(conn);
 
         assert_eq!(
-            super::open(&db_path).await.unwrap_err().to_string(),
+            super::open(&db_path).unwrap_err().to_string(),
             "incompatible schema version: 42"
         );
     }
 
-    #[tokio::test]
-    async fn read_tx() {
+    #[test]
+    fn read_tx() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        let pool = super::open(&db_path).await.unwrap();
+        let pool = super::open(&db_path).unwrap();
 
         // Do a write transaction despite forbidden.
         super::read_tx(&pool, |tx| {
@@ -413,7 +418,6 @@ mod test {
                 .unwrap_err();
             assert_eq!(e, rusqlite::Error::QueryReturnedNoRows);
         })
-        .await
         .unwrap();
 
         // Normal check.
@@ -425,24 +429,22 @@ mod test {
             )
             .unwrap()
         })
-        .await
         .unwrap();
         assert_eq!(version, "1");
     }
 
-    #[tokio::test]
-    async fn rw_tx() {
+    #[test]
+    fn rw_tx() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        let pool = super::open(&db_path).await.unwrap();
+        let pool = super::open(&db_path).unwrap();
 
         // Do a write transaction.
         super::rw_tx(&pool, |tx| {
             tx.execute_batch("DELETE FROM arti_dirmirror_schema_version")
                 .unwrap();
         })
-        .await
         .unwrap();
 
         // Check that it was deleted.
@@ -456,7 +458,6 @@ mod test {
                 .unwrap_err();
             assert_eq!(e, rusqlite::Error::QueryReturnedNoRows);
         })
-        .await
         .unwrap();
     }
 
@@ -487,21 +488,17 @@ mod test {
             let db_path = db_path2;
             let barrier = barrier2;
             let writer_acquired = writer_acquired2;
-            let rt = Runtime::new().unwrap();
-            rt.block_on(async move {
-                // Open the pool and wait for it to sync.
-                let pool = super::open(&db_path).await.unwrap();
-                println!("t1 opened pool");
-                barrier.wait();
 
-                // Block the writer for 500ms.
-                super::rw_tx(&pool, move |_tx| {
-                    println!("t1 acquired write lock");
-                    writer_acquired.store(true, Ordering::SeqCst);
-                    std::thread::sleep(Duration::from_millis(500));
-                    println!("t1 released write lock");
-                })
-                .await
+            let pool = super::open(&db_path).unwrap();
+            println!("t1 opened pool");
+            barrier.wait();
+
+            // Block the writer for 500ms.
+            super::rw_tx(&pool, move |_tx| {
+                println!("t1 acquired write lock");
+                writer_acquired.store(true, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(500));
+                println!("t1 released write lock");
             })
         });
 
@@ -513,24 +510,21 @@ mod test {
             let db_path = db_path2;
             let barrier = barrier2;
             let writer_acquired = writer_acquired2;
-            let rt = Runtime::new().unwrap();
-            rt.block_on(async move {
-                // Open the pool and wait for it to sync.
-                let pool = super::open(&db_path).await.unwrap();
-                println!("t2 opened pool");
-                barrier.wait();
 
-                // Wait until t1 has acquired the writer.
-                while !writer_acquired.load(Ordering::SeqCst) {}
-                println!("t2 starting waiting game");
+            // Open the pool and wait for it to sync.
+            let pool = super::open(&db_path).unwrap();
+            println!("t2 opened pool");
+            barrier.wait();
 
-                // Block the writer for 500ms.
-                super::rw_tx(&pool, |_tx| {
-                    println!("t2 acquired write lock");
-                    std::thread::sleep(Duration::from_millis(500));
-                    println!("t2 release wait lock");
-                })
-                .await
+            // Wait until t1 has acquired the writer.
+            while !writer_acquired.load(Ordering::SeqCst) {}
+            println!("t2 starting waiting game");
+
+            // Block the writer for 500ms.
+            super::rw_tx(&pool, |_tx| {
+                println!("t2 acquired write lock");
+                std::thread::sleep(Duration::from_millis(500));
+                println!("t2 release wait lock");
             })
         });
 
@@ -565,21 +559,18 @@ mod test {
             let db_path = db_path2;
             let barrier = barrier2;
             let writer_acquired = writer_acquired2;
-            let rt = Runtime::new().unwrap();
-            rt.block_on(async move {
-                // Open the pool and wait for it to sync.
-                let pool = super::open(&db_path).await.unwrap();
-                println!("t1 opened pool");
-                barrier.wait();
 
-                // Block the writer for 1500ms.
-                super::rw_tx(&pool, move |_tx| {
-                    println!("t1 acquired write lock");
-                    writer_acquired.store(true, Ordering::SeqCst);
-                    std::thread::sleep(Duration::from_millis(1500));
-                    println!("t1 released write lock");
-                })
-                .await
+            // Open the pool and wait for it to sync.
+            let pool = super::open(&db_path).unwrap();
+            println!("t1 opened pool");
+            barrier.wait();
+
+            // Block the writer for 1500ms.
+            super::rw_tx(&pool, move |_tx| {
+                println!("t1 acquired write lock");
+                writer_acquired.store(true, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(1500));
+                println!("t1 released write lock");
             })
         });
 
@@ -591,20 +582,18 @@ mod test {
             let db_path = db_path2;
             let barrier = barrier2;
             let writer_acquired = writer_acquired2;
-            let rt = Runtime::new().unwrap();
-            rt.block_on(async move {
-                // Open the pool and wait for it to sync.
-                let pool = super::open(&db_path).await.unwrap();
-                println!("t2 opened pool");
-                barrier.wait();
 
-                // Wait until t1 has acquired the writer.
-                while !writer_acquired.load(Ordering::SeqCst) {}
-                println!("t2 starting waiting game");
+            // Open the pool and wait for it to sync.
+            let pool = super::open(&db_path).unwrap();
+            println!("t2 opened pool");
+            barrier.wait();
 
-                // Try to block the writer.
-                super::rw_tx(&pool, |_tx| unreachable!()).await
-            })
+            // Wait until t1 has acquired the writer.
+            while !writer_acquired.load(Ordering::SeqCst) {}
+            println!("t2 starting waiting game");
+
+            // Try to block the writer.
+            super::rw_tx(&pool, |_tx| unreachable!())
         });
 
         t1.join().unwrap().unwrap();

@@ -127,61 +127,56 @@ mod test {
     use super::super::test::*;
     use super::*;
 
-    #[tokio::test]
-    async fn store_cache() {
-        let pool = create_test_db_pool().await;
-        pool.get()
-            .await
+    #[test]
+    fn store_cache() {
+        let pool = create_test_db_pool();
+        let mut conn = pool.get().unwrap();
+
+        let cache = StoreCache::new();
+
+        let tx = conn.transaction().unwrap();
+
+        // Obtain the lipsum entry.
+        let entry = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
+        assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
+        assert_eq!(Arc::strong_count(&entry), 1);
+
+        // Obtain the lipsum entry again but ensure it is not copied in memory.
+        let entry2 = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
+        assert_eq!(Arc::strong_count(&entry), 2);
+        assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
+        assert_eq!(entry, entry2);
+
+        // Perform a garbage collection and ensure that entry is not removed.
+        assert!(cache
+            .data
+            .lock()
             .unwrap()
-            .interact(|conn| {
-                let cache = StoreCache::new();
+            .contains_key(&String::from(IDENTITY_SHA256)));
+        cache.gc();
+        assert!(cache
+            .data
+            .lock()
+            .unwrap()
+            .contains_key(&String::from(IDENTITY_SHA256)));
 
-                let tx = conn.transaction().unwrap();
+        // Now drop entry and entry2 and perform the gc again.
+        let weak_entry = Arc::downgrade(&entry);
+        assert_eq!(weak_entry.strong_count(), 2);
+        drop(entry);
+        drop(entry2);
+        assert_eq!(weak_entry.strong_count(), 0);
 
-                // Obtain the lipsum entry.
-                let entry = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
-                assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
-                assert_eq!(Arc::strong_count(&entry), 1);
-
-                // Obtain the lipsum entry again but ensure it is not copied in memory.
-                let entry2 = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
-                assert_eq!(Arc::strong_count(&entry), 2);
-                assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
-                assert_eq!(entry, entry2);
-
-                // Perform a garbage collection and ensure that entry is not removed.
-                assert!(cache
-                    .data
-                    .lock()
-                    .unwrap()
-                    .contains_key(&String::from(IDENTITY_SHA256)));
-                cache.gc();
-                assert!(cache
-                    .data
-                    .lock()
-                    .unwrap()
-                    .contains_key(&String::from(IDENTITY_SHA256)));
-
-                // Now drop entry and entry2 and perform the gc again.
-                let weak_entry = Arc::downgrade(&entry);
-                assert_eq!(weak_entry.strong_count(), 2);
-                drop(entry);
-                drop(entry2);
-                assert_eq!(weak_entry.strong_count(), 0);
-
-                // The strong count zero should already make it impossible to access the element ...
-                assert!(!cache
-                    .data
-                    .lock()
-                    .unwrap()
-                    .contains_key(&String::from(IDENTITY_SHA256)));
-                // ... but it should not reduce the total size of the hash map ...
-                assert_eq!(cache.data.lock().unwrap().len(), 1);
-                cache.gc();
-                // ... however, the garbage collection should actually do.
-                assert_eq!(cache.data.lock().unwrap().len(), 0);
-            })
-            .await
-            .unwrap();
+        // The strong count zero should already make it impossible to access the element ...
+        assert!(!cache
+            .data
+            .lock()
+            .unwrap()
+            .contains_key(&String::from(IDENTITY_SHA256)));
+        // ... but it should not reduce the total size of the hash map ...
+        assert_eq!(cache.data.lock().unwrap().len(), 1);
+        cache.gc();
+        // ... however, the garbage collection should actually do.
+        assert_eq!(cache.data.lock().unwrap().len(), 0);
     }
 }

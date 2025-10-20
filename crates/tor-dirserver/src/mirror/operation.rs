@@ -17,8 +17,8 @@
 
 use std::time::{Duration, SystemTime};
 
-use deadpool::managed::Pool;
-use deadpool_sqlite::Manager;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{params, OptionalExtension, Transaction};
 use tor_basic_utils::RngExt;
@@ -216,7 +216,7 @@ fn calculate_sync_timeout<R: Rng>(
 /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-desc-from-auth>
 /// * <https://spec.torproject.org/dir-spec/client-operation.html#retrying-failed-downloads>
 pub(super) async fn serve<R: Rng, F: Fn() -> SystemTime>(
-    pool: Pool<Manager>,
+    pool: Pool<SqliteConnectionManager>,
     flavor: ConsensusFlavor,
     _authorities: AuthorityContacts,
     _schedule: DownloadScheduleConfig,
@@ -233,7 +233,6 @@ pub(super) async fn serve<R: Rng, F: Fn() -> SystemTime>(
             let tolerance = tolerance.clone();
             move |tx| get_recent_consensus(tx, flavor, &tolerance, now)
         })
-        .await
         .map_err(ConsensusSelectionError::from);
         let res = match res {
             Ok(Ok(res)) => res,
@@ -306,8 +305,6 @@ mod test {
     use crate::database;
 
     use super::*;
-    use deadpool::managed::Pool;
-    use deadpool_sqlite::Manager;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_dircommon::config::DirToleranceBuilder;
 
@@ -319,8 +316,8 @@ mod test {
     const CONTENT: &str = "Lorem ipsum dolor sit amet.";
     const SHA256: &str = "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
 
-    async fn create_dummy_db() -> Pool<Manager> {
-        let pool = database::open("").await.unwrap();
+    fn create_dummy_db() -> Pool<SqliteConnectionManager> {
+        let pool = database::open("").unwrap();
         database::rw_tx(&pool, |tx| {
             tx.execute(
                 sql!("INSERT INTO store (sha256, content) VALUES (?1, ?2)"),
@@ -351,15 +348,14 @@ mod test {
             )
             .unwrap();
         })
-        .await
         .unwrap();
 
         pool
     }
 
-    #[tokio::test]
-    async fn recent_consensus() {
-        let pool = create_dummy_db().await;
+    #[test]
+    fn recent_consensus() {
+        let pool = create_dummy_db();
         let no_tolerance = DirToleranceBuilder::default()
             .pre_valid_tolerance(Duration::ZERO)
             .post_valid_tolerance(Duration::ZERO)
@@ -477,7 +473,6 @@ mod test {
             );
             assert_eq!(res1, res2);
         })
-        .await
         .unwrap();
     }
 
