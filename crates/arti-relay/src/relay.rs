@@ -118,13 +118,12 @@ impl InertTorRelay {
             .context("Failed to construct the native keystore")?;
         info!("Using relay keystore from {key_store_dir:?}");
 
-        let keymgr = Arc::new(
-            KeyMgrBuilder::default()
-                .primary_store(Box::new(persistent_store))
-                .set_secondary_stores(vec![Box::new(ephemeral_store)])
-                .build()
-                .context("Failed to build the 'KeyMgr'")?,
-        );
+        let keymgr = KeyMgrBuilder::default()
+            .primary_store(Box::new(persistent_store))
+            .set_secondary_stores(vec![Box::new(ephemeral_store)])
+            .build()
+            .context("Failed to build the 'KeyMgr'")?;
+        let keymgr = Arc::new(keymgr);
 
         Ok(keymgr)
     }
