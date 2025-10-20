@@ -16,10 +16,12 @@ ns_use_this_variety! {
     pub use [crate::doc::netstatus::rs]::?::{RouterStatus};
 }
 
-/// The header of a networkstatus.
+/// The preamble of a network status document
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:preable>
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct Header {
+pub struct Preamble {
     /// What kind of consensus document is this?  Absent in votes and
     /// in ns-flavored consensuses.
     pub flavor: ConsensusFlavor,

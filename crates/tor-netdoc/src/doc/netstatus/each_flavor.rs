@@ -28,8 +28,8 @@ ns_use_this_variety! {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Consensus {
-    /// Part of the header shared by all consensus types.
-    pub header: Header,
+    /// The preamble.
+    pub preamble: Preamble,
     /// List of voters whose votes contributed to this consensus.
     pub voters: Vec<ConsensusVoterInfo>,
     /// A list of routerstatus entries for the relays on the network,
@@ -45,7 +45,7 @@ pub struct Consensus {
 impl Consensus {
     /// Return the Lifetime for this consensus.
     pub fn lifetime(&self) -> &Lifetime {
-        &self.header.lifetime
+        &self.preamble.lifetime
     }
 
     /// Return a slice of all the routerstatus entries in this consensus.
@@ -61,36 +61,36 @@ impl Consensus {
 
     /// Return the map of network parameters that this consensus advertises.
     pub fn params(&self) -> &NetParams<i32> {
-        &self.header.params
+        &self.preamble.params
     }
 
     /// Return the latest shared random value, if the consensus
     /// contains one.
     pub fn shared_rand_cur(&self) -> Option<&SharedRandStatus> {
-        self.header.shared_rand_cur.as_ref()
+        self.preamble.shared_rand_cur.as_ref()
     }
 
     /// Return the previous shared random value, if the consensus
     /// contains one.
     pub fn shared_rand_prev(&self) -> Option<&SharedRandStatus> {
-        self.header.shared_rand_prev.as_ref()
+        self.preamble.shared_rand_prev.as_ref()
     }
 
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every relay must implement.  
     pub fn relay_protocol_status(&self) -> &ProtoStatus {
-        &self.header.proto_statuses.relay
+        &self.preamble.proto_statuses.relay
     }
 
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
     /// recommendations for the list of protocols that every client must implement.
     pub fn client_protocol_status(&self) -> &ProtoStatus {
-        &self.header.proto_statuses.client
+        &self.preamble.proto_statuses.client
     }
 
     /// Return a set of all known [`ProtoStatus`] values.
     pub fn protocol_statuses(&self) -> &Arc<ProtoStatuses> {
-        &self.header.proto_statuses
+        &self.preamble.proto_statuses
     }
 }
 
@@ -199,20 +199,20 @@ impl Consensus {
         r: &mut NetDocReader<'a, NetstatusKwd>,
     ) -> Result<(&'a str, &'a str, UncheckedConsensus)> {
         use NetstatusKwd::*;
-        let (header, start_pos) = {
+        let (preamble, start_pos) = {
             let mut h = r.pause_at(|i| i.is_ok_with_kwd_in(&[DIR_SOURCE]));
-            let header_sec = NS_HEADER_RULES_CONSENSUS.parse(&mut h)?;
+            let preamble_sec = NS_HEADER_RULES_CONSENSUS.parse(&mut h)?;
             // Unwrapping should be safe because above `.parse` would have
             // returned an Error
             #[allow(clippy::unwrap_used)]
-            let pos = header_sec.first_item().unwrap().offset_in(r.str()).unwrap();
-            (Header::from_section(&header_sec)?, pos)
+            let pos = preamble_sec.first_item().unwrap().offset_in(r.str()).unwrap();
+            (Preamble::from_section(&preamble_sec)?, pos)
         };
-        if RouterStatus::flavor() != header.flavor {
+        if RouterStatus::flavor() != preamble.flavor {
             return Err(EK::BadDocumentType.with_msg(format!(
                 "Expected {:?}, got {:?}",
                 RouterStatus::flavor(),
-                header.flavor
+                preamble.flavor
             )));
         }
 
@@ -236,7 +236,7 @@ impl Consensus {
         let footer = Self::take_footer(r)?;
 
         let consensus = Consensus {
-            header,
+            preamble,
             voters,
             relays,
             footer,
@@ -291,8 +291,8 @@ impl Consensus {
             siggroup,
             n_authorities: None,
         };
-        let lifetime = unval.consensus.header.lifetime.clone();
-        let delay = unval.consensus.header.voting_delay.unwrap_or((0, 0));
+        let lifetime = unval.consensus.preamble.lifetime.clone();
+        let delay = unval.consensus.preamble.voting_delay.unwrap_or((0, 0));
         let dist_interval = time::Duration::from_secs(delay.1.into());
         let starting_time = *lifetime.valid_after - dist_interval;
         let timebound = TimerangeBound::new(unval, starting_time..*lifetime.valid_until);
@@ -300,9 +300,9 @@ impl Consensus {
     }
 }
 
-impl Header {
-    /// Extract the CommonHeader members from a single header section.
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<Header> {
+impl Preamble {
+    /// Extract the CommonPreamble members from a single preamble section.
+    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<Preamble> {
         use NetstatusKwd::*;
 
         {
@@ -400,7 +400,7 @@ impl Header {
             None
         };
 
-        Ok(Header {
+        Ok(Preamble {
             flavor,
             lifetime,
             client_versions,

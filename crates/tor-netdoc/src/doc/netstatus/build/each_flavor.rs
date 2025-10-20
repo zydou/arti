@@ -16,11 +16,11 @@ ns_use_this_variety! {
 }
 #[cfg(not(doc))]
 ns_use_this_variety! {
-    use [crate::doc::netstatus]::?::{Consensus, Header};
+    use [crate::doc::netstatus]::?::{Consensus, Preamble};
 }
 #[cfg(doc)]
 ns_use_this_variety! {
-    pub use [crate::doc::netstatus]::?::{Consensus, Header};
+    pub use [crate::doc::netstatus]::?::{Consensus, Preamble};
 }
 
 use super::*;
@@ -33,27 +33,27 @@ use super::*;
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct ConsensusBuilder {
-    /// See [`Header::flavor`]
+    /// See [`Preamble::flavor`]
     flavor: ConsensusFlavor,
-    /// See [`Header::lifetime`]
+    /// See [`Preamble::lifetime`]
     lifetime: Option<Lifetime>,
-    /// See [`Header::client_versions`]
+    /// See [`Preamble::client_versions`]
     client_versions: Vec<String>,
-    /// See [`Header::relay_versions`]
+    /// See [`Preamble::relay_versions`]
     relay_versions: Vec<String>,
-    /// See [`Header::proto_statuses`]
+    /// See [`Preamble::proto_statuses`]
     client_protos: ProtoStatus,
-    /// See [`Header::proto_statuses`]
+    /// See [`Preamble::proto_statuses`]
     relay_protos: ProtoStatus,
-    /// See [`Header::params`]
+    /// See [`Preamble::params`]
     params: NetParams<i32>,
-    /// See [`Header::voting_delay`]
+    /// See [`Preamble::voting_delay`]
     voting_delay: Option<(u32, u32)>,
-    /// See [`Header::consensus_method`]
+    /// See [`Preamble::consensus_method`]
     consensus_method: Option<u32>,
-    /// See [`Header::shared_rand_prev`]
+    /// See [`Preamble::shared_rand_prev`]
     shared_rand_prev: Option<SharedRandStatus>,
-    /// See [`Header::shared_rand_cur`]
+    /// See [`Preamble::shared_rand_cur`]
     shared_rand_cur: Option<SharedRandStatus>,
     /// See [`Consensus::voters`]
     voters: Vec<ConsensusVoterInfo>,
@@ -243,7 +243,7 @@ impl ConsensusBuilder {
             .consensus_method
             .ok_or(Error::CannotBuild("Missing consensus method."))?;
 
-        let header = Header {
+        let preamble = Preamble {
             flavor: self.flavor,
             lifetime,
             client_versions: self.client_versions.clone(),
@@ -265,7 +265,7 @@ impl ConsensusBuilder {
         // TODO: check for duplicates?
 
         Ok(Consensus {
-            header,
+            preamble,
             voters: self.voters.clone(),
             relays,
             footer,
