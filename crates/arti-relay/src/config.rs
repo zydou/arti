@@ -122,6 +122,11 @@ pub(crate) struct TorRelayConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) channel: ChannelConfig,
+
+    /// Configuration for system resources
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) system: SystemConfig,
 }
 impl_standard_builder! { TorRelayConfig }
 
@@ -241,6 +246,19 @@ impl StorageConfig {
         resolve_cfg_path(&self.state_dir, "state_dir", resolver)
     }
 }
+
+/// Configuration for system resources used by the relay.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
+pub(crate) struct SystemConfig {
+    /// Memory limits (approximate)
+    #[builder(sub_builder(fn_name = "build"))]
+    #[builder_field_attr(serde(default))]
+    pub(crate) memory: tor_memquota::Config,
+}
+impl_standard_builder! { SystemConfig }
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
