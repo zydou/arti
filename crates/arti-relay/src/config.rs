@@ -227,21 +227,6 @@ impl StorageConfig {
         &self.permissions
     }
 
-    /// Return the fully expanded path of the keystore directory.
-    pub(crate) fn keystore_dir(
-        &self,
-        resolver: &CfgPathResolver,
-    ) -> Result<PathBuf, ConfigBuildError> {
-        Ok(self
-            .state_dir
-            .path(resolver)
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "state_dir".to_owned(),
-                problem: e.to_string(),
-            })?
-            .join("keystore"))
-    }
-
     /// Return the fully expanded path of the cache directory.
     pub(crate) fn state_dir(
         &self,

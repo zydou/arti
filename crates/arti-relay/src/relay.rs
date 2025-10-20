@@ -1,12 +1,13 @@
 //! Entry point of a Tor relay that is the [`TorRelay`] objects
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
 use tokio::task::JoinSet;
 use tracing::info;
 
+use fs_mistrust::Mistrust;
 use tor_chanmgr::Dormancy;
 use tor_config_path::CfgPathResolver;
 use tor_keymgr::{
@@ -78,8 +79,8 @@ impl InertTorRelay {
             FsStateMgr::from_path_and_mistrust(&state_path, config.storage.permissions())
                 .context("Failed to create `FsStateMgr`")?;
 
-        let keymgr =
-            Self::create_keymgr(&config, &path_resolver).context("Failed to create key manager")?;
+        let keymgr = Self::create_keymgr(&state_path, config.storage.permissions())
+            .context("Failed to create key manager")?;
 
         Ok(Self {
             config,
@@ -97,22 +98,14 @@ impl InertTorRelay {
     }
 
     /// Create the [key manager](KeyMgr).
-    fn create_keymgr(
-        config: &TorRelayConfig,
-        path_resolver: &CfgPathResolver,
-    ) -> anyhow::Result<Arc<KeyMgr>> {
-        let key_store_dir = config
-            .storage
-            .keystore_dir(path_resolver)
-            .context("Failed to get key store directory")?;
-        let permissions = config.storage.permissions();
+    fn create_keymgr(state_path: &Path, mistrust: &Mistrust) -> anyhow::Result<Arc<KeyMgr>> {
+        let key_store_dir = state_path.join("keystore");
 
         // Store for the short-term keys that we don't need to keep on disk. The store identifier
         // is relay explicit because it can be used in other crates for channel and circuit.
         let ephemeral_store = ArtiEphemeralKeystore::new("relay-ephemeral".into());
-        let persistent_store =
-            ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)
-                .context("Failed to construct the native keystore")?;
+        let persistent_store = ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, mistrust)
+            .context("Failed to construct the native keystore")?;
         info!("Using relay keystore from {key_store_dir:?}");
 
         let keymgr = Arc::new(
