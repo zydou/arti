@@ -67,7 +67,8 @@ use clap::Parser;
 use futures::FutureExt;
 use futures::task::SpawnExt;
 use safelog::with_safe_logging_suppressed;
-use tor_rtcompat::{PreferredRuntime, Runtime, ToplevelRuntime};
+use tor_rtcompat::tokio::TokioRustlsRuntime;
+use tor_rtcompat::{Runtime, ToplevelRuntime};
 use tracing::{debug, info, trace};
 use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
@@ -248,11 +249,13 @@ async fn run_relay<R: Runtime>(runtime: R, inert_relay: InertTorRelay) -> anyhow
 
 /// Initialize a runtime.
 ///
-/// Any commands that need a runtime should call this so that we use a consistent runtime.
+/// Any cli commands that need a runtime should call this so that we use a consistent runtime.
 fn init_runtime() -> std::io::Result<impl ToplevelRuntime> {
-    // Use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
-    // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
-    PreferredRuntime::create()
+    // Use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly.
+    // See https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744.
+    // Relays must use rustls as native-tls doesn't support
+    // `CertifiedConn::export_keying_material()`.
+    TokioRustlsRuntime::create()
 }
 
 /// The result of [`mainloop`].
