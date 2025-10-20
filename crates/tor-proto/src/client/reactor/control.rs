@@ -10,7 +10,6 @@ use crate::circuit::celltypes::CreateResponse;
 #[cfg(feature = "circ-padding-manual")]
 use crate::client::circuit::padding;
 use crate::client::circuit::{HopSettings, path};
-use crate::client::reactor::circuit::circ_extensions_from_settings;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::client::stream::queue::StreamQueueSender;
 use crate::client::{HopLocation, TargetHop, streammap};
@@ -420,7 +419,7 @@ impl<'a> ControlHandler<'a> {
                     return Ok(None);
                 };
 
-                let client_extensions = circ_extensions_from_settings(&settings)?;
+                let client_extensions = settings.circuit_request_extensions()?;
 
                 let (extender, cell) = CircuitExtender::<NtorV3Client>::begin(
                     peer_id,

@@ -8,8 +8,6 @@ pub(super) mod extender;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
-#[cfg(feature = "counter-galois-onion")]
-use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
@@ -44,7 +42,6 @@ use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::chancell::{AnyChanCell, ChanCmd, CircId};
 use tor_cell::chancell::{BoxedCellBody, ChanMsg};
-use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme, SendmeTag, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoderResult, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
@@ -1177,7 +1174,7 @@ impl Circuit {
         self.channel.check_match(&target)?;
 
         // Set the client extensions.
-        let client_extensions = circ_extensions_from_settings(&settings)?;
+        let client_extensions = settings.circuit_request_extensions()?;
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,
         };
@@ -1753,61 +1750,4 @@ impl Drop for Circuit {
     fn drop(&mut self) {
         let _ = self.channel.close_circuit(self.channel_id);
     }
-}
-
-/// Return the client circuit-creation extensions that we should use in order to negotiate
-/// a given set of circuit hop parameters.
-#[allow(clippy::unnecessary_wraps)]
-pub(super) fn circ_extensions_from_settings(params: &HopSettings) -> Result<Vec<CircRequestExt>> {
-    // allow 'unused_mut' because of the combinations of `cfg` conditions below
-    #[allow(unused_mut)]
-    let mut client_extensions = Vec::new();
-
-    #[allow(unused, unused_mut)]
-    let mut cc_extension_set = false;
-
-    if params.ccontrol.is_enabled() {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "flowctl-cc")] {
-                client_extensions.push(CircRequestExt::CcRequest(CcRequest::default()));
-                cc_extension_set = true;
-            } else {
-                return Err(
-                    tor_error::internal!(
-                        "Congestion control is enabled on this circuit, but 'flowctl-cc' feature is not enabled"
-                    )
-                    .into()
-                );
-            }
-        }
-    }
-
-    // See whether we need to send a list of required protocol capabilities.
-    // These aren't "negotiated" per se; they're simply demanded.
-    // The relay will refuse the circuit if it doesn't support all of them,
-    // and if any of them isn't supported in the SubprotocolRequest extension.
-    //
-    // (In other words, don't add capabilities here just because you want the
-    // relay to have them! They must be explicitly listed as supported for use
-    // with this extension. For the current list, see
-    // https://spec.torproject.org/tor-spec/create-created-cells.html#subproto-request)
-    //
-    #[allow(unused_mut)]
-    let mut required_protocol_capabilities: Vec<tor_protover::NamedSubver> = Vec::new();
-
-    #[cfg(feature = "counter-galois-onion")]
-    if matches!(params.relay_crypt_protocol(), RelayCryptLayerProtocol::Cgo) {
-        if !cc_extension_set {
-            return Err(tor_error::internal!("Tried to negotiate CGO without CC.").into());
-        }
-        required_protocol_capabilities.push(tor_protover::named::RELAY_CRYPT_CGO);
-    }
-
-    if !required_protocol_capabilities.is_empty() {
-        client_extensions.push(CircRequestExt::SubprotocolRequest(
-            required_protocol_capabilities.into_iter().collect(),
-        ));
-    }
-
-    Ok(client_extensions)
 }

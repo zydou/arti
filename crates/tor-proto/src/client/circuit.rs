@@ -65,6 +65,7 @@ use handshake::RelayCryptLayerProtocol;
 use path::HopDetail;
 use tor_cell::chancell::CircId;
 use tor_cell::relaycell::RelayCellFormat;
+use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
 use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
@@ -582,6 +583,63 @@ impl HopSettings {
     /// Return the negotiated relay crypto protocol.
     pub(super) fn relay_crypt_protocol(&self) -> RelayCryptLayerProtocol {
         self.relay_crypt_protocol
+    }
+
+    /// Return the client circuit-creation extensions that we should use in order to negotiate
+    /// these circuit hop parameters.
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn circuit_request_extensions(&self) -> Result<Vec<CircRequestExt>> {
+        // allow 'unused_mut' because of the combinations of `cfg` conditions below
+        #[allow(unused_mut)]
+        let mut client_extensions = Vec::new();
+
+        #[allow(unused, unused_mut)]
+        let mut cc_extension_set = false;
+
+        if self.ccontrol.is_enabled() {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "flowctl-cc")] {
+                    client_extensions.push(CircRequestExt::CcRequest(CcRequest::default()));
+                    cc_extension_set = true;
+                } else {
+                    return Err(
+                        tor_error::internal!(
+                            "Congestion control is enabled on this circuit, but 'flowctl-cc' feature is not enabled"
+                        )
+                        .into()
+                    );
+                }
+            }
+        }
+
+        // See whether we need to send a list of required protocol capabilities.
+        // These aren't "negotiated" per se; they're simply demanded.
+        // The relay will refuse the circuit if it doesn't support all of them,
+        // and if any of them isn't supported in the SubprotocolRequest extension.
+        //
+        // (In other words, don't add capabilities here just because you want the
+        // relay to have them! They must be explicitly listed as supported for use
+        // with this extension. For the current list, see
+        // https://spec.torproject.org/tor-spec/create-created-cells.html#subproto-request)
+        //
+        #[allow(unused_mut)]
+        let mut required_protocol_capabilities: Vec<tor_protover::NamedSubver> = Vec::new();
+
+        #[cfg(feature = "counter-galois-onion")]
+        if matches!(self.relay_crypt_protocol(), RelayCryptLayerProtocol::Cgo) {
+            if !cc_extension_set {
+                return Err(tor_error::internal!("Tried to negotiate CGO without CC.").into());
+            }
+            required_protocol_capabilities.push(tor_protover::named::RELAY_CRYPT_CGO);
+        }
+
+        if !required_protocol_capabilities.is_empty() {
+            client_extensions.push(CircRequestExt::SubprotocolRequest(
+                required_protocol_capabilities.into_iter().collect(),
+            ));
+        }
+
+        Ok(client_extensions)
     }
 }
 
