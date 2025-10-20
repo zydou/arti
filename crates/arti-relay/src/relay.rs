@@ -1,7 +1,9 @@
 //! Entry point of a Tor relay that is the [`TorRelay`] objects
 
-use anyhow::Context;
+use std::path::PathBuf;
 use std::sync::Arc;
+
+use anyhow::Context;
 use tokio::task::JoinSet;
 use tracing::info;
 
@@ -12,6 +14,8 @@ use tor_keymgr::{
 };
 use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::params::NetParameters;
+use tor_persist::FsStateMgr;
+use tor_persist::state_dir::StateDirectory;
 use tor_proto::memquota::ToplevelAccount;
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
 use tor_rtcompat::Runtime;
@@ -45,6 +49,18 @@ pub(crate) struct InertTorRelay {
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
     #[expect(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
+    /// State directory path.
+    ///
+    /// The [`StateDirectory`] stored in `state_dir` doesn't seem to have a way of getting the state
+    /// directory path, so we need to store a copy of the path here.
+    #[expect(unused)] // TODO RELAY remove
+    state_path: PathBuf,
+    /// Relay's state directory.
+    #[expect(unused)] // TODO RELAY remove
+    state_dir: StateDirectory,
+    /// Location on disk where we store persistent data.
+    #[expect(unused)] // TODO RELAY remove
+    state_mgr: FsStateMgr,
     /// Key manager holding all relay keys and certificates.
     keymgr: Arc<KeyMgr>,
 }
@@ -55,12 +71,22 @@ impl InertTorRelay {
         config: TorRelayConfig,
         path_resolver: CfgPathResolver,
     ) -> anyhow::Result<Self> {
+        let state_path = config.storage.state_dir(&path_resolver)?;
+        let state_dir = StateDirectory::new(&state_path, config.storage.permissions())
+            .context("Failed to create `StateDirectory`")?;
+        let state_mgr =
+            FsStateMgr::from_path_and_mistrust(&state_path, config.storage.permissions())
+                .context("Failed to create `FsStateMgr`")?;
+
         let keymgr =
             Self::create_keymgr(&config, &path_resolver).context("Failed to create key manager")?;
 
         Ok(Self {
             config,
             path_resolver,
+            state_path,
+            state_dir,
+            state_mgr,
             keymgr,
         })
     }

@@ -202,6 +202,9 @@ pub(crate) struct StorageConfig {
     cache_dir: CfgPath,
 
     /// Location on disk for less-sensitive persistent state information.
+    ///
+    /// Should be accessed through the `state_dir()` getter to provide better error messages when
+    /// resolving the path.
     // Usage note: see the note for `cache_dir`, above.
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
@@ -238,6 +241,14 @@ impl StorageConfig {
             })?
             .join("keystore"))
     }
+
+    /// Return the fully expanded path of the cache directory.
+    pub(crate) fn state_dir(
+        &self,
+        resolver: &CfgPathResolver,
+    ) -> Result<PathBuf, ConfigBuildError> {
+        resolve_cfg_path(&self.state_dir, "state_dir", resolver)
+    }
 }
 
 /// Return the default cache directory.
@@ -248,6 +259,18 @@ fn default_cache_dir() -> CfgPath {
 /// Return the default state directory.
 fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_RELAY_LOCAL_DATA}".to_owned())
+}
+
+/// Helper to return a `ConfigBuildError` if the path could not be resolved.
+fn resolve_cfg_path(
+    path: &CfgPath,
+    name: &str,
+    resolver: &CfgPathResolver,
+) -> Result<PathBuf, ConfigBuildError> {
+    path.path(resolver).map_err(|e| ConfigBuildError::Invalid {
+        field: name.to_owned(),
+        problem: e.to_string(),
+    })
 }
 
 #[cfg(test)]
