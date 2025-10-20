@@ -2,6 +2,13 @@
 //!
 //! NOTE: This binary is still highly experimental as in in active development, not stable and
 //! without any type of guarantee of running or even working.
+//!
+//! ## Error handling
+//!
+//! We return [`anyhow::Error`] for functions whose errors will always result in an exit and don't
+//! need to be handled individually.
+//! When we do need to handle errors, functions should return a more comprehensive error type (for
+//! example one created with `thiserror`).
 
 // @@ begin lint list maintained by maint/add_warning @@
 #![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
@@ -49,7 +56,6 @@
 
 mod cli;
 mod config;
-mod err;
 mod relay;
 
 use std::fmt::Display;
@@ -228,9 +234,11 @@ fn mainloop<T: Send + 'static>(
 }
 
 /// Run the relay.
-#[allow(clippy::unnecessary_wraps)] // TODO: not implemented yet; remove me
 async fn run_relay<R: Runtime>(runtime: R, relay: InertTorRelay) -> anyhow::Result<()> {
-    let _relay = relay.bootstrap(runtime).await?;
+    let _relay = relay
+        .bootstrap(runtime)
+        .await
+        .context("Failed to bootstrap")?;
     Ok(())
 }
 
