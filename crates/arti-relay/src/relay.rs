@@ -13,11 +13,10 @@ use tor_config_path::CfgPathResolver;
 use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
 };
-use tor_memquota::ArcMemoryQuotaTrackerExt as _;
+use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::params::NetParameters;
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
-use tor_proto::memquota::ToplevelAccount;
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
 use tor_rtcompat::Runtime;
 
@@ -163,8 +162,14 @@ impl InertTorRelay {
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     _runtime: R,
+
+    /// Memory quota tracker.
+    #[expect(unused)] // TODO RELAY remove
+    memquota: Arc<MemoryQuotaTracker>,
+
     /// Channel manager, used by circuits etc.
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
+
     /// Key manager holding all relay keys and certificates.
     #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
@@ -175,12 +180,15 @@ impl<R: Runtime> TorRelay<R> {
     ///
     /// Expected to be called from [`InertTorRelay::bootstrap()`].
     async fn bootstrap(runtime: R, inert: InertTorRelay) -> anyhow::Result<Self> {
+        let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
+            .context("Failed to initialize memquota tracker")?;
+
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &inert.config.channel,
             Dormancy::Active,
             &NetParameters::default(),
-            ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
+            memquota.clone(),
             Some(inert.keymgr.clone()),
         ));
 
@@ -188,6 +196,7 @@ impl<R: Runtime> TorRelay<R> {
 
         Ok(Self {
             _runtime: runtime,
+            memquota,
             chanmgr,
             keymgr: inert.keymgr,
         })
