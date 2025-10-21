@@ -130,6 +130,8 @@ work.
 * `onion-service-service` -- Build with support for running onion services.
   Note that this is not yet as secure as C-Tor and shouldn't
   be used for security-sensitive purposes.
+* `restricted-discovery` -- Build with support for onion services with
+  [restricted discovery]
 * `pt-client` (default) -- Build with support for pluggable transports.
 * `vanguards` (default) -- Build with support for [Vanguards](https://spec.torproject.org/vanguards-spec/).
 
@@ -178,7 +180,6 @@ implementation with another.
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.
 * `metrics` -- Build support for exporting metrics (to Prometheus).
-* `restricted-discovery` -- Build with experimental restricted discovery
   support. Restricted discovery support will become non-experimental
   once [#1795] is closed.
 * `onion-service-cli-extra` -- build with additional key and state management
@@ -215,3 +216,5 @@ This library crate contains code useful for making a command-line program
 similar to `arti`. The API should not be considered stable.
 
 License: MIT OR Apache-2.0
+
+[restricted discovery]: https://spec.torproject.org/rend-spec/restricted-discovery.html
