@@ -616,6 +616,7 @@ impl CircHop {
                         drain_rate_requester,
                     ))
                 } else {
+                    drop(params);
                     drop(rate_limit_updater);
                     drop(drain_rate_requester);
                     Err(internal!(

@@ -873,6 +873,7 @@ impl<R: Runtime> TorClient<R> {
         let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, mistrust)
             .map_err(ErrorDetail::StateMgrSetup)?;
         // Try to take state ownership early, so we'll know if we have it.
+        // Note that this `try_lock()` may return `Ok` even if we can't acquire the lock.
         // (At this point we don't yet care if we have it.)
         let _ignore_status = statemgr.try_lock().map_err(ErrorDetail::StateMgrSetup)?;
 

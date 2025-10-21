@@ -1,18 +1,22 @@
 //! Entry point of a Tor relay that is the [`TorRelay`] objects
 
-use anyhow::Context;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+use anyhow::Context;
 use tokio::task::JoinSet;
 use tracing::info;
 
+use fs_mistrust::Mistrust;
 use tor_chanmgr::Dormancy;
 use tor_config_path::CfgPathResolver;
 use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
 };
-use tor_memquota::ArcMemoryQuotaTrackerExt as _;
+use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::params::NetParameters;
-use tor_proto::memquota::ToplevelAccount;
+use tor_persist::state_dir::StateDirectory;
+use tor_persist::{FsStateMgr, StateMgr};
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
 use tor_rtcompat::Runtime;
 
@@ -42,9 +46,26 @@ use crate::config::TorRelayConfig;
 pub(crate) struct InertTorRelay {
     /// The configuration options for the relay.
     config: TorRelayConfig,
+
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
     #[expect(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
+
+    /// State directory path.
+    ///
+    /// The [`StateDirectory`] stored in `state_dir` doesn't seem to have a way of getting the state
+    /// directory path, so we need to store a copy of the path here.
+    #[expect(unused)] // TODO RELAY remove
+    state_path: PathBuf,
+
+    /// Relay's state directory.
+    #[expect(unused)] // TODO RELAY remove
+    state_dir: StateDirectory,
+
+    /// Location on disk where we store persistent data.
+    #[expect(unused)] // TODO RELAY remove
+    state_mgr: FsStateMgr,
+
     /// Key manager holding all relay keys and certificates.
     keymgr: Arc<KeyMgr>,
 }
@@ -55,50 +76,58 @@ impl InertTorRelay {
         config: TorRelayConfig,
         path_resolver: CfgPathResolver,
     ) -> anyhow::Result<Self> {
-        let keymgr =
-            Self::create_keymgr(&config, &path_resolver).context("Failed to create key manager")?;
+        let state_path = config.storage.state_dir(&path_resolver)?;
+        let state_dir = StateDirectory::new(&state_path, config.storage.permissions())
+            .context("Failed to create `StateDirectory`")?;
+        let state_mgr =
+            FsStateMgr::from_path_and_mistrust(&state_path, config.storage.permissions())
+                .context("Failed to create `FsStateMgr`")?;
+
+        // Try to take state ownership early, so we'll know if we have it.
+        // Note that this `try_lock()` may return `Ok` even if we can't acquire the lock.
+        // (At this point we don't yet care if we have it.)
+        let _ignore_status = state_mgr
+            .try_lock()
+            .context("Failed to try locking the state manager")?;
+
+        let keymgr = Self::create_keymgr(&state_path, config.storage.permissions())
+            .context("Failed to create key manager")?;
 
         Ok(Self {
             config,
             path_resolver,
+            state_path,
+            state_dir,
+            state_mgr,
             keymgr,
         })
     }
 
     /// Connect the [`InertTorRelay`] to the Tor network.
     pub(crate) async fn bootstrap<R: Runtime>(self, runtime: R) -> anyhow::Result<TorRelay<R>> {
+        // Attempt to generate any missing keys/cert from the KeyMgr.
+        Self::try_generate_keys(&self.keymgr).context("Failed to generate keys")?;
+
         TorRelay::bootstrap(runtime, self).await
     }
 
     /// Create the [key manager](KeyMgr).
-    fn create_keymgr(
-        config: &TorRelayConfig,
-        path_resolver: &CfgPathResolver,
-    ) -> anyhow::Result<Arc<KeyMgr>> {
-        let key_store_dir = config
-            .storage
-            .keystore_dir(path_resolver)
-            .context("Failed to get key store directory")?;
-        let permissions = config.storage.permissions();
+    fn create_keymgr(state_path: &Path, mistrust: &Mistrust) -> anyhow::Result<Arc<KeyMgr>> {
+        let key_store_dir = state_path.join("keystore");
 
         // Store for the short-term keys that we don't need to keep on disk. The store identifier
         // is relay explicit because it can be used in other crates for channel and circuit.
         let ephemeral_store = ArtiEphemeralKeystore::new("relay-ephemeral".into());
-        let persistent_store =
-            ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)
-                .context("Failed to construct the native keystore")?;
+        let persistent_store = ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, mistrust)
+            .context("Failed to construct the native keystore")?;
         info!("Using relay keystore from {key_store_dir:?}");
 
-        let keymgr = Arc::new(
-            KeyMgrBuilder::default()
-                .primary_store(Box::new(persistent_store))
-                .set_secondary_stores(vec![Box::new(ephemeral_store)])
-                .build()
-                .context("Failed to build the 'KeyMgr'")?,
-        );
-
-        // Attempt to generate any missing keys/cert from the KeyMgr.
-        Self::try_generate_keys(&keymgr).context("Failed to generate keys")?;
+        let keymgr = KeyMgrBuilder::default()
+            .primary_store(Box::new(persistent_store))
+            .set_secondary_stores(vec![Box::new(ephemeral_store)])
+            .build()
+            .context("Failed to build the 'KeyMgr'")?;
+        let keymgr = Arc::new(keymgr);
 
         Ok(keymgr)
     }
@@ -138,8 +167,14 @@ impl InertTorRelay {
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     _runtime: R,
+
+    /// Memory quota tracker.
+    #[expect(unused)] // TODO RELAY remove
+    memquota: Arc<MemoryQuotaTracker>,
+
     /// Channel manager, used by circuits etc.
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
+
     /// Key manager holding all relay keys and certificates.
     #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
@@ -150,12 +185,15 @@ impl<R: Runtime> TorRelay<R> {
     ///
     /// Expected to be called from [`InertTorRelay::bootstrap()`].
     async fn bootstrap(runtime: R, inert: InertTorRelay) -> anyhow::Result<Self> {
+        let memquota = MemoryQuotaTracker::new(&runtime, inert.config.system.memory.clone())
+            .context("Failed to initialize memquota tracker")?;
+
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &inert.config.channel,
             Dormancy::Active,
             &NetParameters::default(),
-            ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
+            memquota.clone(),
             Some(inert.keymgr.clone()),
         ));
 
@@ -163,6 +201,7 @@ impl<R: Runtime> TorRelay<R> {
 
         Ok(Self {
             _runtime: runtime,
+            memquota,
             chanmgr,
             keymgr: inert.keymgr,
         })

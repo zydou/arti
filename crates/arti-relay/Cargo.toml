@@ -52,6 +52,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.35.0" }
 tor-memquota = { version = "0.35.0", path = "../tor-memquota" }
 tor-netdir = { path = "../tor-netdir", version = "0.35.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.35.0" }
+tor-persist = { path = "../tor-persist", version = "0.35.0", features = ["state-dir"] }
 tor-proto = { path = "../tor-proto", version = "0.35.0", features = ["tokio"] }
 tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.35.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.35.0", features = ["rustls", "tokio"] }

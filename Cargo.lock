@@ -383,6 +383,7 @@ dependencies = [
  "tor-memquota",
  "tor-netdir",
  "tor-netdoc",
+ "tor-persist",
  "tor-proto",
  "tor-relay-crypto",
  "tor-rtcompat",

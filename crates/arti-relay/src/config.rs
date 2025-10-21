@@ -122,6 +122,11 @@ pub(crate) struct TorRelayConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) channel: ChannelConfig,
+
+    /// Configuration for system resources
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) system: SystemConfig,
 }
 impl_standard_builder! { TorRelayConfig }
 
@@ -202,6 +207,9 @@ pub(crate) struct StorageConfig {
     cache_dir: CfgPath,
 
     /// Location on disk for less-sensitive persistent state information.
+    ///
+    /// Should be accessed through the `state_dir()` getter to provide better error messages when
+    /// resolving the path.
     // Usage note: see the note for `cache_dir`, above.
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
@@ -212,6 +220,12 @@ pub(crate) struct StorageConfig {
     keystore: ArtiKeystoreConfig,
 
     /// Configuration about which permissions we want to enforce on our files.
+    // NOTE: This 'build_for_arti()' hard-codes the config field name as `permissions` and the
+    // environment variable as `ARTI_FS_DISABLE_PERMISSION_CHECKS`. These things should be
+    // configured by the application, not lower-level libraries, but some other lower-level
+    // libraries like `tor-hsservice` also use 'build_for_arti()'. So we're stuck with it for now.
+    // It might be confusing in the future if relays use some environment variables prefixed with
+    // "ARTI_" and others with "ARTI_RELAY_", so we should probably stick to just "ARTI_".
     #[builder(sub_builder(fn_name = "build_for_arti"))]
     #[builder_field_attr(serde(default))]
     permissions: Mistrust,
@@ -224,21 +238,27 @@ impl StorageConfig {
         &self.permissions
     }
 
-    /// Return the fully expanded path of the keystore directory.
-    pub(crate) fn keystore_dir(
+    /// Return the fully expanded path of the cache directory.
+    pub(crate) fn state_dir(
         &self,
         resolver: &CfgPathResolver,
     ) -> Result<PathBuf, ConfigBuildError> {
-        Ok(self
-            .state_dir
-            .path(resolver)
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "state_dir".to_owned(),
-                problem: e.to_string(),
-            })?
-            .join("keystore"))
+        resolve_cfg_path(&self.state_dir, "state_dir", resolver)
     }
 }
+
+/// Configuration for system resources used by the relay.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
+pub(crate) struct SystemConfig {
+    /// Memory limits (approximate)
+    #[builder(sub_builder(fn_name = "build"))]
+    #[builder_field_attr(serde(default))]
+    pub(crate) memory: tor_memquota::Config,
+}
+impl_standard_builder! { SystemConfig }
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
@@ -248,6 +268,18 @@ fn default_cache_dir() -> CfgPath {
 /// Return the default state directory.
 fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_RELAY_LOCAL_DATA}".to_owned())
+}
+
+/// Helper to return a `ConfigBuildError` if the path could not be resolved.
+fn resolve_cfg_path(
+    path: &CfgPath,
+    name: &str,
+    resolver: &CfgPathResolver,
+) -> Result<PathBuf, ConfigBuildError> {
+    path.path(resolver).map_err(|e| ConfigBuildError::Invalid {
+        field: name.to_owned(),
+        problem: e.to_string(),
+    })
 }
 
 #[cfg(test)]
