@@ -6,7 +6,7 @@ use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::HopSettings;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
-use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
+use crate::relay::channel_provider::ChannelResult;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::streammap::{self, StreamMap};
 use crate::util::err::ReactorError;
@@ -21,7 +21,6 @@ use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
 use tor_cell::relaycell::msg::{AnyRelayMsg, SendmeTag};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
 use tor_error::{internal, trace_report};
-use tor_linkspec::HasRelayIds;
 
 use futures::SinkExt;
 use futures::channel::mpsc;
@@ -52,7 +51,7 @@ use super::{CircuitRxReceiver, RelayCtrlCmd, RelayCtrlMsg};
 // reactor type.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(super) struct BackwardReactor<T: HasRelayIds> {
+pub(super) struct BackwardReactor {
     /// Format to use for relay cells.
     //
     // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
@@ -99,12 +98,6 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
     ///     we select! on this MPSC channel in the main loop, so if the `ForwardReactor`
     ///     shuts down, we will get EOS upon calling `.next()`)
     cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
-    /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
-    ///
-    /// Note: all circuit reactors of a relay need to be initialized
-    /// with the *same* underlying Tor channel provider (`ChanMgr`),
-    /// to enable the reuse of existing Tor channels where possible.
-    chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
     /// A sender for sending newly opened outgoing [`Channel`]`s to the reactor.
     ///
     /// This is passed to the [`ChannelProvider`] for each Tor channel request.
@@ -123,7 +116,7 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
 }
 
 #[allow(unused)] // TODO(relay)
-impl<T: HasRelayIds> BackwardReactor<T> {
+impl BackwardReactor {
     /// Create a new [`BackwardReactor`].
     #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     #[allow(clippy::too_many_arguments)] // TODO
@@ -135,7 +128,6 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         ccontrol: Arc<Mutex<CongestionControl>>,
         settings: &HopSettings,
         relay_format: RelayCellFormat,
-        chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         reactor_closed_tx: broadcast::Sender<void::Void>,
@@ -158,7 +150,6 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             circ_id,
             control: control_rx,
             command: command_rx,
-            chan_provider,
             outgoing_chan_tx,
             streams: StreamMap::new(),
             reactor_closed_tx,

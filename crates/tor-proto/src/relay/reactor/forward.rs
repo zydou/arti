@@ -5,7 +5,7 @@ use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
-use crate::relay::channel_provider::ChannelResult;
+use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 use crate::util::err::ReactorError;
 use crate::{Error, Result};
 
@@ -18,6 +18,7 @@ use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
 use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::{RelayCellDecoder, StreamId};
 use tor_error::{internal, trace_report, warn_report};
+use tor_linkspec::HasRelayIds;
 
 use futures::SinkExt;
 use futures::channel::mpsc;
@@ -38,7 +39,7 @@ use super::CircuitRxReceiver;
 /// Shuts down if an error occurs, or if the [`BackwardReactor`](super::BackwardReactor) shuts down.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(super) struct ForwardReactor {
+pub(super) struct ForwardReactor<T: HasRelayIds> {
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// An MPSC channel for receiving newly opened outgoing [`Channel`](crate::channel::Channel)s.
@@ -67,6 +68,12 @@ pub(super) struct ForwardReactor {
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for all
     /// sending all client-bound cells.
     cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
+    /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
+    ///
+    /// Note: all circuit reactors of a relay need to be initialized
+    /// with the *same* underlying Tor channel provider (`ChanMgr`),
+    /// to enable the reuse of existing Tor channels where possible.
+    chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
     /// A broadcast receiver used to detect when the
     /// [`BackwardReactor`](super::BackwardReactor) is dropped.
     backward_closed_rx: broadcast::Receiver<void::Void>,
@@ -81,7 +88,7 @@ struct Forward {
     chan_sender: ChannelSender,
 }
 
-impl ForwardReactor {
+impl<T: HasRelayIds> ForwardReactor<T> {
     /// Create a new [`ForwardReactor`].
     #[allow(clippy::too_many_arguments)] // TODO
     pub(super) fn new(
@@ -91,6 +98,7 @@ impl ForwardReactor {
         ccontrol: Arc<Mutex<CongestionControl>>,
         outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
+        chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
         backward_closed_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
@@ -103,6 +111,7 @@ impl ForwardReactor {
             crypto_out,
             // Initially, we are the last hop in the circuit.
             forward: None,
+            chan_provider,
             cell_tx,
             backward_closed_rx,
         }

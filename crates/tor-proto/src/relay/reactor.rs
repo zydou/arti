@@ -129,9 +129,9 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// Used for logging;
     unique_id: UniqId,
     /// The reactor for handling the forward direction (client to exit).
-    forward: ForwardReactor,
+    forward: ForwardReactor<T>,
     /// The reactor for handling the backward direction (exit to client).
-    backward: BackwardReactor<T>,
+    backward: BackwardReactor,
 }
 
 /// MPSC queue for inbound data on its way from channel to circuit, sender
@@ -188,6 +188,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             Arc::clone(&ccontrol),
             outgoing_chan_rx,
             crypto_out,
+            chan_provider,
             cell_tx,
             reactor_closed_rx.clone(),
         );
@@ -200,7 +201,6 @@ impl<T: HasRelayIds> RelayReactor<T> {
             ccontrol,
             settings,
             relay_format,
-            chan_provider,
             cell_rx,
             outgoing_chan_tx,
             reactor_closed_tx,
