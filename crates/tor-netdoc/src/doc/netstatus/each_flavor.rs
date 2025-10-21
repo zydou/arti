@@ -67,13 +67,13 @@ impl Consensus {
     /// Return the latest shared random value, if the consensus
     /// contains one.
     pub fn shared_rand_cur(&self) -> Option<&SharedRandStatus> {
-        self.preamble.shared_rand_cur.as_ref()
+        self.preamble.shared_rand_current_value.as_ref()
     }
 
     /// Return the previous shared random value, if the consensus
     /// contains one.
     pub fn shared_rand_prev(&self) -> Option<&SharedRandStatus> {
-        self.preamble.shared_rand_prev.as_ref()
+        self.preamble.shared_rand_previous_value.as_ref()
     }
 
     /// Return a [`ProtoStatus`] that lists the network's current requirements and
@@ -383,12 +383,12 @@ impl Preamble {
 
         let consensus_method: u32 = sec.required(CONSENSUS_METHOD)?.parse_arg(0)?;
 
-        let shared_rand_prev = sec
+        let shared_rand_previous_value = sec
             .get(SHARED_RAND_PREVIOUS_VALUE)
             .map(SharedRandStatus::from_item)
             .transpose()?;
 
-        let shared_rand_cur = sec
+        let shared_rand_current_value = sec
             .get(SHARED_RAND_CURRENT_VALUE)
             .map(SharedRandStatus::from_item)
             .transpose()?;
@@ -409,8 +409,8 @@ impl Preamble {
             params,
             voting_delay,
             consensus_method,
-            shared_rand_prev,
-            shared_rand_cur,
+            shared_rand_previous_value,
+            shared_rand_current_value,
         };
 
         Ok((flavor, preamble))

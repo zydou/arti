@@ -49,7 +49,7 @@ pub struct Preamble {
     /// upgrade the consensus algorithm.)
     pub consensus_method: u32,
     /// Global shared-random value for the previous shared-random period.
-    pub shared_rand_prev: Option<SharedRandStatus>,
+    pub shared_rand_previous_value: Option<SharedRandStatus>,
     /// Global shared-random value for the current shared-random period.
-    pub shared_rand_cur: Option<SharedRandStatus>,
+    pub shared_rand_current_value: Option<SharedRandStatus>,
 }

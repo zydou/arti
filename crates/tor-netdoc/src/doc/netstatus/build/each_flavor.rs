@@ -51,10 +51,10 @@ pub struct ConsensusBuilder {
     voting_delay: Option<(u32, u32)>,
     /// See [`Preamble::consensus_method`]
     consensus_method: Option<u32>,
-    /// See [`Preamble::shared_rand_prev`]
-    shared_rand_prev: Option<SharedRandStatus>,
-    /// See [`Preamble::shared_rand_cur`]
-    shared_rand_cur: Option<SharedRandStatus>,
+    /// See [`Preamble::shared_rand_previous_value`]
+    shared_rand_previous_value: Option<SharedRandStatus>,
+    /// See [`Preamble::shared_rand_current_value`]
+    shared_rand_current_value: Option<SharedRandStatus>,
     /// See [`Consensus::voters`]
     voters: Vec<ConsensusVoterInfo>,
     /// See [`Consensus::relays`]
@@ -76,8 +76,8 @@ impl ConsensusBuilder {
             params: NetParams::new(),
             voting_delay: None,
             consensus_method: None,
-            shared_rand_prev: None,
-            shared_rand_cur: None,
+            shared_rand_previous_value: None,
+            shared_rand_current_value: None,
             voters: Vec::new(),
             relays: Vec::new(),
             weights: NetParams::new(),
@@ -163,7 +163,7 @@ impl ConsensusBuilder {
         value: SharedRandVal,
         timestamp: Option<SystemTime>,
     ) -> &mut Self {
-        self.shared_rand_prev = Some(SharedRandStatus {
+        self.shared_rand_previous_value = Some(SharedRandStatus {
             n_reveals,
             value,
             timestamp: timestamp.map(Iso8601TimeNoSp),
@@ -179,7 +179,7 @@ impl ConsensusBuilder {
         value: SharedRandVal,
         timestamp: Option<SystemTime>,
     ) -> &mut Self {
-        self.shared_rand_cur = Some(SharedRandStatus {
+        self.shared_rand_current_value = Some(SharedRandStatus {
             n_reveals,
             value,
             timestamp: timestamp.map(Iso8601TimeNoSp),
@@ -251,8 +251,8 @@ impl ConsensusBuilder {
             params: self.params.clone(),
             voting_delay: self.voting_delay,
             consensus_method,
-            shared_rand_prev: self.shared_rand_prev.clone(),
-            shared_rand_cur: self.shared_rand_cur.clone(),
+            shared_rand_previous_value: self.shared_rand_previous_value.clone(),
+            shared_rand_current_value: self.shared_rand_current_value.clone(),
         };
 
         let footer = Footer {
