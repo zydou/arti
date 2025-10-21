@@ -47,14 +47,18 @@
 // TODO(relay): the above is underspecified, because it's not implemented yet,
 // but the plan is to iron out these details soon
 //
-//! This dual reactor architecture enables us to parallelize some of the work:
+//! This dual reactor architecture should, in theory, have better performance than
+//! a single reactor system, because it enables us to parallelize some of the work:
 //! the forward and backward directions share little state,
 //! because they read from, and write to, different sinks/streams,
 //! so they can be run in parallel (as separate tasks).
+//! With a single reactor architecture, the reactor would need to drive
+//! both the forward and the backward direction, and on each iteration
+//! would need to decide which to prioritize, which might prove tricky
+//! (though prioritizing one of them at random would've probably been good enough).
 //!
-//! Note: we could have gone with a single, monolithic reactor that handles both directions,
-//! but the architecture would have been significantly more complicated,
-//! and so more difficult to maintain in the long run.
+//! The monolithic single reactor alternative would also have been significantly
+//! more convoluted, and so more difficult to maintain in the long run.
 //!
 //
 // Note: if we address the TODO below, the dual reactor architecture might even
