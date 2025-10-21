@@ -207,7 +207,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
     /// processes one cell or control message.
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
         // TODO(relay): implement
-        let () = select_biased! {
+        select_biased! {
             res = self.command.next() => {
                 let Some(cmd) = res else {
                     trace!(
@@ -219,7 +219,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
                     return Err(ReactorError::Shutdown);
                 };
 
-                return self.handle_command(&cmd);
+                self.handle_command(&cmd)
             },
             res = self.control.next() => {
                 let Some(msg) = res else {
@@ -232,7 +232,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
                     return Err(ReactorError::Shutdown);
                 };
 
-                return self.handle_control(&msg);
+                self.handle_control(&msg)
             },
             res = self.outgoing_chan_rx.next() => {
                 let chan_res = res
@@ -257,10 +257,9 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
                 // TODO(relay): we have a new channel,
                 // we need to update our state and respond to the initiator
                 // (e.g. we might need to send back an EXTENDED2 cell)
+                Ok(())
             }
-        };
-
-        Ok(())
+        }
     }
 
     /// Handle a [`RelayCtrlCmd`].
