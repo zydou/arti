@@ -1065,11 +1065,11 @@ impl RelayWeight {
 #[cfg(feature = "parse2")]
 mod parse2_impls {
     use super::*;
-    use paste::paste;
     use parse2::ArgumentError as AE;
     use parse2::ErrorProblem as EP;
     use parse2::{ArgumentStream, ItemArgumentParseable, ItemValueParseable};
     use parse2::{KeywordRef, NetdocParseableFields, UnparsedItem};
+    use paste::paste;
     use std::result::Result;
 
     /// Implements `NetdocParseableFields` for `ProtoStatuses`
@@ -1125,6 +1125,16 @@ mod parse2_impls {
         required relay;
         recommended client;
         recommended relay;
+    }
+
+    impl ItemValueParseable for NetParams<i32> {
+        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+            item.check_no_object()?;
+            item.args_copy()
+                .into_remaining()
+                .parse()
+                .map_err(item.invalid_argument_handler("parameters"))
+        }
     }
 
     impl ItemValueParseable for RelayWeight {
