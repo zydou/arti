@@ -11,7 +11,7 @@ use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 use tracing::debug;
 
 use crate::client::StreamTarget;
-use crate::client::stream::queue::StreamQueueReceiver;
+use crate::stream::queue::StreamQueueReceiver;
 use crate::congestion::sendme;
 use crate::{Error, Result};
 

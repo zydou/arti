@@ -22,7 +22,7 @@ use crate::circuit::UniqId;
 pub use crate::client::circuit::padding::{
     CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError,
 };
-use crate::client::stream::queue::stream_queue;
+use crate::stream::queue::stream_queue;
 use crate::client::stream::{
     DataStream, OutboundDataCmdChecker, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReceiver,

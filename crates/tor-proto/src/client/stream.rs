@@ -15,7 +15,6 @@ mod data;
 #[cfg(feature = "hs-service")]
 mod incoming;
 mod params;
-pub(crate) mod queue;
 mod raw;
 mod resolve;
 

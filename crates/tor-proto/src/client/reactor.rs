@@ -26,7 +26,7 @@ use crate::circuit::UniqId;
 use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
-use crate::client::stream::queue::StreamQueueReceiver;
+use crate::stream::queue::StreamQueueReceiver;
 #[cfg(feature = "hs-service")]
 use crate::client::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::client::{HopLocation, TargetHop, streammap};

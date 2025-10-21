@@ -11,7 +11,7 @@ use crate::circuit::celltypes::CreateResponse;
 use crate::client::circuit::padding;
 use crate::client::circuit::{HopSettings, path};
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
-use crate::client::stream::queue::StreamQueueSender;
+use crate::stream::queue::StreamQueueSender;
 use crate::client::{HopLocation, TargetHop, streammap};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
