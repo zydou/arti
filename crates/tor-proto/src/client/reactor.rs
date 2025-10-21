@@ -17,7 +17,7 @@
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
 
-pub(super) mod circuit;
+pub(crate) mod circuit;
 mod conflux;
 mod control;
 pub(super) mod syncview;
@@ -26,16 +26,18 @@ use crate::circuit::UniqId;
 use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
-use crate::client::stream::queue::StreamQueueReceiver;
 #[cfg(feature = "hs-service")]
 use crate::client::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
-use crate::client::{HopLocation, TargetHop, streammap};
+use crate::client::{HopLocation, TargetHop};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
+use crate::stream::StreamMpscSender;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
+use crate::stream::queue::StreamQueueReceiver;
+use crate::streammap;
 use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
@@ -65,7 +67,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::channel::Channel;
-use crate::client::circuit::StreamMpscSender;
 use crate::conflux::msghandler::RemoveLegReason;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use circuit::CircuitCmd;

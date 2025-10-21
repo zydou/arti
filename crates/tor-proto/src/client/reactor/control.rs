@@ -7,18 +7,20 @@ use super::{
 };
 use crate::Result;
 use crate::circuit::celltypes::CreateResponse;
+use crate::circuit::circhop::HopSettings;
 #[cfg(feature = "circ-padding-manual")]
 use crate::client::circuit::padding;
-use crate::client::circuit::{HopSettings, path};
+use crate::client::circuit::path;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
-use crate::client::stream::queue::StreamQueueSender;
-use crate::client::{HopLocation, TargetHop, streammap};
+use crate::client::{HopLocation, TargetHop};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{InboundClientLayer, OutboundClientLayer};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
+use crate::stream::queue::StreamQueueSender;
+use crate::streammap;
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
 #[cfg(test)]
@@ -44,8 +46,8 @@ use super::{Circuit, ConfluxLinkResultChannel};
 
 use oneshot_fused_workaround as oneshot;
 
-use crate::client::circuit::StreamMpscReceiver;
 use crate::crypto::handshake::ntor::NtorPublicKey;
+use crate::stream::StreamMpscReceiver;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;

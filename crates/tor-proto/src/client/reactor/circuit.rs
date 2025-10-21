@@ -8,16 +8,15 @@ pub(super) mod extender;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::circuit::circhop::HopSettings;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
-use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
-use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
+use crate::client::circuit::{CircuitRxReceiver, MutableState};
+use crate::client::circuit::{TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
-use crate::client::stream::queue::{StreamQueueSender, stream_queue};
-use crate::client::streammap;
 use crate::congestion::CongestionSignals;
 use crate::congestion::sendme;
 use crate::crypto::binding::CircuitBinding;
@@ -30,9 +29,12 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
+use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
+use crate::stream::queue::{StreamQueueSender, stream_queue};
+use crate::streammap;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifySender;
@@ -88,7 +90,7 @@ use {
 pub(super) use circhop::{CircHop, CircHopList};
 
 /// Initial value for outbound flow-control window on streams.
-pub(super) const SEND_WINDOW_INIT: u16 = 500;
+pub(crate) const SEND_WINDOW_INIT: u16 = 500;
 /// Initial value for inbound flow-control window on streams.
 pub(crate) const RECV_WINDOW_INIT: u16 = 500;
 /// Size of the buffer used between the reactor and a `StreamReader`.
@@ -365,7 +367,7 @@ impl Circuit {
 
         let settings = HopSettings::from_params_and_caps(
             // This is for testing only, so we'll assume full negotiation took place.
-            crate::client::circuit::HopNegotiationType::Full,
+            crate::circuit::circhop::HopNegotiationType::Full,
             params,
             &[named::FLOWCTRL_CC].into_iter().collect::<Protocols>(),
         )

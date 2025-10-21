@@ -1,12 +1,17 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
-use crate::client::circuit::StreamMpscReceiver;
-use crate::client::halfstream::HalfStream;
+mod halfstream;
+
+// TODO(relay): streammap is meant to be impl-agnostic
+// (it's used both by clients and relays), so ideally
+// it shouldn't need to import from client::
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
-use crate::client::stream::queue::StreamQueueSender;
+
 use crate::congestion::sendme;
+use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};
+use crate::stream::queue::StreamQueueSender;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;
@@ -27,6 +32,8 @@ use tor_error::{bad_api_usage, internal};
 use rand::Rng;
 
 use tracing::debug;
+
+use halfstream::HalfStream;
 
 /// Entry for an open stream
 ///
@@ -279,7 +286,7 @@ struct Priority(u64);
 
 /// A map from stream IDs to stream entries. Each circuit has one for each
 /// hop.
-pub(super) struct StreamMap {
+pub(crate) struct StreamMap {
     /// Open streams.
     // Invariants:
     // * Keys are disjoint with `closed_streams`.
@@ -300,7 +307,7 @@ pub(super) struct StreamMap {
 
 impl StreamMap {
     /// Make a new empty StreamMap.
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let mut rng = rand::rng();
         let next_stream_id: NonZeroU16 = rng.random();
         StreamMap {
@@ -583,7 +590,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::client::circuit::test::fake_mpsc;
-    use crate::client::stream::queue::fake_stream_queue;
+    use crate::stream::queue::fake_stream_queue;
     use crate::{client::stream::OutboundDataCmdChecker, congestion::sendme::StreamSendWindow};
 
     #[test]

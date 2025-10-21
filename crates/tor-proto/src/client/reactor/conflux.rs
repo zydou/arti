@@ -23,11 +23,11 @@ use crate::client::circuit::TunnelMutableState;
 #[cfg(feature = "circ-padding")]
 use crate::client::circuit::padding::PaddingEvent;
 use crate::client::circuit::path::HopDetail;
-use crate::client::streammap;
 use crate::conflux::cmd_counts_towards_seqno;
 use crate::conflux::msghandler::{ConfluxStatus, RemoveLegReason};
 use crate::congestion::params::CongestionWindowParams;
 use crate::crypto::cell::HopNum;
+use crate::streammap;
 use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
 use crate::util::poll_all::PollAll;

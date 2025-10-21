@@ -3,11 +3,9 @@
 pub mod circuit;
 pub mod stream;
 
-mod halfstream;
 #[cfg(feature = "send-control-msg")]
 pub(crate) mod msghandler;
 pub(crate) mod reactor;
-mod streammap;
 
 use derive_deftly::Deftly;
 use futures::SinkExt as _;
@@ -22,7 +20,6 @@ use crate::circuit::UniqId;
 pub use crate::client::circuit::padding::{
     CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError,
 };
-use crate::client::stream::queue::stream_queue;
 use crate::client::stream::{
     DataStream, OutboundDataCmdChecker, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReceiver,
@@ -30,12 +27,14 @@ use crate::client::stream::{
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};
+use crate::stream::StreamMpscSender;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
+use crate::stream::queue::stream_queue;
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
-use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path, StreamMpscSender};
+use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path};
 use reactor::{
     CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
