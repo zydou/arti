@@ -139,7 +139,13 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     forward: ForwardReactor<T>,
     /// The reactor for handling the backward direction (exit to client).
     backward: BackwardReactor,
-
+    /// A sender that is used to alert the [`ForwardReactor`] and [`BackwardReactor`]
+    /// when this reactor is finally dropped.
+    ///
+    /// It is a sender for Void because we never actually want to send anything here;
+    /// we only want to generate canceled events.
+    #[allow(dead_code)] // the only purpose of this field is to be dropped.
+    reactor_closed_tx: broadcast::Sender<void::Void>,
     // TODO(relay): consider moving control message handling
     // from BackwardReactor to here
 }
@@ -213,7 +219,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             relay_format,
             cell_rx,
             outgoing_chan_tx,
-            reactor_closed_tx,
+            reactor_closed_rx.clone(),
         );
 
         let handle = RelayReactorHandle {
@@ -226,6 +232,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             unique_id,
             forward,
             backward,
+            reactor_closed_tx,
         };
 
         (reactor, handle)
@@ -241,6 +248,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             forward,
             backward,
             unique_id,
+            reactor_closed_tx,
         } = self;
 
         debug!(
@@ -248,6 +256,9 @@ impl<T: HasRelayIds> RelayReactor<T> {
             "Running relay circuit reactor",
         );
 
+        // If either of these completes, this function returns,
+        // dropping reactor_closed_tx, which will, in turn,
+        // cause the remaining reactor, if there is one, to shut down too
         futures::select! {
             res = forward.run().fuse() => res,
             res = backward.run().fuse() => res,

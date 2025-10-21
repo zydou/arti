@@ -36,7 +36,13 @@ use super::CircuitRxReceiver;
 ///
 /// Handles the "forward direction": moves cells towards the exit.
 ///
-/// Shuts down if an error occurs, or if the [`BackwardReactor`](super::BackwardReactor) shuts down.
+/// Shuts downs down if an error occurs, or if either the [`RelayReactor`](super::RelayReactor)
+/// or the [`BackwardReactor`](super::BackwardReactor) shuts down:
+///
+///   * if `RelayReactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
+///     (we will notice this its closure in the main loop)
+///   * if `BackwardReactor` shuts down, `RelayReactor` will notice, and itself shutdown
+///     (as in the previous case, we will notice this because the `shutdown_tx` channel will close)
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub(super) struct ForwardReactor<T: HasRelayIds> {
@@ -75,8 +81,9 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
     /// A broadcast receiver used to detect when the
-    /// [`BackwardReactor`](super::BackwardReactor) is dropped.
-    backward_closed_rx: broadcast::Receiver<void::Void>,
+    /// [`RelayReactor`](super::RelayReactor) or
+    /// [`BackwardReactor`](super::BackwardReactor) are dropped.
+    shutdown_rx: broadcast::Receiver<void::Void>,
 }
 
 /// A relay's view of the forward (away from the client, towards the exit) state of the circuit.
@@ -100,7 +107,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
-        backward_closed_rx: broadcast::Receiver<void::Void>,
+        shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {
             unique_id,
@@ -113,7 +120,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
             forward: None,
             chan_provider,
             cell_tx,
-            backward_closed_rx,
+            shutdown_rx,
         }
     }
 
@@ -193,10 +200,10 @@ impl<T: HasRelayIds> ForwardReactor<T> {
                 // to the appropriate Tor stream
                 self.handle_forward_cell(cell).await
             },
-            _res = self.backward_closed_rx.next().fuse() => {
+            _res = self.shutdown_rx.next().fuse() => {
                 trace!(
                     circ_id = %self.unique_id,
-                    "Forward relay reactor shutdown (backward reactor has closed)",
+                    "Forward relay reactor shutdown (received shutdown signal)",
                 );
 
                 Err(ReactorError::Shutdown)

@@ -40,10 +40,14 @@ use super::{CircuitRxReceiver, RelayCtrlCmd, RelayCtrlMsg};
 /// Handles the "backward direction": moves cells towards the client,
 /// and drives the application streams.
 ///
-/// Shuts down on explicit shutdown requests ([`RelayCtrlCmd::Shutdown`]),
-/// if an error occurs, or if the [`ForwardReactor`](super::ForwardReactor) shuts down.
+/// Shuts downs down if an error occurs, or if either the [`RelayReactor`](super::RelayReactor)
+/// or the [`ForwardReactor`](super::ForwardReactor) shuts down:
 ///
-// TODO(relay): docs
+///   * if `RelayReactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
+///     (we will notice this its closure in the main loop)
+///   * if `ForwardReactor` shuts down, `RelayReactor` will notice, and itself shutdown
+///     (as in the previous case, we will notice this because the `shutdown_tx` channel will close)
+///
 //
 // NOTE: the reactor is currently a bit awkward, because it's generic over
 // the target relay `BuildSpec`. This will become slightly less awkward when
@@ -106,13 +110,10 @@ pub(super) struct BackwardReactor {
     /// TODO: can we use a CircHop instead??
     /// Otherwise we'll duplicate much of it here.
     streams: StreamMap,
-    /// A sender that is used to alert other tasks when this reactor is
-    /// finally dropped.
-    ///
-    /// It is a sender for Void because we never actually want to send anything here;
-    /// we only want to generate canceled events.
-    #[allow(dead_code)] // the only purpose of this field is to be dropped.
-    reactor_closed_tx: broadcast::Sender<void::Void>,
+    /// A broadcast receiver used to detect when the
+    /// [`RelayReactor`](super::RelayReactor) or
+    /// [`BackwardReactor`](super::BackwardReactor) are dropped.
+    shutdown_rx: broadcast::Receiver<void::Void>,
 }
 
 // TODO(relay): consider moving some of the BackwardReactor fields
@@ -139,7 +140,7 @@ impl BackwardReactor {
         relay_format: RelayCellFormat,
         cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
-        reactor_closed_tx: broadcast::Sender<void::Void>,
+        shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> (
         Self,
         mpsc::UnboundedSender<RelayCtrlMsg>,
@@ -161,8 +162,8 @@ impl BackwardReactor {
             command: command_rx,
             outgoing_chan_tx,
             streams: StreamMap::new(),
-            reactor_closed_tx,
             cell_rx,
+            shutdown_rx,
         };
 
         (reactor, control_tx, command_tx)
@@ -356,6 +357,14 @@ impl BackwardReactor {
         });
 
         let events = select_biased! {
+            _res = self.shutdown_rx.next().fuse() => {
+                trace!(
+                    circ_id = %self.unique_id,
+                    "Forward relay reactor shutdown (received shutdown signal)",
+                );
+
+                return Err(ReactorError::Shutdown);
+            }
             res = self.command.next() => {
                 let Some(cmd) = res else {
                     trace!(
