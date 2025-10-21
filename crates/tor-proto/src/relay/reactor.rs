@@ -1,6 +1,5 @@
 //! Module exposing the relay circuit reactor.
 
-use crate::DynTimeProvider;
 use crate::Result;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
@@ -12,6 +11,7 @@ use crate::streammap::StreamMap;
 use tor_cell::chancell::CircId;
 use tor_error::{trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
+use tor_rtcompat::Runtime;
 
 use futures::channel::mpsc;
 use futures::{StreamExt, select_biased};
@@ -53,7 +53,7 @@ pub(crate) enum RelayCtrlCmd {
 
 /// Type-alias for the entry point of the reactor component.
 #[allow(unused)] // TODO(relay)
-pub(crate) type RelayReactor<T> = BackwardReactor<T>;
+pub(crate) type RelayReactor<R, T> = BackwardReactor<R, T>;
 
 /// The "backward" circuit reactor of a relay.
 ///
@@ -71,7 +71,7 @@ pub(crate) type RelayReactor<T> = BackwardReactor<T>;
 // reactor type.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(crate) struct BackwardReactor<T: HasRelayIds> {
+pub(crate) struct BackwardReactor<R: Runtime, T: HasRelayIds> {
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// Receiver for control messages for this reactor, sent by reactor handle objects.
@@ -111,8 +111,10 @@ pub(crate) struct BackwardReactor<T: HasRelayIds> {
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: broadcast::Sender<void::Void>,
-    /// The time provider.
-    runtime: DynTimeProvider,
+    /// The runtime.
+    ///
+    /// Used for spawning the [`BackwardReactor`].
+    runtime: R,
 }
 
 /// A handle for interacting with a [`BackwardReactor`].
@@ -127,7 +129,7 @@ pub(crate) struct RelayReactorHandle {
 }
 
 #[allow(unused)] // TODO(relay)
-impl<T: HasRelayIds> BackwardReactor<T> {
+impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
     /// Create a new circuit reactor.
     ///
     /// The reactor will send outbound messages on `channel`, receive incoming
@@ -140,7 +142,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         channel: Arc<Channel>,
         channel_id: CircId,
         unique_id: UniqId,
-        runtime: DynTimeProvider,
+        runtime: R,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         memquota: CircuitAccount,
     ) -> (Self, RelayReactorHandle) {
