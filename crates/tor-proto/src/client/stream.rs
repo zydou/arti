@@ -15,8 +15,12 @@ mod data;
 #[cfg(feature = "hs-service")]
 mod incoming;
 mod params;
-mod raw;
 mod resolve;
+
+// TODO(relay): this is only pub(crate) because it's referenced in the
+// crate::stream::queue docs. We should consider moving this out of client,
+// and making the raw module private.
+pub(crate) mod raw;
 
 pub use data::{DataReader, DataStream, DataWriter};
 #[cfg(feature = "hs-service")]

@@ -55,7 +55,7 @@ pub struct CircParameters {
     /// Maximum number of permitted incoming relay cells for each hop.
     ///
     /// If we would receive more relay cells than this from a single hop,
-    /// we close the circuit with [`ExcessInboundCells`](Error::ExcessInboundCells).
+    /// we close the circuit with [`ExcessInboundCells`](crate::Error::ExcessInboundCells).
     ///
     /// If this value is None, then there is no limit to the number of inbound cells.
     ///
@@ -66,7 +66,7 @@ pub struct CircParameters {
     /// Maximum number of permitted outgoing relay cells for each hop.
     ///
     /// If we would try to send more relay cells than this from a single hop,
-    /// we close the circuit with [`ExcessOutboundCells`](Error::ExcessOutboundCells).
+    /// we close the circuit with [`ExcessOutboundCells`](crate::Error::ExcessOutboundCells).
     /// It is the circuit-user's responsibility to make sure that this does not happen.
     ///
     /// This setting is used to ensure that we do not violate a limit
