@@ -11,7 +11,6 @@ use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::streammap::{self, StreamMap};
 use crate::util::err::ReactorError;
 use crate::{Error, Result};
-
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use crate::client::reactor::CloseStreamBehavior;
@@ -98,7 +97,7 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
     ///   * it lets the `BackwardReactor` know if the `ForwardReactor` has shut down:
     ///     we select! on this channel in the main loop, so if the `ForwardReactor`
     ///     shuts down, we will get EOS upon calling `.next()`)
-    cell_rx: mpsc::UnboundedReceiver<()>,
+    cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
     /// A handle to a [`ChannelProvider`], used for initiating outgoing channels.
     ///
     /// Note: all circuit reactors of a relay need to be initialized
@@ -136,7 +135,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         settings: &HopSettings,
         relay_format: RelayCellFormat,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
-        cell_rx: mpsc::UnboundedReceiver<()>,
+        cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         reactor_closed_tx: broadcast::Sender<void::Void>,
     ) -> (

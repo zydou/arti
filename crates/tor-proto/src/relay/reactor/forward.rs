@@ -15,7 +15,8 @@ use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
-use tor_cell::relaycell::RelayCellDecoder;
+use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_cell::relaycell::{RelayCellDecoder, StreamId};
 use tor_error::{internal, trace_report, warn_report};
 
 use futures::SinkExt;
@@ -65,7 +66,7 @@ pub(super) struct ForwardReactor {
     ///
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for all
     /// sending all client-bound cells.
-    cell_tx: mpsc::UnboundedSender<()>,
+    cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
     /// A broadcast receiver used to detect when the
     /// [`BackwardReactor`](super::BackwardReactor) is dropped.
     backward_closed_rx: broadcast::Receiver<void::Void>,
@@ -90,7 +91,7 @@ impl ForwardReactor {
         ccontrol: Arc<Mutex<CongestionControl>>,
         outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
-        cell_tx: mpsc::UnboundedSender<()>,
+        cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
         backward_closed_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {

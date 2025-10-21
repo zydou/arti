@@ -192,7 +192,11 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_rx,
         };
 
-        let reactor = RelayReactor { unique_id, forward, backward };
+        let reactor = RelayReactor {
+            unique_id,
+            forward,
+            backward,
+        };
 
         (reactor, handle)
     }
@@ -203,7 +207,11 @@ impl<T: HasRelayIds> RelayReactor<T> {
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
     pub(crate) async fn run(mut self) -> Result<()> {
-        let Self { forward, backward, unique_id } = self;
+        let Self {
+            forward,
+            backward,
+            unique_id,
+        } = self;
 
         debug!(
             circ_id = %unique_id,
