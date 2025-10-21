@@ -252,6 +252,7 @@ impl ConsensusBuilder {
             voting_delay: self.voting_delay,
             consensus_method,
             consensus_methods: NotPresent,
+            published: NotPresent,
             shared_rand_previous_value: self.shared_rand_previous_value.clone(),
             shared_rand_current_value: self.shared_rand_current_value.clone(),
         };

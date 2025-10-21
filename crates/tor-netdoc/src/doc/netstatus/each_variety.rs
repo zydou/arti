@@ -39,6 +39,9 @@ pub struct Preamble {
     /// the time over which the voted-upon consensus should be valid.)
     #[cfg_attr(feature = "parse2", deftly(netdoc(flatten)))]
     pub lifetime: Lifetime,
+    /// Publication time (of a vote)
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    pub published: ns_type!( NotPresent, NotPresent, Iso8601TimeSp ),
     /// List of recommended Tor client versions.
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     pub client_versions: Vec<String>,

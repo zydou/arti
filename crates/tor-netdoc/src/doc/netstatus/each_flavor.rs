@@ -409,6 +409,7 @@ impl Preamble {
             params,
             voting_delay,
             consensus_method,
+            published: NotPresent,
             consensus_methods: NotPresent,
             shared_rand_previous_value,
             shared_rand_current_value,
