@@ -143,15 +143,25 @@ pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+    ///
+    /// (You might see a consensus a little while before this time,
+    /// since voting tries to finish up before the.)
     valid_after: time::SystemTime,
     /// `fresh-until` --- Time after which there is expected to be a better version
     /// of this consensus
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+    ///
+    /// You can use the consensus after this time, but there is (or is
+    /// supposed to be) a better one by this point.
     fresh_until: time::SystemTime,
     /// `valid-until` --- Time after which this consensus is expired.
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
+    ///
+    /// You should try to get a better consensus after this time,
+    /// though it's okay to keep using this one if no more recent one
+    /// can be found.
     valid_until: time::SystemTime,
 }
 
@@ -177,24 +187,14 @@ impl Lifetime {
         }
     }
     /// Return time when this consensus first becomes valid.
-    ///
-    /// (You might see a consensus a little while before this time,
-    /// since voting tries to finish up before the.)
     pub fn valid_after(&self) -> time::SystemTime {
         self.valid_after
     }
     /// Return time when this consensus is no longer fresh.
-    ///
-    /// You can use the consensus after this time, but there is (or is
-    /// supposed to be) a better one by this point.
     pub fn fresh_until(&self) -> time::SystemTime {
         self.fresh_until
     }
     /// Return the time when this consensus is no longer valid.
-    ///
-    /// You should try to get a better consensus after this time,
-    /// though it's okay to keep using this one if no more recent one
-    /// can be found.
     pub fn valid_until(&self) -> time::SystemTime {
         self.valid_until
     }
