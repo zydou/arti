@@ -146,7 +146,6 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
-
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
         let reactor = Self {
