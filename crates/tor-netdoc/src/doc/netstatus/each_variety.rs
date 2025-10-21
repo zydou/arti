@@ -16,7 +16,7 @@ ns_use_this_variety! {
     pub use [crate::doc::netstatus::rs]::?::{RouterStatus};
 }
 
-/// The preamble of a network status document, except for the intro item.
+/// The preamble of a network status document, except for the intro and `vote-status` items.
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:preable>
 ///
