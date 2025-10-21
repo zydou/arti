@@ -1,8 +1,10 @@
 //! Entry point of a Tor relay that is the [`TorRelay`] objects
 
-use std::sync::Arc;
-
 use anyhow::Context;
+use std::sync::Arc;
+use tokio::task::JoinSet;
+use tracing::info;
+
 use tor_chanmgr::Dormancy;
 use tor_config_path::CfgPathResolver;
 use tor_keymgr::{
@@ -13,7 +15,6 @@ use tor_netdir::params::NetParameters;
 use tor_proto::memquota::ToplevelAccount;
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
 use tor_rtcompat::Runtime;
-use tracing::info;
 
 use crate::config::TorRelayConfig;
 
@@ -136,13 +137,9 @@ impl InertTorRelay {
 #[derive(Clone)]
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
-    #[expect(unused)] // TODO RELAY remove
-    runtime: R,
-
+    _runtime: R,
     /// Channel manager, used by circuits etc.
-    #[expect(unused)] // TODO RELAY remove
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
-
     /// Key manager holding all relay keys and certificates.
     #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
@@ -165,9 +162,32 @@ impl<R: Runtime> TorRelay<R> {
         // TODO: missing the actual bootstrapping
 
         Ok(Self {
-            runtime,
+            _runtime: runtime,
             chanmgr,
             keymgr: inert.keymgr,
         })
+    }
+
+    /// Run the actual relay. This only returns if the relay is shutting down.
+    pub(crate) async fn run(&self) -> anyhow::Result<()> {
+        let mut task_handles = JoinSet::new();
+
+        // Channel housekeeping task.
+        let mut t = crate::tasks::ChannelHouseKeepingTask::new(&self.chanmgr);
+        task_handles.spawn(async move { t.start().await });
+
+        // TODO: More tasks will be spawned here.
+
+        // We block until facism is erradicated or a task ends which means the relay will shutdown
+        // and facism will have one more chance.
+        task_handles
+            .join_next()
+            .await
+            .context("Task set is empty")?
+            .context("Task join failed: {e}")?
+            .context("Task stopped with error: {e}")?;
+
+        // One of the task stopped without an error. This should not happen.
+        unreachable!("Background task ended with no error");
     }
 }

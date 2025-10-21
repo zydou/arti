@@ -57,6 +57,7 @@
 mod cli;
 mod config;
 mod relay;
+mod tasks;
 
 use std::fmt::Display;
 use std::io::IsTerminal as _;
@@ -234,12 +235,15 @@ fn mainloop<T: Send + 'static>(
 }
 
 /// Run the relay.
-async fn run_relay<R: Runtime>(runtime: R, relay: InertTorRelay) -> anyhow::Result<()> {
-    let _relay = relay
+///
+/// This blocks until the relay stops.
+async fn run_relay<R: Runtime>(runtime: R, inert_relay: InertTorRelay) -> anyhow::Result<()> {
+    let relay = inert_relay
         .bootstrap(runtime)
         .await
         .context("Failed to bootstrap")?;
-    Ok(())
+    // This blocks until end of time or an error.
+    relay.run().await
 }
 
 /// Initialize a runtime.
