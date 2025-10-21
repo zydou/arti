@@ -59,17 +59,17 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
     relay_format: RelayCellFormat,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
-    /// The circuit identifier on the incoming channel.
+    /// The circuit identifier on the backward channel.
     circ_id: CircId,
-    /// The reading end of the outbound channel, if we are not the last hop.
+    /// The reading end of the forward channel, if we are not the last hop.
     ///
     /// Yields cells moving from the exit towards the client.
     input: Option<CircuitRxReceiver>,
-    /// The sending end of the inbound channel.
+    /// The sending end of the backward channel.
     ///
     /// Delivers cells towards the client.
     chan_sender: ChannelSender,
-    /// The cryptographic state for this circuit for inbound cells.
+    /// The cryptographic state for this circuit for client-bound cells.
     crypto_in: Box<dyn InboundRelayLayer + Send>,
     /// Congestion control object.
     ///
@@ -201,7 +201,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
-        // Flush the inbound sink, and check it for readiness
+        // Flush the backward channel sink, and check it for readiness
         //
         // TODO(flushing): here and everywhere else we need to flush:
         //
@@ -213,7 +213,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         // so it's possible that this is actually tolerable.
         // We should run some tests, and if this turns out to be a performance bottleneck,
         // we'll have to rethink our flushing approach.
-        let inbound_chan_ready = future::poll_fn(|cx| {
+        let backward_chan_ready = future::poll_fn(|cx| {
             // The flush outcome doesn't matter,
             // so we simply move on to the readiness check.
             // The reason we don't wait on the flush is because we don't
@@ -267,9 +267,9 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         //  1. the application streams stream
         let streams_fut = async move {
             // Avoid polling the application streams if the outgoing sink is blocked
-            let _ = inbound_chan_ready.await;
+            let _ = backward_chan_ready.await;
 
-            // Kludge to notify the other future that the inbound chan is ready
+            // Kludge to notify the other future that the backward chan is ready
             // needed because we can't poll for readiness from two separate tasks
             let _ = tx.send(());
 
@@ -286,10 +286,10 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         };
 
         // 2. Messages moving from the exit towards the client,
-        // if we have an outbound channel **iff** the outgoing sink (towards the client)
+        // if we have a forward channel, **iff** the backward sink (towards the client)
         // is ready to accept them
         let backwards_cell = async {
-            // Avoid reading from the outgoing channel (if there even is one!)
+            // Avoid reading from the forward channel (if there even is one!)
             // if the outgoing sink is blocked.
             let () = rx.await.expect("streams_fut future disappeared?!");
 
@@ -330,7 +330,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             ev = streams_fut.fuse() => self.handle_stream_event(ev),
             cell = backwards_cell.fuse() => {
                 let Some(cell) = cell else {
-                    // outbound channel closed, we should close too
+                    // Forward channel unexpectedly closed, we should close too
                     return Err(ReactorError::Shutdown);
                 };
 
@@ -338,10 +338,10 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             }
             cell = self.cell_rx.next() => {
                 let Some(cell) = cell else {
-                    // The outbound reactor has crashed, so we have to shut down.
+                    // The forward reactor has crashed, so we have to shut down.
                     trace!(
                         circ_id = %self.unique_id,
-                        "Backward relay reactor shutdown (outbound side has closed)",
+                        "Backward relay reactor shutdown (forward reactor has closed)",
                     );
 
                     return Err(ReactorError::Shutdown);
