@@ -52,6 +52,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
 use postage::broadcast;
+use tracing::debug;
 
 use tor_cell::chancell::CircId;
 use tor_cell::relaycell::RelayCellDecoder;
@@ -103,6 +104,10 @@ pub(crate) enum RelayCtrlCmd {
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub(crate) struct RelayReactor<T: HasRelayIds> {
+    /// The process-unique identifier of this circuit.
+    ///
+    /// Used for logging;
+    unique_id: UniqId,
     /// The reactor for handling the forward direction (client to exit).
     forward: ForwardReactor,
     /// The reactor for handling the backward direction (exit to client).
@@ -187,7 +192,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_rx,
         };
 
-        let reactor = RelayReactor { forward, backward };
+        let reactor = RelayReactor { unique_id, forward, backward };
 
         (reactor, handle)
     }
@@ -198,7 +203,12 @@ impl<T: HasRelayIds> RelayReactor<T> {
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
     pub(crate) async fn run(mut self) -> Result<()> {
-        let Self { forward, backward } = self;
+        let Self { forward, backward, unique_id } = self;
+
+        debug!(
+            circ_id = %unique_id,
+            "Running relay circuit reactor",
+        );
 
         let (forward_res, backward_res) = futures::join!(forward.run(), backward.run());
 
