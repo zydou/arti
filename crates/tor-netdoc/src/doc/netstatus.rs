@@ -174,46 +174,46 @@ define_derive_deftly! {
     /// Bespoke derive for `Lifetime`, for `new` and accessors
     Lifetime:
 
-impl Lifetime {
-    /// Construct a new Lifetime.
-    pub fn new(
-        $( $fname: time::SystemTime, )
-    ) -> Result<Self> {
-        // Make this now because otherwise literal `valid_after` here in the body
-        // has the wrong span - the compiler refuses to look at the argument.
-        // But we can refer to the field names.
-        let self_ = Lifetime {
-            $( $fname: $fname.into(), )
-        };
-        if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
-            Ok(self_)
-        } else {
-            Err(EK::InvalidLifetime.err())
+    impl Lifetime {
+        /// Construct a new Lifetime.
+        pub fn new(
+            $( $fname: time::SystemTime, )
+        ) -> Result<Self> {
+            // Make this now because otherwise literal `valid_after` here in the body
+            // has the wrong span - the compiler refuses to look at the argument.
+            // But we can refer to the field names.
+            let self_ = Lifetime {
+                $( $fname: $fname.into(), )
+            };
+            if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
+                Ok(self_)
+            } else {
+                Err(EK::InvalidLifetime.err())
+            }
+        }
+      $(
+        ${fattrs doc}
+        pub fn $fname(&self) -> time::SystemTime {
+            *self.$fname
+        }
+      )
+        /// Return true if this consensus is officially valid at the provided time.
+        pub fn valid_at(&self, when: time::SystemTime) -> bool {
+            *self.valid_after <= when && when <= *self.valid_until
+        }
+
+        /// Return the voting period implied by this lifetime.
+        ///
+        /// (The "voting period" is the amount of time in between when a consensus first
+        /// becomes valid, and when the next consensus is expected to become valid)
+        pub fn voting_period(&self) -> time::Duration {
+            let valid_after = self.valid_after();
+            let fresh_until = self.fresh_until();
+            fresh_until
+                .duration_since(valid_after)
+                .expect("Mis-formed lifetime")
         }
     }
-  $(
-    ${fattrs doc}
-    pub fn $fname(&self) -> time::SystemTime {
-        *self.$fname
-    }
-  )
-    /// Return true if this consensus is officially valid at the provided time.
-    pub fn valid_at(&self, when: time::SystemTime) -> bool {
-        *self.valid_after <= when && when <= *self.valid_until
-    }
-
-    /// Return the voting period implied by this lifetime.
-    ///
-    /// (The "voting period" is the amount of time in between when a consensus first
-    /// becomes valid, and when the next consensus is expected to become valid)
-    pub fn voting_period(&self) -> time::Duration {
-        let valid_after = self.valid_after();
-        let fresh_until = self.fresh_until();
-        fresh_until
-            .duration_since(valid_after)
-            .expect("Mis-formed lifetime")
-    }
-}
 }
 use derive_deftly_template_Lifetime;
 
