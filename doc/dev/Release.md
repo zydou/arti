@@ -1,5 +1,9 @@
 # How to release Arti
 
+Note that many of these steps can be done in parallel.
+It is worth reading through all the steps,
+and considering what things it is possible to do while you are waiting for CI or reviews.
+
 ## Checklist
 
 * [ ] Create the checklist ticket
@@ -85,56 +89,6 @@ release" below.
 
 Note that you can do these steps _in parallel_ with "are we ready to
 release?" above.
-
-1. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
-
-   Check for non-breaking changes to our dependencies.
-   A day or two before release, I try to run:
-   `cargo update`.
-   This will replace each of our dependencies in Cargo.lock
-   with the latest version.
-   (I recommend doing this a bit before the release
-   to make sure that we have time
-   to deal with any surprising breakage.)
-
-2. [ ] Consider dependency updates for breaking changes in our dependencies.
-
-   Check for breaking changes to our dependencies.
-   In the weeks between releases, I try to run:
-   `cargo upgrade --dry-run --compatible=ignore --incompatible=allow`.
-   This will tell us if any of our dependencies
-   have new versions that will not upgrade automatically.
-
-   Then, check the tickets with the label "[Upgrade Blocker]":
-   they will tell you about things that we tried to upgrade in the past,
-   but weren't able to upgrade.  (This might save you some headaches.)
-
-   [Upgrade Blocker]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?sort=created_date&state=opened&label_name%5B%5D=Upgrade%20Blocker
-
-   Then, upgrade these dependencies.
-   Note that in some cases, this will be nontrivial:
-   APIs may have changed, or the upgraded versions may not be compatible
-   with our current MSRV.
-   You'll may need to either fix the call sites to the old APIs,
-   skip the upgrade,
-   or open a ticket to upgrade the crate later on.
-
-   If there is a dependency you can't upgrade,
-   open an Arti ticket for it, with the label "Upgrade Blocker".
-   If the reason you can't upgrade is a bug in the dependency,
-   or _accidental_ MSRV breakage, file a bug upstream.
-
-3. [ ] Consider updating CI Docker images.
-
-   Look in `.gitlab-ci.yml` for docker images that we specify a specific version for.
-   These are the `image:` items within each job.
-
-   Check [Docker Hub](https://hub.docker.com) for each image to see if there is a more recent version,
-   and update to it if it is available. If the update causes a breakage,
-   either fix the breakage or file a "[Upgrade Blocker]" ticket with details.
-
-   Note that some images may intentionally specify older versions,
-   such as our `minimal-versions` test which is currently used to test our MSRV as well.
 
 4. [ ] Write a changelog.
 
@@ -367,8 +321,52 @@ before you continue!
    You can then use `cargo owner --add <username> <crate-name>`
    to add them as owners for the new crates.
 
+4. [ ] Run `cargo update`, to obtain non-breaking changes in our dependencies
 
-4. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
+   Check for non-breaking changes to our dependencies with
+   `cargo update`.
+   This will replace each of our dependencies in Cargo.lock
+   with the latest version.
+
+5. [ ] Consider dependency updates for breaking changes in our dependencies.
+
+   Check for breaking changes to our dependencies with
+   `cargo upgrade --dry-run --compatible=ignore --incompatible=allow`.
+   This will tell us if any of our dependencies
+   have new versions that will not upgrade automatically.
+
+   Then, check the tickets with the label "[Upgrade Blocker]":
+   they will tell you about things that we tried to upgrade in the past,
+   but weren't able to upgrade.  (This might save you some headaches.)
+
+   [Upgrade Blocker]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?sort=created_date&state=opened&label_name%5B%5D=Upgrade%20Blocker
+
+   Then, upgrade these dependencies.
+   Note that in some cases, this will be nontrivial:
+   APIs may have changed, or the upgraded versions may not be compatible
+   with our current MSRV.
+   You'll may need to either fix the call sites to the old APIs,
+   skip the upgrade,
+   or open a ticket to upgrade the crate later on.
+
+   If there is a dependency you can't upgrade,
+   open an Arti ticket for it, with the label "Upgrade Blocker".
+   If the reason you can't upgrade is a bug in the dependency,
+   or _accidental_ MSRV breakage, file a bug upstream.
+
+6. [ ] Consider updating CI Docker images.
+
+   Look in `.gitlab-ci.yml` for docker images that we specify a specific version for.
+   These are the `image:` items within each job.
+
+   Check [Docker Hub](https://hub.docker.com) for each image to see if there is a more recent version,
+   and update to it if it is available. If the update causes a breakage,
+   either fix the breakage or file a "[Upgrade Blocker]" ticket with details.
+
+   Note that some images may intentionally specify older versions,
+   such as our `minimal-versions` test which is currently used to test our MSRV as well.
+
+7. [ ] Make MR(s) of any changes to `Release.md` and/or release tooling.
 
    If anything was janky or didn't go as planned, and you can see how
    to improve it, please fix it - here or in the relevant tooling.
