@@ -140,6 +140,7 @@ pub struct IgnoredPublicationTimeSp;
 /// Aggregate of three netdoc preamble fields.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Lifetime)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
     ///
@@ -147,6 +148,7 @@ pub struct Lifetime {
     ///
     /// (You might see a consensus a little while before this time,
     /// since voting tries to finish up before the.)
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     valid_after: Iso8601TimeSp,
     /// `fresh-until` --- Time after which there is expected to be a better version
     /// of this consensus
@@ -155,6 +157,7 @@ pub struct Lifetime {
     ///
     /// You can use the consensus after this time, but there is (or is
     /// supposed to be) a better one by this point.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     fresh_until: Iso8601TimeSp,
     /// `valid-until` --- Time after which this consensus is expired.
     ///
@@ -163,6 +166,7 @@ pub struct Lifetime {
     /// You should try to get a better consensus after this time,
     /// though it's okay to keep using this one if no more recent one
     /// can be found.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
     valid_until: Iso8601TimeSp,
 }
 
