@@ -16,6 +16,7 @@ use tor_linkspec::HasRelayIds;
 use futures::channel::mpsc;
 use futures::{StreamExt, select_biased};
 use oneshot_fused_workaround as oneshot;
+use postage::broadcast;
 use tracing::trace;
 
 use std::result::Result as StdResult;
@@ -103,13 +104,13 @@ pub(crate) struct BackwardReactor<T: HasRelayIds> {
     /// TODO: can we use a CircHop instead??
     /// Otherwise we'll duplicate much of it here.
     streams: Arc<Mutex<StreamMap>>,
-    /// A oneshot sender that is used to alert other tasks when this reactor is
+    /// A sender that is used to alert other tasks when this reactor is
     /// finally dropped.
     ///
     /// It is a sender for Void because we never actually want to send anything here;
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
-    reactor_closed_tx: oneshot::Sender<void::Void>,
+    reactor_closed_tx: broadcast::Sender<void::Void>,
     /// The time provider.
     runtime: DynTimeProvider,
 }
@@ -121,8 +122,8 @@ pub(crate) struct RelayReactorHandle {
     control: mpsc::UnboundedSender<RelayCtrlMsg>,
     /// Sender for reactor control commands.
     command: mpsc::UnboundedSender<RelayCtrlCmd>,
-    /// A oneshot receiver used to detect when the reactor is dropped.
-    reactor_closed_rx: oneshot::Receiver<void::Void>,
+    /// A broadcast receiver used to detect when the reactor is dropped.
+    reactor_closed_rx: broadcast::Receiver<void::Void>,
 }
 
 #[allow(unused)] // TODO(relay)
@@ -146,7 +147,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
-        let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
+        let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
 
         let reactor = Self {
             unique_id,
