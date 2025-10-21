@@ -20,7 +20,7 @@ ns_use_this_variety! {
 ///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#section:preable>
 ///
-/// **Does not include `network-status-version`**.
+/// **Does not include `network-status-version` and `vote-status`**.
 /// In the old parser this is not represented directly;
 /// instead, in `, it's just the `ConsensusFlavor`.
 /// `parse2` doesn't (currently) support subdocuments which contain the parent's intro item
