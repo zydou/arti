@@ -27,8 +27,8 @@ use crate::client::stream::{
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};
-use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::StreamMpscSender;
+use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::queue::stream_queue;

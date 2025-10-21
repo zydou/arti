@@ -8,10 +8,10 @@ mod halfstream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
 
 use crate::congestion::sendme;
+use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};
 use crate::stream::queue::StreamQueueSender;
-use crate::stream::StreamMpscReceiver;
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;
