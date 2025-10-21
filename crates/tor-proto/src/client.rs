@@ -7,7 +7,7 @@ mod halfstream;
 #[cfg(feature = "send-control-msg")]
 pub(crate) mod msghandler;
 pub(crate) mod reactor;
-mod streammap;
+pub(crate) mod streammap; // XXX
 
 use derive_deftly::Deftly;
 use futures::SinkExt as _;

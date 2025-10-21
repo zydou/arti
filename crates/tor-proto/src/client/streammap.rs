@@ -279,7 +279,7 @@ struct Priority(u64);
 
 /// A map from stream IDs to stream entries. Each circuit has one for each
 /// hop.
-pub(super) struct StreamMap {
+pub(crate) struct StreamMap {
     /// Open streams.
     // Invariants:
     // * Keys are disjoint with `closed_streams`.
@@ -300,7 +300,7 @@ pub(super) struct StreamMap {
 
 impl StreamMap {
     /// Make a new empty StreamMap.
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let mut rng = rand::rng();
         let next_stream_id: NonZeroU16 = rng.random();
         StreamMap {

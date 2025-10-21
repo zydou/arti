@@ -7,6 +7,9 @@ use crate::circuit::UniqId;
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
 
+// XXX we shouldnt import from client (need to move StreamMap)
+use crate::client::streammap::StreamMap;
+
 use tor_cell::chancell::CircId;
 use tor_error::{trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
@@ -17,7 +20,7 @@ use oneshot_fused_workaround as oneshot;
 use tracing::trace;
 
 use std::result::Result as StdResult;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 
@@ -99,6 +102,10 @@ pub(crate) struct BackwardReactor<T: HasRelayIds> {
     //
     // TODO(relay): implement an outgoing channel map
     outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
+    /// A mapping from stream IDs to stream entries.
+    /// TODO: can we use a CircHop instead??
+    /// Otherwise we'll duplicate much of it here.
+    streams: Arc<Mutex<StreamMap>>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
     /// finally dropped.
     ///
@@ -152,6 +159,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             chan_provider,
             outgoing_chan_tx,
             outgoing_chan_rx,
+            streams: Arc::new(Mutex::new(StreamMap::new())),
             reactor_closed_tx,
             runtime,
         };
