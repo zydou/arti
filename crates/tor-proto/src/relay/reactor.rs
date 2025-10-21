@@ -14,11 +14,7 @@
 //!     backward direction (from the exit to the client), and by packaging
 //!     and sending application stream data towards the client
 //!
-//! The `BackwardReactor` can also be viewed as the "primary" reactor here:
-//! its `.run()` function starts the `BackwardReactor` **and** spawns [`ForwardReactor::run`],
-//! so you can view this function as the entry point of the circuit reactor subsystem.
-//!
-//! > Note: the "primary"/`BackwardReactor` is also the component that handles [`RelayCtrlMsg`]s
+//! > Note: the `BackwardReactor` is also the component that handles [`RelayCtrlMsg`]s
 //! > and [`RelayCtrlCmd`]s. This is okay for now, but if we ever add a new control message type
 //! > that needs to be handled by `ForwardReactor` (or that needs information from `ForwardReactor`),
 //! > we will need to rethink the control message handling
