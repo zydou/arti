@@ -56,8 +56,7 @@ mod build;
 
 #[cfg(feature = "parse2")]
 use {
-    crate::parse2::{self, ArgumentStream},
-    derive_deftly::Deftly,
+    crate::parse2::{self, ArgumentStream}, //
 };
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
@@ -75,6 +74,7 @@ use tor_error::{HasKind, internal};
 use tor_protover::Protocols;
 
 use bitflags::bitflags;
+use derive_deftly::{Deftly, define_derive_deftly};
 use digest::Digest;
 use std::sync::LazyLock;
 use tor_checkable::{ExternallySigned, timed::TimerangeBound};
@@ -138,7 +138,8 @@ pub struct IgnoredPublicationTimeSp;
 /// consensus.
 ///
 /// Aggregate of three netdoc preamble fields.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Lifetime)]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
     ///
@@ -165,20 +166,20 @@ pub struct Lifetime {
     valid_until: time::SystemTime,
 }
 
+define_derive_deftly! {
+    /// Bespoke derive for `Lifetime`, for `new` and accessors
+    Lifetime:
+
 impl Lifetime {
     /// Construct a new Lifetime.
     pub fn new(
-        valid_after: time::SystemTime,
-        fresh_until: time::SystemTime,
-        valid_until: time::SystemTime,
+        $( $fname: time::SystemTime, )
     ) -> Result<Self> {
         // Make this now because otherwise literal `valid_after` here in the body
         // has the wrong span - the compiler refuses to look at the argument.
         // But we can refer to the field names.
         let self_ = Lifetime {
-            valid_after,
-            fresh_until,
-            valid_until,
+            $( $fname, )
         };
         if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
             Ok(self_)
@@ -186,18 +187,12 @@ impl Lifetime {
             Err(EK::InvalidLifetime.err())
         }
     }
-    /// Return time when this consensus first becomes valid.
-    pub fn valid_after(&self) -> time::SystemTime {
-        self.valid_after
+  $(
+    ${fattrs doc}
+    pub fn $fname(&self) -> time::SystemTime {
+        self.$fname
     }
-    /// Return time when this consensus is no longer fresh.
-    pub fn fresh_until(&self) -> time::SystemTime {
-        self.fresh_until
-    }
-    /// Return the time when this consensus is no longer valid.
-    pub fn valid_until(&self) -> time::SystemTime {
-        self.valid_until
-    }
+  )
     /// Return true if this consensus is officially valid at the provided time.
     pub fn valid_at(&self, when: time::SystemTime) -> bool {
         self.valid_after <= when && when <= self.valid_until
@@ -215,6 +210,8 @@ impl Lifetime {
             .expect("Mis-formed lifetime")
     }
 }
+}
+use derive_deftly_template_Lifetime;
 
 /// A single consensus method
 ///
