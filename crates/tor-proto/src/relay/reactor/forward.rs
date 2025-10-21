@@ -177,6 +177,14 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         };
 
         select_biased! {
+            _res = self.shutdown_rx.next().fuse() => {
+                trace!(
+                    circ_id = %self.unique_id,
+                    "Forward relay reactor shutdown (received shutdown signal)",
+                );
+
+                Err(ReactorError::Shutdown)
+            }
             res = self.outgoing_chan_rx.next() => {
                 let chan_res = res
                     // It's safe to expect here, because we always keep
@@ -200,14 +208,6 @@ impl<T: HasRelayIds> ForwardReactor<T> {
                 // to the appropriate Tor stream
                 self.handle_forward_cell(cell).await
             },
-            _res = self.shutdown_rx.next().fuse() => {
-                trace!(
-                    circ_id = %self.unique_id,
-                    "Forward relay reactor shutdown (received shutdown signal)",
-                );
-
-                Err(ReactorError::Shutdown)
-            }
         }
     }
 
