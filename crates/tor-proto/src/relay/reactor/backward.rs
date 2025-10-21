@@ -104,7 +104,8 @@ pub(super) struct BackwardReactor {
     cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
     /// A sender for sending newly opened outgoing [`Channel`]`s to the reactor.
     ///
-    /// This is passed to the [`ChannelProvider`] for each Tor channel request.
+    /// This is passed to the [`ChannelProvider`](crate::relay::channel_provider::ChannelProvider)
+    /// for each Tor channel request.
     outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
     /// A mapping from stream IDs to Tor stream entries.
     /// TODO: can we use a CircHop instead??
@@ -112,7 +113,7 @@ pub(super) struct BackwardReactor {
     streams: StreamMap,
     /// A broadcast receiver used to detect when the
     /// [`RelayReactor`](super::RelayReactor) or
-    /// [`BackwardReactor`](super::BackwardReactor) are dropped.
+    /// [`ForwardReactor`](super::ForwardReactor) are dropped.
     shutdown_rx: broadcast::Receiver<void::Void>,
 }
 
