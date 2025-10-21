@@ -162,12 +162,16 @@ impl Lifetime {
         fresh_until: time::SystemTime,
         valid_until: time::SystemTime,
     ) -> Result<Self> {
-        if valid_after < fresh_until && fresh_until < valid_until {
-            Ok(Lifetime {
-                valid_after,
-                fresh_until,
-                valid_until,
-            })
+        // Make this now because otherwise literal `valid_after` here in the body
+        // has the wrong span - the compiler refuses to look at the argument.
+        // But we can refer to the field names.
+        let self_ = Lifetime {
+            valid_after,
+            fresh_until,
+            valid_until,
+        };
+        if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
+            Ok(self_)
         } else {
             Err(EK::InvalidLifetime.err())
         }
