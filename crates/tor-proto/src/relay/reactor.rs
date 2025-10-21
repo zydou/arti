@@ -249,8 +249,6 @@ impl<T: HasRelayIds> RelayReactor<T> {
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         memquota: CircuitAccount,
     ) -> (Self, RelayReactorHandle) {
-        let (control_tx, control_rx) = mpsc::unbounded();
-        let (command_tx, command_rx) = mpsc::unbounded();
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
         let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
         let (cell_tx, cell_rx) = mpsc::unbounded();
@@ -269,27 +267,23 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_rx.clone(),
         );
 
-        let backward = BackwardReactor {
-            relay_format,
-            input: None,
-            chan_sender: channel.sender(),
+        let (backward, control, command) = BackwardReactor::new(
+            channel,
+            circ_id,
+            unique_id,
             crypto_in,
             ccontrol,
-            flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
-            unique_id,
-            circ_id,
-            control: control_rx,
-            command: command_rx,
+            settings,
+            relay_format,
             chan_provider,
-            outgoing_chan_tx,
-            streams: Arc::new(Mutex::new(StreamMap::new())),
-            reactor_closed_tx,
             cell_rx,
-        };
+            outgoing_chan_tx,
+            reactor_closed_tx,
+        );
 
         let handle = RelayReactorHandle {
-            control: control_tx,
-            command: command_tx,
+            control,
+            command,
             reactor_closed_rx,
         };
 
@@ -315,6 +309,50 @@ impl<T: HasRelayIds> RelayReactor<T> {
 
 #[allow(unused)] // TODO(relay)
 impl<T: HasRelayIds> BackwardReactor<T> {
+    /// Create a new [`BackwardReactor`].
+    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
+    #[allow(clippy::too_many_arguments)] // TODO
+    pub(crate) fn new(
+        channel: Arc<Channel>,
+        circ_id: CircId,
+        unique_id: UniqId,
+        crypto_in: Box<dyn InboundRelayLayer + Send>,
+        ccontrol: Arc<Mutex<CongestionControl>>,
+        settings: &HopSettings,
+        relay_format: RelayCellFormat,
+        chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
+        cell_rx: mpsc::UnboundedReceiver<()>,
+        outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
+        reactor_closed_tx: broadcast::Sender<void::Void>,
+    ) -> (
+        Self,
+        mpsc::UnboundedSender<RelayCtrlMsg>,
+        mpsc::UnboundedSender<RelayCtrlCmd>,
+    ) {
+        let (control_tx, control_rx) = mpsc::unbounded();
+        let (command_tx, command_rx) = mpsc::unbounded();
+
+        let reactor = Self {
+            relay_format,
+            input: None,
+            chan_sender: channel.sender(),
+            crypto_in,
+            ccontrol,
+            flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
+            unique_id,
+            circ_id,
+            control: control_rx,
+            command: command_rx,
+            chan_provider,
+            outgoing_chan_tx,
+            streams: Arc::new(Mutex::new(StreamMap::new())),
+            reactor_closed_tx,
+            cell_rx,
+        };
+
+        (reactor, control_tx, command_tx)
+    }
+
     /// Launch the reactor, and run until the circuit closes or we
     /// encounter an error.
     ///
