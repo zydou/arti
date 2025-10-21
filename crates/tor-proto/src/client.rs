@@ -22,7 +22,6 @@ use crate::circuit::UniqId;
 pub use crate::client::circuit::padding::{
     CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError,
 };
-use crate::stream::queue::stream_queue;
 use crate::client::stream::{
     DataStream, OutboundDataCmdChecker, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReceiver,
@@ -33,6 +32,7 @@ use crate::memquota::{SpecificAccount as _, StreamAccount};
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
+use crate::stream::queue::stream_queue;
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
 use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path, StreamMpscSender};

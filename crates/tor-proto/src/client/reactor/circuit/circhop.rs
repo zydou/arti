@@ -4,7 +4,6 @@ use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
 use crate::client::reactor::circuit::path::PathEntry;
-use crate::stream::queue::StreamQueueSender;
 use crate::client::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
@@ -15,6 +14,7 @@ use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
+use crate::stream::queue::StreamQueueSender;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};

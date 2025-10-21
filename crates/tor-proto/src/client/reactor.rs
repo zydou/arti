@@ -26,7 +26,6 @@ use crate::circuit::UniqId;
 use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
-use crate::stream::queue::StreamQueueReceiver;
 #[cfg(feature = "hs-service")]
 use crate::client::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::client::{HopLocation, TargetHop, streammap};
@@ -36,6 +35,7 @@ use crate::memquota::{CircuitAccount, StreamAccount};
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
+use crate::stream::queue::StreamQueueReceiver;
 use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
 use crate::util::notify::NotifyReceiver;
