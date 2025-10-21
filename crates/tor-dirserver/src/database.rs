@@ -239,13 +239,31 @@ PRAGMA busy_timeout=1000;
 /// * Schema initialization.
 /// * Schema upgrade.
 /// * Setting connection specific settings.
+///
+/// # `SQLITE_BUSY` Caveat
+///
+/// There is a problem with the handling of `SQLITE_BUSY` when opening an
+/// SQLite database.  In WAL, opening a database might acquire an exclusive lock
+/// for a very short amount of time, in order to perform clean-up from previous
+/// connections alongside other tasks for maintaining database integrity?  This
+/// means, that opening multiple SQLite databases simultanously will result in
+/// a busy error regardless of a busy handler, as setting a busy handler will
+/// require an existing connection, something we are unable to obtain in the
+/// first place.
+///
+/// In order to mitigate this issue, the recommended way in the SQLite community
+/// is to simply ensure that database connections are opened sequentially,
+/// by urging calling applications to just use a single [`Pool`] instance.
+///
+/// Testing this is hard unfortunately.
 pub(crate) fn open<P: AsRef<Path>>(
     path: P,
 ) -> Result<Pool<SqliteConnectionManager>, DatabaseError> {
     let num_cores = std::thread::available_parallelism()
         .unwrap_or(NonZero::new(8).expect("8 == 0?"))
         .get() as u32;
-    let manager = r2d2_sqlite::SqliteConnectionManager::file(path);
+
+    let manager = r2d2_sqlite::SqliteConnectionManager::file(&path);
     let pool = Pool::builder().max_size(num_cores).build(manager)?;
 
     rw_tx(&pool, |tx| {
@@ -354,10 +372,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use std::{
-        sync::{
-            atomic::{AtomicBool, Ordering},
-            Arc, Barrier,
-        },
+        sync::{Arc, Once},
         time::Duration,
     };
 
@@ -463,68 +478,33 @@ mod test {
 
     #[test]
     fn rw_tx_busy_timeout_working() {
-        // This test consists of two threads.
-        //
-        // Both threads start simultanously and open a database connection
-        // themselves; they will wait for each other until that is done in order
-        // to have a fixed starting point for further computations.
-        //
-        // Once that is done, the first thread will block the writer for 500ms.
-        // Simultanously, the second thread waits until the writer has acquired
-        // the lock, after which it will wait for it to be released with a maximum
-        // timeout of 1000ms, which will not be reached however, because the other
-        // thread will only hold the writer for 500ms.
-
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
-        let barrier = Arc::new(Barrier::new(2));
-        let writer_acquired = Arc::new(AtomicBool::new(false));
+        let writer_acquired = Arc::new(Once::new());
+        let pool = super::open(db_path).unwrap();
 
-        // Spawn the first thread.
-        let db_path2 = db_path.clone();
-        let barrier2 = barrier.clone();
-        let writer_acquired2 = writer_acquired.clone();
-        let t1 = std::thread::spawn(move || {
-            let db_path = db_path2;
-            let barrier = barrier2;
-            let writer_acquired = writer_acquired2;
-
-            let pool = super::open(&db_path).unwrap();
-            println!("t1 opened pool");
-            barrier.wait();
-
-            // Block the writer for 500ms.
-            super::rw_tx(&pool, move |_tx| {
-                println!("t1 acquired write lock");
-                writer_acquired.store(true, Ordering::SeqCst);
-                std::thread::sleep(Duration::from_millis(500));
-                println!("t1 released write lock");
-            })
+        let t1 = std::thread::spawn({
+            let pool = pool.clone();
+            let writer_acquired = writer_acquired.clone();
+            move || {
+                super::rw_tx(&pool, move |_tx| {
+                    println!("t1 acquired write lock");
+                    writer_acquired.call_once(|| ());
+                    std::thread::sleep(Duration::from_millis(500));
+                    println!("t2 released write lock");
+                })
+            }
         });
 
-        // Spawn the second thread.
-        let db_path2 = db_path.clone();
-        let barrier2 = barrier.clone();
-        let writer_acquired2 = writer_acquired.clone();
         let t2 = std::thread::spawn(move || {
-            let db_path = db_path2;
-            let barrier = barrier2;
-            let writer_acquired = writer_acquired2;
+            println!("t2 waits for t1 to acquire write lock");
+            writer_acquired.wait();
+            println!("t2 realized that t1 has acquired write lock");
 
-            // Open the pool and wait for it to sync.
-            let pool = super::open(&db_path).unwrap();
-            println!("t2 opened pool");
-            barrier.wait();
-
-            // Wait until t1 has acquired the writer.
-            while !writer_acquired.load(Ordering::SeqCst) {}
-            println!("t2 starting waiting game");
-
-            // Block the writer for 500ms.
-            super::rw_tx(&pool, |_tx| {
+            super::rw_tx(&pool, move |_tx| {
                 println!("t2 acquired write lock");
                 std::thread::sleep(Duration::from_millis(500));
-                println!("t2 release wait lock");
+                println!("t2 released write lock");
             })
         });
 
@@ -533,73 +513,36 @@ mod test {
     }
 
     #[test]
-    fn rw_tx_busy_timeout_locked() {
-        // This test consists of two threads.
-        //
-        // Both threads start simultanously and open a database connection
-        // themselves; they will wait for each other until that is done in order
-        // to have a fixed starting point for further computations.
-        //
-        // Once that is done, the first thread will block the writer for 1500ms.
-        // Simultanously, the second thread waits until the writer has acquired
-        // the lock, after which it will wait for it to be released with a maximum
-        // timeout of 1000ms, which will be reached, leading the second task
-        // to fail with a lock error.
-
+    fn rw_tx_busy_timeout_busy() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
-        let barrier = Arc::new(Barrier::new(2));
-        let writer_acquired = Arc::new(AtomicBool::new(false));
+        let writer_acquired = Arc::new(Once::new());
+        let pool = super::open(db_path).unwrap();
 
-        // Spawn the first thread.
-        let db_path2 = db_path.clone();
-        let barrier2 = barrier.clone();
-        let writer_acquired2 = writer_acquired.clone();
-        let t1 = std::thread::spawn(move || {
-            let db_path = db_path2;
-            let barrier = barrier2;
-            let writer_acquired = writer_acquired2;
-
-            // Open the pool and wait for it to sync.
-            let pool = super::open(&db_path).unwrap();
-            println!("t1 opened pool");
-            barrier.wait();
-
-            // Block the writer for 1500ms.
-            super::rw_tx(&pool, move |_tx| {
-                println!("t1 acquired write lock");
-                writer_acquired.store(true, Ordering::SeqCst);
-                std::thread::sleep(Duration::from_millis(1500));
-                println!("t1 released write lock");
-            })
+        let t1 = std::thread::spawn({
+            let pool = pool.clone();
+            let writer_acquired = writer_acquired.clone();
+            move || {
+                super::rw_tx(&pool, move |_tx| {
+                    println!("t1 acquired write lock");
+                    writer_acquired.call_once(|| ());
+                    std::thread::sleep(Duration::from_millis(1500));
+                    println!("t2 released write lock");
+                })
+            }
         });
 
-        // Spawn the second thread.
-        let db_path2 = db_path.clone();
-        let barrier2 = barrier.clone();
-        let writer_acquired2 = writer_acquired.clone();
         let t2 = std::thread::spawn(move || {
-            let db_path = db_path2;
-            let barrier = barrier2;
-            let writer_acquired = writer_acquired2;
+            println!("t2 waits for t1 to acquire write lock");
+            writer_acquired.wait();
+            println!("t2 realized that t1 has acquired write lock");
 
-            // Open the pool and wait for it to sync.
-            let pool = super::open(&db_path).unwrap();
-            println!("t2 opened pool");
-            barrier.wait();
-
-            // Wait until t1 has acquired the writer.
-            while !writer_acquired.load(Ordering::SeqCst) {}
-            println!("t2 starting waiting game");
-
-            // Try to block the writer.
             super::rw_tx(&pool, |_tx| unreachable!())
         });
 
         t1.join().unwrap().unwrap();
-        let t2_res = t2.join().unwrap().unwrap_err();
         assert_eq!(
-            t2_res.to_string(),
+            t2.join().unwrap().unwrap_err().to_string(),
             "low-level rusqlite error: database is locked"
         );
     }
