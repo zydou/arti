@@ -35,8 +35,9 @@
 //!
 //! Upon receiving an unrecognized cell, the `ForwardReactor` forwards it towards the exit.
 //! However, upon receiving a *recognized* cell, the `ForwardReactor` might need to
-//! send that cell to the `BackwardReactor` for handling (for example, if the cell
-//! contains stream data). For this, it uses the `cell_tx` channel.
+//! send that cell to the `BackwardReactor` for handling (for example, a cell
+//! containing stream data needs to be delivered to the appropriate stream
+//! in the `StreamMap`). For this, it uses the `cell_tx` channel.
 //
 // TODO(relay): the above is underspecified, because it's not implemented yet,
 // but the plan is to iron out these details soon
