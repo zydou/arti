@@ -76,6 +76,7 @@ mod forward;
 
 use std::sync::{Arc, Mutex};
 
+use futures::FutureExt as _;
 use futures::channel::mpsc;
 use postage::broadcast;
 use tracing::debug;
@@ -244,9 +245,9 @@ impl<T: HasRelayIds> RelayReactor<T> {
             "Running relay circuit reactor",
         );
 
-        let (forward_res, backward_res) = futures::join!(forward.run(), backward.run());
-
-        let () = forward_res?;
-        backward_res
+        futures::select! {
+            res = forward.run().fuse() => res,
+            res = backward.run().fuse() => res,
+        }
     }
 }
