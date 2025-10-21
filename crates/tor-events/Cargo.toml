@@ -2,7 +2,7 @@
 name = "tor-events"
 version = "0.17.0"
 edition = "2024"
-rust-version = "1.85.1"
+rust-version = "1.86"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
