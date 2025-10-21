@@ -38,6 +38,11 @@
 //! send that cell to the `BackwardReactor` for handling (for example, a cell
 //! containing stream data needs to be delivered to the appropriate stream
 //! in the `StreamMap`). For this, it uses the `cell_tx` MPSC channel.
+//! This is needed because the read and write sides of `StreamMap` are not "splittable",
+//! so we are stuck having to reroute all stream data to the reactor that owns the `StreamMap`
+//! (i.e. to `BackwardReactor`). In the future, we'd like to redesign the `StreamMap`
+//! to split the read ends of the streams from the write ones, which will enable us
+//! to pass the read side to the `ForwardReactor` and the write side to the `BackwardReactor`.
 //
 // TODO(relay): the above is underspecified, because it's not implemented yet,
 // but the plan is to iron out these details soon
@@ -61,9 +66,6 @@
 // In the future, we'd like to switch to a lock-less architecture,
 // but that will involve redesign `CongestionControl`
 // (to be mutable without &mut, for example by using atomics under the hood).
-// If we want to also parallelize the stream reands and writes, we will also
-// need to redesign the `StreamMap` (to split the read ends from the write ones,
-// padding the read side to the forward reactor and the write side to the backward one).
 
 mod backward;
 mod forward;
