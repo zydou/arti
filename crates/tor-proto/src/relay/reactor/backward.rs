@@ -52,7 +52,7 @@ use super::{CircuitRxReceiver, RelayCtrlCmd, RelayCtrlMsg};
 // reactor type.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(crate) struct BackwardReactor<T: HasRelayIds> {
+pub(super) struct BackwardReactor<T: HasRelayIds> {
     /// Format to use for relay cells.
     //
     // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
@@ -127,7 +127,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
     /// Create a new [`BackwardReactor`].
     #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     #[allow(clippy::too_many_arguments)] // TODO
-    pub(crate) fn new(
+    pub(super) fn new(
         channel: Arc<Channel>,
         circ_id: CircId,
         unique_id: UniqId,
@@ -173,7 +173,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
     ///
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
-    pub(crate) async fn run(mut self) -> Result<()> {
+    pub(super) async fn run(mut self) -> Result<()> {
         trace!(
             circ_id = %self.unique_id,
             "Running relay circuit reactor",
