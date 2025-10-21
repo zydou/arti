@@ -72,6 +72,13 @@ struct Flat1 {
     flat_with_optional: Option<NeedsWith>,
     #[deftly(netdoc(with = "needs_with_parse"))]
     flat_with_several: Vec<NeedsWith>,
+    #[deftly(netdoc(flatten))]
+    flat_flat: FlatInner,
+}
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(NetdocParseableFields)]
+struct FlatInner {
+    flat_inner_optional: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(NetdocParseable)]
@@ -324,6 +331,7 @@ sub1-intro
 flat-several FS1
 flat-needed FN
 flat-with-needed normal
+flat-inner-optional nested
 sub1-field A
 flat-with-several normal
 flat-with-several normal
@@ -376,6 +384,9 @@ sub4-field D
                     flat_arg_defaulted: "FAD".into(),
                     flat_with_optional: Some(NeedsWith),
                     flat_with_several: vec![NeedsWith; 2],
+                    flat_flat: FlatInner {
+                        flat_inner_optional: sval("nested"),
+                    },
                     ..Flat1::default()
                 },
                 ..default()
