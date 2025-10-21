@@ -61,7 +61,7 @@ mod b64impl {
     /// On output (`Display`), output is unpadded.
     #[derive(Clone)]
     #[allow(clippy::derived_hash_with_manual_eq)]
-    #[derive(Hash, derive_more::Debug)]
+    #[derive(Hash, derive_more::Debug, derive_more::From, derive_more::Into)]
     #[debug(r#"B64("{self}")"#)]
     pub struct B64(Vec<u8>);
 
@@ -122,12 +122,6 @@ mod b64impl {
             self.0
                 .try_into()
                 .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))
-        }
-    }
-
-    impl From<B64> for Vec<u8> {
-        fn from(w: B64) -> Vec<u8> {
-            w.0
         }
     }
 }
