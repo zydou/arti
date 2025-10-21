@@ -167,7 +167,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
         channel: Arc<Channel>,
         circ_id: CircId,
         unique_id: UniqId,
-        inbound_rx: CircuitRxReceiver,
+        input: CircuitRxReceiver,
         crypto_in: Box<dyn InboundRelayLayer + Send>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         settings: &HopSettings,
@@ -184,7 +184,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
         let forward = ForwardReactor::new(
             unique_id,
             RelayCellDecoder::new(relay_format),
-            inbound_rx,
+            input,
             Arc::clone(&ccontrol),
             outgoing_chan_rx,
             crypto_out,
