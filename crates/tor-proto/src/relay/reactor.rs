@@ -90,7 +90,7 @@ pub(crate) struct BackwardReactor<T: HasRelayIds> {
     /// Note: all circuit reactors of a relay need to be initialized
     /// with the *same* underlying channel provider (`ChanMgr`),
     /// to enable the reuse of existing channels where possible.
-    chan_provider: Box<dyn ChannelProvider<BuildSpec = T>>,
+    chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
     /// A sender for sending newly opened outgoing [`Channel`]`s to the reactor.
     ///
     /// This is passed to the [`ChannelProvider`] for each channel request.
@@ -141,7 +141,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         channel_id: CircId,
         unique_id: UniqId,
         runtime: DynTimeProvider,
-        chan_provider: Box<dyn ChannelProvider<BuildSpec = T>>,
+        chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         memquota: CircuitAccount,
     ) -> (Self, RelayReactorHandle) {
         let (control_tx, control_rx) = mpsc::unbounded();
