@@ -521,6 +521,7 @@ pub struct SharedRandVal([u8; 32]);
 /// along with meta-information about that value.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
+#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     pub n_reveals: u8,
