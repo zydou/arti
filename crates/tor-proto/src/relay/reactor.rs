@@ -48,7 +48,17 @@ pub(crate) enum RelayCtrlCmd {
     Shutdown,
 }
 
-/// The circuit reactor of a relay.
+/// Type-alias for the entry point of the reactor component.
+#[allow(unused)] // TODO(relay)
+pub(crate) type RelayReactor<T> = BackwardReactor<T>;
+
+/// The "backward" circuit reactor of a relay.
+///
+/// Handles the "backward direction": moves cells towards the client,
+/// and drives the application streams.
+///
+/// Shuts down on explicit shutdown requests ([`RelayCtrlCmd::Shutdown`]),
+/// if an error occurs, or if the [`ForwardReactor`] shuts down.
 ///
 // TODO(relay): docs
 //
@@ -58,14 +68,14 @@ pub(crate) enum RelayCtrlCmd {
 // reactor type.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(crate) struct RelayReactor<T: HasRelayIds> {
+pub(crate) struct BackwardReactor<T: HasRelayIds> {
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// Receiver for control messages for this reactor, sent by reactor handle objects.
     control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
     /// Receiver for command messages for this reactor, sent by reactor handle objects.
     ///
-    /// This channel is polled in [`RelayReactor::run_once`].
+    /// This channel is polled in [`BackwardReactor::run_once`].
     ///
     /// NOTE: this is a separate channel from `control`, because some messages
     /// have higher priority and need to be handled even if the `chan_sender` is not
@@ -100,7 +110,7 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     runtime: DynTimeProvider,
 }
 
-/// A handle for interacting with a [`RelayReactor`].
+/// A handle for interacting with a [`BackwardReactor`].
 #[allow(unused)] // TODO(relay)
 pub(crate) struct RelayReactorHandle {
     /// Sender for reactor control messages.
@@ -112,7 +122,7 @@ pub(crate) struct RelayReactorHandle {
 }
 
 #[allow(unused)] // TODO(relay)
-impl<T: HasRelayIds> RelayReactor<T> {
+impl<T: HasRelayIds> BackwardReactor<T> {
     /// Create a new circuit reactor.
     ///
     /// The reactor will send outbound messages on `channel`, receive incoming
