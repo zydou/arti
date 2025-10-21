@@ -97,9 +97,7 @@ pub(crate) struct BackwardReactor<T: HasRelayIds> {
     /// A channel for receiving newly opened outgoing [`Channel`]s.
     ///
     /// This channel is polled from the main loop of the reactor,
-    /// and is used for updating the outgoing channel map.
-    //
-    // TODO(relay): implement an outgoing channel map
+    /// and is used when extending the circuit.
     outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
     /// A mapping from stream IDs to stream entries.
     /// TODO: can we use a CircHop instead??
