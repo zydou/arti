@@ -20,11 +20,11 @@ Set the "Blocker" label on that ticket and assign it to yourself.
 We're going to use the following.
 Why not upgrade to the latest version before you start?
 
-  * cargo-semver-checks
-  * cargo-edit
-  * cargo-audit
-  * cargo-license
-  * cargo-sort
+  * `cargo-semver-checks`
+  * `cargo-edit`
+  * `cargo-audit`
+  * `cargo-license`
+  * `cargo-sort` (note that we currently need version 2.0.1 specifically, see [#2156])
 
 In the documentation below,
 we sometimes use environment variables to indicate
@@ -697,3 +697,4 @@ It does not have spaces adjacent to it.
 You can often substitute a colon.
 
 [em dash]: https://en.wikipedia.org/wiki/Dash
+[#2156]: https://gitlab.torproject.org/tpo/core/arti/-/issues/2156
