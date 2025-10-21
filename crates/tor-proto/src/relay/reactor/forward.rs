@@ -1,0 +1,349 @@
+//! A relay's view of the outbound (away from the client, towards the exit) state of the circuit.
+
+use crate::channel::ChannelSender;
+use crate::circuit::UniqId;
+use crate::circuit::celltypes::RelayCircChanMsg;
+use crate::congestion::CongestionControl;
+use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
+use crate::relay::channel_provider::ChannelResult;
+use crate::util::err::ReactorError;
+use crate::{Error, Result};
+
+// TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
+use crate::client::circuit::padding::QueuedCellPaddingInfo;
+
+use tor_cell::chancell::msg::AnyChanMsg;
+use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
+use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
+use tor_cell::relaycell::RelayCellDecoder;
+use tor_error::{internal, trace_report, warn_report};
+
+use futures::SinkExt;
+use futures::channel::mpsc;
+use futures::{FutureExt as _, StreamExt, future, select_biased};
+use postage::broadcast;
+use tracing::{debug, trace};
+
+use std::result::Result as StdResult;
+use std::sync::{Arc, Mutex};
+use std::task::Poll;
+
+use super::CircuitRxReceiver;
+
+/// The forward circuit reactor.
+///
+/// Handles the "forward direction": moves cells towards the exit.
+///
+/// Shuts down if an error occurs, or if the [`BackwardReactor`](super::BackwardReactor) shuts down.
+#[allow(unused)] // TODO(relay)
+#[must_use = "If you don't call run() on a reactor, the circuit won't work."]
+pub(super) struct ForwardReactor {
+    /// An identifier for logging about this reactor's circuit.
+    unique_id: UniqId,
+    /// A channel for receiving newly opened outgoing [`Channel`](crate::channel::Channel)s.
+    ///
+    /// This channel is polled from the main loop of the reactor,
+    /// and is used when extending the circuit.
+    outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
+    /// Congestion control object.
+    ///
+    /// This object is also in charge of handling circuit level SENDME logic for this hop.
+    ccontrol: Arc<Mutex<CongestionControl>>,
+    /// The cryptographic state for this circuit for inbound cells.
+    crypto_out: Box<dyn OutboundRelayLayer + Send>,
+    /// Decodes relay cells received from the client.
+    decoder: RelayCellDecoder,
+    /// The reading end of the inbound channel.
+    ///
+    /// Yields cells moving from the client towards the exit.
+    input: CircuitRxReceiver,
+    /// The sending end of the outbound channel, if we are not the last hop.
+    ///
+    /// Delivers cells towards the exit.
+    outbound: Option<Outbound>,
+    /// Sender for RELAY cells that need to be forwarded to the client.
+    ///
+    /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for all
+    /// sending all client-bound cells.
+    cell_tx: mpsc::UnboundedSender<()>,
+    /// A broadcast receiver used to detect when the
+    /// [`BackwardReactor`](super::BackwardReactor) is dropped.
+    inbound_closed_rx: broadcast::Receiver<void::Void>,
+}
+
+/// A relay's view of the outbound (away from the client, towards the exit) state of the circuit.
+#[allow(unused)]
+struct Outbound {
+    /// The circuit identifier on the outgoing channel.
+    circ_id: CircId,
+    /// The sending end of the outbound channel.
+    chan_sender: ChannelSender,
+}
+
+impl ForwardReactor {
+    /// Create a new [`ForwardReactor`].
+    #[allow(clippy::too_many_arguments)] // TODO
+    pub(super) fn new(
+        unique_id: UniqId,
+        decoder: RelayCellDecoder,
+        input: CircuitRxReceiver,
+        ccontrol: Arc<Mutex<CongestionControl>>,
+        outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
+        crypto_out: Box<dyn OutboundRelayLayer + Send>,
+        cell_tx: mpsc::UnboundedSender<()>,
+        inbound_closed_rx: broadcast::Receiver<void::Void>,
+    ) -> Self {
+        Self {
+            unique_id,
+            input,
+            decoder,
+            outgoing_chan_rx,
+            ccontrol,
+            crypto_out,
+            // Initially, we are the last hop in the circuit.
+            outbound: None,
+            cell_tx,
+            inbound_closed_rx,
+        }
+    }
+
+    /// Launch the reactor, and run until the circuit closes or we
+    /// encounter an error.
+    ///
+    /// Once this method returns, the circuit is dead and cannot be
+    /// used again.
+    pub(super) async fn run(mut self) -> Result<()> {
+        trace!(
+            circ_id = %self.unique_id,
+            "Running relay circuit reactor (outbound subtask)",
+        );
+
+        let result: Result<()> = loop {
+            match self.run_once().await {
+                Ok(()) => (),
+                Err(ReactorError::Shutdown) => break Ok(()),
+                Err(ReactorError::Err(e)) => break Err(e),
+            }
+        };
+
+        // Log that the reactor stopped, possibly with the associated error as a report.
+        // May log at a higher level depending on the error kind.
+        const MSG: &str = "Relay circuit reactor (outbound) stopped";
+        match &result {
+            Ok(()) => trace!("{}: {MSG}", self.unique_id),
+            Err(e) => trace_report!(e, "{}: {}", self.unique_id, MSG),
+        }
+
+        result
+    }
+
+    /// Helper for run: doesn't mark the circuit closed on finish.  Only
+    /// processes one cell or control message.
+    async fn run_once(&mut self) -> StdResult<(), ReactorError> {
+        let chan_sender_ready = future::poll_fn(|cx| {
+            if let Some(outbound) = self.outbound.as_mut() {
+                let _ = outbound.chan_sender.poll_flush_unpin(cx);
+
+                outbound.chan_sender.poll_ready_unpin(cx)
+            } else {
+                // If there is no outbound channel, we're happy to read from input.
+                // In fact, we *must* read from input, because the client might
+                // have sent some stream data.
+                Poll::Ready(Ok(()))
+            }
+        });
+
+        let input_fut = async {
+            // Avoid polling the application streams if the outgoing sink is blocked
+            let _ = chan_sender_ready.await;
+            self.input.next().await
+        };
+
+        select_biased! {
+            res = self.outgoing_chan_rx.next() => {
+                let chan_res = res
+                    // It's safe to expect here, because we always keep
+                    // one sender alive in self
+                    .expect("dropped self while self is still alive?!");
+
+                self.handle_outgoing_chan_res(chan_res).await
+            },
+            cell = input_fut.fuse() => {
+                let Some(cell) = cell else {
+                    debug!(
+                        circ_id = %self.unique_id,
+                        "Inbound channel has closed, shutting down outbound relay reactor",
+                    );
+
+                    return Err(ReactorError::Shutdown);
+                };
+
+                // TODO: if the cell carries stream data, this function will need to
+                // send the cell to the BackwardReactor, to have it delivered
+                // to the appropriate stream
+                self.handle_forward_cell(cell).await
+            },
+            _res = self.inbound_closed_rx.next().fuse() => {
+                trace!(
+                    circ_id = %self.unique_id,
+                    "Outbound relay reactor shutdown (inbound side has closed)",
+                );
+
+                Err(ReactorError::Shutdown)
+            }
+        }
+    }
+
+    /// Handle the outcome of our request to launch an outgoing channel.
+    ///
+    /// If the request was successful, extend the circuit,
+    /// and respond with EXTENDED to the client.
+    ///
+    /// if the request failed, we need to tear down the circuit.
+    #[allow(unused)] // TODO(relay)
+    #[allow(unreachable_code)] // TODO(relay)
+    async fn handle_outgoing_chan_res(
+        &mut self,
+        chan_res: ChannelResult,
+    ) -> StdResult<(), ReactorError> {
+        let chan = match chan_res {
+            Ok(chan) => chan,
+            Err(e) => {
+                warn_report!(e, "Failed to launch outgoing channel");
+                // Note: retries are handled within
+                // get_or_launch_relay(), so if we receive an
+                // error at this point, we need to bail
+
+                // TODO(relay): we need to update our state
+                // (should we send a DESTROY cell to tear down the circ?)
+                return Ok(());
+            }
+        };
+
+        if self.outbound.is_some() {
+            return Err(internal!("relay circuit has 2 outgoing channels?!").into());
+        }
+
+        // Now that we finally have an outbound channel,
+        // it's time to forward the onion skin and extend the circuit...
+
+        /* TODO(relay): the channel reactor's CircMap can only hold client circuit entries
+        * We can address this TODO once #1599 is implemented
+        *
+        * let (sender, receiver) =
+        *     MpscSpec::new(128).new_mq(self.runtime.clone(), memquota.as_raw_account())?;
+        * let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
+
+        * let (tx, rx) = oneshot::channel();
+        * self.send_control(crate::channel::CtrlMsg::AllocateCircuit {
+        *     created_sender: createdsender,
+        *     sender,
+        *     tx,
+        * })?;
+
+        * let (id, circ_id, padding_ctrl, padding_stream) =
+        *     rx.await.map_err(|_| ChannelClosed)??;
+        */
+
+        // TODO(relay): the channel reactor doesn't support relay circuits
+        // (the circuit entries from the CircMap use ClientCircChanMsg instead
+        // of RelayCircChanMsg)
+        let circ_id = todo!();
+        let receiver = todo!();
+
+        // TODO(relay): deliver `receiver` to the other reactor,
+        // and instruct it to send back an EXTEND/EXTENDED2
+
+        let outbound = Outbound {
+            circ_id,
+            chan_sender: chan.sender(),
+        };
+
+        self.outbound = Some(outbound);
+
+        // TODO(relay): assuming the TODO above is addressed,
+        // if we reach this point, it means we have extended
+        // the circuit by one hop, so we need to take the contents
+        // of the CREATE/CREATED2 cell, and package an EXTEND/EXTENDED2
+        // to send back to the client.
+
+        Ok(())
+    }
+
+    /// Handle a forward cell (moving from the client towards the exit).
+    async fn handle_forward_cell(&mut self, cell: RelayCircChanMsg) -> StdResult<(), ReactorError> {
+        use RelayCircChanMsg::*;
+
+        match cell {
+            Relay(r) => self.handle_relay_cell(r).await,
+            RelayEarly(r) => self.handle_relay_early_cell(r),
+            Destroy(d) => self.handle_destroy_cell(d),
+            PaddingNegotiate(p) => self.handle_padding_negotiate(p),
+        }
+    }
+
+    /// Handle a RELAY cell originating from the client.
+    async fn handle_relay_cell(&mut self, cell: Relay) -> StdResult<(), ReactorError> {
+        let cmd = cell.cmd();
+        let mut body = cell.into_relay_body().into();
+        if let Some(_tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) {
+            // The message is addressed to us! Now it's time to handle it...
+            let _decode_res = self
+                .decoder
+                .decode(body.into())
+                .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+
+            // TODO: actually handle the cell
+            // TODO: if the message is recognized, it may need to be delivered
+            // to the BackwardReactor via the cell_tx channel for handling
+            // (because e.g. stream data is handled in the BackwardReactor)
+        } else {
+            // The message is not addressed to us, so we must relay it forward, towards the exit
+            self.send_msg_to_exit(body, None)?;
+        }
+
+        Ok(())
+    }
+
+    /// Send a RELAY cell with the specified `body` to the exit.
+    fn send_msg_to_exit(
+        &mut self,
+        body: RelayCellBody,
+        info: Option<QueuedCellPaddingInfo>,
+    ) -> StdResult<(), ReactorError> {
+        let Some(outbound) = self.outbound.as_mut() else {
+            return Err(Error::CircProto(
+                "Asked to forward cell, but there is no outbound channel?!".into(),
+            )
+            .into());
+        };
+
+        let msg = Relay::from(BoxedCellBody::from(body));
+        let relay = AnyChanMsg::Relay(msg);
+        let cell = AnyChanCell::new(Some(outbound.circ_id), relay);
+
+        // Note: this future is always `Ready`, because we checked the sink for readiness
+        // before polling the input channel, so await won't block.
+        outbound.chan_sender.start_send_unpin((cell, info))?;
+
+        Ok(())
+    }
+
+    /// Handle a RELAY_EARLY cell originating from the client.
+    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
+    fn handle_relay_early_cell(&mut self, _cell: RelayEarly) -> StdResult<(), ReactorError> {
+        Err(internal!("RELAY_EARLY is not implemented").into())
+    }
+
+    /// Handle a DESTROY cell originating from the client.
+    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
+    fn handle_destroy_cell(&mut self, _cell: Destroy) -> StdResult<(), ReactorError> {
+        Err(internal!("DESTROY is not implemented").into())
+    }
+
+    /// Handle a PADDING_NEGOTIATE cell originating from the client.
+    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
+    fn handle_padding_negotiate(&mut self, _cell: PaddingNegotiate) -> StdResult<(), ReactorError> {
+        Err(internal!("PADDING_NEGOTIATE is not implemented").into())
+    }
+}
