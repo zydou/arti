@@ -59,13 +59,13 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
     relay_format: RelayCellFormat,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
-    /// The circuit identifier on the backward channel.
+    /// The circuit identifier on the backward Tor channel.
     circ_id: CircId,
-    /// The reading end of the forward channel, if we are not the last hop.
+    /// The reading end of the forward Tor channel, if we are not the last hop.
     ///
     /// Yields cells moving from the exit towards the client.
     input: Option<CircuitRxReceiver>,
-    /// The sending end of the backward channel.
+    /// The sending end of the backward Tor channel.
     ///
     /// Delivers cells towards the client.
     chan_sender: ChannelSender,
@@ -75,41 +75,41 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
     ///
     /// This object is also in charge of handling circuit level SENDME logic for this hop.
     ccontrol: Arc<Mutex<CongestionControl>>,
-    /// Flow control parameters for new streams.
+    /// Flow control parameters for new Tor streams.
     flow_ctrl_params: Arc<FlowCtrlParameters>,
     /// Receiver for control messages for this reactor, sent by reactor handle objects.
     control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
     /// Receiver for command messages for this reactor, sent by reactor handle objects.
     ///
-    /// This channel is polled in [`BackwardReactor::run_once`].
+    /// This MPSC channel is polled in [`BackwardReactor::run_once`].
     ///
     /// NOTE: this is a separate channel from `control`, because some messages
     /// have higher priority and need to be handled even if the `chan_sender` is not
     /// ready (whereas `control` messages are not read until the `chan_sender` sink
     /// is ready to accept cells).
     command: mpsc::UnboundedReceiver<RelayCtrlCmd>,
-    /// Receiver for stream data that need to be delivered to a stream.
+    /// Receiver for Tor stream data that need to be delivered to a Tor stream.
     ///
     /// The sender is in [`ForwardReactor`](super::ForwardReactor), which will forward all cells
-    /// carrying stream data to us.
+    /// carrying Tor stream data to us.
     ///
     /// This serves a dual purpose:
-    ///   * it enables the `ForwardReactor` to deliver stream data received from the client
+    ///   * it enables the `ForwardReactor` to deliver Tor stream data received from the client
     ///   * it lets the `BackwardReactor` know if the `ForwardReactor` has shut down:
-    ///     we select! on this channel in the main loop, so if the `ForwardReactor`
+    ///     we select! on this MPSC channel in the main loop, so if the `ForwardReactor`
     ///     shuts down, we will get EOS upon calling `.next()`)
     cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
-    /// A handle to a [`ChannelProvider`], used for initiating outgoing channels.
+    /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
     ///
     /// Note: all circuit reactors of a relay need to be initialized
-    /// with the *same* underlying channel provider (`ChanMgr`),
-    /// to enable the reuse of existing channels where possible.
+    /// with the *same* underlying Tor channel provider (`ChanMgr`),
+    /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
     /// A sender for sending newly opened outgoing [`Channel`]`s to the reactor.
     ///
-    /// This is passed to the [`ChannelProvider`] for each channel request.
+    /// This is passed to the [`ChannelProvider`] for each Tor channel request.
     outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
-    /// A mapping from stream IDs to stream entries.
+    /// A mapping from stream IDs to Tor stream entries.
     /// TODO: can we use a CircHop instead??
     /// Otherwise we'll duplicate much of it here.
     streams: Arc<Mutex<StreamMap>>,
@@ -202,26 +202,26 @@ impl<T: HasRelayIds> BackwardReactor<T> {
     ///
     /// Handles cells arriving in the "backwards" direction (client-bound),
     /// flushes the backward Tor channel sinks, polls the stream map for messages
-    /// that need to be delivered to the client, and the `cells_rx` stream
+    /// that need to be delivered to the client, and the `cells_rx` MPSC stream
     /// for client messages received via the `ForwardReactor`
     /// that need to be delivered to the application.
     ///
-    /// Because the application streams, the `cell_rx` streams,
-    /// and the client-bound cell stream are driven concurrently using [`PollAll`],
+    /// Because the application streams, the `cell_rx` MPSC streams,
+    /// and the client-bound cell MPSC stream are driven concurrently using [`PollAll`],
     /// this function can, in theory, deliver a stream message to the application layer,
     /// and send up to 2 cells per call:
     ///
-    ///    * a client-bound cell carrying stream data
-    ///    * a client-bound cell, forwarded from the backward channel
+    ///    * a client-bound cell carrying Tor stream data
+    ///    * a client-bound cell, forwarded from the backward Tor channel
     ///
     /// However, in practice, leaky pipe is not really used,
     /// and so relays that have application streams (i.e. the exits),
-    /// are not going to have a don't have a forward channel,
-    /// and so this will only really drive stream data,
+    /// are not going to have a don't have a forward Tor channel,
+    /// and so this will only really drive Tor stream data,
     /// executing at most 2 actions per call:
     ///
-    ///   * deliver client-bound cell carrying stream data on the backward channel
-    ///   * deliver one message worth of application-bound stream data received
+    ///   * deliver client-bound cell carrying Tor stream data on the backward Tor channel
+    ///   * deliver one message worth of application-bound Tor stream data received
     ///     over `cell_rx`
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
         /// The maximum number of events we expect to handle per reactor loop.
@@ -232,7 +232,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         // A collection of futures we plan to drive concurrently.
         let mut poll_all = PollAll::<PER_LOOP_EVENT_COUNT, CircuitEvent>::new();
 
-        // Flush the backward channel sink, and check it for readiness
+        // Flush the backward Tor channel sink, and check it for readiness
         //
         // TODO(flushing): here and everywhere else we need to flush:
         //
@@ -263,7 +263,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             let Some((sid, msg)) = streams.poll_ready_streams_iter(cx).next() else {
                 // No ready streams
                 //
-                // TODO(flushing): if there are no ready streams, we might want to defer
+                // TODO(flushing): if there are no ready Tor streams, we might want to defer
                 // flushing until stream data becomes available (or until a timeout elapses).
                 // The deferred flushing approach should enable us to send
                 // more than one message at a time to the channel reactor.
@@ -273,7 +273,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             if msg.is_none() {
                 // This means the local sender has been dropped,
                 // which presumably can only happen if an error occurs,
-                // or if the stream ends. In both cases, we're going to
+                // or if the Tor stream ends. In both cases, we're going to
                 // want to send an END to the client to let them know,
                 // and to remove the stream from the stream map.
                 //
@@ -310,7 +310,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
                 //
                 // TODO: This shouldn't block outgoing flow-control messages (e.g.
                 // SENDME), which are initiated via the control-message
-                // channel, handled above.
+                // MPSC channel, handled above.
                 let () = future::pending().await;
             }
 
@@ -319,7 +319,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             CircuitEvent::Stream(ev)
         });
 
-        //  2. the stream of stream data coming from the client
+        //  2. the stream of Tor stream data coming from the client
         //  (this resolves to a message that needs to be delivered to an application stream)
         poll_all.push(async {
             match self.cell_rx.next().await {
@@ -332,14 +332,14 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         });
 
         // 3. Messages moving from the exit towards the client,
-        // if we have a forward channel, **iff** the backward sink (towards the client)
+        // if we have a forward Tor channel, **iff** the backward sink (towards the client)
         // is ready to accept them
         //
-        // NOTE: in practice (ignoring leaky pipe), exits won't have a forward channel,
-        // so the poll_all will only really drive the two stream-related futures
+        // NOTE: in practice (ignoring leaky pipe), exits won't have a forward Tor channel,
+        // so the poll_all will only really drive the two Tor stream-related futures
         // (for reading from and writing to the application streams)
         poll_all.push(async {
-            // Avoid reading from the forward channel (if there even is one!)
+            // Avoid reading from the forward Tor channel (if there even is one!)
             // if the outgoing sink is blocked.
             let () = rx.await.expect("streams_fut future disappeared?!");
 
@@ -451,7 +451,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         let cell = AnyChanCell::new(Some(self.circ_id), msg);
 
         // Note: this future is always `Ready`, because we checked the sink for readiness
-        // before polling the streams, so await won't block.
+        // before polling the async streams, so await won't block.
         self.chan_sender.start_send_unpin((cell, info))?;
 
         Ok(())
@@ -498,7 +498,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
 
 /// A circuit event that must be handled by the [`BackwardReactor`].
 enum CircuitEvent {
-    /// A stream event
+    /// A Tor stream event
     Stream(StreamEvent),
     /// We received a client-bound cell that needs to be handled.
     Cell(RelayCircChanMsg),
@@ -508,7 +508,7 @@ enum CircuitEvent {
     ForwardShutdown,
 }
 
-/// A stream-related event.
+/// A Tor stream-related event.
 #[allow(unused)] // TODO(relay)
 enum StreamEvent {
     /// A stream was closed.

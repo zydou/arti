@@ -41,7 +41,7 @@ use super::CircuitRxReceiver;
 pub(super) struct ForwardReactor {
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
-    /// A channel for receiving newly opened outgoing [`Channel`](crate::channel::Channel)s.
+    /// An MPSC channel for receiving newly opened outgoing [`Channel`](crate::channel::Channel)s.
     ///
     /// This channel is polled from the main loop of the reactor,
     /// and is used when extending the circuit.
@@ -54,7 +54,7 @@ pub(super) struct ForwardReactor {
     crypto_out: Box<dyn OutboundRelayLayer + Send>,
     /// Decodes relay cells received from the client.
     decoder: RelayCellDecoder,
-    /// The reading end of the backward channel.
+    /// The reading end of the backward Tor channel.
     ///
     /// Yields cells moving from the client towards the exit.
     input: CircuitRxReceiver,
@@ -75,9 +75,9 @@ pub(super) struct ForwardReactor {
 /// A relay's view of the forward (away from the client, towards the exit) state of the circuit.
 #[allow(unused)]
 struct Forward {
-    /// The circuit identifier on the forward channel.
+    /// The circuit identifier on the forward Tor channel.
     circ_id: CircId,
-    /// The sending end of the forward channel.
+    /// The sending end of the forward Tor channel.
     chan_sender: ChannelSender,
 }
 
@@ -147,9 +147,9 @@ impl ForwardReactor {
 
                 forward.chan_sender.poll_ready_unpin(cx)
             } else {
-                // If there is no forward channel, we're happy to read from input.
+                // If there is no forward Tor channel, we're happy to read from input.
                 // In fact, we *must* read from input, because the client might
-                // have sent some stream data.
+                // have sent some Tor stream data.
                 Poll::Ready(Ok(()))
             }
         });
@@ -179,9 +179,9 @@ impl ForwardReactor {
                     return Err(ReactorError::Shutdown);
                 };
 
-                // TODO: if the cell carries stream data, this function will need to
+                // TODO: if the cell carries Tor stream data, this function will need to
                 // send the cell to the BackwardReactor, to have it delivered
-                // to the appropriate stream
+                // to the appropriate Tor stream
                 self.handle_forward_cell(cell).await
             },
             _res = self.backward_closed_rx.next().fuse() => {
@@ -195,7 +195,7 @@ impl ForwardReactor {
         }
     }
 
-    /// Handle the outcome of our request to launch an outgoing channel.
+    /// Handle the outcome of our request to launch an outgoing Tor channel.
     ///
     /// If the request was successful, extend the circuit,
     /// and respond with EXTENDED to the client.
@@ -225,7 +225,7 @@ impl ForwardReactor {
             return Err(internal!("relay circuit has 2 outgoing channels?!").into());
         }
 
-        // Now that we finally have a forward channel,
+        // Now that we finally have a forward Tor channel,
         // it's time to forward the onion skin and extend the circuit...
 
         /* TODO(relay): the channel reactor's CircMap can only hold client circuit entries
@@ -297,7 +297,7 @@ impl ForwardReactor {
             // TODO: actually handle the cell
             // TODO: if the message is recognized, it may need to be delivered
             // to the BackwardReactor via the cell_tx channel for handling
-            // (because e.g. stream data is handled in the BackwardReactor)
+            // (because e.g. Tor stream data is handled in the BackwardReactor)
         } else {
             // The message is not addressed to us, so we must relay it forward, towards the exit
             self.send_msg_to_exit(body, None)?;

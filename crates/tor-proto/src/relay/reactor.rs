@@ -2,7 +2,7 @@
 //!
 //! The entry point of the reactor is [`RelayReactor::run`], which launches the
 //! reactor background tasks, and begins listening for inbound cells on the provided
-//! inbound channel.
+//! inbound Tor channel.
 //!
 //! ### Architecture
 //!
@@ -28,8 +28,8 @@
 //! such that each reactor holds an `input` stream (for reading)
 //! and a `chan_sender` sink (for writing):
 //!
-//!  * `ForwardReactor` holds the reading end of the inbound (coming from the client) channel,
-//!    and the writing end of the outbound (towards the exit) channel, if there is one
+//!  * `ForwardReactor` holds the reading end of the inbound (coming from the client) Tor channel,
+//!    and the writing end of the outbound (towards the exit) Tor channel, if there is one
 //!  * `BackwardReactor` holds the reading end of the outbound channel, if there is one,
 //!    and the writing end of the inbound channel, if there is one
 //!
@@ -37,7 +37,7 @@
 //! However, upon receiving a *recognized* cell, the `ForwardReactor` might need to
 //! send that cell to the `BackwardReactor` for handling (for example, a cell
 //! containing stream data needs to be delivered to the appropriate stream
-//! in the `StreamMap`). For this, it uses the `cell_tx` channel.
+//! in the `StreamMap`). For this, it uses the `cell_tx` MPSC channel.
 //
 // TODO(relay): the above is underspecified, because it's not implemented yet,
 // but the plan is to iron out these details soon
@@ -94,7 +94,7 @@ use forward::ForwardReactor;
 
 /// A message telling the reactor to do something.
 ///
-/// For each `RelayCtrlMsg`, the reactor will send a cell on the underlying channel.
+/// For each `RelayCtrlMsg`, the reactor will send a cell on the underlying Tor channel.
 ///
 /// The difference between this and [`RelayCtrlCmd`] is that `RelayCtrlMsg`s
 /// cause the reactor to send cells on the reactor's `chan_sender`,
@@ -108,7 +108,7 @@ pub(crate) enum RelayCtrlMsg {}
 /// A message telling the reactor to do something.
 ///
 /// The difference between this and [`RelayCtrlMsg`] is that `RelayCtrlCmd`s
-/// never cause cells to sent on the channel,
+/// never cause cells to sent on the Tor channel,
 /// while `RelayCtrlMsg`s potentially do.
 //
 // TODO(relay): we may not need this
