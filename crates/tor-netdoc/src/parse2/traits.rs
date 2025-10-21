@@ -147,6 +147,36 @@ impl<T: NormalItemArgument> ItemArgumentParseable for T {
     }
 }
 
+impl<T: ItemValueParseable> ItemValueParseable for Arc<T> {
+    fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, ErrorProblem> {
+        T::from_unparsed(item).map(Arc::new)
+    }
+}
+
+impl<T: NetdocParseable> NetdocParseable for Arc<T> {
+    fn doctype_for_error() -> &'static str {
+        T::doctype_for_error()
+    }
+    fn is_intro_item_keyword(kw: KeywordRef<'_>) -> bool {
+        T::is_intro_item_keyword(kw)
+    }
+    fn from_items(input: &mut ItemStream<'_>, stop_at: stop_at!()) -> Result<Self, EP> {
+        T::from_items(input, stop_at).map(Arc::new)
+    }
+}
+impl<T: NetdocParseableFields> NetdocParseableFields for Arc<T> {
+    type Accumulator = T::Accumulator;
+    fn is_item_keyword(kw: KeywordRef<'_>) -> bool {
+        T::is_item_keyword(kw)
+    }
+    fn accumulate_item(acc: &mut Self::Accumulator, item: UnparsedItem<'_>) -> Result<(), EP> {
+        T::accumulate_item(acc, item)
+    }
+    fn finish(acc: Self::Accumulator) -> Result<Self, EP> {
+        T::finish(acc).map(Arc::new)
+    }
+}
+
 /// implement [`ItemValueParseable`] for a particular tuple size
 macro_rules! item_value_parseable_for_tuple {
     { $($i:literal)* } => { paste! {

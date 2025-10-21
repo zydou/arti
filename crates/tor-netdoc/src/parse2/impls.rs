@@ -84,13 +84,6 @@ pub(crate) mod protovers {
                 .map_err(item.invalid_argument_handler("protocols"))
         }
     }
-
-    impl ItemValueParseable for Arc<Protocols> {
-        fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, ErrorProblem> {
-            let pr = Protocols::from_unparsed(item)?;
-            Ok(crate::doc::PROTOVERS_CACHE.intern(pr))
-        }
-    }
 }
 
 /// Implementations on `Void`
