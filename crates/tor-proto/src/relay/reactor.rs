@@ -140,7 +140,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
     #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     pub(super) fn new(
         channel: Arc<Channel>,
-        channel_id: CircId,
+        circ_id: CircId,
         unique_id: UniqId,
         runtime: R,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
