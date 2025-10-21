@@ -34,7 +34,7 @@ pub struct Preamble {
     /// List of recommended Tor client versions.
     pub client_versions: Vec<String>,
     /// List of recommended Tor relay versions.
-    pub relay_versions: Vec<String>,
+    pub server_versions: Vec<String>,
     /// Lists of recommended and required subprotocols.
     ///
     /// **`{recommended,required}-{client,relay}-protocols`**

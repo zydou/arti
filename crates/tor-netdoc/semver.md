@@ -18,3 +18,4 @@ ADDED: `B64` helper type for base64-encoded binary data
 BREAKING: Change type of `SharedRantStatus.lifetime`
 BREAKING: Rename `netstatus::Header` to `Preamble` and move `flavor` into `Consensus`
 BREAKING: Rename `shared_rand_*` fields in `Preamble` to match the protocol and spec.
+BREAKING: Rename `relay_version` field in `Preamble` to match the protocol and spec.

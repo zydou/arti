@@ -39,8 +39,8 @@ pub struct ConsensusBuilder {
     lifetime: Option<Lifetime>,
     /// See [`Preamble::client_versions`]
     client_versions: Vec<String>,
-    /// See [`Preamble::relay_versions`]
-    relay_versions: Vec<String>,
+    /// See [`Preamble::server_versions`]
+    server_versions: Vec<String>,
     /// See [`Preamble::proto_statuses`]
     client_protos: ProtoStatus,
     /// See [`Preamble::proto_statuses`]
@@ -70,7 +70,7 @@ impl ConsensusBuilder {
             flavor,
             lifetime: None,
             client_versions: Vec::new(),
-            relay_versions: Vec::new(),
+            server_versions: Vec::new(),
             client_protos: ProtoStatus::default(),
             relay_protos: ProtoStatus::default(),
             params: NetParams::new(),
@@ -103,7 +103,7 @@ impl ConsensusBuilder {
     ///
     /// These values are optional for testing.
     pub fn add_relay_version(&mut self, ver: String) -> &mut Self {
-        self.relay_versions.push(ver);
+        self.server_versions.push(ver);
         self
     }
     /// Set the required client protocol versions for this consensus.
@@ -246,7 +246,7 @@ impl ConsensusBuilder {
         let preamble = Preamble {
             lifetime,
             client_versions: self.client_versions.clone(),
-            relay_versions: self.relay_versions.clone(),
+            server_versions: self.server_versions.clone(),
             proto_statuses,
             params: self.params.clone(),
             voting_delay: self.voting_delay,

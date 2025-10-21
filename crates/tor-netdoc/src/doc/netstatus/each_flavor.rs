@@ -350,7 +350,7 @@ impl Preamble {
             .split(',')
             .map(str::to_string)
             .collect();
-        let relay_versions = sec
+        let server_versions = sec
             .maybe(SERVER_VERSIONS)
             .args_as_str()
             .unwrap_or("")
@@ -404,7 +404,7 @@ impl Preamble {
         let preamble = Preamble {
             lifetime,
             client_versions,
-            relay_versions,
+            server_versions,
             proto_statuses,
             params,
             voting_delay,
