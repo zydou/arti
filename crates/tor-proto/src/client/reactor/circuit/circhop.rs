@@ -4,9 +4,6 @@ use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
 use crate::client::reactor::circuit::path::PathEntry;
-use crate::streammap::{
-    self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
-};
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
@@ -15,6 +12,7 @@ use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::StreamQueueSender;
+use crate::streammap::{self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
 use crate::{Error, Result};
