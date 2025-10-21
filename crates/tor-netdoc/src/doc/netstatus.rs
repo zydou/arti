@@ -56,8 +56,7 @@ mod build;
 
 #[cfg(feature = "parse2")]
 use {
-    crate::parse2::{self, ArgumentStream},
-    derive_deftly::Deftly,
+    crate::parse2::{self, ArgumentStream}, //
 };
 
 use crate::doc::authcert::{AuthCert, AuthCertKeyIds};
@@ -75,6 +74,7 @@ use tor_error::{HasKind, internal};
 use tor_protover::Protocols;
 
 use bitflags::bitflags;
+use derive_deftly::{Deftly, define_derive_deftly};
 use digest::Digest;
 use std::sync::LazyLock;
 use tor_checkable::{ExternallySigned, timed::TimerangeBound};
@@ -138,79 +138,84 @@ pub struct IgnoredPublicationTimeSp;
 /// consensus.
 ///
 /// Aggregate of three netdoc preamble fields.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Lifetime)]
+#[cfg_attr(feature = "parse2", derive_deftly(NetdocParseableFields))]
 pub struct Lifetime {
     /// `valid-after` --- Time at which the document becomes valid
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
-    valid_after: time::SystemTime,
+    ///
+    /// (You might see a consensus a little while before this time,
+    /// since voting tries to finish up before the.)
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    valid_after: Iso8601TimeSp,
     /// `fresh-until` --- Time after which there is expected to be a better version
     /// of this consensus
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
-    fresh_until: time::SystemTime,
-    /// `valid-until` --- Time after which this consensus is expired.
-    ///
-    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
-    valid_until: time::SystemTime,
-}
-
-impl Lifetime {
-    /// Construct a new Lifetime.
-    pub fn new(
-        valid_after: time::SystemTime,
-        fresh_until: time::SystemTime,
-        valid_until: time::SystemTime,
-    ) -> Result<Self> {
-        if valid_after < fresh_until && fresh_until < valid_until {
-            Ok(Lifetime {
-                valid_after,
-                fresh_until,
-                valid_until,
-            })
-        } else {
-            Err(EK::InvalidLifetime.err())
-        }
-    }
-    /// Return time when this consensus first becomes valid.
-    ///
-    /// (You might see a consensus a little while before this time,
-    /// since voting tries to finish up before the.)
-    pub fn valid_after(&self) -> time::SystemTime {
-        self.valid_after
-    }
-    /// Return time when this consensus is no longer fresh.
     ///
     /// You can use the consensus after this time, but there is (or is
     /// supposed to be) a better one by this point.
-    pub fn fresh_until(&self) -> time::SystemTime {
-        self.fresh_until
-    }
-    /// Return the time when this consensus is no longer valid.
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    fresh_until: Iso8601TimeSp,
+    /// `valid-until` --- Time after which this consensus is expired.
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
     ///
     /// You should try to get a better consensus after this time,
     /// though it's okay to keep using this one if no more recent one
     /// can be found.
-    pub fn valid_until(&self) -> time::SystemTime {
-        self.valid_until
-    }
-    /// Return true if this consensus is officially valid at the provided time.
-    pub fn valid_at(&self, when: time::SystemTime) -> bool {
-        self.valid_after <= when && when <= self.valid_until
-    }
+    #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
+    valid_until: Iso8601TimeSp,
+}
 
-    /// Return the voting period implied by this lifetime.
-    ///
-    /// (The "voting period" is the amount of time in between when a consensus first
-    /// becomes valid, and when the next consensus is expected to become valid)
-    pub fn voting_period(&self) -> time::Duration {
-        let valid_after = self.valid_after();
-        let fresh_until = self.fresh_until();
-        fresh_until
-            .duration_since(valid_after)
-            .expect("Mis-formed lifetime")
+define_derive_deftly! {
+    /// Bespoke derive for `Lifetime`, for `new` and accessors
+    Lifetime:
+
+    impl Lifetime {
+        /// Construct a new Lifetime.
+        pub fn new(
+            $( $fname: time::SystemTime, )
+        ) -> Result<Self> {
+            // Make this now because otherwise literal `valid_after` here in the body
+            // has the wrong span - the compiler refuses to look at the argument.
+            // But we can refer to the field names.
+            let self_ = Lifetime {
+                $( $fname: $fname.into(), )
+            };
+            if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
+                Ok(self_)
+            } else {
+                Err(EK::InvalidLifetime.err())
+            }
+        }
+      $(
+        ${fattrs doc}
+        pub fn $fname(&self) -> time::SystemTime {
+            *self.$fname
+        }
+      )
+        /// Return true if this consensus is officially valid at the provided time.
+        pub fn valid_at(&self, when: time::SystemTime) -> bool {
+            *self.valid_after <= when && when <= *self.valid_until
+        }
+
+        /// Return the voting period implied by this lifetime.
+        ///
+        /// (The "voting period" is the amount of time in between when a consensus first
+        /// becomes valid, and when the next consensus is expected to become valid)
+        pub fn voting_period(&self) -> time::Duration {
+            let valid_after = self.valid_after();
+            let fresh_until = self.fresh_until();
+            fresh_until
+                .duration_since(valid_after)
+                .expect("Mis-formed lifetime")
+        }
     }
 }
+use derive_deftly_template_Lifetime;
 
 /// A single consensus method
 ///

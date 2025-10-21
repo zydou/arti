@@ -618,6 +618,9 @@ define_derive_deftly! {
     // Field keyword as `KeywordRef`
     ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
 
+    #[doc = ${concat "Partially parsed `" $tname "`"}]
+    ///
+    /// Used for [`${concat $P::NetdocParseableFields::Accumulator}`].
     #[derive(Default, Debug)]
     $tvis struct $<$tname NetdocParseAccumulator><$tdefgens> { $(
         $fname: Option<$F_EFFECTIVE_TYPE>,

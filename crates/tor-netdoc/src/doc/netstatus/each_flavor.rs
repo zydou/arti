@@ -294,8 +294,8 @@ impl Consensus {
         let lifetime = unval.consensus.header.lifetime.clone();
         let delay = unval.consensus.header.voting_delay.unwrap_or((0, 0));
         let dist_interval = time::Duration::from_secs(delay.1.into());
-        let starting_time = lifetime.valid_after - dist_interval;
-        let timebound = TimerangeBound::new(unval, starting_time..lifetime.valid_until);
+        let starting_time = *lifetime.valid_after - dist_interval;
+        let timebound = TimerangeBound::new(unval, starting_time..*lifetime.valid_until);
         Ok((signed_str, remainder, timebound))
     }
 }
