@@ -112,7 +112,7 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
     /// A mapping from stream IDs to Tor stream entries.
     /// TODO: can we use a CircHop instead??
     /// Otherwise we'll duplicate much of it here.
-    streams: Arc<Mutex<StreamMap>>,
+    streams: StreamMap,
     /// A sender that is used to alert other tasks when this reactor is
     /// finally dropped.
     ///
@@ -160,7 +160,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             command: command_rx,
             chan_provider,
             outgoing_chan_tx,
-            streams: Arc::new(Mutex::new(StreamMap::new())),
+            streams: StreamMap::new(),
             reactor_closed_tx,
             cell_rx,
         };
@@ -257,10 +257,8 @@ impl<T: HasRelayIds> BackwardReactor<T> {
             self.chan_sender.poll_ready_unpin(cx)
         });
 
-        let streams = Arc::clone(&self.streams);
-        let ready_streams_fut = future::poll_fn(move |cx| {
-            let mut streams = streams.lock().expect("poisoned lock");
-            let Some((sid, msg)) = streams.poll_ready_streams_iter(cx).next() else {
+        let ready_streams_fut = future::poll_fn(|cx| {
+            let Some((sid, msg)) = self.streams.poll_ready_streams_iter(cx).next() else {
                 // No ready streams
                 //
                 // TODO(flushing): if there are no ready Tor streams, we might want to defer
@@ -285,7 +283,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
                 });
             };
 
-            let msg = streams.take_ready_msg(sid).expect("msg disappeared");
+            let msg = self.streams.take_ready_msg(sid).expect("msg disappeared");
 
             Poll::Ready(StreamEvent::ReadyMsg { sid, msg })
         });
