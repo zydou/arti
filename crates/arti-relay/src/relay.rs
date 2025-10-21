@@ -46,21 +46,26 @@ use crate::config::TorRelayConfig;
 pub(crate) struct InertTorRelay {
     /// The configuration options for the relay.
     config: TorRelayConfig,
+
     /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
     #[expect(unused)] // TODO RELAY remove
     path_resolver: CfgPathResolver,
+
     /// State directory path.
     ///
     /// The [`StateDirectory`] stored in `state_dir` doesn't seem to have a way of getting the state
     /// directory path, so we need to store a copy of the path here.
     #[expect(unused)] // TODO RELAY remove
     state_path: PathBuf,
+
     /// Relay's state directory.
     #[expect(unused)] // TODO RELAY remove
     state_dir: StateDirectory,
+
     /// Location on disk where we store persistent data.
     #[expect(unused)] // TODO RELAY remove
     state_mgr: FsStateMgr,
+
     /// Key manager holding all relay keys and certificates.
     keymgr: Arc<KeyMgr>,
 }
