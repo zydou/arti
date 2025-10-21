@@ -75,7 +75,6 @@ use tor_rtcompat::Runtime;
 
 use futures::SinkExt;
 use futures::channel::mpsc;
-use futures::task::SpawnExt as _;
 use futures::{FutureExt as _, StreamExt, future, select_biased};
 use oneshot_fused_workaround as oneshot;
 use postage::broadcast;
@@ -115,9 +114,15 @@ pub(crate) enum RelayCtrlCmd {
     Shutdown,
 }
 
-/// Type-alias for the entry point of the reactor component.
+/// The entry point of the circuit reactor subsystem.
 #[allow(unused)] // TODO(relay)
-pub(crate) type RelayReactor<R, T> = BackwardReactor<R, T>;
+#[must_use = "If you don't call run() on a reactor, the circuit won't work."]
+pub(crate) struct RelayReactor<R: Runtime, T: HasRelayIds> {
+    /// The reactor for handling the forward direction (client to exit).
+    forward: ForwardReactor,
+    /// The reactor for handling the backward direction (exit to client).
+    backward: BackwardReactor<R, T>,
+}
 
 /// MPSC queue for inbound data on its way from channel to circuit, sender
 #[allow(unused)] // TODO(relay)
@@ -151,11 +156,6 @@ pub(crate) struct BackwardReactor<R: Runtime, T: HasRelayIds> {
     unique_id: UniqId,
     /// The circuit identifier on the incoming channel.
     circ_id: CircId,
-    /// The outbound reactor, to be launched via [`BackwardReactor::run`].
-    ///
-    /// Used to collect state that needs to be passed to the outbound reactor task.
-    /// Set to `None` after the reactor is launched.
-    outbound_reactor: Option<ForwardReactor>,
     /// The reading end of the outbound channel, if we are not the last hop.
     ///
     /// Yields cells moving from the exit towards the client.
@@ -233,7 +233,7 @@ pub(crate) struct RelayReactorHandle {
 }
 
 #[allow(unused)] // TODO(relay)
-impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
+impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
     /// Create a new circuit reactor.
     ///
     /// The reactor will send outbound messages on `channel`, receive incoming
@@ -264,7 +264,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
         let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
 
-        let outbound_reactor = ForwardReactor::new(
+        let forward = ForwardReactor::new(
             unique_id,
             RelayCellDecoder::new(relay_format),
             inbound_rx,
@@ -275,7 +275,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
             reactor_closed_rx.clone(),
         );
 
-        let reactor = Self {
+        let backward = BackwardReactor {
             relay_format,
             input: None,
             chan_sender: channel.sender(),
@@ -287,12 +287,12 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
             control: control_rx,
             command: command_rx,
             chan_provider,
-            outbound_reactor: Some(outbound_reactor),
             outgoing_chan_tx,
             streams: Arc::new(Mutex::new(StreamMap::new())),
             reactor_closed_tx,
             cell_rx,
-            runtime,
+            // XXX BackwardReactor no longer needs a handle to the runtime
+            runtime: runtime.clone(),
         };
 
         let handle = RelayReactorHandle {
@@ -300,6 +300,8 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
             command: command_tx,
             reactor_closed_rx,
         };
+
+        let reactor = RelayReactor { forward, backward };
 
         (reactor, handle)
     }
@@ -310,20 +312,27 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
     pub(crate) async fn run(mut self) -> Result<()> {
+        let Self { forward, backward } = self;
+
+        let (forward_res, backward_res) = futures::join!(forward.run(), backward.run());
+
+        let () = forward_res?;
+        backward_res
+    }
+}
+
+#[allow(unused)] // TODO(relay)
+impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
+    /// Launch the reactor, and run until the circuit closes or we
+    /// encounter an error.
+    ///
+    /// Once this method returns, the circuit is dead and cannot be
+    /// used again.
+    pub(crate) async fn run(mut self) -> Result<()> {
         trace!(
             circ_id = %self.unique_id,
             "Running relay circuit reactor",
         );
-
-        // TODO: it may be nicer to deconstruct self here, instead of using an Option like this
-        let outbound_reactor = self
-            .outbound_reactor
-            .take()
-            .expect("launched the reactor twice?!");
-        self.runtime.spawn(async move {
-            // the logging is handled by the outbound reactor's run() function.
-            let _ = outbound_reactor.run().await;
-        });
 
         let result: Result<()> = loop {
             match self.run_once().await {
