@@ -36,6 +36,8 @@ pub struct Preamble {
     /// List of recommended Tor relay versions.
     pub relay_versions: Vec<String>,
     /// Lists of recommended and required subprotocols.
+    ///
+    /// **`{recommended,required}-{client,relay}-protocols`**
     pub proto_statuses: Arc<ProtoStatuses>,
     /// Declared parameters for tunable settings about how to the
     /// network should operator. Some of these adjust timeouts and
