@@ -983,8 +983,7 @@ impl SharedRandStatus {
         let val: B64 = item.parse_arg(1)?;
         let value = SharedRandVal(val.into_array()?);
         // Added in proposal 342
-        let timestamp = item
-            .parse_optional_arg::<Iso8601TimeNoSp>(2)?;
+        let timestamp = item.parse_optional_arg::<Iso8601TimeNoSp>(2)?;
         Ok(SharedRandStatus {
             n_reveals,
             value,
