@@ -1,7 +1,7 @@
 //! Module providing [`CircuitExtender`].
 
 use super::{Circuit, ReactorResultChannel};
-use crate::client::circuit::HopSettings;
+use crate::circuit::circhop::HopSettings;
 use crate::client::circuit::handshake::HandshakeRole;
 use crate::client::reactor::MetaCellDisposition;
 use crate::crypto::cell::HopNum;

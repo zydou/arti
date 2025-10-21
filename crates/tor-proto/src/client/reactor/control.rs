@@ -7,9 +7,10 @@ use super::{
 };
 use crate::Result;
 use crate::circuit::celltypes::CreateResponse;
+use crate::circuit::circhop::HopSettings;
 #[cfg(feature = "circ-padding-manual")]
 use crate::client::circuit::padding;
-use crate::client::circuit::{HopSettings, path};
+use crate::client::circuit::path;
 use crate::client::reactor::{NoJoinPointError, NtorClient, ReactorError};
 use crate::client::{HopLocation, TargetHop};
 use crate::crypto::binding::CircuitBinding;

@@ -8,12 +8,13 @@ pub(super) mod extender;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::circuit::circhop::HopSettings;
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
 use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver};
-use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
+use crate::client::circuit::{TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
 use crate::congestion::CongestionSignals;
@@ -88,7 +89,7 @@ use {
 pub(super) use circhop::{CircHop, CircHopList};
 
 /// Initial value for outbound flow-control window on streams.
-pub(super) const SEND_WINDOW_INIT: u16 = 500;
+pub(crate) const SEND_WINDOW_INIT: u16 = 500;
 /// Initial value for inbound flow-control window on streams.
 pub(crate) const RECV_WINDOW_INIT: u16 = 500;
 /// Size of the buffer used between the reactor and a `StreamReader`.
@@ -365,7 +366,7 @@ impl Circuit {
 
         let settings = HopSettings::from_params_and_caps(
             // This is for testing only, so we'll assume full negotiation took place.
-            crate::client::circuit::HopNegotiationType::Full,
+            crate::circuit::circhop::HopNegotiationType::Full,
             params,
             &[named::FLOWCTRL_CC].into_iter().collect::<Protocols>(),
         )

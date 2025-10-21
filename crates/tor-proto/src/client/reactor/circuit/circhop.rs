@@ -2,7 +2,8 @@
 
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
-use crate::client::circuit::{HopSettings, StreamMpscReceiver};
+use crate::circuit::circhop::HopSettings;
+use crate::client::circuit::StreamMpscReceiver;
 use crate::client::reactor::circuit::path::PathEntry;
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
