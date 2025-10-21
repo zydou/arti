@@ -115,6 +115,15 @@ pub(super) struct BackwardReactor {
     reactor_closed_tx: broadcast::Sender<void::Void>,
 }
 
+// TODO(relay): consider moving some of the BackwardReactor fields
+// to a new Backward struct (to keep it more manageable, and for symmetry
+// with the ForwardReactor design).
+//
+// TODO(relay): while doing this, consider moving some of the complexity
+// out of the reactor impl:
+//
+// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3369#note_3277225
+
 #[allow(unused)] // TODO(relay)
 impl BackwardReactor {
     /// Create a new [`BackwardReactor`].
