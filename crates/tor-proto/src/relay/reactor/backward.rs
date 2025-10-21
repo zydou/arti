@@ -42,7 +42,7 @@ use super::{CircuitRxReceiver, RelayCtrlCmd, RelayCtrlMsg};
 /// and drives the application streams.
 ///
 /// Shuts down on explicit shutdown requests ([`RelayCtrlCmd::Shutdown`]),
-/// if an error occurs, or if the [`ForwardReactor`] shuts down.
+/// if an error occurs, or if the [`ForwardReactor`](super::ForwardReactor) shuts down.
 ///
 // TODO(relay): docs
 //
@@ -90,7 +90,7 @@ pub(super) struct BackwardReactor<T: HasRelayIds> {
     command: mpsc::UnboundedReceiver<RelayCtrlCmd>,
     /// Receiver for stream data that need to be delivered to a stream.
     ///
-    /// The sender is in [`ForwardReactor`], which will forward all cells
+    /// The sender is in [`ForwardReactor`](super::ForwardReactor), which will forward all cells
     /// carrying stream data to us.
     ///
     /// This serves a dual purpose:
@@ -496,7 +496,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
     }
 }
 
-/// A circuit event that must be handled by the [`Reactor`].
+/// A circuit event that must be handled by the [`BackwardReactor`].
 enum CircuitEvent {
     /// A stream event
     Stream(StreamEvent),
