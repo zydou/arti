@@ -655,8 +655,10 @@ define_derive_deftly! {
             #[allow(unused_imports)] // false positives in some situations
             use $P::*;
 
+            #[allow(unused_variables)] // If there are no fields, this is unused
+            let kw = item.keyword();
           $(
-            if item.keyword() == $F_KEYWORD {
+            if kw == $F_KEYWORD {
                 let selector = $F_ITEM_SET_SELECTOR;
               ${if fmeta(netdoc(with)) {
                 let item = ${fmeta(netdoc(with)) as path}
