@@ -41,6 +41,29 @@
 //
 // TODO(relay): the above is underspecified, because it's not implemented yet,
 // but the plan is to iron out these details soon
+//
+//! This dual reactor architecture enables us to parallelize some of the work:
+//! the forward and backward directions share little state,
+//! because they read from, and write to, different sinks/streams,
+//! so they can be run in parallel (as separate tasks).
+//!
+//! Note: we could have gone with a single, monolithic reactor that handles both directions,
+//! but the architecture would have been significantly more complicated,
+//! and so more difficult to maintain in the long run.
+//!
+//
+// Note: if we address the TODO below, the dual reactor architecture might even
+// have some performance benefits:
+//
+// TODO: the part about sharing little state is not entirely accurate.
+// Right now, they share the congestion control state, which is behind a mutex,
+// and, indirectly, the `StreamMap` (via the `cell_tx` construction).
+// In the future, we'd like to switch to a lock-less architecture,
+// but that will involve redesign `CongestionControl`
+// (to be mutable without &mut, for example by using atomics under the hood).
+// If we want to also parallelize the stream reands and writes, we will also
+// need to redesign the `StreamMap` (to split the read ends from the write ones,
+// padding the read side to the forward reactor and the write side to the backward one).
 
 mod backward;
 mod forward;
