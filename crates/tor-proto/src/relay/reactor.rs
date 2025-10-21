@@ -71,7 +71,6 @@ use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, S
 use tor_error::{internal, trace_report};
 use tor_linkspec::HasRelayIds;
 use tor_memquota::mq_queue::{self, MpscSpec};
-use tor_rtcompat::Runtime;
 
 use futures::SinkExt;
 use futures::channel::mpsc;
@@ -117,11 +116,11 @@ pub(crate) enum RelayCtrlCmd {
 /// The entry point of the circuit reactor subsystem.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(crate) struct RelayReactor<R: Runtime, T: HasRelayIds> {
+pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// The reactor for handling the forward direction (client to exit).
     forward: ForwardReactor,
     /// The reactor for handling the backward direction (exit to client).
-    backward: BackwardReactor<R, T>,
+    backward: BackwardReactor<T>,
 }
 
 /// MPSC queue for inbound data on its way from channel to circuit, sender
@@ -147,7 +146,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpe
 // reactor type.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(crate) struct BackwardReactor<R: Runtime, T: HasRelayIds> {
+pub(crate) struct BackwardReactor<T: HasRelayIds> {
     /// Format to use for relay cells.
     //
     // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
@@ -215,10 +214,6 @@ pub(crate) struct BackwardReactor<R: Runtime, T: HasRelayIds> {
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: broadcast::Sender<void::Void>,
-    /// The runtime.
-    ///
-    /// Used for spawning the [`BackwardReactor`].
-    runtime: R,
 }
 
 /// A handle for interacting with a [`BackwardReactor`].
@@ -233,7 +228,7 @@ pub(crate) struct RelayReactorHandle {
 }
 
 #[allow(unused)] // TODO(relay)
-impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
+impl<T: HasRelayIds> RelayReactor<T> {
     /// Create a new circuit reactor.
     ///
     /// The reactor will send outbound messages on `channel`, receive incoming
@@ -251,7 +246,6 @@ impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
         crypto_in: Box<dyn InboundRelayLayer + Send>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         settings: &HopSettings,
-        runtime: R,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         memquota: CircuitAccount,
     ) -> (Self, RelayReactorHandle) {
@@ -291,8 +285,6 @@ impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
             streams: Arc::new(Mutex::new(StreamMap::new())),
             reactor_closed_tx,
             cell_rx,
-            // XXX BackwardReactor no longer needs a handle to the runtime
-            runtime: runtime.clone(),
         };
 
         let handle = RelayReactorHandle {
@@ -322,7 +314,7 @@ impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
 }
 
 #[allow(unused)] // TODO(relay)
-impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
+impl<T: HasRelayIds> BackwardReactor<T> {
     /// Launch the reactor, and run until the circuit closes or we
     /// encounter an error.
     ///
