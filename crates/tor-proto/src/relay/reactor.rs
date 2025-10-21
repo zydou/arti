@@ -9,7 +9,7 @@ use crate::util::err::ReactorError;
 use crate::streammap::StreamMap;
 
 use tor_cell::chancell::CircId;
-use tor_error::{trace_report, warn_report};
+use tor_error::{internal, trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
 use tor_rtcompat::Runtime;
 
@@ -34,6 +34,7 @@ use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 ///
 // TODO(relay): we may not need this
 #[allow(unused)] // TODO(relay)
+#[derive(Debug)]
 pub(crate) enum RelayCtrlMsg {}
 
 /// A message telling the reactor to do something.
@@ -208,7 +209,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
         // TODO(relay): implement
         let () = select_biased! {
             res = self.command.next() => {
-                let Some(_cmd) = res else {
+                let Some(cmd) = res else {
                     trace!(
                         circ_id = %self.unique_id,
                         reason = "command channel drop",
@@ -218,11 +219,10 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
                     return Err(ReactorError::Shutdown);
                 };
 
-                // TODO
-                return Ok(());
+                return self.handle_command(&cmd);
             },
             res = self.control.next() => {
-                let Some(_msg) = res else {
+                let Some(msg) = res else {
                     trace!(
                         circ_id = %self.unique_id,
                         reason = "control channel drop",
@@ -232,8 +232,7 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
                     return Err(ReactorError::Shutdown);
                 };
 
-                // TODO
-                return Ok(());
+                return self.handle_control(&msg);
             },
             res = self.outgoing_chan_rx.next() => {
                 let chan_res = res
@@ -262,5 +261,28 @@ impl<R: Runtime, T: HasRelayIds> BackwardReactor<R, T> {
         };
 
         Ok(())
+    }
+
+    /// Handle a [`RelayCtrlCmd`].
+    fn handle_command(&self, cmd: &RelayCtrlCmd) -> StdResult<(), ReactorError> {
+        match cmd {
+            RelayCtrlCmd::Shutdown => self.handle_shutdown(),
+        }
+    }
+
+    /// Handle a [`RelayCtrlMsg`].
+    #[allow(clippy::unnecessary_wraps)]
+    fn handle_control(&self, cmd: &RelayCtrlMsg) -> StdResult<(), ReactorError> {
+        Err(internal!("not implemented: {cmd:?}").into())
+    }
+
+    /// Handle a shutdown request.
+    fn handle_shutdown(&self) -> StdResult<(), ReactorError> {
+        trace!(
+            tunnel_id = %self.unique_id,
+            "reactor shutdown due to explicit request",
+        );
+
+        Err(ReactorError::Shutdown)
     }
 }
