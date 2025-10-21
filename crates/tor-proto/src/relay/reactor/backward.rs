@@ -216,7 +216,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
     ///
     /// However, in practice, leaky pipe is not really used,
     /// and so relays that have application streams (i.e. the exits),
-    /// are not going to have a don't have a forward Tor channel,
+    /// are not going to have a forward Tor channel,
     /// and so this will only really drive Tor stream data,
     /// executing at most 2 actions per call:
     ///
