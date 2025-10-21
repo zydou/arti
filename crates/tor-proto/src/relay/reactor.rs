@@ -139,6 +139,9 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     forward: ForwardReactor<T>,
     /// The reactor for handling the backward direction (exit to client).
     backward: BackwardReactor,
+
+    // TODO(relay): consider moving control message handling
+    // from BackwardReactor to here
 }
 
 /// MPSC queue for inbound data on its way from channel to circuit, sender
