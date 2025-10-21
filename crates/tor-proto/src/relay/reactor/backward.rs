@@ -10,6 +10,7 @@ use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::streammap::{self, StreamMap};
 use crate::util::err::ReactorError;
+use crate::util::poll_all::PollAll;
 use crate::{Error, Result};
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
@@ -197,9 +198,40 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         result
     }
 
-    /// Helper for run: doesn't mark the circuit closed on finish.  Only
-    /// processes one cell or control message.
+    /// Helper for [`run`](Self::run).
+    ///
+    /// Handles cells arriving in the "backwards" direction (client-bound),
+    /// flushes the backward Tor channel sinks, polls the stream map for messages
+    /// that need to be delivered to the client, and the `cells_rx` stream
+    /// for client messages received via the `ForwardReactor`
+    /// that need to be delivered to the application.
+    ///
+    /// Because the application streams, the `cell_rx` streams,
+    /// and the client-bound cell stream are driven concurrently using [`PollAll`],
+    /// this function can, in theory, deliver a stream message to the application layer,
+    /// and send up to 2 cells per call:
+    ///
+    ///    * a client-bound cell carrying stream data
+    ///    * a client-bound cell, forwarded from the backward channel
+    ///
+    /// However, in practice, leaky pipe is not really used,
+    /// and so relays that have application streams (i.e. the exits),
+    /// are not going to have a don't have a forward channel,
+    /// and so this will only really drive stream data,
+    /// executing at most 2 actions per call:
+    ///
+    ///   * deliver client-bound cell carrying stream data on the backward channel
+    ///   * deliver one message worth of application-bound stream data received
+    ///     over `cell_rx`
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
+        /// The maximum number of events we expect to handle per reactor loop.
+        ///
+        /// This is bounded by the number of futures we push into the PollAll.
+        const PER_LOOP_EVENT_COUNT: usize = 3;
+
+        // A collection of futures we plan to drive concurrently.
+        let mut poll_all = PollAll::<PER_LOOP_EVENT_COUNT, CircuitEvent>::new();
+
         // Flush the backward channel sink, and check it for readiness
         //
         // TODO(flushing): here and everywhere else we need to flush:
@@ -262,9 +294,10 @@ impl<T: HasRelayIds> BackwardReactor<T> {
 
         let (tx, rx) = oneshot::channel::<()>();
 
-        // In parallel, drive :
-        //  1. the application streams stream
-        let streams_fut = async move {
+        // Concurrently, drive :
+        //  1. a future that reads from the ready application streams
+        //  (this resolves to a message that needs to be delivered to the client)
+        poll_all.push(async move {
             // Avoid polling the application streams if the outgoing sink is blocked
             let _ = backward_chan_ready.await;
 
@@ -281,25 +314,50 @@ impl<T: HasRelayIds> BackwardReactor<T> {
                 let () = future::pending().await;
             }
 
-            ready_streams_fut.await
-        };
+            let ev = ready_streams_fut.await;
 
-        // 2. Messages moving from the exit towards the client,
+            CircuitEvent::Stream(ev)
+        });
+
+        //  2. the stream of stream data coming from the client
+        //  (this resolves to a message that needs to be delivered to an application stream)
+        poll_all.push(async {
+            match self.cell_rx.next().await {
+                Some((sid, msg)) => CircuitEvent::Stream(StreamEvent::ClientMsg { sid, msg }),
+                None => {
+                    // The forward reactor has crashed, so we have to shut down.
+                    CircuitEvent::ForwardShutdown
+                }
+            }
+        });
+
+        // 3. Messages moving from the exit towards the client,
         // if we have a forward channel, **iff** the backward sink (towards the client)
         // is ready to accept them
-        let backwards_cell = async {
+        //
+        // NOTE: in practice (ignoring leaky pipe), exits won't have a forward channel,
+        // so the poll_all will only really drive the two stream-related futures
+        // (for reading from and writing to the application streams)
+        poll_all.push(async {
             // Avoid reading from the forward channel (if there even is one!)
             // if the outgoing sink is blocked.
             let () = rx.await.expect("streams_fut future disappeared?!");
 
             if let Some(input) = self.input.as_mut() {
-                input.next().await
+                // Forward channel unexpectedly closed, we should close too
+                match input.next().await {
+                    Some(cell) => CircuitEvent::Cell(cell),
+                    None => {
+                        // The forward reactor has crashed, so we have to shut down.
+                        CircuitEvent::ForwardShutdown
+                    }
+                }
             } else {
                 future::pending().await
             }
-        };
+        });
 
-        select_biased! {
+        let events = select_biased! {
             res = self.command.next() => {
                 let Some(cmd) = res else {
                     trace!(
@@ -311,7 +369,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
                     return Err(ReactorError::Shutdown);
                 };
 
-                self.handle_command(&cmd)
+                return self.handle_command(&cmd);
             },
             res = self.control.next() => {
                 let Some(msg) = res else {
@@ -324,29 +382,39 @@ impl<T: HasRelayIds> BackwardReactor<T> {
                     return Err(ReactorError::Shutdown);
                 };
 
-                self.handle_control(&msg)
+                return self.handle_control(&msg);
             },
-            ev = streams_fut.fuse() => self.handle_stream_event(ev),
-            cell = backwards_cell.fuse() => {
-                let Some(cell) = cell else {
-                    // Forward channel unexpectedly closed, we should close too
-                    return Err(ReactorError::Shutdown);
-                };
+            res = poll_all.fuse() => res,
+        };
 
-                self.handle_backward_cell(cell)
-            }
-            cell = self.cell_rx.next() => {
-                let Some(cell) = cell else {
-                    // The forward reactor has crashed, so we have to shut down.
-                    trace!(
-                        circ_id = %self.unique_id,
-                        "Backward relay reactor shutdown (forward reactor has closed)",
-                    );
+        // Note: there shouldn't be more than N < PER_LOOP_EVENT_COUNT events to handle
+        // per reactor loop. We need to be careful here, because we must avoid blocking
+        // the reactor.
+        //
+        // If handling more than one event per loop turns out to be a problem, we may
+        // need to dispatch this to a background task instead.
+        for event in events {
+            self.handle_event(event).await?;
+        }
 
-                    return Err(ReactorError::Shutdown);
-                };
+        Ok(())
+    }
 
-                todo!()
+    /// Handle a circuit event.
+    async fn handle_event(&mut self, event: CircuitEvent) -> StdResult<(), ReactorError> {
+        use CircuitEvent::*;
+
+        match event {
+            Stream(e) => self.handle_stream_event(e),
+            Cell(cell) => self.handle_backward_cell(cell),
+            ForwardShutdown => {
+                // The forward reactor has crashed, so we have to shut down.
+                trace!(
+                    circ_id = %self.unique_id,
+                    "Backward relay reactor shutdown (forward reactor has closed)",
+                );
+
+                Err(ReactorError::Shutdown)
             }
         }
     }
@@ -394,6 +462,7 @@ impl<T: HasRelayIds> BackwardReactor<T> {
         match event {
             StreamEvent::Closed { .. } => todo!(),
             StreamEvent::ReadyMsg { sid, msg } => self.send_msg_to_client(Some(sid), msg, None),
+            StreamEvent::ClientMsg { .. } => todo!(),
         }
     }
 
@@ -427,10 +496,24 @@ impl<T: HasRelayIds> BackwardReactor<T> {
     }
 }
 
+/// A circuit event that must be handled by the [`Reactor`].
+enum CircuitEvent {
+    /// A stream event
+    Stream(StreamEvent),
+    /// We received a client-bound cell that needs to be handled.
+    Cell(RelayCircChanMsg),
+    /// The forward reactor has shut down.
+    ///
+    /// We need to shut down too.
+    ForwardShutdown,
+}
+
 /// A stream-related event.
 #[allow(unused)] // TODO(relay)
 enum StreamEvent {
     /// A stream was closed.
+    ///
+    /// It needs to be removed from the reactor's stream map.
     Closed {
         /// The ID of the stream to close.
         sid: StreamId,
@@ -441,6 +524,15 @@ enum StreamEvent {
     },
     /// A stream has a ready message.
     ReadyMsg {
+        /// The ID of the stream to close.
+        sid: StreamId,
+        /// The message.
+        msg: AnyRelayMsg,
+    },
+    /// Received a client stream message.
+    ///
+    /// This needs to be delivered to the specified application stream.
+    ClientMsg {
         /// The ID of the stream to close.
         sid: StreamId,
         /// The message.
