@@ -61,7 +61,7 @@ pub struct Preamble {
     /// consensus method is a version number used by authorities to
     /// upgrade the consensus algorithm.)
     #[cfg_attr(feature = "parse2", deftly(netdoc(single_arg)))]
-    pub consensus_method: u32,
+    pub consensus_method: ns_type!( u32, u32, NotPresent ),
     /// Global shared-random value for the previous shared-random period.
     pub shared_rand_previous_value: Option<SharedRandStatus>,
     /// Global shared-random value for the current shared-random period.
