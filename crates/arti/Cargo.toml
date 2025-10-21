@@ -42,6 +42,7 @@ full = [
     "compression",
     "bridge-client",
     "pt-client",
+    "restricted-discovery",
     "arti-rpcserver?/full",
     "fs-mistrust/full",
     "rpc",
@@ -130,7 +131,6 @@ experimental = [
     "hs-pow-full",
     "keymgr",
     "metrics",
-    "restricted-discovery",
     "hsc",
     "tor-hsservice/experimental",
     "ctor-keystore",
@@ -145,7 +145,7 @@ metrics = [
     "__is_experimental",
 ]
 
-restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
+restricted-discovery = ["tor-hsservice/restricted-discovery"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 __is_experimental = []
 
