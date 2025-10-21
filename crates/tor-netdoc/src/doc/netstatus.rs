@@ -147,7 +147,7 @@ pub struct Lifetime {
     ///
     /// (You might see a consensus a little while before this time,
     /// since voting tries to finish up before the.)
-    valid_after: time::SystemTime,
+    valid_after: Iso8601TimeSp,
     /// `fresh-until` --- Time after which there is expected to be a better version
     /// of this consensus
     ///
@@ -155,7 +155,7 @@ pub struct Lifetime {
     ///
     /// You can use the consensus after this time, but there is (or is
     /// supposed to be) a better one by this point.
-    fresh_until: time::SystemTime,
+    fresh_until: Iso8601TimeSp,
     /// `valid-until` --- Time after which this consensus is expired.
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:published>
@@ -163,7 +163,7 @@ pub struct Lifetime {
     /// You should try to get a better consensus after this time,
     /// though it's okay to keep using this one if no more recent one
     /// can be found.
-    valid_until: time::SystemTime,
+    valid_until: Iso8601TimeSp,
 }
 
 define_derive_deftly! {
@@ -179,7 +179,7 @@ impl Lifetime {
         // has the wrong span - the compiler refuses to look at the argument.
         // But we can refer to the field names.
         let self_ = Lifetime {
-            $( $fname, )
+            $( $fname: $fname.into(), )
         };
         if self_.valid_after < self_.fresh_until && self_.fresh_until < self_.valid_until {
             Ok(self_)
@@ -190,12 +190,12 @@ impl Lifetime {
   $(
     ${fattrs doc}
     pub fn $fname(&self) -> time::SystemTime {
-        self.$fname
+        *self.$fname
     }
   )
     /// Return true if this consensus is officially valid at the provided time.
     pub fn valid_at(&self, when: time::SystemTime) -> bool {
-        self.valid_after <= when && when <= self.valid_until
+        *self.valid_after <= when && when <= *self.valid_until
     }
 
     /// Return the voting period implied by this lifetime.
