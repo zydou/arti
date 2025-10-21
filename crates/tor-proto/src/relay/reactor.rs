@@ -9,10 +9,10 @@
 //! Internally, the circuit reactor consists of two reactors, that run in separate tasks:
 //!
 //!   * [`ForwardReactor`]: handles exit-bound cells, by moving cells in the
-//!   forward direction (from the client to the exit)
+//!     forward direction (from the client to the exit)
 //!   * [`BackwardReactor`]: handles client-bound cells, by moving cells in the
-//!   backward direction (from the exit to the client), and by packaging
-//!   and sending application stream data towards the client
+//!     backward direction (from the exit to the client), and by packaging
+//!     and sending application stream data towards the client
 //!
 //! The `BackwardReactor` can also be viewed as the "primary" reactor here:
 //! its `.run()` function starts the `BackwardReactor` **and** spawns [`ForwardReactor::run`],
