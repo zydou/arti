@@ -3,8 +3,6 @@
 pub mod circuit;
 pub mod stream;
 
-// TODO: this shouldn't need to be pub(crate)
-pub(crate) mod halfstream;
 #[cfg(feature = "send-control-msg")]
 pub(crate) mod msghandler;
 pub(crate) mod reactor;

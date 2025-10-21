@@ -1,7 +1,8 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
+mod halfstream;
+
 use crate::client::circuit::StreamMpscReceiver;
-use crate::client::halfstream::HalfStream;
 use crate::client::reactor::circuit::RECV_WINDOW_INIT;
 use crate::congestion::sendme;
 use crate::stream::cmdcheck::AnyCmdChecker;
@@ -27,6 +28,8 @@ use tor_error::{bad_api_usage, internal};
 use rand::Rng;
 
 use tracing::debug;
+
+use halfstream::HalfStream;
 
 /// Entry for an open stream
 ///
