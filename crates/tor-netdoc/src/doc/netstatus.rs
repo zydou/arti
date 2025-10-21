@@ -533,7 +533,7 @@ pub struct SharedRandStatus {
     /// The time when this SharedRandVal becomes (or became) the latest.
     ///
     /// (This is added per proposal 342, assuming that gets accepted.)
-    pub timestamp: Option<time::SystemTime>,
+    pub timestamp: Option<Iso8601TimeNoSp>,
 }
 
 /// Description of an authority's identity and address.
@@ -984,8 +984,7 @@ impl SharedRandStatus {
         let value = SharedRandVal(val.into_array()?);
         // Added in proposal 342
         let timestamp = item
-            .parse_optional_arg::<Iso8601TimeNoSp>(2)?
-            .map(Into::into);
+            .parse_optional_arg::<Iso8601TimeNoSp>(2)?;
         Ok(SharedRandStatus {
             n_reveals,
             value,
@@ -1000,7 +999,7 @@ impl SharedRandStatus {
 
     /// Return the timestamp (if any) associated with this `SharedRandValue`.
     pub fn timestamp(&self) -> Option<std::time::SystemTime> {
-        self.timestamp
+        self.timestamp.map(|t| t.0)
     }
 }
 
@@ -1695,7 +1694,7 @@ mod test {
         assert_eq!(sr2.n_reveals, sr.n_reveals);
         assert_eq!(sr2.value.0, sr.value.0);
         assert_eq!(
-            sr2.timestamp.unwrap(),
+            sr2.timestamp.unwrap().0,
             humantime::parse_rfc3339("2022-01-20T12:34:56Z").unwrap()
         );
 

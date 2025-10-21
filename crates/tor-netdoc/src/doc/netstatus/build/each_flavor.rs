@@ -166,7 +166,7 @@ impl ConsensusBuilder {
         self.shared_rand_prev = Some(SharedRandStatus {
             n_reveals,
             value,
-            timestamp,
+            timestamp: timestamp.map(Iso8601TimeNoSp),
         });
         self
     }
@@ -182,7 +182,7 @@ impl ConsensusBuilder {
         self.shared_rand_cur = Some(SharedRandStatus {
             n_reveals,
             value,
-            timestamp,
+            timestamp: timestamp.map(Iso8601TimeNoSp),
         });
         self
     }

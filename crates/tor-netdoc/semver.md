@@ -15,3 +15,4 @@ ADDED: `parse2::ParseError.column`
 ADDED: `Iso8601TimeSp`, `Iso8601TimeNoSp`
 ADDED: `parse2::UnparsedItem::invalid_argument_handler`
 ADDED: `B64` helper type for base64-encoded binary data
+BREAKING: Change type of `SharedRantStatus.lifetime`
