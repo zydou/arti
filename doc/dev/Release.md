@@ -124,7 +124,19 @@ release?" above.
    If the reason you can't upgrade is a bug in the dependency,
    or _accidental_ MSRV breakage, file a bug upstream.
 
-3. [ ] Write a changelog.
+3. [ ] Consider updating CI Docker images.
+
+   Look in `.gitlab-ci.yml` for docker images that we specify a specific version for.
+   These are the `image:` items within each job.
+
+   Check [Docker Hub](https://hub.docker.com) for each image to see if there is a more recent version,
+   and update to it if it is available. If the update causes a breakage,
+   either fix the breakage or file a "[Upgrade Blocker]" ticket with details.
+
+   Note that some images may intentionally specify older versions,
+   such as our `minimal-versions` test which is currently used to test our MSRV as well.
+
+4. [ ] Write a changelog.
 
    I start by copying the [changelog template](./ChangelogTemplate.md),
    and filling in the version and date.
@@ -147,7 +159,7 @@ release?" above.
 
    See below for our current [changelog style guide](#changelog-style-guide).
 
-4. [ ] Finish the changelog.
+5. [ ] Finish the changelog.
 
    When the changelog is done, run
    `maint/update-md-links CHANGELOG.md`
@@ -168,7 +180,7 @@ release?" above.
 
    Add an acknowledgement for the current sponsor(s).
 
-5. [ ] Determine what semver/version update to do to each crate.
+6. [ ] Determine what semver/version update to do to each crate.
 
    We need to sort our crates into the following tiers.
     * Unstable (0.x) `tor-*` and `arti-*` crates.
