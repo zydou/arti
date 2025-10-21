@@ -16,3 +16,5 @@ ADDED: `Iso8601TimeSp`, `Iso8601TimeNoSp`
 ADDED: `parse2::UnparsedItem::invalid_argument_handler`
 ADDED: `B64` helper type for base64-encoded binary data
 BREAKING: Change type of `SharedRantStatus.lifetime`
+BREAKING: Rename `netstatus::Header` to `Preamble` and move `flavor` into `Consensus`
+BREAKING: Rename `shared_rand_*` fields in `Preamble` to match the protocol and spec.
