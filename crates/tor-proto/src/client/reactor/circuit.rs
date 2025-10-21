@@ -16,7 +16,7 @@ use crate::client::circuit::{CircuitRxReceiver, MutableState, StreamMpscReceiver
 use crate::client::circuit::{HopSettings, TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::client::reactor::circuit::cell_sender::CircuitCellSender;
-use crate::client::streammap;
+use crate::streammap;
 use crate::congestion::CongestionSignals;
 use crate::congestion::sendme;
 use crate::crypto::binding::CircuitBinding;

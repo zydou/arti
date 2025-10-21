@@ -18,7 +18,7 @@ use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 /// since otherwise we'd be vulnerable to a class of "DropMark" attacks;
 /// see <https://gitlab.torproject.org/tpo/core/tor/-/issues/25573>.
 #[derive(Debug)]
-pub(super) struct HalfStream {
+pub(crate) struct HalfStream {
     /// Flow control for this stream.
     ///
     /// Used to process incoming flow control messages (SENDME, XON, etc).
@@ -32,7 +32,7 @@ pub(super) struct HalfStream {
 
 impl HalfStream {
     /// Create a new half-closed stream.
-    pub(super) fn new(
+    pub(crate) fn new(
         flow_control: StreamFlowCtrl,
         recvw: StreamRecvWindow,
         cmd_checker: AnyCmdChecker,
@@ -50,7 +50,7 @@ impl HalfStream {
     /// The caller must handle END cells; it is an internal error to pass
     /// END cells to this method.
     /// no ends here.
-    pub(super) fn handle_msg(&mut self, msg: UnparsedRelayMsg) -> Result<StreamStatus> {
+    pub(crate) fn handle_msg(&mut self, msg: UnparsedRelayMsg) -> Result<StreamStatus> {
         use StreamStatus::*;
 
         // We handle SENDME/XON/XOFF separately, and don't give it to the checker.

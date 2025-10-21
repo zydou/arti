@@ -4,7 +4,7 @@ use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::client::circuit::{HopSettings, StreamMpscReceiver};
 use crate::client::reactor::circuit::path::PathEntry;
-use crate::client::streammap::{
+use crate::streammap::{
     self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut,
 };
 use crate::congestion::CongestionControl;

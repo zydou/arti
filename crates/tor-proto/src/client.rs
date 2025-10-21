@@ -3,11 +3,11 @@
 pub mod circuit;
 pub mod stream;
 
-mod halfstream;
+// TODO: this shouldn't need to be pub(crate)
+pub(crate) mod halfstream;
 #[cfg(feature = "send-control-msg")]
 pub(crate) mod msghandler;
 pub(crate) mod reactor;
-pub(crate) mod streammap; // XXX
 
 use derive_deftly::Deftly;
 use futures::SinkExt as _;

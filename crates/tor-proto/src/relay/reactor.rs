@@ -7,8 +7,7 @@ use crate::circuit::UniqId;
 use crate::memquota::CircuitAccount;
 use crate::util::err::ReactorError;
 
-// XXX we shouldnt import from client (need to move StreamMap)
-use crate::client::streammap::StreamMap;
+use crate::streammap::StreamMap;
 
 use tor_cell::chancell::CircId;
 use tor_error::{trace_report, warn_report};
