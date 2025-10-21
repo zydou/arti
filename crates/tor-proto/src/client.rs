@@ -28,12 +28,13 @@ use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};
 use crate::stream::cmdcheck::AnyCmdChecker;
+use crate::stream::StreamMpscSender;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::queue::stream_queue;
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
-use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path, StreamMpscSender};
+use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path};
 use reactor::{
     CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };

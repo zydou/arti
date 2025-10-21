@@ -46,8 +46,8 @@ use super::{Circuit, ConfluxLinkResultChannel};
 
 use oneshot_fused_workaround as oneshot;
 
-use crate::client::circuit::StreamMpscReceiver;
 use crate::crypto::handshake::ntor::NtorPublicKey;
+use crate::stream::StreamMpscReceiver;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget};
 
 use std::result::Result as StdResult;

@@ -81,6 +81,9 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 
+#[cfg(test)]
+use crate::stream::{StreamMpscReceiver, StreamMpscSender};
+
 pub use crate::crypto::binding::CircuitBinding;
 pub use path::{Path, PathEntry};
 
@@ -91,11 +94,6 @@ pub use crate::client::reactor::syncview::ClientCircSyncView;
 
 // TODO: export this from the top-level instead (it's not client-specific).
 pub use crate::circuit::CircParameters;
-
-/// MPSC queue relating to a stream (either inbound or outbound), sender
-pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
-/// MPSC queue relating to a stream (either inbound or outbound), receiver
-pub(crate) type StreamMpscReceiver<T> = mq_queue::Receiver<T, MpscSpec>;
 
 /// MPSC queue for inbound data on its way from channel to circuit, sender
 pub(crate) type CircuitRxSender = mq_queue::Sender<ClientCircChanMsg, MpscSpec>;

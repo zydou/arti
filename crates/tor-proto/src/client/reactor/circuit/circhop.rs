@@ -3,12 +3,12 @@
 use super::CircuitCmd;
 use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
 use crate::circuit::circhop::HopSettings;
-use crate::client::circuit::StreamMpscReceiver;
 use crate::client::reactor::circuit::path::PathEntry;
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
+use crate::stream::StreamMpscReceiver;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
