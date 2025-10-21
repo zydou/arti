@@ -505,7 +505,7 @@ define_derive_deftly! {
                 if $ftype::is_item_keyword(kw) {
                     dtrace!(${concat "is flatten in " $fname}, kw);
                     let item = $THIS_ITEM;
-                    $ftype::accumulate_item(&mut $fpatname, item)?;
+                    <$ftype as NetdocParseableFields>::accumulate_item(&mut $fpatname, item)?;
                 } else
               }}
                 {
