@@ -140,9 +140,28 @@ pub use derive::netdoc_parseable_derive_debug;
 ///
 /// Specific document and type parsing methods may use these parameters
 /// to control their parsing behaviour at run-time.
-#[derive(Default, Debug, Clone)]
+#[derive(educe::Educe, Debug, Clone)]
 #[allow(clippy::manual_non_exhaustive)]
+#[educe(Default)]
 pub struct ParseOptions {
+    /// Retain unknown values?
+    ///
+    /// Some field types, especially for flags fields, have the capability to retain
+    /// unknown flags.  But, whereas known flags can be represented as single bits,
+    /// representing unknown flags involves allocating and copying strings.
+    /// Unless the document is to be reproduced, this is a waste of effort.
+    ///
+    /// Each document field type affected by this option should store the unknowns
+    /// as `Unknown<HashSet<String>>` or similar.
+    ///
+    /// This feature should only be used where performance is important.
+    /// For example, it is useful for types that appear in md consensus routerdescs,
+    /// but less useful for types that appear only in a netstatus preamble.
+    ///
+    /// This is currently used for router flags.
+    #[educe(Default(expression = "Unknown::new_discard()"))]
+    pub retain_unknown_values: Unknown<()>,
+
     // Like `#[non_exhaustive]`, but doesn't prevent use of struct display syntax with `..`
     #[doc(hidden)]
     _private_non_exhaustive: (),

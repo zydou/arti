@@ -33,9 +33,11 @@ pub use ignored_impl::{Ignored, NotPresent};
 
 use crate::NormalItemArgument;
 use derive_deftly::{Deftly, define_derive_deftly};
+use std::cmp::{self, PartialOrd};
 use std::fmt::{self, Display};
+use std::marker::PhantomData;
 use std::str::FromStr;
-use tor_error::ErrorReport as _;
+use tor_error::{Bug, ErrorReport as _, internal};
 use void::{ResultVoidExt as _, Void};
 
 /// Describes a value that van be decoded from a bunch of bytes.
@@ -358,6 +360,124 @@ mod ignored_impl {
         type Each = Ignored;
         fn resolve_option(self, _found: Option<Ignored>) -> Result<Ignored, EP> {
             Ok(Ignored)
+        }
+    }
+}
+
+// ============================================================
+
+/// Information about unknown values, which may have been retained as a `T`
+///
+/// Won't grow additional variants - but, `Retained` is only included conditionally.
+///
+/// Also used in the form `Unknown<()>` to indicate whether unknown values *should* be retained.
+///
+/// ### Example
+///
+/// ```
+/// # {
+/// #![cfg(feature = "retain-unknown")]
+///
+/// use tor_netdoc::types::Unknown;
+///
+/// let mut unk: Unknown<Vec<String>> = Unknown::new_retained_default();
+/// unk.with_mut_unknown(|u| u.push("something-we-found".into()));
+/// assert_eq!(unk.into_retained().unwrap(), ["something-we-found"]);
+/// # }
+/// ```
+///
+/// ### Equality comparison, semantics
+///
+/// Two `Unknown` are consider equal if both have the same record of unknown values,
+/// or if neither records unknown values at all.
+///
+/// `Unknown` is not `Eq` or `Ord` because we won't want to relate a `Discarded`
+/// to a `Retained`.  That would be a a logic error.  `partial_cmp` gives `None` for this.
+#[derive(Debug, PartialEq, Clone, Copy, Hash)]
+#[non_exhaustive]
+pub enum Unknown<T> {
+    /// The parsing discarded unknown values and they are no longer available.
+    Discarded(PhantomData<T>),
+
+    /// The document parsing retained (or should retain) unknown values.
+    #[cfg(feature = "retain-unknown")]
+    Retained(T),
+}
+
+impl<T> Unknown<T> {
+    /// Create an `Unknown` which specifies that values were discarded (or should be)
+    pub fn new_discard() -> Self {
+        Unknown::Discarded(PhantomData)
+    }
+
+    /// Map the `Retained`, if there is one
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Unknown<U> {
+        self.try_map(move |t| Ok::<_, Void>(f(t))).void_unwrap()
+    }
+
+    /// Map the `Retained`, fallibly
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Unknown<U>, E> {
+        Ok(match self {
+            Unknown::Discarded(_) => Unknown::Discarded(PhantomData),
+            #[cfg(feature = "retain-unknown")]
+            Unknown::Retained(t) => Unknown::Retained(f(t)?),
+        })
+    }
+
+    /// Obtain an `Unknown` containing (maybe) a reference
+    pub fn as_ref(&self) -> Option<&T> {
+        match self {
+            Unknown::Discarded(_) => None,
+            #[cfg(feature = "retain-unknown")]
+            Unknown::Retained(t) => Some(t),
+        }
+    }
+
+    /// Obtain the `Retained` data
+    ///
+    /// Treats lack of retention as an internal error.
+    #[cfg(feature = "retain-unknown")]
+    pub fn into_retained(self) -> Result<T, Bug> {
+        match self {
+            Unknown::Discarded(_) => Err(internal!("Unknown::retained but data not collected")),
+            Unknown::Retained(t) => Ok(t),
+        }
+    }
+
+    /// Start recording unknown information, with a default value for `T`
+    #[cfg(feature = "retain-unknown")]
+    pub fn new_retained_default() -> Self
+    where
+        T: Default,
+    {
+        Unknown::Retained(T::default())
+    }
+
+    /// Update the `Retained`, if there is one
+    ///
+    /// Intended for use in parsing, when we encounter an unknown value.
+    ///
+    /// Not provided in `try_` form.  If you think you need this, instead, unconditionally
+    /// parse and verify the unknown value, and then conditionally insert it with this function.
+    /// Don't parse it conditionally - that would skip some validation.
+    pub fn with_mut_unknown(&mut self, f: impl FnOnce(&mut T)) {
+        match self {
+            Unknown::Discarded(_) => {}
+            #[cfg(feature = "retain-unknown")]
+            Unknown::Retained(t) => f(t),
+        }
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for Unknown<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        use Unknown::*;
+        match (self, other) {
+            (Discarded(_), Discarded(_)) => Some(cmp::Ordering::Equal),
+            #[cfg(feature = "retain-unknown")]
+            (Discarded(_), Retained(_)) | (Retained(_), Discarded(_)) => None,
+            #[cfg(feature = "retain-unknown")]
+            (Retained(a), Retained(b)) => a.partial_cmp(b),
         }
     }
 }

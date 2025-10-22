@@ -14,7 +14,7 @@ pub mod policy;
 pub mod relay_flags;
 pub mod version;
 
-pub use misc::{Nickname, NotPresent};
+pub use misc::{Nickname, NotPresent, Unknown};
 
 pub use misc::B64;
 pub use misc::{Base64Fingerprint, Fingerprint, Ignored};
