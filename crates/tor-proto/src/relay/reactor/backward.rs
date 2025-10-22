@@ -21,6 +21,7 @@ use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
 use tor_cell::relaycell::msg::{AnyRelayMsg, SendmeTag};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
 use tor_error::{internal, trace_report};
+use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use futures::SinkExt;
 use futures::channel::mpsc;
@@ -58,6 +59,8 @@ use super::CircuitRxReceiver;
 pub(super) struct BackwardReactor {
     /// The state of this circuit hop.
     hop: CircHopOutbound,
+    /// The time provider.
+    time_provider: DynTimeProvider,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// The circuit identifier on the backward Tor channel.
@@ -108,7 +111,8 @@ impl BackwardReactor {
     /// Create a new [`BackwardReactor`].
     #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     #[allow(clippy::too_many_arguments)] // TODO
-    pub(super) fn new(
+    pub(super) fn new<R: Runtime>(
+        runtime: R,
         channel: Arc<Channel>,
         hop: CircHopOutbound,
         circ_id: CircId,
@@ -123,6 +127,7 @@ impl BackwardReactor {
 
         Self {
             hop,
+            time_provider: DynTimeProvider::new(runtime),
             input: None,
             chan_sender,
             crypto_in,
