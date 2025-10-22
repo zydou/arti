@@ -68,7 +68,7 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use futures::{FutureExt as _, StreamExt as _, select};
+use futures::{FutureExt as _, StreamExt as _, select_biased};
 use postage::broadcast;
 use tracing::{debug, trace};
 
@@ -280,7 +280,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             // If either of these completes, this function returns,
             // dropping reactor_closed_tx, which will, in turn,
             // cause the remaining reactor, if there is one, to shut down too
-            select! {
+            select_biased! {
                 res = self.command.next() => {
                     let Some(cmd) = res else {
                         trace!(
