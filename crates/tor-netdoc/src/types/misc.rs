@@ -29,7 +29,7 @@ pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
 pub use identified_digest::{DigestName, IdentifiedDigest};
 
-pub use ignored_impl::{ArgumentNotPresent, Ignored};
+pub use ignored_impl::{ArgumentNotPresent, Ignored, NotPresent};
 
 use crate::NormalItemArgument;
 use derive_deftly::{Deftly, define_derive_deftly};

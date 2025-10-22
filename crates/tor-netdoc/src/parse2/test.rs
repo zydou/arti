@@ -14,6 +14,7 @@
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
 use super::*;
+use crate::types::NotPresent;
 use anyhow::Context as _;
 use testresult::TestResult;
 use tor_error::ErrorReport as _;
@@ -29,6 +30,7 @@ struct Top {
     needed: (String,),
     optional: Option<(String,)>,
     several: Vec<(String,)>,
+    not_present: NotPresent,
     #[deftly(netdoc(default))]
     defaulted: (String,),
     #[deftly(netdoc(keyword = "renamed"))]
@@ -324,6 +326,8 @@ sub4-intro
 needed N
 optional O
 several 1
+not-present oh yes it is
+not-present but it is ignored
 several 2
 defaulted D
 renamed R
