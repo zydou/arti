@@ -27,6 +27,17 @@ type Request = hyper::Request<hyper::body::Incoming>;
 /// but empty strings are cheap enough that it isn't worth it.)
 type Body = String;
 
+/// Constants for the HTTP headers we use
+mod hdr {
+    pub(super) use http::header::{SERVER, VIA};
+
+    /// Proxy-to-client: A list of the capabilities that this proxy provides.
+    pub(super) const X_TOR_CAPABILITIES: &str = "X-Tor-Capabilities";
+
+    /// Proxy-to-client: A machine-readable list of failure reasons.
+    pub(super) const X_TOR_REQUEST_FAILED: &str = "X-Tor-Request-Failed";
+}
+
 /// Given a just-received TCP connection `S` on a HTTP proxy port, handle the
 /// HTTP handshake and relay the connection over the Tor network.
 ///
@@ -139,6 +150,7 @@ where
     let target = request.uri().to_string();
     let tor_addr =
         TorAddr::from(&target).map_err(|e| HttpConnectError::InvalidStreamTarget(sv(target), e))?;
+
     let stream_prefs = StreamPrefs::default();
 
     // XXXX Implement isolation.
@@ -210,18 +222,18 @@ impl RespBldExt for ResponseBuilder {
 
 /// Add all common headers to the builder `bld`, and return a new builder.
 fn add_common_headers(mut bld: ResponseBuilder, method: &Method) -> ResponseBuilder {
-    bld = bld.header("X-Tor-Capabilities", "");
+    bld = bld.header(hdr::X_TOR_CAPABILITIES, "");
     if let (Some(software), Some(version)) = (
         option_env!("CARGO_PKG_NAME"),
         option_env!("CARGO_PKG_VERSION"),
     ) {
         if method == Method::CONNECT {
             bld = bld.header(
-                "Via",
+                hdr::VIA,
                 format!("x-tor/1.0 tor-network ({software} {version})"),
             );
         } else {
-            bld = bld.header("Server", format!("x-tor/1.0 ({software} {version})"));
+            bld = bld.header(hdr::SERVER, format!("x-tor/1.0 ({software} {version})"));
         }
     }
     bld
@@ -279,7 +291,7 @@ impl HttpConnectError {
         // kind_to_status.
         ResponseBuilder::new()
             .status(status_code)
-            .header("X-Tor-Request-Failed", format!("arti/{error_kind:?}"))
+            .header(hdr::X_TOR_REQUEST_FAILED, format!("arti/{error_kind:?}"))
             .err(&Method::CONNECT, self.report().to_string())
     }
 }
