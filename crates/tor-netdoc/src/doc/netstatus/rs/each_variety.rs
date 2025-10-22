@@ -65,7 +65,7 @@ pub struct RouterStatusIntroItem {
     // TODO SPEC rename in the spec from `digest` to "doc_digest"
     // TODO SPEC in md consensuses the referenced document digest is in a separate `m` item
     #[cfg_attr(feature = "parse2", deftly(netdoc(with = "doc_digest_parse2_r")))]
-    pub doc_digest: ns_type!( DocDigest, ArgumentNotPresent, DocDigest ),
+    pub doc_digest: ns_type!( DocDigest, NotPresent, DocDigest ),
     /// Publication time.
     pub publication: ns_type!( IgnoredPublicationTimeSp, IgnoredPublicationTimeSp, Iso8601TimeSp ),
     /// IPv4 address

@@ -29,7 +29,7 @@ pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
 pub use identified_digest::{DigestName, IdentifiedDigest};
 
-pub use ignored_impl::{ArgumentNotPresent, Ignored, NotPresent};
+pub use ignored_impl::{Ignored, NotPresent};
 
 use crate::NormalItemArgument;
 use derive_deftly::{Deftly, define_derive_deftly};
@@ -295,9 +295,6 @@ mod ignored_impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct Ignored;
 
-    /// XXXX remove this alias
-    pub use NotPresent as ArgumentNotPresent;
-
     #[cfg(feature = "parse2")]
     impl ItemSetMethods for ItemSetSelector<NotPresent> {
         type Each = Ignored;
@@ -314,9 +311,9 @@ mod ignored_impl {
     }
 
     #[cfg(feature = "parse2")]
-    impl ItemArgumentParseable for ArgumentNotPresent {
-        fn from_args(_: &mut ArgumentStream) -> Result<ArgumentNotPresent, ArgumentError> {
-            Ok(ArgumentNotPresent)
+    impl ItemArgumentParseable for NotPresent {
+        fn from_args(_: &mut ArgumentStream) -> Result<NotPresent, ArgumentError> {
+            Ok(NotPresent)
         }
     }
 
