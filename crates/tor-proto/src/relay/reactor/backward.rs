@@ -14,7 +14,9 @@ use crate::util::poll_all::PollAll;
 use crate::{Error, Result};
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
-use crate::client::circuit::padding::QueuedCellPaddingInfo;
+use crate::client::circuit::padding::{
+    PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
+};
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
@@ -91,6 +93,10 @@ pub(super) struct BackwardReactor {
     /// This is passed to the [`ChannelProvider`](crate::relay::channel_provider::ChannelProvider)
     /// for each Tor channel request.
     outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
+    /// A padding controller to which padding-related events should be reported.
+    padding_ctrl: PaddingController,
+    /// An event stream telling us about padding-related events.
+    padding_event_stream: PaddingEventStream,
     /// A broadcast receiver used to detect when the
     /// [`Reactor`](super::Reactor) or
     /// [`ForwardReactor`](super::ForwardReactor) are dropped.
@@ -121,6 +127,8 @@ impl BackwardReactor {
         settings: &HopSettings,
         cell_rx: mpsc::Receiver<BackwardReactorCmd>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
+        padding_ctrl: PaddingController,
+        padding_event_stream: PaddingEventStream,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
@@ -135,6 +143,8 @@ impl BackwardReactor {
             circ_id,
             outgoing_chan_tx,
             cell_rx,
+            padding_ctrl,
+            padding_event_stream,
             shutdown_rx,
         }
     }

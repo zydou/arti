@@ -91,6 +91,9 @@ use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::util::err::ReactorError;
 
+// TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
+use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
+
 use backward::BackwardReactor;
 use forward::ForwardReactor;
 
@@ -199,6 +202,8 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
         settings: &HopSettings,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         incoming: IncomingStreamConfig<'a>,
+        padding_ctrl: PaddingController,
+        padding_event_stream: PaddingEventStream,
         memquota: CircuitAccount,
     ) -> (Self, RelayCirc) {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
@@ -230,6 +235,7 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
             crypto_out,
             chan_provider,
             cell_tx,
+            padding_ctrl.clone(),
             reactor_closed_rx.clone(),
         );
 
@@ -250,6 +256,8 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
             settings,
             cell_rx,
             outgoing_chan_tx,
+            padding_ctrl.clone(),
+            padding_event_stream,
             reactor_closed_rx.clone(),
         );
 

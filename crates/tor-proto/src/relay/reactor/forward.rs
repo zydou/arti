@@ -10,7 +10,7 @@ use crate::util::err::ReactorError;
 use crate::{Error, Result};
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
-use crate::client::circuit::padding::QueuedCellPaddingInfo;
+use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 
 use super::backward::BackwardReactorCmd;
 
@@ -83,6 +83,8 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
     /// with the *same* underlying Tor channel provider (`ChanMgr`),
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
+    /// A padding controller to which padding-related events should be reported.
+    padding_ctrl: PaddingController,
     /// A broadcast receiver used to detect when the
     /// [`Reactor`](super::Reactor) or
     /// [`BackwardReactor`](super::BackwardReactor) are dropped.
@@ -109,6 +111,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         cell_tx: mpsc::Sender<BackwardReactorCmd>,
+        padding_ctrl: PaddingController,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {
@@ -121,6 +124,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
             forward: None,
             chan_provider,
             cell_tx,
+            padding_ctrl,
             shutdown_rx,
         }
     }
