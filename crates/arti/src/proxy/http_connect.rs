@@ -17,6 +17,19 @@ use tor_error::{ErrorKind, ErrorReport as _, HasKind, into_internal, warn_report
 use tor_rtcompat::Runtime;
 use tracing::instrument;
 
+#[cfg(feature = "rpc")]
+use {crate::rpc::conntarget::ConnTarget, tor_rpcbase as rpc};
+
+cfg_if::cfg_if! {
+    if #[cfg(feature="rpc")] {
+        /// Error type returned from a failed connect_with_prefs.
+        type ClientError = Box<dyn arti_client::rpc::ClientConnectionError>;
+    } else {
+        /// Error type returned from a failed connect_with_prefs.
+        type ClientError = arti_client::Error;
+    }
+}
+
 /// Request type that we receive from Hyper.
 type Request = hyper::Request<hyper::body::Incoming>;
 
@@ -33,6 +46,9 @@ mod hdr {
 
     /// Client-to-proxy: Which IP family should we use?
     pub(super) const X_TOR_FAMILY_PREFERENCE: &str = "X-Tor-Family-Preference";
+
+    /// Client-To-Proxy: The ID of an RPC object to receive our request.
+    pub(super) const X_TOR_RPC_TARGET: &str = "X-Tor-RPC-Target";
 
     /// Proxy-to-client: A list of the capabilities that this proxy provides.
     pub(super) const X_TOR_CAPABILITIES: &str = "X-Tor-Capabilities";
@@ -180,8 +196,11 @@ where
 
     // XXXX Implement isolation.
     let _ = listener_isolation;
-    // XXXX Implement RPC.
-    let client = context.tor_client.clone();
+
+    let client = find_conn_target(
+        context,
+        hdr::uniq_utf8(request.headers(), hdr::X_TOR_RPC_TARGET)?,
+    )?;
 
     // If we reach this point, the request looks okay, so we'll try to connect.
     let tor_stream = client
@@ -237,6 +256,42 @@ fn set_family_preference(
     }
 
     Ok(())
+}
+
+/// Look up the connection target given the value of an X-Tor-RPC-Target header.
+#[cfg(feature = "rpc")]
+fn find_conn_target<R: Runtime>(
+    context: &ProxyContext<R>,
+    rpc_target: Option<&str>,
+) -> Result<ConnTarget<R>, HttpConnectError> {
+    let Some(target_id) = rpc_target else {
+        return Ok(ConnTarget::Client(Box::new(context.tor_client.clone())));
+    };
+
+    let Some(rpc_mgr) = &context.rpc_mgr else {
+        return Err(HttpConnectError::NoRpcSupport);
+    };
+
+    let (context, object) = rpc_mgr
+        .lookup_object(&rpc::ObjectId::from(target_id))
+        .map_err(|_| HttpConnectError::RpcObjectNotFound)?;
+
+    Ok(ConnTarget::Rpc { object, context })
+}
+
+/// Look up the connection target given the value of an X-Tor-RPC-Target header
+//
+// (This is the implementation when we have no RPC support.)
+#[cfg(not(feature = "rpc"))]
+fn find_conn_target<R: Runtime>(
+    context: &ProxyContext<R>,
+    rpc_target: Option<&str>,
+) -> Result<arti_client::TorClient<R>, HttpConnectError> {
+    if rpc_target.is_some() {
+        Err(HttpConnectError::NoRpcSupport)
+    } else {
+        Ok(context.tor_client.clone())
+    }
 }
 
 /// Extension trait on ResponseBuilder
@@ -315,9 +370,20 @@ enum HttpConnectError {
     #[error("Unrecognized value for {}", hdr::X_TOR_FAMILY_PREFERENCE)]
     InvalidFamilyPreference,
 
-    /// arti_client was unable to connect ot a stream target.
+    /// The user asked to use an RPC object, but we don't support RPC.
+    #[error(
+        "Found {} header, but we are running without RPC support",
+        hdr::X_TOR_RPC_TARGET
+    )]
+    NoRpcSupport,
+
+    /// The user asked to use an RPC object, but we didn't find the one they wanted.
+    #[error("RPC target object not found")]
+    RpcObjectNotFound,
+
+    /// arti_client was unable to connect to a stream target.
     #[error("Unable to connect to {0}")]
-    ConnectFailed(Sv<TorAddr>, #[source] arti_client::Error),
+    ConnectFailed(Sv<TorAddr>, #[source] ClientError),
 
     /// We encountered an internal error.
     #[error("Internal error while handling request")]
@@ -332,7 +398,9 @@ impl HasKind for HttpConnectError {
             HCE::InvalidStreamTarget(_, _)
             | HCE::DuplicateHeader
             | HCE::HeaderNotUtf8
-            | HCE::InvalidFamilyPreference => EK::LocalProtocolViolation,
+            | HCE::InvalidFamilyPreference
+            | HCE::RpcObjectNotFound => EK::LocalProtocolViolation,
+            HCE::NoRpcSupport => EK::FeatureDisabled,
             HCE::ConnectFailed(_, e) => e.kind(),
             HCE::Internal(e) => e.kind(),
         }
@@ -348,7 +416,9 @@ impl HttpConnectError {
             HCE::InvalidStreamTarget(_, _)
             | HCE::DuplicateHeader
             | HCE::HeaderNotUtf8
-            | HCE::InvalidFamilyPreference => SC::BAD_REQUEST,
+            | HCE::InvalidFamilyPreference
+            | HCE::RpcObjectNotFound
+            | HCE::NoRpcSupport => SC::BAD_REQUEST,
             HCE::ConnectFailed(_, e) => kind_to_status(e.kind()),
             HCE::Internal(e) => kind_to_status(e.kind()),
         }
