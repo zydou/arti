@@ -15,7 +15,7 @@ use hyper_futures::AsyncReadWriteCompat;
 use safelog::{Sensitive as Sv, sensitive as sv};
 use tor_error::{ErrorKind, ErrorReport as _, HasKind, into_internal, warn_report};
 use tor_rtcompat::Runtime;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 #[cfg(feature = "rpc")]
 use {crate::rpc::conntarget::ConnTarget, tor_rpcbase as rpc};
@@ -42,13 +42,16 @@ type Body = String;
 
 /// Constants and code for the HTTP headers we use.
 mod hdr {
-    pub(super) use http::header::{SERVER, VIA};
+    pub(super) use http::header::{PROXY_AUTHORIZATION, SERVER, VIA};
 
     /// Client-to-proxy: Which IP family should we use?
     pub(super) const X_TOR_FAMILY_PREFERENCE: &str = "X-Tor-Family-Preference";
 
     /// Client-To-Proxy: The ID of an RPC object to receive our request.
     pub(super) const X_TOR_RPC_TARGET: &str = "X-Tor-RPC-Target";
+
+    /// Client-To-Proxy: An isolation token to use with our stream.
+    pub(super) const X_TOR_STREAM_ISOLATION: &str = "X-Tor-Stream-Isolation";
 
     /// Proxy-to-client: A list of the capabilities that this proxy provides.
     pub(super) const X_TOR_CAPABILITIES: &str = "X-Tor-Capabilities";
@@ -194,8 +197,7 @@ where
     let mut stream_prefs = StreamPrefs::default();
     set_family_preference(&mut stream_prefs, &tor_addr, request.headers())?;
 
-    // XXXX Implement isolation.
-    let _ = listener_isolation;
+    set_isolation(&mut stream_prefs, request.headers(), listener_isolation)?;
 
     let client = find_conn_target(
         context,
@@ -256,6 +258,74 @@ fn set_family_preference(
     }
 
     Ok(())
+}
+
+/// Configure the stream isolation from the provided headers.
+fn set_isolation(
+    prefs: &mut StreamPrefs,
+    headers: &http::HeaderMap,
+    listener_isolation: ListenerIsolation,
+) -> Result<(), HttpConnectError> {
+    let proxy_auth =
+        hdr::uniq_utf8(headers, hdr::PROXY_AUTHORIZATION)?.map(ProxyAuthorization::from_header);
+    let tor_isolation = hdr::uniq_utf8(headers, hdr::X_TOR_STREAM_ISOLATION)?.map(str::to_owned);
+
+    let isolation = super::ProvidedIsolation::Http {
+        proxy_auth,
+        tor_isolation,
+    };
+
+    let isolation = super::StreamIsolationKey(listener_isolation, isolation);
+    prefs.set_isolation(isolation);
+
+    Ok(())
+}
+
+/// An isolation value based on the Proxy-Authorization header.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(super) enum ProxyAuthorization {
+    /// The entire contents of the Proxy-Authorization header.
+    Legacy(String),
+    /// The decoded value of the basic authorization, with the user set to "x-tor".
+    Modern(Vec<u8>),
+}
+
+impl ProxyAuthorization {
+    /// Return a ProxyAuthorization based on the value of the Proxy-Authorization header.
+    ///
+    /// Give a warning if the header is in the legacy (obsolete) format.
+    fn from_header(value: &str) -> Self {
+        if let Some(result) = Self::modern_from_header(value) {
+            result
+        } else {
+            warn!(
+                "{} header in obsolete format. If you want isolation, use {}, \
+                 or {} with Basic authentication and username 'x-tor'",
+                hdr::PROXY_AUTHORIZATION,
+                hdr::X_TOR_STREAM_ISOLATION,
+                hdr::PROXY_AUTHORIZATION
+            );
+            Self::Legacy(value.to_owned())
+        }
+    }
+
+    /// Helper: Try to return a Modern authorization value, if this is one.
+    fn modern_from_header(value: &str) -> Option<Self> {
+        use base64ct::Encoding as _;
+        let value = value.trim_ascii();
+        let (kind, value) = value.split_once(' ')?;
+        if kind != "Basic" {
+            return None;
+        }
+        let value = value.trim_ascii();
+        // TODO: Is this the right format, or should we allow missing padding?
+        let decoded = base64ct::Base64::decode_vec(value).ok()?;
+        if decoded.starts_with(b"x-tor:") {
+            Some(ProxyAuthorization::Modern(decoded))
+        } else {
+            None
+        }
+    }
 }
 
 /// Look up the connection target given the value of an X-Tor-RPC-Target header.

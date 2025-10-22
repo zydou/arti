@@ -61,6 +61,14 @@ enum ProvidedIsolation {
         /// What's the isolation string?
         isolation: Box<[u8]>,
     },
+    #[cfg(feature = "http-connect")]
+    /// A legacy HTTP isolation token, with raw header values.
+    Http {
+        /// The value of the Proxy-Authorization header.
+        proxy_auth: Option<http_connect::ProxyAuthorization>,
+        /// The X-Tor-Isolation token.
+        tor_isolation: Option<String>,
+    },
 }
 
 impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
