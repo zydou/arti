@@ -42,6 +42,7 @@ full = [
     "compression",
     "bridge-client",
     "pt-client",
+    "restricted-discovery",
     "arti-rpcserver?/full",
     "fs-mistrust/full",
     "rpc",
@@ -84,6 +85,7 @@ onion-service-client = ["arti-client/onion-service-client"]
 
 onion-service-cli-extra = ["arti-client/onion-service-cli-extra", "tor-hscrypto", "__is_experimental"]
 onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice"]
+restricted-discovery = ["tor-hsservice/restricted-discovery"]
 vanguards = ["arti-client/vanguards"]
 hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
@@ -130,7 +132,6 @@ experimental = [
     "hs-pow-full",
     "keymgr",
     "metrics",
-    "restricted-discovery",
     "hsc",
     "tor-hsservice/experimental",
     "ctor-keystore",
@@ -145,7 +146,6 @@ metrics = [
     "__is_experimental",
 ]
 
-restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 __is_experimental = []
 

@@ -16,6 +16,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+restricted-discovery = []
+
 metrics = ["dep:metrics", "__is_experimental"]
 
 # Onion service proof of work schemes
@@ -31,6 +33,7 @@ hs-pow-full = [
 ]
 
 full = [
+    "restricted-discovery",
     "fs-mistrust/full",
     "oneshot-fused-workaround/full",
     "retry-error/full",
@@ -70,12 +73,10 @@ experimental = [
     "hs-pow-full",
     "metrics",
     "onion-service-cli-extra",
-    "restricted-discovery",
 ]
-experimental-api = ["restricted-discovery", "__is_experimental"]
+experimental-api = ["__is_experimental"]
 
 onion-service-cli-extra = ["tor-keymgr/onion-service-cli-extra", "__is_experimental"]
-restricted-discovery = ["__is_experimental"]
 
 __is_experimental = []
 
