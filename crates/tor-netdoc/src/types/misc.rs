@@ -17,7 +17,7 @@ pub use timeimpl::*;
 
 #[cfg(feature = "parse2")]
 use {
-    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable}, //
+    crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable}, //
 };
 
 pub use nickname::Nickname;
@@ -236,6 +236,9 @@ mod ed25519impl {
 mod ignored_impl {
     use super::*;
 
+    #[cfg(feature = "parse2")]
+    use crate::parse2::ErrorProblem as EP;
+
     /// Ignored part of a network document.
     ///
     /// With `parse2`, can be used as an item, object, or even flattened-fields.
@@ -266,6 +269,24 @@ mod ignored_impl {
     impl ItemArgumentParseable for ArgumentNotPresent {
         fn from_args(_: &mut ArgumentStream) -> Result<ArgumentNotPresent, ArgumentError> {
             Ok(ArgumentNotPresent)
+        }
+    }
+
+    impl FromStr for Ignored {
+        type Err = Void;
+        fn from_str(_s: &str) -> Result<Ignored, Void> {
+            Ok(Ignored)
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ItemObjectParseable for Ignored {
+        fn check_label(_label: &str) -> Result<(), EP> {
+            // allow any label
+            Ok(())
+        }
+        fn from_bytes(_input: &[u8]) -> Result<Self, EP> {
+            Ok(Ignored)
         }
     }
 }
