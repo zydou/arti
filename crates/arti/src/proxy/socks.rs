@@ -424,6 +424,8 @@ where
     // ErrorKinds are no longer `experimental-api` in `tor-error`.
 
     // We need to send an error. See what kind it is.
+    //
+    // TODO: Perhaps move this to tor-error, so it can be an exhaustive match.
     let status = match error {
         EK::RemoteNetworkFailed => S::TTL_EXPIRED,
 
