@@ -27,15 +27,39 @@ type Request = hyper::Request<hyper::body::Incoming>;
 /// but empty strings are cheap enough that it isn't worth it.)
 type Body = String;
 
-/// Constants for the HTTP headers we use
+/// Constants and code for the HTTP headers we use.
 mod hdr {
     pub(super) use http::header::{SERVER, VIA};
+
+    /// Client-to-proxy: Which IP family should we use?
+    pub(super) const X_TOR_FAMILY_PREFERENCE: &str = "X-Tor-Family-Preference";
 
     /// Proxy-to-client: A list of the capabilities that this proxy provides.
     pub(super) const X_TOR_CAPABILITIES: &str = "X-Tor-Capabilities";
 
     /// Proxy-to-client: A machine-readable list of failure reasons.
     pub(super) const X_TOR_REQUEST_FAILED: &str = "X-Tor-Request-Failed";
+
+    /// Return the unique string-valued value of the header `name`;
+    /// or None if the header doesn't exist,
+    /// or an error if the header is duplicated or not UTF-8.
+    pub(super) fn uniq_utf8(
+        map: &http::HeaderMap,
+        name: impl http::header::AsHeaderName,
+    ) -> Result<Option<&str>, super::HttpConnectError> {
+        let mut iter = map.get_all(name).iter();
+        let val = match iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        match iter.next() {
+            Some(_) => Err(super::HttpConnectError::DuplicateHeader),
+            None => val
+                .to_str()
+                .map(Some)
+                .map_err(|_| super::HttpConnectError::HeaderNotUtf8),
+        }
+    }
 }
 
 /// Given a just-received TCP connection `S` on a HTTP proxy port, handle the
@@ -151,12 +175,12 @@ where
     let tor_addr =
         TorAddr::from(&target).map_err(|e| HttpConnectError::InvalidStreamTarget(sv(target), e))?;
 
-    let stream_prefs = StreamPrefs::default();
+    let mut stream_prefs = StreamPrefs::default();
+    set_family_preference(&mut stream_prefs, &tor_addr, request.headers())?;
 
     // XXXX Implement isolation.
     let _ = listener_isolation;
     // XXXX Implement RPC.
-    // XXXX Implement stream family preference.
     let client = context.tor_client.clone();
 
     // If we reach this point, the request looks okay, so we'll try to connect.
@@ -185,6 +209,34 @@ where
     ResponseBuilder::new()
         .status(StatusCode::OK)
         .ok(&Method::CONNECT)
+}
+
+/// Set the IP family preference in `prefs`.
+fn set_family_preference(
+    prefs: &mut StreamPrefs,
+    addr: &TorAddr,
+    headers: &http::HeaderMap,
+) -> Result<(), HttpConnectError> {
+    if let Some(val) = hdr::uniq_utf8(headers, hdr::X_TOR_FAMILY_PREFERENCE)? {
+        match val.trim() {
+            "ipv4-preferred" => prefs.ipv4_preferred(),
+            "ipv6-preferred" => prefs.ipv6_preferred(),
+            "ipv4-only" => prefs.ipv4_only(),
+            "ipv6-only" => prefs.ipv6_only(),
+            _ => return Err(HttpConnectError::InvalidFamilyPreference),
+        };
+    } else if let Some(ip) = addr.as_ip_address() {
+        // TODO: Perhaps we should check unconditionally whether the IP address is consistent with header,
+        // if one was given?  On the other hand, if the application tells us to make an IPV6-only
+        // connection to an IPv4 address, it probably deserves what it gets.
+        if ip.is_ipv4() {
+            prefs.ipv4_only();
+        } else {
+            prefs.ipv6_only();
+        }
+    }
+
+    Ok(())
 }
 
 /// Extension trait on ResponseBuilder
@@ -247,6 +299,22 @@ enum HttpConnectError {
     #[error("Invalid target address {0:?}")]
     InvalidStreamTarget(Sv<String>, #[source] arti_client::TorAddrError),
 
+    /// We found a duplicate HTTP header that we do not allow.
+    ///
+    /// (We only enforce this for the headers that we look at ourselves.)
+    #[error("Duplicate HTTP header found.")]
+    DuplicateHeader,
+
+    /// We tried to found an HTTP header whose value wasn't encode as UTF-8.
+    ///
+    /// (We only enforce this for the headers that we look at ourselves.)
+    #[error("HTTP header value was not in UTF-8")]
+    HeaderNotUtf8,
+
+    /// The X-Tor-Family-Preference header wasn't as expected.
+    #[error("Unrecognized value for {}", hdr::X_TOR_FAMILY_PREFERENCE)]
+    InvalidFamilyPreference,
+
     /// arti_client was unable to connect ot a stream target.
     #[error("Unable to connect to {0}")]
     ConnectFailed(Sv<TorAddr>, #[source] arti_client::Error),
@@ -261,7 +329,10 @@ impl HasKind for HttpConnectError {
         use ErrorKind as EK;
         use HttpConnectError as HCE;
         match self {
-            HCE::InvalidStreamTarget(_, _) => EK::LocalProtocolViolation,
+            HCE::InvalidStreamTarget(_, _)
+            | HCE::DuplicateHeader
+            | HCE::HeaderNotUtf8
+            | HCE::InvalidFamilyPreference => EK::LocalProtocolViolation,
             HCE::ConnectFailed(_, e) => e.kind(),
             HCE::Internal(e) => e.kind(),
         }
@@ -274,7 +345,10 @@ impl HttpConnectError {
         use HttpConnectError as HCE; // Not a Joyce reference
         use StatusCode as SC;
         match self {
-            HCE::InvalidStreamTarget(_, _) => SC::BAD_REQUEST,
+            HCE::InvalidStreamTarget(_, _)
+            | HCE::DuplicateHeader
+            | HCE::HeaderNotUtf8
+            | HCE::InvalidFamilyPreference => SC::BAD_REQUEST,
             HCE::ConnectFailed(_, e) => kind_to_status(e.kind()),
             HCE::Internal(e) => kind_to_status(e.kind()),
         }
