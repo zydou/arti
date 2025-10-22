@@ -284,8 +284,9 @@ mod ignored_impl {
     /// When deriving `parse2` traits, and a field is absent in a particular netstatus variety,
     /// use `ns_type!` with [`NotPresent`], rather than `Ignored`.
     ///
-    /// Not useable as a (positional) argument, because when the document is
-    /// output we wouldn't know what to emit.
+    /// Cannot be encoded.  During encoding, the multiplicity arrangements must ensure that
+    /// no attempt is made to encode an `Ignored`.
+    // TODO there are no derives or multiplicity arrangements for ecoding yet.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
     #[cfg_attr(
         feature = "parse2",
@@ -329,6 +330,13 @@ mod ignored_impl {
     impl FromStr for Ignored {
         type Err = Void;
         fn from_str(_s: &str) -> Result<Ignored, Void> {
+            Ok(Ignored)
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ItemArgumentParseable for Ignored {
+        fn from_args(_: &mut ArgumentStream) -> Result<Ignored, ArgumentError> {
             Ok(Ignored)
         }
     }

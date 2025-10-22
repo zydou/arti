@@ -22,3 +22,4 @@ BREAKING: Rename `relay_version` field in `Preamble` to match the protocol and s
 ADDED: `NetodocParseableFields` derive supports `flatten` attribute.
 BREAKING: `ArgumentNotPresent` renamed to `NotPresent`
 ADDED: `NotPresent` implements a lot more traits.
+ADDED: `Ignored` implements `ItemArgumentParseable`
