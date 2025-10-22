@@ -29,7 +29,7 @@ use super::ChannelFrame;
 use tracing::{debug, instrument, trace};
 
 /// A list of the link protocols that we support.
-static LINK_PROTOCOLS: &[u16] = &[4, 5];
+pub(crate) static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
 /// Base trait that all handshake type must implement.
 ///
@@ -38,7 +38,7 @@ static LINK_PROTOCOLS: &[u16] = &[4, 5];
 ///
 /// It has both a recv() and send() function for the VERSIONS cell since every handshake must start
 /// with this cell to negotiate the link protocol version.
-trait ChannelBaseHandshake<T>
+pub(crate) trait ChannelBaseHandshake<T>
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
 {
@@ -114,7 +114,7 @@ where
 /// enjoy the helper functions.
 ///
 /// It requires the base handshake trait to be implement for access to the base getters.
-trait ChannelInitiatorHandshake<T>: ChannelBaseHandshake<T>
+pub(crate) trait ChannelInitiatorHandshake<T>: ChannelBaseHandshake<T>
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
 {
@@ -261,29 +261,29 @@ pub struct UnverifiedChannel<
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Indicate what type of channel this is.
-    channel_type: ChannelType,
+    pub(crate) channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
-    sleep_prov: S,
+    pub(crate) sleep_prov: S,
     /// Memory quota account
-    memquota: ChannelAccount,
+    pub(crate) memquota: ChannelAccount,
     /// The negotiated link protocol.  Must be a member of LINK_PROTOCOLS
-    link_protocol: u16,
+    pub(crate) link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
-    framed_tls: ChannelFrame<T>,
+    pub(crate) framed_tls: ChannelFrame<T>,
     /// The certs cell that we got from the relay.
-    certs_cell: msg::Certs,
+    pub(crate) certs_cell: msg::Certs,
     /// Declared target method for this channel, if any.
-    target_method: Option<ChannelMethod>,
+    pub(crate) target_method: Option<ChannelMethod>,
     /// The netinfo cell that we got from the relay.
     #[allow(dead_code)] // Relays will need this.
-    netinfo_cell: msg::Netinfo,
+    pub(crate) netinfo_cell: msg::Netinfo,
     /// How much clock skew did we detect in this handshake?
     ///
     /// This value is _unauthenticated_, since we have not yet checked whether
     /// the keys in the handshake are the ones we expected.
-    clock_skew: ClockSkew,
+    pub(crate) clock_skew: ClockSkew,
     /// Logging identifier for this stream.  (Used for logging only.)
-    unique_id: UniqId,
+    pub(crate) unique_id: UniqId,
 }
 
 /// A client channel on which versions have been negotiated,
@@ -741,7 +741,7 @@ impl<
 ///
 /// This is unauthenticated as in not validated with the certificates. Before using it, make sure
 /// that you have authenticated the other party.
-fn unauthenticated_clock_skew(
+pub(crate) fn unauthenticated_clock_skew(
     netinfo_cell: &msg::Netinfo,
     netinfo_rcvd_at: coarsetime::Instant,
     versions_flushed_at: coarsetime::Instant,
