@@ -74,15 +74,17 @@
 mod backward;
 mod forward;
 
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use futures::FutureExt as _;
 use futures::channel::mpsc;
 use postage::broadcast;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use tor_cell::chancell::CircId;
 use tor_cell::relaycell::RelayCellDecoder;
+use tor_error::internal;
 use tor_linkspec::HasRelayIds;
 use tor_memquota::mq_queue::{self, MpscSpec};
 
@@ -95,6 +97,7 @@ use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
 use crate::relay::channel_provider::ChannelProvider;
+use crate::util::err::ReactorError;
 
 use backward::BackwardReactor;
 use forward::ForwardReactor;
@@ -139,6 +142,17 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     forward: ForwardReactor<T>,
     /// The reactor for handling the backward direction (exit to client).
     backward: BackwardReactor,
+    /// Receiver for control messages for this reactor, sent by reactor handle objects.
+    control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
+    /// Receiver for command messages for this reactor, sent by reactor handle objects.
+    ///
+    /// This MPSC channel is polled in [`BackwardReactor::run_once`].
+    ///
+    /// NOTE: this is a separate channel from `control`, because some messages
+    /// have higher priority and need to be handled even if the `chan_sender` is not
+    /// ready (whereas `control` messages are not read until the `chan_sender` sink
+    /// is ready to accept cells).
+    command: mpsc::UnboundedReceiver<RelayCtrlCmd>,
     /// A sender that is used to alert the [`ForwardReactor`] and [`BackwardReactor`]
     /// when this reactor is finally dropped.
     ///
@@ -193,6 +207,8 @@ impl<T: HasRelayIds> RelayReactor<T> {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
         let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
         let (cell_tx, cell_rx) = mpsc::unbounded();
+        let (control_tx, control_rx) = mpsc::unbounded();
+        let (command_tx, command_rx) = mpsc::unbounded();
 
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
         let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
@@ -209,7 +225,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_rx.clone(),
         );
 
-        let (backward, control, command) = BackwardReactor::new(
+        let backward = BackwardReactor::new(
             channel,
             circ_id,
             unique_id,
@@ -223,8 +239,8 @@ impl<T: HasRelayIds> RelayReactor<T> {
         );
 
         let handle = RelayReactorHandle {
-            control,
-            command,
+            control: control_tx,
+            command: command_tx,
             reactor_closed_rx,
         };
 
@@ -232,6 +248,8 @@ impl<T: HasRelayIds> RelayReactor<T> {
             unique_id,
             forward,
             backward,
+            control: control_rx,
+            command: command_rx,
             reactor_closed_tx,
         };
 
@@ -248,6 +266,8 @@ impl<T: HasRelayIds> RelayReactor<T> {
             forward,
             backward,
             unique_id,
+            command,
+            control,
             reactor_closed_tx,
         } = self;
 
@@ -263,5 +283,28 @@ impl<T: HasRelayIds> RelayReactor<T> {
             res = forward.run().fuse() => res,
             res = backward.run().fuse() => res,
         }
+    }
+
+    /// Handle a [`RelayCtrlCmd`].
+    fn handle_command(&self, cmd: &RelayCtrlCmd) -> StdResult<(), ReactorError> {
+        match cmd {
+            RelayCtrlCmd::Shutdown => self.handle_shutdown(),
+        }
+    }
+
+    /// Handle a [`RelayCtrlMsg`].
+    #[allow(clippy::unnecessary_wraps)]
+    fn handle_control(&self, cmd: &RelayCtrlMsg) -> StdResult<(), ReactorError> {
+        Err(internal!("not implemented: {cmd:?}").into())
+    }
+
+    /// Handle a shutdown request.
+    fn handle_shutdown(&self) -> StdResult<(), ReactorError> {
+        trace!(
+            tunnel_id = %self.unique_id,
+            "reactor shutdown due to explicit request",
+        );
+
+        Err(ReactorError::Shutdown)
     }
 }

@@ -33,7 +33,7 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
-use super::{CircuitRxReceiver, RelayCtrlCmd, RelayCtrlMsg};
+use super::CircuitRxReceiver;
 
 /// The "backward" circuit reactor of a relay.
 ///
@@ -80,17 +80,6 @@ pub(super) struct BackwardReactor {
     ccontrol: Arc<Mutex<CongestionControl>>,
     /// Flow control parameters for new Tor streams.
     flow_ctrl_params: Arc<FlowCtrlParameters>,
-    /// Receiver for control messages for this reactor, sent by reactor handle objects.
-    control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
-    /// Receiver for command messages for this reactor, sent by reactor handle objects.
-    ///
-    /// This MPSC channel is polled in [`BackwardReactor::run_once`].
-    ///
-    /// NOTE: this is a separate channel from `control`, because some messages
-    /// have higher priority and need to be handled even if the `chan_sender` is not
-    /// ready (whereas `control` messages are not read until the `chan_sender` sink
-    /// is ready to accept cells).
-    command: mpsc::UnboundedReceiver<RelayCtrlCmd>,
     /// Receiver for Tor stream data that need to be delivered to a Tor stream.
     ///
     /// The sender is in [`ForwardReactor`](super::ForwardReactor), which will forward all cells
@@ -142,15 +131,8 @@ impl BackwardReactor {
         cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         shutdown_rx: broadcast::Receiver<void::Void>,
-    ) -> (
-        Self,
-        mpsc::UnboundedSender<RelayCtrlMsg>,
-        mpsc::UnboundedSender<RelayCtrlCmd>,
-    ) {
-        let (control_tx, control_rx) = mpsc::unbounded();
-        let (command_tx, command_rx) = mpsc::unbounded();
-
-        let reactor = Self {
+    ) -> Self {
+        Self {
             relay_format,
             input: None,
             chan_sender: channel.sender(),
@@ -159,15 +141,11 @@ impl BackwardReactor {
             flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
             unique_id,
             circ_id,
-            control: control_rx,
-            command: command_rx,
             outgoing_chan_tx,
             streams: StreamMap::new(),
             cell_rx,
             shutdown_rx,
-        };
-
-        (reactor, control_tx, command_tx)
+        }
     }
 
     /// Launch the reactor, and run until the circuit closes or we
@@ -366,6 +344,7 @@ impl BackwardReactor {
 
                 return Err(ReactorError::Shutdown);
             }
+            /* XXX move this to RelayReactor
             res = self.command.next() => {
                 let Some(cmd) = res else {
                     trace!(
@@ -392,6 +371,7 @@ impl BackwardReactor {
 
                 return self.handle_control(&msg);
             },
+            */
             res = poll_all.fuse() => res,
         };
 
@@ -478,29 +458,6 @@ impl BackwardReactor {
     #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     fn handle_backward_cell(&mut self, _cell: RelayCircChanMsg) -> StdResult<(), ReactorError> {
         Err(internal!("Cell relaying is not implemented").into())
-    }
-
-    /// Handle a [`RelayCtrlCmd`].
-    fn handle_command(&self, cmd: &RelayCtrlCmd) -> StdResult<(), ReactorError> {
-        match cmd {
-            RelayCtrlCmd::Shutdown => self.handle_shutdown(),
-        }
-    }
-
-    /// Handle a [`RelayCtrlMsg`].
-    #[allow(clippy::unnecessary_wraps)]
-    fn handle_control(&self, cmd: &RelayCtrlMsg) -> StdResult<(), ReactorError> {
-        Err(internal!("not implemented: {cmd:?}").into())
-    }
-
-    /// Handle a shutdown request.
-    fn handle_shutdown(&self) -> StdResult<(), ReactorError> {
-        trace!(
-            tunnel_id = %self.unique_id,
-            "reactor shutdown due to explicit request",
-        );
-
-        Err(ReactorError::Shutdown)
     }
 }
 
