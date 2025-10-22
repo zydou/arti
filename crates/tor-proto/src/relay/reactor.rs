@@ -14,16 +14,6 @@
 //!     backward direction (from the exit to the client), and by packaging
 //!     and sending application stream data towards the client
 //!
-//! > Note: the `BackwardReactor` is also the component that handles [`RelayCtrlMsg`]s
-//! > and [`RelayCtrlCmd`]s. This is okay for now, but if we ever add a new control message type
-//! > that needs to be handled by `ForwardReactor` (or that needs information from `ForwardReactor`),
-//! > we will need to rethink the control message handling
-//! > (depending on what that redesign entails, we might want to replace the mpsc control
-//! > channels with broadcast channels, or simply have `BackwardReactor` relay control commands
-//! > to the `ForwardReactor`).
-//!
-//! > But we can cross that bridge when we come to it.
-//!
 //! The read and write ends of the inbound and outbound Tor channels are "split",
 //! such that each reactor holds an `input` stream (for reading)
 //! and a `chan_sender` sink (for writing):
