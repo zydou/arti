@@ -275,8 +275,12 @@ pub struct UnverifiedChannel<
     /// Declared target method for this channel, if any.
     pub(crate) target_method: Option<ChannelMethod>,
     /// The netinfo cell that we got from the relay.
-    #[allow(dead_code)] // Relays will need this.
+    #[expect(unused)] // TODO(relay): Relays need this.
     pub(crate) netinfo_cell: msg::Netinfo,
+    /// The AUTH_CHALLENGE cell that we got from the relay. Client ignore this field, only relay
+    /// care for authentication purposes.
+    #[expect(unused)] // TODO(relay): Relays need this.
+    pub(crate) auth_challenge_cell: Option<msg::AuthChallenge>,
     /// How much clock skew did we detect in this handshake?
     ///
     /// This value is _unauthenticated_, since we have not yet checked whether
@@ -386,6 +390,7 @@ impl<
             framed_tls: self.framed_tls,
             certs_cell,
             netinfo_cell,
+            auth_challenge_cell: None,
             clock_skew,
             target_method: self.target_method.take(),
             unique_id: self.unique_id,
@@ -988,6 +993,7 @@ pub(super) mod test {
             framed_tls,
             certs_cell: certs,
             netinfo_cell,
+            auth_challenge_cell: None,
             clock_skew,
             target_method: None,
             unique_id: UniqId::new(),
