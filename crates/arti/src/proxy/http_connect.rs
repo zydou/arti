@@ -42,7 +42,7 @@ type Body = String;
 
 /// Constants and code for the HTTP headers we use.
 mod hdr {
-    pub(super) use http::header::{PROXY_AUTHORIZATION, SERVER, VIA};
+    pub(super) use http::header::{CONTENT_TYPE, PROXY_AUTHORIZATION, SERVER, VIA};
 
     /// Client-to-proxy: Which IP family should we use?
     pub(super) const X_TOR_FAMILY_PREFERENCE: &str = "X-Tor-Family-Preference";
@@ -154,7 +154,16 @@ async fn handle_options_request(request: Request) -> Result<Response<Body>, anyh
                 .err(&Method::OPTIONS, "Target was not a valid address")?);
         }
     }
-    // XXXX Handle body if there is one!?
+    if request.headers().contains_key(hdr::CONTENT_TYPE) {
+        // RFC 9110 says that if a client wants to include a body with its OPTIONS request (!),
+        // it must include a Content-Type header.  Therefore, we reject such requests.
+        return Ok(ResponseBuilder::new()
+            .status(StatusCode::BAD_REQUEST)
+            .err(&Method::OPTIONS, "Unexpected Content-Type on OPTIONS")?);
+
+        // TODO: It would be cool to detect nonempty bodies in other ways, though in practice
+        // it should never come up.
+    }
     Ok(ResponseBuilder::new()
         .header("Allow", "OPTIONS, CONNECT")
         .status(StatusCode::OK)
