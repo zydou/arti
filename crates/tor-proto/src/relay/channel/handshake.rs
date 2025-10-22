@@ -84,7 +84,6 @@ impl<
     const LOG_PREFIX: &'static str = "Relay Initiator Handshake";
 
     /// Constructor.
-    #[expect(unused)] // TODO(relay)
     pub(crate) fn new(
         tls: T,
         sleep_prov: S,

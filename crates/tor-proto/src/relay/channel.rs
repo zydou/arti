@@ -5,8 +5,12 @@
 
 pub(crate) mod handshake;
 
+use futures::{AsyncRead, AsyncWrite};
 use tor_cert::{Ed25519Cert, rsa::RsaCrosscert};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
+use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
+
+use crate::{channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 
 /// Object containing the key and certificate that basically identifies us as a relay. They are
 /// used for channel authentication.
@@ -52,5 +56,37 @@ impl RelayIdentities {
             cert_id_x509_rsa,
             cert_id_rsa,
         }
+    }
+}
+
+/// Structure for building and launching a relay Tor channel.
+#[derive(Default)]
+#[non_exhaustive]
+pub struct RelayChannelBuilder;
+
+impl RelayChannelBuilder {
+    /// Constructor.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Launch a new handshake over a TLS stream.
+    ///
+    /// After calling this function, you'll need to call `connect()` on the result to start the
+    /// handshake.  If that succeeds, you'll have authentication info from the relay: call
+    /// `check()` on the result to check that.  Finally, to finish the handshake, call `finish()`
+    /// on the result of _that_.
+    pub fn launch<T, S>(
+        self,
+        tls: T,
+        sleep_prov: S,
+        identities: RelayIdentities,
+        memquota: ChannelAccount,
+    ) -> RelayInitiatorHandshake<T, S>
+    where
+        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+        S: CoarseTimeProvider + SleepProvider,
+    {
+        RelayInitiatorHandshake::new(tls, sleep_prov, identities, memquota)
     }
 }
