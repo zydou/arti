@@ -163,8 +163,6 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: broadcast::Sender<void::Void>,
-    // TODO(relay): consider moving control message handling
-    // from BackwardReactor to here
 }
 
 /// MPSC queue for inbound data on its way from channel to circuit, sender
