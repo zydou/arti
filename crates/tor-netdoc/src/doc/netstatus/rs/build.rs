@@ -2,7 +2,7 @@
 
 use crate::doc;
 use crate::doc::netstatus::{IgnoredPublicationTimeSp, RelayFlags, RelayWeight};
-use crate::types::{ArgumentNotPresent, Base64Fingerprint};
+use crate::types::{Base64Fingerprint, NotPresent};
 use crate::{BuildError as Error, BuildResult as Result};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;

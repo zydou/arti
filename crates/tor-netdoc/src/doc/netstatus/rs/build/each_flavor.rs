@@ -160,9 +160,9 @@ impl RouterStatusBuilder {
 
         ns_choose! { (
             let r_doc_digest = doc_digest;
-            let m_doc_digest = None;
+            let m_doc_digest = NotPresent;
         ) (
-            let r_doc_digest = ArgumentNotPresent;
+            let r_doc_digest = NotPresent;
             let m_doc_digest = doc_digest;
         ) (
             compile_error!("no builder for votes");

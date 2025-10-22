@@ -33,7 +33,7 @@ ns_choose! { (
     use doc_digest_parse2_real as doc_digest_parse2_r; // implemented here in rs/each_variety.rs
     use Ignored as doc_digest_parse2_m;
 ) (
-    use ArgumentNotPresent as doc_digest_parse2_r;
+    use NotPresent as doc_digest_parse2_r;
     use doc_digest_parse2_real_item as doc_digest_parse2_m; // implemented in rs/md.rs
 ) (
     use doc_digest_parse2_real as doc_digest_parse2_r; // implemented here in rs/each_variety.rs
@@ -108,7 +108,7 @@ pub struct RouterStatus {
     // We call this field `m` rather than `doc_digest` because it's not always the doc digest.
     // TODO SPEC in all but md consensuses the referenced document digest is in the `r` intro item
     #[cfg_attr(feature = "parse2", deftly(netdoc(with = "doc_digest_parse2_m")))]
-    pub m: ns_type!( Option<Ignored>, DocDigest, Vec<RouterStatusMdDigestsVote> ),
+    pub m: ns_type!( NotPresent, DocDigest, Vec<RouterStatusMdDigestsVote> ),
 
     /// `a` --- Further router address(es) (IPv6)
     ///
