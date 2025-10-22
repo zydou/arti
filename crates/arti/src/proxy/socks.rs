@@ -1,7 +1,7 @@
 //! SOCKS-specific proxy support.
 
 use futures::future::FutureExt;
-use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, BufReader};
 use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -239,7 +239,7 @@ impl<R: Runtime> super::ProxyContext<R> {
 pub(super) async fn handle_socks_conn<R, S>(
     runtime: R,
     context: ProxyContext<R>,
-    mut socks_stream: S,
+    mut socks_stream: BufReader<S>,
     isolation_info: ListenerIsolation,
 ) -> Result<()>
 where
@@ -291,6 +291,15 @@ where
             NS::Finished(fin) => break fin.into_output_forbid_pipelining()?,
         }
     };
+
+    // Make sure there is no buffered data!
+    if !socks_stream.buffer().is_empty() {
+        let error = tor_socksproto::Error::ForbiddenPipelining;
+        return reply_error(&mut socks_stream, &request, error.kind()).await;
+    }
+    // Remove the buffer.  This isn't strictly necessary, but we do buffering
+    // elsewhere, and it's nice to avoid buffer-bloat.
+    let mut socks_stream = socks_stream.into_inner();
 
     // Unpack the socks request and find out where we're connecting to.
     let addr = request.addr().to_string();

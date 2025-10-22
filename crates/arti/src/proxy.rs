@@ -8,7 +8,9 @@ semipublic_mod! {
     mod socks;
 }
 
-use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Error as IoError};
+use futures::io::{
+    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError,
+};
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::io::Result as IoResult;
@@ -472,6 +474,7 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
         };
         let runtime_copy = tor_client.runtime().clone();
         tor_client.runtime().spawn(async move {
+            let stream = BufReader::with_capacity(SOCKS_BUF_LEN, stream);
             let res =
                 socks::handle_socks_conn(runtime_copy, proxy_context, stream, (sock_id, addr.ip()))
                     .await;
