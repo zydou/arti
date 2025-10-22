@@ -215,6 +215,7 @@ dependencies = [
  "hickory-proto",
  "humantime",
  "humantime-serde",
+ "hyper",
  "itertools 0.14.0",
  "libc",
  "metrics-exporter-prometheus",

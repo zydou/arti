@@ -127,6 +127,7 @@ experimental = [
     "arti-client/experimental",
     "experimental-api",
     "hs-pow-full",
+    "http-connect",
     "keymgr",
     "metrics",
     "hsc",
@@ -138,7 +139,7 @@ experimental = [
     "opentelemetry",
 ]
 metrics = ["dep:metrics-exporter-prometheus", "tor-hsservice?/metrics", "tor-hsrproxy?/metrics", "__is_experimental"]
-
+http-connect = ["__is_experimental", "hyper"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 __is_experimental = []
 
@@ -166,6 +167,7 @@ futures = "0.3.14"
 hickory-proto = { version = "0.25.2", optional = true }
 humantime = "2"
 humantime-serde = "1.1.1"
+hyper = { version = "1.7", features = ["http1", "server"], optional = true }
 itertools = "0.14.0"
 libc = "0.2"
 metrics-exporter-prometheus = { version = "0.17.0", optional = true, default-features = false, features = [

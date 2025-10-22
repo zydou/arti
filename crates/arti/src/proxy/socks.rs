@@ -37,7 +37,9 @@ cfg_if::cfg_if! {
 }
 
 /// Payload to return when an HTTP connection arrive on a Socks port
-const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
+/// without HTTP support.
+#[cfg(not(feature = "http-connect"))]
+pub(super) const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Not running as an HTTP Proxy
 Content-Type: text/html; charset=utf-8
 
 <!DOCTYPE html>
@@ -53,9 +55,8 @@ an HTTP proxy.
 </p>
 <p>
 This is not correct: This port is configured as a SOCKS proxy, not
-an HTTP proxy. If you need an HTTP proxy tunnel, wait for Arti to
-add support for it in place of, or in addition to, socks_port.
-Please configure your client accordingly.
+an HTTP proxy. If you need an HTTP proxy tunnel,
+build Arti with the <code>http-connect</code> feature enabled.
 </p>
 <p>
 See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-when-arti-get-a-user-documentation">https://gitlab.torproject.org/tpo/core/arti</a> for more information.
@@ -259,25 +260,10 @@ where
     let request = loop {
         use tor_socksproto::NextStep as NS;
 
-        let rv = handshake.step(&mut inbuf);
-
-        let step = match rv {
-            Err(e) => {
-                if let tor_socksproto::Error::BadProtocol(version) = e {
-                    // check for HTTP methods: CONNECT, DELETE, GET, HEAD, OPTION, PUT, POST, PATCH and
-                    // TRACE.
-                    // To do so, check the first byte of the connection, which happen to be placed
-                    // where SOCKs version field is.
-                    if [b'C', b'D', b'G', b'H', b'O', b'P', b'T'].contains(&version) {
-                        write_all_and_close(&mut socks_stream, WRONG_PROTOCOL_PAYLOAD).await?;
-                    }
-                }
-                // if there is an handshake error, don't reply with a Socks error, remote does not
-                // seems to speak Socks.
-                return Err(e.into());
-            }
-            Ok(y) => y,
-        };
+        // Try to perform the next step in the handshake.
+        // (If there is an handshake error, don't reply with a Socks error, remote does not
+        // seems to speak Socks.)
+        let step = handshake.step(&mut inbuf)?;
 
         match step {
             NS::Recv(mut recv) => {

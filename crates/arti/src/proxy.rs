@@ -5,6 +5,8 @@
 //! and then relays traffic as appropriate.
 
 semipublic_mod! {
+    #[cfg(feature="http-connect")]
+    mod http_connect;
     mod socks;
 }
 
@@ -474,10 +476,8 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
         };
         let runtime_copy = tor_client.runtime().clone();
         tor_client.runtime().spawn(async move {
-            let stream = BufReader::with_capacity(SOCKS_BUF_LEN, stream);
             let res =
-                socks::handle_socks_conn(runtime_copy, proxy_context, stream, (sock_id, addr.ip()))
-                    .await;
+                handle_proxy_conn(runtime_copy, proxy_context, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
                 // TODO: warn_report doesn't work on anyhow::Error.
                 warn!("connection exited with error: {}", tor_error::Report(e));
@@ -486,4 +486,73 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
     }
 
     Ok(())
+}
+
+/// A (possibly) supported proxy protocol.
+enum ProxyProtocols {
+    /// Some HTTP/1 command or other.
+    ///
+    /// (We only support CONNECT and OPTIONS, but we reject other commands in [`http_connect`].)
+    Http1,
+    /// SOCKS4 or SOCKS5.
+    Socks,
+}
+
+/// Look at the first byte of a proxy connection, and guess what protocol
+/// what protocol it is trying to speak.
+fn classify_protocol_from_first_byte(byte: u8) -> Option<ProxyProtocols> {
+    match byte {
+        b'a'..=b'z' | b'A'..=b'Z' => Some(ProxyProtocols::Http1),
+        4 | 5 => Some(ProxyProtocols::Socks),
+        _ => None,
+    }
+}
+
+/// Handle a single connection `stream` from an application.
+///
+/// Depending on what protocol the application is speaking
+/// (and what protocols we support!), negotiate an appropriate set of options,
+/// and relay traffic to and from the application.
+async fn handle_proxy_conn<R, S>(
+    runtime: R,
+    context: ProxyContext<R>,
+    stream: S,
+    isolation_info: ListenerIsolation,
+) -> Result<()>
+where
+    R: Runtime,
+    S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    let mut stream = BufReader::with_capacity(SOCKS_BUF_LEN, stream);
+    use futures::AsyncBufReadExt as _;
+
+    let buf: &[u8] = stream.fill_buf().await?;
+    if buf.is_empty() {
+        // connection closed
+        return Ok(());
+    }
+    match classify_protocol_from_first_byte(buf[0]) {
+        Some(ProxyProtocols::Http1) => {
+            cfg_if::cfg_if! {
+                if #[cfg(feature="http-connect")] {
+                    unimplemented!()
+                } else {
+                    write_all_and_close(&mut stream, socks::WRONG_PROTOCOL_PAYLOAD).await?;
+                    Ok(())
+                }
+            }
+        }
+        Some(ProxyProtocols::Socks) => {
+            socks::handle_socks_conn(runtime, context, stream, isolation_info).await
+        }
+        None => {
+            // We have no idea what protocol the client expects,
+            // so we have no idea how to tell it so.
+            warn!(
+                "Unrecognized protocol on proxy listener (first byte {:x})",
+                buf[0]
+            );
+            Ok(())
+        }
+    }
 }
