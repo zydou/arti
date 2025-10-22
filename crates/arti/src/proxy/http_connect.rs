@@ -13,7 +13,7 @@ use http::{Method, StatusCode, response::Builder as ResponseBuilder};
 use hyper::{Response, server::conn::http1::Builder as ServerBuilder, service::service_fn};
 use hyper_futures::AsyncReadWriteCompat;
 use safelog::{Sensitive as Sv, sensitive as sv};
-use tor_error::{ErrorKind, ErrorReport as _, HasKind as _, into_internal, warn_report};
+use tor_error::{ErrorKind, ErrorReport as _, HasKind, into_internal, warn_report};
 use tor_rtcompat::Runtime;
 use tracing::instrument;
 
@@ -244,6 +244,18 @@ enum HttpConnectError {
     Internal(#[from] tor_error::Bug),
 }
 
+impl HasKind for HttpConnectError {
+    fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
+        use HttpConnectError as HCE;
+        match self {
+            HCE::InvalidStreamTarget(_, _) => EK::LocalProtocolViolation,
+            HCE::ConnectFailed(_, e) => e.kind(),
+            HCE::Internal(e) => e.kind(),
+        }
+    }
+}
+
 impl HttpConnectError {
     /// Return an appropriate HTTP status code for this error.
     fn status_code(&self) -> StatusCode {
@@ -258,10 +270,16 @@ impl HttpConnectError {
 
     /// If possible, return a response that we should give to this error.
     fn try_into_response(self) -> Result<Response<Body>, HttpConnectError> {
+        let error_kind = self.kind();
         let status_code = self.status_code();
-        // XXXX encode more information, per the spec.
+        // TODO: It would be neat to also include specific END reasons here.  But to get them we'd
+        // need to depend on the "details" feature of arti-client, which I'm not sure we want to do.
+        //
+        // If we _do_ get a way to extract END reasons, we can also use them manually alongside
+        // kind_to_status.
         ResponseBuilder::new()
             .status(status_code)
+            .header("X-Tor-Request-Failed", format!("arti/{error_kind:?}"))
             .err(&Method::CONNECT, self.report().to_string())
     }
 }
