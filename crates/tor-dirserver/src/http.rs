@@ -2,9 +2,6 @@
 //!
 //! This module is unfortunately necessary as a middleware due to some obscure
 //! things in Tor, most notably the ".z" extensions.
-//!
-//! TODO DIRMIRROR: Use the `sql!` macro.
-//! TODO DIRMIRROR: Use the `read_tx` and `rw_tx` functions.
 
 use cache::StoreCache;
 use r2d2::Pool;
@@ -40,7 +37,7 @@ use tokio::{
 };
 use tracing::warn;
 
-use crate::database::Sha256;
+use crate::database::{self, sql, Sha256};
 
 mod cache;
 
@@ -256,33 +253,25 @@ impl HttpServer {
         tasks.spawn(http1::Builder::new().serve_connection(stream, service));
     }
 
-    /// A small wrapper function that creates a [`Transaction`] and continues
-    /// execution in [`Self::handler_tx`].
+    /// A small wrapper function that creates a read-only or read-write
+    /// [`Transaction`] based upon the [`Method`] and continues execution in
+    /// [`Self::handler_tx`].
     async fn handler(
         cache: Arc<StoreCache>,
         endpoints: Arc<[Endpoint]>,
         pool: Pool<SqliteConnectionManager>,
         requ: Request<Incoming>,
     ) -> Result<Response<DocumentBody>, Infallible> {
-        // Obtain a database pool object (database connection).
-        let mut conn = match pool.get() {
-            Ok(conn) => conn,
-            Err(e) => {
-                warn!("database pool error: {e}");
-                return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
-            }
-        };
-
-        // Create a transaction and pass it to `handler_tx`.
-        let tx = match conn.transaction() {
-            Ok(tx) => tx,
-            Err(e) => {
-                warn!("transaction creation error: {e}");
-                return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
-            }
-        };
-
-        Ok(Self::handler_tx(&cache, &endpoints, tx, &requ))
+        // TODO: This would be the place to either use read_tx or rw_tx depending
+        // on the method, but given that this is all GET at the moment, just go
+        // with read_tx.
+        Ok(
+            database::read_tx(&pool, |tx| Self::handler_tx(&cache, &endpoints, tx, &requ))
+                .unwrap_or_else(|e| {
+                    warn!("database error: {e}");
+                    Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR)
+                }),
+        )
     }
 
     /// A big monolithic function that handles incoming request with a consist
@@ -297,14 +286,13 @@ impl HttpServer {
     /// 5. Query the [`StoreCache`] with the [`Sha256`] and [`Transaction`] handle
     ///    to store the document ref
     /// 6. Compose the [`Response`]
-    /// 7. Commit or drop the transaction, based on the [`Method`]
     ///
     /// TODO DIRMIRROR: Implement [`Method::HEAD`].
     #[allow(clippy::cognitive_complexity)]
     fn handler_tx(
         cache: &Arc<StoreCache>,
         endpoints: &[Endpoint],
-        tx: Transaction,
+        tx: &Transaction,
         requ: &Request<Incoming>,
     ) -> Response<DocumentBody> {
         // (1) Determine the compression algorithm
@@ -320,7 +308,7 @@ impl HttpServer {
         };
 
         // (3) Call the `EndpointFn` to obtain various `Sha256` hashsums
-        let endpoint_fn_resp = match catch_unwind(AssertUnwindSafe(|| endpoint_fn(&tx, requ))) {
+        let endpoint_fn_resp = match catch_unwind(AssertUnwindSafe(|| endpoint_fn(tx, requ))) {
             // Everything went successful.
             Ok(Ok(r)) => r,
 
@@ -349,7 +337,7 @@ impl HttpServer {
         // (4) Map the sha256sums to their compressed counterpart
         let sha256sums = sha256sums
             .iter()
-            .map(|sha256| Self::map_encoding(&tx, sha256, encoding))
+            .map(|sha256| Self::map_encoding(tx, sha256, encoding))
             .collect::<Result<Vec<_>, _>>();
         let sha256sums = match sha256sums {
             Ok(s) => s,
@@ -367,7 +355,7 @@ impl HttpServer {
         //     to store the document ref
         let mut documents = VecDeque::new();
         for sha256 in &sha256sums {
-            let document = match cache.get(&tx, sha256) {
+            let document = match cache.get(tx, sha256) {
                 Ok(document) => document,
                 Err(e) => {
                     warn!(
@@ -397,14 +385,6 @@ impl HttpServer {
                     .try_into()
                     .expect("strum serialized a non-valid header?!?"),
             );
-        }
-
-        // (7) Commit or drop the transaction, based on the `Method`
-        //
-        // For now, we just drop it.
-        match tx.rollback() {
-            Ok(()) => {}
-            Err(e) => warn!("rollback error: {e}"),
         }
 
         resp
@@ -572,12 +552,14 @@ impl HttpServer {
             return Ok(sha256);
         }
 
-        let mut stmt = tx.prepare_cached(
+        let mut stmt = tx.prepare_cached(sql!(
             "
-        SELECT compressed_sha256
-        FROM compressed_document
-        WHERE identity_sha256 = ?1 AND algorithm = ?2",
-        )?;
+            SELECT compressed_sha256
+            FROM compressed_document
+              WHERE identity_sha256 = ?1
+                AND algorithm = ?2
+            "
+        ))?;
         let compressed_sha256 =
             stmt.query_one(params![sha256, encoding.to_string()], |row| row.get(0))?;
 
@@ -624,7 +606,6 @@ pub(in crate::http) mod test {
     };
     use http::Version;
     use http_body_util::{BodyExt, Empty};
-    use rusqlite::Connection;
     use sha2::{digest::Update, Digest};
     use tokio::{
         net::{TcpListener, TcpStream},
@@ -646,11 +627,11 @@ pub(in crate::http) mod test {
 
     pub(in crate::http) fn create_test_db_pool() -> Pool<SqliteConnectionManager> {
         let pool = database::open("").unwrap();
-        init_test_db(&mut pool.get().unwrap());
+        database::rw_tx(&pool, |tx| init_test_db(tx)).unwrap();
         pool
     }
 
-    fn init_test_db(conn: &mut Connection) {
+    fn init_test_db(tx: &Transaction) {
         // Create a document and compressed versions of it.
         let identity_sha256 = hex::encode_upper(sha2::Sha256::new().chain(IDENTITY).finalize());
         assert_eq!(identity_sha256, IDENTITY_SHA256);
@@ -681,16 +662,17 @@ pub(in crate::http) mod test {
             hex::encode_upper(sha2::Sha256::new().chain(&x_tor_lzma).finalize());
         assert_eq!(x_tor_lzma_sha256, X_TOR_LZMA_SHA256);
 
-        let tx = conn.transaction().unwrap();
         tx.execute(
-            "
-                        INSERT INTO store(sha256, content) VALUES
-                        (?1, ?2), -- identity
-                        (?3, ?4), -- deflate
-                        (?5, ?6), -- gzip
-                        (?7, ?8), -- xzstd
-                        (?9, ?10); -- lzma
-                    ",
+            sql!(
+                "
+                INSERT INTO store(sha256, content) VALUES
+                (?1, ?2), -- identity
+                (?3, ?4), -- deflate
+                (?5, ?6), -- gzip
+                (?7, ?8), -- xzstd
+                (?9, ?10) -- lzma
+                "
+            ),
             params![
                 identity_sha256,
                 IDENTITY.as_bytes().to_vec(),
@@ -706,16 +688,25 @@ pub(in crate::http) mod test {
         )
         .unwrap();
 
-        tx.execute("
+        tx.execute(
+            sql!(
+                "
                 INSERT INTO compressed_document(algorithm, identity_sha256, compressed_sha256) VALUES
                 ('deflate', ?1, ?2),
                 ('gzip', ?1, ?3),
                 ('x-zstd', ?1, ?4),
-                ('x-tor-lzma', ?1, ?5);
-                ",
-                params![identity_sha256, deflate_sha256, gzip_sha256, xz_std_sha256, x_tor_lzma_sha256]).unwrap();
-
-        tx.commit().unwrap();
+                ('x-tor-lzma', ?1, ?5)
+                "
+            ),
+            params![
+                identity_sha256,
+                deflate_sha256,
+                gzip_sha256,
+                xz_std_sha256,
+                x_tor_lzma_sha256
+            ],
+        )
+        .unwrap();
     }
 
     #[test]
@@ -875,7 +866,6 @@ pub(in crate::http) mod test {
     #[test]
     fn map_encoding() {
         let pool = create_test_db_pool();
-        let mut conn = pool.get().unwrap();
 
         let data = [
             (ContentEncoding::Identity, IDENTITY_SHA256),
@@ -885,14 +875,16 @@ pub(in crate::http) mod test {
             (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
         ];
 
-        let tx = conn.transaction().unwrap();
-        for (encoding, compressed_sha256) in data {
-            println!("{encoding}");
-            assert_eq!(
-                HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
-                compressed_sha256
-            );
-        }
+        database::read_tx(&pool, |tx| {
+            for (encoding, compressed_sha256) in data {
+                println!("{encoding}");
+                assert_eq!(
+                    HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
+                    compressed_sha256
+                );
+            }
+        })
+        .unwrap();
     }
 
     #[tokio::test]
