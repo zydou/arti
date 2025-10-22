@@ -23,9 +23,9 @@ use tor_error::warn_report;
 #[cfg(feature = "rpc")]
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::{NetStreamListener, Runtime};
-use tor_socksproto::{Handshake as _, SocksAddr, SocksAuth, SocksCmd, SocksRequest, SOCKS_BUF_LEN};
+use tor_socksproto::{Handshake as _, SOCKS_BUF_LEN, SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 use crate::rpc::RpcProxySupport;
 
@@ -358,7 +358,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
                 isolation: pass.clone().into(),
             },
             Uname::Extended(b'0', _) => {
-                return Err(anyhow!("Extraneous information in SOCKS username field."))
+                return Err(anyhow!("Extraneous information in SOCKS username field."));
             }
             _ => return Err(anyhow!("Unrecognized SOCKS format code")),
         },
@@ -655,7 +655,7 @@ async fn reply_error<W>(
 where
     W: AsyncWrite + Unpin,
 {
-    use {tor_socksproto::SocksStatus as S, ErrorKind as EK};
+    use {ErrorKind as EK, tor_socksproto::SocksStatus as S};
 
     // TODO: Currently we _always_ try to return extended SOCKS return values
     // for onion service failures from proposal 304 when they are appropriate.
@@ -813,7 +813,9 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     let rpc_mgr = None;
 
     if !listen.is_localhost_only() {
-        warn!("Configured to listen for SOCKS on non-local addresses. This is usually insecure! We recommend listening on localhost only.");
+        warn!(
+            "Configured to listen for SOCKS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
+        );
     }
 
     let mut listeners = Vec::new();
