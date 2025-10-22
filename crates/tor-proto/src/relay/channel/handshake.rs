@@ -20,6 +20,7 @@ use crate::channel::handshake::{
 };
 use crate::channel::{ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
+use crate::relay::channel::RelayIdentities;
 use crate::{Error, Result};
 
 // TODO(relay): We should probably get those values from protover crate or some other
@@ -43,6 +44,9 @@ pub struct RelayInitiatorHandshake<
     framed_tls: ChannelFrame<T>,
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
+    /// Our identity keys needed for authentication.
+    #[expect(unused)] // TODO(relay). Remove
+    identities: RelayIdentities,
 }
 
 /// Implement the base channel handshake trait.
@@ -81,11 +85,17 @@ impl<
 
     /// Constructor.
     #[expect(unused)] // TODO(relay)
-    pub(crate) fn new(tls: T, sleep_prov: S, memquota: ChannelAccount) -> Self {
+    pub(crate) fn new(
+        tls: T,
+        sleep_prov: S,
+        identities: RelayIdentities,
+        memquota: ChannelAccount,
+    ) -> Self {
         Self {
             framed_tls: new_frame(tls, ChannelType::RelayInitiator),
             unique_id: UniqId::new(),
             sleep_prov,
+            identities,
             memquota,
         }
     }

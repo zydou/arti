@@ -69,6 +69,8 @@ mod util;
 
 #[cfg(feature = "relay")]
 pub(crate) mod relay;
+#[cfg(feature = "relay")]
+pub use relay::channel::RelayIdentities;
 
 pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
