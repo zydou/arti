@@ -253,17 +253,29 @@ impl<T: HasRelayIds> RelayReactor<T> {
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
     pub(crate) async fn run(mut self) -> StdResult<(), ReactorError> {
+        let unique_id = self.unique_id;
         debug!(
-            circ_id = %self.unique_id,
+            circ_id = %unique_id,
             "Running relay circuit reactor",
         );
 
+        let res = self.run_inner().await;
+
+        debug!(
+            circ_id = %unique_id,
+            "Relay circuit reactor shutting down",
+        );
+
+        res
+    }
+
+    /// Helper for [`run`](Self::run).
+    pub(crate) async fn run_inner(mut self) -> StdResult<(), ReactorError> {
         let (forward, backward) = (|| Some((self.forward.take()?, self.backward.take()?)))()
             .expect("relay reactor spawned twice?!");
 
         let mut forward = Box::pin(forward.run()).fuse();
         let mut backward = Box::pin(backward.run()).fuse();
-
         loop {
             // If either of these completes, this function returns,
             // dropping reactor_closed_tx, which will, in turn,
