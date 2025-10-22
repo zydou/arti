@@ -20,20 +20,20 @@ use crate::{channel::RelayInitiatorHandshake, memquota::ChannelAccount};
 #[expect(unused)] // TODO(relay). remove
 pub struct RelayIdentities {
     /// As a relay, our RSA identity key: KP_relayid_rsa
-    rsa_id: RsaIdentity,
+    pub(crate) rsa_id: RsaIdentity,
     /// As a relay, our Ed identity key: KP_relayid_ed
-    ed_id: Ed25519Identity,
+    pub(crate) ed_id: Ed25519Identity,
     /// The Ed25519 identity signing cert (CertType 4)
-    cert_id_sign_ed: Ed25519Cert,
+    pub(crate) cert_id_sign_ed: Ed25519Cert,
     /// The Ed25519 signing TLS cert (CertType 5)
-    cert_sign_tls_ed: Ed25519Cert,
+    pub(crate) cert_sign_tls_ed: Ed25519Cert,
     /// The Ed25519 signing link auth cert (CertType 6)
-    cert_sign_link_auth_ed: Ed25519Cert,
+    pub(crate) cert_sign_link_auth_ed: Ed25519Cert,
     /// Legacy: the RSA identity X509 cert (CertType 2). We only have the bytes here as
     /// create_legacy_rsa_id_cert() takes a key and gives us back the encoded cert.
-    cert_id_x509_rsa: Vec<u8>,
+    pub(crate) cert_id_x509_rsa: Vec<u8>,
     /// Legacy: the RSA identity cert (CertType 7)
-    cert_id_rsa: RsaCrosscert,
+    pub(crate) cert_id_rsa: RsaCrosscert,
 }
 
 impl RelayIdentities {

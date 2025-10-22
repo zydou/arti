@@ -177,7 +177,6 @@ pub enum ChannelType {
 
 impl ChannelType {
     /// Return true if this channel type is an initiator.
-    #[expect(unused)] // TODO: Remove once used.
     pub(crate) fn is_initiator(&self) -> bool {
         matches!(self, Self::ClientInitiator | Self::RelayInitiator)
     }

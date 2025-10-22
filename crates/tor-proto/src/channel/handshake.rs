@@ -8,9 +8,11 @@ use tor_error::internal;
 
 use crate::channel::{ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
-use crate::relay::channel::handshake::ChannelAuthenticationData;
+use crate::relay::channel::handshake::{
+    ChannelAuthenticationData, ChannelAuthenticationDataBuilder,
+};
 use crate::util::skew::ClockSkew;
-use crate::{Error, Result};
+use crate::{Error, RelayIdentities, Result};
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -280,7 +282,6 @@ pub struct UnverifiedChannel<
     pub(crate) netinfo_cell: msg::Netinfo,
     /// The AUTH_CHALLENGE cell that we got from the relay. Client ignore this field, only relay
     /// care for authentication purposes.
-    #[expect(unused)] // TODO(relay): Relays need this.
     pub(crate) auth_challenge_cell: Option<msg::AuthChallenge>,
     /// How much clock skew did we detect in this handshake?
     ///
@@ -289,6 +290,8 @@ pub struct UnverifiedChannel<
     pub(crate) clock_skew: ClockSkew,
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
+    /// Relay only: Our identity keys needed for authentication.
+    pub(crate) identities: Option<RelayIdentities>,
 }
 
 /// A client channel on which versions have been negotiated,
@@ -401,6 +404,7 @@ impl<
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov.clone(),
             memquota: self.memquota.clone(),
+            identities: None,
         })
     }
 }
@@ -449,7 +453,7 @@ impl<
     /// Same as `check`, but takes the SHA256 hash of the peer certificate,
     /// since that is all we use.
     fn check_internal<U: ChanTarget + ?Sized>(
-        self,
+        mut self,
         peer: &U,
         peer_cert_sha256: &[u8],
         now: Option<SystemTime>,
@@ -650,6 +654,46 @@ impl<
         sk_tls_timeliness?;
         rsa_cert_timeliness?;
 
+        // This part is relay specific as only relay will process an AUTH_CHALLENGE message.
+        //
+        // TODO(relay). We should somehow find a way to have this to be in the relay module. For
+        // this, I suspect we will need a relay specific UnverifiedChannel and VerifiedChannel
+        // which yields a Channel upon validation. Client and relay channels would share a lot of
+        // code so we would need to find an elegant way to do this. Until then, it lives here.
+        let auth_data: Option<ChannelAuthenticationData>;
+        #[cfg(feature = "relay")]
+        {
+            auth_data = match (self.auth_challenge_cell, self.identities) {
+                (Some(auth_challenge_cell), Some(identities)) => {
+                    // Depending on if we are initiator or responder, we flip the identities in the
+                    // authentication challenge. See tor-spec.
+                    let (cid, sid, cid_ed, sid_ed) = if self.channel_type.is_initiator() {
+                        (identities.rsa_id, rsa_id, &identities.ed_id, identity_key)
+                    } else {
+                        (rsa_id, identities.rsa_id, identity_key, &identities.ed_id)
+                    };
+
+                    let auth_data = ChannelAuthenticationDataBuilder::default()
+                        .set_link_auth(&auth_challenge_cell)?
+                        .set_initiator_identity(&cid, cid_ed)
+                        .set_responder_identity(&sid, sid_ed)
+                        .clog(self.framed_tls.codec_mut().get_clog_digest()?)
+                        .slog(self.framed_tls.codec_mut().get_slog_digest()?)
+                        .scert(peer_cert_sha256.try_into().expect("Peer cert not 32 bytes"))
+                        .build()
+                        .map_err(|_| {
+                            Error::HandshakeProto("Malformed authentication data".into())
+                        })?;
+                    Some(auth_data)
+                }
+                _ => None,
+            };
+        }
+        #[cfg(not(feature = "relay"))]
+        {
+            auth_data = None;
+        }
+
         Ok(VerifiedChannel {
             channel_type: self.channel_type,
             link_protocol: self.link_protocol,
@@ -661,7 +705,7 @@ impl<
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
-            auth_data: None,
+            auth_data,
         })
     }
 }
@@ -1005,6 +1049,7 @@ pub(super) mod test {
             unique_id: UniqId::new(),
             sleep_prov: runtime,
             memquota: fake_mq(),
+            identities: None,
         }
     }
 

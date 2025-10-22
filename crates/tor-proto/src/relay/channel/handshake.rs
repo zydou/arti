@@ -45,7 +45,6 @@ pub struct RelayInitiatorHandshake<
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
     /// Our identity keys needed for authentication.
-    #[expect(unused)] // TODO(relay). Remove
     identities: RelayIdentities,
 }
 
@@ -143,6 +142,7 @@ impl<
             auth_challenge_cell,
             certs_cell,
             netinfo_cell,
+            identities: Some(self.identities),
         })
     }
 }
@@ -174,7 +174,6 @@ pub(crate) struct ChannelAuthenticationData {
     scert: [u8; 32],
 }
 
-#[expect(unused)] // TODO(relay). remove
 impl ChannelAuthenticationDataBuilder {
     /// Custom setter for the link auth version.
     pub(crate) fn set_link_auth(
