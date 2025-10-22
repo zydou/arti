@@ -139,7 +139,7 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
     /// Receiver for command messages for this reactor, sent by reactor handle objects.
     ///
-    /// This MPSC channel is polled in [`BackwardReactor::run_once`].
+    /// This MPSC channel is polled in [`run`](Self::run).
     ///
     /// NOTE: this is a separate channel from `control`, because some messages
     /// have higher priority and need to be handled even if the `chan_sender` is not
