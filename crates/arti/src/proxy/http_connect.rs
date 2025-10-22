@@ -399,7 +399,7 @@ impl RespBldExt for ResponseBuilder {
         method: &Method,
         message: impl Into<String>,
     ) -> Result<Response<Body>, HttpConnectError> {
-        let bld = add_common_headers(self, method);
+        let bld = add_common_headers(self, method).header(hdr::CONTENT_TYPE, "text/plain");
         Ok(bld
             .body(message.into())
             .map_err(into_internal!("Formatting HTTP response"))?)
