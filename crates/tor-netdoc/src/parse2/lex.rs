@@ -90,10 +90,10 @@ pub struct UnparsedObject<'s> {
 
 impl<'s> ItemStream<'s> {
     /// Start reading a network document as a series of Items
-    pub fn new(s: &'s str) -> Result<Self, ParseError> {
+    pub fn new(input: &'s ParseInput<'s>) -> Result<Self, ParseError> {
         Ok(ItemStream {
-            whole_for_signatures: s,
-            lines: Lines::new(s),
+            whole_for_signatures: input.input,
+            lines: Lines::new(input.input),
             peeked: PeekState::None {
                 yielded_item_lno: 0,
             },

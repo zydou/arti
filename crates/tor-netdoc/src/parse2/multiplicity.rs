@@ -214,9 +214,10 @@ impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
 ///
 /// ```
 /// use tor_netdoc::parse2::multiplicity::{ArgumentSetSelector, ArgumentSetMethods as _};
-/// use tor_netdoc::parse2::{ItemArgumentParseable, ItemStream};
+/// use tor_netdoc::parse2::{ItemArgumentParseable, ItemStream, ParseInput};
 /// let doc = "intro-item 12 66\n";
-/// let mut items = ItemStream::new(doc).unwrap();
+/// let input = ParseInput::new(doc, "<literal>");
+/// let mut items = ItemStream::new(&input).unwrap();
 /// let mut item = items.next().unwrap().unwrap();
 ///
 /// let args = ArgumentSetSelector::<Vec<i32>>::default()
@@ -325,9 +326,10 @@ impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
 ///
 /// ```
 /// use tor_netdoc::parse2::multiplicity::{ObjectSetSelector, ObjectSetMethods as _};
-/// use tor_netdoc::parse2::ItemStream;
+/// use tor_netdoc::parse2::{ItemStream, ParseInput};
 /// let doc = "intro-item\n-----BEGIN OBJECT-----\naGVsbG8=\n-----END OBJECT-----\n";
-/// let mut items = ItemStream::new(doc).unwrap();
+/// let input = ParseInput::new(doc, "<literal>");
+/// let mut items = ItemStream::new(&input).unwrap();
 /// let mut item = items.next().unwrap().unwrap();
 ///
 /// let selector = ObjectSetSelector::<Option<String>>::default();

@@ -134,29 +134,48 @@ pub use traits::{
 #[doc(hidden)]
 pub use derive::netdoc_parseable_derive_debug;
 
+//---------- input ----------
+
+/// Input to a network document top-level parsing operation
+pub struct ParseInput<'s> {
+    /// The actual document text
+    input: &'s str,
+    /// Filename (for error reporting)
+    file: &'s str,
+}
+
+impl<'s> ParseInput<'s> {
+    /// Prepare to parse an input string
+    pub fn new(input: &'s str, file: &'s str) -> Self {
+        ParseInput {
+            input,
+            file,
+        }
+    }
+}
+
 //---------- parser ----------
 
 /// Common code for `parse_netdoc` and `parse_netdoc_multiple`
 ///
 /// Creates the `ItemStream`, calls `parse_completely`, and handles errors.
 fn parse_internal<T, D: NetdocParseable>(
-    input: &str,
-    file: &str,
+    input: &ParseInput<'_>,
     parse_completely: impl FnOnce(&mut ItemStream) -> Result<T, ErrorProblem>,
 ) -> Result<T, ParseError> {
     let mut items = ItemStream::new(input)?;
     parse_completely(&mut items).map_err(|problem| ParseError {
         problem,
         doctype: D::doctype_for_error(),
-        file: file.to_owned(),
+        file: input.file.to_owned(),
         lno: items.lno_for_error(),
         column: problem.column(),
     })
 }
 
 /// Parse a network document - **toplevel entrypoint**
-pub fn parse_netdoc<D: NetdocParseable>(input: &str, file: &str) -> Result<D, ParseError> {
-    parse_internal::<_, D>(input, file, |items| {
+pub fn parse_netdoc<D: NetdocParseable>(input: &ParseInput<'_>) -> Result<D, ParseError> {
+    parse_internal::<_, D>(input, |items| {
         let doc = D::from_items(items, StopAt(false))?;
         if let Some(_kw) = items.peek_keyword()? {
             return Err(EP::MultipleDocuments);
@@ -167,10 +186,9 @@ pub fn parse_netdoc<D: NetdocParseable>(input: &str, file: &str) -> Result<D, Pa
 
 /// Parse a network document - **toplevel entrypoint**
 pub fn parse_netdoc_multiple<D: NetdocParseable>(
-    input: &str,
-    file: &str,
+    input: &ParseInput<'_>,
 ) -> Result<Vec<D>, ParseError> {
-    parse_internal::<_, D>(input, file, |items| {
+    parse_internal::<_, D>(input, |items| {
         let mut docs = vec![];
         while items.peek_keyword()?.is_some() {
             let doc = D::from_items(items, StopAt(false))?;
