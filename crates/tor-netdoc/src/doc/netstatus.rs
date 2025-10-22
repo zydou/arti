@@ -67,7 +67,9 @@ use crate::types::misc::*;
 use crate::util::PeekableIterator;
 use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::fmt::{self, Display};
 use std::result::Result as StdResult;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::{net, result, time};
 use tor_error::{HasKind, internal};
@@ -524,6 +526,7 @@ pub struct SharedRandVal([u8; 32]);
 /// along with meta-information about that value.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
+#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     pub n_reveals: u8,
@@ -538,7 +541,7 @@ pub struct SharedRandStatus {
     /// The time when this SharedRandVal becomes (or became) the latest.
     ///
     /// (This is added per proposal 342, assuming that gets accepted.)
-    pub timestamp: Option<time::SystemTime>,
+    pub timestamp: Option<Iso8601TimeNoSp>,
 }
 
 /// Description of an authority's identity and address.
@@ -970,6 +973,21 @@ where
     }
 }
 
+impl FromStr for SharedRandVal {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        let val: B64 = s.parse()?;
+        let val = SharedRandVal(val.into_array()?);
+        Ok(val)
+    }
+}
+impl Display for SharedRandVal {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(&B64::from(Vec::from(self.0)), f)
+    }
+}
+impl NormalItemArgument for SharedRandVal {}
+
 impl SharedRandStatus {
     /// Parse a current or previous shared rand value from a given
     /// SharedRandPreviousValue or SharedRandCurrentValue.
@@ -985,12 +1003,9 @@ impl SharedRandStatus {
             }
         }
         let n_reveals: u8 = item.parse_arg(0)?;
-        let val: B64 = item.parse_arg(1)?;
-        let value = SharedRandVal(val.into_array()?);
+        let value: SharedRandVal = item.parse_arg(1)?;
         // Added in proposal 342
-        let timestamp = item
-            .parse_optional_arg::<Iso8601TimeNoSp>(2)?
-            .map(Into::into);
+        let timestamp = item.parse_optional_arg::<Iso8601TimeNoSp>(2)?;
         Ok(SharedRandStatus {
             n_reveals,
             value,
@@ -1005,7 +1020,7 @@ impl SharedRandStatus {
 
     /// Return the timestamp (if any) associated with this `SharedRandValue`.
     pub fn timestamp(&self) -> Option<std::time::SystemTime> {
-        self.timestamp
+        self.timestamp.map(|t| t.0)
     }
 }
 
@@ -1700,7 +1715,7 @@ mod test {
         assert_eq!(sr2.n_reveals, sr.n_reveals);
         assert_eq!(sr2.value.0, sr.value.0);
         assert_eq!(
-            sr2.timestamp.unwrap(),
+            sr2.timestamp.unwrap().0,
             humantime::parse_rfc3339("2022-01-20T12:34:56Z").unwrap()
         );
 
