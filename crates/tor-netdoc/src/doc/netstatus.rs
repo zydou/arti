@@ -95,7 +95,7 @@ ns_export_each_flavor! {
 }
 
 ns_export_each_variety! {
-    ty: RouterStatus, Header;
+    ty: RouterStatus, Preamble;
 }
 
 use void::ResultVoidExt as _;

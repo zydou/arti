@@ -16,11 +16,11 @@ ns_use_this_variety! {
 }
 #[cfg(not(doc))]
 ns_use_this_variety! {
-    use [crate::doc::netstatus]::?::{Consensus, Header};
+    use [crate::doc::netstatus]::?::{Consensus, Preamble};
 }
 #[cfg(doc)]
 ns_use_this_variety! {
-    pub use [crate::doc::netstatus]::?::{Consensus, Header};
+    pub use [crate::doc::netstatus]::?::{Consensus, Preamble};
 }
 
 use super::*;
@@ -33,28 +33,28 @@ use super::*;
 /// the `build_docs` feature.
 #[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 pub struct ConsensusBuilder {
-    /// See [`Header::flavor`]
+    /// See [`Consensus::flavor`]
     flavor: ConsensusFlavor,
-    /// See [`Header::lifetime`]
+    /// See [`Preamble::lifetime`]
     lifetime: Option<Lifetime>,
-    /// See [`Header::client_versions`]
+    /// See [`Preamble::client_versions`]
     client_versions: Vec<String>,
-    /// See [`Header::relay_versions`]
-    relay_versions: Vec<String>,
-    /// See [`Header::proto_statuses`]
+    /// See [`Preamble::server_versions`]
+    server_versions: Vec<String>,
+    /// See [`Preamble::proto_statuses`]
     client_protos: ProtoStatus,
-    /// See [`Header::proto_statuses`]
+    /// See [`Preamble::proto_statuses`]
     relay_protos: ProtoStatus,
-    /// See [`Header::params`]
+    /// See [`Preamble::params`]
     params: NetParams<i32>,
-    /// See [`Header::voting_delay`]
+    /// See [`Preamble::voting_delay`]
     voting_delay: Option<(u32, u32)>,
-    /// See [`Header::consensus_method`]
+    /// See [`Preamble::consensus_method`]
     consensus_method: Option<u32>,
-    /// See [`Header::shared_rand_prev`]
-    shared_rand_prev: Option<SharedRandStatus>,
-    /// See [`Header::shared_rand_cur`]
-    shared_rand_cur: Option<SharedRandStatus>,
+    /// See [`Preamble::shared_rand_previous_value`]
+    shared_rand_previous_value: Option<SharedRandStatus>,
+    /// See [`Preamble::shared_rand_current_value`]
+    shared_rand_current_value: Option<SharedRandStatus>,
     /// See [`Consensus::voters`]
     voters: Vec<ConsensusVoterInfo>,
     /// See [`Consensus::relays`]
@@ -70,14 +70,14 @@ impl ConsensusBuilder {
             flavor,
             lifetime: None,
             client_versions: Vec::new(),
-            relay_versions: Vec::new(),
+            server_versions: Vec::new(),
             client_protos: ProtoStatus::default(),
             relay_protos: ProtoStatus::default(),
             params: NetParams::new(),
             voting_delay: None,
             consensus_method: None,
-            shared_rand_prev: None,
-            shared_rand_cur: None,
+            shared_rand_previous_value: None,
+            shared_rand_current_value: None,
             voters: Vec::new(),
             relays: Vec::new(),
             weights: NetParams::new(),
@@ -103,7 +103,7 @@ impl ConsensusBuilder {
     ///
     /// These values are optional for testing.
     pub fn add_relay_version(&mut self, ver: String) -> &mut Self {
-        self.relay_versions.push(ver);
+        self.server_versions.push(ver);
         self
     }
     /// Set the required client protocol versions for this consensus.
@@ -163,7 +163,7 @@ impl ConsensusBuilder {
         value: SharedRandVal,
         timestamp: Option<SystemTime>,
     ) -> &mut Self {
-        self.shared_rand_prev = Some(SharedRandStatus {
+        self.shared_rand_previous_value = Some(SharedRandStatus {
             n_reveals,
             value,
             timestamp: timestamp.map(Iso8601TimeNoSp),
@@ -179,7 +179,7 @@ impl ConsensusBuilder {
         value: SharedRandVal,
         timestamp: Option<SystemTime>,
     ) -> &mut Self {
-        self.shared_rand_cur = Some(SharedRandStatus {
+        self.shared_rand_current_value = Some(SharedRandStatus {
             n_reveals,
             value,
             timestamp: timestamp.map(Iso8601TimeNoSp),
@@ -243,17 +243,16 @@ impl ConsensusBuilder {
             .consensus_method
             .ok_or(Error::CannotBuild("Missing consensus method."))?;
 
-        let header = Header {
-            flavor: self.flavor,
+        let preamble = Preamble {
             lifetime,
             client_versions: self.client_versions.clone(),
-            relay_versions: self.relay_versions.clone(),
+            server_versions: self.server_versions.clone(),
             proto_statuses,
             params: self.params.clone(),
             voting_delay: self.voting_delay,
             consensus_method,
-            shared_rand_prev: self.shared_rand_prev.clone(),
-            shared_rand_cur: self.shared_rand_cur.clone(),
+            shared_rand_previous_value: self.shared_rand_previous_value.clone(),
+            shared_rand_current_value: self.shared_rand_current_value.clone(),
         };
 
         let footer = Footer {
@@ -265,7 +264,8 @@ impl ConsensusBuilder {
         // TODO: check for duplicates?
 
         Ok(Consensus {
-            header,
+            flavor: self.flavor,
+            preamble,
             voters: self.voters.clone(),
             relays,
             footer,
