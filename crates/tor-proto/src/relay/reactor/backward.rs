@@ -344,34 +344,6 @@ impl BackwardReactor {
 
                 return Err(ReactorError::Shutdown);
             }
-            /* XXX move this to RelayReactor
-            res = self.command.next() => {
-                let Some(cmd) = res else {
-                    trace!(
-                        circ_id = %self.unique_id,
-                        reason = "command channel drop",
-                        "reactor shutdown",
-                    );
-
-                    return Err(ReactorError::Shutdown);
-                };
-
-                return self.handle_command(&cmd);
-            },
-            res = self.control.next() => {
-                let Some(msg) = res else {
-                    trace!(
-                        circ_id = %self.unique_id,
-                        reason = "control channel drop",
-                        "reactor shutdown",
-                    );
-
-                    return Err(ReactorError::Shutdown);
-                };
-
-                return self.handle_control(&msg);
-            },
-            */
             res = poll_all.fuse() => res,
         };
 

@@ -77,8 +77,8 @@ mod forward;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
-use futures::FutureExt as _;
 use futures::channel::mpsc;
+use futures::{FutureExt as _, StreamExt as _};
 use postage::broadcast;
 use tracing::{debug, trace};
 
@@ -88,7 +88,6 @@ use tor_error::internal;
 use tor_linkspec::HasRelayIds;
 use tor_memquota::mq_queue::{self, MpscSpec};
 
-use crate::Result;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
@@ -139,9 +138,13 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// Used for logging;
     unique_id: UniqId,
     /// The reactor for handling the forward direction (client to exit).
-    forward: ForwardReactor<T>,
+    ///
+    /// Optional so we can move it out of self in run().
+    forward: Option<ForwardReactor<T>>,
     /// The reactor for handling the backward direction (exit to client).
-    backward: BackwardReactor,
+    ///
+    /// Optional so we can move it out of self in run().
+    backward: Option<BackwardReactor>,
     /// Receiver for control messages for this reactor, sent by reactor handle objects.
     control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
     /// Receiver for command messages for this reactor, sent by reactor handle objects.
@@ -246,8 +249,8 @@ impl<T: HasRelayIds> RelayReactor<T> {
 
         let reactor = RelayReactor {
             unique_id,
-            forward,
-            backward,
+            forward: Some(forward),
+            backward: Some(backward),
             control: control_rx,
             command: command_rx,
             reactor_closed_tx,
@@ -261,27 +264,54 @@ impl<T: HasRelayIds> RelayReactor<T> {
     ///
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
-    pub(crate) async fn run(mut self) -> Result<()> {
-        let Self {
-            forward,
-            backward,
-            unique_id,
-            command,
-            control,
-            reactor_closed_tx,
-        } = self;
-
+    pub(crate) async fn run(mut self) -> StdResult<(), ReactorError> {
         debug!(
-            circ_id = %unique_id,
+            circ_id = %self.unique_id,
             "Running relay circuit reactor",
         );
 
-        // If either of these completes, this function returns,
-        // dropping reactor_closed_tx, which will, in turn,
-        // cause the remaining reactor, if there is one, to shut down too
-        futures::select! {
-            res = forward.run().fuse() => res,
-            res = backward.run().fuse() => res,
+        let (forward, backward) = (|| Some((self.forward.take()?, self.backward.take()?)))()
+            .expect("relay reactor spawned twice?!");
+
+        let mut forward = Box::pin(forward.run()).fuse();
+        let mut backward = Box::pin(backward.run()).fuse();
+
+        loop {
+            // If either of these completes, this function returns,
+            // dropping reactor_closed_tx, which will, in turn,
+            // cause the remaining reactor, if there is one, to shut down too
+            futures::select! {
+                res = self.command.next() => {
+                    let Some(cmd) = res else {
+                        trace!(
+                            circ_id = %self.unique_id,
+                            reason = "command channel drop",
+                            "reactor shutdown",
+                        );
+
+                        return Err(ReactorError::Shutdown);
+                    };
+
+                    self.handle_command(&cmd)?;
+                },
+                res = self.control.next() => {
+                    let Some(msg) = res else {
+                        trace!(
+                            circ_id = %self.unique_id,
+                            reason = "control channel drop",
+                            "reactor shutdown",
+                        );
+
+                        return Err(ReactorError::Shutdown);
+                    };
+
+                    self.handle_control(&msg)?;
+                },
+                // No need to log the error here, because it was already logged
+                // by the reactor that shut down
+                res = forward => return Ok(res?),
+                res = backward => return Ok(res?),
+            }
         }
     }
 
