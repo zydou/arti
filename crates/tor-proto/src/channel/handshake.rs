@@ -8,6 +8,7 @@ use tor_error::internal;
 
 use crate::channel::{ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
+use crate::relay::channel::handshake::ChannelAuthenticationData;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
@@ -321,6 +322,10 @@ pub struct VerifiedChannel<
     rsa_id: RsaIdentity,
     /// Authenticated clock skew for this peer.
     clock_skew: ClockSkew,
+    /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
+    /// process because the channel needs to be verified before it is sent.
+    #[expect(unused)] // TODO(relay): Remove once used.
+    auth_data: Option<ChannelAuthenticationData>,
 }
 
 impl<
@@ -656,6 +661,7 @@ impl<
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
+            auth_data: None,
         })
     }
 }
@@ -1272,6 +1278,7 @@ pub(super) mod test {
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
                 memquota: fake_mq(),
+                auth_data: None,
             };
 
             let (_chan, _reactor) = ver.finish().await.unwrap();

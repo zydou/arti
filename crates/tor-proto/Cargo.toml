@@ -131,6 +131,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.35.0", features = ["memq
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.35.0" }
 tor-memquota = { version = "0.35.0", path = "../tor-memquota", default-features = false }
 tor-protover = { version = "0.35.0", path = "../tor-protover" }
+tor-relay-crypto = { version = "0.35.0", path = "../tor-relay-crypto" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.35.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.35.0" }
 tor-units = { path = "../tor-units", version = "0.35.0", features = ["memquota-memcost"] }
