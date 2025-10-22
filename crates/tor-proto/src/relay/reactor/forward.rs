@@ -296,18 +296,18 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     async fn handle_relay_cell(&mut self, cell: Relay) -> StdResult<(), ReactorError> {
         let cmd = cell.cmd();
         let mut body = cell.into_relay_body().into();
-        if let Some(_tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) {
-            // The message is addressed to us! Now it's time to handle it...
-            let _decode_res = self.hop.decode(body.into())?;
-
-            // TODO: actually handle the cell
-            // TODO: if the message is recognized, it may need to be delivered
-            // to the BackwardReactor via the cell_tx channel for handling
-            // (because e.g. Tor stream data is handled in the BackwardReactor)
-        } else {
+        let Some(_tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
             // The message is not addressed to us, so we must relay it forward, towards the exit
-            self.send_msg_to_exit(body, None)?;
-        }
+            return self.send_msg_to_exit(body, None);
+        };
+
+        // The message is addressed to us! Now it's time to handle it...
+        let _decode_res = self.hop.decode(body.into())?;
+
+        // TODO: actually handle the cell
+        // TODO: if the message is recognized, it may need to be delivered
+        // to the BackwardReactor via the cell_tx channel for handling
+        // (because e.g. Tor stream data is handled in the BackwardReactor)
 
         Ok(())
     }
