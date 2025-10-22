@@ -776,6 +776,11 @@ impl<
             .build()
             .expect("OwnedChanTarget builder failed");
 
+        // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
+        // true if the Netinfo address matches the address we are connected to. Canonical
+        // definition is if the address we are connected to is what we expect it to be. This only
+        // makes sense for relay channels.
+
         super::Channel::new(
             self.channel_type,
             self.link_protocol,
