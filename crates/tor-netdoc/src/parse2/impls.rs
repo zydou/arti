@@ -95,6 +95,17 @@ pub(crate) mod void_impls {
             Err(EP::ItemForbidden)
         }
     }
+
+    #[cfg(feature = "parse2")]
+    impl ItemObjectParseable for Void {
+        fn check_label(_label: &str) -> Result<(), ErrorProblem> {
+            Ok(())
+        }
+
+        fn from_bytes(_input: &[u8]) -> Result<Self, ErrorProblem> {
+            Err(EP::ObjectUnexpected)
+        }
+    }
 }
 
 /// Conversion module for `Vec<u8>` as Object with [`ItemValueParseable`]

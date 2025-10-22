@@ -17,6 +17,9 @@ pub use timeimpl::*;
 
 #[cfg(feature = "parse2")]
 use {
+    crate::parse2::multiplicity::{
+        ItemSetMethods, ItemSetSelector, ObjectSetMethods, ObjectSetSelector,
+    },
     crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable}, //
 };
 
@@ -239,11 +242,47 @@ mod ignored_impl {
     #[cfg(feature = "parse2")]
     use crate::parse2::ErrorProblem as EP;
 
+    /// Part of a network document, that isn't actually there.
+    ///
+    /// Used as a standin in `ns_type!` calls in various netstatus `each_variety.rs`.
+    /// The effect is as if the field were omitted from the containing type.
+    ///
+    ///  * When used as item(s) (ie, a field type when deriving `NetdocParseable\[Fields\]`):
+    ///    **ignores any number** of items with that field's keyword during parsing,
+    ///    and emits none during encoding.
+    ///
+    ///    (To *reject* documents containing this item, use `Option<Void>`,
+    ///    but note that the spec says unknown items should be ignored,
+    ///    which would normally include items which are merely missing from one variety.)
+    ///
+    ///  * When used as an argument (ie, a field type when deriving `ItemValueParseable`,
+    ///    or with `netdoc(single_arg)`  when deriving `NetdocParseable\[Fields\]`):
+    ///    consumes **no arguments** during parsing, and emits none during encoding.
+    ///
+    ///  * When used as an object field (ie, `netdoc(object)` when deriving `ItemValueParseable`):
+    ///    **rejects** an object - failing the parse if one is present.
+    ///    (Functions similarly to `Option<Void>`, but prefer `NotPresent` as it's clearer.)
+    ///
+    /// There are bespoke impls of the multiplicity traits
+    /// `ItemSetMethods` and `ObjectSetMethods`:
+    /// don't wrap this type in `Option` or `Vec`.
+    //
+    // TODO we'll need to implement ItemArgument etc., for encoding, too.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+    #[allow(clippy::exhaustive_structs)]
+    #[cfg_attr(
+        feature = "parse2",
+        derive(Deftly),
+        derive_deftly(NetdocParseableFields)
+    )]
+    pub struct NotPresent;
+
     /// Ignored part of a network document.
     ///
     /// With `parse2`, can be used as an item, object, or even flattened-fields.
     ///
-    /// If an optional item or object is wanted, use `Option<Ignore>`.
+    /// When deriving `parse2` traits, and a field is absent in a particular netstatus variety,
+    /// use `ns_type!` with [`NotPresent`], rather than `Ignored`.
     ///
     /// Not useable as a (positional) argument, because when the document is
     /// output we wouldn't know what to emit.
@@ -256,19 +295,37 @@ mod ignored_impl {
     #[allow(clippy::exhaustive_structs)]
     pub struct Ignored;
 
-    /// "Argument" in a netdoc item keyword line, that isn't actually there
-    ///
-    /// Used as a standin for a missing argument.
-    //
-    // TODO we'll need to implement ItemArgument, for encoding, too.
-    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
-    #[allow(clippy::exhaustive_structs)]
-    pub struct ArgumentNotPresent;
+    /// XXXX remove this alias
+    pub use NotPresent as ArgumentNotPresent;
+
+    #[cfg(feature = "parse2")]
+    impl ItemSetMethods for ItemSetSelector<NotPresent> {
+        type Each = Ignored;
+        type Field = NotPresent;
+        fn can_accumulate(self, _acc: &Option<NotPresent>) -> Result<(), EP> {
+            Ok(())
+        }
+        fn accumulate(self, _acc: &mut Option<NotPresent>, _item: Ignored) -> Result<(), EP> {
+            Ok(())
+        }
+        fn finish(self, _acc: Option<NotPresent>, _: &'static str) -> Result<NotPresent, EP> {
+            Ok(NotPresent)
+        }
+    }
 
     #[cfg(feature = "parse2")]
     impl ItemArgumentParseable for ArgumentNotPresent {
         fn from_args(_: &mut ArgumentStream) -> Result<ArgumentNotPresent, ArgumentError> {
             Ok(ArgumentNotPresent)
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ObjectSetMethods for ObjectSetSelector<NotPresent> {
+        type Field = NotPresent;
+        type Each = Void;
+        fn resolve_option(self, _found: Option<Void>) -> Result<NotPresent, EP> {
+            Ok(NotPresent)
         }
     }
 
@@ -286,6 +343,15 @@ mod ignored_impl {
             Ok(())
         }
         fn from_bytes(_input: &[u8]) -> Result<Self, EP> {
+            Ok(Ignored)
+        }
+    }
+
+    #[cfg(feature = "parse2")]
+    impl ObjectSetMethods for ObjectSetSelector<Ignored> {
+        type Field = Ignored;
+        type Each = Ignored;
+        fn resolve_option(self, _found: Option<Ignored>) -> Result<Ignored, EP> {
             Ok(Ignored)
         }
     }
