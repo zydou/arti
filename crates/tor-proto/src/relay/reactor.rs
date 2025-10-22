@@ -14,16 +14,6 @@
 //!     backward direction (from the exit to the client), and by packaging
 //!     and sending application stream data towards the client
 //!
-//! > Note: the `BackwardReactor` is also the component that handles [`RelayCtrlMsg`]s
-//! > and [`RelayCtrlCmd`]s. This is okay for now, but if we ever add a new control message type
-//! > that needs to be handled by `ForwardReactor` (or that needs information from `ForwardReactor`),
-//! > we will need to rethink the control message handling
-//! > (depending on what that redesign entails, we might want to replace the mpsc control
-//! > channels with broadcast channels, or simply have `BackwardReactor` relay control commands
-//! > to the `ForwardReactor`).
-//!
-//! > But we can cross that bridge when we come to it.
-//!
 //! The read and write ends of the inbound and outbound Tor channels are "split",
 //! such that each reactor holds an `input` stream (for reading)
 //! and a `chan_sender` sink (for writing):
@@ -74,19 +64,20 @@
 mod backward;
 mod forward;
 
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
-use futures::FutureExt as _;
 use futures::channel::mpsc;
+use futures::{FutureExt as _, StreamExt as _, select_biased};
 use postage::broadcast;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use tor_cell::chancell::CircId;
 use tor_cell::relaycell::RelayCellDecoder;
+use tor_error::internal;
 use tor_linkspec::HasRelayIds;
 use tor_memquota::mq_queue::{self, MpscSpec};
 
-use crate::Result;
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
@@ -95,6 +86,7 @@ use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
 use crate::relay::channel_provider::ChannelProvider;
+use crate::util::err::ReactorError;
 
 use backward::BackwardReactor;
 use forward::ForwardReactor;
@@ -136,9 +128,24 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// Used for logging;
     unique_id: UniqId,
     /// The reactor for handling the forward direction (client to exit).
-    forward: ForwardReactor<T>,
+    ///
+    /// Optional so we can move it out of self in run().
+    forward: Option<ForwardReactor<T>>,
     /// The reactor for handling the backward direction (exit to client).
-    backward: BackwardReactor,
+    ///
+    /// Optional so we can move it out of self in run().
+    backward: Option<BackwardReactor>,
+    /// Receiver for control messages for this reactor, sent by reactor handle objects.
+    control: mpsc::UnboundedReceiver<RelayCtrlMsg>,
+    /// Receiver for command messages for this reactor, sent by reactor handle objects.
+    ///
+    /// This MPSC channel is polled in [`run`](Self::run).
+    ///
+    /// NOTE: this is a separate channel from `control`, because some messages
+    /// have higher priority and need to be handled even if the `chan_sender` is not
+    /// ready (whereas `control` messages are not read until the `chan_sender` sink
+    /// is ready to accept cells).
+    command: mpsc::UnboundedReceiver<RelayCtrlCmd>,
     /// A sender that is used to alert the [`ForwardReactor`] and [`BackwardReactor`]
     /// when this reactor is finally dropped.
     ///
@@ -146,8 +153,6 @@ pub(crate) struct RelayReactor<T: HasRelayIds> {
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: broadcast::Sender<void::Void>,
-    // TODO(relay): consider moving control message handling
-    // from BackwardReactor to here
 }
 
 /// MPSC queue for inbound data on its way from channel to circuit, sender
@@ -193,6 +198,8 @@ impl<T: HasRelayIds> RelayReactor<T> {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
         let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
         let (cell_tx, cell_rx) = mpsc::unbounded();
+        let (control_tx, control_rx) = mpsc::unbounded();
+        let (command_tx, command_rx) = mpsc::unbounded();
 
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
         let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
@@ -209,7 +216,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_rx.clone(),
         );
 
-        let (backward, control, command) = BackwardReactor::new(
+        let backward = BackwardReactor::new(
             channel,
             circ_id,
             unique_id,
@@ -223,15 +230,17 @@ impl<T: HasRelayIds> RelayReactor<T> {
         );
 
         let handle = RelayReactorHandle {
-            control,
-            command,
+            control: control_tx,
+            command: command_tx,
             reactor_closed_rx,
         };
 
         let reactor = RelayReactor {
             unique_id,
-            forward,
-            backward,
+            forward: Some(forward),
+            backward: Some(backward),
+            control: control_rx,
+            command: command_rx,
             reactor_closed_tx,
         };
 
@@ -243,25 +252,89 @@ impl<T: HasRelayIds> RelayReactor<T> {
     ///
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
-    pub(crate) async fn run(mut self) -> Result<()> {
-        let Self {
-            forward,
-            backward,
-            unique_id,
-            reactor_closed_tx,
-        } = self;
-
+    pub(crate) async fn run(mut self) -> StdResult<(), ReactorError> {
+        let unique_id = self.unique_id;
         debug!(
             circ_id = %unique_id,
             "Running relay circuit reactor",
         );
 
-        // If either of these completes, this function returns,
-        // dropping reactor_closed_tx, which will, in turn,
-        // cause the remaining reactor, if there is one, to shut down too
-        futures::select! {
-            res = forward.run().fuse() => res,
-            res = backward.run().fuse() => res,
+        let res = self.run_inner().await;
+
+        debug!(
+            circ_id = %unique_id,
+            "Relay circuit reactor shutting down",
+        );
+
+        res
+    }
+
+    /// Helper for [`run`](Self::run).
+    pub(crate) async fn run_inner(mut self) -> StdResult<(), ReactorError> {
+        let (forward, backward) = (|| Some((self.forward.take()?, self.backward.take()?)))()
+            .expect("relay reactor spawned twice?!");
+
+        let mut forward = Box::pin(forward.run()).fuse();
+        let mut backward = Box::pin(backward.run()).fuse();
+        loop {
+            // If either of these completes, this function returns,
+            // dropping reactor_closed_tx, which will, in turn,
+            // cause the remaining reactor, if there is one, to shut down too
+            select_biased! {
+                res = self.command.next() => {
+                    let Some(cmd) = res else {
+                        trace!(
+                            circ_id = %self.unique_id,
+                            reason = "command channel drop",
+                            "reactor shutdown",
+                        );
+
+                        return Err(ReactorError::Shutdown);
+                    };
+
+                    self.handle_command(&cmd)?;
+                },
+                res = self.control.next() => {
+                    let Some(msg) = res else {
+                        trace!(
+                            circ_id = %self.unique_id,
+                            reason = "control channel drop",
+                            "reactor shutdown",
+                        );
+
+                        return Err(ReactorError::Shutdown);
+                    };
+
+                    self.handle_control(&msg)?;
+                },
+                // No need to log the error here, because it was already logged
+                // by the reactor that shut down
+                res = forward => return Ok(res?),
+                res = backward => return Ok(res?),
+            }
         }
+    }
+
+    /// Handle a [`RelayCtrlCmd`].
+    fn handle_command(&self, cmd: &RelayCtrlCmd) -> StdResult<(), ReactorError> {
+        match cmd {
+            RelayCtrlCmd::Shutdown => self.handle_shutdown(),
+        }
+    }
+
+    /// Handle a [`RelayCtrlMsg`].
+    #[allow(clippy::unnecessary_wraps)]
+    fn handle_control(&self, cmd: &RelayCtrlMsg) -> StdResult<(), ReactorError> {
+        Err(internal!("not implemented: {cmd:?}").into())
+    }
+
+    /// Handle a shutdown request.
+    fn handle_shutdown(&self) -> StdResult<(), ReactorError> {
+        trace!(
+            tunnel_id = %self.unique_id,
+            "reactor shutdown due to explicit request",
+        );
+
+        Err(ReactorError::Shutdown)
     }
 }
