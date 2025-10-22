@@ -589,6 +589,7 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(default))]`
     ///    `#[deftly(netdoc(single_arg))]`
     ///    `#[deftly(netdoc(with = "MODULE"))]`
+    ///    `#[deftly(netdoc(flatten))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
     // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
@@ -611,6 +612,7 @@ define_derive_deftly! {
     ${define F_ITEM_SET_SELECTOR {
         ItemSetSelector::<$F_EFFECTIVE_TYPE>::default()
     }}
+    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
 
     // NOTE! These keyword defines are simpler than the ones for NetdocParseable.
     // Care must be taken if they are deduplicated as noted above.
@@ -626,9 +628,14 @@ define_derive_deftly! {
     ///
     /// Used for [`${concat $P::NetdocParseableFields::Accumulator}`].
     #[derive(Default, Debug)]
-    $tvis struct $<$tname NetdocParseAccumulator><$tdefgens> { $(
+    $tvis struct $<$tname NetdocParseAccumulator><$tdefgens> { $( ${select1
+      F_FLATTEN {
+        $fname: <$ftype as $P::NetdocParseableFields>::Accumulator,
+      }
+      else {
         $fname: Option<$F_EFFECTIVE_TYPE>,
-    ) }
+      }
+    } ) }
 
     impl<$tgens> $P::NetdocParseableFields for $ttype {
         type Accumulator = $<$ttype NetdocParseAccumulator>;
@@ -641,7 +648,12 @@ define_derive_deftly! {
             use $P::*;
 
           ${for fields {
+            ${when not(F_FLATTEN)}
             kw == $F_KEYWORD ||
+          }}
+          ${for fields {
+            ${when F_FLATTEN}
+            <$ftype as NetdocParseableFields>::is_item_keyword(kw) ||
           }}
             false
         }
@@ -655,8 +667,11 @@ define_derive_deftly! {
             #[allow(unused_imports)] // false positives in some situations
             use $P::*;
 
+            #[allow(unused_variables)] // If there are no fields, this is unused
+            let kw = item.keyword();
           $(
-            if item.keyword() == $F_KEYWORD {
+            ${when not(F_FLATTEN)}
+            if kw == $F_KEYWORD {
                 let selector = $F_ITEM_SET_SELECTOR;
               ${if fmeta(netdoc(with)) {
                 let item = ${fmeta(netdoc(with)) as path}
@@ -673,6 +688,12 @@ define_derive_deftly! {
                 selector.accumulate(&mut acc.$fname, item)
             } else
           )
+          $(
+            ${when F_FLATTEN}
+            if <$ftype as NetdocParseableFields>::is_item_keyword(kw) {
+                <$ftype as NetdocParseableFields>::accumulate_item(&mut acc.$fname, item)
+            } else
+          )
             {
                 panic!("accumulate_item called though is_intro_item_keyword returns false");
             }
@@ -686,10 +707,15 @@ define_derive_deftly! {
             use $P::*;
 
           $(
+            ${when not(F_FLATTEN)}
             let $fpatname = $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
           ${if fmeta(netdoc(default)) {
             let $fpatname = Option::unwrap_or_default($fpatname);
           }}
+          )
+          $(
+            ${when F_FLATTEN}
+            let $fpatname = <$ftype as NetdocParseableFields>::finish(acc.$fname)?;
           )
             Ok($vpat)
         }
