@@ -54,6 +54,7 @@ pub(crate) mod times {
             let t;
             (t, *args) = (|| {
                 let whole_line_len = args.whole_line_len();
+                let options = args.parse_options();
                 let args = args.clone().into_remaining();
                 let spc2 = args
                     .match_indices(WS)
@@ -63,7 +64,7 @@ pub(crate) mod times {
                 let (t, rest) = args.split_at(spc2);
                 let t: crate::types::misc::Iso8601TimeSp =
                     t.parse().map_err(|_| ArgumentError::Invalid)?;
-                Ok::<_, AE>((t, ArgumentStream::new(rest, whole_line_len)))
+                Ok::<_, AE>((t, ArgumentStream::new(rest, whole_line_len, options)))
             })()?;
             Ok(t)
         }

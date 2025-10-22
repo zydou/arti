@@ -136,12 +136,26 @@ pub use derive::netdoc_parseable_derive_debug;
 
 //---------- input ----------
 
+/// Options for parsing
+///
+/// Specific document and type parsing methods may use these parameters
+/// to control their parsing behaviour at run-time.
+#[derive(Default, Debug, Clone)]
+#[allow(clippy::manual_non_exhaustive)]
+pub struct ParseOptions {
+    // Like `#[non_exhaustive]`, but doesn't prevent use of struct display syntax with `..`
+    #[doc(hidden)]
+    _private_non_exhaustive: (),
+}
+
 /// Input to a network document top-level parsing operation
 pub struct ParseInput<'s> {
     /// The actual document text
     input: &'s str,
     /// Filename (for error reporting)
     file: &'s str,
+    /// Parsing options
+    options: ParseOptions,
 }
 
 impl<'s> ParseInput<'s> {
@@ -150,6 +164,7 @@ impl<'s> ParseInput<'s> {
         ParseInput {
             input,
             file,
+            options: ParseOptions::default(),
         }
     }
 }
