@@ -535,7 +535,7 @@ where
         Some(ProxyProtocols::Http1) => {
             cfg_if::cfg_if! {
                 if #[cfg(feature="http-connect")] {
-                    unimplemented!()
+                    http_connect::handle_http_conn(context, stream, isolation_info).await
                 } else {
                     write_all_and_close(&mut stream, socks::WRONG_PROTOCOL_PAYLOAD).await?;
                     Ok(())

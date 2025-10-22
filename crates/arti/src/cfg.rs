@@ -123,6 +123,8 @@ macro_rules! resolve_listen_port {
 #[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
 pub struct ProxyConfig {
     /// Addresses to listen on for incoming SOCKS connections.
+    //
+    // TODO: Once http-connect is non-experimental, we should rename this option in a backward-compatible way.
     #[builder(field(build = r#"#[allow(deprecated)]
                    // We use this deprecated macro to instantiate the legacy socks_port option.
                    { resolve_listen_port!(self, socks, 9150) }

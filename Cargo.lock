@@ -213,9 +213,11 @@ dependencies = [
  "fs-mistrust",
  "futures",
  "hickory-proto",
+ "http",
  "humantime",
  "humantime-serde",
  "hyper",
+ "hyper-futures",
  "itertools 0.14.0",
  "libc",
  "metrics-exporter-prometheus",
@@ -1762,8 +1764,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "357422a457ccb850dc8f1c1680e0670079560feaad6c2e247e3f345c4fab8a3f"
 dependencies = [
  "heck",
- "indexmap 1.9.3",
- "itertools 0.13.0",
+ "indexmap 2.11.4",
+ "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
@@ -1780,8 +1782,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd5f2b7218a51c827a11d22d1439b598121fac94bf9b99452e4afffe512d78c9"
 dependencies = [
  "heck",
- "indexmap 1.9.3",
- "itertools 0.13.0",
+ "indexmap 2.11.4",
+ "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
@@ -2936,6 +2938,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-futures"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68edd118b443d56755ad322f08739a17d933eebdac7b3ef58b1f445e3888053"
+dependencies = [
+ "futures",
+ "hyper",
+ "pin-project",
+]
+
+[[package]]
 name = "hyper-timeout"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3179,7 +3192,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2285ddfe3054097ef4b2fe909ef8c3bcd1ea52a8f0d274416caebeef39f04a65"
 dependencies = [
  "io-lifetimes",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4518,7 +4531,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9120690fafc389a67ba3803df527d0ec9cbbc9cc45e4cc20b332996dfb672425"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.106",
@@ -5061,7 +5074,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
