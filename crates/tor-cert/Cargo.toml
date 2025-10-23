@@ -25,7 +25,7 @@ full = [
     "x509",
     "tor-error/full",
 ]
-x509 = ["ecdsa", "p256", "pem", "rand", "rsa", "x509-cert"]
+x509 = ["ecdsa", "p256", "pem", "rand", "rsa", "tor-llcrypto/rng-compat", "x509-cert"]
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
