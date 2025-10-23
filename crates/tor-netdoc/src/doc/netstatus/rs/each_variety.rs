@@ -128,7 +128,7 @@ pub struct RouterStatus {
         deftly(netdoc(keyword = "s")),
         deftly(netdoc(with = "VarietyRelayFlagsParser")),
     )]
-    pub flags: RelayFlags,
+    pub flags: DocRelayFlags,
 
     /// `v` --- Relay's Tor software version
     ///

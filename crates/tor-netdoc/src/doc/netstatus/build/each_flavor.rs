@@ -411,7 +411,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::doc::netstatus::RelayFlags;
+    use crate::types::relay_flags::RelayFlags;
 
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};

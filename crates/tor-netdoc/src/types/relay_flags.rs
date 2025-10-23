@@ -9,6 +9,17 @@ use tor_error::internal;
 /// Raw bits value for [`RelayFlags`]
 pub type RelayFlagsBits = u16;
 
+/// Router flags (aka relay flags), including, maybe, unknown ones
+#[derive(Debug, Clone, derive_more::Deref)]
+#[non_exhaustive]
+pub struct DocRelayFlags {
+    /// Known flags
+    ///
+    /// Invariant: contains no unknown set bits.
+    #[deref]
+    pub known: RelayFlags,
+}
+
 /// Flags that are implied by existence of a relay in a consensus.
 pub const RELAY_FLAGS_CONSENSUS_IMPLIED: RelayFlags = RelayFlags::RUNNING.union(RelayFlags::VALID);
 /// Flags that are implied by existence of a relay in a consensus and not even stated there.
@@ -41,6 +52,8 @@ bitflags! {
     /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
     /// different documents.  Use an appropriate parameterised [`RelayFlagsParser`],
     /// in `#[deftly(netdoc(with))]`.
+    ///
+    /// To also maybe handle unknown flags, use [`DocRelayFlags`].
     ///
     /// TODO SPEC: Make the terminology the same everywhere.
     #[derive(Clone, Copy, Debug)]
@@ -165,6 +178,14 @@ relay_flags_keywords! {
     V2Dir
 }
 
+impl Eq for DocRelayFlags {}
+impl PartialEq for DocRelayFlags {
+    fn eq(&self, other: &DocRelayFlags) -> bool {
+        let DocRelayFlags { known } = self;
+        known.bits() == other.known.bits()
+    }
+}
+
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
 /// `IMPLIED` lists flags that should be treated as being present when parsing,
@@ -177,7 +198,7 @@ relay_flags_keywords! {
 #[derive(Debug, Clone)]
 pub struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits> {
     /// Flags so far, including the implied ones
-    flags: RelayFlags,
+    flags: DocRelayFlags,
 
     /// The previous argument, if any
     ///
@@ -203,11 +224,13 @@ impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
     #[allow(clippy::new_without_default)] // new() is going to take an argument in a moment
     pub fn new() -> Self {
         // These flags are implicit.
-        let flags: RelayFlags = const {
+        let known: RelayFlags = const {
             RelayFlags::from_bits(IMPLIED | IMPLICIT).expect("unknown bits in IMPLIED / IMPLICIT")
         };
         RelayFlagsParser {
-            flags,
+            flags: DocRelayFlags {
+                known,
+            },
             prev: None,
         }
     }
@@ -220,12 +243,12 @@ impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
             }
         }
         let fl = RelayFlags::from_str_one(arg).unwrap_or_else(|()| RelayFlags::empty());
-        self.flags |= fl;
+        self.flags.known |= fl;
         self.prev = Some(arg);
         Ok(())
     }
     /// Finish parsing relay flags
-    pub fn finish(self) -> RelayFlags {
+    pub fn finish(self) -> DocRelayFlags {
         self.flags
     }
 }
@@ -239,7 +262,7 @@ mod parse_impl {
 
     impl RelayFlags {
         /// Parse a relay-flags entry from an "s" line.
-        pub(crate) fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<RelayFlags> {
+        pub(crate) fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<DocRelayFlags> {
             if item.kwd() != NetstatusKwd::RS_S {
                 return Err(
                     Error::from(internal!("Wrong keyword {:?} for S line", item.kwd()))
@@ -274,7 +297,7 @@ mod parse2_impl {
     {
         /// Parse relay flags
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
-        pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<RelayFlags, EP> {
+        pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<DocRelayFlags, EP> {
             item.check_no_object()?;
             let mut flags = Self::new();
             for arg in item.args_copy() {
