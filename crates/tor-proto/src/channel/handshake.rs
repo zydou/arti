@@ -27,10 +27,7 @@ use digest::Digest;
 use tracing::{debug, instrument, trace};
 
 #[cfg(feature = "relay")]
-use crate::relay::channel::{
-    RelayIdentities,
-    handshake::{ChannelAuthenticationData, ChannelAuthenticationDataBuilder},
-};
+use crate::relay::channel::{RelayIdentities, handshake::ChannelAuthenticationData};
 
 /// A list of the link protocols that we support.
 pub(crate) static LINK_PROTOCOLS: &[u16] = &[4, 5];
@@ -675,22 +672,42 @@ impl<
                     // Depending on if we are initiator or responder, we flip the identities in the
                     // authentication challenge. See tor-spec.
                     let (cid, sid, cid_ed, sid_ed) = if self.channel_type.is_initiator() {
-                        (identities.rsa_id, rsa_id, &identities.ed_id, identity_key)
+                        (
+                            ll::d::Sha256::digest(&identities.cert_id_x509_rsa).into(),
+                            (*rsa_cert.digest()),
+                            &identities.ed_id,
+                            identity_key,
+                        )
                     } else {
-                        (rsa_id, identities.rsa_id, identity_key, &identities.ed_id)
+                        (
+                            (*rsa_cert.digest()),
+                            ll::d::Sha256::digest(&identities.cert_id_x509_rsa).into(),
+                            identity_key,
+                            &identities.ed_id,
+                        )
                     };
+                    let link_auth = *crate::relay::channel::handshake::LINK_AUTH
+                        .iter()
+                        .filter(|m| auth_challenge_cell.methods().contains(m))
+                        .max()
+                        .ok_or(Error::BadCellAuth)?;
 
-                    let auth_data = ChannelAuthenticationDataBuilder::default()
-                        .set_link_auth(&auth_challenge_cell)?
-                        .set_initiator_identity(&cid, cid_ed)
-                        .set_responder_identity(&sid, sid_ed)
-                        .clog(self.framed_tls.codec_mut().get_clog_digest()?)
-                        .slog(self.framed_tls.codec_mut().get_slog_digest()?)
-                        .scert(peer_cert_sha256.try_into().expect("Peer cert not 32 bytes"))
-                        .build()
-                        .map_err(|_| {
-                            Error::HandshakeProto("Malformed authentication data".into())
-                        })?;
+                    let auth_data = ChannelAuthenticationData {
+                        link_auth,
+                        cid,
+                        sid,
+                        cid_ed: cid_ed
+                            .as_bytes()
+                            .try_into()
+                            .expect("ed25519 had an unexpected size"),
+                        sid_ed: sid_ed
+                            .as_bytes()
+                            .try_into()
+                            .expect("ed25519 had an unexpected size"),
+                        clog: self.framed_tls.codec_mut().get_clog_digest()?,
+                        slog: self.framed_tls.codec_mut().get_slog_digest()?,
+                        scert: peer_cert_sha256.try_into().expect("Peer cert not 32 bytes"),
+                    };
                     Some(auth_data)
                 }
                 _ => None,

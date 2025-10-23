@@ -36,6 +36,11 @@ impl RsaCrosscert {
         std::time::SystemTime::UNIX_EPOCH + d
     }
 
+    /// Return a reference to the digest.
+    pub fn digest(&self) -> &[u8; 32] {
+        &self.digest
+    }
+
     /// Return true if the subject key in this certificate matches `other`
     pub fn subject_key_matches(&self, other: &ll::pk::ed25519::Ed25519Identity) -> bool {
         other == &self.subject_key

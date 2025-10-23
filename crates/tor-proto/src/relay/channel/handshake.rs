@@ -1,16 +1,12 @@
 //! Implementations for the relay channel handshake
 
-use derive_builder::Builder;
-use digest::Digest;
 use futures::io::{AsyncRead, AsyncWrite};
 use rand::Rng;
 use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
 
 use tor_cell::chancell::msg;
-use tor_llcrypto as ll;
-use tor_llcrypto::pk::ed25519::{Ed25519Identity, Ed25519SigningKey};
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -26,7 +22,7 @@ use crate::{Error, Result};
 // TODO(relay): We should probably get those values from protover crate or some other
 // crate that have all "network parameters" we support?
 /// A list of link authentication that we support (LinkAuth).
-static LINK_AUTH: &[u16] = &[3];
+pub(crate) static LINK_AUTH: &[u16] = &[3];
 
 /// A relay channel handshake as the initiator.
 pub struct RelayInitiatorHandshake<
@@ -145,73 +141,24 @@ impl<
 
 /// Channel authentication data. This is only relevant for a Relay to Relay channel which are
 /// authenticated using this buffet of bytes.
-#[derive(Builder)]
+#[derive(Debug)]
 pub(crate) struct ChannelAuthenticationData {
     /// Authentication method to use.
-    #[builder(setter(custom))]
-    link_auth: u16,
+    pub(crate) link_auth: u16,
     /// SHA256 digest of the initiator KP_relayid_rsa.
-    #[builder(setter(custom))]
-    cid: [u8; 32],
+    pub(crate) cid: [u8; 32],
     /// SHA256 digest of the responder KP_relayid_rsa.
-    #[builder(setter(custom))]
-    sid: [u8; 32],
+    pub(crate) sid: [u8; 32],
     /// The initiator KP_relayid_ed.
-    #[builder(setter(custom))]
-    cid_ed: [u8; 32],
+    pub(crate) cid_ed: [u8; 32],
     /// The responder KP_relayid_ed.
-    #[builder(setter(custom))]
-    sid_ed: [u8; 32],
+    pub(crate) sid_ed: [u8; 32],
     /// Initiator log SHA256 digest.
-    clog: [u8; 32],
+    pub(crate) clog: [u8; 32],
     /// Responder log SHA256 digest.
-    slog: [u8; 32],
+    pub(crate) slog: [u8; 32],
     /// SHA256 of responder's TLS certificate.
-    scert: [u8; 32],
-}
-
-impl ChannelAuthenticationDataBuilder {
-    /// Custom setter for the link auth version.
-    pub(crate) fn set_link_auth(
-        &mut self,
-        auth_challenge_cell: &msg::AuthChallenge,
-    ) -> Result<&mut Self> {
-        let link_auth = *LINK_AUTH
-            .iter()
-            .filter(|m| auth_challenge_cell.methods().contains(m))
-            .max()
-            .ok_or(Error::BadCellAuth)?;
-        self.link_auth = Some(link_auth);
-        Ok(self)
-    }
-
-    /// Set the Initiator identity keys.
-    // TODO(relay): rsa should be the DER bytes of the cert.
-    pub(crate) fn set_initiator_identity(
-        &mut self,
-        rsa: &RsaIdentity,
-        ed: &Ed25519Identity,
-    ) -> &mut Self {
-        self.cid = Some(ll::d::Sha256::digest(rsa.as_bytes()).into());
-        let mut cid_ed: [u8; 32] = [0; 32];
-        cid_ed.copy_from_slice(ed.as_bytes());
-        self.cid_ed = Some(cid_ed);
-        self
-    }
-
-    /// Set the Responder identity keys.
-    // TODO(relay): rsa should be the DER bytes of the cert.
-    pub(crate) fn set_responder_identity(
-        &mut self,
-        rsa: &RsaIdentity,
-        ed: &Ed25519Identity,
-    ) -> &mut Self {
-        self.sid = Some(ll::d::Sha256::digest(rsa.as_bytes()).into());
-        let mut sid_ed: [u8; 32] = [0; 32];
-        sid_ed.copy_from_slice(ed.as_bytes());
-        self.sid_ed = Some(sid_ed);
-        self
-    }
+    pub(crate) scert: [u8; 32],
 }
 
 #[expect(unused)] // TODO(relay). remove
