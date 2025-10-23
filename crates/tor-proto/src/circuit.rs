@@ -2,6 +2,7 @@
 //!
 //! This code is shared between the client and relay implementations.
 
+pub(crate) mod cell_sender;
 pub(crate) mod celltypes;
 pub(crate) mod circhop;
 pub(crate) mod unique_id;
