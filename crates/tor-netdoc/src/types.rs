@@ -13,7 +13,7 @@ pub(crate) mod misc;
 pub mod policy;
 pub mod version;
 
-pub use misc::{ArgumentNotPresent, Nickname};
+pub use misc::{Nickname, NotPresent};
 
 pub use misc::B64;
 pub use misc::{Base64Fingerprint, Fingerprint, Ignored};

@@ -14,6 +14,7 @@
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
 use super::*;
+use crate::types::{Ignored, NotPresent};
 use anyhow::Context as _;
 use testresult::TestResult;
 use tor_error::ErrorReport as _;
@@ -29,6 +30,7 @@ struct Top {
     needed: (String,),
     optional: Option<(String,)>,
     several: Vec<(String,)>,
+    not_present: NotPresent,
     #[deftly(netdoc(default))]
     defaulted: (String,),
     #[deftly(netdoc(keyword = "renamed"))]
@@ -324,6 +326,8 @@ sub4-intro
 needed N
 optional O
 several 1
+not-present oh yes it is
+not-present but it is ignored
 several 2
 defaulted D
 renamed R
@@ -529,6 +533,8 @@ struct TopMinimal {
     test_item: Option<TestItem>,
     test_item_rest: Option<TestItemRest>,
     test_item_rest_with: Option<TestItemRestWith>,
+    test_item_object_not_present: Option<TestItemObjectNotPresent>,
+    test_item_object_ignored: Option<TestItemObjectIgnored>,
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
@@ -567,6 +573,20 @@ struct TestItemRestWith {
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
 struct TestObject(String);
+
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(ItemValueParseable)]
+struct TestItemObjectNotPresent {
+    #[deftly(netdoc(object))]
+    object: NotPresent,
+}
+
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
+#[derive_deftly(ItemValueParseable)]
+struct TestItemObjectIgnored {
+    #[deftly(netdoc(object))]
+    object: Ignored,
+}
 
 /// Conversion module for `String` as Object with [`ItemValueParseable`]
 mod string_data_object {
@@ -646,6 +666,11 @@ aGVsbG8=
 -----END TEST OBJECT-----
 test-item-rest O  and  the rest
 test-item-rest-with   rest of line
+test-item-object-not-present
+test-item-object-ignored
+-----BEGIN TEST OBJECT-----
+aGVsbG8=
+-----END TEST OBJECT-----
 "#,
         &[TopMinimal {
             test_item0: TestItem0 {
@@ -661,6 +686,8 @@ test-item-rest-with   rest of line
                 rest: "and  the rest".into(),
             }),
             test_item_rest_with: Some(TestItemRestWith { rest: NeedsWith }),
+            test_item_object_not_present: Some(TestItemObjectNotPresent { object: NotPresent }),
+            test_item_object_ignored: Some(TestItemObjectIgnored { object: Ignored }),
         }],
     )?;
 
@@ -680,6 +707,14 @@ aGVsbG8=
 -----BEGIN UTF-8 STRING-----
 aGVsbG8=
 -----END WRONG LABEL-----
+"#,
+    )?;
+    t_err::<TopMinimal>(
+        r#"test-item0
+test-item-object-not-present # base64-encoded Object found where none expected
+-----BEGIN TEST OBJECT-----
+aGVsbG8=
+-----END TEST OBJECT-----
 "#,
     )?;
     t_err::<TopMinimal>(
