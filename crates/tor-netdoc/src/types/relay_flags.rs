@@ -233,3 +233,44 @@ mod parse2_impl {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_time_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    #[test]
+    fn relay_flags_keywords() {
+        // Check that the macro lists all the known flags.
+        // (If the macro has unknown flags, it won't compile.)
+        for f in RelayFlags::all().iter_keywords() {
+            assert!(
+                f.is_ok(),
+                "flag {f:?} not listed in `relay_flags_keywords!` call"
+            );
+        }
+
+        // If we assign flag values 1<<14 or 1<<15, this will need to change.
+        // It may even become impossible to test the handling of unknown flags -
+        // if all the flags are assigned, such a situation is impossible.
+        let unknown = 3 << 14;
+        itertools::assert_equal(
+            (RelayFlags::GUARD | RelayFlags::BAD_EXIT | RelayFlags::from_bits_retain(unknown))
+                .iter_keywords()
+                .map(|r| r.map_err(|f| f.bits())),
+            [Ok("BadExit"), Ok("Guard"), Err(unknown)],
+        );
+    }
+}
