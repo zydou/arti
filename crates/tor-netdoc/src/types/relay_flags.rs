@@ -6,6 +6,9 @@ use void::ResultVoidExt as _;
 
 use tor_error::internal;
 
+/// Raw bits value for [`RelayFlags`]
+pub type RelayFlagsBits = u16;
+
 bitflags! {
     /// Router status flags - a set of recognized directory flags on a single relay.
     ///
@@ -27,7 +30,7 @@ bitflags! {
     ///
     /// TODO SPEC: Make the terminology the same everywhere.
     #[derive(Clone, Copy, Debug)]
-    pub struct RelayFlags: u16 {
+    pub struct RelayFlags: RelayFlagsBits {
         /// Is this a directory authority?
         const AUTHORITY = (1<<0);
         /// Is this relay marked as a bad exit?
