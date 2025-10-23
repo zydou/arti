@@ -6,7 +6,9 @@ use void::ResultVoidExt as _;
 use tor_error::internal;
 
 bitflags! {
-    /// A set of recognized directory flags on a single relay.
+    /// Router status flags - a set of recognized directory flags on a single relay.
+    ///
+    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
     ///
     /// These flags come from a consensus directory document, and are
     /// used to describe what the authorities believe about the relay.
@@ -16,6 +18,13 @@ bitflags! {
     /// The bit values used to represent the flags have no meaning;
     /// they may change between releases of this crate.  Relying on their
     /// values may void your semver guarantees.
+    ///
+    /// Implements `FromStr`, using the netdoc keysords,
+    /// but the implementation has odd semantics:
+    ///  * Only a single flag at a time is recognised.
+    ///  * Ill-formed or unrecognised flags yield `Ok(RelayFlags::empty())`, not an error.
+    ///
+    /// TODO SPEC: Make the terminology the same everywhere.
     #[derive(Clone, Copy, Debug)]
     pub struct RelayFlags: u16 {
         /// Is this a directory authority?
