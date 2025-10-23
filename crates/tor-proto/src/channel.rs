@@ -118,6 +118,7 @@ use std::task::{Context, Poll};
 use tracing::trace;
 
 // reexport
+#[cfg(feature = "relay")]
 pub use super::relay::channel::handshake::RelayInitiatorHandshake;
 use crate::channel::unique_id::CircUniqIdContext;
 pub use handshake::ClientInitiatorHandshake;

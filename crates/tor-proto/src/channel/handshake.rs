@@ -8,11 +8,8 @@ use tor_error::internal;
 
 use crate::channel::{ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
-use crate::relay::channel::handshake::{
-    ChannelAuthenticationData, ChannelAuthenticationDataBuilder,
-};
 use crate::util::skew::ClockSkew;
-use crate::{Error, RelayIdentities, Result};
+use crate::{Error, Result};
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -28,6 +25,12 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use digest::Digest;
 
 use tracing::{debug, instrument, trace};
+
+#[cfg(feature = "relay")]
+use crate::relay::channel::{
+    RelayIdentities,
+    handshake::{ChannelAuthenticationData, ChannelAuthenticationDataBuilder},
+};
 
 /// A list of the link protocols that we support.
 pub(crate) static LINK_PROTOCOLS: &[u16] = &[4, 5];
@@ -290,6 +293,7 @@ pub struct UnverifiedChannel<
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
     /// Relay only: Our identity keys needed for authentication.
+    #[cfg(feature = "relay")]
     pub(crate) identities: Option<Arc<RelayIdentities>>,
 }
 
@@ -327,6 +331,7 @@ pub struct VerifiedChannel<
     clock_skew: ClockSkew,
     /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
     /// process because the channel needs to be verified before it is sent.
+    #[cfg(feature = "relay")]
     #[expect(unused)] // TODO(relay): Remove once used.
     auth_data: Option<ChannelAuthenticationData>,
 }
@@ -404,6 +409,7 @@ impl<
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov.clone(),
             memquota: self.memquota.clone(),
+            #[cfg(feature = "relay")]
             identities: None,
         })
     }
@@ -660,6 +666,7 @@ impl<
         // this, I suspect we will need a relay specific UnverifiedChannel and VerifiedChannel
         // which yields a Channel upon validation. Client and relay channels would share a lot of
         // code so we would need to find an elegant way to do this. Until then, it lives here.
+        #[cfg(feature = "relay")]
         let auth_data: Option<ChannelAuthenticationData>;
         #[cfg(feature = "relay")]
         {
@@ -689,10 +696,6 @@ impl<
                 _ => None,
             };
         }
-        #[cfg(not(feature = "relay"))]
-        {
-            auth_data = None;
-        }
 
         Ok(VerifiedChannel {
             channel_type: self.channel_type,
@@ -705,6 +708,7 @@ impl<
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
+            #[cfg(feature = "relay")]
             auth_data,
         })
     }
@@ -1054,6 +1058,7 @@ pub(super) mod test {
             unique_id: UniqId::new(),
             sleep_prov: runtime,
             memquota: fake_mq(),
+            #[cfg(feature = "relay")]
             identities: None,
         }
     }
@@ -1328,6 +1333,7 @@ pub(super) mod test {
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
                 memquota: fake_mq(),
+                #[cfg(feature = "relay")]
                 auth_data: None,
             };
 
