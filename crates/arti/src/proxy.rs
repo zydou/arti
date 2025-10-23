@@ -88,19 +88,17 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// NOTE: The following documentation belongs in a spec.
 /// But for now, it's our best attempt to document the design and protocol
 /// implemented here
-/// for integrating SOCKS with our RPC system. --nickm
-///
-/// XXXX: Revise this so it is not SOCKS-specific.
+/// for integrating proxies with our RPC system. --nickm
 ///
 /// Roughly speaking:
 ///
 /// ## Key concepts
 ///
-/// A data stream is "RPC-visible" if, when it is created via SOCKS,
+/// A data stream is "RPC-visible" if, when it is created via a proxy connection,
 /// the RPC system is told about it.
 ///
 /// Every RPC-visible stream is associated with a given RPC object when it is created.
-/// (Since the RPC object is being specified in the SOCKS protocol,
+/// (Since the RPC object is being specified in the proxy protocol,
 /// it must be one with an externally visible Object ID.
 /// Such Object IDs are cryptographically unguessable and unforgeable,
 /// and are qualified with a unique identifier for their associated RPC session.)
@@ -113,7 +111,7 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 ///
 /// A client-like object is either a `TorClient` or an RPC `Session`.
 /// It knows about and it is capable of opening multiple data streams.
-/// Using it as the target object for a SOCKS connection tells Arti
+/// Using it as the target object for a proxy connection tells Arti
 /// that the resulting data stream (if any)
 /// should be built by it, and associated with its RPC session.
 ///
@@ -123,17 +121,19 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// A one-shot client is an `arti_rpcserver::stream::OneshotClient`.
 /// It is created from a client-like object, but can only be used for a single data stream.
 /// When created, it it not yet connected or trying to connect to anywhere:
-/// the act of using it as the target Object for a SOCKS connection causes
+/// the act of using it as the target Object for a proxy connection causes
 /// it to begin connecting.
 ///
 /// An application gets a `OneShotClient` by calling `arti:new_oneshot_client`
 /// on any client-like object.
 ///
-/// ## The SOCKS protocol
+/// ## The Proxy protocol
 ///
 /// See the specification for
 /// [SOCKS extended authentication](https://spec.torproject.org/socks-extensions.html#extended-auth)
-/// for full details.
+/// for full details on integrating RPC with SOCKS.
+/// For HTTP integration, see
+/// [the relevant section of prop365](https://spec.torproject.org/proposals/365-http-connect-ext.html#x-tor-rpc-target-arti-rpc-support).
 ///
 /// ### Further restrictions on Object IDs and isolation
 ///
@@ -161,14 +161,14 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// The RPC protocol could be used to watch the DataStream object,
 /// to see when it was connected.
 ///
-/// The resulting DataStream object could also be used as the target of a SOCKS connection.
-/// We would require in such a case that no isolation be provided in the SOCKS handshake,
+/// The resulting DataStream object could also be used as the target of a proxy connection.
+/// We would require in such a case that no isolation be provided in the proxy handshake,
 /// and that the target address was (e.g.) INADDR_ANY.
 ///
 /// ## Intended use cases (examples)
 ///
 /// (These examples assume that the application
-/// already knows the SOCKS port it should use.
+/// already knows the proxy port it should use.
 /// I'm leaving out the isolation strings as orthogonal.)
 ///
 /// These are **NOT** the only possible use cases;
@@ -190,12 +190,15 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// They set the username to `<torS0X>0SESSION-1`,
 /// and the password to the empty string.
 ///
+/// (Alternatively, it could use HTTP CONNECT, setting
+/// X-Tor-Rpc-Target to SESSION-1.)
+///
 /// Arti looks up the Session object via the `SESSION-1` object ID
 /// and tells it (via the ConnectWithPrefs special method)
 /// to connect to www.example.com.
 /// The session creates a new DataStream using its internal TorClient,
 /// but does not register the stream with an RPC Object ID.
-/// Arti proxies the application's SOCKS connection through this DataStream.
+/// Arti proxies the application's connection through this DataStream.
 ///
 ///
 /// ### Case 2: Creating an identifiable stream.
@@ -222,6 +225,9 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// For the username it sends `<torS0X>0STREAM-1`,
 /// and for the password it sends `xyzzy`.
 ///
+/// (Alternatively, it could use HTTP CONNECT, setting X-Tor-Isolation to xyzzy,
+/// and X-Tor-Rpc-Target to STREAM-1.)
+///
 /// Now Arti looks up the `RpcDataStream` object via `STREAM-1`,
 /// and tells it (via the ConnectWithPrefs special method)
 /// to connect to www.example.com.
@@ -229,7 +235,7 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// and to store that `DataStream` in itself.
 /// The `RpcDataStream` with Object ID `STREAM-1`
 /// is now an alias for the newly created `DataStream`.
-/// Arti proxies the application's SOCKS connection through that `DataStream`.
+/// Arti proxies the application's connection through that `DataStream`.
 ///
 #[cfg(feature = "rpc")]
 #[allow(dead_code)]
