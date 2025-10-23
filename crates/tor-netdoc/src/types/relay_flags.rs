@@ -1,6 +1,7 @@
 //! Relay flags (aka Router Status Flags), eg in network status documents
 
 use bitflags::bitflags;
+use paste::paste;
 use void::ResultVoidExt as _;
 
 use tor_error::internal;
@@ -77,26 +78,49 @@ bitflags! {
     }
 }
 
-impl std::str::FromStr for RelayFlags {
-    type Err = void::Void;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(match s {
-            "Authority" => RelayFlags::AUTHORITY,
-            "BadExit" => RelayFlags::BAD_EXIT,
-            "Exit" => RelayFlags::EXIT,
-            "Fast" => RelayFlags::FAST,
-            "Guard" => RelayFlags::GUARD,
-            "HSDir" => RelayFlags::H_S_DIR,
-            "MiddleOnly" => RelayFlags::MIDDLE_ONLY,
-            "NoEdConsensus" => RelayFlags::NO_ED_CONSENSUS,
-            "Stable" => RelayFlags::STABLE,
-            "StaleDesc" => RelayFlags::STALE_DESC,
-            "Running" => RelayFlags::RUNNING,
-            "Valid" => RelayFlags::VALID,
-            "V2Dir" => RelayFlags::V2_DIR,
-            _ => RelayFlags::empty(),
-        })
+/// Define conversions for `RelayFlags` to and from the netdoc keyword
+///
+/// The arguments are the netdoc flag keywords.
+/// Every constant in the bitlfags must be in this list, and vice versa.
+/// They are automatically recased in this macro to geet the corresponding Rust constants.
+///
+/// (Sadly we still need to list the keywords a second time, because we
+/// can't sensibly derive from the bitlfags! input.)
+///
+/// `bitflags` would let us access the flags and access their names,
+/// but it has no compile-time rename, so we would need to do run-time
+/// re-casing (from netdoc keywords in pascal case to Rust constants in shouty snake case.).
+/// We don't want to do that while parsing flags in routerstatus entries.
+///
+/// Generates the `FromStr` impl (which is weird, see [`RelayFlags`]).
+macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
+    impl std::str::FromStr for RelayFlags {
+        type Err = void::Void;
+        fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+            Ok(match s {
+              $(
+                  stringify!($keyword) => RelayFlags::[< $keyword:snake:upper >],
+              )*
+                _ => RelayFlags::empty(),
+            })
+        }
     }
+} } }
+
+relay_flags_keywords! {
+    Authority
+    BadExit
+    Exit
+    Fast
+    Guard
+    HSDir
+    MiddleOnly
+    NoEdConsensus
+    Stable
+    StaleDesc
+    Running
+    Valid
+    V2Dir
 }
 
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
