@@ -140,10 +140,22 @@ impl RpcStateSender {
         let info = ProxyInfo {
             proxies: addrs
                 .iter()
-                .map(|a| proxyinfo::Proxy {
-                    listener: proxyinfo::ProxyListener::Socks5 {
-                        tcp_address: Some(*a),
-                    },
+                .flat_map(|a| {
+                    [
+                        proxyinfo::Proxy {
+                            listener: proxyinfo::ProxyListener::Socks5 {
+                                tcp_address: Some(*a),
+                            },
+                        },
+                        // When http-connect is enabled, every SOCKS proxy is also an HTTP CONNECT
+                        // proxy.
+                        #[cfg(feature = "http-connect")]
+                        proxyinfo::Proxy {
+                            listener: proxyinfo::ProxyListener::HttpConnect {
+                                tcp_address: Some(*a),
+                            },
+                        },
+                    ]
                 })
                 .collect(),
         };

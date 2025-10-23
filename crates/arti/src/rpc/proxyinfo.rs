@@ -10,7 +10,8 @@ use super::session::ArtiRpcSession;
 #[derive(serde::Serialize, Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(super) struct Proxy {
-    /// Where the proxy is listening, and what protocol-specific options it expects.
+    /// Where the proxy is listening, what protocol it speaks,
+    /// and what protocol-specific options it expects.
     pub(super) listener: ProxyListener,
 }
 
@@ -24,6 +25,13 @@ pub(super) enum ProxyListener {
         /// The address at which we're listening for SOCKS connections.
         tcp_address: Option<SocketAddr>,
     },
+    /// An HTTP CONNECT proxy.
+    #[cfg(feature = "http-connect")]
+    #[serde(rename = "http_connect")]
+    HttpConnect {
+        /// The address at which we're listening for HTTP CONNECT connections.
+        tcp_address: Option<SocketAddr>,
+    },
 }
 
 /// A representation of the set of proxy addresses available from the RPC API.
@@ -31,8 +39,6 @@ pub(super) enum ProxyListener {
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(super) struct ProxyInfo {
     /// A list of the supported proxies.
-    ///
-    /// (So far, only SOCKS proxies are listed, but other kinds may be listed in the future.)
     pub(super) proxies: Vec<Proxy>,
 }
 
