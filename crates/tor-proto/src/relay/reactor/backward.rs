@@ -1,7 +1,8 @@
 //! A relay's view of the backward (away from the exit, towards the client) state of the circuit.
 
-use crate::channel::{Channel, ChannelSender};
+use crate::channel::Channel;
 use crate::circuit::UniqId;
+use crate::circuit::cell_sender::CircuitCellSender;
 use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
@@ -28,6 +29,7 @@ use oneshot_fused_workaround as oneshot;
 use postage::broadcast;
 use tracing::trace;
 
+use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::task::Poll;
@@ -68,7 +70,7 @@ pub(super) struct BackwardReactor {
     /// The sending end of the backward Tor channel.
     ///
     /// Delivers cells towards the client.
-    chan_sender: ChannelSender,
+    chan_sender: CircuitCellSender,
     /// The cryptographic state for this circuit for client-bound cells.
     crypto_in: Box<dyn InboundRelayLayer + Send>,
     /// Receiver for Tor stream data that need to be delivered to a Tor stream.
@@ -118,10 +120,12 @@ impl BackwardReactor {
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
+        let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
+
         Self {
             hop,
             input: None,
-            chan_sender: channel.sender(),
+            chan_sender,
             crypto_in,
             unique_id,
             circ_id,
@@ -350,7 +354,7 @@ impl BackwardReactor {
         use CircuitEvent::*;
 
         match event {
-            Stream(e) => self.handle_stream_event(e),
+            Stream(e) => self.handle_stream_event(e).await,
             Cell(cell) => self.handle_backward_cell(cell),
             ForwardShutdown => {
                 // The forward reactor has crashed, so we have to shut down.
@@ -385,7 +389,7 @@ impl BackwardReactor {
     }
 
     /// Send a RELAY cell with the specified `msg` to the client.
-    fn send_msg_to_client(
+    async fn send_msg_to_client(
         &mut self,
         streamid: Option<StreamId>,
         msg: AnyRelayMsg,
@@ -397,16 +401,18 @@ impl BackwardReactor {
 
         // Note: this future is always `Ready`, because we checked the sink for readiness
         // before polling the async streams, so await won't block.
-        self.chan_sender.start_send_unpin((cell, info))?;
+        Pin::new(&mut self.chan_sender)
+            .send_unbounded((cell, info))
+            .await?;
 
         Ok(())
     }
 
     /// Handle a [`StreamEvent`].
-    fn handle_stream_event(&mut self, event: StreamEvent) -> StdResult<(), ReactorError> {
+    async fn handle_stream_event(&mut self, event: StreamEvent) -> StdResult<(), ReactorError> {
         match event {
             StreamEvent::Closed { .. } => todo!(),
-            StreamEvent::ReadyMsg { sid, msg } => self.send_msg_to_client(Some(sid), msg, None),
+            StreamEvent::ReadyMsg { sid, msg } => self.send_msg_to_client(Some(sid), msg, None).await,
             StreamEvent::ClientMsg { .. } => todo!(),
         }
     }
