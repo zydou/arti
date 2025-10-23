@@ -1022,6 +1022,11 @@ impl AuthChallenge {
             methods: methods.into(),
         }
     }
+
+    /// Return a reference to the list of methods.
+    pub fn methods(&self) -> &[u16] {
+        &self.methods
+    }
 }
 
 impl Body for AuthChallenge {

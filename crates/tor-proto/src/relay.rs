@@ -9,6 +9,7 @@
 //!
 //! See the design notes at doc/dev/notes/relay-reactor.md
 
+pub(crate) mod channel;
 #[allow(unreachable_pub)] // TODO(relay): use in tor-chanmgr(?)
 pub mod channel_provider;
 pub(crate) mod reactor;

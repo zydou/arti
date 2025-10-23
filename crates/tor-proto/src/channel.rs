@@ -21,9 +21,9 @@
 //!    to negotiate the rest of the handshake.  This will verify
 //!    syntactic correctness of the handshake, but not its cryptographic
 //!    integrity.
-//!  * Call [handshake::UnverifiedChannel::check] on the result.  This
+//!  * Call handshake::UnverifiedChannel::check on the result.  This
 //!    finishes the cryptographic checks.
-//!  * Call [handshake::VerifiedChannel::finish] on the result. This
+//!  * Call handshake::VerifiedChannel::finish on the result. This
 //!    completes the handshake and produces an open channel and Reactor.
 //!  * Launch an asynchronous task to call the reactor's run() method.
 //!
@@ -52,7 +52,7 @@ pub const CHANNEL_BUFFER_SIZE: usize = 128;
 
 mod circmap;
 mod handler;
-mod handshake;
+pub(crate) mod handshake;
 pub mod kist;
 mod msg;
 pub mod padding;
@@ -118,8 +118,10 @@ use std::task::{Context, Poll};
 use tracing::trace;
 
 // reexport
+#[cfg(feature = "relay")]
+pub use super::relay::channel::handshake::RelayInitiatorHandshake;
 use crate::channel::unique_id::CircUniqIdContext;
-pub use handshake::{ClientInitiatorHandshake, UnverifiedChannel, VerifiedChannel};
+pub use handshake::ClientInitiatorHandshake;
 
 use kist::KistParams;
 
@@ -176,7 +178,6 @@ pub enum ChannelType {
 
 impl ChannelType {
     /// Return true if this channel type is an initiator.
-    #[expect(unused)] // TODO: Remove once used.
     pub(crate) fn is_initiator(&self) -> bool {
         matches!(self, Self::ClientInitiator | Self::RelayInitiator)
     }
@@ -967,7 +968,7 @@ impl Channel {
 /// `my_ident`, return a ChanMismatch error.
 ///
 /// This is a helper for [`Channel::check_match`] and
-/// [`UnverifiedChannel::check_internal`].
+/// UnverifiedChannel::check_internal.
 fn check_id_match_helper<T, U>(my_ident: &T, wanted_ident: &U) -> Result<()>
 where
     T: HasRelayIds + ?Sized,

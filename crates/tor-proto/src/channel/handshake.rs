@@ -6,7 +6,7 @@ use futures::stream::StreamExt;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_error::internal;
 
-use crate::channel::{ChannelType, UniqId, new_frame};
+use crate::channel::{ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -24,12 +24,13 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use digest::Digest;
 
-use super::ChannelFrame;
-
 use tracing::{debug, instrument, trace};
 
+#[cfg(feature = "relay")]
+use crate::relay::channel::{RelayIdentities, handshake::ChannelAuthenticationData};
+
 /// A list of the link protocols that we support.
-static LINK_PROTOCOLS: &[u16] = &[4, 5];
+pub(crate) static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
 /// Base trait that all handshake type must implement.
 ///
@@ -38,7 +39,7 @@ static LINK_PROTOCOLS: &[u16] = &[4, 5];
 ///
 /// It has both a recv() and send() function for the VERSIONS cell since every handshake must start
 /// with this cell to negotiate the link protocol version.
-trait ChannelBaseHandshake<T>
+pub(crate) trait ChannelBaseHandshake<T>
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
 {
@@ -114,7 +115,7 @@ where
 /// enjoy the helper functions.
 ///
 /// It requires the base handshake trait to be implement for access to the base getters.
-trait ChannelInitiatorHandshake<T>: ChannelBaseHandshake<T>
+pub(crate) trait ChannelInitiatorHandshake<T>: ChannelBaseHandshake<T>
 where
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
 {
@@ -256,34 +257,41 @@ where
 /// A client channel on which versions have been negotiated and the
 /// relay's handshake has been read, but where the certs have not
 /// been checked.
+// TODO(relay): Split this into a Client and relay version.
 pub struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Indicate what type of channel this is.
-    channel_type: ChannelType,
+    pub(crate) channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
-    sleep_prov: S,
+    pub(crate) sleep_prov: S,
     /// Memory quota account
-    memquota: ChannelAccount,
+    pub(crate) memquota: ChannelAccount,
     /// The negotiated link protocol.  Must be a member of LINK_PROTOCOLS
-    link_protocol: u16,
+    pub(crate) link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
-    framed_tls: ChannelFrame<T>,
+    pub(crate) framed_tls: ChannelFrame<T>,
     /// The certs cell that we got from the relay.
-    certs_cell: msg::Certs,
+    pub(crate) certs_cell: msg::Certs,
     /// Declared target method for this channel, if any.
-    target_method: Option<ChannelMethod>,
+    pub(crate) target_method: Option<ChannelMethod>,
     /// The netinfo cell that we got from the relay.
-    #[allow(dead_code)] // Relays will need this.
-    netinfo_cell: msg::Netinfo,
+    #[expect(unused)] // TODO(relay): Relays need this.
+    pub(crate) netinfo_cell: msg::Netinfo,
+    /// The AUTH_CHALLENGE cell that we got from the relay. Client ignore this field, only relay
+    /// care for authentication purposes.
+    pub(crate) auth_challenge_cell: Option<msg::AuthChallenge>,
     /// How much clock skew did we detect in this handshake?
     ///
     /// This value is _unauthenticated_, since we have not yet checked whether
     /// the keys in the handshake are the ones we expected.
-    clock_skew: ClockSkew,
+    pub(crate) clock_skew: ClockSkew,
     /// Logging identifier for this stream.  (Used for logging only.)
-    unique_id: UniqId,
+    pub(crate) unique_id: UniqId,
+    /// Relay only: Our identity keys needed for authentication.
+    #[cfg(feature = "relay")]
+    pub(crate) identities: Option<Arc<RelayIdentities>>,
 }
 
 /// A client channel on which versions have been negotiated,
@@ -293,6 +301,7 @@ pub struct UnverifiedChannel<
 /// This type is separate from UnverifiedChannel, since finishing the
 /// handshake requires a bunch of CPU, and you might want to do it as
 /// a separate task or after a yield.
+// TODO(relay): Split this into a Client and relay version.
 pub struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
@@ -317,6 +326,11 @@ pub struct VerifiedChannel<
     rsa_id: RsaIdentity,
     /// Authenticated clock skew for this peer.
     clock_skew: ClockSkew,
+    /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
+    /// process because the channel needs to be verified before it is sent.
+    #[cfg(feature = "relay")]
+    #[expect(unused)] // TODO(relay): Remove once used.
+    auth_data: Option<ChannelAuthenticationData>,
 }
 
 impl<
@@ -386,11 +400,14 @@ impl<
             framed_tls: self.framed_tls,
             certs_cell,
             netinfo_cell,
+            auth_challenge_cell: None,
             clock_skew,
             target_method: self.target_method.take(),
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov.clone(),
             memquota: self.memquota.clone(),
+            #[cfg(feature = "relay")]
+            identities: None,
         })
     }
 }
@@ -439,7 +456,7 @@ impl<
     /// Same as `check`, but takes the SHA256 hash of the peer certificate,
     /// since that is all we use.
     fn check_internal<U: ChanTarget + ?Sized>(
-        self,
+        mut self,
         peer: &U,
         peer_cert_sha256: &[u8],
         now: Option<SystemTime>,
@@ -640,6 +657,63 @@ impl<
         sk_tls_timeliness?;
         rsa_cert_timeliness?;
 
+        // This part is relay specific as only relay will process an AUTH_CHALLENGE message.
+        //
+        // TODO(relay). We should somehow find a way to have this to be in the relay module. For
+        // this, I suspect we will need a relay specific UnverifiedChannel and VerifiedChannel
+        // which yields a Channel upon validation. Client and relay channels would share a lot of
+        // code so we would need to find an elegant way to do this. Until then, it lives here.
+        #[cfg(feature = "relay")]
+        let auth_data: Option<ChannelAuthenticationData>;
+        #[cfg(feature = "relay")]
+        {
+            auth_data = match (self.auth_challenge_cell, self.identities) {
+                (Some(auth_challenge_cell), Some(identities)) => {
+                    // Depending on if we are initiator or responder, we flip the identities in the
+                    // authentication challenge. See tor-spec.
+                    let (cid, sid, cid_ed, sid_ed) = if self.channel_type.is_initiator() {
+                        (
+                            ll::d::Sha256::digest(&identities.cert_id_x509_rsa).into(),
+                            (*rsa_cert.digest()),
+                            &identities.ed_id,
+                            identity_key,
+                        )
+                    } else {
+                        (
+                            (*rsa_cert.digest()),
+                            ll::d::Sha256::digest(&identities.cert_id_x509_rsa).into(),
+                            identity_key,
+                            &identities.ed_id,
+                        )
+                    };
+                    let link_auth = *crate::relay::channel::handshake::LINK_AUTH
+                        .iter()
+                        .filter(|m| auth_challenge_cell.methods().contains(m))
+                        .max()
+                        .ok_or(Error::BadCellAuth)?;
+
+                    let auth_data = ChannelAuthenticationData {
+                        link_auth,
+                        cid,
+                        sid,
+                        cid_ed: cid_ed
+                            .as_bytes()
+                            .try_into()
+                            .expect("ed25519 had an unexpected size"),
+                        sid_ed: sid_ed
+                            .as_bytes()
+                            .try_into()
+                            .expect("ed25519 had an unexpected size"),
+                        clog: self.framed_tls.codec_mut().get_clog_digest()?,
+                        slog: self.framed_tls.codec_mut().get_slog_digest()?,
+                        scert: peer_cert_sha256.try_into().expect("Peer cert not 32 bytes"),
+                    };
+                    Some(auth_data)
+                }
+                _ => None,
+            };
+        }
+
         Ok(VerifiedChannel {
             channel_type: self.channel_type,
             link_protocol: self.link_protocol,
@@ -651,6 +725,8 @@ impl<
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
+            #[cfg(feature = "relay")]
+            auth_data,
         })
     }
 }
@@ -721,6 +797,11 @@ impl<
             .build()
             .expect("OwnedChanTarget builder failed");
 
+        // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
+        // true if the Netinfo address matches the address we are connected to. Canonical
+        // definition is if the address we are connected to is what we expect it to be. This only
+        // makes sense for relay channels.
+
         super::Channel::new(
             self.channel_type,
             self.link_protocol,
@@ -741,7 +822,7 @@ impl<
 ///
 /// This is unauthenticated as in not validated with the certificates. Before using it, make sure
 /// that you have authenticated the other party.
-fn unauthenticated_clock_skew(
+pub(crate) fn unauthenticated_clock_skew(
     netinfo_cell: &msg::Netinfo,
     netinfo_rcvd_at: coarsetime::Instant,
     versions_flushed_at: coarsetime::Instant,
@@ -988,11 +1069,14 @@ pub(super) mod test {
             framed_tls,
             certs_cell: certs,
             netinfo_cell,
+            auth_challenge_cell: None,
             clock_skew,
             target_method: None,
             unique_id: UniqId::new(),
             sleep_prov: runtime,
             memquota: fake_mq(),
+            #[cfg(feature = "relay")]
+            identities: None,
         }
     }
 
@@ -1266,6 +1350,8 @@ pub(super) mod test {
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
                 memquota: fake_mq(),
+                #[cfg(feature = "relay")]
+                auth_data: None,
             };
 
             let (_chan, _reactor) = ver.finish().await.unwrap();
