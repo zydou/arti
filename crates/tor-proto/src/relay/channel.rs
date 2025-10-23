@@ -6,6 +6,8 @@
 pub(crate) mod handshake;
 
 use futures::{AsyncRead, AsyncWrite};
+use std::sync::Arc;
+
 use tor_cert::{Ed25519Cert, rsa::RsaCrosscert};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
@@ -80,7 +82,7 @@ impl RelayChannelBuilder {
         self,
         tls: T,
         sleep_prov: S,
-        identities: RelayIdentities,
+        identities: Arc<RelayIdentities>,
         memquota: ChannelAccount,
     ) -> RelayInitiatorHandshake<T, S>
     where

@@ -289,7 +289,7 @@ pub struct UnverifiedChannel<
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
     /// Relay only: Our identity keys needed for authentication.
-    pub(crate) identities: Option<RelayIdentities>,
+    pub(crate) identities: Option<Arc<RelayIdentities>>,
 }
 
 /// A client channel on which versions have been negotiated,

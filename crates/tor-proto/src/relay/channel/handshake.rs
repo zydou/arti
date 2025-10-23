@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use digest::Digest;
 use futures::io::{AsyncRead, AsyncWrite};
 use rand::Rng;
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 use tracing::trace;
 
 use tor_cell::chancell::msg;
@@ -45,7 +45,7 @@ pub struct RelayInitiatorHandshake<
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
     /// Our identity keys needed for authentication.
-    identities: RelayIdentities,
+    identities: Arc<RelayIdentities>,
 }
 
 /// Implement the base channel handshake trait.
@@ -83,7 +83,7 @@ impl<
     pub(crate) fn new(
         tls: T,
         sleep_prov: S,
-        identities: RelayIdentities,
+        identities: Arc<RelayIdentities>,
         memquota: ChannelAccount,
     ) -> Self {
         Self {
