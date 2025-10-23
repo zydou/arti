@@ -92,7 +92,8 @@ bitflags! {
 /// re-casing (from netdoc keywords in pascal case to Rust constants in shouty snake case.).
 /// We don't want to do that while parsing flags in routerstatus entries.
 ///
-/// Generates the `FromStr` impl (which is weird, see [`RelayFlags`]).
+/// Generates the `FromStr` impl (which is weird, see [`RelayFlags`]),
+/// and [`RelayFlags::iter_keywords`] for encoding flags in netdocs.
 macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
     impl std::str::FromStr for RelayFlags {
         type Err = void::Void;
@@ -102,6 +103,26 @@ macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
                   stringify!($keyword) => RelayFlags::[< $keyword:snake:upper >],
               )*
                 _ => RelayFlags::empty(),
+            })
+        }
+    }
+
+    impl RelayFlags {
+        /// Report the keywords for the flags in this set
+        ///
+        /// If there are unknown bits in the flags, yields `Err` for those, once.
+        ///
+        /// The values are yielded in an arbitrary order.
+        pub fn iter_keywords(&self) -> impl Iterator<Item = Result<&'static str, RelayFlags>> {
+            self.iter().map(|f| {
+                $(
+                    if f.intersects(RelayFlags::[< $keyword:snake:upper >]) {
+                        Ok(stringify!($keyword))
+                    } else
+                )*
+                    {
+                        Err(f)
+                    }
             })
         }
     }
