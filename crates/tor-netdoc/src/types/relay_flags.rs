@@ -9,6 +9,11 @@ use tor_error::internal;
 /// Raw bits value for [`RelayFlags`]
 pub type RelayFlagsBits = u16;
 
+/// Flags that are implied by existence of a relay in a consensus.
+pub const RELAY_FLAGS_CONSENSUS_IMPLIED: RelayFlags = RelayFlags::RUNNING.union(RelayFlags::VALID);
+/// Flags that are implied by existence of a relay in a consensus and not even stated there.
+pub const RELAY_FLAGS_CONSENSUS_IMPLICIT: RelayFlags = RelayFlags::empty();
+
 bitflags! {
     /// Router status flags - a set of recognized directory flags on a single relay.
     ///
@@ -148,7 +153,15 @@ relay_flags_keywords! {
 }
 
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
-struct RelayFlagsParser<'s> {
+///
+/// `IMPLIED` lists flags that should be treated as being present when parsing,
+/// even if they aren't actually listed in the document.
+///
+/// `IMPLICIT` lists flags that should be treated as being present,
+/// and won't even be encoded.
+///
+/// (During parsing `IMPLICIT` and `IMPLIED` flags are treated the same.)
+struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits> {
     /// Flags so far, including the implied ones
     flags: RelayFlags,
 
@@ -158,12 +171,15 @@ struct RelayFlagsParser<'s> {
     prev: Option<&'s str>,
 }
 
-impl<'s> RelayFlagsParser<'s> {
+impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
+    RelayFlagsParser<'s, IMPLIED, IMPLICIT>
+{
     /// Start parsing relay flags
     fn new() -> Self {
         // These flags are implicit.
+        let flags = RelayFlags::from_bits(IMPLIED | IMPLICIT).expect("unknown bits in IMPLIED");
         RelayFlagsParser {
-            flags: RelayFlags::RUNNING | RelayFlags::VALID,
+            flags,
             prev: None,
         }
     }
@@ -202,7 +218,10 @@ mod parse_impl {
                         .at_pos(item.pos()),
                 );
             }
-            let mut flags = RelayFlagsParser::new();
+            let mut flags = RelayFlagsParser::<
+                { RELAY_FLAGS_CONSENSUS_IMPLIED.bits() },
+                { RELAY_FLAGS_CONSENSUS_IMPLICIT.bits() },
+            >::new();
 
             for s in item.args() {
                 flags
@@ -223,10 +242,14 @@ mod parse2_impl {
     use parse2::ErrorProblem as EP;
     use parse2::ItemValueParseable;
 
+    // XXXX this is wrong; omitted/implied flags vary from context to context
     impl ItemValueParseable for RelayFlags {
         fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
             item.check_no_object()?;
-            let mut flags = RelayFlagsParser::new();
+            let mut flags = RelayFlagsParser::<
+                { RELAY_FLAGS_CONSENSUS_IMPLIED.bits() },
+                { RELAY_FLAGS_CONSENSUS_IMPLICIT.bits() },
+            >::new();
             for arg in item.args_copy() {
                 flags
                     .add(arg)
