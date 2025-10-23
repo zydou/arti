@@ -79,9 +79,6 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > RelayInitiatorHandshake<T, S>
 {
-    /// Prefix to every log line.
-    const LOG_PREFIX: &'static str = "Relay Initiator Handshake";
-
     /// Constructor.
     pub(crate) fn new(
         tls: T,
@@ -118,8 +115,7 @@ impl<
             self.recv_cells_from_responder().await?;
 
         trace!(stream_id = %self.unique_id,
-            "{}: received handshake, ready to verify.",
-            Self::LOG_PREFIX,
+            "received handshake, ready to verify.",
         );
 
         // Calculate our clock skew from the timings we just got/calculated.
