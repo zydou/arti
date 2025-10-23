@@ -51,7 +51,7 @@ impl RouterStatus {
     }
     /// Return true if this routerstatus is listed with the v2dir flag.
     pub fn is_flagged_v2dir(&self) -> bool {
-        self.flags.contains(RelayFlags::V2DIR)
+        self.flags.contains(RelayFlags::V2_DIR)
     }
     /// Return true if this routerstatus is listed with the Exit flag.
     pub fn is_flagged_exit(&self) -> bool {
@@ -63,7 +63,7 @@ impl RouterStatus {
     }
     /// Return true if this routerstatus is listed with the HSDir flag.
     pub fn is_flagged_hsdir(&self) -> bool {
-        self.flags.contains(RelayFlags::HSDIR)
+        self.flags.contains(RelayFlags::H_S_DIR)
     }
     /// Return true if this routerstatus is listed with the Stable flag.
     pub fn is_flagged_stable(&self) -> bool {

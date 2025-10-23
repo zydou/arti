@@ -448,7 +448,7 @@ mod test {
             if !nb.omit_rs {
                 let f = RelayFlags::RUNNING
                     | RelayFlags::VALID
-                    | RelayFlags::V2DIR
+                    | RelayFlags::V2_DIR
                     | RelayFlags::FAST
                     | RelayFlags::STABLE;
                 nb.rs.set_flags(f | RelayFlags::GUARD);

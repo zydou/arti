@@ -189,12 +189,12 @@ where
 {
     let f = RelayFlags::RUNNING
         | RelayFlags::VALID
-        | RelayFlags::V2DIR
+        | RelayFlags::V2_DIR
         | RelayFlags::FAST
         | RelayFlags::STABLE;
     // define 4 groups of flags
     let flags = [
-        f | RelayFlags::HSDIR,
+        f | RelayFlags::H_S_DIR,
         f | RelayFlags::EXIT,
         f | RelayFlags::GUARD,
         f | RelayFlags::EXIT | RelayFlags::GUARD,

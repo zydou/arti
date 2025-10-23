@@ -459,7 +459,7 @@ mod test {
             .add_or_port("[f00f::1]:9200".parse().unwrap())
             .doc_digest([99; 32])
             .set_flags(RelayFlags::FAST)
-            .add_flags(RelayFlags::STABLE | RelayFlags::V2DIR)
+            .add_flags(RelayFlags::STABLE | RelayFlags::V2_DIR)
             .version("Arti 0.0.0".into())
             .protos("DirCache=7".parse().unwrap())
             .build_into(&mut builder)

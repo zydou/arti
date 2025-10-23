@@ -45,7 +45,7 @@ bitflags! {
         const GUARD = (1<<4);
         /// Does this relay participate on the onion service directory
         /// ring?
-        const HSDIR = (1<<5);
+        const H_S_DIR = (1<<5);
         /// Set if this relay is considered "middle only", not suitable to run
         /// as an exit or guard relay.
         ///
@@ -73,7 +73,7 @@ bitflags! {
         const VALID = (1<<11);
         /// Set if this relay supports a currently recognized version of the
         /// directory protocol.
-        const V2DIR = (1<<12);
+        const V2_DIR = (1<<12);
     }
 }
 
@@ -86,14 +86,14 @@ impl std::str::FromStr for RelayFlags {
             "Exit" => RelayFlags::EXIT,
             "Fast" => RelayFlags::FAST,
             "Guard" => RelayFlags::GUARD,
-            "HSDir" => RelayFlags::HSDIR,
+            "HSDir" => RelayFlags::H_S_DIR,
             "MiddleOnly" => RelayFlags::MIDDLE_ONLY,
             "NoEdConsensus" => RelayFlags::NO_ED_CONSENSUS,
             "Stable" => RelayFlags::STABLE,
             "StaleDesc" => RelayFlags::STALE_DESC,
             "Running" => RelayFlags::RUNNING,
             "Valid" => RelayFlags::VALID,
-            "V2Dir" => RelayFlags::V2DIR,
+            "V2Dir" => RelayFlags::V2_DIR,
             _ => RelayFlags::empty(),
         })
     }
