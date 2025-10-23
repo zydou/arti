@@ -110,7 +110,7 @@ pub fn create_legacy_rsa_id_cert<Rng: CryptoRng>(
 /// expect to get.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct TlsCertifiedKey {
+pub struct TlsKeyAndCert {
     /// A list of certificates in DER form.
     ///
     /// (This may contain more than one certificate, but for now only one certificate is used.)
@@ -135,7 +135,7 @@ pub struct TlsCertifiedKey {
 /// What lifetime do we pick for a TLS certificate, in days?
 const TLS_CERT_LIFETIME_DAYS: u32 = 30;
 
-impl TlsCertifiedKey {
+impl TlsKeyAndCert {
     /// Return the certificates as a list of DER-encoded values.
     pub fn certificates_der(&self) -> Vec<&[u8]> {
         self.certificates.iter().map(|der| der.as_ref()).collect()
@@ -247,7 +247,7 @@ impl TlsCertifiedKey {
         let sha256_digest = tor_llcrypto::d::Sha256::digest(&certificate_der).into();
         let certificates = vec![certificate_der];
 
-        Ok(TlsCertifiedKey {
+        Ok(TlsKeyAndCert {
             certificates,
             private_key,
             sha256_digest,
@@ -381,7 +381,7 @@ mod test {
     #[test]
     fn tls_cert_info() {
         let mut rng = testing_rng();
-        let certified = TlsCertifiedKey::create(
+        let certified = TlsKeyAndCert::create(
             &mut rng,
             SystemTime::now(),
             "foo.example.com",
