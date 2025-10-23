@@ -6,7 +6,7 @@ use futures::stream::StreamExt;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_error::internal;
 
-use crate::channel::{ChannelType, UniqId, new_frame};
+use crate::channel::{ChannelFrame, ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::relay::channel::handshake::{
     ChannelAuthenticationData, ChannelAuthenticationDataBuilder,
@@ -26,8 +26,6 @@ use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use digest::Digest;
-
-use super::ChannelFrame;
 
 use tracing::{debug, instrument, trace};
 
