@@ -12,11 +12,11 @@ use crate::{Error, Result};
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
 
+use super::backward::BackwardReactorCmd;
+
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
-use tor_cell::relaycell::StreamId;
-use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::{internal, trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
 
@@ -64,11 +64,19 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
     ///
     /// Delivers cells towards the exit.
     forward: Option<Forward>,
-    /// Sender for RELAY cells that need to be forwarded to the client.
+    /// Sender for RELAY cells that need to be forwarded to the client,
+    /// or otherwise handled in the BackwardReactor.
     ///
-    /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for all
+    /// Used for sending:
+    ///
+    ///    * circuit-level SENDMEs received from the client (`[BackwardReactorCmd::HandleSendme]`)
+    ///    * circuit-level SENDMEs that need to be delivered to the client
+    ///      (`[BackwardReactorCmd::SendSendme]`)
+    ///    * stream messages, i.e. messages with a non-zero stream ID (`[BackwardReactorCmd::HandleMsg]`)
+    ///
+    /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending all client-bound cells.
-    cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
+    cell_tx: mpsc::UnboundedSender<BackwardReactorCmd>,
     /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
     ///
     /// Note: all circuit reactors of a relay need to be initialized
@@ -100,7 +108,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
-        cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
+        cell_tx: mpsc::UnboundedSender<BackwardReactorCmd>,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {

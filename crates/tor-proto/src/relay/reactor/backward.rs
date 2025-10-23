@@ -18,8 +18,8 @@ use crate::client::circuit::padding::QueuedCellPaddingInfo;
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
-use tor_cell::relaycell::msg::{AnyRelayMsg, SendmeTag};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId};
+use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme, SendmeTag};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{internal, trace_report};
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
@@ -85,7 +85,7 @@ pub(super) struct BackwardReactor {
     ///   * it lets the `BackwardReactor` know if the `ForwardReactor` has shut down:
     ///     we select! on this MPSC channel in the main loop, so if the `ForwardReactor`
     ///     shuts down, we will get EOS upon calling `.next()`)
-    cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
+    cell_rx: mpsc::UnboundedReceiver<BackwardReactorCmd>,
     /// A sender for sending newly opened outgoing [`Channel`]`s to the reactor.
     ///
     /// This is passed to the [`ChannelProvider`](crate::relay::channel_provider::ChannelProvider)
@@ -119,7 +119,7 @@ impl BackwardReactor {
         unique_id: UniqId,
         crypto_in: Box<dyn InboundRelayLayer + Send>,
         settings: &HopSettings,
-        cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
+        cell_rx: mpsc::UnboundedReceiver<BackwardReactorCmd>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
@@ -287,7 +287,7 @@ impl BackwardReactor {
         //  (this resolves to a message that needs to be delivered to an application stream)
         poll_all.push(async {
             match self.cell_rx.next().await {
-                Some((sid, msg)) => CircuitEvent::Stream(StreamEvent::ClientMsg { sid, msg }),
+                Some(msg) => CircuitEvent::Forwarded(msg),
                 None => {
                     // The forward reactor has crashed, so we have to shut down.
                     CircuitEvent::ForwardShutdown
@@ -356,6 +356,7 @@ impl BackwardReactor {
         match event {
             Stream(e) => self.handle_stream_event(e).await,
             Cell(cell) => self.handle_backward_cell(cell),
+            Forwarded(msg) => todo!(),
             ForwardShutdown => {
                 // The forward reactor has crashed, so we have to shut down.
                 trace!(
@@ -413,7 +414,6 @@ impl BackwardReactor {
         match event {
             StreamEvent::Closed { .. } => todo!(),
             StreamEvent::ReadyMsg { sid, msg } => self.send_msg_to_client(Some(sid), msg, None).await,
-            StreamEvent::ClientMsg { .. } => todo!(),
         }
     }
 
@@ -430,10 +430,36 @@ enum CircuitEvent {
     Stream(StreamEvent),
     /// We received a client-bound cell that needs to be handled.
     Cell(RelayCircChanMsg),
+    /// We received a cell from the ForwardReactor that we need to handle.
+    ///
+    /// This might be
+    ///
+    ///   * a circuit-level SENDME that we have received, or
+    ///   * a circuit-level SENDME that we need to deliver to the client, or
+    ///   * a stream message that needs to be handled by our application streams
+    Forwarded(BackwardReactorCmd),
     /// The forward reactor has shut down.
     ///
     /// We need to shut down too.
     ForwardShutdown,
+}
+
+/// Instructions from the forward reactor.
+pub(super) enum BackwardReactorCmd {
+    /// Stream data received from the client
+    /// that needs to be handled by [`BackwardReactor`].
+    HandleMsg {
+        /// The ID of the stream this message is for.
+        sid: StreamId,
+        /// The message.
+        msg: UnparsedRelayMsg,
+        /// Whether the cell this message came from counts towards flow-control windows.
+        cell_counts_toward_windows: bool,
+    },
+    /// A circuit SENDME we received from the client.
+    HandleSendme(Sendme),
+    /// A circuit SENDME we need to send to the client.
+    SendSendme(Sendme),
 }
 
 /// A Tor stream-related event.
@@ -452,15 +478,6 @@ enum StreamEvent {
     },
     /// A stream has a ready message.
     ReadyMsg {
-        /// The ID of the stream to close.
-        sid: StreamId,
-        /// The message.
-        msg: AnyRelayMsg,
-    },
-    /// Received a client stream message.
-    ///
-    /// This needs to be delivered to the specified application stream.
-    ClientMsg {
         /// The ID of the stream to close.
         sid: StreamId,
         /// The message.
