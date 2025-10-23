@@ -2496,6 +2496,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures-copy"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "libc",
+ "pin-project",
+ "tokio",
+ "tor-error",
+ "tor-rtcompat",
+ "tor-rtmock",
+ "windows-sys 0.61.1",
+]
+
+[[package]]
 name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"

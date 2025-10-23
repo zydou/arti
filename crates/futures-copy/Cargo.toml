@@ -1,0 +1,29 @@
+[package]
+name = "futures-copy"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2024"
+rust-version = "1.86"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Copy data between AsyncRead and AsyncWrite, with bidirectional and flushing support"
+keywords = ["futures", "tor", "arti"]
+# We must put *something* here and this will do
+categories = ["rust-patterns", "network-programming"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+futures = "0.3.14"
+pin-project = "1"
+
+[dev-dependencies]
+tokio = { version = "1.7", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
+tor-error = { path = "../tor-error", version = "0.35.0" }
+tor-rtcompat = { version = "0.35.0", path = "../tor-rtcompat" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.35.0" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = "0.61"

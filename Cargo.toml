@@ -27,6 +27,7 @@ members = [
     "crates/tor-geoip",
     "crates/tor-rtcompat",
     "crates/tor-rtmock",
+    "crates/futures-copy",
     "crates/tor-async-utils",
     "crates/tor-config",
     "crates/tor-config-path",
