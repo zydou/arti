@@ -193,7 +193,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
             InertTorRelay::new(config, path_resolver).context("Failed to initialize the relay")?;
 
         match mainloop(&runtime, run_relay(runtime.clone(), relay))? {
-            MainloopStatus::Finished(result) => result,
+            MainloopStatus::Finished(Err(e)) => Err(e),
             MainloopStatus::CtrlC => {
                 info!("Received a ctrl-c; stopping the relay");
                 Ok(())
@@ -240,7 +240,10 @@ fn mainloop<T: Send + 'static>(
 /// Run the relay.
 ///
 /// This blocks until the relay stops.
-async fn run_relay<R: Runtime>(runtime: R, inert_relay: InertTorRelay) -> anyhow::Result<()> {
+async fn run_relay<R: Runtime>(
+    runtime: R,
+    inert_relay: InertTorRelay,
+) -> anyhow::Result<void::Void> {
     let relay = inert_relay
         .bootstrap(runtime)
         .await
