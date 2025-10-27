@@ -47,7 +47,7 @@ impl<R: Runtime> ChannelHouseKeepingTask<R> {
     }
 
     /// Start the task.
-    pub(crate) async fn start(&mut self) -> anyhow::Result<()> {
+    pub(crate) async fn start(&mut self) -> anyhow::Result<void::Void> {
         let mut next_tick_in = Self::START_TICK_TIME;
         debug!("Channel housekeeping task starting.");
         loop {

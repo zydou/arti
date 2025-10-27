@@ -207,8 +207,11 @@ impl<R: Runtime> TorRelay<R> {
         })
     }
 
-    /// Run the actual relay. This only returns if the relay is shutting down.
-    pub(crate) async fn run(&self) -> anyhow::Result<()> {
+    /// Run the actual relay.
+    ///
+    /// This only returns if something has gone wrong.
+    /// Otherwise it runs forever.
+    pub(crate) async fn run(&self) -> anyhow::Result<void::Void> {
         let mut task_handles = JoinSet::new();
 
         // Channel housekeeping task.
@@ -219,14 +222,14 @@ impl<R: Runtime> TorRelay<R> {
 
         // We block until facism is erradicated or a task ends which means the relay will shutdown
         // and facism will have one more chance.
-        task_handles
+        let void = task_handles
             .join_next()
             .await
             .context("Task set is empty")?
-            .context("Task join failed: {e}")?
-            .context("Task stopped with error: {e}")?;
+            .context("Task join failed")?
+            .context("Task stopped with error")?;
 
-        // One of the task stopped without an error. This should not happen.
-        unreachable!("Background task ended with no error");
+        // We can never get here since a `Void` cannot be constructed.
+        void::unreachable(void);
     }
 }

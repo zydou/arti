@@ -389,6 +389,7 @@ dependencies = [
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
+ "void",
 ]
 
 [[package]]
