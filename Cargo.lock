@@ -6677,6 +6677,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "lazy_static",
  "lzma-rs",
  "r2d2",
  "r2d2_sqlite",
