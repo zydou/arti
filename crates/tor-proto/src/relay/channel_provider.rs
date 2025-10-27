@@ -4,7 +4,7 @@
 
 use crate::Result;
 use crate::channel::Channel;
-use crate::tunnel::TunnelId;
+use crate::circuit::UniqId;
 
 use futures::channel::mpsc;
 
@@ -57,12 +57,12 @@ pub trait ChannelProvider {
     type BuildSpec: HasRelayIds;
 
     /// Get a channel corresponding to the identities of `target`,
-    /// for the circuit with the specified `tunnel_id`.
+    /// for the circuit with the specified `circ_id`.
     ///
     /// Returns the requested channel via the specified [`OutboundChanSender`].
     fn get_or_launch_relay(
         &self,
-        tunnel_id: TunnelId,
+        circ_id: UniqId,
         target: &Self::BuildSpec,
         tx: OutboundChanSender,
     ) -> Result<()>;
