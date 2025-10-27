@@ -18,7 +18,6 @@
 
 use std::{
     io,
-    os::fd::{AsFd, AsRawFd},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -26,8 +25,11 @@ use std::{
 use futures::{AsyncWrite, io::BufReader};
 use pin_project::pin_project;
 
+#[cfg(unix)]
+use std::os::fd::{AsFd, AsRawFd};
+
 #[cfg(windows)]
-use std::os::windows::io::AsSocket;
+use std::os::windows::io::{AsRawSocket, AsSocket};
 
 /// Propagate an EOF during a bidirectional copy.
 ///
@@ -149,12 +151,14 @@ impl<W: AsSocket> EofStrategy<W> for SocketShutdown {
         _cx: &mut Context<'_>,
         w: Pin<&mut W>,
     ) -> Poll<io::Result<()>> {
-        use windows_sys::Win32::Networking::WinSock::{SD_SEND, shutdown};
+        use windows_sys::Win32::Networking::WinSock::{SD_SEND, SOCKET, shutdown};
         let socket = w.as_socket();
-        Poll::Ready(match unsafe { shutdown(socket.as_raw_socket(), SD_SEND) } {
-            -1 => Err(io::Error::last_os_error()),
-            _ => Ok(()),
-        })
+        Poll::Ready(
+            match unsafe { shutdown(socket.as_raw_socket() as SOCKET, SD_SEND) } {
+                -1 => Err(io::Error::last_os_error()),
+                _ => Ok(()),
+            },
+        )
     }
 }
 

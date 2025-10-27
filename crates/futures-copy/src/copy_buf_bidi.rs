@@ -219,7 +219,8 @@ mod test {
     use crate::{eof, test::RWPair};
 
     use futures::{
-        io::{BufReader, Cursor},
+        AsyncBufReadExt,
+        io::{BufReader, BufWriter, Cursor},
         task::SpawnExt as _,
     };
     use tor_rtmock::{MockRuntime, io::stream_pair};
@@ -307,5 +308,109 @@ mod test {
         let big1 = big(79);
         let big2 = big(81);
         test_transfer(&big1, &big2);
+    }
+
+    #[test]
+    fn interactive_protocol() {
+        use futures::io::AsyncWriteExt as _;
+        // Test our flush behavior by relaying traffic between a pair of communicators that
+        // don't say anything until they get a message.
+
+        MockRuntime::test_with_various(async |rt| {
+            let (s1, s2) = stream_pair();
+            let (s3, s4) = stream_pair();
+
+            // Using BufWriter here means that unless we propagate the flush correctly,
+            // flushing won't happen soon enough to cause a reply.
+            let mut s1 = BufReader::new(s1);
+            let s2 = BufReader::new(BufWriter::with_capacity(1024, s2));
+            let s3 = BufReader::new(BufWriter::with_capacity(1024, s3));
+            let mut s4 = BufReader::new(s4);
+
+            // That's a lot of streams!  Here's how they all connect:
+            //
+            // Task 1 <--> s1  <-Rt-> s2 <-> Task 2 <--> s3 <-Rt-> s4 <--> Task 3
+            //
+            // In other words, s1 and s2 are automatically connected under the hood by
+            // the MockRuntime, as are s3 and s4.  Task 1 reads and writes from s1.
+            // Task 2 tests copy_buf_bidirectional by relaying between s2 and s3.
+            // And Task 3 reads and writes to s4.
+            //
+            // Thus task 1 and task 3 can only communicate with one another if
+            // task 2 (and copy_buf_bidirectional) do their job.
+
+            // Task 1:
+            // Write a number starting with 1, then read numbers and write back 1 more.
+            // Continue until you read a number >= 100.
+            let h1 = rt
+                .spawn_with_handle(async move {
+                    let mut buf = String::new();
+                    let mut num: u32 = 1;
+
+                    loop {
+                        s1.write_all(format!("{num}\n").as_bytes()).await?;
+                        s1.flush().await?;
+
+                        let written = num;
+
+                        let n_bytes_read = s1.read_line(&mut buf).await?;
+                        if n_bytes_read == 0 {
+                            break;
+                        }
+                        num = buf.trim_ascii().parse().unwrap();
+                        buf.clear();
+                        assert_eq!(num, written + 1);
+
+                        if num >= 100 {
+                            break;
+                        }
+                        num += 1;
+                    }
+
+                    s1.close().await?;
+
+                    Ok::<u32, io::Error>(num)
+                })
+                .unwrap();
+
+            // Task 2: Use copy_buf_bidirectional to relay traffic.
+            let h2 = rt
+                .spawn_with_handle(copy_buf_bidirectional(s2, s3, eof::Close, eof::Close))
+                .unwrap();
+
+            // Task 3: Forever: read a number on a line, and write back 1 more.
+            let h3 = rt
+                .spawn_with_handle(async move {
+                    let mut buf = String::new();
+                    let mut last_written = None;
+
+                    loop {
+                        let n_bytes_read = s4.read_line(&mut buf).await?;
+                        if n_bytes_read == 0 {
+                            break;
+                        }
+                        let num: u32 = buf.trim_ascii().parse().unwrap();
+                        buf.clear();
+                        if let Some(last) = last_written {
+                            assert_eq!(num, last + 1);
+                        }
+
+                        let num = num + 1;
+                        s4.write_all(format!("{num}\n").as_bytes()).await?;
+                        s4.flush().await?;
+                        last_written = Some(num);
+                    }
+                    Ok::<_, io::Error>(())
+                })
+                .unwrap();
+
+            let outcome1 = h1.await;
+            let outcome2 = h2.await;
+            let outcome3 = h3.await;
+
+            assert_eq!(outcome1.unwrap(), 100);
+            let (_, _) = outcome2.unwrap();
+            let () = outcome3.unwrap();
+        });
     }
 }
