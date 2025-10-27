@@ -41,24 +41,39 @@ type Request = hyper::Request<hyper::body::Incoming>;
 /// but empty strings are cheap enough that it isn't worth it.)
 type Body = String;
 
+/// A value used to isolate streams received via HTTP CONNECT.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct Isolation {
+    /// The value of the Proxy-Authorization header.
+    proxy_auth: Option<ProxyAuthorization>,
+    /// The legacy X-Tor-Isolation token.
+    x_tor_isolation: Option<String>,
+    /// The up-to-date Tor-Isolation token.
+    tor_isolation: Option<String>,
+}
+
 /// Constants and code for the HTTP headers we use.
 mod hdr {
     pub(super) use http::header::{CONTENT_TYPE, PROXY_AUTHORIZATION, SERVER, VIA};
 
     /// Client-to-proxy: Which IP family should we use?
-    pub(super) const X_TOR_FAMILY_PREFERENCE: &str = "X-Tor-Family-Preference";
+    pub(super) const TOR_FAMILY_PREFERENCE: &str = "Tor-Family-Preference";
 
     /// Client-To-Proxy: The ID of an RPC object to receive our request.
-    pub(super) const X_TOR_RPC_TARGET: &str = "X-Tor-RPC-Target";
+    pub(super) const TOR_RPC_TARGET: &str = "Tor-RPC-Target";
 
     /// Client-To-Proxy: An isolation token to use with our stream.
+    /// (Legacy name.)
     pub(super) const X_TOR_STREAM_ISOLATION: &str = "X-Tor-Stream-Isolation";
 
+    /// Client-To-Proxy: An isolation token to use with our stream.
+    pub(super) const TOR_STREAM_ISOLATION: &str = "Tor-Stream-Isolation";
+
     /// Proxy-to-client: A list of the capabilities that this proxy provides.
-    pub(super) const X_TOR_CAPABILITIES: &str = "X-Tor-Capabilities";
+    pub(super) const TOR_CAPABILITIES: &str = "Tor-Capabilities";
 
     /// Proxy-to-client: A machine-readable list of failure reasons.
-    pub(super) const X_TOR_REQUEST_FAILED: &str = "X-Tor-Request-Failed";
+    pub(super) const TOR_REQUEST_FAILED: &str = "Tor-Request-Failed";
 
     /// Return the unique string-valued value of the header `name`;
     /// or None if the header doesn't exist,
@@ -219,7 +234,7 @@ where
 
     let client = find_conn_target(
         context,
-        hdr::uniq_utf8(request.headers(), hdr::X_TOR_RPC_TARGET)?,
+        hdr::uniq_utf8(request.headers(), hdr::TOR_RPC_TARGET)?,
     )?;
 
     // If we reach this point, the request looks okay, so we'll try to connect.
@@ -256,7 +271,7 @@ fn set_family_preference(
     addr: &TorAddr,
     headers: &http::HeaderMap,
 ) -> Result<(), HttpConnectError> {
-    if let Some(val) = hdr::uniq_utf8(headers, hdr::X_TOR_FAMILY_PREFERENCE)? {
+    if let Some(val) = hdr::uniq_utf8(headers, hdr::TOR_FAMILY_PREFERENCE)? {
         match val.trim() {
             "ipv4-preferred" => prefs.ipv4_preferred(),
             "ipv6-preferred" => prefs.ipv6_preferred(),
@@ -286,12 +301,14 @@ fn set_isolation(
 ) -> Result<(), HttpConnectError> {
     let proxy_auth =
         hdr::uniq_utf8(headers, hdr::PROXY_AUTHORIZATION)?.map(ProxyAuthorization::from_header);
-    let tor_isolation = hdr::uniq_utf8(headers, hdr::X_TOR_STREAM_ISOLATION)?.map(str::to_owned);
+    let x_tor_isolation = hdr::uniq_utf8(headers, hdr::X_TOR_STREAM_ISOLATION)?.map(str::to_owned);
+    let tor_isolation = hdr::uniq_utf8(headers, hdr::TOR_STREAM_ISOLATION)?.map(str::to_owned);
 
-    let isolation = super::ProvidedIsolation::Http {
+    let isolation = super::ProvidedIsolation::Http(Isolation {
         proxy_auth,
+        x_tor_isolation,
         tor_isolation,
-    };
+    });
 
     let isolation = super::StreamIsolationKey(listener_isolation, isolation);
     prefs.set_isolation(isolation);
@@ -304,7 +321,7 @@ fn set_isolation(
 pub(super) enum ProxyAuthorization {
     /// The entire contents of the Proxy-Authorization header.
     Legacy(String),
-    /// The decoded value of the basic authorization, with the user set to "x-tor".
+    /// The decoded value of the basic authorization, with the user set to "tor-iso".
     Modern(Vec<u8>),
 }
 
@@ -318,7 +335,7 @@ impl ProxyAuthorization {
         } else {
             warn!(
                 "{} header in obsolete format. If you want isolation, use {}, \
-                 or {} with Basic authentication and username 'x-tor'",
+                 or {} with Basic authentication and username 'tor-iso'",
                 hdr::PROXY_AUTHORIZATION,
                 hdr::X_TOR_STREAM_ISOLATION,
                 hdr::PROXY_AUTHORIZATION
@@ -338,7 +355,7 @@ impl ProxyAuthorization {
         let value = value.trim_ascii();
         // TODO: Is this the right format, or should we allow missing padding?
         let decoded = base64ct::Base64::decode_vec(value).ok()?;
-        if decoded.starts_with(b"x-tor:") {
+        if decoded.starts_with(b"tor-iso:") {
             Some(ProxyAuthorization::Modern(decoded))
         } else {
             None
@@ -346,7 +363,7 @@ impl ProxyAuthorization {
     }
 }
 
-/// Look up the connection target given the value of an X-Tor-RPC-Target header.
+/// Look up the connection target given the value of an Tor-RPC-Target header.
 #[cfg(feature = "rpc")]
 fn find_conn_target<R: Runtime>(
     context: &ProxyContext<R>,
@@ -367,7 +384,7 @@ fn find_conn_target<R: Runtime>(
     Ok(ConnTarget::Rpc { object, context })
 }
 
-/// Look up the connection target given the value of an X-Tor-RPC-Target header
+/// Look up the connection target given the value of an Tor-RPC-Target header
 //
 // (This is the implementation when we have no RPC support.)
 #[cfg(not(feature = "rpc"))]
@@ -417,7 +434,7 @@ impl RespBldExt for ResponseBuilder {
 
 /// Add all common headers to the builder `bld`, and return a new builder.
 fn add_common_headers(mut bld: ResponseBuilder, method: &Method) -> ResponseBuilder {
-    bld = bld.header(hdr::X_TOR_CAPABILITIES, "");
+    bld = bld.header(hdr::TOR_CAPABILITIES, "");
     if let (Some(software), Some(version)) = (
         option_env!("CARGO_PKG_NAME"),
         option_env!("CARGO_PKG_VERSION"),
@@ -425,10 +442,10 @@ fn add_common_headers(mut bld: ResponseBuilder, method: &Method) -> ResponseBuil
         if method == Method::CONNECT {
             bld = bld.header(
                 hdr::VIA,
-                format!("x-tor/1.0 tor-network ({software} {version})"),
+                format!("tor/1.0 tor-network ({software} {version})"),
             );
         } else {
-            bld = bld.header(hdr::SERVER, format!("x-tor/1.0 ({software} {version})"));
+            bld = bld.header(hdr::SERVER, format!("tor/1.0 ({software} {version})"));
         }
     }
     bld
@@ -454,14 +471,14 @@ enum HttpConnectError {
     #[error("HTTP header value was not in UTF-8")]
     HeaderNotUtf8,
 
-    /// The X-Tor-Family-Preference header wasn't as expected.
-    #[error("Unrecognized value for {}", hdr::X_TOR_FAMILY_PREFERENCE)]
+    /// The Tor-Family-Preference header wasn't as expected.
+    #[error("Unrecognized value for {}", hdr::TOR_FAMILY_PREFERENCE)]
     InvalidFamilyPreference,
 
     /// The user asked to use an RPC object, but we don't support RPC.
     #[error(
         "Found {} header, but we are running without RPC support",
-        hdr::X_TOR_RPC_TARGET
+        hdr::TOR_RPC_TARGET
     )]
     NoRpcSupport,
 
@@ -523,7 +540,7 @@ impl HttpConnectError {
         // kind_to_status.
         ResponseBuilder::new()
             .status(status_code)
-            .header(hdr::X_TOR_REQUEST_FAILED, format!("arti/{error_kind:?}"))
+            .header(hdr::TOR_REQUEST_FAILED, format!("arti/{error_kind:?}"))
             .err(&Method::CONNECT, self.report().to_string())
     }
 }

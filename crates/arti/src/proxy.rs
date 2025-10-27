@@ -47,7 +47,7 @@ pub(crate) enum RpcMgr {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StreamIsolationKey(ListenerIsolation, ProvidedIsolation);
 
-/// Isolation information provided through the socks connection
+/// Isolation information provided through the proxy connection
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProvidedIsolation {
     /// The socks isolation itself.
@@ -62,13 +62,8 @@ enum ProvidedIsolation {
         isolation: Box<[u8]>,
     },
     #[cfg(feature = "http-connect")]
-    /// A legacy HTTP isolation token, with raw header values.
-    Http {
-        /// The value of the Proxy-Authorization header.
-        proxy_auth: Option<http_connect::ProxyAuthorization>,
-        /// The X-Tor-Isolation token.
-        tor_isolation: Option<String>,
-    },
+    /// An HTTP token, taken from headers.
+    Http(http_connect::Isolation),
 }
 
 impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
@@ -191,7 +186,7 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// and the password to the empty string.
 ///
 /// (Alternatively, it could use HTTP CONNECT, setting
-/// X-Tor-Rpc-Target to SESSION-1.)
+/// Tor-Rpc-Target to SESSION-1.)
 ///
 /// Arti looks up the Session object via the `SESSION-1` object ID
 /// and tells it (via the ConnectWithPrefs special method)
@@ -225,8 +220,8 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 /// For the username it sends `<torS0X>0STREAM-1`,
 /// and for the password it sends `xyzzy`.
 ///
-/// (Alternatively, it could use HTTP CONNECT, setting X-Tor-Isolation to xyzzy,
-/// and X-Tor-Rpc-Target to STREAM-1.)
+/// (Alternatively, it could use HTTP CONNECT, setting Tor-Isolation to xyzzy,
+/// and Tor-Rpc-Target to STREAM-1.)
 ///
 /// Now Arti looks up the `RpcDataStream` object via `STREAM-1`,
 /// and tells it (via the ConnectWithPrefs special method)
