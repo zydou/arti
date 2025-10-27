@@ -95,6 +95,9 @@ CREATE TABLE consensus(
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
     CHECK(LENGTH(unsigned_sha3_256) == 64),
     CHECK(flavor IN ('ns', 'md')),
+    CHECK(valid_after >= 0),
+    CHECK(fresh_until >= 0),
+    CHECK(valid_until >= 0),
     CHECK(valid_after < fresh_until),
     CHECK(fresh_until < valid_until)
 ) STRICT;
@@ -170,7 +173,8 @@ CREATE TABLE authority_key_certificate(
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_id_rsa_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_sign_rsa_sha1) == 0),
     CHECK(LENGTH(kp_auth_id_rsa_sha1) == 40),
-    CHECK(LENGTH(kp_auth_sign_rsa_sha1) == 40)
+    CHECK(LENGTH(kp_auth_sign_rsa_sha1) == 40),
+    CHECK(dir_key_expires >= 0)
 
 ) STRICT;
 
