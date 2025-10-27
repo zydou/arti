@@ -11,11 +11,12 @@ use futures::task::SpawnExt as _;
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, FutureExt as _, io::BufReader};
 use http::{Method, StatusCode, response::Builder as ResponseBuilder};
 use hyper::{Response, server::conn::http1::Builder as ServerBuilder, service::service_fn};
-use hyper_futures::AsyncReadWriteCompat;
 use safelog::{Sensitive as Sv, sensitive as sv};
 use tor_error::{ErrorKind, ErrorReport as _, HasKind, into_internal, warn_report};
 use tor_rtcompat::Runtime;
 use tracing::{instrument, warn};
+
+use hyper_futures_io::FuturesIoCompat;
 
 #[cfg(feature = "rpc")]
 use {crate::rpc::conntarget::ConnTarget, tor_rpcbase as rpc};
@@ -107,7 +108,7 @@ where
         .title_case_headers(true)
         .auto_date_header(false) // We omit the date header out of general principle.
         .serve_connection(
-            AsyncReadWriteCompat::new(stream),
+            FuturesIoCompat(stream),
             service_fn(|request| handle_http_request::<R, S>(request, &context, isolation_info)),
         )
         .with_upgrades()
@@ -608,7 +609,7 @@ fn deconstruct_upgrade<S>(upgraded: hyper::upgrade::Upgraded) -> Result<S, anyho
 where
     S: AsyncRead + AsyncWrite + Unpin + 'static,
 {
-    let parts: hyper::upgrade::Parts<AsyncReadWriteCompat<BufReader<S>>> = upgraded
+    let parts: hyper::upgrade::Parts<FuturesIoCompat<BufReader<S>>> = upgraded
         .downcast()
         .map_err(|_| anyhow!("downcast failed!"))?;
     let hyper::upgrade::Parts { io, read_buf, .. } = parts;
@@ -619,7 +620,7 @@ where
             "Extraneous data on hyper buffer after upgrade to proxy mode"
         ));
     }
-    let io: BufReader<S> = io.into_inner();
+    let io: BufReader<S> = io.0;
     if !io.buffer().is_empty() {
         // TODO Figure out whether this can happen due to possible race conditions if the client gets the OK
         // before we check this?
@@ -659,6 +660,78 @@ where
         .context("Spawning task")?;
 
     Ok(())
+}
+
+/// Helper module: Make `futures` types usable by `hyper`.
+//
+// TODO: We may want to expose this as a separate crate, or move it into tor-async-utils,
+// if we turn out to need it elsewhere.
+mod hyper_futures_io {
+    use pin_project::pin_project;
+    use std::{
+        io,
+        pin::Pin,
+        task::{Context, Poll, ready},
+    };
+
+    use hyper::rt::ReadBufCursor;
+
+    /// A wrapper around an AsyncBufRead + AsyncWrite to implement traits required by hyper.
+    #[derive(Debug)]
+    #[pin_project]
+    pub(super) struct FuturesIoCompat<T>(#[pin] pub(super) T);
+
+    impl<T> hyper::rt::Read for FuturesIoCompat<T>
+    where
+        // We require AsyncBufRead here it is a good match for ReadBufCursor::put_slice.
+        T: futures::io::AsyncBufRead,
+    {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            mut buf: ReadBufCursor<'_>,
+        ) -> Poll<Result<(), io::Error>> {
+            let mut this = self.project();
+
+            let available: &[u8] = ready!(this.0.as_mut().poll_fill_buf(cx))?;
+            let n_available = available.len();
+
+            if !available.is_empty() {
+                buf.put_slice(available);
+                this.0.consume(n_available);
+            }
+
+            // This means either "data arrived" or "EOF" depending on whether we added new bytes.
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    impl<T> hyper::rt::Write for FuturesIoCompat<T>
+    where
+        T: futures::io::AsyncWrite,
+    {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<Result<usize, std::io::Error>> {
+            self.project().0.poll_write(cx, buf)
+        }
+
+        fn poll_flush(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), std::io::Error>> {
+            self.project().0.poll_flush(cx)
+        }
+
+        fn poll_shutdown(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), std::io::Error>> {
+            self.project().0.poll_close(cx)
+        }
+    }
 }
 
 #[cfg(test)]

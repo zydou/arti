@@ -218,7 +218,6 @@ dependencies = [
  "humantime",
  "humantime-serde",
  "hyper",
- "hyper-futures",
  "itertools 0.14.0",
  "libc",
  "metrics-exporter-prometheus",
@@ -229,6 +228,7 @@ dependencies = [
  "opentelemetry-proto",
  "opentelemetry_sdk",
  "paste",
+ "pin-project",
  "postage",
  "regex",
  "rlimit",
@@ -2936,17 +2936,6 @@ dependencies = [
  "tor-proto",
  "tracing-subscriber",
  "webpki-roots",
-]
-
-[[package]]
-name = "hyper-futures"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d68edd118b443d56755ad322f08739a17d933eebdac7b3ef58b1f445e3888053"
-dependencies = [
- "futures",
- "hyper",
- "pin-project",
 ]
 
 [[package]]
