@@ -144,6 +144,8 @@ where
 
 /// Return an appropriate reply to the given OPTIONS request.
 async fn handle_options_request(request: Request) -> Result<Response<Body>, anyhow::Error> {
+    use hyper::body::Body as _;
+
     let target = request.uri().to_string();
     match target.as_str() {
         "*" => {}
@@ -164,6 +166,12 @@ async fn handle_options_request(request: Request) -> Result<Response<Body>, anyh
         // TODO: It would be cool to detect nonempty bodies in other ways, though in practice
         // it should never come up.
     }
+    if !request.body().is_end_stream() {
+        return Ok(ResponseBuilder::new()
+            .status(StatusCode::BAD_REQUEST)
+            .err(&Method::OPTIONS, "Unexpected body on OPTIONS request")?);
+    }
+
     Ok(ResponseBuilder::new()
         .header("Allow", "OPTIONS, CONNECT")
         .status(StatusCode::OK)
