@@ -13,7 +13,6 @@ use crate::{Error, Result};
 use tor_cell::chancell::{AnyChanCell, ChanMsg, msg};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -525,9 +524,6 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > VerifiedChannel<T, S>
 {
-    /// Send a 'Netinfo' message to the relay to finish the handshake,
-    /// and create an open channel and reactor.
-    ///
     /// The channel is used to send cells, and to create outgoing circuits.
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
@@ -541,21 +537,10 @@ impl<
         // TODO: conceivably we should remember the time when we _got_ the
         // final cell on the handshake, and update the channel completion
         // time to be no earlier than _that_ timestamp.
+        //
+        // TODO: This shouldn't be here. This should be called in the trait functions that actually
+        // receives the data (recv_*). We'll move it at a later commit.
         crate::note_incoming_traffic();
-        trace!(stream_id = %self.unique_id, "Sending netinfo cell.");
-
-        // We do indeed want the real IP here, regardless of whether the
-        // ChannelMethod is Direct connection or not.  The role of the IP in a
-        // NETINFO cell is to tell our peer what address we believe they had, so
-        // that they can better notice MITM attacks and such.
-        let peer_ip = self
-            .target_method
-            .as_ref()
-            .and_then(ChannelMethod::socket_addrs)
-            .and_then(|addrs| addrs.first())
-            .map(SocketAddr::ip);
-        let netinfo = msg::Netinfo::from_client(peer_ip);
-        self.framed_tls.send(netinfo.into()).await?;
 
         // We have finalized the handshake, move our codec to Open.
         self.framed_tls.codec_mut().set_open()?;
@@ -587,11 +572,6 @@ impl<
             .rsa_identity(self.rsa_id)
             .build()
             .expect("OwnedChanTarget builder failed");
-
-        // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
-        // true if the Netinfo address matches the address we are connected to. Canonical
-        // definition is if the address we are connected to is what we expect it to be. This only
-        // makes sense for relay channels.
 
         super::Channel::new(
             self.channel_type,

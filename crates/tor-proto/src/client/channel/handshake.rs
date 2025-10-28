@@ -1,8 +1,11 @@
 //! Implementations for the client channel handshake
 
+use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
+use tor_cell::chancell::msg;
 use tracing::{debug, instrument, trace};
 
 use tor_linkspec::{ChanTarget, ChannelMethod};
@@ -225,8 +228,20 @@ impl<
     /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
     /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // TODO: More is coming here as finish() needs to be split between relay and clients.
+    pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
+        // Send the NETINFO message.
+        let peer_ip = self
+            .inner
+            .target_method
+            .as_ref()
+            .and_then(ChannelMethod::socket_addrs)
+            .and_then(|addrs| addrs.first())
+            .map(SocketAddr::ip);
+        let netinfo = msg::Netinfo::from_client(peer_ip);
+        trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
+        self.inner.framed_tls.send(netinfo.into()).await?;
+
+        // Finish the channel to get a reactor.
         self.inner.finish().await
     }
 }
