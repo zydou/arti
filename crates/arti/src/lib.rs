@@ -270,9 +270,10 @@ where
             .subcommand(
                 Command::new("proxy")
                     .about(
-                        "Run Arti in SOCKS proxy mode, proxying connections through the Tor network.",
+                        "Run Arti in proxy mode, proxying connections through the Tor network.",
                     )
                     .arg(
+                        // TODO: Allow a proxy-port alias for this too, once http-connect is stable.
                         Arg::new("socks-port")
                             .short('p')
                             .action(ArgAction::Set)

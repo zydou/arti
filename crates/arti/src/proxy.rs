@@ -472,7 +472,7 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
     );
 
     // Loop over all incoming connections.  For each one, call
-    // handle_socks_conn() in a new task.
+    // handle_proxy_conn() in a new task.
     while let Some((stream, sock_id)) = incoming.next().await {
         let (stream, addr) = match stream {
             Ok((s, a)) => (s, a),

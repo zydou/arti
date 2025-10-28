@@ -203,7 +203,7 @@ async fn run_rpc_listener<R: Runtime>(
     Ok(())
 }
 
-/// Information passed to a SOCKS proxy or similar stream provider when running with RPC support.
+/// Information passed to a proxy or similar stream provider when running with RPC support.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) struct RpcProxySupport {
     /// An RPC manager to use for looking up objects as possible stream targets.

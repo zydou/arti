@@ -36,7 +36,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
     config: ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
-    // Override configured SOCKS and DNS listen addresses from the command line.
+    // Override configured listen addresses from the command line.
     // This implies listening on localhost ports.
     let socks_listen = match proxy_matches.get_one::<String>("socks-port") {
         Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
@@ -50,7 +50,7 @@ pub(crate) fn run<R: ToplevelRuntime>(
 
     if !socks_listen.is_empty() {
         info!(
-            "Starting Arti {} in SOCKS proxy mode on {} ...",
+            "Starting Arti {} in proxy mode on {} ...",
             env!("CARGO_PKG_VERSION"),
             socks_listen
         );
@@ -181,7 +181,12 @@ async fn run_proxy<R: ToplevelRuntime>(
         let socks_listen = socks_listen.clone();
         proxy.push(Box::pin(async move {
             let res = proxy::run_proxy(runtime, client, socks_listen, rpc_data).await;
-            (res, "SOCKS")
+            #[cfg(feature = "http-connect")]
+            let listener_type = "SOCKS+HTTP";
+            #[cfg(not(feature = "http-connect"))]
+            let listener_type = "SOCKS";
+
+            (res, listener_type)
         }));
     }
 
@@ -205,6 +210,7 @@ async fn run_proxy<R: ToplevelRuntime>(
 
     if proxy.is_empty() {
         if !launched_onion_svc {
+            // TODO: rename "socks_port" to "proxy_port", preserving compat, once http-connect is stable.
             warn!(
                 "No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option."
             );
@@ -225,7 +231,7 @@ async fn run_proxy<R: ToplevelRuntime>(
         r = async {
             client.bootstrap().await?;
             if !socks_listen.is_empty() {
-                info!("Sufficiently bootstrapped; system SOCKS now functional.");
+                info!("Sufficiently bootstrapped; proxy now functional.");
             } else {
                 info!("Sufficiently bootstrapped.");
             }
