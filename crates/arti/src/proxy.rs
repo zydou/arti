@@ -81,6 +81,12 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
 }
 
 /// Size of read buffer to apply to application data streams.
+//
+// This particular value is chosen more or less arbitrarily.
+// Larger values let us do fewer reads from the application,
+// but consume more memory.
+//
+// (The default value for BufReader is 8k as of this writing.)
 const APP_STREAM_BUF_LEN: usize = 4096;
 
 const _: () = {
