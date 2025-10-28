@@ -91,7 +91,7 @@ semipublic_mod! {
     mod onion_proxy;
     mod process;
     mod reload_cfg;
-    mod socks;
+    mod proxy;
 }
 #[cfg_attr(not(feature = "rpc"), path = "rpc_stub.rs")]
 mod rpc;

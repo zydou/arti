@@ -231,6 +231,14 @@ impl TorAddr {
         matches!(&self.host, Host::Ip(_))
     }
 
+    /// If this TorAddr is an explicit IP address, return a reference to that [`IpAddr`].
+    pub fn as_ip_address(&self) -> Option<&IpAddr> {
+        match &self.host {
+            Host::Ip(a) => Some(a),
+            _ => None,
+        }
+    }
+
     /// Get instructions for how to make a stream to this address
     pub(crate) fn into_stream_instructions(
         self,
