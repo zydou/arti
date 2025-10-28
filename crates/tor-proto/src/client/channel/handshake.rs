@@ -1,18 +1,20 @@
 //! Implementations for the client channel handshake
 
 use futures::io::{AsyncRead, AsyncWrite};
+use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, instrument, trace};
 
-use tor_linkspec::ChannelMethod;
+use tor_linkspec::{ChanTarget, ChannelMethod};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
-use crate::Result;
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, unauthenticated_clock_skew,
+    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
+    unauthenticated_clock_skew,
 };
-use crate::channel::{ChannelFrame, ChannelType, UniqId, new_frame};
+use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
+use crate::{ClockSkew, Result};
 
 /// A raw client channel on which nothing has been done.
 pub struct ClientInitiatorHandshake<
@@ -69,7 +71,7 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > ClientInitiatorHandshake<T, S>
 {
-    /// Construct a new OutboundClientHandshake.
+    /// Construct a new ClientInitiatorHandshake.
     pub(crate) fn new(
         tls: T,
         target_method: Option<ChannelMethod>,
@@ -136,5 +138,87 @@ impl<
             sleep_prov: self.sleep_prov.clone(),
             memquota: self.memquota.clone(),
         })
+    }
+}
+
+/// A client channel on which versions have been negotiated and the relay's handshake has been
+/// read, but where the certs have not been checked.
+pub struct UnverifiedClientChannel<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
+    /// Inner generic unverified channel.
+    inner: UnverifiedChannel<T, S>,
+}
+
+impl<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> UnverifiedClientChannel<T, S>
+{
+    /// Return the reported clock skew from this handshake.
+    ///
+    /// Note that the skew reported by this function might not be "true": the
+    /// relay might have its clock set wrong, or it might be lying to us.
+    ///
+    /// The clock skew reported here is not yet authenticated; if you need to
+    /// make sure that the skew is authenticated, use
+    /// [`Channel::clock_skew`](super::Channel::clock_skew) instead.
+    pub fn clock_skew(&self) -> ClockSkew {
+        self.inner.clock_skew
+    }
+
+    /// Validate the certificates and keys in the relay's handshake.
+    ///
+    /// 'peer' is the peer that we want to make sure we're connecting to.
+    ///
+    /// 'peer_cert' is the x.509 certificate that the peer presented during
+    /// its TLS handshake (ServerHello).
+    ///
+    /// 'now' is the time at which to check that certificates are
+    /// valid.  `None` means to use the current time. It can be used
+    /// for testing to override the current view of the time.
+    ///
+    /// This is a separate function because it's likely to be somewhat
+    /// CPU-intensive.
+    #[instrument(skip_all, level = "trace")]
+    pub fn check<U: ChanTarget + ?Sized>(
+        self,
+        peer: &U,
+        peer_cert: &[u8],
+        now: Option<std::time::SystemTime>,
+    ) -> Result<VerifiedClientChannel<T, S>> {
+        let inner = self.inner.check(peer, peer_cert, now)?;
+        Ok(VerifiedClientChannel { inner })
+    }
+}
+
+/// A client channel on which versions have been negotiated, relay's handshake has been read, but
+/// the client has not yet finished the handshake.
+///
+/// This type is separate from UnverifiedClientChannel, since finishing the handshake requires a
+/// bunch of CPU, and you might want to do it as a separate task or after a yield.
+pub struct VerifiedClientChannel<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
+    /// Inner generic verified channel.
+    inner: VerifiedChannel<T, S>,
+}
+
+impl<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> VerifiedClientChannel<T, S>
+{
+    /// Send a 'Netinfo' message to the relay to finish the handshake, and create an open channel
+    /// and reactor.
+    ///
+    /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
+    /// route incoming messages to their appropriate circuit.
+    #[instrument(skip_all, level = "trace")]
+    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+        // TODO: More is coming here as finish() needs to be split between relay and clients.
+        self.inner.finish().await
     }
 }
