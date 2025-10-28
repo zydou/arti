@@ -83,9 +83,17 @@ fn main() {
 
     if let Err(e) = main_main(cli) {
         // TODO: Use arti_client's `HintableError` here (see `arti::main`)?
-        // TODO: Why do we suppress safe logging, and squash the anyhow result into a single line?
+        // TODO: Why do we suppress safe logging?
         // TODO: Do we want to log the error?
-        with_safe_logging_suppressed(|| tor_error::report_and_exit::<_, ()>(e));
+        // We use anyhow's error formatting here rather than `tor_error::report_and_exit` since the
+        // latter seems to omit some error info and anyhow's error formatting is nicer.
+        #[allow(clippy::print_stderr)]
+        with_safe_logging_suppressed(|| {
+            eprintln!("Error: {e:?}");
+            // The 127 is copied from `tor_error::report_and_exit`.
+            // It's unclear why 127 was chosen there.
+            std::process::exit(127);
+        });
     }
 }
 
