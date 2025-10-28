@@ -64,6 +64,7 @@ pub use crate::channel::params::*;
 pub(crate) use crate::channel::reactor::Reactor;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream};
 pub use crate::channel::unique_id::UniqId;
+use crate::client::channel::ClientChannelBuilder;
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::client::circuit::{PendingClientTunnel, TimeoutEstimator};
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
@@ -122,7 +123,7 @@ use tracing::trace;
 #[cfg(feature = "relay")]
 pub use super::relay::channel::handshake::RelayInitiatorHandshake;
 use crate::channel::unique_id::CircUniqIdContext;
-pub use handshake::ClientInitiatorHandshake;
+pub use super::client::channel::handshake::ClientInitiatorHandshake;
 
 use kist::KistParams;
 
@@ -532,7 +533,13 @@ impl ChannelBuilder {
         T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        handshake::ClientInitiatorHandshake::new(tls, self.target, sleep_prov, memquota)
+        // TODO(relay): We could just make the target be taken as a parameter instead of using a
+        // setter that is also replicated on the client builder? Food for thought on refactor here.
+        let mut builder = ClientChannelBuilder::new();
+        if let Some(target) = self.target {
+            builder.set_declared_method(target);
+        }
+        builder.launch(tls, sleep_prov, memquota)
     }
 }
 
