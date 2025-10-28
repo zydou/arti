@@ -166,7 +166,7 @@ impl InertTorRelay {
 #[derive(Clone)]
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
-    _runtime: R,
+    runtime: R,
 
     /// Memory quota tracker.
     #[expect(unused)] // TODO RELAY remove
@@ -200,7 +200,7 @@ impl<R: Runtime> TorRelay<R> {
         // TODO: missing the actual bootstrapping
 
         Ok(Self {
-            _runtime: runtime,
+            runtime,
             memquota,
             chanmgr,
             keymgr: inert.keymgr,
@@ -221,6 +221,26 @@ impl<R: Runtime> TorRelay<R> {
                 t.start()
                     .await
                     .context("Failed to run channel house keeping task")
+            }
+        });
+
+        // Listen for new Tor (OR) connections.
+        task_handles.spawn({
+            // TODO: get address(es) from config.
+            let listen_addr = std::net::SocketAddrV4::new(std::net::Ipv4Addr::LOCALHOST, 8443);
+            let listen_addr = std::net::SocketAddr::V4(listen_addr);
+            let listener = self
+                .runtime
+                .listen(&listen_addr)
+                .await
+                .with_context(|| format!("Failed to listen at address {listen_addr}"))?;
+
+            let runtime = self.runtime.clone();
+            let chanmgr = Arc::clone(&self.chanmgr);
+            async {
+                crate::tasks::listeners::or_listener(runtime, chanmgr, [listener])
+                    .await
+                    .context("Failed to run OR listener task")
             }
         });
 

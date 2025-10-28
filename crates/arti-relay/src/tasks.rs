@@ -4,5 +4,6 @@
 //! of a relay.
 
 mod channel;
+pub(crate) mod listeners;
 
 pub(crate) use channel::ChannelHouseKeepingTask;

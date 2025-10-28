@@ -374,6 +374,7 @@ dependencies = [
  "tor-config",
  "tor-config-path",
  "tor-error",
+ "tor-general-addr",
  "tor-keymgr",
  "tor-llcrypto",
  "tor-memquota",
