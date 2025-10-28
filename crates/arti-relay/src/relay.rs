@@ -215,8 +215,14 @@ impl<R: Runtime> TorRelay<R> {
         let mut task_handles = JoinSet::new();
 
         // Channel housekeeping task.
-        let mut t = crate::tasks::ChannelHouseKeepingTask::new(&self.chanmgr);
-        task_handles.spawn(async move { t.start().await });
+        task_handles.spawn({
+            let mut t = crate::tasks::ChannelHouseKeepingTask::new(&self.chanmgr);
+            async move {
+                t.start()
+                    .await
+                    .context("Failed to run channel house keeping task")
+            }
+        });
 
         // TODO: More tasks will be spawned here.
 
@@ -225,9 +231,9 @@ impl<R: Runtime> TorRelay<R> {
         let void = task_handles
             .join_next()
             .await
-            .context("Task set is empty")?
-            .context("Task join failed")?
-            .context("Task stopped with error")?;
+            .context("Relay task set is empty")?
+            .context("Relay task join failed")?
+            .context("Relay task stopped unexpectedly")?;
 
         // We can never get here since a `Void` cannot be constructed.
         void::unreachable(void);
