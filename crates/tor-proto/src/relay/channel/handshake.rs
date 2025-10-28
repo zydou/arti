@@ -1,12 +1,16 @@
 //! Implementations for the relay channel handshake
 
+use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
 use rand::Rng;
+use std::net::SocketAddr;
+use std::time::UNIX_EPOCH;
 use std::{sync::Arc, time::SystemTime};
+use tor_error::internal;
 use tracing::{instrument, trace};
 
 use tor_cell::chancell::msg;
-use tor_linkspec::ChanTarget;
+use tor_linkspec::{ChanTarget, ChannelMethod};
 use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
@@ -338,19 +342,42 @@ impl<
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
+        // Send the NETINFO message.
+        let peer_ip = self
+            .inner
+            .target_method
+            .as_ref()
+            .and_then(ChannelMethod::socket_addrs)
+            .and_then(|addrs| addrs.first())
+            .map(SocketAddr::ip);
+
+        // Unix timestamp but over 32bit. This will be sad in 2038 but proposal 338 addresses this
+        // issue with a change to 64bit.
+        let timestamp = self
+            .inner
+            .sleep_prov
+            .wallclock()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| internal!("Wallclock may have gone backwards: {e}"))?
+            .as_secs()
+            .try_into()
+            .map_err(|e| internal!("Wallclock secs fail to convert to 32bit: {e}"))?;
+        // TODO(relay): Get our IP address(es) either directly or take them from the
+        // VerifiedRelayChannel values?
+        let my_addrs = Vec::new();
+
+        let netinfo = msg::Netinfo::from_relay(timestamp, peer_ip, my_addrs);
+        trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
+        self.inner.framed_tls.send(netinfo.into()).await?;
+
+        // TODO(relay): If we are authenticating that is self.auth_data.is_some(), send the CERTS
+        // and AUTHENTICATE.
+
         // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
         // true if the Netinfo address matches the address we are connected to. Canonical
         // definition is if the address we are connected to is what we expect it to be. This only
         // makes sense for relay channels.
-
-        // TODO(relay): The VerifiedChannel::finish() needs to be heavily changed as only a little
-        // bit of the code needs to be kept common between clients and relays. Relay will send a
-        // differently formatted NETINFO along CERTS and AUTHENTICATE. As stated above, it also
-        // sets the channel canonicity in a different way then client do.
-        //
-        // TODO(relay): As for now, we only call our inner finish(). Upcoming work will split it
-        // nicely but we will need the VerifiedClientChannel before we do this work.
 
         self.inner.finish().await
     }
