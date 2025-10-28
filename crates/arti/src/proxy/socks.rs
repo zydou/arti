@@ -235,7 +235,6 @@ impl<R: Runtime> super::ProxyContext<R> {
 /// Uses `isolation_info` to decide which circuits this connection
 /// may use.  Requires that `isolation_info` is a pair listing the listener
 /// id and the source address for the socks request.
-#[allow(clippy::cognitive_complexity)] // TODO: Refactor
 #[instrument(skip_all, level = "trace")]
 pub(super) async fn handle_socks_conn<R, S>(
     runtime: R,

@@ -371,7 +371,6 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 /// timeouts, and a `tor_client` to use in connecting over the Tor
 /// network.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-#[allow(clippy::cognitive_complexity)] // TODO: Refactor
 #[instrument(skip_all, level = "trace")]
 pub(crate) async fn run_proxy<R: Runtime>(
     runtime: R,
