@@ -28,7 +28,7 @@ use arti_rpcserver::RpcMgr;
 use tor_config::Listen;
 use tor_error::warn_report;
 use tor_rtcompat::{NetStreamListener, Runtime};
-use tor_socksproto::{SOCKS_BUF_LEN, SocksAuth};
+use tor_socksproto::SocksAuth;
 
 use anyhow::{Context, Result, anyhow};
 
@@ -79,6 +79,13 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
         }
     }
 }
+
+/// Size of read buffer to apply to application data streams.
+const APP_STREAM_BUF_LEN: usize = 4096;
+
+const _: () = {
+    assert!(APP_STREAM_BUF_LEN >= tor_socksproto::SOCKS_BUF_LEN);
+};
 
 /// NOTE: The following documentation belongs in a spec.
 /// But for now, it's our best attempt to document the design and protocol
@@ -302,7 +309,7 @@ where
 {
     use futures::{poll, task::Poll};
 
-    let mut buf = [0_u8; SOCKS_BUF_LEN];
+    let mut buf = [0_u8; APP_STREAM_BUF_LEN];
 
     // At this point we could just loop, calling read().await,
     // write_all().await, and flush().await.  But we want to be more
@@ -532,7 +539,7 @@ where
     R: Runtime,
     S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    let mut stream = BufReader::with_capacity(SOCKS_BUF_LEN, stream);
+    let mut stream = BufReader::with_capacity(APP_STREAM_BUF_LEN, stream);
     use futures::AsyncBufReadExt as _;
 
     let buf: &[u8] = stream.fill_buf().await?;
