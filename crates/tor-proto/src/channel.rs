@@ -15,9 +15,9 @@
 //!
 //!  * Create a TLS connection as an object that implements AsyncRead +
 //!    AsyncWrite + StreamOps, and pass it to a [ChannelBuilder].  This will
-//!    yield an [handshake::ClientInitiatorHandshake] that represents
+//!    yield an [crate::client::channel::handshake::ClientInitiatorHandshake] that represents
 //!    the state of the handshake.
-//!  * Call [handshake::ClientInitiatorHandshake::connect] on the result
+//!  * Call [crate::client::channel::handshake::ClientInitiatorHandshake::connect] on the result
 //!    to negotiate the rest of the handshake.  This will verify
 //!    syntactic correctness of the handshake, but not its cryptographic
 //!    integrity.

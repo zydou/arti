@@ -168,7 +168,7 @@ impl<
     ///
     /// The clock skew reported here is not yet authenticated; if you need to
     /// make sure that the skew is authenticated, use
-    /// [`Channel::clock_skew`](super::Channel::clock_skew) instead.
+    /// [`Channel::clock_skew`](crate::channel::Channel::clock_skew) instead.
     pub fn clock_skew(&self) -> ClockSkew {
         self.inner.clock_skew
     }
