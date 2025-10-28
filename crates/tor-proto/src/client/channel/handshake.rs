@@ -93,7 +93,7 @@ impl<
     /// Takes a function that reports the current time.  In theory, this can just be
     /// `SystemTime::now()`.
     #[instrument(skip_all, level = "trace")]
-    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedChannel<T, S>>
+    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedClientChannel<T, S>>
     where
         F: FnOnce() -> SystemTime,
     {
@@ -127,16 +127,18 @@ impl<
 
         trace!(stream_id = %self.unique_id, "received handshake, ready to verify.");
 
-        Ok(UnverifiedChannel {
-            channel_type: ChannelType::ClientInitiator,
-            link_protocol,
-            framed_tls: self.framed_tls,
-            certs_cell,
-            clock_skew,
-            target_method: self.target_method.take(),
-            unique_id: self.unique_id,
-            sleep_prov: self.sleep_prov.clone(),
-            memquota: self.memquota.clone(),
+        Ok(UnverifiedClientChannel {
+            inner: UnverifiedChannel {
+                channel_type: ChannelType::ClientInitiator,
+                link_protocol,
+                framed_tls: self.framed_tls,
+                certs_cell,
+                clock_skew,
+                target_method: self.target_method.take(),
+                unique_id: self.unique_id,
+                sleep_prov: self.sleep_prov.clone(),
+                memquota: self.memquota.clone(),
+            },
         })
     }
 }
@@ -190,6 +192,12 @@ impl<
     ) -> Result<VerifiedClientChannel<T, S>> {
         let inner = self.inner.check(peer, peer_cert, now)?;
         Ok(VerifiedClientChannel { inner })
+    }
+
+    /// Return the link protocol version of this channel.
+    #[cfg(test)]
+    pub(crate) fn link_protocol(&self) -> u16 {
+        self.inner.link_protocol
     }
 }
 

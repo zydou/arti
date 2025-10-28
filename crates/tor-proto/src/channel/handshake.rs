@@ -204,7 +204,7 @@ where
 /// A client channel on which versions have been negotiated and the
 /// relay's handshake has been read, but where the certs have not
 /// been checked.
-pub struct UnverifiedChannel<
+pub(crate) struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -238,7 +238,7 @@ pub struct UnverifiedChannel<
 /// This type is separate from UnverifiedChannel, since finishing the
 /// handshake requires a bunch of CPU, and you might want to do it as
 /// a separate task or after a yield.
-pub struct VerifiedChannel<
+pub(crate) struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -273,18 +273,6 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedChannel<T, S>
 {
-    /// Return the reported clock skew from this handshake.
-    ///
-    /// Note that the skew reported by this function might not be "true": the
-    /// relay might have its clock set wrong, or it might be lying to us.
-    ///
-    /// The clock skew reported here is not yet authenticated; if you need to
-    /// make sure that the skew is authenticated, use
-    /// [`Channel::clock_skew`](super::Channel::clock_skew) instead.
-    pub fn clock_skew(&self) -> ClockSkew {
-        self.clock_skew
-    }
-
     /// Validate the certificates and keys in the relay's handshake.
     ///
     /// 'peer' is the peer that we want to make sure we're connecting to.
@@ -299,7 +287,7 @@ impl<
     /// This is a separate function because it's likely to be somewhat
     /// CPU-intensive.
     #[instrument(skip_all, level = "trace")]
-    pub fn check<U: ChanTarget + ?Sized>(
+    pub(crate) fn check<U: ChanTarget + ?Sized>(
         self,
         peer: &U,
         peer_cert: &[u8],
@@ -544,7 +532,9 @@ impl<
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(mut self) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
+    pub(crate) async fn finish(
+        mut self,
+    ) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.
         //
@@ -707,7 +697,7 @@ pub(super) mod test {
             let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now).await?;
 
-            assert_eq!(unverified.link_protocol, 5);
+            assert_eq!(unverified.link_protocol(), 5);
             // No timestamp in the NETINFO, so no skew.
             assert_eq!(unverified.clock_skew(), ClockSkew::None);
 
