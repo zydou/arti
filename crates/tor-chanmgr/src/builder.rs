@@ -7,6 +7,8 @@ use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
 use crate::{Error, event::ChanMgrEventSender};
 
+#[cfg(feature = "relay")]
+use safelog::Sensitive;
 use std::time::Duration;
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
@@ -106,13 +108,13 @@ where
     #[cfg(feature = "relay")]
     async fn accept_from_transport(
         &self,
-        peer: std::net::SocketAddr,
+        peer: Sensitive<std::net::SocketAddr>,
         stream: Self::Stream,
         _memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         let map_ioe = |ioe, action| Error::Io {
             action,
-            peer: Some(BridgeAddr::new_addr_from_sockaddr(peer).into()),
+            peer: Some(BridgeAddr::new_addr_from_sockaddr(peer.into_inner()).into()),
             source: ioe,
         };
 

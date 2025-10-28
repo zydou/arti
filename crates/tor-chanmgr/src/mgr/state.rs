@@ -870,6 +870,8 @@ mod test {
     use super::*;
     use crate::factory::BootstrapReporter;
     use async_trait::async_trait;
+    #[cfg(feature = "relay")]
+    use safelog::Sensitive;
     use std::sync::{Arc, Mutex};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -908,7 +910,7 @@ mod test {
         #[cfg(feature = "relay")]
         async fn build_channel_using_incoming(
             &self,
-            _peer: std::net::SocketAddr,
+            _peer: Sensitive<std::net::SocketAddr>,
             _stream: Self::Stream,
             _memquota: ChannelAccount,
         ) -> Result<Arc<Self::Channel>> {

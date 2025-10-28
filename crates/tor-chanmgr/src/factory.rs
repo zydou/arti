@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::event::ChanMgrEventSender;
 use async_trait::async_trait;
+#[cfg(feature = "relay")]
+use safelog::Sensitive;
 use tor_error::{HasKind, HasRetryTime, internal};
 use tor_linkspec::{HasChanMethod, OwnedChanTarget, PtTransportName};
 use tor_proto::channel::Channel;
@@ -75,7 +77,7 @@ pub trait IncomingChannelFactory: Send + Sync {
     #[cfg(feature = "relay")]
     async fn accept_from_transport(
         &self,
-        peer: std::net::SocketAddr,
+        peer: Sensitive<std::net::SocketAddr>,
         stream: Self::Stream,
         memquota: ChannelAccount,
     ) -> crate::Result<Arc<Channel>>;
@@ -105,7 +107,7 @@ where
     #[instrument(skip_all, level = "trace")]
     async fn build_channel_using_incoming(
         &self,
-        peer: std::net::SocketAddr,
+        peer: Sensitive<std::net::SocketAddr>,
         stream: Self::Stream,
         memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
@@ -211,7 +213,7 @@ impl<CF: IncomingChannelFactory> IncomingChannelFactory for CompoundFactory<CF> 
     #[cfg(feature = "relay")]
     async fn accept_from_transport(
         &self,
-        peer: std::net::SocketAddr,
+        peer: Sensitive<std::net::SocketAddr>,
         stream: Self::Stream,
         memquota: ChannelAccount,
     ) -> crate::Result<Arc<Channel>> {

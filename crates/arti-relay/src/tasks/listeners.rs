@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use futures::StreamExt;
-use safelog::sensitive;
+use safelog::Sensitive;
 use tor_chanmgr::ChanMgr;
 use tor_rtcompat::{NetStreamListener, NetStreamProvider, Runtime, SpawnExt as _};
 use tracing::debug;
@@ -48,10 +48,10 @@ pub(crate) async fn or_listener<R: Runtime>(
             }
         };
 
-        debug!(
-            "New incoming OR connection from {} on local address {local_addr}",
-            sensitive(remote_addr),
-        );
+        // This may be sensitive (for example if this is a client connecting to a guard).
+        let remote_addr = Sensitive::new(remote_addr);
+
+        debug!("New incoming OR connection from {remote_addr} on local address {local_addr}");
 
         // Spawn a task to handle the incoming connection (for example the channel handshake).
         let chan_mgr = Arc::clone(&chan_mgr);

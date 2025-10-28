@@ -57,6 +57,8 @@ pub(crate) mod util;
 
 use futures::StreamExt;
 use futures::select_biased;
+#[cfg(feature = "relay")]
+use safelog::Sensitive;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -282,7 +284,7 @@ impl<R: Runtime> ChanMgr<R> {
     #[cfg(feature = "relay")]
     pub async fn handle_incoming(
         &self,
-        src: std::net::SocketAddr,
+        src: Sensitive<std::net::SocketAddr>,
         stream: <R as tor_rtcompat::NetStreamProvider>::Stream,
     ) -> Result<Arc<Channel>> {
         self.mgr.handle_incoming(src, stream).await
