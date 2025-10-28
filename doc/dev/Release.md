@@ -149,8 +149,12 @@ release?" above.
       (Bump patchlevel if major == 0; else bump minor.)
     * APIs were broken.
       (Bump minor if major == 0; else bump major.)
+    * MSRV was increased.
+      (Bump minor; see our [MSRV policy][msrv])
     * Crates that we do not publish (E.g. `maint/*`, `examples/*`).
       (Do not bump version)
+
+   [msrv]: https://gitlab.torproject.org/tpo/core/arti#minimum-supported-rust-version
 
    For all `tor-*` and `arti-*` crates with 0.x version numbers
    (which, as of March 2024 includes all `tor-*` crates,
