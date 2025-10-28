@@ -61,7 +61,8 @@ mod reactor;
 mod unique_id;
 
 pub use crate::channel::params::*;
-use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
+pub(crate) use crate::channel::reactor::Reactor;
+use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream};
 pub use crate::channel::unique_id::UniqId;
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::client::circuit::{PendingClientTunnel, TimeoutEstimator};

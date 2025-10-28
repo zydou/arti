@@ -11,11 +11,11 @@ use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
-use crate::channel::ChannelFrame;
 use crate::channel::handshake::{
     ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
     unauthenticated_clock_skew,
 };
+use crate::channel::{Channel, ChannelFrame, Reactor};
 use crate::channel::{ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
 use crate::relay::channel::RelayIdentities;
@@ -324,4 +324,34 @@ pub struct VerifiedRelayChannel<
     /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
     /// process because the channel needs to be verified before this is sent.
     auth_data: Option<ChannelAuthenticationData>,
+}
+
+impl<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> VerifiedRelayChannel<T, S>
+{
+    /// Send a 'Netinfo' message to the relay to finish the handshake,
+    /// and create an open channel and reactor.
+    ///
+    /// The channel is used to send cells, and to create outgoing circuits.
+    /// The reactor is used to route incoming messages to their appropriate
+    /// circuit.
+    #[instrument(skip_all, level = "trace")]
+    pub async fn finish(self) -> Result<(Arc<Channel>, Reactor<S>)> {
+        // TODO(relay): This would be the time to set a "is_canonical" flag to Channel which is
+        // true if the Netinfo address matches the address we are connected to. Canonical
+        // definition is if the address we are connected to is what we expect it to be. This only
+        // makes sense for relay channels.
+
+        // TODO(relay): The VerifiedChannel::finish() needs to be heavily changed as only a little
+        // bit of the code needs to be kept common between clients and relays. Relay will send a
+        // differently formatted NETINFO along CERTS and AUTHENTICATE. As stated above, it also
+        // sets the channel canonicity in a different way then client do.
+        //
+        // TODO(relay): As for now, we only call our inner finish(). Upcoming work will split it
+        // nicely but we will need the VerifiedClientChannel before we do this work.
+
+        self.inner.finish().await
+    }
 }
