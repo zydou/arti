@@ -176,13 +176,6 @@ pub enum ChannelType {
     },
 }
 
-impl ChannelType {
-    /// Return true if this channel type is an initiator.
-    pub(crate) fn is_initiator(&self) -> bool {
-        matches!(self, Self::ClientInitiator | Self::RelayInitiator)
-    }
-}
-
 /// A channel cell frame used for sending and receiving cells on a channel. The handler takes care
 /// of the cell codec transition depending in which state the channel is.
 ///

@@ -26,9 +26,6 @@ use digest::Digest;
 
 use tracing::{debug, instrument, trace};
 
-#[cfg(feature = "relay")]
-use crate::relay::channel::{RelayIdentities, handshake::ChannelAuthenticationData};
-
 /// A list of the link protocols that we support.
 pub(crate) static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
@@ -257,7 +254,6 @@ where
 /// A client channel on which versions have been negotiated and the
 /// relay's handshake has been read, but where the certs have not
 /// been checked.
-// TODO(relay): Split this into a Client and relay version.
 pub struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
@@ -276,12 +272,6 @@ pub struct UnverifiedChannel<
     pub(crate) certs_cell: msg::Certs,
     /// Declared target method for this channel, if any.
     pub(crate) target_method: Option<ChannelMethod>,
-    /// The netinfo cell that we got from the relay.
-    #[expect(unused)] // TODO(relay): Relays need this.
-    pub(crate) netinfo_cell: msg::Netinfo,
-    /// The AUTH_CHALLENGE cell that we got from the relay. Client ignore this field, only relay
-    /// care for authentication purposes.
-    pub(crate) auth_challenge_cell: Option<msg::AuthChallenge>,
     /// How much clock skew did we detect in this handshake?
     ///
     /// This value is _unauthenticated_, since we have not yet checked whether
@@ -289,9 +279,6 @@ pub struct UnverifiedChannel<
     pub(crate) clock_skew: ClockSkew,
     /// Logging identifier for this stream.  (Used for logging only.)
     pub(crate) unique_id: UniqId,
-    /// Relay only: Our identity keys needed for authentication.
-    #[cfg(feature = "relay")]
-    pub(crate) identities: Option<Arc<RelayIdentities>>,
 }
 
 /// A client channel on which versions have been negotiated,
@@ -301,36 +288,34 @@ pub struct UnverifiedChannel<
 /// This type is separate from UnverifiedChannel, since finishing the
 /// handshake requires a bunch of CPU, and you might want to do it as
 /// a separate task or after a yield.
-// TODO(relay): Split this into a Client and relay version.
 pub struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Indicate what type of channel this is.
-    channel_type: ChannelType,
+    pub(crate) channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
-    sleep_prov: S,
+    pub(crate) sleep_prov: S,
     /// Memory quota account
-    memquota: ChannelAccount,
+    pub(crate) memquota: ChannelAccount,
     /// The negotiated link protocol.
-    link_protocol: u16,
+    pub(crate) link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
-    framed_tls: ChannelFrame<T>,
+    pub(crate) framed_tls: ChannelFrame<T>,
     /// Declared target method for this stream, if any.
-    target_method: Option<ChannelMethod>,
+    pub(crate) target_method: Option<ChannelMethod>,
     /// Logging identifier for this stream.  (Used for logging only.)
-    unique_id: UniqId,
+    pub(crate) unique_id: UniqId,
     /// Validated Ed25519 identity for this peer.
-    ed25519_id: Ed25519Identity,
+    pub(crate) ed25519_id: Ed25519Identity,
     /// Validated RSA identity for this peer.
-    rsa_id: RsaIdentity,
+    pub(crate) rsa_id: RsaIdentity,
+    /// Peer verified RSA cert digest.
+    pub(crate) rsa_cert_digest: [u8; 32],
+    /// Peer TLS certificate digest
+    pub(crate) peer_cert_digest: [u8; 32],
     /// Authenticated clock skew for this peer.
-    clock_skew: ClockSkew,
-    /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
-    /// process because the channel needs to be verified before it is sent.
-    #[cfg(feature = "relay")]
-    #[expect(unused)] // TODO(relay): Remove once used.
-    auth_data: Option<ChannelAuthenticationData>,
+    pub(crate) clock_skew: ClockSkew,
 }
 
 impl<
@@ -399,15 +384,11 @@ impl<
             link_protocol,
             framed_tls: self.framed_tls,
             certs_cell,
-            netinfo_cell,
-            auth_challenge_cell: None,
             clock_skew,
             target_method: self.target_method.take(),
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov.clone(),
             memquota: self.memquota.clone(),
-            #[cfg(feature = "relay")]
-            identities: None,
         })
     }
 }
@@ -455,8 +436,8 @@ impl<
 
     /// Same as `check`, but takes the SHA256 hash of the peer certificate,
     /// since that is all we use.
-    fn check_internal<U: ChanTarget + ?Sized>(
-        mut self,
+    pub(crate) fn check_internal<U: ChanTarget + ?Sized>(
+        self,
         peer: &U,
         peer_cert_sha256: &[u8],
         now: Option<SystemTime>,
@@ -657,63 +638,6 @@ impl<
         sk_tls_timeliness?;
         rsa_cert_timeliness?;
 
-        // This part is relay specific as only relay will process an AUTH_CHALLENGE message.
-        //
-        // TODO(relay). We should somehow find a way to have this to be in the relay module. For
-        // this, I suspect we will need a relay specific UnverifiedChannel and VerifiedChannel
-        // which yields a Channel upon validation. Client and relay channels would share a lot of
-        // code so we would need to find an elegant way to do this. Until then, it lives here.
-        #[cfg(feature = "relay")]
-        let auth_data: Option<ChannelAuthenticationData>;
-        #[cfg(feature = "relay")]
-        {
-            auth_data = match (self.auth_challenge_cell, self.identities) {
-                (Some(auth_challenge_cell), Some(identities)) => {
-                    // Depending on if we are initiator or responder, we flip the identities in the
-                    // authentication challenge. See tor-spec.
-                    let (cid, sid, cid_ed, sid_ed) = if self.channel_type.is_initiator() {
-                        (
-                            ll::d::Sha256::digest(&identities.cert_id_x509_rsa).into(),
-                            (*rsa_cert.digest()),
-                            &identities.ed_id,
-                            identity_key,
-                        )
-                    } else {
-                        (
-                            (*rsa_cert.digest()),
-                            ll::d::Sha256::digest(&identities.cert_id_x509_rsa).into(),
-                            identity_key,
-                            &identities.ed_id,
-                        )
-                    };
-                    let link_auth = *crate::relay::channel::handshake::LINK_AUTH
-                        .iter()
-                        .filter(|m| auth_challenge_cell.methods().contains(m))
-                        .max()
-                        .ok_or(Error::BadCellAuth)?;
-
-                    let auth_data = ChannelAuthenticationData {
-                        link_auth,
-                        cid,
-                        sid,
-                        cid_ed: cid_ed
-                            .as_bytes()
-                            .try_into()
-                            .expect("ed25519 had an unexpected size"),
-                        sid_ed: sid_ed
-                            .as_bytes()
-                            .try_into()
-                            .expect("ed25519 had an unexpected size"),
-                        clog: self.framed_tls.codec_mut().get_clog_digest()?,
-                        slog: self.framed_tls.codec_mut().get_slog_digest()?,
-                        scert: peer_cert_sha256.try_into().expect("Peer cert not 32 bytes"),
-                    };
-                    Some(auth_data)
-                }
-                _ => None,
-            };
-        }
-
         Ok(VerifiedChannel {
             channel_type: self.channel_type,
             link_protocol: self.link_protocol,
@@ -722,11 +646,13 @@ impl<
             target_method: self.target_method,
             ed25519_id: *identity_key,
             rsa_id,
+            rsa_cert_digest: *rsa_cert.digest(),
+            peer_cert_digest: peer_cert_sha256
+                .try_into()
+                .expect("SHA256 digest not 32 bytes"),
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
-            #[cfg(feature = "relay")]
-            auth_data,
         })
     }
 }
@@ -1058,7 +984,6 @@ pub(super) mod test {
         R: Runtime,
     {
         let localhost = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
-        let netinfo_cell = msg::Netinfo::from_client(Some(localhost));
         let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
         let _ = framed_tls.codec_mut().set_link_version(4);
         let _ = framed_tls.codec_mut().set_open();
@@ -1068,15 +993,11 @@ pub(super) mod test {
             link_protocol: 4,
             framed_tls,
             certs_cell: certs,
-            netinfo_cell,
-            auth_challenge_cell: None,
             clock_skew,
             target_method: None,
             unique_id: UniqId::new(),
             sleep_prov: runtime,
             memquota: fake_mq(),
-            #[cfg(feature = "relay")]
-            identities: None,
         }
     }
 
@@ -1347,11 +1268,11 @@ pub(super) mod test {
                 target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,
                 rsa_id,
+                rsa_cert_digest: [0; 32],
+                peer_cert_digest: [0; 32],
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
                 memquota: fake_mq(),
-                #[cfg(feature = "relay")]
-                auth_data: None,
             };
 
             let (_chan, _reactor) = ver.finish().await.unwrap();

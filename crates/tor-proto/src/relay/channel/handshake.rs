@@ -3,9 +3,10 @@
 use futures::io::{AsyncRead, AsyncWrite};
 use rand::Rng;
 use std::{sync::Arc, time::SystemTime};
-use tracing::trace;
+use tracing::{instrument, trace};
 
 use tor_cell::chancell::msg;
+use tor_linkspec::ChanTarget;
 use tor_llcrypto::pk::ed25519::Ed25519SigningKey;
 use tor_relay_crypto::pk::RelayLinkSigningKeypair;
 use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
@@ -96,7 +97,7 @@ impl<
     ///
     /// Takes a function that reports the current time.  In theory, this can just be
     /// `SystemTime::now()`.
-    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedChannel<T, S>>
+    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedRelayChannel<T, S>>
     where
         F: FnOnce() -> SystemTime,
     {
@@ -123,19 +124,21 @@ impl<
             versions_flushed_wallclock,
         );
 
-        Ok(UnverifiedChannel {
-            channel_type: ChannelType::RelayInitiator,
-            link_protocol,
-            framed_tls: self.framed_tls,
-            clock_skew,
-            memquota: self.memquota,
-            target_method: None, // TODO(relay): We might use it for NETINFO canonicity.
-            unique_id: self.unique_id,
-            sleep_prov: self.sleep_prov.clone(),
-            certs_cell,
+        Ok(UnverifiedRelayChannel {
+            inner: UnverifiedChannel {
+                channel_type: ChannelType::RelayInitiator,
+                link_protocol,
+                framed_tls: self.framed_tls,
+                clock_skew,
+                memquota: self.memquota,
+                target_method: None, // TODO(relay): We might use it for NETINFO canonicity.
+                unique_id: self.unique_id,
+                sleep_prov: self.sleep_prov.clone(),
+                certs_cell,
+            },
             auth_challenge_cell,
             netinfo_cell,
-            identities: Some(self.identities),
+            identities: self.identities,
         })
     }
 }
@@ -222,10 +225,13 @@ impl ChannelAuthenticationData {
     }
 }
 
-/// A relay unverified channel on which versions have been negotiated and the relay's handshake has
-/// been read, but where the certs have not been checked hence unverified.
+/// A relay unverified channel which is a channel where the version has been negotiated and the
+/// handshake has been done but where the certificates and keys have not been validated hence
+/// unverified.
+///
+/// This is used for both initiator and responder channels.
 #[expect(unused)] // TODO(relay). remove
-pub(crate) struct UnverifiedRelayChannel<
+pub struct UnverifiedRelayChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -240,13 +246,76 @@ pub(crate) struct UnverifiedRelayChannel<
     identities: Arc<RelayIdentities>,
 }
 
+impl<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> UnverifiedRelayChannel<T, S>
+{
+    /// Validate the certificates and keys in the relay's handshake.
+    ///
+    /// 'peer' is the peer that we want to make sure we're connecting to.
+    ///
+    /// 'peer_cert' is the x.509 certificate that the peer presented during
+    /// its TLS handshake (ServerHello).
+    ///
+    /// 'now' is the time at which to check that certificates are
+    /// valid.  `None` means to use the current time. It can be used
+    /// for testing to override the current view of the time.
+    ///
+    /// This is a separate function because it's likely to be somewhat
+    /// CPU-intensive.
+    #[instrument(skip_all, level = "trace")]
+    pub fn check<U: ChanTarget + ?Sized>(
+        self,
+        peer: &U,
+        peer_cert: &[u8],
+        now: Option<std::time::SystemTime>,
+    ) -> Result<VerifiedRelayChannel<T, S>> {
+        // Verify our inner channel and then proceed to handle the authentication challenge if any.
+        let mut verified = self.inner.check(peer, peer_cert, now)?;
+
+        let auth_data = if let Some(auth_challenge_cell) = self.auth_challenge_cell {
+            // Validate our link authentication protocol version.
+            let link_auth = *LINK_AUTH
+                .iter()
+                .filter(|m| auth_challenge_cell.methods().contains(m))
+                .max()
+                .ok_or(Error::BadCellAuth)?;
+            // Having a AUTH_CHALLENGE implies we are the initiator as it is the responder that
+            // sends that message. Thus the ordering of these keys is for the initiator.
+            let cid = self.identities.rsa_x509_digest();
+            let sid = verified.rsa_cert_digest;
+            let cid_ed = self.identities.ed_id_bytes();
+            let sid_ed = verified.ed25519_id.into();
+
+            Some(ChannelAuthenticationData {
+                link_auth,
+                cid,
+                sid,
+                cid_ed,
+                sid_ed,
+                clog: verified.framed_tls.codec_mut().get_clog_digest()?,
+                slog: verified.framed_tls.codec_mut().get_slog_digest()?,
+                scert: verified.peer_cert_digest,
+            })
+        } else {
+            None
+        };
+
+        Ok(VerifiedRelayChannel {
+            inner: verified,
+            auth_data,
+        })
+    }
+}
+
 /// A verified relay channel on which versions have been negotiated, the handshake has been read,
 /// but the relay has not yet finished the handshake.
 ///
 /// This type is separate from UnverifiedRelayChannel, since finishing the handshake requires a
 /// bunch of CPU, and you might want to do it as a separate task or after a yield.
 #[expect(unused)] // TODO(relay). remove
-pub(crate) struct VerifiedRelayChannel<
+pub struct VerifiedRelayChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
