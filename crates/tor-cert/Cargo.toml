@@ -23,6 +23,7 @@ full = [
     "tor-checkable/full",
     "tor-llcrypto/full",
     "x509",
+    "tor-error/full",
 ]
 x509 = ["rand", "rsa", "x509-cert"]
 # Enable experimental APIs that are not yet officially supported.
