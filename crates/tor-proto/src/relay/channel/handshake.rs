@@ -12,7 +12,8 @@ use tor_rtcompat::{CertifiedConn, CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::ChannelFrame;
 use crate::channel::handshake::{
-    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, unauthenticated_clock_skew,
+    ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
+    unauthenticated_clock_skew,
 };
 use crate::channel::{ChannelType, UniqId, new_frame};
 use crate::memquota::ChannelAccount;
@@ -131,8 +132,8 @@ impl<
             target_method: None, // TODO(relay): We might use it for NETINFO canonicity.
             unique_id: self.unique_id,
             sleep_prov: self.sleep_prov.clone(),
-            auth_challenge_cell,
             certs_cell,
+            auth_challenge_cell,
             netinfo_cell,
             identities: Some(self.identities),
         })
@@ -219,4 +220,39 @@ impl ChannelAuthenticationData {
         // Lets go with the AUTHENTICATE cell.
         Ok(msg::Authenticate::new(self.link_auth, body))
     }
+}
+
+/// A relay unverified channel on which versions have been negotiated and the relay's handshake has
+/// been read, but where the certs have not been checked hence unverified.
+#[expect(unused)] // TODO(relay). remove
+pub(crate) struct UnverifiedRelayChannel<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
+    /// The common unverified channel that both client and relays use.
+    inner: UnverifiedChannel<T, S>,
+    /// The AUTH_CHALLENGE cell that we got from the relay. This is only relevant if the channel is
+    /// the initiator as this message is sent by the responder.
+    auth_challenge_cell: Option<msg::AuthChallenge>,
+    /// The netinfo cell that we got from the relay.
+    netinfo_cell: msg::Netinfo,
+    /// Our identity keys needed for authentication.
+    identities: Arc<RelayIdentities>,
+}
+
+/// A verified relay channel on which versions have been negotiated, the handshake has been read,
+/// but the relay has not yet finished the handshake.
+///
+/// This type is separate from UnverifiedRelayChannel, since finishing the handshake requires a
+/// bunch of CPU, and you might want to do it as a separate task or after a yield.
+#[expect(unused)] // TODO(relay). remove
+pub(crate) struct VerifiedRelayChannel<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
+    /// The common unverified channel that both client and relays use.
+    inner: VerifiedChannel<T, S>,
+    /// Authentication data for the [msg::Authenticate] cell. It is sent during the finalization
+    /// process because the channel needs to be verified before this is sent.
+    auth_data: Option<ChannelAuthenticationData>,
 }
