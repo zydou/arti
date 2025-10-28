@@ -42,6 +42,7 @@ full = [
     "slotmap-careful/full",
     "caret/full",
     "tor-protover/full",
+    "tor-relay-crypto/full",
 ]
 
 experimental = [
