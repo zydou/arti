@@ -85,6 +85,7 @@ use crate::circuit::circhop::HopSettings;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
+use crate::relay::RelayReactorHandle;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::util::err::ReactorError;
 
@@ -161,17 +162,6 @@ pub(crate) type CircuitRxSender = mq_queue::Sender<RelayCircChanMsg, MpscSpec>;
 
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpec>;
-
-/// A handle for interacting with a [`RelayReactor`].
-#[allow(unused)] // TODO(relay)
-pub(crate) struct RelayReactorHandle {
-    /// Sender for reactor control messages.
-    control: mpsc::UnboundedSender<RelayCtrlMsg>,
-    /// Sender for reactor control commands.
-    command: mpsc::UnboundedSender<RelayCtrlCmd>,
-    /// A broadcast receiver used to detect when the reactor is dropped.
-    reactor_closed_rx: broadcast::Receiver<void::Void>,
-}
 
 #[allow(unused)] // TODO(relay)
 impl<T: HasRelayIds> RelayReactor<T> {

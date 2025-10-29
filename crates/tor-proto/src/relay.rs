@@ -13,3 +13,18 @@ pub(crate) mod channel;
 #[allow(unreachable_pub)] // TODO(relay): use in tor-chanmgr(?)
 pub mod channel_provider;
 pub(crate) mod reactor;
+
+use futures::channel::mpsc;
+use postage::broadcast;
+use reactor::{RelayCtrlCmd, RelayCtrlMsg};
+
+/// A handle for interacting with a [`RelayReactor`].
+#[allow(unused)] // TODO(relay)
+pub(crate) struct RelayReactorHandle {
+    /// Sender for reactor control messages.
+    control: mpsc::UnboundedSender<RelayCtrlMsg>,
+    /// Sender for reactor control commands.
+    command: mpsc::UnboundedSender<RelayCtrlCmd>,
+    /// A broadcast receiver used to detect when the reactor is dropped.
+    reactor_closed_rx: broadcast::Receiver<void::Void>,
+}
