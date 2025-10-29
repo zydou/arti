@@ -20,7 +20,7 @@ use reactor::{RelayCtrlCmd, RelayCtrlMsg};
 
 /// A handle for interacting with a relay circuit.
 #[allow(unused)] // TODO(relay)
-pub(crate) struct RelayCirc {
+pub struct RelayCirc {
     /// Sender for reactor control messages.
     control: mpsc::UnboundedSender<RelayCtrlMsg>,
     /// Sender for reactor control commands.
