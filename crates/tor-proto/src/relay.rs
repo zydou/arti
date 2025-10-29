@@ -1,7 +1,7 @@
 //! This module contains a WIP relay tunnel reactor.
 //!
 //! The initial version will duplicate some of the logic from
-//! the client tunnel from [`crate::client::reactor`].
+//! the client tunnel reactor.
 //!
 //! TODO(relay): refactor the relay tunnel
 //! to share the same base tunnel implementation
