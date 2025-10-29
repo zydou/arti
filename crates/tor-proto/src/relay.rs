@@ -25,3 +25,10 @@ pub struct RelayCirc {
     /// Sender for reactor control commands.
     command: mpsc::UnboundedSender<RelayCtrlCmd>,
 }
+
+impl RelayCirc {
+    /// Return true if this circuit is closed and therefore unusable.
+    pub fn is_closing(&self) -> bool {
+        self.control.is_closed()
+    }
+}
