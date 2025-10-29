@@ -222,7 +222,6 @@ impl<T: HasRelayIds> RelayReactor<T> {
         let handle = RelayCirc {
             control: control_tx,
             command: command_tx,
-            reactor_closed_rx,
         };
 
         let reactor = RelayReactor {
