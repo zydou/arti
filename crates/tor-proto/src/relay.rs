@@ -18,9 +18,9 @@ use futures::channel::mpsc;
 use postage::broadcast;
 use reactor::{RelayCtrlCmd, RelayCtrlMsg};
 
-/// A handle for interacting with a [`RelayReactor`].
+/// A handle for interacting with a relay circuit.
 #[allow(unused)] // TODO(relay)
-pub(crate) struct RelayReactorHandle {
+pub(crate) struct RelayCirc {
     /// Sender for reactor control messages.
     control: mpsc::UnboundedSender<RelayCtrlMsg>,
     /// Sender for reactor control commands.
