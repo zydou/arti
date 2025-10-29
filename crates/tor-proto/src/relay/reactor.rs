@@ -162,7 +162,7 @@ pub(crate) type CircuitRxSender = mq_queue::Sender<RelayCircChanMsg, MpscSpec>;
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpec>;
 
-/// A handle for interacting with a [`BackwardReactor`].
+/// A handle for interacting with a [`RelayReactor`].
 #[allow(unused)] // TODO(relay)
 pub(crate) struct RelayReactorHandle {
     /// Sender for reactor control messages.
