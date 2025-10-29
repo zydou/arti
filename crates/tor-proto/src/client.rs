@@ -195,6 +195,18 @@ impl ClientTunnel {
         self.circ.unique_id()
     }
 
+    /// Return the time at which this tunnel last had any open streams.
+    ///
+    /// Returns `None` if this tunnel has never had any open streams,
+    /// or if it currently has open streams.
+    ///
+    /// NOTE that the Instant returned by this method is not affected by
+    /// any runtime mocking; it is the output of an ordinary call to
+    /// `Instant::now()`.
+    pub async fn disused_since(&self) -> Result<Option<std::time::Instant>> {
+        self.circ.disused_since().await
+    }
+
     /// Return a future that will resolve once the underlying circuit reactor has closed.
     ///
     /// Note that this method does not itself cause the tunnel to shut down.

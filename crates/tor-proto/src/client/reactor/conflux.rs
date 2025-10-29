@@ -31,6 +31,7 @@ use crate::streammap;
 use crate::tunnel::TunnelId;
 use crate::util::err::ReactorError;
 use crate::util::poll_all::PollAll;
+use crate::util::tunnel_activity::TunnelActivity;
 
 use super::circuit::CircHop;
 use super::{Circuit, CircuitAction, SendRelayCell};
@@ -418,6 +419,14 @@ impl ConfluxSet {
     /// Return an iterator of all circuits in the conflux set.
     fn circuits(&self) -> impl Iterator<Item = &Circuit> {
         self.legs.iter()
+    }
+
+    /// Return the most active [`TunnelActivity`] for any leg of this `ConfluxSet`.
+    pub(super) fn tunnel_activity(&self) -> TunnelActivity {
+        self.circuits()
+            .map(|c| c.hops.tunnel_activity())
+            .max()
+            .unwrap_or_else(TunnelActivity::never_used)
     }
 
     /// Add legs to the this conflux set.

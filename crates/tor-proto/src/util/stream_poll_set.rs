@@ -14,7 +14,9 @@ use std::{
 use futures::{FutureExt, StreamExt as _};
 use tor_async_utils::peekable_stream::PeekableStream;
 
-use crate::util::keyed_futures_unordered::KeyedFuturesUnordered;
+use crate::util::{
+    keyed_futures_unordered::KeyedFuturesUnordered, tunnel_activity::TunnelActivity,
+};
 
 /// A future that wraps a [`PeekableStream`], and yields the stream
 /// when an item becomes available.
@@ -99,6 +101,10 @@ where
     // Invariants:
     // * Keys are a (non-strict) subset of those in `priorities`.
     pending_streams: KeyedFuturesUnordered<K, PeekableReady<S>>,
+
+    /// Information about how active this particular hop has been,
+    /// with respect to tracking overall tunnel activity.
+    tunnel_activity: TunnelActivity,
 }
 
 impl<K, P, S> StreamPollSet<K, P, S>
@@ -113,6 +119,7 @@ where
             priorities: Default::default(),
             ready_streams: Default::default(),
             pending_streams: KeyedFuturesUnordered::new(),
+            tunnel_activity: TunnelActivity::never_used(),
         }
     }
 
@@ -142,6 +149,7 @@ where
             // By `pending_streams` invariant that keys are a subset of those in
             // `priorities`.
             .unwrap_or_else(|_| panic!("Unexpected duplicate key"));
+        self.tunnel_activity.inc_streams();
         v.insert(priority);
         Ok(())
     }
@@ -150,6 +158,7 @@ where
     /// poll_next result, and stream.
     pub fn remove(&mut self, key: &K) -> Option<(K, P, S)> {
         let priority = self.priorities.remove(key)?;
+        self.tunnel_activity.dec_streams();
         if let Some((key, fut)) = self.pending_streams.remove(key) {
             // Validate `priorities` invariant that keys are also present in exactly one of
             // `pending_streams` and `ready_values`.
@@ -398,6 +407,12 @@ where
     /// Number of streams managed by this object.
     pub fn len(&self) -> usize {
         self.priorities.len()
+    }
+
+    /// Return a `TunnelActivity` for this hop.
+    pub fn tunnel_activity(&self) -> TunnelActivity {
+        assert_eq!(self.len(), self.tunnel_activity.n_open_streams());
+        self.tunnel_activity
     }
 }
 

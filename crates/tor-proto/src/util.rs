@@ -12,6 +12,7 @@ pub(crate) mod sometimes_unbounded_sink;
 pub(crate) mod stream_poll_set;
 pub(crate) mod token_bucket;
 pub(crate) mod ts;
+pub(crate) mod tunnel_activity;
 
 use futures::Sink;
 use std::pin::Pin;

@@ -323,6 +323,11 @@ impl StreamMap {
         self.open_streams.len()
     }
 
+    /// Return a [`TunnelActivity`] for this hop.
+    pub(super) fn tunnel_activity(&self) -> crate::util::tunnel_activity::TunnelActivity {
+        self.open_streams.tunnel_activity()
+    }
+
     /// Return the next available priority.
     fn take_next_priority(&mut self) -> Priority {
         let rv = self.next_priority;
