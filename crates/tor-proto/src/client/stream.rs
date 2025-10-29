@@ -12,8 +12,6 @@
 #[cfg(feature = "stream-ctrl")]
 mod ctrl;
 mod data;
-#[cfg(feature = "hs-service")]
-mod incoming;
 mod params;
 mod resolve;
 
@@ -22,13 +20,15 @@ mod resolve;
 // and making the raw module private.
 pub(crate) mod raw;
 
+#[cfg(feature = "hs-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
+pub(crate) use crate::stream::incoming::IncomingCmdChecker;
 pub use data::{DataReader, DataStream, DataWriter};
+
+// TODO(relay): stop reexporting these from here
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub(crate) use incoming::IncomingCmdChecker;
-#[cfg(feature = "hs-service")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub use incoming::{
+pub use crate::stream::incoming::{
     IncomingStream, IncomingStreamRequest, IncomingStreamRequestContext,
     IncomingStreamRequestDisposition, IncomingStreamRequestFilter,
 };
