@@ -8,13 +8,14 @@ use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::ChannelResult;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
+use crate::stream::CloseStreamBehavior;
 use crate::streammap::{self, StreamMap};
 use crate::util::err::ReactorError;
 use crate::util::poll_all::PollAll;
 use crate::{Error, Result};
+
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
-use crate::client::reactor::CloseStreamBehavior;
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
