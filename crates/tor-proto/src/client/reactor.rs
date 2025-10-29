@@ -132,7 +132,7 @@ pub(crate) enum CircuitHandshake {
 
 /// A behavior to perform when closing a stream.
 ///
-/// We don't use `Option<End>`` here, since the behavior of `SendNothing` is so surprising
+/// We don't use `Option<End>` here, since the behavior of `SendNothing` is so surprising
 /// that we shouldn't let it pass unremarked.
 #[derive(Clone, Debug)]
 pub(crate) enum CloseStreamBehavior {
