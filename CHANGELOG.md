@@ -10,7 +10,7 @@ Arti 1.7.0 continues high-level and low-level work on relay development.
 It also includes new experimental support for running as a `HTTP CONNECT`
 proxy, and numerous smaller fixes and infrastructure improvements.
 
-Arti 1.6.0 increases our MSRV (Minimum Supported Rust Version)
+Arti 1.7.0 increases our MSRV (Minimum Supported Rust Version)
 to 1.85.1, in accordance with our [MSRV policy].
 
 <!-- Up to date as of cd223074f082fdb5ae6683b98bdaf48d4dea47a8. -->
@@ -22,7 +22,7 @@ to 1.85.1, in accordance with our [MSRV policy].
 ### Major features
 
 - Improved (and hopefully more usable) output format from
-  `arti keys check-integrity`. ([#2151], [!3161])
+  the experimental `arti keys check-integrity` command. ([#2151], [!3161])
 - Experimental support for running as a `HTTP CONNECT` proxy.
   When arti is built with the `http-connect` feature enabled,
   its SOCKS listeners will also accept `HTTP CONNECT` tunnel requests,
