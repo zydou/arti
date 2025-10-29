@@ -7,10 +7,10 @@
 //! This is the number of bytes that we buffer within a [`DataStream`]. The actual total number of
 //! bytes buffered can be *much* larger. For example there will be additional buffering:
 //!
-//! - Within the arti socks proxy: Arti's socks code needs to read some bytes from the stream, store
+//! - Within the arti socks/http proxy: Arti's proxy code needs to read some bytes from the stream, store
 //!   it in a temporary buffer, then write the buffer to the socket. If the socket would block, the
-//!   data would remain in that temporary buffer. In practice arti uses only a 1024 byte buffer at
-//!   the time of writing, which is negligible. See `arti::socks::copy_interactive()`.
+//!   data would remain in that temporary buffer. In practice arti uses only a small byte buffer (APP_STREAM_BUF_LEN) at
+//!   the time of writing, which is hopefully negligible. See `arti::socks::copy_interactive()`.
 //! - Within the kernel: There are two additional buffers that will store stream data before the
 //!   application connected over socks will see the data: Arti's socket send buffer and the
 //!   application's socket receive buffer. If the application were to stop reading from its socket,

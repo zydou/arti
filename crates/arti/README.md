@@ -206,6 +206,11 @@ Note that these features will still be enabled if you build with the
 There are many missing features.  Among them: You can't be a relay. There isn't
 any kind of proxy besides SOCKS.
 
+> Actually, arti is now an experimental `HTTP connect` proxy,
+> if you enable the `http-connect` feature,
+> and just use the same port as SOCKS.
+> We'll revise the documentation for this once the feature is non-experimental.
+
 See the [repository README
 file](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md) for
 a more complete list of missing features.
