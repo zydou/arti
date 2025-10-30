@@ -1423,7 +1423,11 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
     /// Consider expiring the tunnel with given tunnel `id`,
     /// according to the rules in `config` and the current time `now`.
-    pub(crate) fn expire_tunnel(&self, tun_id: &<B::Tunnel as AbstractTunnel>::Id, now: Instant) {
+    pub(crate) fn consider_expiring_tunnel(
+        &self,
+        tun_id: &<B::Tunnel as AbstractTunnel>::Id,
+        now: Instant,
+    ) {
         let mut list = self.tunnels.lock().expect("poisoned lock");
         if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
             list.expire_tunnel(tun_id, now, dirty_cutoff);
@@ -1504,7 +1508,7 @@ fn spawn_expiration_task<B, R>(
             // Circuits manager has already been dropped, so are the references it held.
             return;
         };
-        cm.expire_tunnel(&circ_id, now);
+        cm.consider_expiring_tunnel(&circ_id, now);
     } else {
         // Spawn a timer expiration task with given expiration instant.
         if let Err(e) = runtime.spawn(async move {
@@ -1514,7 +1518,7 @@ fn spawn_expiration_task<B, R>(
             } else {
                 return;
             };
-            cm.expire_tunnel(&circ_id, exp_inst);
+            cm.consider_expiring_tunnel(&circ_id, exp_inst);
         }) {
             warn_report!(e, "Unable to launch expiration task");
         }
