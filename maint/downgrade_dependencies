@@ -28,6 +28,10 @@ $CARGO update \
       -p tap:1.0.0 \
       -p paste
 
+# The downgraded 'async-fs@2.0.0' lib specifies a dependency of 'futures-lite' 1.2.0,
+# but uses `FutureExt::poll()` which wasn't available until 'futures-lite' 1.9.0.
+$CARGO update --precise 1.9.0 futures-lite@1.2.0
+
 # The downgraded `async-global-executor@2.4.0` pulls in `event-listener@3.0.0`
 # which mistakenly dropped a `RefUnwindSafe` impl which `async-global-executor` wanted.
 # We're getting this via `async-std`, which evidently doesn't have minimal-versions CI

@@ -1,14 +1,11 @@
 //! Error module for `tor-dirserver`.
 
-use deadpool::managed::PoolError;
 use thiserror::Error;
-use void::Void;
 
 /// An error while interacting with a database.
 ///
 /// This error should be returned by all functions that interact with the
-/// database in one way or another.  Primarily, it wraps errors from crates such
-/// as [`rusqlite`], [`deadpool`], and [`deadpool_sqlite`]
+/// database in one way or another.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum DatabaseError {
@@ -33,26 +30,32 @@ pub(crate) enum DatabaseError {
         version: String,
     },
 
-    /// Interaction with our database pool, [`deadpool`], has failed.
+    /// Interaction with our database pool, [`r2d2`], has failed.
     ///
-    /// This error is only constructed by **some** error-variants of [`PoolError`].
-    /// In general, this application handles [`PoolError`] types as follows:
-    /// * [`PoolError::Backend`] is mapped to [`DatabaseError::LowLevel`].
-    /// * [`PoolError::PostCreateHook`] is mapped to [`DatabaseError::Bug`].
-    /// * Everything else is mapped to [`DatabaseError::Pool`].
-    ///
-    /// The motivation for this is, that [`PoolError::Backend`] and
-    /// [`PoolError::PostCreateHook`] contain [`rusqlite::Error`] as their
-    /// generic argument in the way we use it across the code base.  However,
-    /// for handling [`PoolError::Backend`], we already have
-    /// [`DatabaseError::LowLevel`], which exists to indicate underlying issues
-    /// with the database driver.  For handling [`PoolError::PostCreateHook`],
-    /// we opt for going with [`DatabaseError::Bug`], as we do not make use of
-    /// any post create hooks.
+    /// Unlike other database pools, this error is fairly straightforward and
+    /// may only be obtained in the cases in which we try to obtain a connection
+    /// handle from the pool.  Notably, it does not fail if, for example,
+    /// the low-level [`rusqlite`] has a failure.
     #[error("pool error: {0}")]
-    Pool(#[from] PoolError<Void>),
+    Pool(#[from] r2d2::Error),
 
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+/// An unrecoverable error during daemon operation.
+///
+/// This error is inteded for functions that generally run forever, unless they
+/// encounter an error that is not recoverable, in which case, they will return
+/// this error type.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum FatalError {
+    /// The selection of a consensus from the database has failed.
+    ///
+    /// This most likely indicates that something with the underlying database
+    /// is wrong in a persistent fashion, i.e. retries will not work anymore.
+    #[error("consensus selection error: {0}")]
+    ConsensusSelection(DatabaseError),
 }

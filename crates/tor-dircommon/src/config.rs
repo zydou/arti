@@ -254,6 +254,8 @@ impl_standard_builder! { DownloadScheduleConfig }
 /// failures of the directory authorities to reach a consensus, we want to
 /// consider a directory to be valid for a while before and after its official
 /// range of validity.
+///
+/// TODO: Remove the [`Default`] because it is too tightly bound to a client.
 #[derive(Debug, Clone, Builder, Eq, PartialEq, Getters, CopyGetters)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]

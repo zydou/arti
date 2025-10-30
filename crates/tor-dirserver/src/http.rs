@@ -2,8 +2,13 @@
 //!
 //! This module is unfortunately necessary as a middleware due to some obscure
 //! things in Tor, most notably the ".z" extensions.
+//!
+//! TODO DIRMIRROR: Use the `sql!` macro.
+//! TODO DIRMIRROR: Use the `read_tx` and `rw_tx` functions.
 
 use cache::StoreCache;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use strum::EnumString;
 use tor_error::internal;
 
@@ -18,8 +23,6 @@ use std::{
 };
 
 use bytes::Bytes;
-use deadpool::managed::Pool;
-use deadpool_sqlite::Manager;
 use futures::{Stream, StreamExt};
 use http::{header, Method, Request, Response, StatusCode};
 use http_body::{Body, Frame};
@@ -131,7 +134,7 @@ pub(crate) struct HttpServer {
     /// List of [`Endpoint`] entries.
     endpoints: Vec<Endpoint>,
     /// Access to the database pool.
-    pool: Pool<Manager>,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 impl Body for DocumentBody {
@@ -153,7 +156,7 @@ impl Body for DocumentBody {
 impl HttpServer {
     /// Creates a new [`HttpServer`] with a given [`Vec`] of [`Endpoint`] entries
     /// alongside access to the database [`Pool`].
-    pub(crate) fn new(endpoints: Vec<Endpoint>, pool: Pool<Manager>) -> Self {
+    pub(crate) fn new(endpoints: Vec<Endpoint>, pool: Pool<SqliteConnectionManager>) -> Self {
         Self { endpoints, pool }
     }
 
@@ -226,7 +229,7 @@ impl HttpServer {
     fn dispatch_stream<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
         cache: &Arc<StoreCache>,
         endpoints: &Arc<[Endpoint]>,
-        pool: &Pool<Manager>,
+        pool: &Pool<SqliteConnectionManager>,
         tasks: &mut JoinSet<Result<(), hyper::Error>>,
         stream: S,
     ) {
@@ -258,11 +261,11 @@ impl HttpServer {
     async fn handler(
         cache: Arc<StoreCache>,
         endpoints: Arc<[Endpoint]>,
-        pool: Pool<Manager>,
+        pool: Pool<SqliteConnectionManager>,
         requ: Request<Incoming>,
     ) -> Result<Response<DocumentBody>, Infallible> {
         // Obtain a database pool object (database connection).
-        let conn = match pool.get().await {
+        let mut conn = match pool.get() {
             Ok(conn) => conn,
             Err(e) => {
                 warn!("database pool error: {e}");
@@ -271,29 +274,15 @@ impl HttpServer {
         };
 
         // Create a transaction and pass it to `handler_tx`.
-        let res = conn
-            .interact(move |conn| {
-                let tx = match conn.transaction() {
-                    Ok(tx) => tx,
-                    Err(e) => {
-                        warn!("transaction creation error: {e}");
-                        return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
-                    }
-                };
-
-                let res = Self::handler_tx(&cache, &endpoints, tx, &requ);
-                Ok(res)
-            })
-            .await;
-
-        // Compose the result.
-        match res {
-            Ok(res) => res,
+        let tx = match conn.transaction() {
+            Ok(tx) => tx,
             Err(e) => {
-                warn!("endpoint function error: {e}");
-                Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR))
+                warn!("transaction creation error: {e}");
+                return Ok(Self::empty_response(StatusCode::INTERNAL_SERVER_ERROR));
             }
-        }
+        };
+
+        Ok(Self::handler_tx(&cache, &endpoints, tx, &requ))
     }
 
     /// A big monolithic function that handles incoming request with a consist
@@ -655,15 +644,9 @@ pub(in crate::http) mod test {
     pub(in crate::http) const X_TOR_LZMA_SHA256: &str =
         "B5549F79A69113BDAF3EF0AD1D7D339D0083BC31400ECEE1B673F331CF26E239";
 
-    pub(in crate::http) async fn create_test_db_pool() -> Pool<Manager> {
-        let pool = database::open("").await.unwrap();
-        pool.get()
-            .await
-            .unwrap()
-            .interact(init_test_db)
-            .await
-            .unwrap();
-
+    pub(in crate::http) fn create_test_db_pool() -> Pool<SqliteConnectionManager> {
+        let pool = database::open("").unwrap();
+        init_test_db(&mut pool.get().unwrap());
         pool
     }
 
@@ -889,33 +872,27 @@ pub(in crate::http) mod test {
         check_match!("/.z", 3);
     }
 
-    #[tokio::test]
-    async fn map_encoding() {
-        let pool = create_test_db_pool().await;
-        pool.get()
-            .await
-            .unwrap()
-            .interact(|conn| {
-                let data = [
-                    (ContentEncoding::Identity, IDENTITY_SHA256),
-                    (ContentEncoding::Deflate, DEFLATE_SHA256),
-                    (ContentEncoding::Gzip, GZIP_SHA256),
-                    (ContentEncoding::XZstd, XZ_STD_SHA256),
-                    (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
-                ];
+    #[test]
+    fn map_encoding() {
+        let pool = create_test_db_pool();
+        let mut conn = pool.get().unwrap();
 
-                let tx = conn.transaction().unwrap();
-                for (encoding, compressed_sha256) in data {
-                    println!("{encoding}");
-                    assert_eq!(
-                        HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding)
-                            .unwrap(),
-                        compressed_sha256
-                    );
-                }
-            })
-            .await
-            .unwrap();
+        let data = [
+            (ContentEncoding::Identity, IDENTITY_SHA256),
+            (ContentEncoding::Deflate, DEFLATE_SHA256),
+            (ContentEncoding::Gzip, GZIP_SHA256),
+            (ContentEncoding::XZstd, XZ_STD_SHA256),
+            (ContentEncoding::XTorLzma, X_TOR_LZMA_SHA256),
+        ];
+
+        let tx = conn.transaction().unwrap();
+        for (encoding, compressed_sha256) in data {
+            println!("{encoding}");
+            assert_eq!(
+                HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
+                compressed_sha256
+            );
+        }
     }
 
     #[tokio::test]
@@ -929,7 +906,7 @@ pub(in crate::http) mod test {
             Ok(Response::new(vec![IDENTITY_SHA256.into()]))
         }
 
-        let pool = create_test_db_pool().await;
+        let pool = create_test_db_pool();
         let server = HttpServer::new(
             vec![(Method::GET, "/tor/status-vote/current/consensus", identity)],
             pool,

@@ -1,14 +1,48 @@
 //! Access to the database schema.
 //!
-//! This module is not inteded to provide a high-level ORM, instead it serves
+//! This module is not intended to provide a high-level ORM, instead it serves
 //! the purpose of initializing and upgrading the database, if necessary.
+//!
+//! # Synchronous or Asynchronous?
+//!
+//! The question on whether the database and access to it shall be synchronous
+//! or asynchronous has been fairly long debate that eventually got settled
+//! after realizing that an asynchronous approach does not work.  This comment
+//! should serve as a reminder for future devs, wondering why we use certain
+//! synchronous primitives in an otherwise asynchronous codebase.
+//!
+//! Early on, it was clear that we would need some sort of connection pool,
+//! primarily for two reasons:
+//! 1. Performing frequent open and close calls in every task would be costly.
+//! 2. Sharing a single connection object with a Mutex would be a waste
+//!
+//! Because the application itself is primarily asynchronous, we decided to go
+//! with an asynchronous connection pool as well, leading to the choose of
+//! `deadpool` initially.
+//!
+//! However, soon thereafter, problems with `deadpool` became evident.  Those
+//! problems mostly stemmed from the synchronous nature of SQLite itself.  In our
+//! case, this problem was initially triggered by figuring out a way to solve
+//! `SQLITE_BUSY` handling.  In the end, we decided to settle upon the following
+//! approach: Set `PRAGMA busy_timeout` to a certain value and create write
+//! transactions with `BEGIN EXCLUSIVE`.  This way, SQLite would try to obtain
+//! a write transaction for `busy_timeout` milliseconds by blocking the current
+//! thread.  Due to this blocking, async no longer made any sense and was in
+//! fact quite counter-productive because those potential sleep could screw a
+//! lot of things up, which became very evident while trying to test this.
+//!
+//! Besides, throughout refactoring the code base, we realized that, even while
+//! still using `deadpool`, the actual "asynchronous" calls interfacing with the
+//! database became smaller and smaller.  In the end, the asynchronous code just
+//! involved parts of obtaining a connection and creating a transaction,
+//! eventually resulting in a calling a synchronous function taking the
+//! transaction handle to perform the lion's share of the operation.
 
-use std::path::PathBuf;
+use std::{num::NonZero, path::Path};
 
-use deadpool::managed::{Pool, PoolError};
-use deadpool_sqlite::{Config, Manager};
-use rusqlite::params;
-use tor_error::internal;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::{params, Transaction, TransactionBehavior};
 
 use crate::err::DatabaseError;
 
@@ -16,15 +50,27 @@ use crate::err::DatabaseError;
 // TODO: Make this a real type that actually enforces the constraints.
 pub(crate) type Sha256 = String;
 
+/// A no-op macro just returning the supplied.
+///
+/// The purpose of this macro is to semantically mark [`str`] literals to be
+/// SQL statement.
+///
+/// Keep in mind that the compiler will not notice if you forget this macro.
+/// Unfortunately, you have to ensure it yourself.
+macro_rules! sql {
+    ($s:literal) => {
+        $s
+    };
+}
+
+pub(crate) use sql;
+
 /// Version 1 of the database schema.
 ///
 /// TODO DIRMIRROR: Should we rename arti_dirmirror_schema_version to say
 /// dirserver or something more generic?
-const V1_SCHEMA: &str = "
-PRAGMA journal_mode=WAL;
-
-BEGIN TRANSACTION;
-
+const V1_SCHEMA: &str = sql!(
+    "
 -- Meta table to store the current schema version.
 CREATE TABLE arti_dirmirror_schema_version(
     version TEXT NOT NULL -- currently, always `1`
@@ -49,6 +95,9 @@ CREATE TABLE consensus(
     CHECK(GLOB('*[^0-9A-F]*', unsigned_sha3_256) == 0),
     CHECK(LENGTH(unsigned_sha3_256) == 64),
     CHECK(flavor IN ('ns', 'md')),
+    CHECK(valid_after >= 0),
+    CHECK(fresh_until >= 0),
+    CHECK(valid_until >= 0),
     CHECK(valid_after < fresh_until),
     CHECK(fresh_until < valid_until)
 ) STRICT;
@@ -124,7 +173,8 @@ CREATE TABLE authority_key_certificate(
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_id_rsa_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_sign_rsa_sha1) == 0),
     CHECK(LENGTH(kp_auth_id_rsa_sha1) == 40),
-    CHECK(LENGTH(kp_auth_sign_rsa_sha1) == 40)
+    CHECK(LENGTH(kp_auth_sign_rsa_sha1) == 40),
+    CHECK(dir_key_expires >= 0)
 
 ) STRICT;
 
@@ -173,9 +223,17 @@ CREATE TABLE consensus_authority_voter(
 ) STRICT;
 
 INSERT INTO arti_dirmirror_schema_version VALUES ('1');
+"
+);
 
-COMMIT;
-";
+/// Global options set in every connection.
+const GLOBAL_OPTIONS: &str = sql!(
+    "
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+PRAGMA busy_timeout=1000;
+"
+);
 
 /// Opens a database from disk, creating a [`Pool`] for it.
 ///
@@ -185,69 +243,121 @@ COMMIT;
 /// * Schema initialization.
 /// * Schema upgrade.
 /// * Setting connection specific settings.
-pub(crate) async fn open<P: Into<PathBuf>>(path: P) -> Result<Pool<Manager>, DatabaseError> {
-    let pool = Config::new(path)
-        .create_pool(deadpool::Runtime::Tokio1)
-        .map_err(|e| internal!("pool creation failed?: {e}"))?;
+///
+/// # `SQLITE_BUSY` Caveat
+///
+/// There is a problem with the handling of `SQLITE_BUSY` when opening an
+/// SQLite database.  In WAL, opening a database might acquire an exclusive lock
+/// for a very short amount of time, in order to perform clean-up from previous
+/// connections alongside other tasks for maintaining database integrity?  This
+/// means, that opening multiple SQLite databases simultanously will result in
+/// a busy error regardless of a busy handler, as setting a busy handler will
+/// require an existing connection, something we are unable to obtain in the
+/// first place.
+///
+/// In order to mitigate this issue, the recommended way in the SQLite community
+/// is to simply ensure that database connections are opened sequentially,
+/// by urging calling applications to just use a single [`Pool`] instance.
+///
+/// Testing this is hard unfortunately.
+pub(crate) fn open<P: AsRef<Path>>(
+    path: P,
+) -> Result<Pool<SqliteConnectionManager>, DatabaseError> {
+    let num_cores = std::thread::available_parallelism()
+        .unwrap_or(NonZero::new(8).expect("8 == 0?"))
+        .get() as u32;
 
-    // Prepare the database, doing the following steps:
-    // 1. Setting `foreign_keys=ON`.
-    // 2. Checking the database schema.
-    // 3. Upgrading (in future) or initializing the database schema (if empty).
-    pool.get()
-        .await
-        .map_err(|e| match e {
-            PoolError::Backend(e) => DatabaseError::LowLevel(e),
-            PoolError::Closed => DatabaseError::Pool(PoolError::Closed),
-            PoolError::NoRuntimeSpecified => DatabaseError::Pool(PoolError::NoRuntimeSpecified),
-            PoolError::PostCreateHook(e) => {
-                DatabaseError::Bug(internal!("post create hook error? {e}"))
-            }
-            PoolError::Timeout(e) => DatabaseError::Pool(PoolError::Timeout(e)),
-        })?
-        .interact(|conn| {
-            // Set global pragmas.
-            conn.execute("PRAGMA foreign_keys=ON", params![])?;
+    let manager = r2d2_sqlite::SqliteConnectionManager::file(&path);
+    let pool = Pool::builder().max_size(num_cores).build(manager)?;
 
-            let has_arti_dirmirror_schema_version = match conn.query_one(
+    rw_tx(&pool, |tx| {
+        // Prepare the database, doing the following steps:
+        // 1. Checking the database schema.
+        // 2. Upgrading (in future) or initializing the database schema (if empty).
+
+        let has_arti_dirmirror_schema_version = match tx.query_one(
+            sql!(
                 "
-                    SELECT name
-                    FROM sqlite_master
-                    WHERE type = 'table' AND name = 'arti_dirmirror_schema_version'
-                ",
+                SELECT name
+                FROM sqlite_master
+                  WHERE type = 'table'
+                    AND name = 'arti_dirmirror_schema_version'
+                "
+            ),
+            params![],
+            |_| Ok(()),
+        ) {
+            Ok(()) => true,
+            Err(rusqlite::Error::QueryReturnedNoRows) => false,
+            Err(e) => return Err(DatabaseError::LowLevel(e)),
+        };
+
+        if has_arti_dirmirror_schema_version {
+            let version = tx.query_one(
+                sql!("SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1"),
                 params![],
-                |_| Ok(()),
-            ) {
-                Ok(()) => true,
-                Err(rusqlite::Error::QueryReturnedNoRows) => false,
-                Err(e) => return Err(DatabaseError::LowLevel(e)),
-            };
+                |row| row.get::<_, String>(0),
+            )?;
 
-            if has_arti_dirmirror_schema_version {
-                let version = conn.query_one(
-                    "SELECT version FROM arti_dirmirror_schema_version WHERE rowid = 1",
-                    params![],
-                    |row| row.get::<_, String>(0),
-                )?;
-
-                match version.as_ref() {
-                    "1" => {}
-                    unknown => {
-                        return Err(DatabaseError::IncompatibleSchema {
-                            version: unknown.into(),
-                        })
-                    }
+            match version.as_ref() {
+                "1" => {}
+                unknown => {
+                    return Err(DatabaseError::IncompatibleSchema {
+                        version: unknown.into(),
+                    })
                 }
-            } else {
-                conn.execute_batch(V1_SCHEMA)?;
             }
+        } else {
+            tx.execute_batch(V1_SCHEMA)?;
+        }
 
-            Ok::<_, DatabaseError>(())
-        })
-        .await
-        .map_err(|e| internal!("pool interaction failed?: {e}"))??;
+        Ok::<_, DatabaseError>(())
+    })??;
 
     Ok(pool)
+}
+
+/// Executes a closure `op` with a given read-only [`Transaction`].
+///
+/// The [`Transaction`] always gets rolled back the moment `op` returns.
+///
+/// The [`Transaction`] gets initialized with the global pragma options set.
+///
+/// **The closure shall not perform write operations!**
+/// Not only do they get rolled back anyways, but upgrading the [`Transaction`]
+/// from a read to a write transaction will lead to other simultanous write upgrades
+/// to fail.  Unfortunately, there is no real programatic way to ensure this.
+pub(crate) fn read_tx<U, F>(pool: &Pool<SqliteConnectionManager>, op: F) -> Result<U, DatabaseError>
+where
+    F: FnOnce(&Transaction<'_>) -> U,
+{
+    let mut conn = pool.get()?;
+    conn.execute_batch(GLOBAL_OPTIONS)?;
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    let res = op(&tx);
+    tx.rollback()?;
+    Ok(res)
+}
+
+/// Executes a closure `op` with a given read-write [`Transaction`].
+///
+/// The [`Transaction`] always gets committed the moment `op` returns.
+///
+/// The [`Transaction`] gets initialized with the global pragma options set.
+///
+/// The [`Transaction`] gets created with [`TransactionBehavior::Immediate`],
+/// meaning it will immediately exist as a write connection, retrying in the
+/// case of a [`rusqlite::ErrorCode::DatabaseBusy`] until it failed after 1s.
+pub(crate) fn rw_tx<U, F>(pool: &Pool<SqliteConnectionManager>, op: F) -> Result<U, DatabaseError>
+where
+    F: FnOnce(&Transaction<'_>) -> U,
+{
+    let mut conn = pool.get()?;
+    conn.execute_batch(GLOBAL_OPTIONS)?;
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Exclusive)?;
+    let res = op(&tx);
+    tx.commit()?;
+    Ok(res)
 }
 
 #[cfg(test)]
@@ -265,17 +375,22 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use std::{
+        sync::{Arc, Once},
+        time::Duration,
+    };
+
     use rusqlite::Connection;
     use tempfile::tempdir;
 
     use super::*;
 
-    #[tokio::test]
-    async fn open() {
+    #[test]
+    fn open() {
         let db_dir = tempdir().unwrap();
         let db_path = db_dir.path().join("db");
 
-        super::open(&db_path).await.unwrap();
+        super::open(&db_path).unwrap();
         let conn = Connection::open(&db_path).unwrap();
 
         // Check if the version was initialized properly.
@@ -297,8 +412,142 @@ mod test {
         drop(conn);
 
         assert_eq!(
-            super::open(&db_path).await.unwrap_err().to_string(),
+            super::open(&db_path).unwrap_err().to_string(),
             "incompatible schema version: 42"
+        );
+    }
+
+    #[test]
+    fn read_tx() {
+        let db_dir = tempdir().unwrap();
+        let db_path = db_dir.path().join("db");
+
+        let pool = super::open(&db_path).unwrap();
+
+        // Do a write transaction despite forbidden.
+        super::read_tx(&pool, |tx| {
+            tx.execute_batch("DELETE FROM arti_dirmirror_schema_version")
+                .unwrap();
+            let e = tx
+                .query_one(
+                    sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                    params![],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap_err();
+            assert_eq!(e, rusqlite::Error::QueryReturnedNoRows);
+        })
+        .unwrap();
+
+        // Normal check.
+        let version: String = super::read_tx(&pool, |tx| {
+            tx.query_one(
+                sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                params![],
+                |row| row.get(0),
+            )
+            .unwrap()
+        })
+        .unwrap();
+        assert_eq!(version, "1");
+    }
+
+    #[test]
+    fn rw_tx() {
+        let db_dir = tempdir().unwrap();
+        let db_path = db_dir.path().join("db");
+
+        let pool = super::open(&db_path).unwrap();
+
+        // Do a write transaction.
+        super::rw_tx(&pool, |tx| {
+            tx.execute_batch("DELETE FROM arti_dirmirror_schema_version")
+                .unwrap();
+        })
+        .unwrap();
+
+        // Check that it was deleted.
+        super::read_tx(&pool, |tx| {
+            let e = tx
+                .query_one(
+                    sql!("SELECT version FROM arti_dirmirror_schema_version"),
+                    params![],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap_err();
+            assert_eq!(e, rusqlite::Error::QueryReturnedNoRows);
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn rw_tx_busy_timeout_working() {
+        let db_dir = tempdir().unwrap();
+        let db_path = db_dir.path().join("db");
+        let writer_acquired = Arc::new(Once::new());
+        let pool = super::open(db_path).unwrap();
+
+        let t1 = std::thread::spawn({
+            let pool = pool.clone();
+            let writer_acquired = writer_acquired.clone();
+            move || {
+                super::rw_tx(&pool, move |_tx| {
+                    println!("t1 acquired write lock");
+                    writer_acquired.call_once(|| ());
+                    std::thread::sleep(Duration::from_millis(500));
+                    println!("t2 released write lock");
+                })
+            }
+        });
+
+        let t2 = std::thread::spawn(move || {
+            println!("t2 waits for t1 to acquire write lock");
+            writer_acquired.wait();
+            println!("t2 realized that t1 has acquired write lock");
+
+            super::rw_tx(&pool, move |_tx| {
+                println!("t2 acquired write lock");
+                std::thread::sleep(Duration::from_millis(500));
+                println!("t2 released write lock");
+            })
+        });
+
+        t1.join().unwrap().unwrap();
+        t2.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn rw_tx_busy_timeout_busy() {
+        let db_dir = tempdir().unwrap();
+        let db_path = db_dir.path().join("db");
+        let writer_acquired = Arc::new(Once::new());
+        let pool = super::open(db_path).unwrap();
+
+        let t1 = std::thread::spawn({
+            let pool = pool.clone();
+            let writer_acquired = writer_acquired.clone();
+            move || {
+                super::rw_tx(&pool, move |_tx| {
+                    println!("t1 acquired write lock");
+                    writer_acquired.call_once(|| ());
+                    std::thread::sleep(Duration::from_millis(1500));
+                    println!("t2 released write lock");
+                })
+            }
+        });
+
+        let t2 = std::thread::spawn(move || {
+            println!("t2 waits for t1 to acquire write lock");
+            writer_acquired.wait();
+            println!("t2 realized that t1 has acquired write lock");
+
+            super::rw_tx(&pool, |_tx| unreachable!())
+        });
+
+        t1.join().unwrap().unwrap();
+        assert_eq!(
+            t2.join().unwrap().unwrap_err().to_string(),
+            "low-level rusqlite error: database is locked"
         );
     }
 }
