@@ -1414,7 +1414,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     ///
     /// Expired tunnels will not be automatically closed, but they will
     /// no longer be given out for new tunnels.
-    pub(crate) fn expire_tunnels(&self, now: Instant) {
+    pub(crate) async fn expire_tunnels(&self, now: Instant) {
         let mut list = self.tunnels.lock().expect("poisoned lock");
         if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
             list.expire_tunnels(now, dirty_cutoff);
@@ -1423,7 +1423,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
     /// Consider expiring the tunnel with given tunnel `id`,
     /// according to the rules in `config` and the current time `now`.
-    pub(crate) fn consider_expiring_tunnel(
+    pub(crate) async fn consider_expiring_tunnel(
         &self,
         tun_id: &<B::Tunnel as AbstractTunnel>::Id,
         now: Instant,
@@ -1481,12 +1481,12 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
 /// Spawn an expiration task that expires a tunnel at given instant.
 ///
-/// If given instant is earlier than now, expire the tunnel immediately.
-/// Otherwise, spawn a timer expiration task on given runtime.
-///
 /// When the timeout occurs, if the tunnel manager is still present,
 /// the task will ask the manager to expire the tunnel, if the tunnel
 /// is ready to expire.
+//
+// TODO: It would be good to do away with this function entirely, and have a smarter expiration
+// function.  This one only exists because there is not an "expire some circuits" background task.
 fn spawn_expiration_task<B, R>(
     runtime: &R,
     circmgr: Weak<AbstractTunnelMgr<B, R>>,
@@ -1500,28 +1500,23 @@ fn spawn_expiration_task<B, R>(
     let rt_copy = runtime.clone();
     let duration = exp_inst.saturating_duration_since(now);
 
-    if duration == Duration::ZERO {
-        // Circuit should already expire. Expire it now.
+    // NOTE: Once there was an optimization here that ran the expiration immediately if
+    // `duration` was zero.
+    // I discarded that optimization when I made `consider_expiring_tunnel` async,
+    // since we really want this function _not_ to be async,
+    // because we run it in contexts where we hold a Mutex on the tunnel list.
+
+    // Spawn a timer expiration task with given expiration instant.
+    if let Err(e) = runtime.spawn(async move {
+        rt_copy.sleep(duration).await;
         let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
             cm
         } else {
-            // Circuits manager has already been dropped, so are the references it held.
             return;
         };
-        cm.consider_expiring_tunnel(&circ_id, now);
-    } else {
-        // Spawn a timer expiration task with given expiration instant.
-        if let Err(e) = runtime.spawn(async move {
-            rt_copy.sleep(duration).await;
-            let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
-                cm
-            } else {
-                return;
-            };
-            cm.consider_expiring_tunnel(&circ_id, exp_inst);
-        }) {
-            warn_report!(e, "Unable to launch expiration task");
-        }
+        cm.consider_expiring_tunnel(&circ_id, exp_inst).await;
+    }) {
+        warn_report!(e, "Unable to launch expiration task");
     }
 }
 
@@ -2066,7 +2061,7 @@ mod test {
             // it was not dirty until 15 seconds after the cutoff.
             let now = rt.now();
 
-            mgr.expire_tunnels(now);
+            mgr.expire_tunnels(now).await;
 
             let (pop2, imap2) = rt
                 .wait_for(futures::future::join(

@@ -546,7 +546,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
     pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<B::Tunnel>> {
-        self.expire_circuits();
+        self.expire_circuits().await;
         let usage = TargetTunnelUsage::Dir;
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
@@ -565,7 +565,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         //             additive. The function should be refactored to be builder-like.
         #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
     ) -> Result<Arc<B::Tunnel>> {
-        self.expire_circuits();
+        self.expire_circuits().await;
         let time = Instant::now();
         {
             let mut predictive = self.predictor.lock().expect("preemptive lock poisoned");
@@ -606,7 +606,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         &self,
         target: T,
     ) -> Result<Arc<B::Tunnel>> {
-        self.expire_circuits();
+        self.expire_circuits().await;
         let usage = TargetTunnelUsage::DirSpecificTarget(target.to_owned());
         self.mgr
             .get_or_launch(&usage, DirInfo::Nothing)
@@ -733,7 +733,10 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         while sched.next().await.is_some() {
             if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
                 if let Ok(netdir) = dm.netdir(Timeliness::Unchecked) {
-                    if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
+                    if let Err(e) = cm
+                        .launch_timeout_testing_circuit_if_appropriate(&netdir)
+                        .await
+                    {
                         warn_report!(e, "Problem launching a timeout testing circuit");
                     }
                     let delay = netdir
@@ -763,13 +766,13 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     ///
     /// This function is invoked periodically from
     /// `continually_launch_timeout_testing_circuits`.
-    fn launch_timeout_testing_circuit_if_appropriate(&self, netdir: &NetDir) -> Result<()> {
+    async fn launch_timeout_testing_circuit_if_appropriate(&self, netdir: &NetDir) -> Result<()> {
         if !self.mgr.peek_builder().learning_timeouts() {
             return Ok(());
         }
         // We expire any too-old circuits here, so they don't get
         // counted towards max_circs.
-        self.expire_circuits();
+        self.expire_circuits().await;
         let max_circs: u64 = netdir
             .params()
             .cbt_max_open_circuits_for_testing
@@ -1047,14 +1050,14 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     ///
     /// Expired circuits are not closed while they still have users,
     /// but they are no longer given out for new requests.
-    fn expire_circuits(&self) {
+    async fn expire_circuits(&self) {
         // TODO: I would prefer not to call this at every request, but
         // it should be fine for now.  (At some point we may no longer
         // need this, or might not need to call it so often, now that
         // our circuit expiration runs on scheduled timers via
         // spawn_expiration_task.)
         let now = self.mgr.peek_runtime().now();
-        self.mgr.expire_tunnels(now);
+        self.mgr.expire_tunnels(now).await;
     }
 
     /// Mark every circuit that we have launched so far as unsuitable for
