@@ -280,8 +280,8 @@ pub(crate) trait AbstractTunnelBuilder<R: Runtime>: Send + Sync {
 enum ExpirationInfo {
     /// The tunnel has never been used.
     Unused {
-        /// A time when the tunnel should expire.
-        use_before: Instant,
+        /// A time when the tunnel was created.
+        created: Instant,
     },
     /// The tunnel has been used (or at least, restricted for use with a
     /// request) at least once.
@@ -293,8 +293,8 @@ enum ExpirationInfo {
 
 impl ExpirationInfo {
     /// Return an ExpirationInfo for a newly created tunnel.
-    fn new(use_before: Instant) -> Self {
-        ExpirationInfo::Unused { use_before }
+    fn new(now: Instant) -> Self {
+        ExpirationInfo::Unused { created: now }
     }
 
     /// Mark this ExpirationInfo as dirty, if it is not already dirty.
@@ -303,6 +303,15 @@ impl ExpirationInfo {
             *self = ExpirationInfo::Dirty { dirty_since: now };
         }
     }
+}
+
+/// Settings to determine when circuits are expired.
+#[derive(Clone, Debug)]
+pub(crate) struct ExpirationParameters {
+    /// Any unused circuit is expired this long after it was created.
+    expire_unused_after: Duration,
+    /// Any dirty circuit is expired this long after it first becomes dirty.
+    expire_dirty_after: Duration,
 }
 
 /// An entry for an open tunnel held by an `AbstractTunnelMgr`.
@@ -370,13 +379,12 @@ impl<T: AbstractTunnel> OpenEntry<T> {
         slice.choose_mut(&mut rng).expect("Input list was empty")
     }
 
-    /// Return true if this tunnel has been marked as dirty before
-    /// `dirty_cutoff`, or if it is an unused tunnel set to expire before
-    /// `unused_cutoff`.
-    fn should_expire(&self, unused_cutoff: Instant, dirty_cutoff: Instant) -> bool {
+    /// Return true if this tunnel should be expired given that the current time is `now`,
+    /// and the current settings are `params`.
+    fn should_expire(&self, now: Instant, params: &ExpirationParameters) -> bool {
         match self.expiration {
-            ExpirationInfo::Unused { use_before } => use_before <= unused_cutoff,
-            ExpirationInfo::Dirty { dirty_since } => dirty_since <= dirty_cutoff,
+            ExpirationInfo::Unused { created } => created + params.expire_unused_after < now,
+            ExpirationInfo::Dirty { dirty_since } => dirty_since + params.expire_dirty_after < now,
         }
     }
 }
@@ -578,9 +586,9 @@ impl<B: AbstractTunnelBuilder<R>, R: Runtime> TunnelList<B, R> {
     /// We remove every unused tunnel that is set to expire by
     /// `unused_cutoff`, and every dirty tunnel that has been dirty
     /// since before `dirty_cutoff`.
-    fn expire_tunnels(&mut self, unused_cutoff: Instant, dirty_cutoff: Instant) {
+    fn expire_tunnels(&mut self, now: Instant, params: &ExpirationParameters) {
         self.open_tunnels
-            .retain(|_k, v| !v.should_expire(unused_cutoff, dirty_cutoff));
+            .retain(|_k, v| !v.should_expire(now, params));
     }
 
     /// Remove the tunnel with given `id`, if it is scheduled to
@@ -588,13 +596,13 @@ impl<B: AbstractTunnelBuilder<R>, R: Runtime> TunnelList<B, R> {
     fn expire_tunnel(
         &mut self,
         id: &<B::Tunnel as AbstractTunnel>::Id,
-        unused_cutoff: Instant,
-        dirty_cutoff: Instant,
+        now: Instant,
+        params: &ExpirationParameters,
     ) {
         let should_expire = self
             .open_tunnels
             .get(id)
-            .map(|v| v.should_expire(unused_cutoff, dirty_cutoff))
+            .map(|v| v.should_expire(now, params))
             .unwrap_or_else(|| false);
         if should_expire {
             self.open_tunnels.remove(id);
@@ -1320,7 +1328,8 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                 let id = tunnel.id();
 
                 let use_duration = self.pick_use_duration();
-                let exp_inst = self.runtime.now() + use_duration;
+                let now = self.runtime.now();
+                let exp_inst = now + use_duration;
                 let runtime_copy = self.runtime.clone();
                 spawn_expiration_task(&runtime_copy, Arc::downgrade(&self), tunnel.id(), exp_inst);
                 // I used to call restrict_mut here, but now I'm not so
@@ -1331,7 +1340,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                 // assignment.
                 //
                 // new_spec.restrict_mut(&usage_copy).unwrap();
-                let use_before = ExpirationInfo::new(exp_inst);
+                let use_before = ExpirationInfo::new(now);
                 let open_ent = OpenEntry::new(new_spec.clone(), tunnel, use_before);
                 {
                     let mut list = self.tunnels.lock().expect("poisoned lock");
@@ -1356,6 +1365,17 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                     }
                 }
             }
+        }
+    }
+
+    /// Return the currently configured expiration parameters.
+    fn expiration_params(&self) -> ExpirationParameters {
+        let expire_unused_after = self.pick_use_duration();
+        let expire_dirty_after = self.circuit_timing().max_dirtiness;
+
+        ExpirationParameters {
+            expire_unused_after,
+            expire_dirty_after,
         }
     }
 
@@ -1416,9 +1436,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     /// no longer be given out for new tunnels.
     pub(crate) async fn expire_tunnels(&self, now: Instant) {
         let mut list = self.tunnels.lock().expect("poisoned lock");
-        if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
-            list.expire_tunnels(now, dirty_cutoff);
-        }
+        list.expire_tunnels(now, &self.expiration_params());
     }
 
     /// Consider expiring the tunnel with given tunnel `id`,
@@ -1429,9 +1447,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         now: Instant,
     ) {
         let mut list = self.tunnels.lock().expect("poisoned lock");
-        if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
-            list.expire_tunnel(tun_id, now, dirty_cutoff);
-        }
+        list.expire_tunnel(tun_id, now, &self.expiration_params());
     }
 
     /// Return the number of open tunnels held by this tunnel manager.
@@ -2107,7 +2123,7 @@ mod test {
         let (ep_none, ep_web, ep_full) = get_exit_policies();
         let fake_circ = FakeCirc { id: FakeId::next() };
         let expiration = ExpirationInfo::Unused {
-            use_before: Instant::now() + Duration::from_secs(60 * 60),
+            created: Instant::now(),
         };
 
         let mut entry_none = OpenEntry::new(
