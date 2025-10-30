@@ -278,16 +278,28 @@ pub(crate) trait AbstractTunnelBuilder<R: Runtime>: Send + Sync {
 /// used for a request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ExpirationInfo {
-    /// The tunnel has never been used.
+    /// The tunnel has never been used, and has never been restricted for use with a request.
     Unused {
         /// A time when the tunnel was created.
         created: Instant,
     },
-    /// The tunnel has been used (or at least, restricted for use with a
-    /// request) at least once.
+
+    /// The tunnel is not-long-lived; we will expire by waiting until a certain amount of time
+    /// after it was first used.
     Dirty {
         /// The time at which this tunnel's spec was first restricted.
         dirty_since: Instant,
+    },
+
+    /// The tunnel is long-lived; we will expire by waiting until it has passed
+    /// a certain amount of time without having any streams attached to it.
+    LongLived {
+        /// Last time at which the tunnel was checked and found not to have any streams.
+        ///
+        /// (This is a bit complicated: We have to be vague here, since we need
+        /// an async check to find out that a tunnel is used, or when it actually
+        /// became disused.)
+        last_known_to_be_used_at: Instant,
     },
 }
 
@@ -297,10 +309,34 @@ impl ExpirationInfo {
         ExpirationInfo::Unused { created: now }
     }
 
-    /// Mark this ExpirationInfo as dirty, if it is not already dirty.
-    fn mark_dirty(&mut self, now: Instant) {
-        if matches!(self, ExpirationInfo::Unused { .. }) {
-            *self = ExpirationInfo::Dirty { dirty_since: now };
+    /// Mark this ExpirationInfo as having been in-use at `now`.
+    ///
+    /// If `long_lived` is false, the associated tunnel should expire a certain amount of time
+    /// after it was _first_ used.
+    /// If `long_lived` is true, the associated tunnel should expire a certain amount of time
+    /// after it was _last_ used.
+    fn mark_used(&mut self, now: Instant, long_lived: bool) {
+        if long_lived {
+            *self = ExpirationInfo::LongLived {
+                last_known_to_be_used_at: now,
+            };
+        } else {
+            match self {
+                ExpirationInfo::Unused { .. } => {
+                    // This is our first time using this circuit; mark it dirty
+                    *self = ExpirationInfo::Dirty { dirty_since: now };
+                }
+                ExpirationInfo::Dirty { .. } => {
+                    // no need to update; we're tracking the time when the circuit _first_ became
+                    // dirty, so further uses don't matter.
+                }
+                ExpirationInfo::LongLived { .. } => {
+                    // shouldn't occur: we shouldn't be able to attach a stream with non-long-lived isolation
+                    // to a tunnel marked as long-lived.  In this case we leave the timestamp alone.
+                    // (If there were a bug here, it would be harmless, since we would
+                    // correct the timestamp the next time we tried to expire the circuit.)
+                }
+            }
         }
     }
 }
@@ -350,7 +386,7 @@ impl<T: AbstractTunnel> OpenEntry<T> {
     /// Return an error if the tunnel may not be used for `usage`.
     fn restrict_mut(&mut self, usage: &TargetTunnelUsage, now: Instant) -> Result<()> {
         self.spec.restrict_mut(usage)?;
-        self.expiration.mark_dirty(now);
+        self.expiration.mark_used(now, self.spec.is_long_lived());
         Ok(())
     }
 
@@ -385,6 +421,7 @@ impl<T: AbstractTunnel> OpenEntry<T> {
         match self.expiration {
             ExpirationInfo::Unused { created } => created + params.expire_unused_after < now,
             ExpirationInfo::Dirty { dirty_since } => dirty_since + params.expire_dirty_after < now,
+            ExpirationInfo::LongLived { .. } => false, // XXXXX not yet correct.
         }
     }
 }
