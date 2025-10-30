@@ -46,6 +46,10 @@ impl arti_client::isolation::IsolationHelper for DnsIsolationKey {
             None
         }
     }
+
+    fn enables_long_lived_circuits(&self) -> bool {
+        false
+    }
 }
 
 /// Identifier for a DNS request, composed of its source IP and transaction ID

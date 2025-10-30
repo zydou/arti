@@ -75,6 +75,18 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
             None
         }
     }
+
+    fn enables_long_lived_circuits(&self) -> bool {
+        use ProvidedIsolation as PI;
+        use SocksAuth as SA;
+        match &self.1 {
+            PI::LegacySocks(SA::Socks4(auth)) => !auth.is_empty(),
+            PI::LegacySocks(SA::Username(uname, pass)) => !(uname.is_empty() && pass.is_empty()),
+            PI::LegacySocks(_) => false,
+            PI::ExtendedSocks { isolation, .. } => !isolation.is_empty(),
+            PI::Http(isolation) => !isolation.is_empty(),
+        }
+    }
 }
 
 /// Size of read buffer to apply to application data streams

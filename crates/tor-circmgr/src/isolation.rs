@@ -54,6 +54,20 @@ pub trait Isolation:
     // TODO: (This function probably should be associative too, but we haven't done
     // all the math.)
     fn join(&self, other: &dyn Isolation) -> Option<Box<dyn Isolation>>;
+
+    /// Return true if this `Isolation` object should be considered sufficiently strong
+    /// as to enable long-lived circuits.
+    ///
+    /// By default, once a circuit has been in use for long enough,
+    /// it is considered no longer usable for new circuits.
+    /// But if the circuit's isolation is sufficiently strong
+    /// (and this method returns true)
+    /// then a circuit will keep being used for new streams indefinitely.
+    ///
+    /// The default implementation of this method returns false.
+    fn enables_long_lived_circuits(&self) -> bool {
+        false
+    }
 }
 
 /// Seal preventing implementation of Isolation not relying on IsolationHelper
@@ -88,6 +102,10 @@ impl<T: IsolationHelper + Clone + std::fmt::Debug + Send + Sync + 'static> Isola
             None
         }
     }
+
+    fn enables_long_lived_circuits(&self) -> bool {
+        IsolationHelper::enables_long_lived_circuits(self)
+    }
 }
 
 /// Trait to help implement [`Isolation`].
@@ -114,6 +132,14 @@ pub trait IsolationHelper: Sized {
     ///
     /// (See [`Isolation::join`] for more information and requirements.)
     fn join_same_type(&self, other: &Self) -> Option<Self>;
+
+    /// Return true if this `Isolation` object should be considered sufficiently strong
+    /// as to permit long-lived circuits.
+    ///
+    /// (See [`Isolation::allow_long_lived_circuits`] for more information.)
+    fn enables_long_lived_circuits(&self) -> bool {
+        false
+    }
 }
 
 /// A token used to isolate unrelated streams on different circuits.
@@ -208,6 +234,10 @@ impl IsolationHelper for IsolationToken {
             None
         }
     }
+
+    fn enables_long_lived_circuits(&self) -> bool {
+        false
+    }
 }
 
 /// Helper macro to implement IsolationHelper for tuple of IsolationHelper
@@ -227,6 +257,10 @@ macro_rules! tuple_impls {
                     Some((
                     $(self.$idx.join_same_type(&other.$idx)?,)+
                     ))
+                }
+
+                fn enables_long_lived_circuits(&self) -> bool {
+                    $(self.$idx.enables_long_lived_circuits() || )+ false
                 }
             }
         )+
@@ -386,6 +420,10 @@ impl IsolationHelper for StreamIsolation {
                 stream_isolation,
                 owner_token: self.owner_token,
             })
+    }
+
+    fn enables_long_lived_circuits(&self) -> bool {
+        self.stream_isolation.enables_long_lived_circuits()
     }
 }
 
