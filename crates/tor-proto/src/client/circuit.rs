@@ -90,7 +90,7 @@ pub use path::{Path, PathEntry};
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
-pub use crate::client::reactor::syncview::ClientCircSyncView;
+pub(crate) use crate::client::reactor::syncview::ClientCircSyncView;
 
 // TODO: export this from the top-level instead (it's not client-specific).
 pub use crate::circuit::CircParameters;
@@ -2239,7 +2239,7 @@ pub(crate) mod test {
         fn disposition(
             &mut self,
             _ctx: &crate::client::stream::IncomingStreamRequestContext<'_>,
-            _circ: &crate::client::reactor::syncview::ClientCircSyncView<'_>,
+            _circ: &crate::circuit::CircSyncView<'_>,
         ) -> Result<crate::client::stream::IncomingStreamRequestDisposition> {
             Ok(crate::client::stream::IncomingStreamRequestDisposition::Accept)
         }

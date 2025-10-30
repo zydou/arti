@@ -13,7 +13,7 @@ use super::circuit::CircHopList;
 // If we need to hold more info in the future,
 // we'll need to decide whether to create additional types for the more complex variants,
 // or whether to try to stuff everything inside this type.
-pub struct ClientCircSyncView<'a> {
+pub(crate) struct ClientCircSyncView<'a> {
     /// The hops of the circuit used to implement this view.
     pub(super) hops: &'a CircHopList,
 }
@@ -26,7 +26,7 @@ impl<'a> ClientCircSyncView<'a> {
     }
 
     /// Return the number of streams currently open on this circuit.
-    pub fn n_open_streams(&self) -> usize {
+    pub(crate) fn n_open_streams(&self) -> usize {
         self.hops.n_open_streams()
     }
 
