@@ -3,8 +3,8 @@
 use bitvec::prelude::*;
 
 use super::DataStream;
+use crate::circuit::syncview::CircSyncView;
 use crate::client::StreamComponents;
-use crate::client::circuit::ClientCircSyncView;
 use crate::client::reactor::CloseStreamBehavior;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::{Error, Result};
@@ -202,7 +202,7 @@ pub trait IncomingStreamRequestFilter: Send + 'static {
     fn disposition(
         &mut self,
         ctx: &IncomingStreamRequestContext<'_>,
-        circ: &ClientCircSyncView<'_>,
+        circ: &CircSyncView<'_>,
     ) -> Result<IncomingStreamRequestDisposition>;
 }
 
