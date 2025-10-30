@@ -4,9 +4,11 @@
 
 pub(crate) mod celltypes;
 pub(crate) mod circhop;
+pub(crate) mod syncview;
 pub(crate) mod unique_id;
 
 pub use crate::memquota::StreamAccount;
+pub use syncview::CircSyncView;
 pub use unique_id::UniqId;
 
 use crate::ccparams::CongestionControlParams;
