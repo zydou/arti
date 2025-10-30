@@ -4,6 +4,7 @@
 //! things in Tor, most notably the ".z" extensions.
 //!
 //! TODO DIRMIRROR: Use the `sql!` macro.
+//! TODO DIRMIRROR: Use the `read_tx` and `rw_tx` functions.
 
 use cache::StoreCache;
 use strum::EnumString;
