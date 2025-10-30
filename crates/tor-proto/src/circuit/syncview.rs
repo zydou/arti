@@ -35,4 +35,7 @@ impl<'a> CircSyncView<'a> {
             Relay() => todo!(),
         }
     }
+
+    // TODO: We will eventually want to add more functionality here, but we
+    // should do so judiciously.
 }

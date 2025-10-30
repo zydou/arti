@@ -29,7 +29,4 @@ impl<'a> ClientCircSyncView<'a> {
     pub(crate) fn n_open_streams(&self) -> usize {
         self.hops.n_open_streams()
     }
-
-    // TODO: We will eventually want to add more functionality here, but we
-    // should do so judiciously.
 }
