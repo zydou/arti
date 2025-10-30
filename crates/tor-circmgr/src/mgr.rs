@@ -122,6 +122,10 @@ pub(crate) trait AbstractTunnel: Debug {
         target: &T,
         params: CircParameters,
     ) -> tor_proto::Result<()>;
+
+    /// Return a time at which this tunnel is last known to be used,
+    /// or None if it is in use right now (or has never been used).
+    async fn last_known_to_be_used_at(&self) -> tor_proto::Result<Option<Instant>>;
 }
 
 /// A plan for an `AbstractCircBuilder` that can maybe be mutated by tests.
@@ -346,8 +350,10 @@ impl ExpirationInfo {
 pub(crate) struct ExpirationParameters {
     /// Any unused circuit is expired this long after it was created.
     expire_unused_after: Duration,
-    /// Any dirty circuit is expired this long after it first becomes dirty.
+    /// Any non long-lived dirty circuit is expired this long after it first becomes dirty.
     expire_dirty_after: Duration,
+    /// Any long-lived circuit is expired after having been disused for this long.
+    expire_disused_after: Duration,
 }
 
 /// An entry for an open tunnel held by an `AbstractTunnelMgr`.
@@ -417,11 +423,59 @@ impl<T: AbstractTunnel> OpenEntry<T> {
 
     /// Return true if this tunnel should be expired given that the current time is `now`,
     /// and the current settings are `params`.
-    fn should_expire(&self, now: Instant, params: &ExpirationParameters) -> bool {
+    fn should_expire(&self, now: Instant, params: &ExpirationParameters) -> ShouldExpire {
         match self.expiration {
-            ExpirationInfo::Unused { created } => created + params.expire_unused_after < now,
-            ExpirationInfo::Dirty { dirty_since } => dirty_since + params.expire_dirty_after < now,
-            ExpirationInfo::LongLived { .. } => false, // XXXXX not yet correct.
+            ExpirationInfo::Unused { created } => {
+                ShouldExpire::certain(now, created + params.expire_unused_after)
+            }
+            ExpirationInfo::Dirty { dirty_since } => {
+                ShouldExpire::certain(now, dirty_since + params.expire_dirty_after)
+            }
+            ExpirationInfo::LongLived {
+                last_known_to_be_used_at,
+            } => {
+                ShouldExpire::uncertain(now, last_known_to_be_used_at + params.expire_disused_after)
+            }
+        }
+    }
+}
+
+/// When should a tunnel expire?
+///
+/// Reflects possible uncertainty.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ShouldExpire {
+    /// The tunnel should expire now.
+    Now,
+    /// The circuit might expire now; we need to check.
+    ///
+    /// (This is the result we get when we know that this is a tunnel that should expire
+    /// if it has gone for some duration D without having any streams on it,
+    /// and that it definitely had a stream at time T.  It is now at least time T+D,
+    /// but we don't know whether the tunnel has any streams in the intervening time.
+    /// We need to call the async fn `last_known_to_be_used_at` to check.)
+    PossiblyNow,
+    /// The tunnel will not expire before the specified time.
+    NotBefore(Instant),
+}
+
+impl ShouldExpire {
+    /// Return a ShouldExpire reflecting an expiration that is known to be happening at `expiration`.
+    fn certain(now: Instant, expiration: Instant) -> Self {
+        if now >= expiration {
+            ShouldExpire::Now
+        } else {
+            ShouldExpire::NotBefore(expiration)
+        }
+    }
+
+    /// Return a ShouldExpire reflecting an expiration that is known to be no sooner than `expiration`,
+    /// but possibly later.
+    fn uncertain(now: Instant, expiration: Instant) -> Self {
+        if now >= expiration {
+            ShouldExpire::PossiblyNow
+        } else {
+            ShouldExpire::NotBefore(expiration)
         }
     }
 }
@@ -623,26 +677,86 @@ impl<B: AbstractTunnelBuilder<R>, R: Runtime> TunnelList<B, R> {
     /// We remove every unused tunnel that is set to expire by
     /// `unused_cutoff`, and every dirty tunnel that has been dirty
     /// since before `dirty_cutoff`.
-    fn expire_tunnels(&mut self, now: Instant, params: &ExpirationParameters) {
+    ///
+    /// Return the next time at which anything will definitely expire,
+    /// and a list of long-lived tunnels where we need to check their usage status
+    /// before we can be sure if they are expired.
+    #[must_use]
+    fn expire_tunnels(
+        &mut self,
+        now: Instant,
+        params: &ExpirationParameters,
+    ) -> (Option<Instant>, Vec<Weak<B::Tunnel>>) {
+        let mut need_check = Vec::new();
+        let mut earliest_expiration = None;
         self.open_tunnels
-            .retain(|_k, v| !v.should_expire(now, params));
+            .retain(|_k, v| match v.should_expire(now, params) {
+                // Expires now: Do not retain.
+                ShouldExpire::Now => false,
+
+                // Will expire at `when`: keep, but update `earliest_expiration`.
+                ShouldExpire::NotBefore(when) => {
+                    earliest_expiration = match earliest_expiration {
+                        Some(t) if t < when => Some(t),
+                        _ => Some(when),
+                    };
+                    true
+                }
+
+                // Need to check tunnel to see if/when it is disused.
+                ShouldExpire::PossiblyNow => {
+                    need_check.push(Arc::downgrade(&v.tunnel));
+                    true
+                }
+            });
+        (earliest_expiration, need_check)
     }
 
-    /// Remove the tunnel with given `id`, if it is scheduled to
-    /// expire now, according to the provided expiration times.
-    fn expire_tunnel(
+    /// Return the time when the tunnel with given `id`, should expire.
+    ///
+    /// Return None if no such tunnel exists.
+    fn tunnel_should_expire(
         &mut self,
         id: &<B::Tunnel as AbstractTunnel>::Id,
         now: Instant,
         params: &ExpirationParameters,
-    ) {
-        let should_expire = self
-            .open_tunnels
+    ) -> Option<ShouldExpire> {
+        self.open_tunnels
             .get(id)
             .map(|v| v.should_expire(now, params))
-            .unwrap_or_else(|| false);
-        if should_expire {
-            self.open_tunnels.remove(id);
+    }
+
+    /// Update the "last known to be in use" time of a long-lived tunnel with ID `id`,
+    /// based on learning when it was last used.
+    ///
+    /// Expire the tunnel if appropriate.
+    ///
+    /// If the tunnel is still part of the map, return the next instant at which it might expire.
+    fn update_long_lived_tunnel_last_used(
+        &mut self,
+        id: &<B::Tunnel as AbstractTunnel>::Id,
+        now: Instant,
+        params: &ExpirationParameters,
+        disused_since: &tor_proto::Result<Option<Instant>>,
+    ) -> Option<Instant> {
+        let Ok(disused_since) = disused_since else {
+            // got an error looking up disused time: discard the circuit.
+            let _discard = self.take_open(id);
+            return None;
+        };
+        let Some(tun) = self.open_tunnels.get_mut(id) else {
+            // Circuit isn't there. Return.
+            return None;
+        };
+        let last_known_in_use_at = disused_since.unwrap_or(now);
+
+        tun.expiration.mark_used(last_known_in_use_at, true);
+        match tun.should_expire(now, params) {
+            ShouldExpire::Now | ShouldExpire::PossiblyNow => {
+                let _discard = self.take_open(id);
+                None
+            }
+            ShouldExpire::NotBefore(instant) => Some(instant),
         }
     }
 
@@ -1413,6 +1527,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         ExpirationParameters {
             expire_unused_after,
             expire_dirty_after,
+            expire_disused_after: Duration::new(30 * 60, 0), // XXXX needs a setting.
         }
     }
 
@@ -1471,9 +1586,52 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     ///
     /// Expired tunnels will not be automatically closed, but they will
     /// no longer be given out for new tunnels.
-    pub(crate) async fn expire_tunnels(&self, now: Instant) {
-        let mut list = self.tunnels.lock().expect("poisoned lock");
-        list.expire_tunnels(now, &self.expiration_params());
+    ///
+    /// Return the earliest time at which any current tunnel will expire.
+    pub(crate) async fn expire_tunnels(&self, now: Instant) -> Option<Instant> {
+        let expiration_params = self.expiration_params();
+
+        // While holding the lock, we call TunnelList::expire_tunnels.
+        // That function will expire what it can, and return a list of the tunnels for which
+        // we need to call `disused_since`.
+        let (mut earliest_expiration, need_to_check) = {
+            let mut list = self.tunnels.lock().expect("poisoned lock");
+            list.expire_tunnels(now, &expiration_params)
+        };
+
+        // Now we've dropped the lock, and can do async checks.
+        let mut last_known_usage = Vec::new();
+        for tunnel in need_to_check {
+            let Some(tunnel) = Weak::upgrade(&tunnel) else {
+                continue; // The tunnel is already gone.
+            };
+            last_known_usage.push((tunnel.id(), tunnel.last_known_to_be_used_at().await));
+        }
+
+        // Now get the lock again, and tell the list what we learned.
+        //
+        // Note that if this function is called twice simultaneously, in some corner cases, we might
+        // decide to expire something twice.  That's okay.
+        {
+            let mut list = self.tunnels.lock().expect("poisoned lock");
+            for (id, disused_since) in last_known_usage {
+                let may_expire = list.update_long_lived_tunnel_last_used(
+                    &id,
+                    now,
+                    &expiration_params,
+                    &disused_since,
+                );
+
+                if let Some(may_expire) = may_expire {
+                    earliest_expiration = match earliest_expiration {
+                        Some(exp) if exp < may_expire => Some(exp),
+                        _ => Some(may_expire),
+                    };
+                }
+            }
+        }
+
+        earliest_expiration
     }
 
     /// Consider expiring the tunnel with given tunnel `id`,
@@ -1483,8 +1641,46 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         tun_id: &<B::Tunnel as AbstractTunnel>::Id,
         now: Instant,
     ) {
-        let mut list = self.tunnels.lock().expect("poisoned lock");
-        list.expire_tunnel(tun_id, now, &self.expiration_params());
+        let expiration_params = self.expiration_params();
+
+        // With the lock, call TunneList::tunnel_should_expire, and expire it (or don't)
+        // if the decision is obvious.
+        let tunnel = {
+            let mut list: sync::MutexGuard<'_, TunnelList<B, R>> =
+                self.tunnels.lock().expect("poisoned lock");
+            let Some(should_expire) = list.tunnel_should_expire(tun_id, now, &expiration_params)
+            else {
+                return;
+            };
+            match should_expire {
+                ShouldExpire::Now => {
+                    let _discard = list.take_open(tun_id);
+                    return;
+                }
+                ShouldExpire::NotBefore(_) => return,
+                ShouldExpire::PossiblyNow => {
+                    let Some(tunnel_ent) = list.get_open_mut(tun_id) else {
+                        return;
+                    };
+                    Arc::clone(&tunnel_ent.tunnel)
+                }
+            }
+        };
+
+        // If we get here, then we have a long-lived tunnel for which we need to check `disused_since`
+        let last_known_in_use_at = tunnel.last_known_to_be_used_at().await;
+
+        // Now we tell the TunnelList what we learned.
+        {
+            let mut list: sync::MutexGuard<'_, TunnelList<B, R>> =
+                self.tunnels.lock().expect("poisoned lock");
+            list.update_long_lived_tunnel_last_used(
+                tun_id,
+                now,
+                &expiration_params,
+                &last_known_in_use_at,
+            );
+        }
     }
 
     /// Return the number of open tunnels held by this tunnel manager.

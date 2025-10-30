@@ -73,6 +73,10 @@ impl AbstractTunnel for FakeCirc {
     ) -> tor_proto::Result<()> {
         todo!()
     }
+
+    async fn last_known_to_be_used_at(&self) -> tor_proto::Result<Option<std::time::Instant>> {
+        Ok(None)
+    }
 }
 
 #[derive(Debug, Clone)]

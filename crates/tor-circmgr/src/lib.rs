@@ -1057,7 +1057,9 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         // our circuit expiration runs on scheduled timers via
         // spawn_expiration_task.)
         let now = self.mgr.peek_runtime().now();
-        self.mgr.expire_tunnels(now).await;
+
+        // TODO: Use return value here to implement the above TODO.
+        let _next_expiration = self.mgr.expire_tunnels(now).await;
     }
 
     /// Mark every circuit that we have launched so far as unsuitable for
