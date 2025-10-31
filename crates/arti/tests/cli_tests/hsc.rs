@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 
 /// A test onion address.
 const ONION_ADDR: &str = "fpqqmiwzqiv63jczrshh4qcmlxw6gujcai3arobq23wikt7hk7ojadid.onion";
@@ -23,7 +24,7 @@ enum ArtiHscCmd {
 /// Build an `arti hsc` command, setting the state directory to `state_dir`.
 fn build_hsc_cmd(sub_cmd: ArtiHscCmd, state_dir: &Path) -> Command {
     let opts = format!(r#"storage.state_dir="{}""#, state_dir.to_str().unwrap());
-    let mut cmd = Command::cargo_bin("arti").unwrap();
+    let mut cmd = cargo_bin_cmd!("arti");
     cmd.args([
         "-c",
         CFG_PATH,

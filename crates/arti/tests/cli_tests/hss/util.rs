@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::io;
 use tempfile::TempDir;
 use walkdir::WalkDir;
@@ -111,7 +111,7 @@ impl CTorMigrateCmd {
 
     /// Execute the command and return its output as an [`Output`].
     pub fn output(&self) -> std::io::Result<Output> {
-        let mut cmd = Command::cargo_bin("arti").unwrap();
+        let mut cmd = cargo_bin_cmd!("arti");
 
         let opt = create_state_dir_entry(self.state_dir_path.to_string_lossy().as_ref());
         cmd.args([
@@ -239,7 +239,7 @@ pub struct OnionAddressCmd {
 impl OnionAddressCmd {
     /// Execute the command and return its output as an [`Output`].
     pub fn output(&self) -> std::io::Result<Output> {
-        let mut cmd = Command::cargo_bin("arti").unwrap();
+        let mut cmd = cargo_bin_cmd!("arti");
         cmd.args(["--config", &self.config_path]);
         if let Some(state_directory) = &self.state_directory {
             let opt = create_state_dir_entry(state_directory);
