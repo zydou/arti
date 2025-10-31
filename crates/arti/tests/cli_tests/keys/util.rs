@@ -1,6 +1,6 @@
 use std::process::Output;
 
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 
 use crate::util::create_state_dir_entry;
 
@@ -104,7 +104,7 @@ pub struct KeysListCmd {
 impl KeysListCmd {
     /// Execute the command and return its output as an [`Output`].
     pub fn output(&self) -> std::io::Result<Output> {
-        let mut cmd = Command::cargo_bin("arti").unwrap();
+        let mut cmd = cargo_bin_cmd!("arti");
         if self.with_ctor {
             cmd.args(["-c", CFG_PATH_WITH_CTOR]);
         } else {
@@ -145,7 +145,7 @@ pub struct KeysListKeystoreCmd {
 impl KeysListKeystoreCmd {
     /// Execute the command and return its output as an [`Output`].
     pub fn output(&self) -> std::io::Result<Output> {
-        let mut cmd = Command::cargo_bin("arti").unwrap();
+        let mut cmd = cargo_bin_cmd!("arti");
         if self.with_ctor {
             cmd.args(["-c", CFG_PATH_WITH_CTOR]);
         } else {

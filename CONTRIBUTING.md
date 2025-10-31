@@ -53,7 +53,7 @@ the SQLite 3 development files and shellcheck to successfully run git hooks.
   ```
 
   ```bash
-  dnf install perl-interpreter perl-FindBin perl-lib perl-IPC-Cmd perl-File-Compare perl-File-Copy
+  dnf install perl-interpreter perl-FindBin perl-lib perl-IPC-Cmd perl-File-Compare perl-File-Copy perl-Time-Piece
   ```
   
 - For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing)
