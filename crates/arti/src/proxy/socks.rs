@@ -1,8 +1,6 @@
 //! SOCKS-specific proxy support.
 
-use futures::future::FutureExt;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, BufReader};
-use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tracing::{debug, instrument, warn};
@@ -18,8 +16,8 @@ use tor_socksproto::{Handshake as _, SocksAddr, SocksAuth, SocksCmd, SocksReques
 use anyhow::{Context, Result, anyhow};
 
 use super::{
-    ListenerIsolation, ProvidedIsolation, ProxyContext, StreamIsolationKey, copy_interactive,
-    write_all_and_close, write_all_and_flush,
+    ListenerIsolation, ProvidedIsolation, ProxyContext, StreamIsolationKey, write_all_and_close,
+    write_all_and_flush,
 };
 cfg_if::cfg_if! {
     if #[cfg(feature="rpc")] {
@@ -237,7 +235,6 @@ impl<R: Runtime> super::ProxyContext<R> {
 /// id and the source address for the socks request.
 #[instrument(skip_all, level = "trace")]
 pub(super) async fn handle_socks_conn<R, S>(
-    runtime: R,
     context: ProxyContext<R>,
     mut socks_stream: BufReader<S>,
     isolation_info: ListenerIsolation,
@@ -282,9 +279,6 @@ where
         let error = tor_socksproto::Error::ForbiddenPipelining;
         return reply_error(&mut socks_stream, &request, error.kind()).await;
     }
-    // Remove the buffer.  This isn't strictly necessary, but we do buffering
-    // elsewhere, and it's nice to avoid buffer-bloat.
-    let mut socks_stream = socks_stream.into_inner();
 
     // Unpack the socks request and find out where we're connecting to.
     let addr = request.addr().to_string();
@@ -318,13 +312,17 @@ where
                 .context("Encoding socks reply")?;
             write_all_and_flush(&mut socks_stream, &reply[..]).await?;
 
-            let (socks_r, socks_w) = socks_stream.split();
-            let (tor_r, tor_w) = tor_stream.split();
+            let tor_stream = BufReader::with_capacity(super::APP_STREAM_BUF_LEN, tor_stream);
 
-            // Finally, spawn two background tasks to relay traffic between
+            // Finally, relay traffic between
             // the socks stream and the tor stream.
-            runtime.spawn(copy_interactive(socks_r, tor_w).map(|_| ()))?;
-            runtime.spawn(copy_interactive(tor_r, socks_w).map(|_| ()))?;
+            futures_copy::copy_buf_bidirectional(
+                socks_stream,
+                tor_stream,
+                futures_copy::eof::Close,
+                futures_copy::eof::Close,
+            )
+            .await?;
         }
         SocksCmd::RESOLVE => {
             // We've been asked to perform a regular hostname lookup.

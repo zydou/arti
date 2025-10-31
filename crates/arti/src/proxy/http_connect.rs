@@ -4,11 +4,11 @@
 //! See [the spec](spec.torproject.org/http-connect.html)
 //! for more information.
 
-use super::{ListenerIsolation, ProxyContext, copy_interactive};
+use super::{ListenerIsolation, ProxyContext};
 use anyhow::{Context as _, anyhow};
 use arti_client::{StreamPrefs, TorAddr};
 use futures::task::SpawnExt as _;
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite, FutureExt as _, io::BufReader};
+use futures::{AsyncRead, AsyncWrite, io::BufReader};
 use http::{Method, StatusCode, response::Builder as ResponseBuilder};
 use hyper::{Response, server::conn::http1::Builder as ServerBuilder, service::service_fn};
 use safelog::{Sensitive as Sv, sensitive as sv};
@@ -246,12 +246,11 @@ where
     // We have connected.  We need to launch a separate task to actually be the proxy, though,
     // since IIUC hyper::upgrade::on won't return an answer
     // until after the response is given to the client.
-    let runtime = context.tor_client.runtime().clone();
     context
         .tor_client
         .runtime()
         .spawn(async move {
-            match transfer::<R, S>(runtime, request, tor_stream).await {
+            match transfer::<S>(request, tor_stream).await {
                 Ok(()) => {}
                 Err(e) => {
                     warn_report!(e, "Error while launching transfer");
@@ -622,7 +621,7 @@ fn kind_to_status(kind: ErrorKind) -> StatusCode {
 }
 
 /// Recover the original stream from a [`hyper::upgrade::Upgraded`].
-fn deconstruct_upgrade<S>(upgraded: hyper::upgrade::Upgraded) -> Result<S, anyhow::Error>
+fn deconstruct_upgrade<S>(upgraded: hyper::upgrade::Upgraded) -> Result<BufReader<S>, anyhow::Error>
 where
     S: AsyncRead + AsyncWrite + Unpin + 'static,
 {
@@ -638,43 +637,30 @@ where
         ));
     }
     let io: BufReader<S> = io.0;
-    if !io.buffer().is_empty() {
-        // TODO Figure out whether this can happen due to possible race conditions if the client gets the OK
-        // before we check this?
-        return Err(anyhow!(
-            "Extraneous data on BufReader after upgrade to proxy mode"
-        ));
-    }
-    Ok(io.into_inner())
+    Ok(io)
 }
 
 /// Recover the application stream from `request`, and launch tasks to transfer data between the application and
 /// the `tor_stream`.
-async fn transfer<R, S>(
-    runtime: R,
-    request: Request,
-    tor_stream: arti_client::DataStream,
-) -> anyhow::Result<()>
+async fn transfer<S>(request: Request, tor_stream: arti_client::DataStream) -> anyhow::Result<()>
 where
-    R: Runtime,
     S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
     let upgraded = hyper::upgrade::on(request)
         .await
         .context("Unable to upgrade connection")?;
-    let app_stream: S = deconstruct_upgrade(upgraded)?;
+    let app_stream: BufReader<S> = deconstruct_upgrade(upgraded)?;
+    let tor_stream = BufReader::with_capacity(super::APP_STREAM_BUF_LEN, tor_stream);
 
-    let (app_r, app_w) = app_stream.split();
-    let (tor_r, tor_w) = tor_stream.split();
-
-    // Finally, spawn two background tasks to relay traffic between
-    // the application stream and the tor stream.
-    runtime
-        .spawn(copy_interactive(app_r, tor_w).map(|_| ()))
-        .context("Spawning task")?;
-    runtime
-        .spawn(copy_interactive(tor_r, app_w).map(|_| ()))
-        .context("Spawning task")?;
+    // Finally. relay traffic between
+    // the application stream and the tor stream, forever.
+    let _ = futures_copy::copy_buf_bidirectional(
+        app_stream,
+        tor_stream,
+        futures_copy::eof::Close,
+        futures_copy::eof::Close,
+    )
+    .await?;
 
     Ok(())
 }
