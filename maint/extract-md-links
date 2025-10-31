@@ -68,9 +68,9 @@ class TrackingBlockParser(mistune.BlockParser):
 
 
 class TrackingInlineParser(mistune.InlineParser):
-    def __init__(self, track, renderer):
+    def __init__(self, track):
         self.track = track
-        super().__init__(renderer)
+        super().__init__()
 
     def parse_ref_link(self, m, state):
         k = m.group(2) or m.group(1)
@@ -87,12 +87,11 @@ def extract_links(md_string):
     track = Tracking()
 
     # Our construction is reaching into the mistune innards more than ideal.
-    # It works with Debian's python3-mistune 2.0.4-1.
-    renderer = renderer = mistune.AstRenderer()
+    # It works with Debian's python3-mistune 3.1.3-1.
     md = mistune.Markdown(
-        renderer,
+        renderer=None,
         block=TrackingBlockParser(track),
-        inline=TrackingInlineParser(track, renderer),
+        inline=TrackingInlineParser(track),
     )
     md(md_string)
     return track

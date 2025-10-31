@@ -12,7 +12,7 @@ variables:
   FF_TIMESTAMPS: "true"
   # Pinned CI image for most Rust tests
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  RECENT_RUST_IMAGE: "docker.io/amd64/rust:1.89.0-bookworm"
+  RECENT_RUST_IMAGE: "docker.io/amd64/rust:1.91.0-trixie"
   # Pinned chutney version.
   # main @ 2025-07-16
   CHUTNEY_COMMIT: "f9435e45f826a265dd3b7d341356cb04f1aa7b09"
@@ -26,7 +26,7 @@ variables:
 
 default:
   image:
-    name: containers.torproject.org/tpo/tpa/base-images/debian:bookworm
+    name: containers.torproject.org/tpo/tpa/base-images/debian:trixie
     docker:
       platform: linux/amd64
   before_script:
@@ -219,7 +219,7 @@ rust-test-recent:
 rust-test-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: docker.io/amd64/rust:bookworm
+  image: docker.io/amd64/rust:trixie
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -253,7 +253,7 @@ rust-dev-recent:
 rust-dev-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: docker.io/amd64/rust:bookworm
+  image: docker.io/amd64/rust:trixie
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -322,7 +322,7 @@ rust-recent-arti-extra-features:
 rust-latest-arti-extra-features:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: docker.io/amd64/rust:bookworm
+  image: docker.io/amd64/rust:trixie
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -447,9 +447,9 @@ cargo-miri:
   #   cargo +nightly-2024-10-08 miri test ...
   # to update this
   #  1. choose a new Nightly version, for example according to these instructions
-  #      https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/blob/main/macros/HACKING.md?ref_type=heads#choosing-which-nightly-rust-version-to-update-to
+  #      https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/blob/main/macros/HACKING.md?ref_type=heads#choose-which-nightly-rust-version-to-update-to
   #  2. insert the new image hash, and corresponding nightly date, above
-  image: rustlang/rust@sha256:f0dbbb1daf8e2a1d40e6a5dc74b03628e64fc020baae68a59e88e06f166d5dd0
+  image: rustlang/rust@sha256:b9583b7bf44e3a6da70008b715ae6c0cdd41ce94523ac7ba0e7809abc04836e7
   # ^ this is from tags.2025-06-19T13_08+00_00.gz (see HACKING.md)
   script:
     - rustup component add miri
@@ -498,7 +498,7 @@ minimal-versions:
     TARGET: UNDEFINED--BUG-IN-CI-YAML
   # If you upgrade this image, also change the one in docker_reproducible_build.
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: docker.io/amd64/rust:1.86.0-alpine3.21
+  image: docker.io/amd64/rust:1.91.0-alpine3.22
   script:
     - apk add bash
     - ./maint/reproducible_build $TARGET
