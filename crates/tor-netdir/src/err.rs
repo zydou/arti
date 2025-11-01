@@ -40,7 +40,6 @@ impl HasKind for Error {
 /// An error returned when looking up onion service directories.
 #[derive(Error, Clone, Debug)]
 #[cfg(feature = "hs-common")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
 #[non_exhaustive]
 pub enum OnionDirLookupError {
     /// We tried to look up an onion service directory for a time period that

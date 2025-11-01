@@ -24,17 +24,14 @@ use tor_memquota::{derive_deftly_template_HasMemoryCost, memory_cost_structural_
 use bitflags::bitflags;
 
 #[cfg(feature = "conflux")]
-#[cfg_attr(docsrs, doc(cfg(feature = "conflux")))]
 pub use super::conflux::{ConfluxLink, ConfluxLinked, ConfluxLinkedAck, ConfluxSwitch};
 
 #[cfg(feature = "hs")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs")))]
 pub use super::hs::{
     EstablishRendezvous, IntroEstablished, Introduce1, Introduce2, IntroduceAck, Rendezvous1,
     Rendezvous2, RendezvousEstablished, est_intro::EstablishIntro,
 };
 #[cfg(feature = "experimental-udp")]
-#[cfg_attr(docsrs, doc(cfg(feature = "experimental-udp")))]
 pub use super::udp::{ConnectUdp, ConnectedUdp, Datagram};
 
 crate::restrict::restricted_msg! {

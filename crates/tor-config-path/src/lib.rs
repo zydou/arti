@@ -64,7 +64,6 @@ pub mod addr;
 mod arti_client_paths;
 
 #[cfg(feature = "arti-client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "arti-client")))]
 pub use arti_client_paths::arti_client_base_resolver;
 
 /// A path in a configuration file: tilde expansion is performed, along

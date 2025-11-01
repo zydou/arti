@@ -107,7 +107,6 @@ use params::NetParameters;
 use tor_geoip::{CountryCode, GeoipDb, HasCountryCode};
 
 #[cfg(feature = "hs-common")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
 pub use hsdir_params::HsDirParams;
 
 /// Index into the consensus relays
@@ -855,7 +854,6 @@ impl PartialNetDir {
     /// This does the same thing as `new()`, except the provided GeoIP database is used to add
     /// country codes to relays.
     #[cfg(feature = "geoip")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
     pub fn new_with_geoip(
         consensus: MdConsensus,
         replacement_params: Option<&netstatus::NetParams<i32>>,
@@ -2106,7 +2104,6 @@ impl<'a> HasAddrs for Relay<'a> {
     }
 }
 #[cfg(feature = "geoip")]
-#[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
 impl<'a> HasCountryCode for Relay<'a> {
     fn country_code(&self) -> Option<CountryCode> {
         self.cc

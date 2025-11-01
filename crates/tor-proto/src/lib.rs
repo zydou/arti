@@ -81,7 +81,6 @@ pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
 pub use stream::flow_ctrl::params::{CellCount, FlowCtrlParameters};
 #[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub use {
     crate::client::Conversation,
     crate::client::msghandler::{MsgHandler, UserMsgHandler},

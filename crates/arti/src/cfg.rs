@@ -14,7 +14,6 @@ use crate::onion_proxy::{
 #[cfg(not(feature = "onion-service-service"))]
 use crate::onion_proxy_disabled::{OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder};
 #[cfg(feature = "rpc")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rpc")))]
 pub use crate::rpc::{RpcConfig, RpcConfigBuilder};
 use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]

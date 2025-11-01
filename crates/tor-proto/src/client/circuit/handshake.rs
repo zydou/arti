@@ -28,7 +28,6 @@ use crate::Result;
 
 pub use crate::crypto::handshake::KeyGenerator;
 #[cfg(feature = "hs-common")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
 pub use crate::crypto::handshake::hs_ntor;
 
 /// The relay protocol to use when extending a circuit manually with

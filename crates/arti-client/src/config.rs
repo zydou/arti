@@ -27,7 +27,6 @@ pub use tor_linkspec::{ChannelMethod, HasChanMethod, PtTransportName, TransportI
 pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 
 #[cfg(feature = "bridge-client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
 pub use tor_guardmgr::bridge::BridgeParseError;
 
 use tor_guardmgr::bridge::BridgeConfig;

@@ -76,7 +76,6 @@ impl ExitPathBuilder {
     }
 
     #[cfg(feature = "geoip")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
     /// Create a new builder that will try to get an exit relay in `country`,
     /// containing all the ports in `ports`.
     ///

@@ -113,7 +113,6 @@ pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
 pub use skew::SkewEstimate;
 
 #[cfg(feature = "vanguards")]
-#[cfg_attr(docsrs, doc(cfg(feature = "vanguards")))]
 pub use vanguards::VanguardMgrError;
 
 use pending::{PendingRequest, RequestId};

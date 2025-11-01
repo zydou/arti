@@ -244,7 +244,6 @@ fn blind_pubkey(pk: &PublicKey, h: [u8; 32]) -> Result<PublicKey, BlindingError>
 /// This function can fail if the input is not actually a valid Ed25519 secret
 /// key.
 #[cfg(feature = "hsv3-service")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hsv3-service")))]
 pub fn blind_keypair(
     keypair: &ExpandedKeypair,
     h: [u8; 32],

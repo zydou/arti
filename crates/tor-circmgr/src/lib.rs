@@ -105,7 +105,6 @@ pub use tunnel::{
     ServiceOnionServiceIntroTunnel,
 };
 #[cfg(feature = "conflux")]
-#[cfg_attr(docsrs, doc(cfg(feature = "conflux")))]
 pub use tunnel::{
     ClientMultiPathDataTunnel, ClientMultiPathOnionServiceDataTunnel,
     ServiceMultiPathOnionServiceDataTunnel,
@@ -265,7 +264,6 @@ impl<R: Runtime> CircMgr<R> {
     /// (one-hop) directory downloads.
     ///
     /// This could be used, for example, to download a descriptor for a bridge.
-    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
     #[cfg(feature = "specific-relay")]
     #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
@@ -608,7 +606,6 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// (one-hop) directory downloads.
     ///
     /// This could be used, for example, to download a descriptor for a bridge.
-    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
     #[cfg(feature = "specific-relay")]
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(

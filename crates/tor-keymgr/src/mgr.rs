@@ -96,7 +96,6 @@ impl<'a> KeystoreEntry<'a> {
 
     /// Return an instance of [`RawKeystoreEntry`]
     #[cfg(feature = "onion-service-cli-extra")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "onion-service-cli-extra")))]
     pub fn raw_entry(&self) -> RawKeystoreEntry {
         RawKeystoreEntry::new(self.raw_id.clone(), self.keystore_id.clone())
     }

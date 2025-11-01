@@ -78,11 +78,9 @@ pub use key_specifier::{
     KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
 #[cfg(feature = "onion-service-cli-extra")]
-#[cfg_attr(docsrs, doc(cfg(feature = "onion-service-cli-extra")))]
 pub use raw::{RawEntryId, RawKeystoreEntry};
 
 #[cfg(feature = "keymgr")]
-#[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
 pub use {
     keystore::arti::ArtiNativeKeystore,
     keystore::{Keystore, KeystoreEntryResult},
@@ -91,14 +89,9 @@ pub use {
 };
 
 #[cfg(all(feature = "keymgr", feature = "ephemeral-keystore"))]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(all(feature = "keymgr", feature = "ephemeral-keystore")))
-)]
 pub use keystore::ephemeral::ArtiEphemeralKeystore;
 
 #[cfg(all(feature = "keymgr", feature = "ctor-keystore"))]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "keymgr", feature = "ctor-keystore"))))]
 pub use keystore::ctor::{CTorClientKeystore, CTorServiceKeystore};
 
 #[doc(hidden)]
@@ -112,7 +105,6 @@ pub use tor_key_forge::{
 derive_deftly::template_export_semver_check! { "0.12.1" }
 
 #[cfg(not(feature = "keymgr"))]
-#[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
 pub use dummy::*;
 
 /// A boxed [`Keystore`].

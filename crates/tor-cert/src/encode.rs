@@ -20,7 +20,6 @@ use derive_more::{AsRef, Deref, Into};
 ///
 /// This certificate has already been validated.
 #[derive(Clone, Debug, PartialEq, Into, AsRef, Deref)]
-#[cfg_attr(docsrs, doc(cfg(feature = "encode")))]
 pub struct EncodedEd25519Cert(Vec<u8>);
 
 impl Ed25519Cert {
