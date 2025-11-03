@@ -17,7 +17,7 @@ allow_running_as_root = true
 [logging]
 log_sensitive_information = true
 files = [
-    { path = "arti.log.txt", filter = "debug" }
+    { path = "./arti.log.txt", filter = "debug" }
 ]
 # Disable logging directly to console, since we're logging to files.
 # NOTE: This currently appears to have no effect; we instead have to
