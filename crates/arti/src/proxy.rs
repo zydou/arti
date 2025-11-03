@@ -10,12 +10,9 @@ semipublic_mod! {
     mod socks;
 }
 
-use futures::io::{
-    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError,
-};
+use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError};
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
-use std::io::Result as IoResult;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tracing::{error, info, instrument, warn};
@@ -80,7 +77,8 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
     }
 }
 
-/// Size of read buffer to apply to application data streams.
+/// Size of read buffer to apply to application data streams
+/// and Tor data streams when copying.
 //
 // This particular value is chosen more or less arbitrarily.
 // Larger values let us do fewer reads from the application,
@@ -296,66 +294,6 @@ where
         .context("Error while closing proxy stream")
 }
 
-/// Copy all the data from `reader` into `writer` until we encounter an EOF or
-/// an error.
-///
-/// Unlike as futures::io::copy(), this function is meant for use with
-/// interactive readers and writers, where the reader might pause for
-/// a while, but where we want to send data on the writer as soon as
-/// it is available.
-///
-/// This function assumes that the writer might need to be flushed for
-/// any buffered data to be sent.  It tries to minimize the number of
-/// flushes, however, by only flushing the writer when the reader has no data.
-#[instrument(skip_all, level = "trace")]
-async fn copy_interactive<R, W>(mut reader: R, mut writer: W) -> IoResult<()>
-where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
-    use futures::{poll, task::Poll};
-
-    let mut buf = [0_u8; APP_STREAM_BUF_LEN];
-
-    // At this point we could just loop, calling read().await,
-    // write_all().await, and flush().await.  But we want to be more
-    // clever than that: we only want to flush when the reader is
-    // stalled.  That way we can pack our data into as few cells as
-    // possible, but flush it immediately whenever there's no more
-    // data coming.
-    let loop_result: IoResult<()> = loop {
-        let mut read_future = reader.read(&mut buf[..]);
-        match poll!(&mut read_future) {
-            Poll::Ready(Err(e)) => break Err(e),
-            Poll::Ready(Ok(0)) => break Ok(()), // EOF
-            Poll::Ready(Ok(n)) => {
-                writer.write_all(&buf[..n]).await?;
-                continue;
-            }
-            Poll::Pending => writer.flush().await?,
-        }
-
-        // The read future is pending, so we should wait on it.
-        match read_future.await {
-            Err(e) => break Err(e),
-            Ok(0) => break Ok(()),
-            Ok(n) => writer.write_all(&buf[..n]).await?,
-        }
-    };
-
-    // Make sure that we flush any lingering data if we can.
-    //
-    // If there is a difference between closing and dropping, then we
-    // only want to do a "proper" close if the reader closed cleanly.
-    let flush_result = if loop_result.is_ok() {
-        writer.close().await
-    } else {
-        writer.flush().await
-    };
-
-    loop_result.or(flush_result)
-}
-
 /// Return true if a given IoError, when received from accept, is a fatal
 /// error.
 fn accept_err_is_fatal(err: &IoError) -> bool {
@@ -495,10 +433,8 @@ pub(crate) async fn run_proxy_with_listeners<R: Runtime>(
             #[cfg(feature = "rpc")]
             rpc_mgr: rpc_mgr.clone(),
         };
-        let runtime_copy = tor_client.runtime().clone();
         tor_client.runtime().spawn(async move {
-            let res =
-                handle_proxy_conn(runtime_copy, proxy_context, stream, (sock_id, addr.ip())).await;
+            let res = handle_proxy_conn(proxy_context, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
                 // TODO: warn_report doesn't work on anyhow::Error.
                 warn!("connection exited with error: {}", tor_error::Report(e));
@@ -535,7 +471,6 @@ fn classify_protocol_from_first_byte(byte: u8) -> Option<ProxyProtocols> {
 /// (and what protocols we support!), negotiate an appropriate set of options,
 /// and relay traffic to and from the application.
 async fn handle_proxy_conn<R, S>(
-    runtime: R,
     context: ProxyContext<R>,
     stream: S,
     isolation_info: ListenerIsolation,
@@ -564,7 +499,7 @@ where
             }
         }
         Some(ProxyProtocols::Socks) => {
-            socks::handle_socks_conn(runtime, context, stream, isolation_info).await
+            socks::handle_socks_conn(context, stream, isolation_info).await
         }
         None => {
             // We have no idea what protocol the client expects,
