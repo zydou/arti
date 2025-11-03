@@ -218,10 +218,23 @@ impl_standard_builder! { PreemptiveCircuitConfig }
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
+    ///
+    /// This setting applies to circuits without strong isolation.
+    /// See also [`disused_circuit_timeout`](Self::disused_circuit_timeout)
     #[builder(default = "default_max_dirtiness()")]
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     #[getter(skip)]
     pub(crate) max_dirtiness: Duration,
+
+    /// How long after a circuit has become disused should we discard it?
+    ///
+    /// This setting applies to circuits _with_ strong isolation.
+    /// See also [`max_dirtiness`](Self::max_dirtiness)
+    // TODO: Impose a maximum or minimum?
+    #[builder(default = "default_disused_timeout()")]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[getter(skip)]
+    pub(crate) disused_circuit_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits
     /// after this much time.
@@ -308,6 +321,11 @@ fn default_preemptive_min_exit_circs_for_port() -> usize {
 /// Return the default value for `max_dirtiness`.
 fn default_max_dirtiness() -> Duration {
     Duration::from_secs(60 * 10)
+}
+
+/// Return the default value for `disused_circuit_timeout`.
+fn default_disused_timeout() -> Duration {
+    Duration::from_secs(60 * 60)
 }
 
 /// Return the default value for `request_timeout`.

@@ -1523,11 +1523,12 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     fn expiration_params(&self) -> ExpirationParameters {
         let expire_unused_after = self.pick_use_duration();
         let expire_dirty_after = self.circuit_timing().max_dirtiness;
+        let expire_disused_after = self.circuit_timing().disused_circuit_timeout;
 
         ExpirationParameters {
             expire_unused_after,
             expire_dirty_after,
-            expire_disused_after: Duration::new(30 * 60, 0), // XXXX needs a setting.
+            expire_disused_after,
         }
     }
 

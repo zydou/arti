@@ -569,6 +569,7 @@ mod test {
                 "proxy.socks_listen",
                 "proxy.dns_listen",
                 "use_obsolete_software",
+                "circuit_timing.disused_circuit_timeout",
             ],
         );
 
