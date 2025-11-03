@@ -544,8 +544,8 @@ build-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # Last updated 2025-07-14
-    JOB_SHADOW_COMMIT: "bc9a62adfb81d9a28be4fffa1d14f430d4c37c46"
+    # Last updated 2025-11-03
+    JOB_SHADOW_COMMIT: "248bf5f7fa9f45c8caee2e1b57746fcd729e3fe5"
   artifacts:
     paths:
       - opt/shadow
