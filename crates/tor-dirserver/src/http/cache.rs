@@ -137,12 +137,12 @@ mod test {
 
         database::read_tx(&pool, |tx| {
             // Obtain the lipsum entry.
-            let entry = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
+            let entry = cache.get(tx, &String::from(IDENTITY_SHA256)).unwrap();
             assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
             assert_eq!(Arc::strong_count(&entry), 1);
 
             // Obtain the lipsum entry again but ensure it is not copied in memory.
-            let entry2 = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
+            let entry2 = cache.get(tx, &String::from(IDENTITY_SHA256)).unwrap();
             assert_eq!(Arc::strong_count(&entry), 2);
             assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
             assert_eq!(entry, entry2);

@@ -627,7 +627,7 @@ pub(in crate::http) mod test {
 
     pub(in crate::http) fn create_test_db_pool() -> Pool<SqliteConnectionManager> {
         let pool = database::open("").unwrap();
-        database::rw_tx(&pool, |tx| init_test_db(tx)).unwrap();
+        database::rw_tx(&pool, init_test_db).unwrap();
         pool
     }
 
@@ -879,7 +879,7 @@ pub(in crate::http) mod test {
             for (encoding, compressed_sha256) in data {
                 println!("{encoding}");
                 assert_eq!(
-                    HttpServer::map_encoding(&tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
+                    HttpServer::map_encoding(tx, &IDENTITY_SHA256.to_string(), encoding).unwrap(),
                     compressed_sha256
                 );
             }
