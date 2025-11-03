@@ -34,6 +34,8 @@ use crate::{
     err::{DatabaseError, FatalError},
 };
 
+mod download;
+
 /// Obtains the most recent valid consensus from the database.
 ///
 /// This function queries the database using a [`Transaction`] in order to have

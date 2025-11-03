@@ -2,6 +2,33 @@
 
 use thiserror::Error;
 
+/// An error while communicating with a directory authority.
+///
+/// This error should be returned by all functions that download or upload
+/// resources to authorities, in other words: every function that interacts or
+/// communicates with a directory authority.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum AuthorityCommunicationError {
+    /// There has been an I/O error.
+    #[error("I/O error: {0}")]
+    IO(#[from] std::io::Error),
+
+    /// A failure related to [`tor_dirclient`].
+    ///
+    /// Most likely, this will be of type [`tor_dirclient::Error::RequestFailed`],
+    /// but in order to stay compatible with `non_exhaustive` we map the error.
+    ///
+    /// The value is in a [`Box`] to satisfy `clippy::large_enum_variant`.
+    /// It is already noted in a TODO within the respective crate.
+    #[error("dirclient error: {0}")]
+    Dirclient(#[from] Box<tor_dirclient::Error>),
+
+    /// An internal error.
+    #[error("internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
 /// An error while interacting with a database.
 ///
 /// This error should be returned by all functions that interact with the

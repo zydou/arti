@@ -1,0 +1,368 @@
+//! Download Management for [`super`].
+//!
+//! This module consists of [`DownloadManager`], a structure whose lifetime
+//! SHOULD be tied to the context of a single consensus.
+//!
+//! More information about the proper use can be found in the documentation
+//! of the respective data type.
+
+use std::{collections::VecDeque, fmt::Debug, net::SocketAddr};
+
+use rand::{seq::IndexedRandom, Rng};
+use retry_error::RetryError;
+use tokio::net::TcpStream;
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tor_basic_utils::retry::RetryDelay;
+use tor_dirclient::request::Downloadable;
+use tor_error::internal;
+use tor_rtcompat::PreferredRuntime;
+use tracing::{debug, warn};
+
+use crate::err::AuthorityCommunicationError;
+
+/// Download mangement for authority requests.
+///
+/// This structure serves as the main interface for downloading documents from
+/// a directory authority.  It implements the logic for retrying failed
+/// downloads properly.
+///
+/// The reason why this has to be a separate structure and not a just a single
+/// function lies within the reason that a minimal state has to be maintained,
+/// namely the last authority from which we have gotten a successful response,
+/// which will be re-used for all further request unless it fails, in which
+/// case it will randomly try and pick a new one, just like it did during the
+/// initial invocation.
+///
+/// The instance of [`DownloadManager`] shall be dropped once the context
+/// lifetime of a consensus is over.
+///
+/// # Algorithm
+///
+/// 1. Shuffle the list of authorities in a randomized fashion.
+/// 2. If there is a preferred authority, swap it with the first item in the list.
+/// 3. Iterate through the list, calling [`tor_dirclient::send_request`].
+///    3.1. If successful, set preferred authority to the current one and return.
+///    3.2. If it failed, timeout with [`RetryDelay`] and go to 3.
+///
+/// # Specifications
+///
+/// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#general-download-behavior>
+/// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#retry-as-cache>
+#[derive(Debug)]
+pub(super) struct DownloadManager<'a, 'b> {
+    /// The list of download authorities.
+    ///
+    /// TODO DIRMIRROR: Consider accepting an AuthorityContacts and extract the
+    /// downloads ourselves?
+    authorities: &'a Vec<Vec<SocketAddr>>,
+
+    /// An optional preferred authority within authorities.
+    preferred_authority: Option<&'a Vec<SocketAddr>>,
+
+    /// A handle to the runtime that is being used.
+    rt: &'b PreferredRuntime,
+}
+
+impl<'a, 'b> DownloadManager<'a, 'b> {
+    /// Creates a new [`DownloadManager`] with a set of download authorities.
+    pub(super) fn new(authorities: &'a Vec<Vec<SocketAddr>>, rt: &'b PreferredRuntime) -> Self {
+        Self {
+            authorities,
+            preferred_authority: None,
+            rt,
+        }
+    }
+
+    /// Performs a download to a single authority.
+    ///
+    /// All [`SocketAddr`] elements in `endpoints` MUST refer to the same
+    /// logical directory authority, as we will perform a round-robin connect
+    /// approach to them.
+    async fn download_single<Req: Downloadable + Debug>(
+        &self,
+        endpoints: &[SocketAddr],
+        req: &Req,
+    ) -> Result<Vec<u8>, AuthorityCommunicationError> {
+        // This check is important because tokio will panic otherwise.
+        if endpoints.is_empty() {
+            return Err(AuthorityCommunicationError::Bug(internal!(
+                "empty endpoints?"
+            )));
+        }
+
+        // Fortunately, Tokio's TcpStream::connect already offers round-robin.
+        let stream = TcpStream::connect(&endpoints).await?;
+        debug!(
+            "connected to {}",
+            stream
+                .peer_addr()
+                .map(|x| x.to_string())
+                .unwrap_or("N/A".to_string())
+        );
+        let mut stream = stream.compat();
+
+        // Perform the actual request.
+        match tor_dirclient::send_request(self.rt, req, &mut stream, None)
+            .await
+            .map(|resp| resp.into_output())
+        {
+            Ok(Ok(resp)) => Ok(resp),
+            Ok(Err(e)) => Err(Box::new(tor_dirclient::Error::RequestFailed(e)).into()),
+            Err(e) => Err(Box::new(e).into()),
+        }
+    }
+
+    /// Downloads a [`Downloadable`] from the download authorities.
+    ///
+    /// The relevant algorithm is non-trivial, but well-documented in the
+    /// [`DownloadManager`], which is why we will leave it out here by just
+    /// referencing to it.
+    #[allow(clippy::cognitive_complexity)]
+    pub(super) async fn download<Req: Downloadable + Debug, R: Rng>(
+        &mut self,
+        req: &Req,
+        rng: &mut R,
+    ) -> Result<Vec<u8>, RetryError<AuthorityCommunicationError>> {
+        // Because this is a round-robin approach, we want to collect errors.
+        let mut err = RetryError::in_attempt_to("request to authority");
+
+        // Use this struct to calculate delays between iterations.
+        let mut retry_delay = RetryDelay::default();
+
+        // Shuffle the list of authorities in a randomized order.
+        let mut random_auths = self
+            .authorities
+            .choose_multiple(rng, self.authorities.len())
+            .collect::<VecDeque<_>>();
+
+        // If we have a preferred authority, move it to the front.
+        if let Some(preferred) = self.preferred_authority {
+            // In this case, we first throw it out and insert it to the start.
+            random_auths.retain(|x| *x != preferred);
+            random_auths.push_front(preferred);
+        }
+        assert_eq!(random_auths.len(), self.authorities.len());
+
+        for endpoints in random_auths {
+            if endpoints.is_empty() {
+                warn!("empty endpoints in authority?");
+                continue;
+            }
+
+            match self.download_single(endpoints, req).await {
+                Ok(resp) => {
+                    debug!("request {req:?} to {endpoints:?} succeeded!");
+                    if self.preferred_authority != Some(endpoints) {
+                        debug!("using {endpoints:?} as new preferred authority");
+                        self.preferred_authority = Some(endpoints);
+                    }
+                    return Ok(resp);
+                }
+                Err(e) => {
+                    let delay = retry_delay.next_delay(rng);
+                    debug!("request {req:?} to {endpoints:?} failed: {e}");
+                    debug!("retrying in {}s", delay.as_secs());
+                    err.push(e);
+                    tokio::time::sleep(delay).await;
+                }
+            }
+        }
+
+        Err(err)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use std::{
+        io::ErrorKind,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+        time::Duration,
+    };
+
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_dirclient::{request::ConsensusRequest, RequestError};
+    use tor_netdoc::doc::netstatus::ConsensusFlavor;
+
+    use super::*;
+
+    /// Testing a request that is immediately successful.
+    #[tokio::test]
+    async fn request_legit() {
+        let server = TcpListener::bind("[::]:0").await.unwrap();
+        let server_addr = server.local_addr().unwrap();
+
+        tokio::task::spawn(async move {
+            let mut conn = server.accept().await.unwrap().0;
+            let mut buf = vec![0; 1024];
+            let _ = conn.read(&mut buf).await.unwrap();
+            conn.write_all(b"HTTP/1.0 200 OK\r\nContent-Length: 3\r\n\r\nfoo")
+                .await
+                .unwrap();
+        });
+
+        let authorities = vec![vec![server_addr]];
+        let rt = PreferredRuntime::current().unwrap();
+
+        let mut mgr = DownloadManager::new(&authorities, &rt);
+        let resp = mgr
+            .download(
+                &ConsensusRequest::new(ConsensusFlavor::Plain),
+                &mut testing_rng(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp, b"foo");
+        assert_eq!(mgr.preferred_authority.unwrap(), &authorities[0]);
+    }
+
+    /// Testing for a request that initially fails by returning a 404 but later succeeds.
+    #[tokio::test]
+    async fn request_fail_but_succeed() {
+        let mut server_addrs = Vec::new();
+        let requ_counter = Arc::new(AtomicUsize::new(0));
+        for _ in 0..2 {
+            let server = TcpListener::bind("[::]:0").await.unwrap();
+            let server_addr = server.local_addr().unwrap();
+            let requ_counter = requ_counter.clone();
+            server_addrs.push(vec![server_addr]);
+
+            tokio::task::spawn(async move {
+                loop {
+                    let (mut conn, _) = server.accept().await.unwrap();
+
+                    // This read is important!
+                    // Otherwise this server will terminate the connection with
+                    // RST instead of FIN, causing everything to fail.
+                    let mut buf = vec![0; 1024];
+                    let _ = conn.read(&mut buf).await.unwrap();
+
+                    let cur_req = requ_counter.fetch_add(1, Ordering::AcqRel);
+
+                    if cur_req == 0 {
+                        // Send a failure.
+                        conn.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n")
+                            .await
+                            .unwrap();
+                    } else if cur_req == 1 {
+                        // Send a success.
+                        conn.write_all(b"HTTP/1.0 200 OK\r\nContent-Length: 3\r\n\r\nfoo")
+                            .await
+                            .unwrap();
+                    } else {
+                        unreachable!()
+                    }
+                }
+            });
+        }
+
+        let rt = PreferredRuntime::current().unwrap();
+        let mut mgr = DownloadManager::new(&server_addrs, &rt);
+
+        let resp = mgr
+            .download(
+                &ConsensusRequest::new(ConsensusFlavor::Plain),
+                &mut testing_rng(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp, b"foo");
+        assert!(mgr.preferred_authority.is_some());
+    }
+
+    /// Request that fails all the time.
+    #[tokio::test]
+    async fn request_fail_ultimately() {
+        let mut server_addrs = Vec::new();
+        for _ in 0..2 {
+            let server = TcpListener::bind("[::]:0").await.unwrap();
+            let server_addr = server.local_addr().unwrap();
+            server_addrs.push(vec![server_addr]);
+
+            tokio::task::spawn(async move {
+                loop {
+                    let _ = server.accept().await.unwrap();
+                }
+            });
+        }
+
+        let rt = PreferredRuntime::current().unwrap();
+        let mut mgr = DownloadManager::new(&server_addrs, &rt);
+
+        let errs = mgr
+            .download(
+                &ConsensusRequest::new(ConsensusFlavor::Plain),
+                &mut testing_rng(),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(mgr.preferred_authority.is_none());
+
+        // This is just a longer loop to assert all errors are connection resets.
+        for err in errs {
+            match err {
+                AuthorityCommunicationError::Dirclient(e) => match *e {
+                    tor_dirclient::Error::RequestFailed(e) => match e.error {
+                        RequestError::IoError(e) => match e.kind() {
+                            ErrorKind::ConnectionReset => {}
+                            e => unreachable!("{e}"),
+                        },
+                        e => unreachable!("{e}"),
+                    },
+                    e => unreachable!("{e}"),
+                },
+                e => unreachable!("{e}"),
+            }
+        }
+    }
+
+    /// Stress out the retry algorithm by letting a timeout kill it.
+    #[tokio::test]
+    async fn request_fail_timeout() {
+        let mut servers = Vec::new();
+        let mut addrs = Vec::new();
+
+        for _ in 0..8 {
+            let server = TcpListener::bind("[::]:0").await.unwrap();
+            addrs.push(vec![server.local_addr().unwrap()]);
+            servers.push(server);
+        }
+
+        let rt = PreferredRuntime::current().unwrap();
+        let mut mgr = DownloadManager::new(&addrs, &rt);
+
+        let _elapsed = tokio::time::timeout(
+            Duration::from_secs(5),
+            mgr.download(
+                &ConsensusRequest::new(ConsensusFlavor::Plain),
+                &mut testing_rng(),
+            ),
+        )
+        .await
+        .unwrap_err();
+    }
+}
