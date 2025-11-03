@@ -54,7 +54,7 @@ pub(super) struct Isolation {
 
 /// Constants and code for the HTTP headers we use.
 mod hdr {
-    pub(super) use http::header::{CONTENT_TYPE, PROXY_AUTHORIZATION, SERVER, VIA};
+    pub(super) use http::header::{CONTENT_TYPE, HOST, PROXY_AUTHORIZATION, SERVER, VIA};
 
     /// Client-to-proxy: Which IP family should we use?
     pub(super) const TOR_FAMILY_PREFERENCE: &str = "Tor-Family-Preference";
@@ -144,6 +144,25 @@ where
     R: Runtime,
     S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
+    // Avoid cross-site attacks based on DNS forgery by validating that the Host
+    // header is in fact localhost.  In these cases, we don't want to reply at all,
+    // _even with an error message_, since our headers could be used to tell a hostile
+    // webpage information about the local arti process.
+    //
+    // We don't do this for CONNECT requests, since those are forbidden by
+    // XHR and JS fetch(), and since Host _will_ be non-localhost for those.
+    if request.method() != Method::CONNECT {
+        match hdr::uniq_utf8(request.headers(), hdr::HOST) {
+            Err(e) => return Err(e).context("Host header invalid. Rejecting request."),
+            Ok(Some(host)) if !host_is_localhost(host) => {
+                return Err(anyhow!(
+                    "Host header {host:?} was not localhost. Rejecting request."
+                ));
+            }
+            Ok(_) => {}
+        }
+    }
+
     match *request.method() {
         Method::OPTIONS => handle_options_request(request).await,
         Method::CONNECT => {
@@ -679,6 +698,19 @@ where
     Ok(())
 }
 
+/// Return true if `host` is a possible value for a Host header addressing localhost.
+fn host_is_localhost(host: &str) -> bool {
+    if let Ok(addr) = host.parse::<std::net::SocketAddr>() {
+        addr.ip().is_loopback()
+    } else if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        ip.is_loopback()
+    } else if let Some((addr, port)) = host.split_once(':') {
+        port.parse::<std::num::NonZeroU16>().is_ok() && addr.eq_ignore_ascii_case("localhost")
+    } else {
+        host.eq_ignore_ascii_case("localhost")
+    }
+}
+
 /// Helper module: Make `futures` types usable by `hyper`.
 //
 // TODO: We may want to expose this as a separate crate, or move it into tor-async-utils,
@@ -767,6 +799,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use super::*;
+
     // Make sure that HeaderMap is case-insensitive as the documentation implies.
     #[test]
     fn headermap_casei() {
@@ -784,5 +818,28 @@ mod test {
             hm.get("MY-HEAD-IS-A-HOUSE-FOR").unwrap().as_bytes(),
             b"a-secret"
         );
+    }
+
+    #[test]
+    fn host_header_localhost() {
+        assert_eq!(host_is_localhost("localhost"), true);
+        assert_eq!(host_is_localhost("localhost:9999"), true);
+        assert_eq!(host_is_localhost("localHOSt:9999"), true);
+        assert_eq!(host_is_localhost("127.0.0.1:9999"), true);
+        assert_eq!(host_is_localhost("[::1]:9999"), true);
+        assert_eq!(host_is_localhost("127.1.2.3:1234"), true);
+        assert_eq!(host_is_localhost("127.0.0.1"), true);
+        assert_eq!(host_is_localhost("::1"), true);
+
+        assert_eq!(host_is_localhost("[::1]"), false); // not in the right format!
+        assert_eq!(host_is_localhost("www.torproject.org"), false);
+        assert_eq!(host_is_localhost("www.torproject.org:1234"), false);
+        assert_eq!(host_is_localhost("localhost:0"), false);
+        assert_eq!(host_is_localhost("localhost:999999"), false);
+        assert_eq!(host_is_localhost("plocalhost:1234"), false);
+        assert_eq!(host_is_localhost("[::0]:1234"), false);
+        assert_eq!(host_is_localhost("192.0.2.55:1234"), false);
+        assert_eq!(host_is_localhost("3fff::1"), false);
+        assert_eq!(host_is_localhost("[3fff::1]:1234"), false);
     }
 }
