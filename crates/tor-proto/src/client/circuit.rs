@@ -981,6 +981,7 @@ pub(crate) mod test {
     use crate::memquota::SpecificAccount as _;
     use crate::stream::flow_ctrl::params::FlowCtrlParameters;
     use crate::util::DummyTimeoutEstimator;
+    use assert_matches::assert_matches;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -1672,7 +1673,7 @@ pub(crate) mod test {
             let extended2 = relaymsg::Extended2::new(vec![99; 256]).into();
             let cc = rmsg_to_ccmsg(None, extended2);
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
-            assert!(matches!(error, Error::BadCircHandshakeAuth));
+            assert_matches!(error, Error::BadCircHandshakeAuth);
         });
     }
 
@@ -1711,7 +1712,7 @@ pub(crate) mod test {
                     other => panic!("{:?}", other),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-                assert!(matches!(rmsg, AnyRelayMsg::BeginDir(_)));
+                assert_matches!(rmsg, AnyRelayMsg::BeginDir(_));
 
                 // Reply with a Connected cell to indicate success.
                 let connected = relaymsg::Connected::new_empty().into();
@@ -1953,7 +1954,7 @@ pub(crate) mod test {
                 other => panic!("{:?}", other),
             };
             let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-            assert!(matches!(rmsg, AnyRelayMsg::Begin(_)));
+            assert_matches!(rmsg, AnyRelayMsg::Begin(_));
             // Reply with a connected cell...
             let connected = relaymsg::Connected::new_empty().into();
             sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
@@ -2745,7 +2746,7 @@ pub(crate) mod test {
             assert!(res1.is_ok());
 
             let err = res2.unwrap_err();
-            assert!(matches!(err, ConfluxHandshakeError::Timeout), "{err:?}");
+            assert_matches!(err, ConfluxHandshakeError::Timeout);
         });
     }
 
@@ -3219,7 +3220,7 @@ pub(crate) mod test {
         };
         let (_streamid, rmsg) = rmsg.into_streamid_and_msg();
 
-        assert!(matches!(rmsg, AnyRelayMsg::ConfluxLinkedAck(_)));
+        assert_matches!(rmsg, AnyRelayMsg::ConfluxLinkedAck(_));
     }
 
     /// An event sent by one mock conflux leg to another.
