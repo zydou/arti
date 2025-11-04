@@ -2075,11 +2075,11 @@ impl<R: Runtime> TorClient<R> {
     #[cfg(feature = "onion-service-service")]
     #[instrument(skip_all, level = "trace")]
     pub fn create_onion_service(
-        &self,
         config: &TorClientConfig,
         svc_config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<tor_hsservice::OnionService> {
-        self.inert_client.create_onion_service(config, svc_config)
+        let inert_client = InertTorClient::new(config)?;
+        inert_client.create_onion_service(config, svc_config)
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
