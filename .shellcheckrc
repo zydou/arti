@@ -1,0 +1,3 @@
+disable=SC2268
+# "egrep is non-standard and deprecated" it's fine.
+disable=SC2196
