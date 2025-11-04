@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# Check if all published crates have MSRV (rust-version) defined in Cargo.toml.
+
+set -euo pipefail
+
+: "${CARGO:=cargo}"
+
+readarray -t offending_crates < <(
+  "$CARGO" metadata --format-version 1 | jq -r '
+      .packages[]
+      | select(
+          (.id | startswith("path+file:///"))
+          and (.rust_version == null)
+          and (.publish == null or .publish == true or .publish != [])
+        )
+      | .name'
+)
+
+count=${#offending_crates[@]}
+if [ "$count" -gt 0 ]; then
+    for crate in "${offending_crates[@]}"
+    do
+        echo "No rust-version defined in Cargo.toml of $crate."
+    done
+    printf "\nFound %d offending crate%s.\n" "$count" "$([ "$count" -ne 1 ] && echo s)"
+    echo "Read https://doc.rust-lang.org/cargo/reference/rust-version.html for more information."
+    exit 1
+else
+    echo "Hurray! All crates have a rust-version defined in Cargo.toml."
+    exit 0
+fi
+

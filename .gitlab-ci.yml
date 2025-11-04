@@ -179,10 +179,12 @@ rust-checks:
   script:
     - rustup show
     - rustup component add rustfmt
+    - ./maint/common/apt-install jq
     - ./maint/common/via-cargo-install-in-ci cargo-sort --version 2.0.1
     - ./maint/common/via-cargo-install-in-ci cargo-license --version 0.7.0
     - cargo fmt -- --check
     - ./maint/check_licenses
+    - ./maint/check_msrv
     - ./maint/cargo_sort
     - ./maint/check_tree
     - ./maint/check_all_lockfiles
