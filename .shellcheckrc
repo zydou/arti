@@ -1,0 +1,8 @@
+# Allow use of the x-hack.  (`if [ "x$var" = x... ] ...`)
+# This is clearer because it means the reader of the code can see that
+# they don't need to understand test(1)'s completely mad argument parsing.
+# And it was necessary in at least some shells only a few years ago.
+disable=SC2268
+
+# "egrep is non-standard and deprecated" it's fine.
+disable=SC2196
