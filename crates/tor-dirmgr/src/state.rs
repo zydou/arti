@@ -1348,7 +1348,6 @@ mod test {
     }
 
     fn make_time_shifted_runtime(now: SystemTime, rt: impl Runtime) -> impl Runtime {
-        #[allow(deprecated)] // TODO #1885
         let msp = SimpleMockTimeProvider::from_wallclock(now);
         rt.with_sleep_provider(msp.clone())
             .with_coarse_time_provider(msp)
