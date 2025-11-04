@@ -37,7 +37,7 @@ use tor_error::internal;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 use crate::{
-    database::{self, sql, Sha256},
+    database::{self, sql},
     err::{DatabaseError, FatalError},
 };
 
@@ -233,19 +233,22 @@ fn get_recent_consensus(
     // ?2: `now` as a Unix timestamp.
     let mut meta_stmt = tx.prepare_cached(sql!(
         "
-            SELECT valid_after, fresh_until, valid_until, sha256
-            FROM consensus
-              WHERE flavor = ?1
-                AND ?2 >= valid_after - ?3
-                AND ?2 <= valid_until + ?4
-              ORDER BY valid_after DESC
-              LIMIT 1
-            "
+        SELECT c.valid_after, c.fresh_until, c.valid_until, s.content
+        FROM
+          consensus AS c
+          INNER JOIN store AS s ON s.sha256 = c.sha256
+        WHERE
+          flavor = ?1
+          AND ?2 >= valid_after - ?3
+          AND ?2 <= valid_until + ?4
+        ORDER BY valid_after DESC
+        LIMIT 1
+        "
     ))?;
 
     // Actually execute the query; a None is totally valid and considered as
     // no consensus being present in the current database.
-    let meta = meta_stmt
+    let res = meta_stmt
         .query_one(
             params![
                 flavor.name(),
@@ -258,23 +261,17 @@ fn get_recent_consensus(
                     row.get::<_, SaturatingSystemTime>(0)?,
                     row.get::<_, SaturatingSystemTime>(1)?,
                     row.get::<_, SaturatingSystemTime>(2)?,
-                    row.get::<_, Sha256>(3)?,
+                    row.get::<_, Vec<u8>>(3)?,
                 ))
             },
         )
         .optional()?;
-    let (valid_after, fresh_until, valid_until, sha256) = match meta {
+
+    let (valid_after, fresh_until, valid_until, consensus) = match res {
         Some(res) => res,
         None => return Ok(None),
     };
 
-    // Query the sha256 obtained above from the content-addressable store table.
-    //
-    // Because the store table stores content as a BLOB, we also convert it to
-    // a String securely, with errors composing a constraint violation.
-    let mut content_stmt =
-        tx.prepare_cached(sql!("SELECT content FROM store WHERE sha256 = ?1"))?;
-    let consensus: Vec<u8> = content_stmt.query_one(params![sha256], |row| row.get(0))?;
     let consensus =
         String::from_utf8(consensus).map_err(|e| internal!("utf-8 contraint violated? {e}"))?;
 
