@@ -1643,8 +1643,7 @@ mod test {
     use tor_netdoc::doc::{hsdesc::test_data, netstatus::Lifetime};
     use tor_rtcompat::RuntimeSubstExt as _;
     use tor_rtcompat::tokio::TokioNativeTlsRuntime;
-    #[allow(deprecated)] // TODO #1885
-    use tor_rtmock::time::MockSleepProvider;
+    use tor_rtmock::simple_time::SimpleMockTimeProvider;
     use tracing_test::traced_test;
 
     #[derive(Debug, Default)]
@@ -1798,8 +1797,7 @@ mod test {
         let netdir = Arc::new(netdir.unwrap_if_sufficient().unwrap());
         let runtime = TokioNativeTlsRuntime::current().unwrap();
         let now = humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap();
-        #[allow(deprecated)] // TODO #1885
-        let mock_sp = MockSleepProvider::new(now);
+        let mock_sp = SimpleMockTimeProvider::from_wallclock(now);
         let runtime = runtime
             .with_sleep_provider(mock_sp.clone())
             .with_coarse_time_provider(mock_sp);
