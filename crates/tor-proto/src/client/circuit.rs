@@ -997,9 +997,9 @@ pub(crate) mod test {
     use tor_cell::relaycell::extend::{self as extend_ext, CircRequestExt, CircResponseExt};
     use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
-        AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId, msg as relaymsg,
-        msg::AnyRelayMsg,
+        AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId, msg as relaymsg, msg::AnyRelayMsg,
     };
+    use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
     use tor_linkspec::OwnedCircTarget;
     use tor_memquota::HasMemoryCost;
     use tor_rtcompat::Runtime;
@@ -1569,7 +1569,7 @@ pub(crate) mod test {
         reply_hop: HopNum,
         bad_reply: ClientCircChanMsg,
     ) -> Error {
-        let (chan, _rx, _sink) = working_fake_channel(rt);
+        let (chan, mut rx, _sink) = working_fake_channel(rt);
         let hops = std::iter::repeat_with(|| {
             let peer_id = tor_linkspec::OwnedChanTarget::builder()
                 .ed_identity([4; 32].into())
@@ -1595,11 +1595,21 @@ pub(crate) mod test {
         let params = CircParameters::default();
 
         let target = example_target();
-        #[allow(clippy::clone_on_copy)]
-        let rtc = rt.clone();
-        let sink_handle = rt
+        let reply_task_handle = rt
             .spawn_with_handle(async move {
-                rtc.sleep(Duration::from_millis(100)).await;
+                // Wait for a cell, and make sure it's EXTEND2.
+                let (_circid, chanmsg) = rx.next().await.unwrap().into_circid_and_msg();
+                let AnyChanMsg::RelayEarly(relay_early) = chanmsg else {
+                    panic!("unexpected message {chanmsg:?}");
+                };
+                let relaymsg = UnparsedRelayMsg::from_singleton_body(
+                    RelayCellFormat::V0,
+                    relay_early.into_relay_body(),
+                )
+                .unwrap();
+                assert_eq!(relaymsg.cmd(), RelayCmd::EXTEND2);
+
+                // Send back the "bad_reply."
                 sink.send(bad_reply).await.unwrap();
                 sink
             })
@@ -1609,7 +1619,7 @@ pub(crate) mod test {
             .unwrap()
             .extend_ntor(&target, params)
             .await;
-        let _sink = sink_handle.await;
+        let _sink = reply_task_handle.await;
 
         assert_eq!(tunnel.n_hops().unwrap(), 3);
         assert!(outcome.is_err());
