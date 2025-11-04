@@ -981,6 +981,7 @@ pub(crate) mod test {
     use crate::memquota::SpecificAccount as _;
     use crate::stream::flow_ctrl::params::FlowCtrlParameters;
     use crate::util::DummyTimeoutEstimator;
+    use assert_matches::assert_matches;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -996,9 +997,9 @@ pub(crate) mod test {
     use tor_cell::relaycell::extend::{self as extend_ext, CircRequestExt, CircResponseExt};
     use tor_cell::relaycell::msg::SendmeTag;
     use tor_cell::relaycell::{
-        AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId, msg as relaymsg,
-        msg::AnyRelayMsg,
+        AnyRelayMsgOuter, RelayCellFormat, RelayCmd, StreamId, msg as relaymsg, msg::AnyRelayMsg,
     };
+    use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
     use tor_linkspec::OwnedCircTarget;
     use tor_memquota::HasMemoryCost;
     use tor_rtcompat::Runtime;
@@ -1568,7 +1569,7 @@ pub(crate) mod test {
         reply_hop: HopNum,
         bad_reply: ClientCircChanMsg,
     ) -> Error {
-        let (chan, _rx, _sink) = working_fake_channel(rt);
+        let (chan, mut rx, _sink) = working_fake_channel(rt);
         let hops = std::iter::repeat_with(|| {
             let peer_id = tor_linkspec::OwnedChanTarget::builder()
                 .ed_identity([4; 32].into())
@@ -1594,11 +1595,21 @@ pub(crate) mod test {
         let params = CircParameters::default();
 
         let target = example_target();
-        #[allow(clippy::clone_on_copy)]
-        let rtc = rt.clone();
-        let sink_handle = rt
+        let reply_task_handle = rt
             .spawn_with_handle(async move {
-                rtc.sleep(Duration::from_millis(100)).await;
+                // Wait for a cell, and make sure it's EXTEND2.
+                let (_circid, chanmsg) = rx.next().await.unwrap().into_circid_and_msg();
+                let AnyChanMsg::RelayEarly(relay_early) = chanmsg else {
+                    panic!("unexpected message {chanmsg:?}");
+                };
+                let relaymsg = UnparsedRelayMsg::from_singleton_body(
+                    RelayCellFormat::V0,
+                    relay_early.into_relay_body(),
+                )
+                .unwrap();
+                assert_eq!(relaymsg.cmd(), RelayCmd::EXTEND2);
+
+                // Send back the "bad_reply."
                 sink.send(bad_reply).await.unwrap();
                 sink
             })
@@ -1608,7 +1619,7 @@ pub(crate) mod test {
             .unwrap()
             .extend_ntor(&target, params)
             .await;
-        let _sink = sink_handle.await;
+        let _sink = reply_task_handle.await;
 
         assert_eq!(tunnel.n_hops().unwrap(), 3);
         assert!(outcome.is_err());
@@ -1672,7 +1683,7 @@ pub(crate) mod test {
             let extended2 = relaymsg::Extended2::new(vec![99; 256]).into();
             let cc = rmsg_to_ccmsg(None, extended2);
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
-            assert!(matches!(error, Error::BadCircHandshakeAuth));
+            assert_matches!(error, Error::BadCircHandshakeAuth);
         });
     }
 
@@ -1711,7 +1722,7 @@ pub(crate) mod test {
                     other => panic!("{:?}", other),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-                assert!(matches!(rmsg, AnyRelayMsg::BeginDir(_)));
+                assert_matches!(rmsg, AnyRelayMsg::BeginDir(_));
 
                 // Reply with a Connected cell to indicate success.
                 let connected = relaymsg::Connected::new_empty().into();
@@ -1953,7 +1964,7 @@ pub(crate) mod test {
                 other => panic!("{:?}", other),
             };
             let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-            assert!(matches!(rmsg, AnyRelayMsg::Begin(_)));
+            assert_matches!(rmsg, AnyRelayMsg::Begin(_));
             // Reply with a connected cell...
             let connected = relaymsg::Connected::new_empty().into();
             sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
@@ -2745,7 +2756,7 @@ pub(crate) mod test {
             assert!(res1.is_ok());
 
             let err = res2.unwrap_err();
-            assert!(matches!(err, ConfluxHandshakeError::Timeout), "{err:?}");
+            assert_matches!(err, ConfluxHandshakeError::Timeout);
         });
     }
 
@@ -3219,7 +3230,7 @@ pub(crate) mod test {
         };
         let (_streamid, rmsg) = rmsg.into_streamid_and_msg();
 
-        assert!(matches!(rmsg, AnyRelayMsg::ConfluxLinkedAck(_)));
+        assert_matches!(rmsg, AnyRelayMsg::ConfluxLinkedAck(_));
     }
 
     /// An event sent by one mock conflux leg to another.

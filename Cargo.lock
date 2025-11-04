@@ -7262,6 +7262,7 @@ version = "0.36.0"
 dependencies = [
  "aes",
  "amplify",
+ "assert_matches",
  "asynchronous-codec",
  "bitvec",
  "bytes",
