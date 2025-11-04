@@ -483,6 +483,49 @@ impl InertTorClient {
             action: "get key manager handle",
         })?)
     }
+
+    /// Create (but do not launch) a new
+    /// [`OnionService`](tor_hsservice::OnionService)
+    /// using the given configuration.
+    ///
+    /// This is useful for managing an onion service without needing to start a `TorClient` or the
+    /// onion service itself.
+    /// If you only wish to run the onion service, see
+    /// [`TorClient::launch_onion_service()`]
+    /// which allows you to launch an onion service from a running `TorClient`.
+    ///
+    /// The returned `OnionService` can be launched using
+    /// [`OnionService::launch()`](tor_hsservice::OnionService::launch).
+    /// Note that `launch()` requires a [`NetDirProvider`],
+    /// [`HsCircPool`](tor_circmgr::hspool::HsCircPool), etc,
+    /// which you should obtain from a running `TorClient`.
+    /// But these are only accessible from a `TorClient` if the "experimental-api" feature is
+    /// enabled.
+    /// The behaviour is not specified if you create the `OnionService` with
+    /// `create_onion_service()` using one [`TorClientConfig`],
+    /// but launch it using a `TorClient` generated from a different `TorClientConfig`.
+    #[cfg(feature = "onion-service-service")]
+    #[instrument(skip_all, level = "trace")]
+    pub fn create_onion_service(
+        &self,
+        config: &TorClientConfig,
+        svc_config: tor_hsservice::OnionServiceConfig,
+    ) -> crate::Result<tor_hsservice::OnionService> {
+        let keymgr = self.keymgr.as_ref().ok_or(ErrorDetail::KeystoreRequired {
+            action: "create onion service",
+        })?;
+
+        let (state_dir, mistrust) = config.state_dir()?;
+        let state_dir =
+            self::StateDirectory::new(state_dir, mistrust).map_err(ErrorDetail::StateAccess)?;
+
+        Ok(tor_hsservice::OnionService::builder()
+            .config(svc_config)
+            .keymgr(keymgr.clone())
+            .state_dir(state_dir)
+            .build()
+            .map_err(ErrorDetail::OnionServiceSetup)?)
+    }
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
@@ -2032,24 +2075,11 @@ impl<R: Runtime> TorClient<R> {
     #[cfg(feature = "onion-service-service")]
     #[instrument(skip_all, level = "trace")]
     pub fn create_onion_service(
+        &self,
         config: &TorClientConfig,
         svc_config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<tor_hsservice::OnionService> {
-        let inert_client = InertTorClient::new(config)?;
-        let keymgr = inert_client.keymgr.ok_or(ErrorDetail::KeystoreRequired {
-            action: "create onion service",
-        })?;
-
-        let (state_dir, mistrust) = config.state_dir()?;
-        let state_dir =
-            self::StateDirectory::new(state_dir, mistrust).map_err(ErrorDetail::StateAccess)?;
-
-        Ok(tor_hsservice::OnionService::builder()
-            .config(svc_config)
-            .keymgr(keymgr)
-            .state_dir(state_dir)
-            .build()
-            .map_err(ErrorDetail::OnionServiceSetup)?)
+        self.inert_client.create_onion_service(config, svc_config)
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
