@@ -57,18 +57,6 @@ shadow \
   shadow.yaml \
   > shadow.log
 
-# Check whether file transfers via arti inside the simulation succeeded
-for HOST in articlient articlient-extra articlient-bridge articlient-bridge-obfs4; do
-  successes="$(grep -c stream-success shadow.data/hosts/$HOST/tgen.*.stdout || true)"
-  if [ "$successes" = 10 ]
-  then
-    echo "Simulation successful"
-  else
-    echo "Failed. Only got $successes successful streams."
-    exit 1
-  fi
-done
-
 # Look for any non-empty stderr files. In particular rust panics sometimes end
 # up showing up here (even though we try to log them properly).
 nonempty_stderr=$(find shadow.data/hosts/ -name '*.stderr' -size +0 -print -quit)
@@ -87,34 +75,40 @@ if [ -n "$arti_errs" ]; then
   exit 1
 fi
 
-HOSTS=(
-  articlient-onion
-  articlient-onion-auth
-  articlient-onion-artiserver
-  articlient-onion-artiserver-full-vanguards
-  articlient-onion-artiserver-auth
-  articlient-onion-artiserver-auth-2
-  articlient-onion-artiserver-auth-ctor
-  torclient-onion-artiserver
-  torclient-onion-artiserver-full-vanguards
-)
-
-for HOST in "${HOSTS[@]}"; do
-  successes="$(grep -c stream-success shadow.data/hosts/"$HOST"/tgen.*.stdout || true)"
-
-  # NOTE: For the HS client tests we only require half of the streams to succeed
-  # to work around the issue described in:
-  # * https://github.com/shadow/shadow/issues/2544
-  # * https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1399#note_2921505
-  # * https://gitlab.torproject.org/tpo/core/arti/-/issues/1986
-  if [ "$successes" -ge 1 ]
+check_host_xfers() {
+  hostname="$1"
+  min="$2"
+  total="$3"
+  successes="$(grep -c stream-success shadow.data/hosts/"$hostname"/tgen.*.stdout || true)"
+  echo "$hostname had $successes/$total successful streams (required at least $min)"
+  if [ "$successes" -ge "$min" ]
   then
-    echo "Simulation successful"
+    echo "^ PASS"
   else
-    echo "Failed. Only got $successes successful streams."
+    echo "^ FAIL"
     exit 1
   fi
-done
+}
+
+# Check whether file transfers via arti inside the simulation succeeded
+check_host_xfers articlient 10 10
+check_host_xfers articlient-extra 10 10
+check_host_xfers articlient-bridge 10 10
+check_host_xfers articlient-bridge-obfs4 10 10
+# Onion-service transfers have tended to be a bit less reliable.
+# For a while we only required 1/10 to succeed. It looks like it's gotten better,
+# but still seeing some occasional failures so requiring 9/10 for now.
+# https://gitlab.torproject.org/tpo/core/arti/-/issues/2109
+check_host_xfers articlient-onion 9 10
+check_host_xfers articlient-onion-artiserver 9 10
+check_host_xfers articlient-onion-artiserver-full-vanguards 9 10
+check_host_xfers articlient-onion-artiserver-auth 9 10
+check_host_xfers articlient-onion-artiserver-auth-2 9 10
+check_host_xfers articlient-onion-artiserver-auth-ctor 9 10
+check_host_xfers torclient-onion-artiserver 9 10
+check_host_xfers torclient-onion-artiserver-full-vanguards 9 10
+# https://gitlab.torproject.org/tpo/core/arti/-/issues/1986
+check_host_xfers articlient-onion-auth 1 10
 
 HOSTS=(
   articlient-onion
