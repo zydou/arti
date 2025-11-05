@@ -115,6 +115,19 @@
 #
 #     opentelemetry.http = {endpoint = "http://localhost:4318/v1/traces", timeout = "15s", batch = { max_queue_size = 1024, max_export_batch_size = 256, scheduled_delay = "5s" } }
 
+
+# If the experimental `tokio-console` feature is enabled, and you set this option to "true",
+# arti can send trace information to tokio-console` for development and debugging purposes.
+#
+# To use this feature, you must make sure to build with `--cfg tokio_unstable`,
+# or the console subscriber will panic on startup.
+#
+# Note that this option publishes low-level details at a local address that tokio-console
+# can connect to, and may therefore be a security risk on some systems.
+# Don't enable it for production environments; use containers when possible.
+#
+#     tokio_console.enabled = false
+
 [metrics]
 
 # Arti can export metrics, offering a Prometheus scraper endpoint.

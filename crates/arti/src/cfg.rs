@@ -631,6 +631,17 @@ mod test {
         declare_exceptions(
             None,
             None, // it's there, but not formatted for auto-testing
+            FeatureDependent,
+            &[
+                // Settings only available with tokio-console support
+                "logging.tokio_console",
+                "logging.tokio_console.enabled",
+            ],
+        );
+
+        declare_exceptions(
+            None,
+            None, // it's there, but not formatted for auto-testing
             Recognized,
             &[
                 // Memory quota, tested by fn memquota (below)

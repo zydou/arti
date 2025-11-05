@@ -137,10 +137,12 @@ experimental = [
     "flowctl-cc",
     "counter-galois-onion",
     "opentelemetry",
+    "tokio-console",
 ]
 metrics = ["dep:metrics-exporter-prometheus", "tor-hsservice?/metrics", "tor-hsrproxy?/metrics", "__is_experimental"]
 http-connect = ["__is_experimental", "base64ct", "http", "hyper"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
+tokio-console = ["dep:console-subscriber", "__is_experimental"]
 __is_experimental = []
 
 # These features exist for backwards compatibility, and shouldn't be used directly.
@@ -161,6 +163,7 @@ async-signal = { version = "0.2.10", optional = true }
 base64ct = { version = "1.5.1", optional = true }
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
+console-subscriber = { version = "0.5.0", optional = true }
 derive-deftly = { version = "~1.4.0", features = ["full", "beta"], optional = true }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 fs-mistrust = { path = "../fs-mistrust", version = "0.13.0" }

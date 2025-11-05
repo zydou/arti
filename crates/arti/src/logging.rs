@@ -53,6 +53,12 @@ pub struct LoggingConfig {
     #[builder(default)]
     opentelemetry: OpentelemetryConfig,
 
+    /// Configuration for passing information to tokio-console.
+    #[cfg(feature = "tokio-console")]
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    tokio_console: TokioConsoleConfig,
+
     /// Configuration for one or more logfiles.
     ///
     /// The default is not to log to any files.
@@ -239,6 +245,20 @@ impl From<OpentelemetryBatchConfig> for opentelemetry_sdk::trace::BatchConfig {
 
         batch_config.build()
     }
+}
+
+/// Configuration for logging to the tokio console.
+#[derive(Debug, Builder, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[cfg(feature = "tokio-console")]
+pub struct TokioConsoleConfig {
+    /// If true, the tokio console subscriber should be enabled.
+    ///
+    /// This requires that tokio (and hence arti) is built with `--cfg tokio_unstable`
+    /// in RUSTFLAGS.
+    #[builder(default)]
+    enabled: bool,
 }
 
 /// As [`Targets::from_str`], but wrapped in an [`anyhow::Result`].
@@ -530,6 +550,22 @@ pub(crate) fn setup_logging(
 
     #[cfg(feature = "opentelemetry")]
     let registry = registry.with(otel_layer(config, path_resolver)?);
+
+    #[cfg(feature = "tokio-console")]
+    let registry = {
+        // Note 1: We can't enable console_subscriber unconditionally when the `tokio-console`
+        // feature is enabled, since it panics unless tokio is built with  `--cfg tokio_unstable`,
+        // but we want arti to work with --all-features without any special --cfg.
+        //
+        // Note 2: We have to use an `Option` here, since the type of the registry changes
+        // with whatever you add to it.
+        let tokio_layer = if config.tokio_console.enabled {
+            Some(console_subscriber::spawn())
+        } else {
+            None
+        };
+        registry.with(tokio_layer)
+    };
 
     let (layer, guards) = logfile_layers(config, mistrust, path_resolver)?;
     let registry = registry.with(layer);
