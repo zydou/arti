@@ -13,7 +13,7 @@ use std::{
 
 use arrayvec::ArrayVec;
 use equix::EquiXBuilder;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use futures::{SinkExt, StreamExt};
 use futures::{Stream, channel::mpsc};
 use num_traits::FromPrimitive;

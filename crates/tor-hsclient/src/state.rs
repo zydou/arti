@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use futures::FutureExt as _;
-use futures::task::{SpawnError, SpawnExt as _};
+use futures::task::SpawnError;
 
 use async_trait::async_trait;
 use educe::Educe;
@@ -22,7 +22,7 @@ use tor_circmgr::isolation::Isolation;
 use tor_error::{Bug, ErrorReport as _, debug_report, error_report, internal};
 use tor_hscrypto::pk::HsId;
 use tor_netdir::NetDir;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SpawnExt as _};
 
 use crate::isol_map;
 use crate::{ConnError, HsClientConnector, HsClientSecretKeys};

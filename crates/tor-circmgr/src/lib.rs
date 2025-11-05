@@ -64,7 +64,7 @@ use tor_rtcompat::Runtime;
 use tor_linkspec::IntoOwnedChanTarget;
 
 use futures::StreamExt;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, trace, warn};

@@ -143,7 +143,7 @@ mod test {
     use std::num::NonZero;
     use std::time::Duration;
 
-    use futures::task::SpawnExt;
+    use tor_rtcompat::SpawnExt;
     use futures::{AsyncReadExt, AsyncWriteExt, FutureExt, SinkExt};
 
     #[cfg(feature = "tokio")]

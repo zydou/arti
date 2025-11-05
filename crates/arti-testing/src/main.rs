@@ -102,7 +102,7 @@ mod traces;
 
 use arti::ArtiCombinedConfig;
 use arti_client::TorClient;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use rt::badtcp::BrokenTcpProvider;
 use tor_config::ConfigurationSources;
 use tor_dirmgr::filter::DirFilter;

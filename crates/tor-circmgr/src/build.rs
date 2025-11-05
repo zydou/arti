@@ -5,7 +5,7 @@ use crate::timeouts::{self, Action};
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::Future;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use oneshot_fused_workaround as oneshot;
 use std::sync::{
     Arc,

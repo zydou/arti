@@ -377,7 +377,7 @@ mod test {
     use super::*;
 
     use futures::future::FutureExt;
-    use futures::task::SpawnExt;
+    use tor_rtcompat::SpawnExt;
 
     impl<T> Shared<T> {
         /// Count the number of wakers.

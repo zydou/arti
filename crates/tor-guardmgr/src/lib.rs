@@ -54,7 +54,7 @@
 //     filtered
 
 use futures::channel::mpsc;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use itertools::Either;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

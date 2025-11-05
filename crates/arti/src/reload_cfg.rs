@@ -11,7 +11,7 @@ use tor_config::file_watcher::{self, FileWatcherBuilder, FileEventSender, FileWa
 use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSources};
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use futures::StreamExt;
 
 #[cfg(target_family = "unix")]

@@ -179,7 +179,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use futures::task::SpawnExt as _;
+    use tor_rtcompat::SpawnExt as _;
     use tor_rtmock::MockRuntime;
 
     use super::*;

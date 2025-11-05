@@ -57,7 +57,7 @@ pub(crate) mod util;
 
 use futures::StreamExt;
 use futures::select_biased;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;

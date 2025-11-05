@@ -21,7 +21,7 @@
 //! [recommended]: https://spec.torproject.org/tor-spec/subprotocol-versioning.html#required-recommended
 //! [older]: https://spec.torproject.org/proposals/297-safer-protover-shutdowns.html
 
-use futures::{Stream, StreamExt as _, task::SpawnExt as _};
+use futures::{Stream, StreamExt as _};
 use std::{
     future::Future,
     sync::{Arc, Weak},
@@ -33,7 +33,7 @@ use tor_error::{into_internal, warn_report};
 use tor_netdir::DirEvent;
 use tor_netdoc::doc::netstatus::{ProtoStatuses, ProtocolSupportError};
 use tor_protover::Protocols;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SpawnExt as _};
 use tracing::{debug, error, info, warn};
 
 use crate::{config::SoftwareStatusOverrideConfig, err::ErrorDetail};

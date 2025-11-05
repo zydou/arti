@@ -987,7 +987,7 @@ pub(crate) mod test {
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
-    use futures::task::SpawnExt;
+    use tor_rtcompat::SpawnExt;
     use hex_literal::hex;
     use std::collections::{HashMap, VecDeque};
     use std::fmt::Debug;

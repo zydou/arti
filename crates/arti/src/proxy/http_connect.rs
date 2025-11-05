@@ -7,7 +7,7 @@
 use super::{ListenerIsolation, ProxyContext};
 use anyhow::{Context as _, anyhow};
 use arti_client::{StreamPrefs, TorAddr};
-use futures::task::SpawnExt as _;
+use tor_rtcompat::SpawnExt as _;
 use futures::{AsyncRead, AsyncWrite, io::BufReader};
 use http::{Method, StatusCode, response::Builder as ResponseBuilder};
 use hyper::{Response, server::conn::http1::Builder as ServerBuilder, service::service_fn};

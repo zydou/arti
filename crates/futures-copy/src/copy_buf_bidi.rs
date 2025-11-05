@@ -221,8 +221,8 @@ mod test {
     use futures::{
         AsyncBufReadExt,
         io::{BufReader, BufWriter, Cursor},
-        task::SpawnExt as _,
     };
+    use tor_rtcompat::SpawnExt as _;
     use tor_rtmock::{MockRuntime, io::stream_pair};
 
     /// Return a stream implemented with a pair of Vec-backed cursors.

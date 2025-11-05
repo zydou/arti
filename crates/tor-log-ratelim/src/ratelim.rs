@@ -2,7 +2,7 @@
 //! Loggable to get flushed at appropriate intervals.
 
 use super::{Activity, Loggable};
-use futures::task::SpawnExt as _;
+use tor_rtcompat::SpawnExt as _;
 use std::{
     sync::{Arc, Mutex},
     time::Duration,

@@ -373,7 +373,7 @@ mod test {
 
     use super::*;
 
-    use futures::task::SpawnExt;
+    use tor_rtcompat::SpawnExt;
     use futures::{AsyncWriteExt, FutureExt};
 
     #[test]

@@ -41,7 +41,7 @@ use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::future::{FutureExt, Shared};
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use oneshot_fused_workaround as oneshot;
 use std::collections::HashMap;
 use std::fmt::Debug;

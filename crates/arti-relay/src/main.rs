@@ -65,7 +65,7 @@ use std::io::IsTerminal as _;
 use anyhow::Context;
 use clap::Parser;
 use futures::FutureExt;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
 use tor_rtcompat::{Runtime, ToplevelRuntime};

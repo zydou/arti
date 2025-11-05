@@ -12,7 +12,7 @@ use std::sync::{Arc, RwLock, Weak};
 use std::time::{Duration, SystemTime};
 
 use futures::stream::BoxStream;
-use futures::task::SpawnExt as _;
+use tor_rtcompat::SpawnExt as _;
 use futures::{FutureExt as _, future};
 use futures::{StreamExt as _, select_biased};
 use postage::stream::Stream as _;
