@@ -13,7 +13,6 @@ use std::{
 
 use arrayvec::ArrayVec;
 use equix::EquiXBuilder;
-use tor_rtcompat::SpawnExt;
 use futures::{SinkExt, StreamExt};
 use futures::{Stream, channel::mpsc};
 use num_traits::FromPrimitive;
@@ -39,6 +38,7 @@ use tor_persist::{
     state_dir::{InstanceRawSubdir, StorageHandle},
 };
 use tor_rtcompat::Runtime;
+use tor_rtcompat::SpawnExt;
 
 use crate::{
     BlindIdPublicKeySpecifier, OnionServiceConfig, RendRequest, ReplayError, StartupError,

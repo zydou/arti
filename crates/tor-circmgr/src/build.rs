@@ -5,7 +5,6 @@ use crate::timeouts::{self, Action};
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::Future;
-use tor_rtcompat::SpawnExt;
 use oneshot_fused_workaround as oneshot;
 use std::sync::{
     Arc,
@@ -20,6 +19,7 @@ use tor_netdir::params::NetParameters;
 use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::client::circuit::{CircParameters, PendingClientTunnel};
 use tor_proto::{CellCount, ClientTunnel, FlowCtrlParameters};
+use tor_rtcompat::SpawnExt;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
 

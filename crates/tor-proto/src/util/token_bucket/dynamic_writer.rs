@@ -143,8 +143,8 @@ mod test {
     use std::num::NonZero;
     use std::time::Duration;
 
-    use tor_rtcompat::SpawnExt;
     use futures::{AsyncReadExt, AsyncWriteExt, FutureExt, SinkExt};
+    use tor_rtcompat::SpawnExt;
 
     #[cfg(feature = "tokio")]
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};

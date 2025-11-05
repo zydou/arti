@@ -12,12 +12,12 @@ use std::sync::{Arc, RwLock, Weak};
 use std::time::{Duration, SystemTime};
 
 use futures::stream::BoxStream;
-use tor_rtcompat::SpawnExt as _;
 use futures::{FutureExt as _, future};
 use futures::{StreamExt as _, select_biased};
 use postage::stream::Stream as _;
 use postage::watch;
 use rand::RngCore;
+use tor_rtcompat::SpawnExt as _;
 
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_config::ReconfigureError;

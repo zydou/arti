@@ -987,7 +987,6 @@ pub(crate) mod test {
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
-    use tor_rtcompat::SpawnExt;
     use hex_literal::hex;
     use std::collections::{HashMap, VecDeque};
     use std::fmt::Debug;
@@ -1003,6 +1002,7 @@ pub(crate) mod test {
     use tor_linkspec::OwnedCircTarget;
     use tor_memquota::HasMemoryCost;
     use tor_rtcompat::Runtime;
+    use tor_rtcompat::SpawnExt;
     use tracing::trace;
     use tracing_test::traced_test;
 

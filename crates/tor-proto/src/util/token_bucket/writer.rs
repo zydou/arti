@@ -373,8 +373,8 @@ mod test {
 
     use super::*;
 
-    use tor_rtcompat::SpawnExt;
     use futures::{AsyncWriteExt, FutureExt};
+    use tor_rtcompat::SpawnExt;
 
     #[test]
     fn writer() {

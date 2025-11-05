@@ -753,9 +753,9 @@ pub(crate) mod test {
     use crate::util::{DummyTimeoutEstimator, fake_mq};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
-    use tor_rtcompat::SpawnExt;
     use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
+    use tor_rtcompat::SpawnExt;
     use tor_rtcompat::{DynTimeProvider, NoOpStreamOpsHandle, Runtime};
 
     pub(crate) type CodecResult = std::result::Result<AnyChanCell, Error>;
