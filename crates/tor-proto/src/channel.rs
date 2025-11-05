@@ -203,7 +203,9 @@ where
     T: AsyncRead + AsyncWrite,
     I: Into<handler::ChannelCellHandler>,
 {
-    asynchronous_codec::Framed::new(tls, ty.into())
+    let mut framed = asynchronous_codec::Framed::new(tls, ty.into());
+    framed.set_send_high_water_mark(32 * 1024);
+    framed
 }
 
 /// An open client channel, ready to send and receive Tor cells.
