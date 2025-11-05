@@ -11,7 +11,7 @@ use crate::conn::ErrorResponse;
 use crate::util::Utf8CString;
 
 use super::ArtiRpcStatus;
-use super::util::{OptOutPtrExt as _, OutPtr, ffi_body_raw};
+use super::util::{OptOutPtrExt as _, OutBoxedPtr, ffi_body_raw};
 
 /// Helper:
 /// Given a restricted enum defining FfiStatus, also define a series of constants for its variants,
@@ -606,7 +606,7 @@ where
 
 /// Call `body`, converting any errors or panics that occur into an FfiError,
 /// and storing that error in `error_out`.
-pub(super) fn handle_errors<F>(error_out: Option<OutPtr<FfiError>>, body: F) -> ArtiRpcStatus
+pub(super) fn handle_errors<F>(error_out: Option<OutBoxedPtr<FfiError>>, body: F) -> ArtiRpcStatus
 where
     F: FnOnce() -> Result<(), FfiError> + UnwindSafe,
 {
