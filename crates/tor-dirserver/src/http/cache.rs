@@ -1,15 +1,16 @@
 //! Module for providing cache implementations for the [`http`] module.
 //!
 //! Each cache is outlined comprehensively in its own section.
-//!
-//! TODO DIRMIRROR: Use the `sql!` macro.
 
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
 use rusqlite::{params, Transaction};
 use weak_table::WeakValueHashMap;
 
-use crate::{database::Sha256, err::DatabaseError};
+use crate::{
+    database::{sql, Sha256},
+    err::DatabaseError,
+};
 
 /// Representation of the store cache.
 ///
@@ -86,7 +87,7 @@ impl StoreCache {
 
     /// Obtains a [`Sha256`] from the database without consulting the cache first.
     fn get_db(tx: &Transaction, sha256: &Sha256) -> Result<Arc<[u8]>, DatabaseError> {
-        let mut stmt = tx.prepare_cached("SELECT content FROM store WHERE sha256 = ?1")?;
+        let mut stmt = tx.prepare_cached(sql!("SELECT content FROM store WHERE sha256 = ?1"))?;
         let document: Vec<u8> = stmt.query_one(params![sha256], |row| row.get(0))?;
         Ok(Arc::from(document))
     }
@@ -124,59 +125,60 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use crate::database;
+
     use super::super::test::*;
     use super::*;
 
     #[test]
     fn store_cache() {
         let pool = create_test_db_pool();
-        let mut conn = pool.get().unwrap();
-
         let cache = StoreCache::new();
 
-        let tx = conn.transaction().unwrap();
+        database::read_tx(&pool, |tx| {
+            // Obtain the lipsum entry.
+            let entry = cache.get(tx, &String::from(IDENTITY_SHA256)).unwrap();
+            assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
+            assert_eq!(Arc::strong_count(&entry), 1);
 
-        // Obtain the lipsum entry.
-        let entry = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
-        assert_eq!(entry.as_ref(), IDENTITY.as_bytes());
-        assert_eq!(Arc::strong_count(&entry), 1);
+            // Obtain the lipsum entry again but ensure it is not copied in memory.
+            let entry2 = cache.get(tx, &String::from(IDENTITY_SHA256)).unwrap();
+            assert_eq!(Arc::strong_count(&entry), 2);
+            assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
+            assert_eq!(entry, entry2);
 
-        // Obtain the lipsum entry again but ensure it is not copied in memory.
-        let entry2 = cache.get(&tx, &String::from(IDENTITY_SHA256)).unwrap();
-        assert_eq!(Arc::strong_count(&entry), 2);
-        assert_eq!(Arc::as_ptr(&entry), Arc::as_ptr(&entry2));
-        assert_eq!(entry, entry2);
+            // Perform a garbage collection and ensure that entry is not removed.
+            assert!(cache
+                .data
+                .lock()
+                .unwrap()
+                .contains_key(&String::from(IDENTITY_SHA256)));
+            cache.gc();
+            assert!(cache
+                .data
+                .lock()
+                .unwrap()
+                .contains_key(&String::from(IDENTITY_SHA256)));
 
-        // Perform a garbage collection and ensure that entry is not removed.
-        assert!(cache
-            .data
-            .lock()
-            .unwrap()
-            .contains_key(&String::from(IDENTITY_SHA256)));
-        cache.gc();
-        assert!(cache
-            .data
-            .lock()
-            .unwrap()
-            .contains_key(&String::from(IDENTITY_SHA256)));
+            // Now drop entry and entry2 and perform the gc again.
+            let weak_entry = Arc::downgrade(&entry);
+            assert_eq!(weak_entry.strong_count(), 2);
+            drop(entry);
+            drop(entry2);
+            assert_eq!(weak_entry.strong_count(), 0);
 
-        // Now drop entry and entry2 and perform the gc again.
-        let weak_entry = Arc::downgrade(&entry);
-        assert_eq!(weak_entry.strong_count(), 2);
-        drop(entry);
-        drop(entry2);
-        assert_eq!(weak_entry.strong_count(), 0);
-
-        // The strong count zero should already make it impossible to access the element ...
-        assert!(!cache
-            .data
-            .lock()
-            .unwrap()
-            .contains_key(&String::from(IDENTITY_SHA256)));
-        // ... but it should not reduce the total size of the hash map ...
-        assert_eq!(cache.data.lock().unwrap().len(), 1);
-        cache.gc();
-        // ... however, the garbage collection should actually do.
-        assert_eq!(cache.data.lock().unwrap().len(), 0);
+            // The strong count zero should already make it impossible to access the element ...
+            assert!(!cache
+                .data
+                .lock()
+                .unwrap()
+                .contains_key(&String::from(IDENTITY_SHA256)));
+            // ... but it should not reduce the total size of the hash map ...
+            assert_eq!(cache.data.lock().unwrap().len(), 1);
+            cache.gc();
+            // ... however, the garbage collection should actually do.
+            assert_eq!(cache.data.lock().unwrap().len(), 0);
+        })
+        .unwrap();
     }
 }
