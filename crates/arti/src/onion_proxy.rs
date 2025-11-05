@@ -6,7 +6,7 @@ use std::{
 };
 
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
-use futures::{task::SpawnExt, StreamExt as _};
+use futures::{StreamExt as _};
 use tor_config::{
     define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten, Reconfigure,
     ReconfigureError,
@@ -14,7 +14,7 @@ use tor_config::{
 use tor_error::warn_report;
 use tor_hsrproxy::{config::ProxyConfigBuilder, OnionServiceReverseProxy, ProxyConfig};
 use tor_hsservice::{HsNickname, RunningOnionService};
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SpawnExt};
 use tracing::debug;
 
 /// Configuration for running an onion service from `arti`.

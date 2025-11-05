@@ -52,7 +52,7 @@ pub(crate) use {
     futures::future::{self, Either},
     futures::select_biased,
     futures::stream::BoxStream,
-    futures::task::{SpawnError, SpawnExt as _},
+    futures::task::SpawnError,
     futures::{AsyncRead, AsyncWrite, Stream},
     futures::{FutureExt as _, SinkExt as _, StreamExt as _, TryStreamExt as _},
     itertools::{Itertools as _, chain},
@@ -61,6 +61,7 @@ pub(crate) use {
     rand_core::{CryptoRng, RngCore},
     serde::{Deserialize, Deserializer, Serialize, Serializer},
     thiserror::Error,
+    tor_rtcompat::SpawnExt as _,
     tracing::{debug, error, info, trace, warn},
     void::{ResultVoidErrExt as _, Void},
 };

@@ -19,7 +19,7 @@ use crate::{
     path::hspath::hs_stem_terminal_hop_usage,
     timeouts,
 };
-use futures::{StreamExt, TryFutureExt, task::SpawnExt};
+use futures::{StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::{Bug, debug_report};
 use tor_error::{bad_api_usage, internal};
@@ -31,7 +31,7 @@ use tor_netdir::{NetDir, NetDirProvider, Relay};
 use tor_proto::client::circuit::{self, CircParameters};
 use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
 use tor_rtcompat::{
-    Runtime, SleepProviderExt,
+    Runtime, SleepProviderExt, SpawnExt,
     scheduler::{TaskHandle, TaskSchedule},
 };
 use tracing::{debug, trace, warn};

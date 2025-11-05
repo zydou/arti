@@ -2,12 +2,12 @@
 //! Loggable to get flushed at appropriate intervals.
 
 use super::{Activity, Loggable};
-use futures::task::SpawnExt as _;
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
 use tor_error::ErrorReport;
+use tor_rtcompat::SpawnExt as _;
 
 /// Declare a dyn-safe trait for the parts of an asynchronous runtime so that we
 /// can install it globally.

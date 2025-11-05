@@ -16,7 +16,7 @@ use futures::FutureExt;
 use futures::future;
 use futures::select;
 use futures::stream::{BoxStream, StreamExt};
-use futures::task::{SpawnError, SpawnExt as _};
+use futures::task::SpawnError;
 use tracing::{debug, error, info, trace};
 
 use safelog::sensitive;
@@ -29,7 +29,7 @@ use tor_error::{ErrorKind, HasKind, error_report, internal};
 use tor_guardmgr::bridge::{BridgeConfig, BridgeDesc};
 use tor_guardmgr::bridge::{BridgeDescError, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
 use tor_netdoc::doc::routerdesc::RouterDesc;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SpawnExt as _};
 
 use crate::event::FlagPublisher;
 use crate::storage::CachedBridgeDescriptor;

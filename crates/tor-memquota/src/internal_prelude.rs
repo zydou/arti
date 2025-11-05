@@ -32,7 +32,7 @@ pub(crate) use futures::{
     FutureExt as _, Sink, SinkExt as _, Stream, StreamExt as _,
     channel::mpsc,
     stream::FusedStream,
-    task::{Spawn, SpawnError, SpawnExt as _},
+    task::{Spawn, SpawnError},
 };
 
 pub(crate) use std::task::Waker;
@@ -60,7 +60,7 @@ pub(crate) use {
     tor_config::{ConfigBuildError, ExplicitOrAuto, ReconfigureError},
     tor_error::{Bug, ErrorKind, HasKind, error_report, internal, into_internal, trace_report},
     tor_log_ratelim::log_ratelim,
-    tor_rtcompat::{CoarseInstant, CoarseTimeProvider, DynTimeProvider},
+    tor_rtcompat::{CoarseInstant, CoarseTimeProvider, DynTimeProvider, SpawnExt as _},
 };
 
 pub(crate) use crate::{

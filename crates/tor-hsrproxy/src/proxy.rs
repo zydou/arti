@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use futures::io::BufReader;
 use futures::{
     AsyncRead, AsyncWrite, Future, FutureExt as _, Stream, StreamExt as _, select_biased,
-    task::SpawnExt as _,
 };
 use itertools::iproduct;
 use oneshot_fused_workaround as oneshot;
@@ -18,7 +17,7 @@ use tor_error::{ErrorKind, HasKind, debug_report};
 use tor_hsservice::{HsNickname, RendRequest, StreamRequest};
 use tor_log_ratelim::log_ratelim;
 use tor_proto::client::stream::{DataStream, IncomingStreamRequest};
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{Runtime, SpawnExt as _};
 
 use crate::config::{
     Encapsulation, ProxyAction, ProxyActionDiscriminants, ProxyConfig, TargetAddr,

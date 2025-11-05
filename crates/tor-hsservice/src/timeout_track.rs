@@ -83,7 +83,7 @@
 //! ```
 //! use std::sync::{Arc, Mutex};
 //! use std::time::Duration;
-//! use futures::task::SpawnExt as _;
+//! use tor_rtcompat::SpawnExt as _;
 //! use tor_rtcompat::{ToplevelBlockOn as _, SleepProvider as _};
 //!
 //! # use tor_hsservice::timeout_track_for_doctests_unstable_no_semver_guarantees as timeout_track;

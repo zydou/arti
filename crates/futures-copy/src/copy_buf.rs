@@ -173,9 +173,9 @@ mod test {
         AsyncReadExt as _,
         future::poll_fn,
         io::{BufReader, Cursor},
-        task::SpawnExt as _,
     };
     use std::io;
+    use tor_rtcompat::SpawnExt as _;
     use tor_rtmock::{MockRuntime, io::stream_pair};
 
     async fn test_copy_cursor(data: &[u8]) {

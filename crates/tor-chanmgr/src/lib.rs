@@ -57,7 +57,6 @@ pub(crate) mod util;
 
 use futures::StreamExt;
 use futures::select_biased;
-use futures::task::SpawnExt;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -70,6 +69,7 @@ use tor_proto::channel::Channel;
 #[cfg(feature = "experimental-api")]
 use tor_proto::memquota::ChannelAccount;
 use tor_proto::memquota::ToplevelAccount;
+use tor_rtcompat::SpawnExt;
 use tracing::debug;
 use void::{ResultVoidErrExt, Void};
 

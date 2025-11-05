@@ -1,8 +1,9 @@
 //! Declarations for traits that we need our runtimes to implement.
 use async_trait::async_trait;
 use asynchronous_codec::Framed;
+use futures::future::{FutureExt, RemoteHandle};
 use futures::stream;
-use futures::task::Spawn;
+use futures::task::{Spawn, SpawnError};
 use futures::{AsyncRead, AsyncWrite, Future};
 use std::fmt::Debug;
 use std::io::{self, Result as IoResult};
@@ -15,7 +16,7 @@ use tor_general_addr::unix;
 /// This trait comprises several other traits that we require all of our
 /// runtimes to provide:
 ///
-/// * [`futures::task::Spawn`] to launch new background tasks.
+/// * [`futures::task::Spawn`] or [`SpawnExt`] to launch new background tasks.
 /// * [`SleepProvider`] to pause a task for a given amount of time.
 /// * [`CoarseTimeProvider`] for a cheaper but less accurate notion of time.
 /// * [`NetStreamProvider`] to launch and accept network connections.
@@ -391,6 +392,45 @@ pub trait Blocking: Clone + Send + Sync + 'static {
         self.spawn_blocking(f)
     }
 }
+
+/// Extension trait for [`Spawn`].
+///
+/// This is very similar to, and preferred over, [`futures::task::SpawnExt`].
+/// Unlike `futures::task::SpawnExt`, it is compatible with tokio-console.
+// If https://github.com/rust-lang/futures-rs/issues/2977 is ever addressed,
+// we can consider transitioning back to `futures::task::SpawnExt`.
+pub trait SpawnExt: Spawn {
+    /// Spawns a task that polls the given future with output `()` to completion.
+    ///
+    /// See [`futures::task::SpawnExt::spawn`].
+    #[track_caller]
+    fn spawn<Fut>(&self, future: Fut) -> Result<(), SpawnError>
+    where
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.spawn_obj(Box::new(future).into())
+    }
+
+    /// Spawns a task that polls the given future to completion and returns a future that resolves
+    /// to the spawned future’s output.
+    ///
+    /// See [`futures::task::SpawnExt::spawn_with_handle`].
+    #[track_caller]
+    fn spawn_with_handle<Fut>(
+        &self,
+        future: Fut,
+    ) -> Result<RemoteHandle<<Fut as Future>::Output>, SpawnError>
+    where
+        Fut: Future + Send + 'static,
+        <Fut as Future>::Output: Send,
+    {
+        let (future, handle) = future.remote_handle();
+        self.spawn(future)?;
+        Ok(handle)
+    }
+}
+
+impl<T: Spawn> SpawnExt for T {}
 
 /// Trait providing additional operations on network sockets.
 pub trait StreamOps {

@@ -60,10 +60,10 @@ use tor_keymgr::{CTorClientKeystore, CTorServiceKeystore};
 
 use futures::StreamExt as _;
 use futures::lock::Mutex as AsyncMutex;
-use futures::task::SpawnExt;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
+use tor_rtcompat::SpawnExt;
 
 use crate::err::ErrorDetail;
 use crate::{TorClientBuilder, status, util};

@@ -5,7 +5,7 @@
 
 use futures::lock::Mutex;
 use futures::stream::StreamExt;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use hickory_proto::op::{
     header::MessageType, op_code::OpCode, response_code::ResponseCode, Message, Query,
 };

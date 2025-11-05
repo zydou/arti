@@ -54,7 +54,6 @@
 //     filtered
 
 use futures::channel::mpsc;
-use futures::task::SpawnExt;
 use itertools::Either;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -66,6 +65,7 @@ use tor_error::internal;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget, RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
+use tor_rtcompat::SpawnExt;
 use tor_units::BoundedInt32;
 use tracing::{debug, info, instrument, trace, warn};
 

@@ -10,7 +10,9 @@ macro_rules! implement_opaque_runtime {
 } => {
 
     impl futures::task::Spawn for $t {
+        // `track_caller` required for tokio-console
         #[inline]
+        #[track_caller]
         fn spawn_obj(&self, future: futures::future::FutureObj<'static, ()>) -> Result<(), futures::task::SpawnError> {
             self.$member.spawn_obj(future)
         }
@@ -19,7 +21,9 @@ macro_rules! implement_opaque_runtime {
     impl $crate::traits::Blocking for $t {
         type ThreadHandle<T: Send + 'static> = <$mty as $crate::traits::Blocking>::ThreadHandle<T>;
 
+        // `track_caller` required for tokio-console
         #[inline]
+        #[track_caller]
         fn spawn_blocking<F, T>(&self, f: F) -> <$mty as $crate::traits::Blocking>::ThreadHandle<T>
         where
             F: FnOnce() -> T + Send + 'static,
@@ -28,7 +32,9 @@ macro_rules! implement_opaque_runtime {
             self.$member.spawn_blocking(f)
         }
 
+        // `track_caller` required for tokio-console
         #[inline]
+        #[track_caller]
         fn reenter_block_on<F>(&self, future: F) -> F::Output
         where
             F: futures::Future,
@@ -39,7 +45,9 @@ macro_rules! implement_opaque_runtime {
     }
 
     impl $crate::traits::ToplevelBlockOn for $t {
+        // `track_caller` required for tokio-console
         #[inline]
+        #[track_caller]
         fn block_on<F: futures::Future>(&self, future: F) -> F::Output {
             self.$member.block_on(future)
         }

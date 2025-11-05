@@ -83,11 +83,11 @@ use tor_netdir::params::NetParameters;
 use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
-use futures::{stream::BoxStream, task::SpawnExt};
+use futures::stream::BoxStream;
 use oneshot_fused_workaround as oneshot;
 use tor_netdoc::doc::netstatus::ProtoStatuses;
-use tor_rtcompat::Runtime;
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
+use tor_rtcompat::{Runtime, SpawnExt};
 use tracing::{debug, info, trace, warn};
 
 use std::marker::PhantomData;

@@ -12,7 +12,7 @@ semipublic_mod! {
 
 use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError};
 use futures::stream::StreamExt;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tracing::{error, info, instrument, warn};

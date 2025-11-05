@@ -4,7 +4,7 @@ use anyhow::Result;
 use arti_rpcserver::RpcMgr;
 use derive_builder::Builder;
 use fs_mistrust::Mistrust;
-use futures::{AsyncReadExt, stream::StreamExt, task::SpawnExt};
+use futures::{AsyncReadExt, stream::StreamExt};
 use listener::{RpcListenerMap, RpcListenerMapBuilder};
 use serde::{Deserialize, Serialize};
 use session::ArtiRpcSession;
@@ -14,7 +14,7 @@ use tor_config_path::CfgPathResolver;
 use tracing::{debug, info};
 
 use arti_client::TorClient;
-use tor_rtcompat::{NetStreamListener as _, Runtime, general};
+use tor_rtcompat::{NetStreamListener as _, Runtime, SpawnExt, general};
 
 pub(crate) mod conntarget;
 pub(crate) mod listener;

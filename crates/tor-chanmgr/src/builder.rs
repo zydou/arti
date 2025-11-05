@@ -19,7 +19,7 @@ use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
 use tracing::instrument;
 
 use async_trait::async_trait;
-use futures::task::SpawnExt;
+use tor_rtcompat::SpawnExt;
 
 /// TLS-based channel builder.
 ///

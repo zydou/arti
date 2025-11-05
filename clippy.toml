@@ -1,6 +1,7 @@
 disallowed-types = [
     { path = "futures::channel::oneshot::Sender", reason = "Use tor_async_utils::oneshot to avoid bug with select macro" },
     { path = "futures::channel::oneshot::Receiver", reason = "Use tor_async_utils::oneshot to avoid bug with select macro" },
+    { path = "futures::task::SpawnExt", reason = "use `tor_rtcompat::SpawnExt`, which is compatible with tokio-console" },
 ]
 disallowed-methods = [
     { path = "rand::Rng::gen_range", reason = "Prefer tor_basic_utils::RngExt::gen_range_checked to avoid uncontrolled panics, or gen_range_infallible if applicable" },

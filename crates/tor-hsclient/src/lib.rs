@@ -58,7 +58,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::StreamExt as _;
 use futures::stream::BoxStream;
-use futures::task::SpawnExt as _;
+use tor_rtcompat::SpawnExt as _;
 
 use educe::Educe;
 use tracing::{debug, instrument};

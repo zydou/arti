@@ -71,8 +71,8 @@ use tracing::warn;
 use {
     crate::managed::{PtReactor, PtReactorMessage},
     futures::channel::mpsc::{self, UnboundedSender},
-    futures::task::SpawnExt,
     tor_error::error_report,
+    tor_rtcompat::SpawnExt,
 };
 #[cfg(feature = "tor-channel-factory")]
 use {
