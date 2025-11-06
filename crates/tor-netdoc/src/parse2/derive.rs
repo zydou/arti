@@ -181,6 +181,58 @@ define_derive_deftly_module! {
           ItemValueParseable::from_unparsed(item)?
         }}
     }}
+
+    // Accumulates `item` (which must be DataSet::Value) into `Putnam`
+    ${define ACCUMULATE_ITEM_VALUE { {
+        $F_SELECTOR.accumulate(&mut $fpatname, item)?;
+    } }}
+
+    // Handle a nonstructural field, parsing and accumulating its value
+    //
+    // Looks at `kw` for the keyword.
+    //
+    // Expands to a series of `if ... { ... } else`.
+    // The use site must provide (maybe further arms) and a fallback block!
+    ${define NONSTRUCTURAL_ACCUMULATE_ELSE {
+        ${for fields {
+          ${when not(any(F_FLATTEN, F_SUBDOC))}
+
+          if kw == $F_KEYWORD {
+            ${select1
+              F_NORMAL {
+                let item = $THIS_ITEM;
+                dtrace!("is normal", item);
+                let item = $ITEM_VALUE_FROM_UNPARSED;
+                $ACCUMULATE_ITEM_VALUE
+              }
+              F_SIGNATURE {
+                let hash_inputs = input
+                      .peek_signature_hash_inputs(signed_doc_body)?
+                      .expect("not eof, we peeked kw");
+
+                let item = $THIS_ITEM;
+                dtrace!("is signature", item);
+                let item =
+                    SignatureItemParseable::from_unparsed_and_body(item, &hash_inputs)?;
+                $ACCUMULATE_ITEM_VALUE
+              }
+              F_INTRO {
+                dtrace!("is intro", kw);
+                break;
+              } // start of next similar document
+            }
+          } else
+        }}
+        ${for fields {
+          ${when F_FLATTEN}
+
+          if $ftype::is_item_keyword(kw) {
+              dtrace!(${concat "is flatten in " $fname}, kw);
+              let item = $THIS_ITEM;
+              <$ftype as NetdocParseableFields>::accumulate_item(&mut $fpatname, item)?;
+          } else
+        }}
+    }}
 }
 
 define_derive_deftly! {
@@ -446,11 +498,6 @@ define_derive_deftly! {
                 input.next_item()?.expect("peeked")
             }}
 
-            // Accumulates `item` (which must be DataSet::Value) into `Putnam`
-            ${define ACCUMULATE_ITEM_VALUE { {
-                $F_SELECTOR.accumulate(&mut $fpatname, item)?;
-            } }}
-
             //----- keyword classification closures -----
 
             // Is this a keyword for one of our sub-documents?
@@ -510,44 +557,8 @@ define_derive_deftly! {
                     dtrace!("is inner stop", kw);
                     break;
                 };
-              ${for fields {
-                ${when not(any(F_FLATTEN, F_SUBDOC))}
 
-                if kw == $F_KEYWORD {
-                  ${select1
-                    F_NORMAL {
-                      let item = $THIS_ITEM;
-                      dtrace!("is normal", item);
-                      let item = $ITEM_VALUE_FROM_UNPARSED;
-                      $ACCUMULATE_ITEM_VALUE
-                    }
-                    F_SIGNATURE {
-                      let hash_inputs = input
-                            .peek_signature_hash_inputs(signed_doc_body)?
-                            .expect("not eof, we peeked kw");
-
-                      let item = $THIS_ITEM;
-                      dtrace!("is signature", item);
-                      let item =
-                          SignatureItemParseable::from_unparsed_and_body(item, &hash_inputs)?;
-                      $ACCUMULATE_ITEM_VALUE
-                    }
-                    F_INTRO {
-                      dtrace!("is intro", kw);
-                      break;
-                    } // start of next similar document
-                  }
-                } else
-              }}
-              ${for fields {
-                ${when F_FLATTEN}
-
-                if $ftype::is_item_keyword(kw) {
-                    dtrace!(${concat "is flatten in " $fname}, kw);
-                    let item = $THIS_ITEM;
-                    <$ftype as NetdocParseableFields>::accumulate_item(&mut $fpatname, item)?;
-                } else
-              }}
+                $NONSTRUCTURAL_ACCUMULATE_ELSE
                 {
                     dtrace!("is unknown (in normal)");
                     let _: UnparsedItem = $THIS_ITEM;
