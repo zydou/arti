@@ -276,8 +276,7 @@ ns_choose! { (
             let is_our_keyword = NddAuthorityEntry::is_intro_item_keyword;
             let stop_inner = stop_outer | StopAt(is_our_keyword);
             let mut authorities = vec![];
-            loop {
-                let Some(peek) = input.peek_keyword()? else { break };
+            while let Some(peek) = input.peek_keyword()? {
                 if !is_our_keyword(peek) { break };
 
                 // But is it a superseded entry or not?
