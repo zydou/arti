@@ -1347,6 +1347,7 @@ macro_rules! empty_body {
        }
    }
 }
+#[allow(unused_imports)] // TODO #1060
 pub(crate) use empty_body;
 
 empty_body! {
