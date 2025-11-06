@@ -27,7 +27,7 @@ mod time;
 /// Structure to hold our logging configuration options
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 pub struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
@@ -55,15 +55,23 @@ pub struct LoggingConfig {
 
     /// Configuration for passing information to tokio-console.
     #[cfg(feature = "tokio-console")]
-    #[builder(sub_builder)]
+    #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     tokio_console: TokioConsoleConfig,
+
+    /// Configuration for the RPC subsystem (disabled)
+    //
+    // (See comments on crate::cfg::ArtiConfig::rpc for an explanation of this pattern.)
+    #[cfg(not(feature = "tokio-console"))]
+    #[builder_field_attr(serde(default))]
+    #[builder(field(type = "Option<toml::Value>", build = "()"), private)]
+    tokio_console: (),
 
     /// Configuration for one or more logfiles.
     ///
     /// The default is not to log to any files.
     #[builder_field_attr(serde(default))]
-    #[builder(sub_builder, setter(custom))]
+    #[builder(sub_builder(fn_name = "build"), setter(custom))]
     files: LogfileListConfig,
 
     /// If set to true, we disable safe logging on _all logs_, and store
@@ -95,6 +103,22 @@ pub struct LoggingConfig {
     time_granularity: std::time::Duration,
 }
 impl_standard_builder! { LoggingConfig }
+
+impl LoggingConfigBuilder {
+    /// Build the [`LoggingConfig`].
+    pub fn build(&self) -> Result<LoggingConfig, ConfigBuildError> {
+        let config = self.build_unvalidated()?;
+
+        #[cfg(not(feature = "tokio-console"))]
+        if self.tokio_console.is_some() {
+            tracing::warn!(
+                "tokio-console options were set, but Arti was built without support for tokio-console."
+            );
+        }
+
+        Ok(config)
+    }
+}
 
 /// Return a default tracing filter value for `logging.console`.
 #[allow(clippy::unnecessary_wraps)]
