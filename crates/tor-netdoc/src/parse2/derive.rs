@@ -90,6 +90,19 @@ define_derive_deftly_module! {
     }}
     // Field keyword as `KeywordRef`
     ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
+
+    // The effective field type for parsing.
+    //
+    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
+    // and substitute in the default at the end.
+    //
+    ${define F_EFFECTIVE_TYPE {
+        ${if all(fmeta(netdoc(default))) {
+            Option::<$ftype>
+        } else {
+            $ftype
+        }}
+    }}
 }
 
 define_derive_deftly! {
@@ -278,18 +291,6 @@ define_derive_deftly! {
     ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
-
-    // The effective field type for parsing.
-    //
-    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
-    // and substitute in the default at the end.
-    ${define F_EFFECTIVE_TYPE {
-        ${if all(fmeta(netdoc(default)), not(F_INTRO)) {
-            Option::<$ftype>
-        } else {
-            $ftype
-        }}
-    }}
 
     impl<$tgens> $P::NetdocParseable for $ttype {
         fn doctype_for_error() -> &'static str {
@@ -615,18 +616,6 @@ define_derive_deftly! {
     ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE false}
 
-    // The effective field type for parsing.
-    //
-    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
-    // and substitute in the default at the end.
-    //
-    ${define F_EFFECTIVE_TYPE {
-        ${if all(fmeta(netdoc(default))) {
-            Option::<$ftype>
-        } else {
-            $ftype
-        }}
-    }}
     ${define F_ITEM_SET_SELECTOR {
         ItemSetSelector::<$F_EFFECTIVE_TYPE>::default()
     }}
