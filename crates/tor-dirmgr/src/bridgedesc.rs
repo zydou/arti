@@ -17,7 +17,7 @@ use futures::future;
 use futures::select;
 use futures::stream::{BoxStream, StreamExt};
 use futures::task::SpawnError;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, info, trace};
 
 use safelog::sensitive;
 use tor_basic_utils::BinaryHeapExt as _;
