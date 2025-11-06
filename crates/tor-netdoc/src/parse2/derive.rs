@@ -59,6 +59,8 @@ define_derive_deftly_module! {
     ///    conditions for the fundamental field kinds which aren't supported everywhere.
     ///
     ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
+    ///
+    /// * **`$ITEM`**: the identifier `item`.  TODO derive-deftly#130
     NetdocParseableCommon beta_deftly:
 
     // Convenience alias for our prelude
@@ -150,6 +152,22 @@ define_derive_deftly_module! {
           }} ();
         }}
         )
+    }}
+
+    // Convert the UnparsedItem (in `$ITEM` to the value (to accumulate).
+    // Expands to an expression.
+    ${define ITEM_VALUE_FROM_UNPARSED {
+        ${if fmeta(netdoc(with)) {
+          ${fmeta(netdoc(with)) as path}
+              ::${paste_spanned $fname from_unparsed}
+              ($ITEM)?
+        } else if fmeta(netdoc(single_arg)) { {
+          let item = ItemValueParseable::from_unparsed($ITEM)?;
+          let (item,) = item;
+          item
+        } } else {
+          ItemValueParseable::from_unparsed($ITEM)?
+        }}
     }}
 }
 
@@ -340,6 +358,8 @@ define_derive_deftly! {
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
 
+    ${define ITEM item}
+
     impl<$tgens> $P::NetdocParseable for $ttype {
         fn doctype_for_error() -> &'static str {
             ${tmeta(netdoc(doctype_for_error)) as expr,
@@ -425,20 +445,6 @@ define_derive_deftly! {
             // Can panic if called without previous `peek_keyword`.
             ${define THIS_ITEM  {
                 input.next_item()?.expect("peeked")
-            }}
-
-            ${define ITEM_VALUE_FROM_UNPARSED {
-              ${if fmeta(netdoc(with)) {
-                ${fmeta(netdoc(with)) as path}
-                    ::${paste_spanned $fname from_unparsed}
-                    (item)?
-              } else if fmeta(netdoc(single_arg)) { {
-                let item = ItemValueParseable::from_unparsed(item)?;
-                let (item,) = item;
-                item
-              } } else {
-                ItemValueParseable::from_unparsed(item)?
-              }}
             }}
 
             // Accumulates `item` (which must be DataSet::Value) into `Putnam`
@@ -633,6 +639,8 @@ define_derive_deftly! {
     ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE false}
 
+    ${define ITEM item}
+
     #[doc = ${concat "Partially parsed `" $tname "`"}]
     ///
     /// Used for [`${concat $P::NetdocParseableFields::Accumulator}`].
@@ -684,16 +692,7 @@ define_derive_deftly! {
           $(
             ${when not(F_FLATTEN)}
             if kw == $F_KEYWORD {
-              ${if fmeta(netdoc(with)) {
-                let item = ${fmeta(netdoc(with)) as path}
-                    ::${paste_spanned $fname from_unparsed}
-                    (item)?;
-              } else if fmeta(netdoc(single_arg)) {
-                let item = ItemValueParseable::from_unparsed(item)?;
-                let (item,) = item;
-              } else {
-                let item = ItemValueParseable::from_unparsed(item)?;
-              }}
+                let item = $ITEM_VALUE_FROM_UNPARSED;
                 $F_SELECTOR.accumulate(&mut acc.$fname, item)
             } else
           )
