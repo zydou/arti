@@ -52,10 +52,44 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
 
 define_derive_deftly_module! {
     /// Common definitions for `NetdocParseable` and `NetdocParseableFields`
-    NetdocParseableCommon:
+    ///
+    /// Importing template must define these:
+    ///
+    ///  * **`F_INTRO`**, **`F_SUBDOC`**, **`F_SIGNATURE`**
+    ///    conditions for the fundamental field kinds which aren't supported everywhere.
+    ///
+    ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
+    NetdocParseableCommon beta_deftly:
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
+
+    // Is this field `flatten`?
+    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
+    // Is this field normal (non-structural)?
+    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
+
+    // Field keyword as `&str`
+    ${define F_KEYWORD_STR { ${concat
+        ${if any(F_FLATTEN, F_SUBDOC) {
+          ${if F_INTRO {
+            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
+          } else {
+            // Sub-documents and flattened fields have their keywords inside;
+            // if we ask for the field-based keyword name for one of those then that's a bug.
+            ${error "internal error, subdoc KeywordRef"}
+          }}
+        }}
+        ${fmeta(netdoc(keyword)) as str,
+          default ${concat ${kebab_case $fname}}}
+    }}}
+    // Field keyword as `&str` for debugging and error reporting
+    ${define F_KEYWORD_REPORT {
+        ${if F_SUBDOC { ${concat $fname} }
+             else { $F_KEYWORD_STR }}
+    }}
+    // Field keyword as `KeywordRef`
+    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
 }
 
 define_derive_deftly! {
@@ -242,32 +276,8 @@ define_derive_deftly! {
 
     // Predicates for the field kinds
     ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
-    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
-    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
-
-    // Field keyword as `&str`
-    ${define F_KEYWORD_STR { ${concat
-        ${if any(F_FLATTEN, F_SUBDOC) {
-          ${if F_INTRO {
-            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
-          } else {
-            // Sub-documents and flattened fields have their keywords inside;
-            // if we ask for the field-based keyword name for one of those then that's a bug.
-            ${error "internal error, subdoc KeywordRef"}
-          }}
-        }}
-        ${fmeta(netdoc(keyword)) as str,
-          default ${concat ${kebab_case $fname}}}
-    }}}
-    // Field keyword as `&str` for debugging and error reporting
-    ${define F_KEYWORD_REPORT {
-        ${if F_SUBDOC { ${concat $fname} }
-             else { $F_KEYWORD_STR }}
-    }}
-    // Field keyword as `KeywordRef`
-    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
 
     // The effective field type for parsing.
     //
@@ -601,6 +611,10 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(flatten))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
+    ${defcond F_INTRO false}
+    ${defcond F_SUBDOC false}
+    ${defcond F_SIGNATURE false}
+
     // The effective field type for parsing.
     //
     // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
@@ -616,17 +630,6 @@ define_derive_deftly! {
     ${define F_ITEM_SET_SELECTOR {
         ItemSetSelector::<$F_EFFECTIVE_TYPE>::default()
     }}
-    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
-
-    // NOTE! These keyword defines are simpler than the ones for NetdocParseable.
-    // Care must be taken if they are deduplicated as noted above.
-    // Field keyword as `&str`
-    ${define F_KEYWORD_STR { ${concat
-        ${fmeta(netdoc(keyword)) as str,
-          default ${kebab_case $fname}}
-    }}}
-    // Field keyword as `KeywordRef`
-    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
 
     #[doc = ${concat "Partially parsed `" $tname "`"}]
     ///
