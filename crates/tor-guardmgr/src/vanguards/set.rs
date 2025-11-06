@@ -3,7 +3,7 @@
 use std::cmp;
 use std::time::{Duration, SystemTime};
 
-use derive_deftly::{Deftly, derive_deftly_adhoc};
+use derive_deftly::Deftly;
 use rand::{RngCore, seq::IndexedRandom as _};
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +14,9 @@ use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{LowLevelRelayPredicate as _, RelayExclusion, RelaySelector, RelayUsage};
 use tor_rtcompat::Runtime;
 use tracing::{debug, trace};
+
+#[cfg(test)]
+use derive_deftly::derive_deftly_adhoc;
 
 use crate::{VanguardMgrError, VanguardMode};
 
