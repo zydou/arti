@@ -50,7 +50,17 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
     .expect("write to String failed");
 }
 
+define_derive_deftly_module! {
+    /// Common definitions for `NetdocParseable` and `NetdocParseableFields`
+    NetdocParseableCommon:
+
+    // Convenience alias for our prelude
+    ${define P { $crate::parse2::internal_prelude }}
+}
+
 define_derive_deftly! {
+    use NetdocParseableCommon;
+
     /// Derive [`NetdocParseable`] for a document (or sub-document)
     ///
     /// ### Expected input structure
@@ -226,9 +236,6 @@ define_derive_deftly! {
     /// assert_eq!(doc.value.0, "something");
     /// ```
     export NetdocParseable for struct, expect items, beta_deftly:
-
-    // Convenience alias for our prelude
-    ${define P { $crate::parse2::internal_prelude }}
 
     // Predicate for the toplevel
     ${defcond T_SIGNATURES tmeta(netdoc(signatures))}
@@ -572,6 +579,8 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
+    use NetdocParseableCommon;
+
     /// Derive [`NetdocParseableFields`] for a struct with individual items
     ///
     /// Defines a struct `FooNetdocParseAccumulator` to be the
@@ -591,11 +600,6 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(with = "MODULE"))]`
     ///    `#[deftly(netdoc(flatten))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
-
-    // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
-
-    // Convenience alias for our prelude
-    ${define P { $crate::parse2::internal_prelude }}
 
     // The effective field type for parsing.
     //
