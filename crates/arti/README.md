@@ -184,6 +184,7 @@ implementation with another.
   once [#1795] is closed.
 * `onion-service-cli-extra` -- build with additional key and state management
   command-line functionalities.
+* `tokio-console` -- build with support for the `tokio-console` debugging tool.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make
