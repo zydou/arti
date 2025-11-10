@@ -396,7 +396,8 @@ pub trait Blocking: Clone + Send + Sync + 'static {
 /// Extension trait for [`Spawn`].
 ///
 /// This is very similar to, and preferred over, [`futures::task::SpawnExt`].
-/// Unlike `futures::task::SpawnExt`, it is compatible with tokio-console.
+/// Unlike `futures::task::SpawnExt`, it is compatible with tokio-console,
+/// and preserves span information for `tracing`.
 // If https://github.com/rust-lang/futures-rs/issues/2977 is ever addressed,
 // we can consider transitioning back to `futures::task::SpawnExt`.
 pub trait SpawnExt: Spawn {
@@ -408,7 +409,8 @@ pub trait SpawnExt: Spawn {
     where
         Fut: Future<Output = ()> + Send + 'static,
     {
-        self.spawn_obj(Box::new(future).into())
+        use tracing::Instrument as _;
+        self.spawn_obj(Box::new(future.in_current_span()).into())
     }
 
     /// Spawns a task that polls the given future to completion and returns a future that resolves
