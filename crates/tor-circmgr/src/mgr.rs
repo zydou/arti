@@ -1275,12 +1275,18 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                                 // it from the list.
                                 drop(pending_request);
                                 if matches!(ent.expiration, ExpirationInfo::Unused { .. }) {
-                                    // Since this tunnel hasn't been used yet, schedule expiration task after `max_dirtiness` from now.
+                                    let try_to_expire_after = if ent.spec.is_long_lived() {
+                                        self.circuit_timing().disused_circuit_timeout
+                                    } else {
+                                        self.circuit_timing().max_dirtiness
+                                    };
+                                    // Since this tunnel hasn't been used yet, schedule expiration
+                                    // task after `max_dirtiness` from now.
                                     spawn_expiration_task(
                                         &self.runtime,
                                         Arc::downgrade(&self),
                                         ent.tunnel.id(),
-                                        now + self.circuit_timing().max_dirtiness,
+                                        now + try_to_expire_after,
                                     );
                                 }
                                 return Ok((ent.tunnel.clone(), TunnelProvenance::NewlyCreated));
@@ -1637,11 +1643,13 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
     /// Consider expiring the tunnel with given tunnel `id`,
     /// according to the rules in `config` and the current time `now`.
+    ///
+    /// Returns None if the circuit is expired; otherwise returns the next time at which the circuit may expire.
     pub(crate) async fn consider_expiring_tunnel(
         &self,
         tun_id: &<B::Tunnel as AbstractTunnel>::Id,
         now: Instant,
-    ) {
+    ) -> Option<Instant> {
         let expiration_params = self.expiration_params();
 
         // With the lock, call TunneList::tunnel_should_expire, and expire it (or don't)
@@ -1649,20 +1657,15 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         let tunnel = {
             let mut list: sync::MutexGuard<'_, TunnelList<B, R>> =
                 self.tunnels.lock().expect("poisoned lock");
-            let Some(should_expire) = list.tunnel_should_expire(tun_id, now, &expiration_params)
-            else {
-                return;
-            };
+            let should_expire = list.tunnel_should_expire(tun_id, now, &expiration_params)?;
             match should_expire {
                 ShouldExpire::Now => {
                     let _discard = list.take_open(tun_id);
-                    return;
+                    return None;
                 }
-                ShouldExpire::NotBefore(_) => return,
+                ShouldExpire::NotBefore(t) => return Some(t),
                 ShouldExpire::PossiblyNow => {
-                    let Some(tunnel_ent) = list.get_open_mut(tun_id) else {
-                        return;
-                    };
+                    let tunnel_ent = list.get_open_mut(tun_id)?;
                     Arc::clone(&tunnel_ent.tunnel)
                 }
             }
@@ -1680,7 +1683,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                 now,
                 &expiration_params,
                 &last_known_in_use_at,
-            );
+            )
         }
     }
 
@@ -1748,7 +1751,7 @@ fn spawn_expiration_task<B, R>(
 {
     let now = runtime.now();
     let rt_copy = runtime.clone();
-    let duration = exp_inst.saturating_duration_since(now);
+    let mut duration = exp_inst.saturating_duration_since(now);
 
     // NOTE: Once there was an optimization here that ran the expiration immediately if
     // `duration` was zero.
@@ -1758,13 +1761,20 @@ fn spawn_expiration_task<B, R>(
 
     // Spawn a timer expiration task with given expiration instant.
     if let Err(e) = runtime.spawn(async move {
-        rt_copy.sleep(duration).await;
-        let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
-            cm
-        } else {
-            return;
-        };
-        cm.consider_expiring_tunnel(&circ_id, exp_inst).await;
+        loop {
+            rt_copy.sleep(duration).await;
+            let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
+                cm
+            } else {
+                return;
+            };
+            match cm.consider_expiring_tunnel(&circ_id, exp_inst).await {
+                None => return,
+                Some(when) => {
+                    duration = when.saturating_duration_since(rt_copy.now());
+                }
+            }
+        }
     }) {
         warn_report!(e, "Unable to launch expiration task");
     }
