@@ -199,7 +199,7 @@ define_derive_deftly_module! {
 
     // Accumulates `item` (which must be `ItemSetMethods::Each`) into `$F_ACCUMULATE_VAR`
     ${define ACCUMULATE_ITEM_VALUE { {
-        $F_SELECTOR.accumulate($F_ACCUMULATE_VAR, item)?;
+        $F_SELECTOR.${paste_spanned $fname accumulate}($F_ACCUMULATE_VAR, item)?;
     } }}
 
     // Handle a nonstructural field, parsing and accumulating its value
