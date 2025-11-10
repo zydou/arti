@@ -294,7 +294,11 @@ impl<'s> ItemStream<'s> {
                 .into_iter()
                 .all_equal_value()
                 .map_err(|_| EP::ObjectMismatchedLabels)?;
-            Some(UnparsedObject { label, data_b64, options })
+            Some(UnparsedObject {
+                label,
+                data_b64,
+                options,
+            })
         } else {
             None
         };
