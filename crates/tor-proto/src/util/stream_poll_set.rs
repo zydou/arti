@@ -15,7 +15,8 @@ use futures::{FutureExt, StreamExt as _};
 use tor_async_utils::peekable_stream::PeekableStream;
 
 use crate::util::{
-    keyed_futures_unordered::KeyedFuturesUnordered, tunnel_activity::TunnelActivity,
+    keyed_futures_unordered::KeyedFuturesUnordered,
+    tunnel_activity::{InTunnelActivity, TunnelActivity},
 };
 
 /// A future that wraps a [`PeekableStream`], and yields the stream
@@ -85,14 +86,14 @@ pub struct StreamPollSet<K, P, S>
 where
     S: PeekableStream + Unpin,
 {
-    /// Priority for each stream in the set.
+    /// Priority for each stream in the set, and associated InTunnelActivity token.
     // We keep the priority for each stream here instead of bundling it together
     // with the stream, so that the priority can easily be changed even while a
     // future waiting on the stream is still pending (e.g. to support rescaling
     // priorities for EWMA).
     // Invariants:
     // * Every key is also present in exactly one of `ready_values` or `pending_streams`.
-    priorities: HashMap<K, P>,
+    priorities: HashMap<K, (P, InTunnelActivity)>,
     /// Streams that have a result ready, in ascending order by priority.
     // Invariants:
     // * Keys are a (non-strict) subset of those in `priorities`.
@@ -149,16 +150,16 @@ where
             // By `pending_streams` invariant that keys are a subset of those in
             // `priorities`.
             .unwrap_or_else(|_| panic!("Unexpected duplicate key"));
-        self.tunnel_activity.inc_streams();
-        v.insert(priority);
+        let token = self.tunnel_activity.inc_streams();
+        v.insert((priority, token));
         Ok(())
     }
 
     /// Remove the entry for `key`, if any. This is the key, priority, buffered
     /// poll_next result, and stream.
     pub fn remove(&mut self, key: &K) -> Option<(K, P, S)> {
-        let priority = self.priorities.remove(key)?;
-        self.tunnel_activity.dec_streams();
+        let (priority, token) = self.priorities.remove(key)?;
+        self.tunnel_activity.dec_streams(token);
         if let Some((key, fut)) = self.pending_streams.remove(key) {
             // Validate `priorities` invariant that keys are also present in exactly one of
             // `pending_streams` and `ready_values`.
@@ -267,7 +268,7 @@ where
     ) -> impl Iterator<Item = (&'a K, &'a P, &'a mut S)> + 'a + use<'a, K, P, S> {
         // First poll for ready streams
         while let Poll::Ready(Some((key, stream))) = self.pending_streams.poll_next_unpin(cx) {
-            let priority = self
+            let (priority, _) = self
                 .priorities
                 .get(&key)
                 // By `pending_streams` invariant that all keys are also in `priorities`.
@@ -300,7 +301,7 @@ where
             // Key isn't present at all.
             return None;
         };
-        let priority_mut = priority_entry.get_mut();
+        let (priority_mut, _) = priority_entry.get_mut();
         let Some(((_p, key), mut stream)) = self
             .ready_streams
             .remove_entry(&(priority_mut.clone(), key.clone()))
@@ -350,7 +351,7 @@ where
     // This will be used for packing and fragmentation, to take part of a DATA message.
     #[allow(unused)]
     pub fn peek_mut<'a>(&'a mut self, key: &K) -> Option<Poll<Option<&'a mut S::Item>>> {
-        let priority = self.priorities.get(key)?;
+        let (priority, _) = self.priorities.get(key)?;
         let Some(peekable) = self.ready_streams.get_mut(&(priority.clone(), key.clone())) else {
             return Some(Poll::Pending);
         };
@@ -371,7 +372,7 @@ where
             debug_assert!(s.is_some(), "Unexpected missing pending stream");
             return s;
         }
-        let priority = self.priorities.get(key)?;
+        let (priority, _) = self.priorities.get(key)?;
         self.ready_streams.get(&(priority.clone(), key.clone()))
     }
 
@@ -400,7 +401,7 @@ where
             debug_assert!(s.is_some(), "Unexpected missing pending stream");
             return s;
         }
-        let priority = self.priorities.get(key)?;
+        let (priority, _) = self.priorities.get(key)?;
         self.ready_streams.get_mut(&(priority.clone(), key.clone()))
     }
 
@@ -413,6 +414,17 @@ where
     pub fn tunnel_activity(&self) -> TunnelActivity {
         assert_eq!(self.len(), self.tunnel_activity.n_open_streams());
         self.tunnel_activity
+    }
+}
+
+impl<K, P, S> Drop for StreamPollSet<K, P, S>
+where
+    S: PeekableStream + Unpin,
+{
+    fn drop(&mut self) {
+        self.priorities
+            .drain()
+            .for_each(|(_key, (_prio, token))| token.consume_and_forget());
     }
 }
 

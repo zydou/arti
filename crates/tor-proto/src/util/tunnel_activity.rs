@@ -62,6 +62,34 @@ enum Inner {
     },
 }
 
+/// A zero-sized token type returned for each call to [`TunnelActivity::inc_streams()`].
+///
+/// The caller is responsible for passing this object to [`TunnelActivity::dec_streams()`]
+/// when the stream is no longer in use.
+/// Otherwise, this type will panic when it is dropped.
+#[derive(Debug)]
+#[must_use]
+pub(crate) struct InTunnelActivity {
+    /// Prevent this type from being created from other modules.
+    _prevent_create: (),
+}
+
+impl Drop for InTunnelActivity {
+    fn drop(&mut self) {
+        panic!("Dropped an InTunnelActivity without giving it to dec_streams()")
+    }
+}
+
+impl InTunnelActivity {
+    /// Consume this token safely, without triggering its drop panic.
+    ///
+    /// Calling this method directly will invalidate the corresponding TunnelActivity's counter.
+    /// Instead, you should usually pass this to [`TunnelActivity::dec_streams`]
+    pub(crate) fn consume_and_forget(self) {
+        std::mem::forget(self);
+    }
+}
+
 impl TunnelActivity {
     /// Construct a new TunnelActivity for a tunnel that has never been used.
     pub(crate) fn never_used() -> Self {
@@ -69,15 +97,19 @@ impl TunnelActivity {
     }
 
     /// Increase the number of streams on this tunnel by one.
-    pub(crate) fn inc_streams(&mut self) {
+    pub(crate) fn inc_streams(&mut self) -> InTunnelActivity {
         self.inner = Inner::InUse {
             n_open_streams: NonZeroUsize::new(self.n_open_streams() + 1)
                 .expect("overflow on stream count"),
+        };
+        InTunnelActivity {
+            _prevent_create: (),
         }
     }
 
     /// Decrease the number of streams on this tunnel by one.
-    pub(crate) fn dec_streams(&mut self) {
+    pub(crate) fn dec_streams(&mut self, token: InTunnelActivity) {
+        token.consume_and_forget();
         let Inner::InUse { n_open_streams } = &mut self.inner else {
             panic!("Tried to decrement 0!");
         };
