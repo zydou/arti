@@ -106,7 +106,7 @@ define_derive_deftly_module! {
         }}
     }}
 
-    // Provide `$<selector_ $fname>` for every (suitsble) field.
+    // Provide `$<selector_ $fname>` for every (suitable) field.
     ${define ITEM_SET_SELECTORS {
         $(
           ${when not(any(F_FLATTEN))}
