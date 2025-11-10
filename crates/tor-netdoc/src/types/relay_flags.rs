@@ -14,6 +14,16 @@ pub const RELAY_FLAGS_CONSENSUS_IMPLIED: RelayFlags = RelayFlags::RUNNING.union(
 /// Flags that are implied by existence of a relay in a consensus and not even stated there.
 pub const RELAY_FLAGS_CONSENSUS_IMPLICIT: RelayFlags = RelayFlags::empty();
 
+/// Relay flags parsing as found in the consensus (md or plain)
+pub(crate) type ConsensusRelayFlagsParser<'s> = RelayFlagsParser<
+    's,
+    { RELAY_FLAGS_CONSENSUS_IMPLIED.bits() },
+    { RELAY_FLAGS_CONSENSUS_IMPLICIT.bits() },
+>;
+
+/// Relay flags parsing as found in votes.
+pub(crate) type VoteRelayFlagsParser<'s> = RelayFlagsParser<'s, 0, 0>;
+
 bitflags! {
     /// Router status flags - a set of recognized directory flags on a single relay.
     ///
@@ -32,6 +42,10 @@ bitflags! {
     /// but the implementation has odd semantics:
     ///  * Only a single flag at a time is recognised.
     ///  * Ill-formed or unrecognised flags yield `Ok(RelayFlags::empty())`, not an error.
+    ///
+    /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
+    /// different documents.  Use an appropriate parameterised [`RelayFlagsParser`],
+    /// in `#[deftly(netdoc(with))]`.
     ///
     /// TODO SPEC: Make the terminology the same everywhere.
     #[derive(Clone, Copy, Debug)]
@@ -161,7 +175,7 @@ relay_flags_keywords! {
 /// and won't even be encoded.
 ///
 /// (During parsing `IMPLICIT` and `IMPLIED` flags are treated the same.)
-struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits> {
+pub(crate) struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits> {
     /// Flags so far, including the implied ones
     flags: RelayFlags,
 
@@ -240,16 +254,15 @@ mod parse2_impl {
     use super::*;
     use crate::parse2;
     use parse2::ErrorProblem as EP;
-    use parse2::ItemValueParseable;
 
-    // XXXX this is wrong; omitted/implied flags vary from context to context
-    impl ItemValueParseable for RelayFlags {
-        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
+    impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
+        RelayFlagsParser<'s, IMPLIED, IMPLICIT>
+    {
+        /// Parse relay flags
+        #[allow(clippy::needless_pass_by_value)] // we must match trait signature
+        pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<RelayFlags, EP> {
             item.check_no_object()?;
-            let mut flags = RelayFlagsParser::<
-                { RELAY_FLAGS_CONSENSUS_IMPLIED.bits() },
-                { RELAY_FLAGS_CONSENSUS_IMPLICIT.bits() },
-            >::new();
+            let mut flags = Self::new();
             for arg in item.args_copy() {
                 flags
                     .add(arg)

@@ -32,12 +32,15 @@ use super::*;
 ns_choose! { (
     use doc_digest_parse2_real as doc_digest_parse2_r; // implemented here in rs/each_variety.rs
     use Ignored as doc_digest_parse2_m;
+    use ConsensusRelayFlagsParser as VarietyRelayFlagsParser;
 ) (
     use NotPresent as doc_digest_parse2_r;
     use doc_digest_parse2_real_item as doc_digest_parse2_m; // implemented in rs/md.rs
+    use ConsensusRelayFlagsParser as VarietyRelayFlagsParser;
 ) (
     use doc_digest_parse2_real as doc_digest_parse2_r; // implemented here in rs/each_variety.rs
     use RouterStatusMdDigestsVote as doc_digest_parse2_m;
+    use VoteRelayFlagsParser as VarietyRelayFlagsParser;
 ) }
 
 /// Intro item for a router status entry
@@ -120,7 +123,11 @@ pub struct RouterStatus {
     /// `s` --- Router status flags
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
-    #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "s")))]
+    #[cfg_attr(
+        feature = "parse2",
+        deftly(netdoc(keyword = "s")),
+        deftly(netdoc(with = "VarietyRelayFlagsParser")),
+    )]
     pub flags: RelayFlags,
 
     /// `v` --- Relay's Tor software version

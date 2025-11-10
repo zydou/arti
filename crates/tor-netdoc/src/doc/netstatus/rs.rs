@@ -29,6 +29,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 #[cfg(feature = "parse2")]
 use {
     super::consensus_methods_comma_separated, //
+    crate::types::relay_flags::{ConsensusRelayFlagsParser, VoteRelayFlagsParser},
     derive_deftly::Deftly,
 };
 
