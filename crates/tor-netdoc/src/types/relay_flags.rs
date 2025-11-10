@@ -2,6 +2,7 @@
 
 use bitflags::bitflags;
 use paste::paste;
+use thiserror::Error;
 use void::ResultVoidExt as _;
 
 use tor_error::internal;
@@ -175,7 +176,8 @@ relay_flags_keywords! {
 /// and won't even be encoded.
 ///
 /// (During parsing `IMPLICIT` and `IMPLIED` flags are treated the same.)
-pub(crate) struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits> {
+#[derive(Debug, Clone)]
+pub struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits> {
     /// Flags so far, including the implied ones
     flags: RelayFlags,
 
@@ -185,24 +187,38 @@ pub(crate) struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPL
     prev: Option<&'s str>,
 }
 
+/// Problem parsing a relay flags line
+#[derive(Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum RelayFlagsParseError {
+    /// Flags were not in lexical order by flag name
+    #[error("Flags out of order")]
+    OutOfOrder,
+}
+
 impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
     RelayFlagsParser<'s, IMPLIED, IMPLICIT>
 {
     /// Start parsing relay flags
-    fn new() -> Self {
+    ///
+    /// If `IMPLIED` or `IMPLICIT` contains unknown bits, compile will fail.
+    #[allow(clippy::new_without_default)] // new() is going to take an argument in a moment
+    pub fn new() -> Self {
         // These flags are implicit.
-        let flags = RelayFlags::from_bits(IMPLIED | IMPLICIT).expect("unknown bits in IMPLIED");
+        let flags: RelayFlags = const {
+            RelayFlags::from_bits(IMPLIED | IMPLICIT).expect("unknown bits in IMPLIED / IMPLICIT")
+        };
         RelayFlagsParser {
             flags,
             prev: None,
         }
     }
     /// Parse the next relay flag argument
-    fn add(&mut self, arg: &'s str) -> Result<(), &'static str> {
+    pub fn add(&mut self, arg: &'s str) -> Result<(), RelayFlagsParseError> {
         if let Some(prev) = self.prev {
             if prev >= arg {
                 // Arguments out of order.
-                return Err("Flags out of order");
+                return Err(RelayFlagsParseError::OutOfOrder);
             }
         }
         let fl = arg.parse().void_unwrap();
@@ -211,7 +227,7 @@ impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
         Ok(())
     }
     /// Finish parsing relay flags
-    fn finish(self) -> RelayFlags {
+    pub fn finish(self) -> RelayFlags {
         self.flags
     }
 }
@@ -240,7 +256,7 @@ mod parse_impl {
             for s in item.args() {
                 flags
                     .add(s)
-                    .map_err(|msg| EK::BadArgument.at_pos(item.pos()).with_msg(msg))?;
+                    .map_err(|msg| EK::BadArgument.at_pos(item.pos()).with_msg(msg.to_string()))?;
             }
 
             Ok(flags.finish())
