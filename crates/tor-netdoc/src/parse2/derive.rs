@@ -59,6 +59,12 @@ define_derive_deftly_module! {
     ///    conditions for the fundamental field kinds which aren't supported everywhere.
     ///
     ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
+    ///
+    ///  * **`THIS_ITEM`**: consumes the next item and evaluates to it as an `UnparsedItem`.
+    ///    See the definition in `NetdocParseable`.
+    ///
+    ///  * **`F_ACCUMULATE_VAR`** the variable or field into which to accumulate
+    ///    normal items for this field.  Must be of type `&mut $F_ACCUMULATE_TYPE`.
     NetdocParseableCommon beta_deftly:
 
     // Convenience alias for our prelude
@@ -182,9 +188,18 @@ define_derive_deftly_module! {
         }}
     }}
 
-    // Accumulates `item` (which must be DataSet::Value) into `Putnam`
+    // Type into which we accumulate value(s) of this field
+    ${define F_ACCUMULATE_TYPE {
+        ${if F_FLATTEN {
+            <$ftype as NetdocParseableFields>::Accumulator
+        } else {
+            Option::<$F_EFFECTIVE_TYPE>
+        }
+    }}}
+
+    // Accumulates `item` (which must be `ItemSetMethods::Each`) into `$F_ACCUMULATE_VAR`
     ${define ACCUMULATE_ITEM_VALUE { {
-        $F_SELECTOR.accumulate(&mut $fpatname, item)?;
+        $F_SELECTOR.accumulate($F_ACCUMULATE_VAR, item)?;
     } }}
 
     // Handle a nonstructural field, parsing and accumulating its value
@@ -193,6 +208,9 @@ define_derive_deftly_module! {
     //
     // Expands to a series of `if ... { ... } else`.
     // The use site must provide (maybe further arms) and a fallback block!
+    //
+    // If the item is the intro item for this document, evaluates `break` -
+    // so if `f_INTRO` is not trivially false, must be expanded within a field loop.
     ${define NONSTRUCTURAL_ACCUMULATE_ELSE {
         ${for fields {
           ${when not(any(F_FLATTEN, F_SUBDOC))}
@@ -229,7 +247,7 @@ define_derive_deftly_module! {
           if $ftype::is_item_keyword(kw) {
               dtrace!(${concat "is flatten in " $fname}, kw);
               let item = $THIS_ITEM;
-              <$ftype as NetdocParseableFields>::accumulate_item(&mut $fpatname, item)?;
+              <$ftype as NetdocParseableFields>::accumulate_item($F_ACCUMULATE_VAR, item)?;
           } else
         }}
     }}
@@ -422,6 +440,8 @@ define_derive_deftly! {
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
 
+    ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
+
     impl<$tgens> $P::NetdocParseable for $ttype {
         fn doctype_for_error() -> &'static str {
             ${tmeta(netdoc(doctype_for_error)) as expr,
@@ -538,13 +558,9 @@ define_derive_deftly! {
             }
             let $fpatname: $ftype = $ITEM_VALUE_FROM_UNPARSED;
 
-          } F_FLATTEN {
-
-            let mut $fpatname = <$ftype as NetdocParseableFields>::Accumulator::default();
-
           } else {
 
-            let mut $fpatname: Option<$F_EFFECTIVE_TYPE> = None;
+            let mut $fpatname = $F_ACCUMULATE_TYPE::default();
 
           }})
 
@@ -649,18 +665,16 @@ define_derive_deftly! {
     ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE false}
 
+    ${define THIS_ITEM item}
+    ${define F_ACCUMULATE_VAR { (&mut acc.$fname) }}
+
     #[doc = ${concat "Partially parsed `" $tname "`"}]
     ///
     /// Used for [`${concat $P::NetdocParseableFields::Accumulator}`].
     #[derive(Default, Debug)]
-    $tvis struct $<$tname NetdocParseAccumulator><$tdefgens> { $( ${select1
-      F_FLATTEN {
-        $fname: <$ftype as $P::NetdocParseableFields>::Accumulator,
-      }
-      else {
-        $fname: Option<$F_EFFECTIVE_TYPE>,
-      }
-    } ) }
+    $tvis struct $<$tname NetdocParseAccumulator><$tdefgens> { $(
+        $fname: $F_ACCUMULATE_TYPE,
+    ) }
 
     impl<$tgens> $P::NetdocParseableFields for $ttype {
         type Accumulator = $<$ttype NetdocParseAccumulator>;
@@ -698,24 +712,14 @@ define_derive_deftly! {
 
             #[allow(unused_variables)] // If there are no fields, this is unused
             let kw = item.keyword();
-          $(
-            ${when not(F_FLATTEN)}
-            if kw == $F_KEYWORD {
-                dtrace!("is normal", item);
-                let item = $ITEM_VALUE_FROM_UNPARSED;
-                $F_SELECTOR.accumulate(&mut acc.$fname, item)
-            } else
-          )
-          $(
-            ${when F_FLATTEN}
-            if <$ftype as NetdocParseableFields>::is_item_keyword(kw) {
-                dtrace!(${concat "is flatten in " $fname}, kw);
-                <$ftype as NetdocParseableFields>::accumulate_item(&mut acc.$fname, item)
-            } else
-          )
+
+            $NONSTRUCTURAL_ACCUMULATE_ELSE
             {
                 panic!("accumulate_item called though is_intro_item_keyword returns false");
             }
+
+            #[allow(unreachable_code)] // If there are no fields!
+            Ok(())
         }
 
         fn finish(
