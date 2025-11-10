@@ -3,7 +3,6 @@
 use bitflags::bitflags;
 use paste::paste;
 use thiserror::Error;
-use void::ResultVoidExt as _;
 
 use tor_error::internal;
 
@@ -38,11 +37,6 @@ bitflags! {
     /// The bit values used to represent the flags have no meaning;
     /// they may change between releases of this crate.  Relying on their
     /// values may void your semver guarantees.
-    ///
-    /// Implements `FromStr`, using the netdoc keysords,
-    /// but the implementation has odd semantics:
-    ///  * Only a single flag at a time is recognised.
-    ///  * Ill-formed or unrecognised flags yield `Ok(RelayFlags::empty())`, not an error.
     ///
     /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
     /// different documents.  Use an appropriate parameterised [`RelayFlagsParser`],
@@ -118,14 +112,18 @@ bitflags! {
 /// Generates the `FromStr` impl (which is weird, see [`RelayFlags`]),
 /// and [`RelayFlags::iter_keywords`] for encoding flags in netdocs.
 macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
-    impl std::str::FromStr for RelayFlags {
-        type Err = void::Void;
-        fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    impl RelayFlags {
+        /// Parses *one* relay flag
+        ///
+        /// This function is not a `FromStr` impl.
+        /// It recognises only a single flag at a time.
+        #[allow(clippy::result_unit_err)] // internal function for RelayParser
+        fn from_str_one(s: &str) -> Result<Self, ()> {
             Ok(match s {
               $(
                   stringify!($keyword) => RelayFlags::[< $keyword:snake:upper >],
               )*
-                _ => RelayFlags::empty(),
+                _ => return Err(()),
             })
         }
     }
@@ -221,7 +219,7 @@ impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
                 return Err(RelayFlagsParseError::OutOfOrder);
             }
         }
-        let fl = arg.parse().void_unwrap();
+        let fl = RelayFlags::from_str_one(arg).unwrap_or_else(|()| RelayFlags::empty());
         self.flags |= fl;
         self.prev = Some(arg);
         Ok(())
