@@ -483,6 +483,34 @@ impl InertTorClient {
             action: "get key manager handle",
         })?)
     }
+
+    /// Create (but do not launch) a new
+    /// [`OnionService`](tor_hsservice::OnionService)
+    /// using the given configuration.
+    ///
+    /// See [`TorClient::create_onion_service`].
+    #[cfg(feature = "onion-service-service")]
+    #[instrument(skip_all, level = "trace")]
+    pub fn create_onion_service(
+        &self,
+        config: &TorClientConfig,
+        svc_config: tor_hsservice::OnionServiceConfig,
+    ) -> crate::Result<tor_hsservice::OnionService> {
+        let keymgr = self.keymgr.as_ref().ok_or(ErrorDetail::KeystoreRequired {
+            action: "create onion service",
+        })?;
+
+        let (state_dir, mistrust) = config.state_dir()?;
+        let state_dir =
+            self::StateDirectory::new(state_dir, mistrust).map_err(ErrorDetail::StateAccess)?;
+
+        Ok(tor_hsservice::OnionService::builder()
+            .config(svc_config)
+            .keymgr(keymgr.clone())
+            .state_dir(state_dir)
+            .build()
+            .map_err(ErrorDetail::OnionServiceSetup)?)
+    }
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
@@ -2037,20 +2065,7 @@ impl<R: Runtime> TorClient<R> {
         svc_config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<tor_hsservice::OnionService> {
         let inert_client = InertTorClient::new(config)?;
-        let keymgr = inert_client.keymgr.ok_or(ErrorDetail::KeystoreRequired {
-            action: "create onion service",
-        })?;
-
-        let (state_dir, mistrust) = config.state_dir()?;
-        let state_dir =
-            self::StateDirectory::new(state_dir, mistrust).map_err(ErrorDetail::StateAccess)?;
-
-        Ok(tor_hsservice::OnionService::builder()
-            .config(svc_config)
-            .keymgr(keymgr)
-            .state_dir(state_dir)
-            .build()
-            .map_err(ErrorDetail::OnionServiceSetup)?)
+        inert_client.create_onion_service(config, svc_config)
     }
 
     /// Return a current [`status::BootstrapStatus`] describing how close this client
