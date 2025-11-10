@@ -59,8 +59,6 @@ define_derive_deftly_module! {
     ///    conditions for the fundamental field kinds which aren't supported everywhere.
     ///
     ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
-    ///
-    /// * **`$ITEM`**: the identifier `item`.  TODO derive-deftly#130
     NetdocParseableCommon beta_deftly:
 
     // Convenience alias for our prelude
@@ -154,19 +152,19 @@ define_derive_deftly_module! {
         )
     }}
 
-    // Convert the UnparsedItem (in `$ITEM` to the value (to accumulate).
+    // Convert the UnparsedItem (in `item` to the value (to accumulate).
     // Expands to an expression.
     ${define ITEM_VALUE_FROM_UNPARSED {
         ${if fmeta(netdoc(with)) {
           ${fmeta(netdoc(with)) as path}
               ::${paste_spanned $fname from_unparsed}
-              ($ITEM)?
+              (item)?
         } else if fmeta(netdoc(single_arg)) { {
-          let item = ItemValueParseable::from_unparsed($ITEM)?;
+          let item = ItemValueParseable::from_unparsed(item)?;
           let (item,) = item;
           item
         } } else {
-          ItemValueParseable::from_unparsed($ITEM)?
+          ItemValueParseable::from_unparsed(item)?
         }}
     }}
 }
@@ -357,8 +355,6 @@ define_derive_deftly! {
     ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
-
-    ${define ITEM item}
 
     impl<$tgens> $P::NetdocParseable for $ttype {
         fn doctype_for_error() -> &'static str {
@@ -638,8 +634,6 @@ define_derive_deftly! {
     ${defcond F_INTRO false}
     ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE false}
-
-    ${define ITEM item}
 
     #[doc = ${concat "Partially parsed `" $tname "`"}]
     ///
