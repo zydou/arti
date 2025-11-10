@@ -88,7 +88,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
     "time",
 ] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
-tor-error = { version = "0.36.0", path = "../tor-error" }
+tor-error = { version = "0.36.0", path = "../tor-error", features = ["tracing"] }
 tor-general-addr = { version = "0.36.0", path = "../tor-general-addr" }
 tracing = "0.1.36"
 void = "1"

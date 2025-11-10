@@ -19,6 +19,8 @@ pub(crate) mod native_tls;
 
 pub(crate) mod streamops;
 
+use tor_error::warn_report;
+
 /// Connection backlog size to use for `listen()` calls on IP sockets.
 //
 // How this was chosen:
@@ -99,7 +101,25 @@ pub(crate) fn tcp_listen(addr: &std::net::SocketAddr) -> std::io::Result<std::ne
     // > Apple platforms `SOCK_NOSIGPIPE` is set. On Windows, the socket is made non-inheritable.
     let socket = match addr {
         std::net::SocketAddr::V4(_) => Socket::new(Domain::IPV4, Type::STREAM, None)?,
-        std::net::SocketAddr::V6(_) => Socket::new(Domain::IPV6, Type::STREAM, None)?,
+        std::net::SocketAddr::V6(_) => {
+            let socket = Socket::new(Domain::IPV6, Type::STREAM, None)?;
+
+            // On `cfg(unix)` systems, set `IPV6_V6ONLY` so that we can bind AF_INET and
+            // AF_INET6 sockets to the same port.
+            // This is `cfg(unix)` as I'm not sure what the socket option does (if anything) on
+            // non-unix platforms.
+            #[cfg(unix)]
+            if let Err(e) = socket.set_only_v6(true) {
+                // If we see this, we should exclude more platforms.
+                warn_report!(
+                    e,
+                    "Failed to set `IPV6_V6ONLY` on `AF_INET6` socket. \
+                    Please report this bug at https://gitlab.torproject.org/tpo/core/arti/-/issues",
+                );
+            }
+
+            socket
+        }
     };
 
     // Below we try to match what a `tokio::net::TcpListener::bind()` would do. This is a bit tricky
