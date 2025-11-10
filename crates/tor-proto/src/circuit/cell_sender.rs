@@ -95,7 +95,7 @@ cfg_if! {
 /// Currently [`Sink::poll_flush`], [`Sink::poll_close`], and [`Sink::poll_ready`]
 /// will all work for this purpose.
 #[pin_project]
-pub(in crate::client::reactor) struct CircuitCellSender {
+pub(crate) struct CircuitCellSender {
     /// The actual inner sink on which we'll be sending cells.
     ///
     /// See type alias documentation for full details.
@@ -105,7 +105,7 @@ pub(in crate::client::reactor) struct CircuitCellSender {
 
 impl CircuitCellSender {
     /// Construct a new `CircuitCellSender` to deliver cells onto `inner`.
-    pub(super) fn from_channel_sender(inner: ChannelSender) -> Self {
+    pub(crate) fn from_channel_sender(inner: ChannelSender) -> Self {
         cfg_if! {
             if #[cfg(feature="circ-padding")] {
                 let sink = SinkBlocker::new(
@@ -124,13 +124,13 @@ impl CircuitCellSender {
 
     /// Return the number of cells queued in this Sender
     /// that have not yet been flushed onto the channel.
-    pub(super) fn n_queued(&self) -> usize {
+    pub(crate) fn n_queued(&self) -> usize {
         self.sometimes_unbounded().n_queued()
     }
 
     /// Return true if we have a queued cell for the specified hop or later.
     #[cfg(feature = "circ-padding")]
-    pub(super) fn have_queued_cell_for_hop_or_later(&self, hop: HopNum) -> bool {
+    pub(crate) fn have_queued_cell_for_hop_or_later(&self, hop: HopNum) -> bool {
         if hop.is_first_hop() && self.chan_sender().approx_count() > 0 {
             // There's a cell on the outbound channel queue:
             // That will function perfectly well as padding to the first hop of this circuit,
@@ -156,7 +156,7 @@ impl CircuitCellSender {
     ///
     /// See note on [`CircuitCellSender`] type about polling:
     /// If you don't poll this sink, then queued items might never flush.
-    pub(super) async fn send_unbounded(&mut self, entry: ChanCellQueueEntry) -> crate::Result<()> {
+    pub(crate) async fn send_unbounded(&mut self, entry: ChanCellQueueEntry) -> crate::Result<()> {
         Pin::new(self.sometimes_unbounded_mut())
             .send_unbounded(entry)
             .await?;
@@ -166,7 +166,7 @@ impl CircuitCellSender {
 
     /// Return the time provider used by the underlying channel sender
     /// for memory quota purposes.
-    pub(super) fn time_provider(&self) -> &DynTimeProvider {
+    pub(crate) fn time_provider(&self) -> &DynTimeProvider {
         self.chan_sender().time_provider()
     }
 
@@ -180,13 +180,13 @@ impl CircuitCellSender {
     // and only allow them to be flushed one by one,
     // but we changed that behavior so that non-DATA cells can _always_ be sent.)
     #[cfg(feature = "circ-padding")]
-    pub(super) fn start_blocking(&mut self) {
+    pub(crate) fn start_blocking(&mut self) {
         self.pre_queue_blocker_mut().set_blocked();
     }
 
     /// Circpadding only: Put this sink into an unblocked state.
     #[cfg(feature = "circ-padding")]
-    pub(super) fn stop_blocking(&mut self) {
+    pub(crate) fn stop_blocking(&mut self) {
         self.pre_queue_blocker_mut().set_unblocked();
     }
 
