@@ -1,10 +1,14 @@
 //! Relay flags (aka Router Status Flags), eg in network status documents
 
+use std::collections::HashSet;
+
 use bitflags::bitflags;
 use paste::paste;
 use thiserror::Error;
 
 use tor_error::internal;
+
+use super::Unknown;
 
 /// Raw bits value for [`RelayFlags`]
 pub type RelayFlagsBits = u16;
@@ -18,6 +22,11 @@ pub struct DocRelayFlags {
     /// Invariant: contains no unknown set bits.
     #[deref]
     pub known: RelayFlags,
+
+    /// Unknown flags, if they were parsed
+    ///
+    /// Not sorted.
+    pub unknown: Unknown<HashSet<String>>,
 }
 
 /// Flags that are implied by existence of a relay in a consensus.
@@ -178,11 +187,10 @@ relay_flags_keywords! {
     V2Dir
 }
 
-impl Eq for DocRelayFlags {}
 impl PartialEq for DocRelayFlags {
     fn eq(&self, other: &DocRelayFlags) -> bool {
-        let DocRelayFlags { known } = self;
-        known.bits() == other.known.bits()
+        let DocRelayFlags { known, unknown } = self;
+        known.bits() == other.known.bits() && unknown == &other.unknown
     }
 }
 
@@ -221,8 +229,7 @@ impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
     /// Start parsing relay flags
     ///
     /// If `IMPLIED` or `IMPLICIT` contains unknown bits, compile will fail.
-    #[allow(clippy::new_without_default)] // new() is going to take an argument in a moment
-    pub fn new() -> Self {
+    pub fn new(unknown: Unknown<()>) -> Self {
         // These flags are implicit.
         let known: RelayFlags = const {
             RelayFlags::from_bits(IMPLIED | IMPLICIT).expect("unknown bits in IMPLIED / IMPLICIT")
@@ -230,6 +237,7 @@ impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
         RelayFlagsParser {
             flags: DocRelayFlags {
                 known,
+                unknown: unknown.map(|()| HashSet::new()),
             },
             prev: None,
         }
@@ -242,8 +250,13 @@ impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
                 return Err(RelayFlagsParseError::OutOfOrder);
             }
         }
-        let fl = RelayFlags::from_str_one(arg).unwrap_or_else(|()| RelayFlags::empty());
-        self.flags.known |= fl;
+        match RelayFlags::from_str_one(arg) {
+            Ok(fl) => self.flags.known |= fl,
+            Err(()) => self.flags.unknown.with_mut_unknown(|u| {
+                u.insert(arg.to_string());
+            }),
+        }
+
         self.prev = Some(arg);
         Ok(())
     }
@@ -272,7 +285,7 @@ mod parse_impl {
             let mut flags = RelayFlagsParser::<
                 { RELAY_FLAGS_CONSENSUS_IMPLIED.bits() },
                 { RELAY_FLAGS_CONSENSUS_IMPLICIT.bits() },
-            >::new();
+            >::new(Unknown::new_discard());
 
             for s in item.args() {
                 flags
@@ -299,7 +312,7 @@ mod parse2_impl {
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
         pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<DocRelayFlags, EP> {
             item.check_no_object()?;
-            let mut flags = Self::new();
+            let mut flags = Self::new(item.parse_options().retain_unknown_values);
             for arg in item.args_copy() {
                 flags
                     .add(arg)

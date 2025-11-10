@@ -183,6 +183,7 @@ impl RouterStatusBuilder {
             protos: doc::PROTOVERS_CACHE.intern(protos),
             flags: DocRelayFlags {
                 known: self.flags,
+                unknown: Unknown::new_discard(),
             },
             weight,
         })

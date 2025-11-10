@@ -34,7 +34,7 @@ impl RouterStatus {
     }
     /// Return the relay flags of this routerstatus.
     pub fn flags(&self) -> &RelayFlags {
-        &self.flags
+        &self.flags.known
     }
     /// Return the version of this routerstatus.
     pub fn version(&self) -> Option<&crate::doc::netstatus::rs::Version> {
