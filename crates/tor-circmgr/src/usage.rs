@@ -684,7 +684,7 @@ pub(crate) mod test {
     #[test]
     fn exit_policy() {
         use tor_netdir::testnet::construct_custom_netdir;
-        use tor_netdoc::doc::netstatus::RelayFlags;
+        use tor_netdoc::types::relay_flags::RelayFlags;
 
         let network = construct_custom_netdir(|idx, nb, _| {
             if (0x21..0x27).contains(&idx) {

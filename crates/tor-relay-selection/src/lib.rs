@@ -87,7 +87,7 @@ pub(crate) mod testing {
     use std::collections::HashSet;
     use std::sync::LazyLock;
     use tor_netdir::{NetDir, Relay, SubnetConfig};
-    use tor_netdoc::doc::netstatus::RelayFlags;
+    use tor_netdoc::types::relay_flags::RelayFlags;
 
     /// Use a predicate to divide a NetDir into the relays that do and do not
     /// conform (respectively).

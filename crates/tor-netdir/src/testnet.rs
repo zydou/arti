@@ -19,9 +19,9 @@ use std::time::{Duration, SystemTime};
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
-use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayFlags, RelayWeight};
+use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayWeight};
 use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
-
+use tor_netdoc::types::relay_flags::RelayFlags;
 pub use tor_netdoc::{BuildError, BuildResult};
 
 /// A set of builder objects for a single node.

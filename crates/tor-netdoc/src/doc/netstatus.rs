@@ -113,9 +113,6 @@ pub use UnvalidatedPlainConsensus as UnvalidatedNsConsensus;
 #[cfg(feature = "ns-vote")]
 pub use rs::RouterStatusMdDigestsVote;
 
-// TODO remove this compatibility export
-pub use crate::types::relay_flags::RelayFlags;
-
 /// `publiscation` field in routerstatus entry intro item other than in votes
 ///
 /// Two arguments which are both ignored.
