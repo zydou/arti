@@ -50,7 +50,130 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
     .expect("write to String failed");
 }
 
+define_derive_deftly_module! {
+    /// Common definitions for `NetdocParseable` and `NetdocParseableFields`
+    ///
+    /// Importing template must define these:
+    ///
+    ///  * **`F_INTRO`**, **`F_SUBDOC`**, **`F_SIGNATURE`**
+    ///    conditions for the fundamental field kinds which aren't supported everywhere.
+    ///
+    ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
+    ///
+    /// * **`$ITEM`**: the identifier `item`.  TODO derive-deftly#130
+    NetdocParseableCommon beta_deftly:
+
+    // Convenience alias for our prelude
+    ${define P { $crate::parse2::internal_prelude }}
+
+    // Is this field `flatten`?
+    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
+    // Is this field normal (non-structural)?
+    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
+
+    // Field keyword as `&str`
+    ${define F_KEYWORD_STR { ${concat
+        ${if any(F_FLATTEN, F_SUBDOC) {
+          ${if F_INTRO {
+            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
+          } else {
+            // Sub-documents and flattened fields have their keywords inside;
+            // if we ask for the field-based keyword name for one of those then that's a bug.
+            ${error "internal error, subdoc KeywordRef"}
+          }}
+        }}
+        ${fmeta(netdoc(keyword)) as str,
+          default ${concat ${kebab_case $fname}}}
+    }}}
+    // Field keyword as `&str` for debugging and error reporting
+    ${define F_KEYWORD_REPORT {
+        ${if F_SUBDOC { ${concat $fname} }
+             else { $F_KEYWORD_STR }}
+    }}
+    // Field keyword as `KeywordRef`
+    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
+
+    // The effective field type for parsing.
+    //
+    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
+    // and substitute in the default at the end.
+    //
+    ${define F_EFFECTIVE_TYPE {
+        ${if all(fmeta(netdoc(default))) {
+            Option::<$ftype>
+        } else {
+            $ftype
+        }}
+    }}
+
+    // Provide `$<selector_ $fname>` for every (suitable) field.
+    ${define ITEM_SET_SELECTORS {
+        $(
+          ${when not(any(F_FLATTEN))}
+
+          // See `mod multiplicity`.
+        ${if not(all(F_INTRO, fmeta(netdoc(with)))) {
+          // If the intro it has `with`, we don't check its trait impl, and this ends up unused
+          let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
+        }}
+        )
+    }}
+    // The item set selector for this field.
+    // We must provide this, rather than expanding $<selector_ $fname> at the use sites,
+    // because the identifier `selector_` has different macro_rules hygiene here vs there!
+    // TODO derive-deftly#130
+    ${define F_SELECTOR $<selector_ $fname>}
+
+    // Check that every field type implements the necessary trait.
+    ${define CHECK_FIELD_TYPES_PARSEABLE {
+        $(
+          ${when not(any(F_FLATTEN))}
+
+          // Expands to `selector_FIELD.check_SOMETHING();`
+          //
+          // If the relevant trait isn't implemented, rustc reports the error by
+          // pointing at the `check-something` call.  We re-span that identifier
+          // to point to the field name, so that's where the error is reported.
+          //
+          // Without this, we just get a report that `item` doesn't implement the required
+          // trait - but `item` is a local variable here, so the error points into the macro
+        ${if not(all(any(F_INTRO, F_NORMAL), fmeta(netdoc(with)))) {
+          $<selector_ $fname> . ${paste_spanned $fname ${select1
+                  any(F_INTRO, F_NORMAL){
+                      // For the intro item, this is not completely precise, because the
+                      // it will allow Option<> and Vec<> which aren't allowed there.
+                      ${if
+                        fmeta(netdoc(single_arg)) { check_item_argument_parseable }
+                        else { check_item_value_parseable }
+                      }
+                  }
+                  F_SIGNATURE { check_signature_item_parseable }
+                  F_SUBDOC    { check_subdoc_parseable         }
+          }} ();
+        }}
+        )
+    }}
+
+    // Convert the UnparsedItem (in `$ITEM` to the value (to accumulate).
+    // Expands to an expression.
+    ${define ITEM_VALUE_FROM_UNPARSED {
+        ${if fmeta(netdoc(with)) {
+          ${fmeta(netdoc(with)) as path}
+              ::${paste_spanned $fname from_unparsed}
+              ($ITEM)?
+        } else if fmeta(netdoc(single_arg)) { {
+          let item = ItemValueParseable::from_unparsed($ITEM)?;
+          let (item,) = item;
+          item
+        } } else {
+          ItemValueParseable::from_unparsed($ITEM)?
+        }}
+    }}
+}
+
 define_derive_deftly! {
+    use NetdocParseableCommon;
+
     /// Derive [`NetdocParseable`] for a document (or sub-document)
     ///
     /// ### Expected input structure
@@ -227,52 +350,15 @@ define_derive_deftly! {
     /// ```
     export NetdocParseable for struct, expect items, beta_deftly:
 
-    // Convenience alias for our prelude
-    ${define P { $crate::parse2::internal_prelude }}
-
     // Predicate for the toplevel
     ${defcond T_SIGNATURES tmeta(netdoc(signatures))}
 
     // Predicates for the field kinds
     ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
-    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
-    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
 
-    // Field keyword as `&str`
-    ${define F_KEYWORD_STR { ${concat
-        ${if any(F_FLATTEN, F_SUBDOC) {
-          ${if F_INTRO {
-            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
-          } else {
-            // Sub-documents and flattened fields have their keywords inside;
-            // if we ask for the field-based keyword name for one of those then that's a bug.
-            ${error "internal error, subdoc KeywordRef"}
-          }}
-        }}
-        ${fmeta(netdoc(keyword)) as str,
-          default ${concat ${kebab_case $fname}}}
-    }}}
-    // Field keyword as `&str` for debugging and error reporting
-    ${define F_KEYWORD_REPORT {
-        ${if F_SUBDOC { ${concat $fname} }
-             else { $F_KEYWORD_STR }}
-    }}
-    // Field keyword as `KeywordRef`
-    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
-
-    // The effective field type for parsing.
-    //
-    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
-    // and substitute in the default at the end.
-    ${define F_EFFECTIVE_TYPE {
-        ${if all(fmeta(netdoc(default)), not(F_INTRO)) {
-            Option::<$ftype>
-        } else {
-            $ftype
-        }}
-    }}
+    ${define ITEM item}
 
     impl<$tgens> $P::NetdocParseable for $ttype {
         fn doctype_for_error() -> &'static str {
@@ -326,39 +412,8 @@ define_derive_deftly! {
             }}
 
             //----- prepare item set selectors for every field -----
-
-          $(
-            ${when not(any(F_FLATTEN))}
-
-            // See `mod multiplicity`.
-          ${if not(all(F_INTRO, fmeta(netdoc(with)))) {
-            // If the intro it has `with`, we don't check its trait impl, and this ends up unused
-            let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
-          }}
-
-            // Expands to `selector_FIELD.check_SOMETHING();`
-            //
-            // If the relevant trait isn't implemented, rustc reports the error by
-            // pointing at the `check-something` call.  We re-span that identifier
-            // to point to the field name, so that's where the error is reported.
-            //
-            // Without this, we just get a report that `item` doesn't implement the required
-            // trait - but `item` is a local variable here, so the error points into the macro
-          ${if not(all(any(F_INTRO, F_NORMAL), fmeta(netdoc(with)))) {
-            $<selector_ $fname> . ${paste_spanned $fname ${select1
-                    any(F_INTRO, F_NORMAL){
-                        // For the intro item, this is not completely precise, because the
-                        // it will allow Option<> and Vec<> which aren't allowed there.
-                        ${if
-                          fmeta(netdoc(single_arg)) { check_item_argument_parseable }
-                          else { check_item_value_parseable }
-                        }
-                    }
-                    F_SIGNATURE { check_signature_item_parseable }
-                    F_SUBDOC    { check_subdoc_parseable         }
-            }} ();
-          }}
-          )
+            $ITEM_SET_SELECTORS
+            $CHECK_FIELD_TYPES_PARSEABLE
 
             // Is this an intro item keyword ?
             //
@@ -367,7 +422,7 @@ define_derive_deftly! {
             //    fn(KeywordRef) -> bool
             ${define F_SUBDOC_IS_INTRO_ITEM_KEYWORD {
                 ${if not(F_SUBDOC) { ${error "internal-error: subdoc kw, but not subdoc field"} }}
-                $<selector_ $fname>.is_intro_item_keyword
+                $F_SELECTOR.is_intro_item_keyword
             }}
 
             //----- Helper fragments for parsing individual pieces of the document -----
@@ -392,23 +447,9 @@ define_derive_deftly! {
                 input.next_item()?.expect("peeked")
             }}
 
-            ${define ITEM_VALUE_FROM_UNPARSED {
-              ${if fmeta(netdoc(with)) {
-                ${fmeta(netdoc(with)) as path}
-                    ::${paste_spanned $fname from_unparsed}
-                    (item)?
-              } else if fmeta(netdoc(single_arg)) { {
-                let item = ItemValueParseable::from_unparsed(item)?;
-                let (item,) = item;
-                item
-              } } else {
-                ItemValueParseable::from_unparsed(item)?
-              }}
-            }}
-
             // Accumulates `item` (which must be DataSet::Value) into `Putnam`
             ${define ACCUMULATE_ITEM_VALUE { {
-                $<selector_ $fname>.accumulate(&mut $fpatname, item)?;
+                $F_SELECTOR.accumulate(&mut $fpatname, item)?;
             } }}
 
             //----- keyword classification closures -----
@@ -530,7 +571,7 @@ define_derive_deftly! {
                     break;
                 };
 
-                $<selector_ $fname>.can_accumulate(&mut $fpatname)?;
+                $F_SELECTOR.can_accumulate(&mut $fpatname)?;
 
                 dtrace!("is this subdoc", kw);
                 let item = NetdocParseable::from_items(input, inner_stop);
@@ -548,13 +589,13 @@ define_derive_deftly! {
             ${select1
               F_INTRO {}
               any(F_NORMAL, F_SIGNATURE) {
-                  let $fpatname = $<selector_ $fname>.finish($fpatname, $F_KEYWORD_REPORT)?;
+                  let $fpatname = $F_SELECTOR.finish($fpatname, $F_KEYWORD_REPORT)?;
               }
               F_FLATTEN {
                   let $fpatname = <$ftype as NetdocParseableFields>::finish($fpatname)?;
               }
               F_SUBDOC {
-                  let $fpatname = $<selector_ $fname>.finish_subdoc($fpatname)?;
+                  let $fpatname = $F_SELECTOR.finish_subdoc($fpatname)?;
               }
           }}}
           $(
@@ -572,6 +613,8 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
+    use NetdocParseableCommon;
+
     /// Derive [`NetdocParseableFields`] for a struct with individual items
     ///
     /// Defines a struct `FooNetdocParseAccumulator` to be the
@@ -592,37 +635,11 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(flatten))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
-    // TODO deduplicate with copy in NetdocParseable after rust-derive-deftly#39
+    ${defcond F_INTRO false}
+    ${defcond F_SUBDOC false}
+    ${defcond F_SIGNATURE false}
 
-    // Convenience alias for our prelude
-    ${define P { $crate::parse2::internal_prelude }}
-
-    // The effective field type for parsing.
-    //
-    // Handles #[deftly(netdoc(default))], in which case we parse as if the field was Option,
-    // and substitute in the default at the end.
-    //
-    ${define F_EFFECTIVE_TYPE {
-        ${if all(fmeta(netdoc(default))) {
-            Option::<$ftype>
-        } else {
-            $ftype
-        }}
-    }}
-    ${define F_ITEM_SET_SELECTOR {
-        ItemSetSelector::<$F_EFFECTIVE_TYPE>::default()
-    }}
-    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
-
-    // NOTE! These keyword defines are simpler than the ones for NetdocParseable.
-    // Care must be taken if they are deduplicated as noted above.
-    // Field keyword as `&str`
-    ${define F_KEYWORD_STR { ${concat
-        ${fmeta(netdoc(keyword)) as str,
-          default ${kebab_case $fname}}
-    }}}
-    // Field keyword as `KeywordRef`
-    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
+    ${define ITEM item}
 
     #[doc = ${concat "Partially parsed `" $tname "`"}]
     ///
@@ -667,25 +684,16 @@ define_derive_deftly! {
             #[allow(unused_imports)] // false positives in some situations
             use $P::*;
 
+            $ITEM_SET_SELECTORS
+            $CHECK_FIELD_TYPES_PARSEABLE
+
             #[allow(unused_variables)] // If there are no fields, this is unused
             let kw = item.keyword();
           $(
             ${when not(F_FLATTEN)}
             if kw == $F_KEYWORD {
-                let selector = $F_ITEM_SET_SELECTOR;
-              ${if fmeta(netdoc(with)) {
-                let item = ${fmeta(netdoc(with)) as path}
-                    ::${paste_spanned $fname from_unparsed}
-                    (item)?;
-              } else if fmeta(netdoc(single_arg)) {
-                selector.${paste_spanned $fname check_item_argument_parseable}();
-                let item = ItemValueParseable::from_unparsed(item)?;
-                let (item,) = item;
-              } else {
-                selector.${paste_spanned $fname check_item_value_parseable}();
-                let item = ItemValueParseable::from_unparsed(item)?;
-              }}
-                selector.accumulate(&mut acc.$fname, item)
+                let item = $ITEM_VALUE_FROM_UNPARSED;
+                $F_SELECTOR.accumulate(&mut acc.$fname, item)
             } else
           )
           $(
@@ -706,9 +714,11 @@ define_derive_deftly! {
             #[allow(unused_imports)] // false positives in some situations
             use $P::*;
 
+            $ITEM_SET_SELECTORS
+
           $(
             ${when not(F_FLATTEN)}
-            let $fpatname = $F_ITEM_SET_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
+            let $fpatname = $F_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
           ${if fmeta(netdoc(default)) {
             let $fpatname = Option::unwrap_or_default($fpatname);
           }}
