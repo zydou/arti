@@ -251,6 +251,36 @@ define_derive_deftly_module! {
           } else
         }}
     }}
+
+    // Completes a document
+    //
+    // The fields accumulated so far must be in `$fpatname` (as a value, not a ref,
+    // and therefore not in $F_ACCUMULATE_VAR).
+    //
+    // Expands to code which resolves the fields, and ends with `Ok(document value)`.
+    ${define FINISH_RESOLVE {
+        ${for fields {
+            ${select1
+              F_INTRO {}
+              any(F_NORMAL, F_SIGNATURE) {
+                  let $fpatname = $F_SELECTOR.finish($fpatname, $F_KEYWORD_REPORT)?;
+              }
+              F_FLATTEN {
+                  let $fpatname = <$ftype as NetdocParseableFields>::finish($fpatname)?;
+              }
+              F_SUBDOC {
+                  let $fpatname = $F_SELECTOR.finish_subdoc($fpatname)?;
+              }
+            }
+        }}
+        $(
+            ${when not(F_INTRO)}
+          ${if fmeta(netdoc(default)) {
+            let $fpatname = Option::unwrap_or_default($fpatname);
+          }}
+        )
+        Ok($vpat)
+    }}
 }
 
 define_derive_deftly! {
@@ -611,29 +641,7 @@ define_derive_deftly! {
             // Resolve all the fields
             dtrace!("reached end, resolving");
 
-          ${for fields {
-            ${select1
-              F_INTRO {}
-              any(F_NORMAL, F_SIGNATURE) {
-                  let $fpatname = $F_SELECTOR.finish($fpatname, $F_KEYWORD_REPORT)?;
-              }
-              F_FLATTEN {
-                  let $fpatname = <$ftype as NetdocParseableFields>::finish($fpatname)?;
-              }
-              F_SUBDOC {
-                  let $fpatname = $F_SELECTOR.finish_subdoc($fpatname)?;
-              }
-          }}}
-          $(
-            ${when not(F_INTRO)}
-          ${if fmeta(netdoc(default)) {
-            let $fpatname = Option::unwrap_or_default($fpatname);
-          }}
-          )
-
-            let r = $vpat;
-
-            Ok(r)
+            $FINISH_RESOLVE
         }
     }
 }
@@ -734,18 +742,8 @@ define_derive_deftly! {
 
             $ITEM_SET_SELECTORS
 
-          $(
-            ${when not(F_FLATTEN)}
-            let $fpatname = $F_SELECTOR.finish(acc.$fname, $F_KEYWORD_STR)?;
-          ${if fmeta(netdoc(default)) {
-            let $fpatname = Option::unwrap_or_default($fpatname);
-          }}
-          )
-          $(
-            ${when F_FLATTEN}
-            let $fpatname = <$ftype as NetdocParseableFields>::finish(acc.$fname)?;
-          )
-            Ok($vpat)
+         $( let $fpatname = acc.$fname; )
+            $FINISH_RESOLVE
         }
     }
 }
