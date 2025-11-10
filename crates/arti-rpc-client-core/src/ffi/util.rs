@@ -5,15 +5,15 @@ use std::mem::MaybeUninit;
 /// Helper for output parameters represented as `*mut T`.
 ///
 /// This is for an API which, from a C POV, returns an output via a parameter of type
-/// `Foo *foo_out` .  When an `OutPtr` is constructed, `foo_out` is necessarily non-null;
+/// `Foo *foo_out` .  When an `OutBoxedPtr` is constructed, `foo_out` is necessarily non-null;
 ///
-/// If `foo_out` is not NULL, then `*foo_out` is always initialized when an `OutPtr`
+/// If `foo_out` is not NULL, then `*foo_out` is always initialized when an `OutBoxedPtr`
 /// is constructed, so that even if the FFI code panics, the inner pointer will be initialized to
 /// _something_.
 pub(super) struct OutVal<'a, T>(&'a mut T);
 
 /// Alias for an `OutVal` representing a `*mut *mut T`.
-pub(super) type OutPtr<'a, T> = OutVal<'a, *mut T>;
+pub(super) type OutBoxedPtr<'a, T> = OutVal<'a, *mut T>;
 
 impl<'a, T> OutVal<'a, T> {
     /// Construct `Option<Self>` from a possibly NULL pointer; initialize `*ptr` to `initial_value` if possible.
@@ -58,7 +58,7 @@ impl<'a, T> OutVal<'a, T> {
 }
 
 impl<'a, T> OutVal<'a, *mut T> {
-    /// Consume this `OutPtr` and the provided value, writing the value into the outptr.
+    /// Consume this `OutBoxedPtr` and the provided value, writing the value into the outptr.
     pub(super) fn write_value_boxed(self, value: T) {
         self.write_value(Box::into_raw(Box::new(value)));
     }
@@ -178,7 +178,7 @@ impl<'a> OutSocketOwned<'a> {
 ///             let recipe: Option<&Recipe> [in_ptr_opt];
 ///             let ingredients: Option<&Ingredients> [in_ptr_opt];
 ///             let dietary_constraints: Option<&str> [in_str_opt];
-///             let food_out: OutPtr<DeliciousMeal> [out_ptr_opt];
+///             let food_out: OutBoxedPtr<DeliciousMeal> [out_ptr_opt];
 ///         } in {
 ///             // [BODY]
 ///             let Some(recipe) = recipe else { return 0 };
@@ -238,21 +238,21 @@ impl<'a> OutSocketOwned<'a> {
 ///
 /// The following methods are recognized:
 ///
-/// | method               | input type      | converted to       | can reject input? |
-/// |----------------------|-----------------|--------------------|-------------------|
-/// | `in_ptr_opt`         | `*const T`      | `Option<&T>`       | N                 |
-/// | `in_str_opt`         | `*const c_char` | `Option<&str>`     | Y                 |
-/// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>`   | N                 |
-/// | `out_ptr_opt`        | `*mut *mut T`   | `Option<OutPtr<T>>`| N                 |
-/// | `out_val_opt`        | `*mut T`        | `Option<OutVal<T>>`| N                 |
+/// | method               | input type      | converted to            | can reject input? |
+/// |----------------------|-----------------|-------------------------|-------------------|
+/// | `in_ptr_opt`         | `*const T`      | `Option<&T>`            | N                 |
+/// | `in_str_opt`         | `*const c_char` | `Option<&str>`          | Y                 |
+/// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>`        | N                 |
+/// | `out_ptr_opt`        | `*mut *mut T`   | `Option<OutBoxedPtr<T>>`| N                 |
+/// | `out_val_opt`        | `*mut T`        | `Option<OutVal<T>>`     | N                 |
 /// | `out_socket_owned_opt` | *mut ArtiRpcRawSocket` | `Option<OutSocketOwned>`| N   |
-/// | `in_mut_ptr_opt`     | (NO!)           | (Do not add!)      | (NO!)             |
+/// | `in_mut_ptr_opt`     | (NO!)           | (Do not add!)           | (NO!)             |
 ///
 /// > (Note: Other conversion methods are logically possible, but have not been added yet,
 /// > since they would not yet be used in this crate.)
 /// >
 /// > (Note: There is **deliberately** no in_mut_ptr_opt, or anything similar:
-/// > while we're okay with returning objects via `OutPtr`/`OutVal`,
+/// > while we're okay with returning objects via `OutBoxedPtr`/`OutVal`,
 /// > we do not want to expose APIs that take a non-sharable object via `&mut T``,
 /// > since other languages have no way to enforce Rust's requirement
 /// > that no other `&mut` references exits.)
@@ -385,7 +385,7 @@ pub(super) use ffi_body_raw;
 /// ffi_body_with_err!(
 ///         {
 ///             [CONVERSIONS]
-///             err [ERRNAME] : OutPtr<ArtiRpcError>;
+///             err [ERRNAME] : OutBoxedPtr<ArtiRpcError>;
 ///         } in {
 ///             [BODY]
 ///         }
@@ -403,7 +403,7 @@ pub(super) use ffi_body_raw;
 ///         {
 ///             let wombat: Option<&Wombat> [in_ptr_opt];
 ///             let wombat_chow: Option<&Meal> [in_ptr_opt];
-///             err error_out: Option<OutPtr<ArtiRpcError>>;
+///             err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
 ///         } in {
 ///             let wombat = wombat.ok_or(InvalidInput::NullPointer)?
 ///             let wombat_chow = wombat_chow.ok_or(InvalidInput::NullPointer)?
@@ -471,7 +471,7 @@ pub(super) use ffi_body_with_err;
 /// Implement a set of conversions, trying each one.
 ///
 /// (It's important that this cannot exit early,
-/// since some conversions have side effects: notably, the ones that create an OutPtr
+/// since some conversions have side effects: notably, the ones that create an OutBoxedPtr
 /// can initialize that pointer to NULL, and we want to do that unconditionally.
 ///
 /// If any conversion fails, run `return ($on_invalid)(error)`
@@ -540,7 +540,7 @@ macro_rules! ffi_initialize {
 /// Nothing outside of the `ffi_initialize!` macro should actually invoke these functions!
 #[allow(clippy::unnecessary_wraps)]
 pub(super) mod arg_conversion {
-    use super::{OutPtr, OutSocketOwned, OutVal};
+    use super::{OutBoxedPtr, OutSocketOwned, OutVal};
     use crate::ffi::{ArtiRpcRawSocket, err::InvalidInput};
     use std::ffi::{CStr, c_char};
     use void::Void;
@@ -595,7 +595,7 @@ pub(super) mod arg_conversion {
         })
     }
 
-    /// Try to convert a mutable pointer-to-pointer into an `Option<OutPtr<T>>`.
+    /// Try to convert a mutable pointer-to-pointer into an `Option<OutBoxedPtr<T>>`.
     ///
     /// A null pointer is allowed, and converted into None.
     ///
@@ -610,8 +610,8 @@ pub(super) mod arg_conversion {
     /// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
     pub(in crate::ffi) unsafe fn out_ptr_opt<'a, T>(
         input: *mut *mut T,
-    ) -> Result<Option<OutPtr<'a, T>>, Void> {
-        Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr(input, std::ptr::null_mut()) })
+    ) -> Result<Option<OutBoxedPtr<'a, T>>, Void> {
+        Ok(unsafe { crate::ffi::util::OutBoxedPtr::from_opt_ptr(input, std::ptr::null_mut()) })
     }
 
     /// Try to convert a mutable pointer-to-value into an `Option<OutVal<T>>`.
@@ -686,7 +686,7 @@ mod test {
     use super::*;
 
     unsafe fn outptr_user(ptr: *mut *mut i8, set_to_val: Option<i8>) {
-        let ptr = unsafe { OutPtr::from_opt_ptr(ptr, std::ptr::null_mut()) };
+        let ptr = unsafe { OutBoxedPtr::from_opt_ptr(ptr, std::ptr::null_mut()) };
 
         if let Some(v) = set_to_val {
             ptr.write_boxed_value_if_ptr_set(v);

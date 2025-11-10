@@ -10,7 +10,7 @@ use err::{ArtiRpcError, InvalidInput};
 use std::ffi::{c_char, c_int};
 use std::sync::Mutex;
 use util::{
-    OptOutPtrExt as _, OptOutValExt, OutPtr, OutSocketOwned, OutVal, ffi_body_raw,
+    OptOutPtrExt as _, OptOutValExt, OutBoxedPtr, OutSocketOwned, OutVal, ffi_body_raw,
     ffi_body_with_err,
 };
 
@@ -105,8 +105,8 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_new(
 ) -> ArtiRpcStatus {
     ffi_body_with_err!(
         {
-            let builder_out: Option<OutPtr<ArtiRpcConnBuilder>> [out_ptr_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            let builder_out: Option<OutBoxedPtr<ArtiRpcConnBuilder>> [out_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let builder = ArtiRpcConnBuilder(Mutex::new(RpcConnBuilder::new()));
             builder_out.write_boxed_value_if_ptr_set(builder);
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_prepend_entry(
         {
             let builder: Option<&ArtiRpcConnBuilder> [in_ptr_opt];
             let entry: Option<&str> [in_str_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let builder = builder.ok_or(InvalidInput::NullPointer)?;
             let entry = entry.ok_or(InvalidInput::NullPointer)?;
@@ -210,8 +210,8 @@ pub unsafe extern "C" fn arti_rpc_conn_builder_connect(
     ffi_body_with_err!(
         {
             let builder: Option<&ArtiRpcConnBuilder> [in_ptr_opt];
-            let rpc_conn_out: Option<OutPtr<ArtiRpcConn>> [out_ptr_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            let rpc_conn_out: Option<OutBoxedPtr<ArtiRpcConn>> [out_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let builder = builder.ok_or(InvalidInput::NullPointer)?;
             let b = builder.0.lock().expect("Poisoned lock");
@@ -282,8 +282,8 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
         {
             let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
             let msg: Option<&str> [in_str_opt];
-            let response_out: Option<OutPtr<ArtiRpcStr>> [out_ptr_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            let response_out: Option<OutBoxedPtr<ArtiRpcStr>> [out_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
             let msg = msg.ok_or(InvalidInput::NullPointer)?;
@@ -323,8 +323,8 @@ pub unsafe extern "C" fn arti_rpc_conn_execute_with_handle(
         {
             let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
             let msg: Option<&str> [in_str_opt];
-            let handle_out: Option<OutPtr<ArtiRpcHandle>> [out_ptr_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            let handle_out: Option<OutBoxedPtr<ArtiRpcHandle>> [out_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
             let msg = msg.ok_or(InvalidInput::NullPointer)?;
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn arti_rpc_conn_cancel_handle(
         {
             let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
             let handle: Option<&ArtiRpcHandle> [in_ptr_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
             let handle = handle.ok_or(InvalidInput::NullPointer)?;
@@ -429,9 +429,9 @@ pub unsafe extern "C" fn arti_rpc_handle_wait(
     ffi_body_with_err! {
         {
             let handle: Option<&ArtiRpcHandle> [in_ptr_opt];
-            let response_out: Option<OutPtr<ArtiRpcStr>> [out_ptr_opt];
+            let response_out: Option<OutBoxedPtr<ArtiRpcStr>> [out_ptr_opt];
             let response_type_out: Option<OutVal<ArtiRpcResponseType>> [out_val_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let handle = handle.ok_or(InvalidInput::NullPointer)?;
 
@@ -592,8 +592,8 @@ pub unsafe extern "C" fn arti_rpc_conn_open_stream(
             let hostname: Option<&str> [in_str_opt];
             let isolation: Option<&str> [in_str_opt];
             let socket_out: Option<OutSocketOwned<'_>> [out_socket_owned_opt];
-            let stream_id_out: Option<OutPtr<ArtiRpcStr>> [out_ptr_opt];
-            err error_out: Option<OutPtr<ArtiRpcError>>;
+            let stream_id_out: Option<OutBoxedPtr<ArtiRpcStr>> [out_ptr_opt];
+            err error_out: Option<OutBoxedPtr<ArtiRpcError>>;
         } in {
             let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
             let hostname = hostname.ok_or(InvalidInput::NullPointer)?;
