@@ -2029,6 +2029,7 @@ impl<R: Runtime> TorClient<R> {
     /// The behaviour is not specified if you create the `OnionService` with
     /// `create_onion_service()` using one [`TorClientConfig`],
     /// but launch it using a `TorClient` generated from a different `TorClientConfig`.
+    // TODO #2249: Look into this behaviour more, and possibly error if there is a different config.
     #[cfg(feature = "onion-service-service")]
     #[instrument(skip_all, level = "trace")]
     pub fn create_onion_service(
