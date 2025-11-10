@@ -85,6 +85,7 @@ use crate::circuit::circhop::HopSettings;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
+use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::util::err::ReactorError;
 
@@ -162,17 +163,6 @@ pub(crate) type CircuitRxSender = mq_queue::Sender<RelayCircChanMsg, MpscSpec>;
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpec>;
 
-/// A handle for interacting with a [`BackwardReactor`].
-#[allow(unused)] // TODO(relay)
-pub(crate) struct RelayReactorHandle {
-    /// Sender for reactor control messages.
-    control: mpsc::UnboundedSender<RelayCtrlMsg>,
-    /// Sender for reactor control commands.
-    command: mpsc::UnboundedSender<RelayCtrlCmd>,
-    /// A broadcast receiver used to detect when the reactor is dropped.
-    reactor_closed_rx: broadcast::Receiver<void::Void>,
-}
-
 #[allow(unused)] // TODO(relay)
 impl<T: HasRelayIds> RelayReactor<T> {
     /// Create a new circuit reactor.
@@ -194,7 +184,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
         settings: &HopSettings,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
         memquota: CircuitAccount,
-    ) -> (Self, RelayReactorHandle) {
+    ) -> (Self, RelayCirc) {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
         let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
         let (cell_tx, cell_rx) = mpsc::unbounded();
@@ -229,10 +219,9 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_rx.clone(),
         );
 
-        let handle = RelayReactorHandle {
+        let handle = RelayCirc {
             control: control_tx,
             command: command_tx,
-            reactor_closed_rx,
         };
 
         let reactor = RelayReactor {

@@ -68,7 +68,7 @@ pub(crate) mod tunnel;
 mod util;
 
 #[cfg(feature = "relay")]
-pub(crate) mod relay;
+pub mod relay;
 #[cfg(feature = "relay")]
 pub use relay::channel::{RelayChannelBuilder, RelayIdentities};
 
