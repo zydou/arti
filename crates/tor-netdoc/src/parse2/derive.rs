@@ -64,6 +64,20 @@ define_derive_deftly_module! {
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
 
+    // Defines the `dtrace` macro.
+    ${define DEFINE_DTRACE {
+        #[allow(unused_macros)]
+        macro_rules! dtrace { { $$msg:literal $$(, $$val:expr )* $$(,)? } => {
+          ${if tmeta(netdoc(debug)) {
+              netdoc_parseable_derive_debug(
+                  ${concat $ttype},
+                  $$msg,
+                  &[ $$( &&$$val as _, )* ],
+              )
+          }}
+        }}
+    }}
+
     // Is this field `flatten`?
     ${defcond F_FLATTEN fmeta(netdoc(flatten))}
     // Is this field normal (non-structural)?
@@ -378,6 +392,7 @@ define_derive_deftly! {
             outer_stop: $P::stop_at!(),
         ) -> $P::Result<$ttype, $P::ErrorProblem> {
             use $P::*;
+            $DEFINE_DTRACE
 
             //----- compile-time check that fields are in the right order in the struct -----
 
@@ -393,18 +408,6 @@ define_derive_deftly! {
                     $fname
                 )
               }
-            }}
-
-            //----- Debugging -----
-
-            macro_rules! dtrace { { $$msg:literal $$(, $$val:expr )* $$(,)? } => {
-              ${if tmeta(netdoc(debug)) {
-                  netdoc_parseable_derive_debug(
-                      ${concat $ttype},
-                      $$msg,
-                      &[ $$( &&$$val as _, )* ],
-                  )
-              }}
             }}
 
             //----- prepare item set selectors for every field -----
@@ -677,6 +680,7 @@ define_derive_deftly! {
         ) -> $P::Result<(), $P::ErrorProblem> {
             #[allow(unused_imports)] // false positives in some situations
             use $P::*;
+            $DEFINE_DTRACE
 
             $ITEM_SET_SELECTORS
             $CHECK_FIELD_TYPES_PARSEABLE
@@ -686,6 +690,7 @@ define_derive_deftly! {
           $(
             ${when not(F_FLATTEN)}
             if kw == $F_KEYWORD {
+                dtrace!("is normal", item);
                 let item = $ITEM_VALUE_FROM_UNPARSED;
                 $F_SELECTOR.accumulate(&mut acc.$fname, item)
             } else
@@ -693,6 +698,7 @@ define_derive_deftly! {
           $(
             ${when F_FLATTEN}
             if <$ftype as NetdocParseableFields>::is_item_keyword(kw) {
+                dtrace!(${concat "is flatten in " $fname}, kw);
                 <$ftype as NetdocParseableFields>::accumulate_item(&mut acc.$fname, item)
             } else
           )
@@ -707,6 +713,9 @@ define_derive_deftly! {
         ) -> $P::Result<Self, $P::ErrorProblem> {
             #[allow(unused_imports)] // false positives in some situations
             use $P::*;
+            $DEFINE_DTRACE
+
+            dtrace!("finish, resolving");
 
             $ITEM_SET_SELECTORS
 
