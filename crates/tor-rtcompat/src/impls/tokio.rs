@@ -224,7 +224,9 @@ impl crate::traits::NetStreamProvider for TokioRuntimeHandle {
         Ok(s.into())
     }
     async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::Listener> {
-        let lis = net::TokioTcpListener::bind(*addr).await?;
+        // Use an implementation that's the same across all runtimes.
+        let lis = net::TokioTcpListener::from_std(super::tcp_listen(addr)?)?;
+
         Ok(net::TcpListener { lis })
     }
 }
