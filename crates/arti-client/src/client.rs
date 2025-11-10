@@ -512,7 +512,7 @@ impl InertTorClient {
         svc_config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<tor_hsservice::OnionService> {
         let keymgr = self.keymgr.as_ref().ok_or(ErrorDetail::KeystoreRequired {
-            action: "create onion service",
+            action: "InertTorClient create onion service",
         })?;
 
         let (state_dir, mistrust) = config.state_dir()?;
