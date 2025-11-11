@@ -1,6 +1,6 @@
 //! Module exposing the relay circuit reactor subsystem.
 //!
-//! The entry point of the reactor is [`RelayReactor::run`], which launches the
+//! The entry point of the reactor is [`Reactor::run`], which launches the
 //! reactor background tasks, and begins listening for inbound cells on the provided
 //! inbound Tor channel.
 //!
@@ -124,7 +124,7 @@ pub(crate) enum RelayCtrlCmd {
 /// The entry point of the circuit reactor subsystem.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(crate) struct RelayReactor<R: Runtime, T: HasRelayIds> {
+pub(crate) struct Reactor<R: Runtime, T: HasRelayIds> {
     /// The runtime.
     ///
     /// Used for spawning the two reactors.
@@ -169,7 +169,7 @@ pub(crate) type CircuitRxSender = mq_queue::Sender<RelayCircChanMsg, MpscSpec>;
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpec>;
 
 #[allow(unused)] // TODO(relay)
-impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
+impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
     /// Create a new circuit reactor.
     ///
     /// The reactor will send outbound messages on `channel`, receive incoming
@@ -249,7 +249,7 @@ impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
             time_provider: DynTimeProvider::new(runtime.clone()),
         };
 
-        let reactor = RelayReactor {
+        let reactor = Reactor {
             runtime,
             unique_id,
             forward: Some(forward),

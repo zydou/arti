@@ -35,12 +35,12 @@ use super::CircuitRxReceiver;
 ///
 /// Handles the "forward direction": moves cells towards the exit.
 ///
-/// Shuts downs down if an error occurs, or if either the [`RelayReactor`](super::RelayReactor)
+/// Shuts downs down if an error occurs, or if either the [`Reactor`](super::Reactor)
 /// or the [`BackwardReactor`](super::BackwardReactor) shuts down:
 ///
-///   * if `RelayReactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
+///   * if `Reactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
 ///     (we will notice this its closure in the main loop)
-///   * if `BackwardReactor` shuts down, `RelayReactor` will notice, and itself shutdown
+///   * if `BackwardReactor` shuts down, `Reactor` will notice, and itself shutdown
 ///     (as in the previous case, we will notice this because the `shutdown_tx` channel will close)
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
@@ -84,7 +84,7 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
     /// A broadcast receiver used to detect when the
-    /// [`RelayReactor`](super::RelayReactor) or
+    /// [`Reactor`](super::Reactor) or
     /// [`BackwardReactor`](super::BackwardReactor) are dropped.
     shutdown_rx: broadcast::Receiver<void::Void>,
 }

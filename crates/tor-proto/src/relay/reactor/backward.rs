@@ -41,12 +41,12 @@ use super::CircuitRxReceiver;
 /// Handles the "backward direction": moves cells towards the client,
 /// and drives the application streams.
 ///
-/// Shuts downs down if an error occurs, or if either the [`RelayReactor`](super::RelayReactor)
+/// Shuts downs down if an error occurs, or if either the [`Reactor`](super::Reactor)
 /// or the [`ForwardReactor`](super::ForwardReactor) shuts down:
 ///
-///   * if `RelayReactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
+///   * if `Reactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
 ///     (we will notice this its closure in the main loop)
-///   * if `ForwardReactor` shuts down, `RelayReactor` will notice, and itself shutdown
+///   * if `ForwardReactor` shuts down, `Reactor` will notice, and itself shutdown
 ///     (as in the previous case, we will notice this because the `shutdown_tx` channel will close)
 ///
 //
@@ -92,7 +92,7 @@ pub(super) struct BackwardReactor {
     /// for each Tor channel request.
     outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
     /// A broadcast receiver used to detect when the
-    /// [`RelayReactor`](super::RelayReactor) or
+    /// [`Reactor`](super::Reactor) or
     /// [`ForwardReactor`](super::ForwardReactor) are dropped.
     shutdown_rx: broadcast::Receiver<void::Void>,
 }
