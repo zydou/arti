@@ -113,6 +113,9 @@ pub(crate) struct StreamTarget {
 pub(crate) enum Tunnel {
     /// A client tunnel.
     Client(Arc<ClientTunnel>),
+    /// A relay tunnel.
+    #[cfg(feature = "relay")]
+    Relay(Arc<crate::relay::RelayCirc>),
 }
 
 impl StreamTarget {
@@ -160,6 +163,8 @@ impl StreamTarget {
     ) -> Result<oneshot::Receiver<Result<()>>> {
         match &self.tunnel {
             Tunnel::Client(t) => t.close_pending(self.stream_id, self.hop, message),
+            #[cfg(feature = "relay")]
+            Tunnel::Relay(t) => t.close_pending(self.stream_id, message),
         }
     }
 
@@ -182,6 +187,8 @@ impl StreamTarget {
     pub(crate) fn protocol_error(&mut self) {
         match &self.tunnel {
             Tunnel::Client(t) => t.terminate(),
+            #[cfg(feature = "relay")]
+            Tunnel::Relay(t) => t.terminate(),
         }
     }
 
@@ -195,6 +202,8 @@ impl StreamTarget {
     pub(crate) fn send_sendme(&mut self) -> Result<()> {
         match &self.tunnel {
             Tunnel::Client(t) => t.send_sendme(self.stream_id, self.hop),
+            #[cfg(feature = "relay")]
+            Tunnel::Relay(t) => t.send_sendme(self.stream_id),
         }
     }
 
@@ -212,16 +221,15 @@ impl StreamTarget {
     pub(crate) fn drain_rate_update(&mut self, rate: XonKbpsEwma) -> Result<()> {
         match &mut self.tunnel {
             Tunnel::Client(t) => t.drain_rate_update(self.stream_id, self.hop, rate),
+            #[cfg(feature = "relay")]
+            Tunnel::Relay(t) => t.drain_rate_update(self.stream_id, rate),
         }
     }
 
     /// Return a reference to the tunnel that this `StreamTarget` is using.
     #[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
-    pub(crate) fn tunnel(&self) -> &Arc<ClientTunnel> {
-        // TODO: this will need to change once we add a relay type
-        match &self.tunnel {
-            Tunnel::Client(t) => t,
-        }
+    pub(crate) fn tunnel(&self) -> &Tunnel {
+        &self.tunnel
     }
 
     /// Return the kind of relay cell in use on this `StreamTarget`.

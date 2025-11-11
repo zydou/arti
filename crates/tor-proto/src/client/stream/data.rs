@@ -593,11 +593,19 @@ impl DataStream {
         };
 
         #[cfg(feature = "stream-ctrl")]
-        let ctrl = Arc::new(ClientDataStreamCtrl {
-            tunnel: Arc::downgrade(target.tunnel()),
-            status: status.clone(),
-            _memquota: memquota.clone(),
-        });
+        let ctrl = {
+            let tunnel = match target.tunnel() {
+                crate::stream::Tunnel::Client(t) => Arc::downgrade(t),
+                #[cfg(feature = "relay")]
+                crate::stream::Tunnel::Relay(_) => panic!("created a relay tunnel in the client?!"),
+            };
+
+            Arc::new(ClientDataStreamCtrl {
+                tunnel,
+                status: status.clone(),
+                _memquota: memquota.clone(),
+            })
+        };
         let r = DataReaderInner {
             state: Some(DataReaderState::Open(DataReaderImpl {
                 s: receiver,
