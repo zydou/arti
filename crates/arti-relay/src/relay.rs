@@ -226,7 +226,8 @@ impl<R: Runtime> TorRelay<R> {
 
         // Listen for new Tor (OR) connections.
         task_handles.spawn({
-            // TODO: get address(es) from config.
+            // TODO: Get address(es) from config.
+            // See https://gitlab.torproject.org/tpo/core/arti/-/issues/2252
             let listen_addr = std::net::SocketAddrV4::new(std::net::Ipv4Addr::LOCALHOST, 8443);
             let listen_addr = std::net::SocketAddr::V4(listen_addr);
             let listener = self
@@ -238,6 +239,7 @@ impl<R: Runtime> TorRelay<R> {
             let runtime = self.runtime.clone();
             let chanmgr = Arc::clone(&self.chanmgr);
             async {
+                // TODO: Should we give all tasks a `start` method?
                 crate::tasks::listeners::or_listener(runtime, chanmgr, [listener])
                     .await
                     .context("Failed to run OR listener task")

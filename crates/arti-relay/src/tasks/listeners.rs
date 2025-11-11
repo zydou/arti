@@ -36,7 +36,12 @@ pub(crate) async fn or_listener<R: Runtime>(
         // TODO: Should we warn if the connection is from a local address? For example if the user
         // sets up a socat proxy to the OR port, I think it would still work but wouldn't work well
         // with the idea of canonical connections. But we wouldn't want this to warn when using
-        // chutney for example.
+        // chutney for example. **Edit:** This is probably fine. It might lead to extra connections
+        // between relays temporarily since one connection will be considered non-canonical, but if
+        // there is one connection that both relays consider canonical, both relays should hopefully
+        // use that channel and the other channel will be unused and eventually closed. But there
+        // are edge cases here, for example if both relays are using a proxy and the two relays will
+        // never have a single connection that both consider canonical.
         let (stream, remote_addr, local_addr) = match next {
             Ok(x) => x,
             Err(e) => {
