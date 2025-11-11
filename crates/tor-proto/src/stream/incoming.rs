@@ -3,8 +3,10 @@
 use bitvec::prelude::*;
 use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;
+use postage::watch;
 
-use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg, msg};
+use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_cell::relaycell::{RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg, msg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
@@ -16,8 +18,17 @@ use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
 use crate::{Error, Result};
 
 // TODO(relay): move these to a shared module
+use crate::HopLocation;
 use crate::client::StreamComponents;
 use crate::client::stream::DataStream;
+use crate::memquota::StreamAccount;
+use crate::stream::StreamMpscSender;
+use crate::stream::flow_ctrl::state::StreamRateLimit;
+use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
+use crate::stream::queue::StreamQueueReceiver;
+use crate::util::notify::NotifyReceiver;
+
+use std::mem::size_of;
 
 /// A `CmdChecker` that enforces invariants for inbound data streams.
 #[derive(Debug, Default)]
@@ -276,6 +287,44 @@ impl<'a> IncomingStreamRequestContext<'a> {
     pub fn request(&self) -> &'a IncomingStreamRequest {
         self.request
     }
+}
+
+/// Information about an incoming stream request.
+#[derive(Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+pub(crate) struct StreamReqInfo {
+    /// The [`IncomingStreamRequest`].
+    pub(crate) req: IncomingStreamRequest,
+    /// The ID of the stream being requested.
+    pub(crate) stream_id: StreamId,
+    /// The [`HopNum`].
+    ///
+    /// Set to `None` if we are an exit relay.
+    //
+    // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
+    // incoming stream request from two separate hops.  (There is only one that's valid.)
+    pub(crate) hop: Option<HopLocation>,
+    /// The format which must be used with this stream to encode messages.
+    #[deftly(has_memory_cost(indirect_size = "0"))]
+    pub(crate) relay_cell_format: RelayCellFormat,
+    /// A channel for receiving messages from this stream.
+    #[deftly(has_memory_cost(indirect_size = "0"))] // estimate
+    pub(crate) receiver: StreamQueueReceiver,
+    /// A channel for sending messages to be sent on this stream.
+    #[deftly(has_memory_cost(indirect_size = "size_of::<AnyRelayMsg>()"))] // estimate
+    pub(crate) msg_tx: StreamMpscSender<AnyRelayMsg>,
+    /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
+    // TODO(arti#2068): we should consider making this an `Option`
+    // the `watch::Sender` owns the indirect data
+    #[deftly(has_memory_cost(indirect_size = "0"))]
+    pub(crate) rate_limit_stream: watch::Receiver<StreamRateLimit>,
+    /// A [`Stream`](futures::Stream) that provides notifications when a new drain rate is
+    /// requested.
+    #[deftly(has_memory_cost(indirect_size = "0"))]
+    pub(crate) drain_rate_request_stream: NotifyReceiver<DrainRateRequest>,
+    /// The memory quota account to be used for this stream
+    #[deftly(has_memory_cost(indirect_size = "0"))] // estimate (it contains an Arc)
+    pub(crate) memquota: StreamAccount,
 }
 
 #[cfg(test)]

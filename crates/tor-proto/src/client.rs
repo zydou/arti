@@ -51,10 +51,10 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 
 #[cfg(feature = "hs-service")]
-use {
-    crate::client::reactor::StreamReqInfo,
-    crate::client::stream::{IncomingCmdChecker, IncomingStream},
-};
+use crate::stream::incoming::StreamReqInfo;
+
+#[cfg(feature = "hs-service")]
+use crate::client::stream::{IncomingCmdChecker, IncomingStream};
 
 #[cfg(feature = "send-control-msg")]
 use msghandler::{MsgHandler, UserMsgHandler};
