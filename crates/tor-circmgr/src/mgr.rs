@@ -343,6 +343,18 @@ impl ExpirationInfo {
             }
         }
     }
+
+    /// Return an internal error if this ExpirationInfo is not marked as long-lived.
+    fn check_long_lived(&self) -> Result<()> {
+        match self {
+            ExpirationInfo::Unused { .. } | ExpirationInfo::Dirty { .. } => Err(internal!(
+                "Tunnel was not long-lived as expected. (Expiration status: {:?})",
+                self
+            )
+            .into()),
+            ExpirationInfo::LongLived { .. } => Ok(()),
+        }
+    }
 }
 
 /// Settings to determine when circuits are expired.
@@ -732,31 +744,37 @@ impl<B: AbstractTunnelBuilder<R>, R: Runtime> TunnelList<B, R> {
     /// Expire the tunnel if appropriate.
     ///
     /// If the tunnel is still part of the map, return the next instant at which it might expire.
+    ///
+    /// Returns an error if the tunnel was present but was _not_ already marked as long-lived.
     fn update_long_lived_tunnel_last_used(
         &mut self,
         id: &<B::Tunnel as AbstractTunnel>::Id,
         now: Instant,
         params: &ExpirationParameters,
         disused_since: &tor_proto::Result<Option<Instant>>,
-    ) -> Option<Instant> {
+    ) -> crate::Result<Option<Instant>> {
         let Ok(disused_since) = disused_since else {
             // got an error looking up disused time: discard the circuit.
-            let _discard = self.take_open(id);
-            return None;
+            let discard = self.take_open(id);
+            if let Some(ent) = discard {
+                ent.expiration.check_long_lived()?;
+            }
+            return Ok(None);
         };
         let Some(tun) = self.open_tunnels.get_mut(id) else {
             // Circuit isn't there. Return.
-            return None;
+            return Ok(None);
         };
+        tun.expiration.check_long_lived()?;
         let last_known_in_use_at = disused_since.unwrap_or(now);
 
         tun.expiration.mark_used(last_known_in_use_at, true);
         match tun.should_expire(now, params) {
             ShouldExpire::Now | ShouldExpire::PossiblyNow => {
                 let _discard = self.take_open(id);
-                None
+                Ok(None)
             }
-            ShouldExpire::NotBefore(instant) => Some(instant),
+            ShouldExpire::NotBefore(instant) => Ok(Some(instant)),
         }
     }
 
@@ -1622,18 +1640,20 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         {
             let mut list = self.tunnels.lock().expect("poisoned lock");
             for (id, disused_since) in last_known_usage {
-                let may_expire = list.update_long_lived_tunnel_last_used(
+                match list.update_long_lived_tunnel_last_used(
                     &id,
                     now,
                     &expiration_params,
                     &disused_since,
-                );
-
-                if let Some(may_expire) = may_expire {
-                    earliest_expiration = match earliest_expiration {
-                        Some(exp) if exp < may_expire => Some(exp),
-                        _ => Some(may_expire),
-                    };
+                ) {
+                    Ok(Some(may_expire)) => {
+                        earliest_expiration = match earliest_expiration {
+                            Some(exp) if exp < may_expire => Some(exp),
+                            _ => Some(may_expire),
+                        };
+                    }
+                    Ok(None) => {}
+                    Err(e) => warn_report!(e, "Error while updating status on tunnel {:?}", id),
                 }
             }
         }
@@ -1649,7 +1669,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         &self,
         tun_id: &<B::Tunnel as AbstractTunnel>::Id,
         now: Instant,
-    ) -> Option<Instant> {
+    ) -> Result<Option<Instant>> {
         let expiration_params = self.expiration_params();
 
         // With the lock, call TunneList::tunnel_should_expire, and expire it (or don't)
@@ -1657,15 +1677,20 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
         let tunnel = {
             let mut list: sync::MutexGuard<'_, TunnelList<B, R>> =
                 self.tunnels.lock().expect("poisoned lock");
-            let should_expire = list.tunnel_should_expire(tun_id, now, &expiration_params)?;
+            let Some(should_expire) = list.tunnel_should_expire(tun_id, now, &expiration_params)
+            else {
+                return Ok(None);
+            };
             match should_expire {
                 ShouldExpire::Now => {
                     let _discard = list.take_open(tun_id);
-                    return None;
+                    return Ok(None);
                 }
-                ShouldExpire::NotBefore(t) => return Some(t),
+                ShouldExpire::NotBefore(t) => return Ok(Some(t)),
                 ShouldExpire::PossiblyNow => {
-                    let tunnel_ent = list.get_open_mut(tun_id)?;
+                    let Some(tunnel_ent) = list.get_open_mut(tun_id) else {
+                        return Ok(None);
+                    };
                     Arc::clone(&tunnel_ent.tunnel)
                 }
             }
@@ -1769,9 +1794,17 @@ fn spawn_expiration_task<B, R>(
                 return;
             };
             match cm.consider_expiring_tunnel(&circ_id, exp_inst).await {
-                None => return,
-                Some(when) => {
+                Ok(None) => return,
+                Ok(Some(when)) => {
                     duration = when.saturating_duration_since(rt_copy.now());
+                }
+                Err(e) => {
+                    warn_report!(
+                        e,
+                        "Error while considering expiration for tunnel {:?}",
+                        circ_id
+                    );
+                    return;
                 }
             }
         }
