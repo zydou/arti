@@ -74,7 +74,7 @@ use tracing::{debug, trace};
 
 use tor_cell::chancell::CircId;
 use tor_cell::relaycell::RelayCellDecoder;
-use tor_error::internal;
+use tor_error::{debug_report, internal};
 use tor_linkspec::HasRelayIds;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tor_rtcompat::{DynTimeProvider, Runtime};
@@ -267,7 +267,7 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
     ///
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
-    pub(crate) async fn run(mut self) -> StdResult<(), ReactorError> {
+    pub(crate) async fn run(mut self) -> crate::Result<()> {
         let unique_id = self.unique_id;
 
         debug!(
@@ -275,14 +275,21 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
             "Running relay circuit reactor",
         );
 
-        let res = self.run_inner().await;
+        let result = match self.run_inner().await {
+            Ok(()) => return Err(internal!("reactor shut down without an error?!").into()),
+            Err(ReactorError::Shutdown) => Ok(()),
+            Err(ReactorError::Err(e)) => Err(e),
+        };
 
-        debug!(
-            circ_id = %unique_id,
-            "Relay circuit reactor shutting down",
-        );
+        // Log that the reactor stopped, possibly with the associated error as a report.
+        // May log at a higher level depending on the error kind.
+        const MSG: &str = "Relay circuit reactor shut down";
+        match &result {
+            Ok(()) => trace!(circ_id = %unique_id, "{MSG}"),
+            Err(e) => debug_report!(e, circ_id = %unique_id, "{MSG}"),
+        }
 
-        res
+        result
     }
 
     /// Helper for [`run`](Self::run).
