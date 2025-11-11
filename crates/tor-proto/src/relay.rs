@@ -15,6 +15,9 @@ pub mod channel_provider;
 pub(crate) mod reactor;
 
 use futures::channel::mpsc;
+
+use tor_rtcompat::DynTimeProvider;
+
 use reactor::{RelayCtrlCmd, RelayCtrlMsg};
 
 /// A handle for interacting with a relay circuit.
@@ -24,6 +27,8 @@ pub struct RelayCirc {
     control: mpsc::UnboundedSender<RelayCtrlMsg>,
     /// Sender for reactor control commands.
     command: mpsc::UnboundedSender<RelayCtrlCmd>,
+    /// The time provider.
+    time_provider: DynTimeProvider,
 }
 
 impl RelayCirc {

@@ -77,7 +77,7 @@ use tor_cell::relaycell::RelayCellDecoder;
 use tor_error::internal;
 use tor_linkspec::HasRelayIds;
 use tor_memquota::mq_queue::{self, MpscSpec};
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use crate::channel::Channel;
 use crate::circuit::UniqId;
@@ -246,6 +246,7 @@ impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
         let handle = RelayCirc {
             control: control_tx,
             command: command_tx,
+            time_provider: DynTimeProvider::new(runtime.clone()),
         };
 
         let reactor = RelayReactor {
