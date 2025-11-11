@@ -1,6 +1,6 @@
-//! Building support for the network document meta-format
+//! Support for encoding the network document meta-format
 //!
-//! Implements building documents according to
+//! Implements writing documents according to
 //! [dir-spec.txt](https://spec.torproject.org/dir-spec).
 //! section 1.2 and 1.3.
 //!

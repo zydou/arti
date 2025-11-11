@@ -15,6 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 full = [
+    "encode",
     "hs-client",
     "hs-service",
     "routerdesc",
@@ -46,6 +47,8 @@ experimental = [
 # Enable code to build the objects that represent different network documents.
 build_docs = ["rand", "__is_experimental"]
 
+encode = []
+
 # Enable the "router descriptor" document type, which is needed by relays and
 # bridge clients.
 routerdesc = []
@@ -67,7 +70,7 @@ parse2 = ["__is_experimental"]
 # TODO hs: mark these as part of "full" once they are done and stable.
 hs-dir = ["hs-common", "__is_experimental"]
 hs-client = ["hs-common"]
-hs-service = ["hs-common", "tor-cert/encode"]
+hs-service = ["hs-common", "encode", "tor-cert/encode"]
 hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
 hsdesc-inner-docs = [

@@ -5,13 +5,13 @@
 //! hidden service descriptors.
 
 use crate::NetdocBuilder;
-use crate::build::ItemArgument;
-use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::IntroAuthType;
 use crate::doc::hsdesc::IntroPointDesc;
 use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::doc::hsdesc::pow::PowParams;
 use crate::doc::hsdesc::pow::v1::PowParamsV1;
+use crate::encode::ItemArgument;
+use crate::encode::NetdocEncoder;
 use crate::types::misc::Iso8601TimeNoSp;
 
 use rand::CryptoRng;

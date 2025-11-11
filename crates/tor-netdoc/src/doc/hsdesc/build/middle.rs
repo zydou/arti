@@ -5,12 +5,12 @@
 //! hidden service descriptors.
 
 use crate::NetdocBuilder;
-use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::build::ClientAuth;
 use crate::doc::hsdesc::desc_enc::{
     HS_DESC_CLIENT_ID_LEN, HS_DESC_ENC_NONCE_LEN, HS_DESC_IV_LEN, build_descriptor_cookie_key,
 };
 use crate::doc::hsdesc::middle::{AuthClient, HS_DESC_AUTH_TYPE, HsMiddleKwd};
+use crate::encode::NetdocEncoder;
 
 use tor_bytes::EncodeError;
 use tor_hscrypto::Subcredential;

@@ -38,6 +38,8 @@ some relays cache and serve.
 
 `hs-service`: enable support for generating hidden service descriptors.
 
+`encode`: enable support for encoding documents, in general.
+
 There are also other features includijng experimental ones
 which aren't documented here and shouldn't be relied on.
 
