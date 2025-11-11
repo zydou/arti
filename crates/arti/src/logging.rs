@@ -68,7 +68,7 @@ pub struct LoggingConfig {
     #[builder_field_attr(serde(default))]
     tokio_console: TokioConsoleConfig,
 
-    /// Configuration for the RPC subsystem (disabled)
+    /// Configuration for tokio-console (disabled)
     //
     // (See comments on crate::cfg::ArtiConfig::rpc for an explanation of this pattern.)
     #[cfg(not(feature = "tokio-console"))]
