@@ -8,6 +8,8 @@ use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
 use futures::future::Shared;
 use oneshot_fused_workaround as oneshot;
+#[cfg(feature = "relay")]
+use safelog::Sensitive;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
@@ -90,7 +92,7 @@ pub(crate) trait AbstractChannelFactory {
     #[cfg(feature = "relay")]
     async fn build_channel_using_incoming(
         &self,
-        peer: std::net::SocketAddr,
+        peer: Sensitive<std::net::SocketAddr>,
         stream: Self::Stream,
         memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>>;
@@ -163,7 +165,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     #[cfg(feature = "relay")]
     pub(crate) async fn handle_incoming(
         &self,
-        src: std::net::SocketAddr,
+        src: Sensitive<std::net::SocketAddr>,
         stream: CF::Stream,
     ) -> Result<Arc<CF::Channel>> {
         let chan_builder = self.channels.builder();
@@ -608,7 +610,7 @@ mod test {
         #[cfg(feature = "relay")]
         async fn build_channel_using_incoming(
             &self,
-            _peer: std::net::SocketAddr,
+            _peer: Sensitive<std::net::SocketAddr>,
             _stream: Self::Stream,
             _memquota: ChannelAccount,
         ) -> Result<Arc<Self::Channel>> {

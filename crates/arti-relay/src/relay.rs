@@ -166,7 +166,7 @@ impl InertTorRelay {
 #[derive(Clone)]
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
-    _runtime: R,
+    runtime: R,
 
     /// Memory quota tracker.
     #[expect(unused)] // TODO RELAY remove
@@ -200,7 +200,7 @@ impl<R: Runtime> TorRelay<R> {
         // TODO: missing the actual bootstrapping
 
         Ok(Self {
-            _runtime: runtime,
+            runtime,
             memquota,
             chanmgr,
             keymgr: inert.keymgr,
@@ -215,8 +215,36 @@ impl<R: Runtime> TorRelay<R> {
         let mut task_handles = JoinSet::new();
 
         // Channel housekeeping task.
-        let mut t = crate::tasks::ChannelHouseKeepingTask::new(&self.chanmgr);
-        task_handles.spawn(async move { t.start().await });
+        task_handles.spawn({
+            let mut t = crate::tasks::ChannelHouseKeepingTask::new(&self.chanmgr);
+            async move {
+                t.start()
+                    .await
+                    .context("Failed to run channel house keeping task")
+            }
+        });
+
+        // Listen for new Tor (OR) connections.
+        task_handles.spawn({
+            // TODO: Get address(es) from config.
+            // See https://gitlab.torproject.org/tpo/core/arti/-/issues/2252
+            let listen_addr = std::net::SocketAddrV4::new(std::net::Ipv4Addr::LOCALHOST, 8443);
+            let listen_addr = std::net::SocketAddr::V4(listen_addr);
+            let listener = self
+                .runtime
+                .listen(&listen_addr)
+                .await
+                .with_context(|| format!("Failed to listen at address {listen_addr}"))?;
+
+            let runtime = self.runtime.clone();
+            let chanmgr = Arc::clone(&self.chanmgr);
+            async {
+                // TODO: Should we give all tasks a `start` method?
+                crate::tasks::listeners::or_listener(runtime, chanmgr, [listener])
+                    .await
+                    .context("Failed to run OR listener task")
+            }
+        });
 
         // TODO: More tasks will be spawned here.
 
@@ -225,9 +253,9 @@ impl<R: Runtime> TorRelay<R> {
         let void = task_handles
             .join_next()
             .await
-            .context("Task set is empty")?
-            .context("Task join failed")?
-            .context("Task stopped with error")?;
+            .context("Relay task set is empty")?
+            .context("Relay task join failed")?
+            .context("Relay task stopped unexpectedly")?;
 
         // We can never get here since a `Void` cannot be constructed.
         void::unreachable(void);
