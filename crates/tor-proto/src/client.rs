@@ -315,7 +315,7 @@ impl ClientTunnel {
             // See also:
             // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3002#note_3200937
             let target = StreamTarget {
-                tunnel: tunnel.clone(),
+                tunnel: Tunnel::Client(Arc::clone(&tunnel)),
                 tx: msg_tx,
                 hop: Some(allowed_hop_loc),
                 stream_id,
@@ -399,7 +399,7 @@ impl ClientTunnel {
         let (stream_id, hop, relay_cell_format) = rx.await.map_err(|_| Error::CircuitClosed)??;
 
         let target = StreamTarget {
-            tunnel: self.clone(),
+            tunnel: Tunnel::Client(self.clone()),
             tx: msg_tx,
             hop: Some(hop),
             stream_id,
@@ -799,6 +799,67 @@ impl HopLocation {
     }
 }
 
+impl ClientTunnel {
+    /// Close the pending stream that owns this StreamTarget, delivering the specified
+    /// END message (if any)
+    ///
+    /// See [`StreamTarget::close_pending`].
+    #[cfg(feature = "hs-service")]
+    pub(crate) fn close_pending(
+        &self,
+        stream_id: StreamId,
+        hop: Option<HopLocation>,
+        message: crate::stream::CloseStreamBehavior,
+    ) -> Result<oneshot::Receiver<Result<()>>> {
+        let (tx, rx) = oneshot::channel();
+
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::ClosePendingStream {
+                stream_id,
+                hop: hop.expect("missing stream hop for client tunnel"),
+                message,
+                done: tx,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        Ok(rx)
+    }
+
+    /// Request to send a SENDME cell for this stream.
+    ///
+    /// See [`StreamTarget::send_sendme`].
+    pub(crate) fn send_sendme(&self, stream_id: StreamId, hop: Option<HopLocation>) -> Result<()> {
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::FlowCtrlUpdate {
+                msg: FlowCtrlMsg::Sendme,
+                stream_id,
+                hop: hop.expect("missing stream hop for client tunnel"),
+            })
+            .map_err(|_| Error::CircuitClosed)
+    }
+
+    /// Inform the circuit reactor that there has been a change in the drain rate for this stream.
+    ///
+    /// See [`StreamTarget::drain_rate_update`].
+    pub(crate) fn drain_rate_update(
+        &self,
+        stream_id: StreamId,
+        hop: Option<HopLocation>,
+        rate: XonKbpsEwma,
+    ) -> Result<()> {
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::FlowCtrlUpdate {
+                msg: FlowCtrlMsg::Xon(rate),
+                stream_id,
+                hop: hop.expect("missing stream hop for client tunnel"),
+            })
+            .map_err(|_| Error::CircuitClosed)
+    }
+}
+
 /// Internal handle, used to implement a stream on a particular tunnel.
 ///
 /// The reader and the writer for a stream should hold a `StreamTarget` for the stream;
@@ -812,21 +873,26 @@ impl HopLocation {
 #[derive(Clone, Debug)]
 pub(crate) struct StreamTarget {
     /// Which hop of the circuit this stream is with.
-    hop: Option<HopLocation>,
+    pub(crate) hop: Option<HopLocation>,
     /// Reactor ID for this stream.
-    stream_id: StreamId,
+    pub(crate) stream_id: StreamId,
     /// Encoding to use for relay cells sent on this stream.
     ///
     /// This is mostly irrelevant, except when deciding
     /// how many bytes we can pack in a DATA message.
-    relay_cell_format: RelayCellFormat,
+    pub(crate) relay_cell_format: RelayCellFormat,
     /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
     // TODO(arti#2068): we should consider making this an `Option`
-    rate_limit_stream: watch::Receiver<StreamRateLimit>,
+    pub(crate) rate_limit_stream: watch::Receiver<StreamRateLimit>,
     /// Channel to send cells down.
-    tx: StreamMpscSender<AnyRelayMsg>,
+    pub(crate) tx: StreamMpscSender<AnyRelayMsg>,
     /// Reference to the tunnel that this stream is on.
-    tunnel: Arc<ClientTunnel>,
+    pub(crate) tunnel: Tunnel,
+}
+
+#[derive(Debug, Clone, derive_more::From)]
+pub(crate) enum Tunnel {
+    Client(Arc<ClientTunnel>),
 }
 
 impl StreamTarget {
@@ -872,20 +938,9 @@ impl StreamTarget {
         &self,
         message: crate::stream::CloseStreamBehavior,
     ) -> Result<oneshot::Receiver<Result<()>>> {
-        let (tx, rx) = oneshot::channel();
-
-        self.tunnel
-            .circ
-            .control
-            .unbounded_send(CtrlMsg::ClosePendingStream {
-                stream_id: self.stream_id,
-                hop: self.hop.expect("client stream has no target hop?!"),
-                message,
-                done: tx,
-            })
-            .map_err(|_| Error::CircuitClosed)?;
-
-        Ok(rx)
+        match &self.tunnel {
+            Tunnel::Client(t) => t.close_pending(self.stream_id, self.hop, message),
+        }
     }
 
     /// Queue a "close" for the stream corresponding to this StreamTarget.
@@ -905,7 +960,9 @@ impl StreamTarget {
     /// Called when a circuit-level protocol error has occurred and the
     /// tunnel needs to shut down.
     pub(crate) fn protocol_error(&mut self) {
-        self.tunnel.terminate();
+        match &self.tunnel {
+            Tunnel::Client(t) => t.terminate(),
+        }
     }
 
     /// Request to send a SENDME cell for this stream.
@@ -916,15 +973,9 @@ impl StreamTarget {
     /// This means that if the circuit reactor is unable to send the SENDME, we are not notified of
     /// this here and an error will not be returned.
     pub(crate) fn send_sendme(&mut self) -> Result<()> {
-        self.tunnel
-            .circ
-            .control
-            .unbounded_send(CtrlMsg::FlowCtrlUpdate {
-                msg: FlowCtrlMsg::Sendme,
-                stream_id: self.stream_id,
-                hop: self.hop.expect("client stream has no target hop?!"),
-            })
-            .map_err(|_| Error::CircuitClosed)
+        match &self.tunnel {
+            Tunnel::Client(t) => t.send_sendme(self.stream_id, self.hop),
+        }
     }
 
     /// Inform the circuit reactor that there has been a change in the drain rate for this stream.
@@ -939,21 +990,18 @@ impl StreamTarget {
     /// but it does not block or wait for a response from the reactor.
     /// An error is only returned if we are unable to send the update.
     pub(crate) fn drain_rate_update(&mut self, rate: XonKbpsEwma) -> Result<()> {
-        self.tunnel
-            .circ
-            .control
-            .unbounded_send(CtrlMsg::FlowCtrlUpdate {
-                msg: FlowCtrlMsg::Xon(rate),
-                stream_id: self.stream_id,
-                hop: self.hop.expect("client stream has no target hop?!"),
-            })
-            .map_err(|_| Error::CircuitClosed)
+        match &mut self.tunnel {
+            Tunnel::Client(t) => t.drain_rate_update(self.stream_id, self.hop, rate),
+        }
     }
 
     /// Return a reference to the tunnel that this `StreamTarget` is using.
     #[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
     pub(crate) fn tunnel(&self) -> &Arc<ClientTunnel> {
-        &self.tunnel
+        // TODO: this will need to change once we add a relay type
+        match &self.tunnel {
+            Tunnel::Client(t) => t,
+        }
     }
 
     /// Return the kind of relay cell in use on this `StreamTarget`.
