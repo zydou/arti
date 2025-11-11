@@ -317,7 +317,7 @@ impl ClientTunnel {
             let target = StreamTarget {
                 tunnel: tunnel.clone(),
                 tx: msg_tx,
-                hop: allowed_hop_loc,
+                hop: Some(allowed_hop_loc),
                 stream_id,
                 relay_cell_format,
                 rate_limit_stream,
@@ -401,7 +401,7 @@ impl ClientTunnel {
         let target = StreamTarget {
             tunnel: self.clone(),
             tx: msg_tx,
-            hop,
+            hop: Some(hop),
             stream_id,
             relay_cell_format,
             rate_limit_stream: rate_limit_rx,
@@ -812,7 +812,7 @@ impl HopLocation {
 #[derive(Clone, Debug)]
 pub(crate) struct StreamTarget {
     /// Which hop of the circuit this stream is with.
-    hop: HopLocation,
+    hop: Option<HopLocation>,
     /// Reactor ID for this stream.
     stream_id: StreamId,
     /// Encoding to use for relay cells sent on this stream.
@@ -879,7 +879,7 @@ impl StreamTarget {
             .control
             .unbounded_send(CtrlMsg::ClosePendingStream {
                 stream_id: self.stream_id,
-                hop: self.hop,
+                hop: self.hop.expect("client stream has no target hop?!"),
                 message,
                 done: tx,
             })
@@ -922,7 +922,7 @@ impl StreamTarget {
             .unbounded_send(CtrlMsg::FlowCtrlUpdate {
                 msg: FlowCtrlMsg::Sendme,
                 stream_id: self.stream_id,
-                hop: self.hop,
+                hop: self.hop.expect("client stream has no target hop?!"),
             })
             .map_err(|_| Error::CircuitClosed)
     }
@@ -945,7 +945,7 @@ impl StreamTarget {
             .unbounded_send(CtrlMsg::FlowCtrlUpdate {
                 msg: FlowCtrlMsg::Xon(rate),
                 stream_id: self.stream_id,
-                hop: self.hop,
+                hop: self.hop.expect("client stream has no target hop?!"),
             })
             .map_err(|_| Error::CircuitClosed)
     }
