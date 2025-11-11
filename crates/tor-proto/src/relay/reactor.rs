@@ -73,7 +73,7 @@ use postage::broadcast;
 use tracing::{debug, trace};
 
 use tor_cell::chancell::CircId;
-use tor_cell::relaycell::RelayCellDecoder;
+use tor_cell::relaycell::{RelayCellDecoder, RelayCmd};
 use tor_error::{debug_report, internal};
 use tor_linkspec::HasRelayIds;
 use tor_memquota::mq_queue::{self, MpscSpec};
@@ -83,6 +83,7 @@ use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopInbound, CircHopOutbound, HopSettings};
+use crate::client::stream::IncomingStreamRequestFilter;
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
@@ -168,6 +169,14 @@ pub(crate) type CircuitRxSender = mq_queue::Sender<RelayCircChanMsg, MpscSpec>;
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpec>;
 
+/// Configuration for incoming stream requests.
+pub(super) struct IncomingStreamConfig<'a> {
+    /// The stream-initiating commands (BEGIN, RESOLVE, etc.) allowed on this circuit.
+    allow_commands: &'a [RelayCmd],
+    /// A filter applied to all incoming stream requests
+    filter: Box<dyn IncomingStreamRequestFilter>,
+}
+
 #[allow(unused)] // TODO(relay)
 impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
     /// Create a new circuit reactor.
@@ -179,7 +188,7 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
     /// The internal unique identifier for this circuit will be `unique_id`.
     #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     #[allow(clippy::too_many_arguments)] // TODO
-    pub(super) fn new(
+    pub(super) fn new<'a>(
         runtime: R,
         channel: Arc<Channel>,
         circ_id: CircId,
@@ -189,6 +198,7 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         settings: &HopSettings,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
+        incoming: IncomingStreamConfig<'a>,
         memquota: CircuitAccount,
     ) -> (Self, RelayCirc) {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
