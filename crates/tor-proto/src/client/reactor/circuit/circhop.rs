@@ -233,9 +233,6 @@ pub(crate) struct CircHop {
     /// This object is also in charge of handling circuit level SENDME logic for this hop.
     ccontrol: CongestionControl,
     /// Flow control parameters for new streams.
-    // TODO: It's unfortunate that all circuit hops need to hold on to this when they're likely the
-    // same for all circuits. It would be nice if this could be in an `Arc`, and each circuit just
-    // holds a reference to this `Arc`.
     flow_ctrl_params: Arc<FlowCtrlParameters>,
     /// Decodes relay cells received from this hop.
     inbound: RelayCellDecoder,
