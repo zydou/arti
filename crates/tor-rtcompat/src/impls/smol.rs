@@ -10,6 +10,7 @@ pub(crate) mod net {
     use futures::future::Future;
     use futures::stream::Stream;
     use paste::paste;
+    use smol::Async;
     #[cfg(unix)]
     use smol::net::unix::{UnixListener, UnixStream};
     use smol::net::{TcpListener, TcpStream, UdpSocket as SmolUdpSocket};
@@ -109,7 +110,11 @@ pub(crate) mod net {
         }
 
         async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
-            TcpListener::bind(addr).await
+            // Use an implementation that's the same across all runtimes.
+            // The socket is already non-blocking, so `Async` doesn't need to set as non-blocking
+            // again. If it *were* to be blocking, then I/O operations would block in async
+            // contexts, which would lead to deadlocks.
+            Ok(Async::new_nonblocking(impls::tcp_listen(addr)?)?.into())
         }
     }
 

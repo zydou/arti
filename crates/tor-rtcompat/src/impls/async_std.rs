@@ -116,7 +116,8 @@ mod net {
             TcpStream::connect(addr).await
         }
         async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
-            TcpListener::bind(*addr).await
+            // Use an implementation that's the same across all runtimes.
+            Ok(impls::tcp_listen(addr)?.into())
         }
     }
 
