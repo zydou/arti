@@ -1,7 +1,8 @@
 //! Types and functions to configure a Tor Relay.
 //!
-//! NOTE: At the moment, only StorageConfig is implemented but as we ramp up arti relay
-//! implementation, more configurations will show up.
+//! TODO: It would be nice to remove the builder aspect of these config objects, as we don't need
+//! them for arti-relay. But I don't think we can do so while still using tor-config. See:
+//! https://gitlab.torproject.org/tpo/core/arti/-/issues/2253
 
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -98,11 +99,8 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 
 /// A configuration used by a TorRelay.
 ///
-/// Most users will create a TorRelayConfig by running
-/// [`TorRelayConfig::default`].
-///
-/// Finally, you can get fine-grained control over the members of a
-/// TorRelayConfig using [`TorRelayConfigBuilder`].
+/// This is a builder so that it works with tor-config.
+/// We don't expect to ever use it as a builder since we don't provide this as a public rust API.
 #[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Serialize, Deserialize, Debug))]
