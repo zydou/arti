@@ -86,6 +86,9 @@ const LISTEN_BACKLOG: i32 = u16::MAX as i32;
 
 /// Open a listening TCP socket.
 ///
+/// The socket will be non-blocking, and the socket handle will be close-on-exec/non-inheritable.
+/// Other socket options may also be set depending on the socket type and platform.
+///
 /// Historically we relied on the runtime to create a listening socket, but we need some specific
 /// socket options set, and not all runtimes will behave the same. It's better for us to create the
 /// socket with the options we need and with consistent behaviour across all runtimes. For example

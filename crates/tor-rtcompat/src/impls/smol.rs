@@ -112,7 +112,8 @@ pub(crate) mod net {
         async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
             // Use an implementation that's the same across all runtimes.
             // The socket is already non-blocking, so `Async` doesn't need to set as non-blocking
-            // again.
+            // again. If it *were* to be blocking, then I/O operations would block in async
+            // contexts, which would lead to deadlocks.
             Ok(Async::new_nonblocking(impls::tcp_listen(addr)?)?.into())
         }
     }
