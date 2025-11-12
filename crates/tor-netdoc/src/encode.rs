@@ -340,6 +340,60 @@ impl Drop for ItemEncoder<'_> {
     }
 }
 
+/// Ordering, to be used when encoding network documents
+///
+/// Implemented for anything `Ord`.
+///
+/// Can also be implemented manually, for if a type cannot be `Ord`
+/// (perhaps for trait coherence reasons).
+pub trait EncodeOrd {
+    /// Compare `self` and `other`
+    ///
+    /// As `Ord::cmp`.
+    fn encode_cmp(&self, other: &Self) -> cmp::Ordering;
+}
+impl<T: Ord> EncodeOrd for T {
+    fn encode_cmp(&self, other: &Self) -> cmp::Ordering {
+        self.cmp(other)
+    }
+}
+
+/// Documents (or sub-documents) that can be encoded in the netdoc metaformat
+pub trait NetdocEncodable {
+    /// Append the document onto `out`
+    fn encode_unsigned(&self, out: &mut NetdocEncoder) -> Result<(), Bug>;
+}
+
+/// Collections of fields that can be encoded in the netdoc metaformat
+///
+/// Whole documents have structure; a `NetdocEncodableFields` does not.
+pub trait NetdocEncodableFields {
+    /// Append the document onto `out`
+    fn encode_fields(&self, out: &mut NetdocEncoder) -> Result<(), Bug>;
+}
+
+/// Items that can be encoded in network documents
+pub trait ItemValueEncodable {
+    /// Write the item's arguments, and any object, onto `out`
+    ///
+    /// `out` will have been freshly returned from [`NetdocEncoder::item`].
+    fn write_item_value_onto(&self, out: ItemEncoder) -> Result<(), Bug>;
+}
+
+/// An Object value that be encoded into a netdoc
+pub trait ItemObjectEncodable {
+    /// The label (keyword(s) in `BEGIN` and `END`)
+    fn label(&self) -> &str;
+
+    /// Represent the actual value as bytes.
+    ///
+    /// The caller, not the object, is responsible for base64 encoding.
+    //
+    // This is not a tor_bytes::Writeable supertrait because tor_bytes's writer argument
+    // is generic, which prevents many deisrable manipulations of an `impl Writeable`.
+    fn write_object_onto(&self, b: &mut Vec<u8>) -> Result<(), Bug>;
+}
+
 /// Builders for network documents.
 ///
 /// This trait is a bit weird, because its `Self` type must contain the *private* keys
@@ -357,6 +411,51 @@ pub trait NetdocBuilder {
     /// Build the document into textual form.
     fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError>;
 }
+
+impl ItemValueEncodable for Void {
+    fn write_item_value_onto(&self, _out: ItemEncoder) -> Result<(), Bug> {
+        void::unreachable(*self)
+    }
+}
+
+impl ItemObjectEncodable for Void {
+    fn label(&self) -> &str {
+        void::unreachable(*self)
+    }
+    fn write_object_onto(&self, _: &mut Vec<u8>) -> Result<(), Bug> {
+        void::unreachable(*self)
+    }
+}
+
+/// implement [`ItemValueEncodable`] for a particular tuple size
+macro_rules! item_value_encodable_for_tuple {
+    { $($i:literal)* } => { paste! {
+        impl< $( [<T$i>]: ItemArgument, )* > ItemValueEncodable for ( $( [<T$i>], )* ) {
+            fn write_item_value_onto(
+                &self,
+                #[allow(unused)]
+                mut out: ItemEncoder,
+            ) -> Result<(), Bug> {
+                $(
+                    <[<T$i>] as ItemArgument>::write_arg_onto(&self.$i, &mut out)?;
+                )*
+                Ok(())
+            }
+        }
+    } }
+}
+
+item_value_encodable_for_tuple! {}
+item_value_encodable_for_tuple! { 0 }
+item_value_encodable_for_tuple! { 0 1 }
+item_value_encodable_for_tuple! { 0 1 2 }
+item_value_encodable_for_tuple! { 0 1 2 3 }
+item_value_encodable_for_tuple! { 0 1 2 3 4 }
+item_value_encodable_for_tuple! { 0 1 2 3 4 5 }
+item_value_encodable_for_tuple! { 0 1 2 3 4 5 6 }
+item_value_encodable_for_tuple! { 0 1 2 3 4 5 6 7 }
+item_value_encodable_for_tuple! { 0 1 2 3 4 5 6 7 8 }
+item_value_encodable_for_tuple! { 0 1 2 3 4 5 6 7 8 9 }
 
 #[cfg(test)]
 mod test {
