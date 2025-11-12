@@ -551,6 +551,12 @@
 #
 #    [onion_services."allium-cepa"]
 
+# Whether this service should be started. When this option is:
+#   * unset or set to true, the service will run with `arti proxy`.
+#   * set to false, the service will not run.
+#
+#    enabled = true
+
 # A description of what to do with incoming connections to different ports.
 # This is given as a list of rules; the first matching rule applies.
 #

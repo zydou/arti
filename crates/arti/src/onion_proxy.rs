@@ -175,13 +175,25 @@ struct Proxy {
 impl Proxy {
     /// Create and launch a new onion service proxy, using a given `client`,
     /// to handle connections according to `config`.
+    ///
+    /// Returns `Ok(None)` if the service specified is disabled in the config.
     pub(crate) fn launch_new<R: Runtime>(
         client: &arti_client::TorClient<R>,
         config: OnionServiceProxyConfig,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<Option<Self>> {
         let OnionServiceProxyConfig { svc_cfg, proxy_cfg } = config;
         let nickname = svc_cfg.nickname().clone();
-        let (svc, request_stream) = client.launch_onion_service(svc_cfg)?;
+
+        let (svc, request_stream) = match client.launch_onion_service(svc_cfg)? {
+            Some(running_service) => running_service,
+            None => {
+                debug!(
+                    "Onion service {} didn't start (disabled in config)",
+                    nickname
+                );
+                return Ok(None);
+            }
+        };
         let proxy = OnionServiceReverseProxy::new(proxy_cfg);
 
         {
@@ -215,7 +227,7 @@ impl Proxy {
             })?;
         }
 
-        Ok(Proxy { svc, proxy })
+        Ok(Some(Proxy { svc, proxy }))
     }
 
     /// Reconfigure this proxy, using the new configuration `config` and the
@@ -264,7 +276,14 @@ impl<R: Runtime> ProxySet<R> {
     ) -> anyhow::Result<Self> {
         let proxies: BTreeMap<_, _> = config_list
             .into_iter()
-            .map(|(nickname, cfg)| Ok((nickname, Proxy::launch_new(client, cfg)?)))
+            .filter_map(|(nickname, cfg)| {
+                // Filter out services which are disabled in the config
+                match Proxy::launch_new(client, cfg) {
+                    Ok(Some(running_service)) => Some(Ok((nickname, running_service))),
+                    Err(error) => Some(Err(error)),
+                    Ok(None) => None,
+                }
+            })
             .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
 
         Ok(Self {
@@ -307,8 +326,14 @@ impl<R: Runtime> ProxySet<R> {
                     // We do not have a proxy by this name, so we try to launch
                     // one.
                     match Proxy::launch_new(&self.client, cfg) {
-                        Ok(new_proxy) => {
+                        Ok(Some(new_proxy)) => {
                             ent.insert(new_proxy);
+                        }
+                        Ok(None) => {
+                            debug!(
+                                "Onion service {} didn't start (disabled in config)",
+                                ent.key()
+                            );
                         }
                         Err(err) => {
                             warn_report!(err, "Unable to launch onion service {}", ent.key());

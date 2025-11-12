@@ -31,6 +31,11 @@ pub struct OnionServiceConfig {
     #[deftly(publisher_view)]
     pub(crate) nickname: HsNickname,
 
+    /// If true, this service will be started. It should be available to
+    /// commands that don't require it to start regardless.
+    #[builder(default = "true")]
+    pub(crate) enabled: bool,
+
     /// Number of intro points; defaults to 3; max 20.
     #[builder(default = "DEFAULT_NUM_INTRO_POINTS")]
     pub(crate) num_intro_points: u8,
@@ -214,6 +219,10 @@ impl OnionServiceConfig {
 
         fields! {
             nickname: unchangeable,
+
+            // TODO: allow starting/stopping onion services while the client is
+            // running
+            enabled: unchangeable,
 
             // IPT manager will respond by adding or removing IPTs as desired.
             // (Old IPTs are not proactively removed, but they will not be replaced

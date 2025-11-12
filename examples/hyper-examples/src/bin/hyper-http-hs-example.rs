@@ -74,7 +74,13 @@ async fn main() -> Result<()> {
         .nickname("allium-ampeloprasum".parse().unwrap())
         .build()
         .unwrap();
-    let (service, request_stream) = client.launch_onion_service(svc_cfg)?;
+    let (service, request_stream) = match client.launch_onion_service(svc_cfg)? {
+        Some(running_service) => running_service,
+        None => {
+            eprintln!("[+] Onion service not launched due to being disabled in config.");
+            return Ok(());
+        }
+    };
     eprintln!(
         "[+] Onion address: {}",
         service
