@@ -195,7 +195,7 @@ pub struct UnexpectedArgument {
 }
 
 /// Error from signature verification (and timeliness check)
-#[derive(Error, Debug, Clone, Copy)]
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum VerifyFailed {
     /// Signature verification failed
