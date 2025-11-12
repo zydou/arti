@@ -24,6 +24,9 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 
 use flow_ctrl::state::StreamRateLimit;
 
+use crate::memquota::StreamAccount;
+use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
+use crate::stream::raw::StreamReceiver;
 use crate::{ClientTunnel, Error, HopLocation, Result};
 
 use std::pin::Pin;
@@ -54,6 +57,25 @@ impl Default for CloseStreamBehavior {
     fn default() -> Self {
         Self::SendEnd(End::new_misc())
     }
+}
+
+/// A collection of components that can be combined to implement a Tor stream,
+/// or anything that requires a stream ID.
+///
+/// Not all components may be needed, depending on the purpose of the "stream".
+/// For example we build `RELAY_RESOLVE` requests like we do data streams,
+/// but they won't use the `StreamTarget` as they don't need to send additional
+/// messages.
+#[derive(Debug)]
+pub(crate) struct StreamComponents {
+    /// A [`Stream`](futures::Stream) of incoming relay messages for this Tor stream.
+    pub(crate) stream_receiver: StreamReceiver,
+    /// A handle that can communicate messages to the circuit reactor for this stream.
+    pub(crate) target: StreamTarget,
+    /// The memquota [account](tor_memquota::Account) to use for data on this stream.
+    pub(crate) memquota: StreamAccount,
+    /// The control information needed to add XON/XOFF flow control to the stream.
+    pub(crate) xon_xoff_reader_ctrl: XonXoffReaderCtrl,
 }
 
 /// Internal handle, used to implement a stream on a particular tunnel.

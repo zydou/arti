@@ -13,13 +13,12 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_rtcompat::DynTimeProvider;
 
 use crate::circuit::CircSyncView;
-use crate::stream::CloseStreamBehavior;
 use crate::stream::cmdcheck::{AnyCmdChecker, CmdChecker, StreamStatus};
+use crate::stream::{CloseStreamBehavior, StreamComponents};
 use crate::{Error, Result};
 
 // TODO(relay): move these to a shared module
 use crate::HopLocation;
-use crate::client::StreamComponents;
 use crate::client::stream::DataStream;
 use crate::memquota::StreamAccount;
 use crate::stream::StreamMpscSender;

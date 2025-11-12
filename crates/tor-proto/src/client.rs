@@ -30,7 +30,7 @@ use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::queue::stream_queue;
-use crate::stream::{StreamTarget, Tunnel};
+use crate::stream::{StreamComponents, StreamTarget, Tunnel};
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
 use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path};
@@ -717,25 +717,6 @@ impl TryFrom<ClientCirc> for ClientTunnel {
     fn try_from(circ: ClientCirc) -> std::result::Result<Self, Self::Error> {
         Ok(Self { circ })
     }
-}
-
-/// A collection of components that can be combined to implement a Tor stream,
-/// or anything that requires a stream ID.
-///
-/// Not all components may be needed, depending on the purpose of the "stream".
-/// For example we build `RELAY_RESOLVE` requests like we do data streams,
-/// but they won't use the `StreamTarget` as they don't need to send additional
-/// messages.
-#[derive(Debug)]
-pub(crate) struct StreamComponents {
-    /// A [`Stream`](futures::Stream) of incoming relay messages for this Tor stream.
-    pub(crate) stream_receiver: StreamReceiver,
-    /// A handle that can communicate messages to the circuit reactor for this stream.
-    pub(crate) target: StreamTarget,
-    /// The memquota [account](tor_memquota::Account) to use for data on this stream.
-    pub(crate) memquota: StreamAccount,
-    /// The control information needed to add XON/XOFF flow control to the stream.
-    pub(crate) xon_xoff_reader_ctrl: XonXoffReaderCtrl,
 }
 
 /// Convert a [`ResolvedVal`] into a Result, based on whether or not
