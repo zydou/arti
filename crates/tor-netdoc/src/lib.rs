@@ -51,7 +51,7 @@
 #[macro_use]
 pub mod parse2;
 #[cfg(feature = "encode")]
-pub(crate) mod encode;
+pub mod encode;
 #[macro_use]
 pub(crate) mod parse;
 pub mod doc;

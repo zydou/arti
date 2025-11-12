@@ -4,3 +4,4 @@ BREAKING: `RelayFlags` is now in new `types::relay_flags` module
 BREAKING: `RouterStatus` now contains new `DocRelayFlags`.
 BREAKING: `parse2` entrypoints now take a new `ParseInput`.
 ADDED: Some initial support for encoding `RelayFlags`.
+ADDED: Much more API exposed in the `encode` module
