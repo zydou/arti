@@ -1,5 +1,6 @@
 //! Helpers for tracking whether a tunnel or circuit is still active.
 
+use derive_deftly::Deftly;
 use std::{num::NonZeroUsize, time::Instant};
 
 /// An object to track whether a tunnel or circuit should still be considered active.
@@ -67,8 +68,9 @@ enum Inner {
 /// The caller is responsible for passing this object to [`TunnelActivity::dec_streams()`]
 /// when the stream is no longer in use.
 /// Otherwise, this type will panic when it is dropped.
-#[derive(Debug)]
+#[derive(Debug, Deftly)]
 #[must_use]
+#[derive_deftly_adhoc]
 pub(crate) struct InTunnelActivity {
     /// Prevent this type from being created from other modules.
     _prevent_create: (),
@@ -78,6 +80,18 @@ impl Drop for InTunnelActivity {
     fn drop(&mut self) {
         panic!("Dropped an InTunnelActivity without giving it to dec_streams()")
     }
+}
+
+// Assert that no member of InTunnelActivity actually has meaningful drop semantics.
+//
+// (This lets us call std::mem::forget() below with confidence.)
+derive_deftly::derive_deftly_adhoc! {
+    InTunnelActivity:
+    const _ : () = {
+        $(
+            assert!(! std::mem::needs_drop::<$ftype>());
+        )
+    };
 }
 
 impl InTunnelActivity {
