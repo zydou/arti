@@ -11,6 +11,12 @@ impl<'a> CircSyncView<'a> {
     pub(crate) fn new_client(c: ClientCircSyncView<'a>) -> Self {
         Self(c.into())
     }
+
+    /// Create a new relay circuit view.
+    #[cfg(feature = "relay")]
+    pub(crate) fn new_relay() -> Self {
+        Self(CircSyncViewInner::Relay( /* TODO(relay) */))
+    }
 }
 
 /// The internal representation of a [`CircSyncView`].
