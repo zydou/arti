@@ -19,6 +19,7 @@ use tor_error::{Bug, bad_api_usage, internal};
 use tor_linkspec::HasRelayIds as _;
 
 use crate::circuit::UniqId;
+use crate::circuit::circhop::SendRelayCell;
 use crate::client::circuit::TunnelMutableState;
 #[cfg(feature = "circ-padding")]
 use crate::client::circuit::padding::PaddingEvent;
@@ -34,7 +35,7 @@ use crate::util::poll_all::PollAll;
 use crate::util::tunnel_activity::TunnelActivity;
 
 use super::circuit::CircHop;
-use super::{Circuit, CircuitAction, SendRelayCell};
+use super::{Circuit, CircuitAction};
 
 #[cfg(feature = "conflux")]
 use {

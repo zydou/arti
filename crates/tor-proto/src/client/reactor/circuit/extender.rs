@@ -17,8 +17,9 @@ use tor_cell::relaycell::msg::{Extend2, Extended2};
 use tor_cell::relaycell::{AnyRelayMsgOuter, UnparsedRelayMsg};
 use tor_error::internal;
 
+use crate::circuit::circhop::SendRelayCell;
 use crate::client::circuit::path;
-use crate::client::reactor::{MetaCellHandler, SendRelayCell};
+use crate::client::reactor::MetaCellHandler;
 use crate::crypto::handshake::ntor::NtorClient;
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use tor_cell::relaycell::extend::CircResponseExt;

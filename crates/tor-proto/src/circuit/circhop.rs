@@ -3,12 +3,12 @@
 // TODO(relay): don't import from the client module
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 
-use crate::Result;
+use crate::{HopNum, Result};
 use crate::ccparams::CongestionControlParams;
 use crate::circuit::CircParameters;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 
-use tor_cell::relaycell::RelayCellFormat;
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat};
 use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
 use tor_protover::named;
 
@@ -238,4 +238,18 @@ impl CircParameters {
             n_outgoing_cells_permitted: None,
         }
     }
+}
+
+/// Cmd for sending a relay cell.
+///
+/// The contents of this struct are passed to `send_relay_cell`
+#[derive(educe::Educe)]
+#[educe(Debug)]
+pub(crate) struct SendRelayCell {
+    /// The hop number.
+    pub(crate) hop: HopNum,
+    /// Whether to use a RELAY_EARLY cell.
+    pub(crate) early: bool,
+    /// The cell to send.
+    pub(crate) cell: AnyRelayMsgOuter,
 }

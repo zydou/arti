@@ -24,6 +24,7 @@ pub(super) mod syncview;
 
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::ClientCircChanMsg;
+use crate::circuit::circhop::SendRelayCell;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
 #[cfg(feature = "hs-service")]
@@ -330,20 +331,6 @@ impl RunOnceCmdInner {
             CircuitCmd::CleanShutdown => Self::CleanShutdown,
         }
     }
-}
-
-/// Cmd for sending a relay cell.
-///
-/// The contents of this struct are passed to `send_relay_cell`
-#[derive(educe::Educe)]
-#[educe(Debug)]
-pub(crate) struct SendRelayCell {
-    /// The hop number.
-    pub(crate) hop: HopNum,
-    /// Whether to use a RELAY_EARLY cell.
-    pub(crate) early: bool,
-    /// The cell to send.
-    pub(crate) cell: AnyRelayMsgOuter,
 }
 
 /// A command to execute at the end of [`Reactor::run_once`].

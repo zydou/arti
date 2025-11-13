@@ -1,9 +1,9 @@
 //! Module exposing structures relating to the reactor's view of a circuit's hops.
 
 use super::CircuitCmd;
-use super::{CloseStreamBehavior, SEND_WINDOW_INIT, SendRelayCell};
-use crate::circuit::circhop::HopSettings;
 use crate::client::reactor::circuit::path::PathEntry;
+use super::{CloseStreamBehavior, SEND_WINDOW_INIT};
+use crate::circuit::circhop::{HopSettings, SendRelayCell};
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme;
 use crate::crypto::cell::HopNum;
