@@ -138,7 +138,7 @@ pub(crate) struct TorRelayConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
 }
-impl_standard_builder! { TorRelayConfig }
+impl_standard_builder! { TorRelayConfig: !Default }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
@@ -165,7 +165,7 @@ pub(crate) struct RelayConfig {
     // `builder(default)` here).
     pub(crate) advertise: Advertise,
 }
-impl_standard_builder! { RelayConfig }
+impl_standard_builder! { RelayConfig: !Default }
 
 /// The address(es) to advertise on the network.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
