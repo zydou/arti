@@ -12,9 +12,9 @@ semipublic_mod! {
 
 use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError};
 use futures::stream::StreamExt;
-use tor_rtcompat::SpawnExt;
 use std::net::IpAddr;
 use std::sync::Arc;
+use tor_rtcompat::SpawnExt;
 use tracing::{error, info, instrument, warn};
 
 #[allow(unused)]
@@ -84,6 +84,7 @@ impl arti_client::isolation::IsolationHelper for StreamIsolationKey {
             PI::LegacySocks(SA::Username(uname, pass)) => !(uname.is_empty() && pass.is_empty()),
             PI::LegacySocks(_) => false,
             PI::ExtendedSocks { isolation, .. } => !isolation.is_empty(),
+            #[cfg(feature = "http-connect")]
             PI::Http(isolation) => !isolation.is_empty(),
         }
     }

@@ -579,13 +579,14 @@ impl SupportedTunnelUsage {
     pub(crate) fn is_long_lived(&self) -> bool {
         use SupportedTunnelUsage::*;
         match self {
-            Dir | DirSpecificTarget(_) => {
-                // We _could_ say "true" for these, but in practice we are done with them pretty
-                // quickly, and we can make another cheaply.
-                //
-                // If we did make these "true", we'd want to give them a different lifetime.
-                false
-            }
+            // We _could_ say "true" for these, but in practice we are done with them pretty
+            // quickly, and we can make another cheaply.
+            //
+            // If we did make these "true", we'd want to give them a different lifetime.
+            Dir => false,
+            #[cfg(feature = "specific-relay")]
+            DirSpecificTarget(_) => false,
+
             Exit { isolation, .. } => {
                 // For Exit usage, we just care about whether the isolation enables long-lived circuits.
                 isolation
