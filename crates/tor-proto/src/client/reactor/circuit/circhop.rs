@@ -256,7 +256,7 @@ pub(crate) struct CircHop {
     /// Flow control parameters for new streams.
     flow_ctrl_params: Arc<FlowCtrlParameters>,
     /// Decodes relay cells received from this hop.
-    inbound: RelayCellDecoder,
+    decoder: RelayCellDecoder,
     /// Format to use for relay cells.
     //
     // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
@@ -300,7 +300,7 @@ impl CircHop {
             map: Arc::new(Mutex::new(StreamMap::new())),
             ccontrol: CongestionControl::new(&settings.ccontrol),
             flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
-            inbound: RelayCellDecoder::new(relay_format),
+            decoder: RelayCellDecoder::new(relay_format),
             relay_format,
             n_incoming_cells_permitted: settings.n_incoming_cells_permitted.map(cvt),
             n_outgoing_cells_permitted: settings.n_outgoing_cells_permitted.map(cvt),
@@ -521,7 +521,7 @@ impl CircHop {
     /// Requires that the cryptographic checks on the message have already been
     /// performed
     pub(super) fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
-        self.inbound
+        self.decoder
             .decode(cell)
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))
     }
