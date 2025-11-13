@@ -55,7 +55,7 @@ pub(crate) trait CongestionControlAlgorithm: Send + std::fmt::Debug {
     fn can_send(&self) -> bool;
     /// Return the congestion window object. The reason is returns an Option is because not all
     /// algorithm uses one and so we avoid acting on it if so.
-    fn cwnd(&self) -> Option<&CongestionWindow>;
+    fn cwnd(&self) -> Option<CongestionWindow>;
 
     /// Inform the algorithm that we just got a DATA cell.
     ///
@@ -130,7 +130,7 @@ impl State {
 
 /// A congestion window. This is generic for all algorithms but their parameters' value will differ
 /// depending on the selected algorithm.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct CongestionWindow {
     /// Congestion window parameters from the consensus.
     params: CongestionWindowParams,
@@ -329,7 +329,7 @@ impl CongestionControl {
         // doesn't use it and so no need for the RTT.
         if let Some(cwnd) = self.algorithm.cwnd() {
             self.rtt
-                .update(now, &self.state, cwnd)
+                .update(now, &self.state, &cwnd)
                 .map_err(|e| Error::CircProto(e.to_string()))?;
         }
 
@@ -389,7 +389,7 @@ impl CongestionControl {
     ///
     /// Optional, because not all algorithms track this.
     #[cfg(feature = "conflux")]
-    pub(crate) fn cwnd(&self) -> Option<&CongestionWindow> {
+    pub(crate) fn cwnd(&self) -> Option<CongestionWindow> {
         self.algorithm.cwnd()
     }
 
