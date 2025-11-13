@@ -474,7 +474,7 @@ impl Circuit {
         //            the whole circuit (e.g. by returning an error).
         let (msg, tag) = Self::encode_relay_cell(
             &mut self.crypto_out,
-            circhop.relay_format(),
+            circhop.relay_cell_format(),
             hop,
             early,
             msg,
@@ -918,7 +918,7 @@ impl Circuit {
         // TODO: Sadly, we need to look up `&mut hop` yet again,
         // since we needed to pass `&self.hops` by reference to our filter above. :(
         let hop = self.hops.get_mut(hop_num).ok_or(Error::CircuitClosed)?;
-        let relay_cell_format = hop.relay_format();
+        let relay_cell_format = hop.relay_cell_format();
 
         let memquota = StreamAccount::new(&self.memquota)?;
 
