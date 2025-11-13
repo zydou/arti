@@ -433,11 +433,6 @@ impl CircHop {
         &mut self.ccontrol
     }
 
-    /// Return the RelayCellFormat.
-    pub(crate) fn relay_format(&self) -> RelayCellFormat {
-        self.relay_format
-    }
-
     /// We're about to send `msg`.
     ///
     /// See [`OpenStreamEnt::about_to_send`].
