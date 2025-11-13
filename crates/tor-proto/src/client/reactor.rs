@@ -323,7 +323,11 @@ impl RunOnceCmdInner {
             CircuitCmd::Conflux(ConfluxCmd::RemoveLeg(reason)) => Self::RemoveLeg { leg, reason },
             #[cfg(feature = "conflux")]
             CircuitCmd::Conflux(ConfluxCmd::HandshakeComplete { hop, early, cell }) => {
-                let cell = SendRelayCell { hop: Some(hop), early, cell };
+                let cell = SendRelayCell {
+                    hop: Some(hop),
+                    early,
+                    cell,
+                };
                 Self::ConfluxHandshakeComplete { leg, cell }
             }
             #[cfg(feature = "conflux")]
