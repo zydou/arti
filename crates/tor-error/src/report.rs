@@ -141,6 +141,8 @@ mod test {
     }
 
     #[derive(Error, Debug)]
+    // NOTE: It's bad form to duplicate the source error in the error message,
+    // but we do it here for testing.
     #[error("verbose - {source}")]
     struct VerboseError {
         #[from]
@@ -163,19 +165,24 @@ mod test {
         chk(ShallowError,
             "error: shallow");
 
+        // NOTE: We used to try to deduplicate error messages, but this was removed.
+        // See the comment in `fmt_error_with_sources`.
+        // This is why the error messages below look a little awkward
+        // (`VerboseError` shouldn't show the source error in its own error message).
+
         let terse_1 = || TerseError { source: ShallowError.into() };
         chk(terse_1(),
             "error: terse: shallow");
 
         let verbose_1 = || VerboseError { source: ShallowError.into() };
         chk(verbose_1(),
-            "error: verbose - shallow");
+            "error: verbose - shallow: shallow");
 
         chk(VerboseError { source: terse_1().into() },
-            "error: verbose - terse: shallow");
+            "error: verbose - terse: terse: shallow");
 
         chk(TerseError { source: verbose_1().into() },
-            "error: terse: verbose - shallow");
+            "error: terse: verbose - shallow: shallow");
 
         chk(io::Error::other(ShallowError),
             "error: shallow");
