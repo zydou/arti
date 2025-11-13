@@ -49,9 +49,18 @@ pub struct LoggingConfig {
     journald: Option<String>,
 
     /// Configuration for logging spans with OpenTelemetry.
+    #[cfg(feature = "opentelemetry")]
     #[builder_field_attr(serde(default))]
     #[builder(default)]
     opentelemetry: OpentelemetryConfig,
+
+    /// Configuration for opentelemetry (disabled)
+    //
+    // (See comments on crate::cfg::ArtiConfig::rpc for an explanation of this pattern.)
+    #[cfg(not(feature = "opentelemetry"))]
+    #[builder_field_attr(serde(default))]
+    #[builder(field(type = "Option<toml::Value>", build = "()"), private)]
+    opentelemetry: (),
 
     /// Configuration for passing information to tokio-console.
     #[cfg(feature = "tokio-console")]
@@ -59,7 +68,7 @@ pub struct LoggingConfig {
     #[builder_field_attr(serde(default))]
     tokio_console: TokioConsoleConfig,
 
-    /// Configuration for the RPC subsystem (disabled)
+    /// Configuration for tokio-console (disabled)
     //
     // (See comments on crate::cfg::ArtiConfig::rpc for an explanation of this pattern.)
     #[cfg(not(feature = "tokio-console"))]
@@ -113,6 +122,13 @@ impl LoggingConfigBuilder {
         if self.tokio_console.is_some() {
             tracing::warn!(
                 "tokio-console options were set, but Arti was built without support for tokio-console."
+            );
+        }
+
+        #[cfg(not(feature = "opentelemetry"))]
+        if self.opentelemetry.is_some() {
+            tracing::warn!(
+                "opentelemetry options were set, but Arti was built without support for opentelemetry."
             );
         }
 
