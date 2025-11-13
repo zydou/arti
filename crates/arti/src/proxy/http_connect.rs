@@ -799,7 +799,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use arti_client::TorClient;
+    use arti_client::{BootstrapBehavior, TorClient, config::TorClientConfigBuilder};
     use futures::AsyncWriteExt as _;
     use tor_rtmock::{MockRuntime, io::stream_pair};
 
@@ -852,19 +852,30 @@ mod test {
     ) -> anyhow::Result<(
         tor_rtmock::io::LocalStream,
         impl Future<Output = anyhow::Result<()>>,
+        tempfile::TempDir,
     )> {
         let (s1, s2) = stream_pair();
         let s1: BufReader<_> = BufReader::new(s1);
 
         let iso: ListenerIsolation = (7, "127.0.0.1".parse().unwrap());
-        let tor_client = TorClient::with_runtime(rt.clone()).create_unbootstrapped()?;
+        let dir = tempfile::TempDir::new().unwrap();
+        let cfg = TorClientConfigBuilder::from_directories(
+            dir.as_ref().join("state"),
+            dir.as_ref().join("cache"),
+        )
+        .build()
+        .unwrap();
+        let tor_client = TorClient::with_runtime(rt.clone())
+            .config(cfg)
+            .bootstrap_behavior(BootstrapBehavior::Manual)
+            .create_unbootstrapped()?;
         let context: ProxyContext<_> = ProxyContext {
             tor_client,
             #[cfg(feature = "rpc")]
             rpc_mgr: None,
         };
         let handle = rt.spawn_join("HTTP Handler", handle_http_conn(context, s1, iso));
-        Ok((s2, handle))
+        Ok((s2, handle, dir))
     }
 
     #[test]
@@ -874,7 +885,7 @@ mod test {
         // (This test is mostly here to make sure that invalid_host_test() isn't failing because
         // of anything besides the Host header.)
         MockRuntime::try_test_with_various(async |rt| -> anyhow::Result<()> {
-            let (mut s, join) = interactive_test_setup(&rt)?;
+            let (mut s, join, _dir) = interactive_test_setup(&rt)?;
 
             s.write_all(b"OPTIONS * HTTP/1.0\r\nHost: localhost\r\n\r\n")
                 .await?;
@@ -894,7 +905,7 @@ mod test {
         // Try a hostname that looks like a CSRF attempt and make sure that we discard it without
         // any reply.
         MockRuntime::try_test_with_various(async |rt| -> anyhow::Result<()> {
-            let (mut s, join) = interactive_test_setup(&rt)?;
+            let (mut s, join, _dir) = interactive_test_setup(&rt)?;
 
             s.write_all(b"OPTIONS * HTTP/1.0\r\nHost: csrf.example.com\r\n\r\n")
                 .await?;
