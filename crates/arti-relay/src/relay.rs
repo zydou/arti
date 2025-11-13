@@ -210,7 +210,7 @@ impl<R: Runtime> TorRelay<R> {
     ///
     /// This only returns if something has gone wrong.
     /// Otherwise it runs forever.
-    pub(crate) async fn run(&self) -> anyhow::Result<void::Void> {
+    pub(crate) async fn run(self) -> anyhow::Result<void::Void> {
         let mut task_handles = JoinSet::new();
 
         // Channel housekeeping task.
