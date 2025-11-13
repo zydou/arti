@@ -129,7 +129,7 @@ impl CircHopList {
                     return None;
                 }
 
-                let hop_map = Arc::clone(&self.hops[i].map);
+                let hop_map = Arc::clone(self.hops[i].stream_map());
                 Some(futures::future::poll_fn(move |cx| {
                     // Process an outbound message from the first ready stream on
                     // this hop. The stream map implements round robin scheduling to
@@ -177,7 +177,7 @@ impl CircHopList {
     /// Remove all halfstreams that are expired at `now`.
     pub(super) fn remove_expired_halfstreams(&mut self, now: Instant) {
         for hop in self.hops.iter_mut() {
-            hop.map
+            hop.stream_map()
                 .lock()
                 .expect("lock poisoned")
                 .remove_expired_halfstreams(now);
@@ -192,7 +192,7 @@ impl CircHopList {
     pub(super) fn has_streams(&self) -> bool {
         self.hops
             .iter()
-            .any(|hop| hop.map.lock().expect("lock poisoned").n_open_streams() > 0)
+            .any(|hop| hop.stream_map().lock().expect("lock poisoned").n_open_streams() > 0)
     }
 
     /// Return the number of streams currently open on this circuit.
