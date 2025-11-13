@@ -81,7 +81,7 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
-use crate::circuit::circhop::{HopSettings, CircHopInbound, CircHopOutbound};
+use crate::circuit::circhop::{CircHopInbound, CircHopOutbound, HopSettings};
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;

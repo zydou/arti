@@ -15,8 +15,8 @@ use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
-use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_cell::relaycell::StreamId;
+use tor_cell::relaycell::msg::AnyRelayMsg;
 use tor_error::{internal, trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
 
@@ -298,9 +298,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         let mut body = cell.into_relay_body().into();
         if let Some(_tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) {
             // The message is addressed to us! Now it's time to handle it...
-            let _decode_res = self
-                .hop
-                .decode(body.into())?;
+            let _decode_res = self.hop.decode(body.into())?;
 
             // TODO: actually handle the cell
             // TODO: if the message is recognized, it may need to be delivered

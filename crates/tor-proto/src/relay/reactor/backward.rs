@@ -3,7 +3,7 @@
 use crate::channel::{Channel, ChannelSender};
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
-use crate::circuit::circhop::{HopSettings, CircHopOutbound};
+use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::ChannelResult;
 use crate::stream::CloseStreamBehavior;
