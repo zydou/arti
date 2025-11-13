@@ -81,7 +81,7 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
-use crate::circuit::circhop::HopSettings;
+use crate::circuit::circhop::{HopSettings, CircHopOutbound};
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
@@ -206,14 +206,20 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_rx.clone(),
         );
 
+        let outbound = CircHopOutbound::new(
+            ccontrol,
+            relay_format,
+            Arc::new(settings.flow_ctrl_params.clone()),
+            settings,
+        );
+
         let backward = BackwardReactor::new(
             channel,
+            outbound,
             circ_id,
             unique_id,
             crypto_in,
-            ccontrol,
             settings,
-            relay_format,
             cell_rx,
             outgoing_chan_tx,
             reactor_closed_rx.clone(),
