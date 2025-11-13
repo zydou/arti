@@ -81,7 +81,7 @@ use tor_memquota::mq_queue::{self, MpscSpec};
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
-use crate::circuit::circhop::{HopSettings, CircHopOutbound};
+use crate::circuit::circhop::{HopSettings, CircHopInbound, CircHopOutbound};
 use crate::congestion::CongestionControl;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::CircuitAccount;
@@ -193,12 +193,16 @@ impl<T: HasRelayIds> RelayReactor<T> {
 
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
         let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
+        let inbound = CircHopInbound::new(
+            Arc::clone(&ccontrol),
+            RelayCellDecoder::new(relay_format),
+            settings,
+        );
 
         let forward = ForwardReactor::new(
+            inbound,
             unique_id,
-            RelayCellDecoder::new(relay_format),
             input,
-            Arc::clone(&ccontrol),
             outgoing_chan_rx,
             crypto_out,
             chan_provider,
