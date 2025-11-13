@@ -13,7 +13,7 @@ use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::StreamQueueSender;
-use crate::streammap::{self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
+use crate::streammap::{self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut, StreamMap};
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
 use crate::util::tunnel_activity::TunnelActivity;
@@ -242,7 +242,7 @@ pub(crate) struct CircHop {
     ///
     /// Additionally, the stream map of the last hop (join point) of a conflux tunnel
     /// is shared with all the circuits in the tunnel.
-    map: Arc<Mutex<streammap::StreamMap>>,
+    map: Arc<Mutex<StreamMap>>,
     /// Congestion control object.
     ///
     /// This object is also in charge of handling circuit level SENDME logic for this hop.
@@ -291,7 +291,7 @@ impl CircHop {
         CircHop {
             unique_id,
             hop_num,
-            map: Arc::new(Mutex::new(streammap::StreamMap::new())),
+            map: Arc::new(Mutex::new(StreamMap::new())),
             ccontrol: CongestionControl::new(&settings.ccontrol),
             flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
             inbound: RelayCellDecoder::new(relay_format),
@@ -500,7 +500,7 @@ impl CircHop {
     /// Note that we received an END message (or other message indicating the end of
     /// the stream) on the stream with `id`.
     ///
-    /// See [`StreamMap::ending_msg_received`](super::streammap::StreamMap::ending_msg_received).
+    /// See [`StreamMap::ending_msg_received`](super::StreamMap::ending_msg_received).
     #[cfg(feature = "hs-service")]
     pub(super) fn ending_msg_received(&self, stream_id: StreamId) -> Result<()> {
         let mut hop_map = self.map.lock().expect("lock poisoned");
@@ -701,7 +701,7 @@ impl CircHop {
     }
 
     /// Get the stream map of this hop.
-    pub(crate) fn stream_map(&self) -> &Arc<Mutex<streammap::StreamMap>> {
+    pub(crate) fn stream_map(&self) -> &Arc<Mutex<StreamMap>> {
         &self.map
     }
 
@@ -710,7 +710,7 @@ impl CircHop {
     /// Returns an error if the existing stream map of the hop has any open stream.
     pub(crate) fn set_stream_map(
         &mut self,
-        map: Arc<Mutex<streammap::StreamMap>>,
+        map: Arc<Mutex<StreamMap>>,
     ) -> StdResult<(), Bug> {
         if self.n_open_streams() != 0 {
             return Err(internal!("Tried to discard existing open streams?!"));
