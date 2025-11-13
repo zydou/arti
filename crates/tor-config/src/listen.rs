@@ -136,8 +136,7 @@ pub struct ListenUnsupported {}
 /// rather than just storing two `net:SocketAddr`,
 /// so that we can handle localhost (which means two address families) specially
 /// in order to implement `localhost_port_legacy()`.
-#[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq)]
 enum ListenItem {
     /// One port, both IPv6 and IPv4
     Localhost(NonZeroU16),
