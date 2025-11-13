@@ -346,11 +346,12 @@ impl CircHop {
             rate_limit_updater,
             drain_rate_requester,
         )?;
-        let r =
-            self.outbound.map
-                .lock()
-                .expect("lock poisoned")
-                .add_ent(sender, rx, flow_ctrl, cmd_checker)?;
+        let r = self.outbound.map.lock().expect("lock poisoned").add_ent(
+            sender,
+            rx,
+            flow_ctrl,
+            cmd_checker,
+        )?;
         let cell = AnyRelayMsgOuter::new(Some(r), message);
         Ok((
             SendRelayCell {
@@ -465,7 +466,11 @@ impl CircHop {
     /// WARNING: because this locks the stream map mutex,
     /// it should never be called from a context where that mutex is already locked.
     pub(crate) fn n_open_streams(&self) -> usize {
-        self.outbound.map.lock().expect("lock poisoned").n_open_streams()
+        self.outbound
+            .map
+            .lock()
+            .expect("lock poisoned")
+            .n_open_streams()
     }
 
     /// Return a reference to our CongestionControl object.
@@ -545,7 +550,8 @@ impl CircHop {
     /// Requires that the cryptographic checks on the message have already been
     /// performed
     pub(crate) fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
-        self.inbound.decoder
+        self.inbound
+            .decoder
             .decode(cell)
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))
     }
