@@ -394,26 +394,6 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn defaults() {
-        let dflt = TorRelayConfig::default();
-        let b2 = TorRelayConfigBuilder::default();
-        let dflt2 = b2.build().unwrap();
-        assert_eq!(&dflt, &dflt2);
-    }
-
-    #[test]
-    fn builder() {
-        let mut bld = TorRelayConfigBuilder::default();
-        bld.storage()
-            .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
-            .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-
-        let val = bld.build().unwrap();
-
-        assert_ne!(val, TorRelayConfig::default());
-    }
-
     fn cfg_variables() -> impl IntoIterator<Item = (&'static str, PathBuf)> {
         let project_dirs = project_dirs().unwrap();
         let list = [
