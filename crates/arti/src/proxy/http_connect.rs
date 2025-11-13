@@ -7,13 +7,13 @@
 use super::{ListenerIsolation, ProxyContext};
 use anyhow::{Context as _, anyhow};
 use arti_client::{StreamPrefs, TorAddr};
-use tor_rtcompat::SpawnExt as _;
 use futures::{AsyncRead, AsyncWrite, io::BufReader};
 use http::{Method, StatusCode, response::Builder as ResponseBuilder};
 use hyper::{Response, server::conn::http1::Builder as ServerBuilder, service::service_fn};
 use safelog::{Sensitive as Sv, sensitive as sv};
 use tor_error::{ErrorKind, ErrorReport as _, HasKind, into_internal, warn_report};
 use tor_rtcompat::Runtime;
+use tor_rtcompat::SpawnExt as _;
 use tracing::{instrument, warn};
 
 use hyper_futures_io::FuturesIoCompat;
@@ -808,7 +808,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use arti_client::{BootstrapBehavior, TorClient, config::TorClientConfigBuilder};
-    use futures::AsyncWriteExt as _;
+    use futures::{AsyncReadExt as _, AsyncWriteExt as _};
     use tor_rtmock::{MockRuntime, io::stream_pair};
 
     use super::*;
