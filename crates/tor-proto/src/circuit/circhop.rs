@@ -247,8 +247,8 @@ impl CircParameters {
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub(crate) struct SendRelayCell {
-    /// The hop number.
-    pub(crate) hop: HopNum,
+    /// The hop number, or `None` if we are a relay.
+    pub(crate) hop: Option<HopNum>,
     /// Whether to use a RELAY_EARLY cell.
     pub(crate) early: bool,
     /// The cell to send.

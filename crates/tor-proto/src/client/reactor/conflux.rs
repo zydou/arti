@@ -682,7 +682,7 @@ impl ConfluxSet {
         let switch = ConfluxSwitch::new(seqno_delta);
         let cell = AnyRelayMsgOuter::new(None, switch.into());
         Ok(Some(SendRelayCell {
-            hop: join_point,
+            hop: Some(join_point),
             early: false,
             cell,
         }))
@@ -1098,10 +1098,11 @@ impl ConfluxSet {
     ) -> crate::Result<()> {
         let conflux_join_point = self.join_point.as_ref().map(|join_point| join_point.hop);
         let leg = if let Some(join_point) = conflux_join_point {
+            let hop = msg.hop.expect("missing hop in client SendRelayCell?!");
             // Conflux circuits always send multiplexed relay commands to
             // to the last hop (the join point).
             if cmd_counts_towards_seqno(msg.cell.cmd()) {
-                if msg.hop != join_point {
+                if hop != join_point {
                     // For leaky pipe, we must continue using the original leg
                     leg
                 } else {

@@ -91,7 +91,7 @@ where
             let cell = AnyRelayMsgOuter::new(None, extend_msg.into());
             // Prepare a message to send message to the last hop...
             let cell = SendRelayCell {
-                hop,
+                hop: Some(hop),
                 early: true, // use a RELAY_EARLY cel
                 cell,
             };

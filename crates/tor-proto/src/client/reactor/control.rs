@@ -569,7 +569,7 @@ impl<'a> ControlHandler<'a> {
                         let cell = AnyRelayMsgOuter::new(Some(stream_id), sendme.into());
 
                         let cell = SendRelayCell {
-                            hop: hop_num,
+                            hop: Some(hop_num),
                             early: false,
                             cell,
                         };
@@ -602,7 +602,7 @@ impl<'a> ControlHandler<'a> {
 
                 let cell = AnyRelayMsgOuter::new(None, msg);
                 let cell = SendRelayCell {
-                    hop: hop_num,
+                    hop: Some(hop_num),
                     early: false,
                     cell,
                 };

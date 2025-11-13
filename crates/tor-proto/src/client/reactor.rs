@@ -323,7 +323,7 @@ impl RunOnceCmdInner {
             CircuitCmd::Conflux(ConfluxCmd::RemoveLeg(reason)) => Self::RemoveLeg { leg, reason },
             #[cfg(feature = "conflux")]
             CircuitCmd::Conflux(ConfluxCmd::HandshakeComplete { hop, early, cell }) => {
-                let cell = SendRelayCell { hop, early, cell };
+                let cell = SendRelayCell { hop: Some(hop), early, cell };
                 Self::ConfluxHandshakeComplete { leg, cell }
             }
             #[cfg(feature = "conflux")]
@@ -1005,7 +1005,7 @@ impl Reactor {
                             .circuits
                             .leg_mut(leg)
                             .ok_or_else(|| internal!("leg disappeared?!"))?;
-                        let cell_hop = cell.hop;
+                        let cell_hop = cell.hop.expect("missing hop in client SendRelayCell?!");
                         let relay_format = circ
                             .hop_mut(cell_hop)
                             // TODO: Is this the right error type here? Or should there be a "HopDisappeared"?
@@ -1138,7 +1138,7 @@ impl Reactor {
 
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), msg.into());
                 let cell = SendRelayCell {
-                    hop: hop_num,
+                    hop: Some(hop_num),
                     early: false,
                     cell,
                 };
@@ -1368,7 +1368,7 @@ impl Reactor {
                     "MsgHandler doesn't have a precise HopLocation"
                 ))?;
                 Ok::<_, crate::Error>(SendRelayCell {
-                    hop,
+                    hop: Some(hop),
                     early: false,
                     cell: msg,
                 })

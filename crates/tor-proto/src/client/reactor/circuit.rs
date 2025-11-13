@@ -314,7 +314,7 @@ impl Circuit {
         }
 
         let cell = SendRelayCell {
-            hop,
+            hop: Some(hop),
             early: false,
             cell,
         };
@@ -450,6 +450,7 @@ impl Circuit {
         let runtime = self.runtime.clone();
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
+        let hop = hop.expect("missing hop in client SendRelayCell?!");
         let circhop = self.hops.get_mut(hop).ok_or(Error::NoSuchHop)?;
 
         // We might be out of capacity entirely; see if we are about to hit a limit.
@@ -605,7 +606,7 @@ impl Circuit {
             let sendme = Sendme::from(tag);
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
             circ_cmds.push(CircuitCmd::Send(SendRelayCell {
-                hop: hopnum,
+                hop: Some(hopnum),
                 early: false,
                 cell,
             }));
@@ -753,7 +754,7 @@ impl Circuit {
         if let Some(cell) = hop.maybe_send_xoff(streamid)? {
             let cell = AnyRelayMsgOuter::new(Some(streamid), cell.into());
             let cell = SendRelayCell {
-                hop: hopnum,
+                hop: Some(hopnum),
                 early: false,
                 cell,
             };
@@ -906,7 +907,7 @@ impl Circuit {
                 RejectRequest(end) => {
                     let end_msg = AnyRelayMsgOuter::new(Some(stream_id), end.into());
                     let cell = SendRelayCell {
-                        hop: hop_num,
+                        hop: Some(hop_num),
                         early: false,
                         cell: end_msg,
                     };
@@ -977,7 +978,7 @@ impl Circuit {
                 );
 
                 let cell = SendRelayCell {
-                    hop: hop_num,
+                    hop: Some(hop_num),
                     early: false,
                     cell: end_msg,
                 };
@@ -1689,7 +1690,7 @@ impl Circuit {
     ) -> Result<()> {
         use tor_cell::relaycell::msg::Drop as DropMsg;
         let msg = SendRelayCell {
-            hop: target_hop,
+            hop: Some(target_hop),
             // TODO circpad: we will probably want padding machines that can send EARLY cells.
             early: false,
             cell: AnyRelayMsgOuter::new(None, DropMsg::default().into()),

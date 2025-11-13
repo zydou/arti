@@ -166,7 +166,7 @@ impl CircHopList {
                     );
 
                     let cell = SendRelayCell {
-                        hop: hop_num,
+                        hop: Some(hop_num),
                         early: false,
                         cell: AnyRelayMsgOuter::new(Some(sid), msg),
                     };
@@ -355,7 +355,7 @@ impl CircHop {
         let cell = AnyRelayMsgOuter::new(Some(r), message);
         Ok((
             SendRelayCell {
-                hop: self.hop_num,
+                hop: Some(self.hop_num),
                 early: false,
                 cell,
             },
@@ -395,7 +395,7 @@ impl CircHop {
         {
             let end_cell = AnyRelayMsgOuter::new(Some(id), end_message.into());
             let cell = SendRelayCell {
-                hop: self.hop_num,
+                hop: Some(self.hop_num),
                 early: false,
                 cell: end_cell,
             };
