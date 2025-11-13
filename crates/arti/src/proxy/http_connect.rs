@@ -799,6 +799,10 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use arti_client::TorClient;
+    use futures::AsyncWriteExt as _;
+    use tor_rtmock::{MockRuntime, io::stream_pair};
+
     use super::*;
 
     // Make sure that HeaderMap is case-insensitive as the documentation implies.
@@ -841,5 +845,74 @@ mod test {
         assert_eq!(host_is_localhost("192.0.2.55:1234"), false);
         assert_eq!(host_is_localhost("3fff::1"), false);
         assert_eq!(host_is_localhost("[3fff::1]:1234"), false);
+    }
+
+    fn interactive_test_setup(
+        rt: &MockRuntime,
+    ) -> anyhow::Result<(
+        tor_rtmock::io::LocalStream,
+        impl Future<Output = anyhow::Result<()>>,
+    )> {
+        let (s1, s2) = stream_pair();
+        let s1: BufReader<_> = BufReader::new(s1);
+
+        let iso: ListenerIsolation = (7, "127.0.0.1".parse().unwrap());
+        let tor_client = TorClient::with_runtime(rt.clone()).create_unbootstrapped()?;
+        let context: ProxyContext<_> = ProxyContext {
+            tor_client,
+            #[cfg(feature = "rpc")]
+            rpc_mgr: None,
+        };
+        let handle = rt.spawn_join("HTTP Handler", handle_http_conn(context, s1, iso));
+        Ok((s2, handle))
+    }
+
+    #[test]
+    fn successful_options_test() -> anyhow::Result<()> {
+        // Try an OPTIONS request and make sure we get a plausible-looking answer.
+        //
+        // (This test is mostly here to make sure that invalid_host_test() isn't failing because
+        // of anything besides the Host header.)
+        MockRuntime::try_test_with_various(async |rt| -> anyhow::Result<()> {
+            let (mut s, join) = interactive_test_setup(&rt)?;
+
+            s.write_all(b"OPTIONS * HTTP/1.0\r\nHost: localhost\r\n\r\n")
+                .await?;
+            let mut buf = Vec::new();
+            let _n_read = s.read_to_end(&mut buf).await?;
+            let () = join.await?;
+
+            let reply = str::from_utf8(&buf)?;
+            assert!(dbg!(reply).starts_with("HTTP/1.0 200 OK\r\n"));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn invalid_host_test() -> anyhow::Result<()> {
+        // Try a hostname that looks like a CSRF attempt and make sure that we discard it without
+        // any reply.
+        MockRuntime::try_test_with_various(async |rt| -> anyhow::Result<()> {
+            let (mut s, join) = interactive_test_setup(&rt)?;
+
+            s.write_all(b"OPTIONS * HTTP/1.0\r\nHost: csrf.example.com\r\n\r\n")
+                .await?;
+            let mut buf = Vec::new();
+            let n_read = s.read_to_end(&mut buf).await?;
+            let http_outcome = join.await;
+
+            assert_eq!(n_read, 0);
+            assert!(buf.is_empty());
+            assert!(http_outcome.is_err());
+
+            let error_msg = http_outcome.unwrap_err().source().unwrap().to_string();
+            assert_eq!(
+                error_msg,
+                r#"Host header "csrf.example.com" was not localhost. Rejecting request."#
+            );
+
+            Ok(())
+        })
     }
 }
