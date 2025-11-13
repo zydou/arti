@@ -4,7 +4,10 @@
 //! them for arti-relay. But I don't think we can do so while still using tor-config. See:
 //! https://gitlab.torproject.org/tpo/core/arti/-/issues/2253
 
+mod listen;
+
 use std::borrow::Cow;
+use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::path::PathBuf;
 
 use derive_builder::Builder;
@@ -20,6 +23,8 @@ use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
+
+use self::listen::Listen;
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
@@ -106,6 +111,13 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[non_exhaustive]
 pub(crate) struct TorRelayConfig {
+    /// Configuration for the "relay" part of the relay.
+    // TODO: Add a better doc comment here once we figure out exactly how we want the config to be
+    // structured.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) relay: RelayConfig,
+
     /// Logging configuration
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
@@ -130,6 +142,90 @@ impl_standard_builder! { TorRelayConfig }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
+}
+
+/// Configuration for the "relay" part of the relay.
+///
+/// TODO: I'm not really sure what to call this yet. I'm expecting that we'll rename and reorganize
+/// things as we add more options. But we should come back to this and update the name and/or doc
+/// comment.
+///
+/// TODO: There's a high-level issue for discussing these options:
+/// https://gitlab.torproject.org/tpo/core/arti/-/issues/2252
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+pub(crate) struct RelayConfig {
+    /// Addresses to listen on for incoming OR connections.
+    pub(crate) listen: Listen,
+
+    /// Addresses to advertise on the network for receiving OR connections.
+    // For now, we've decided that we don't want to include any IP address auto-detection in
+    // arti-relay, so we require users to provide the addresses to advertise. (So no `Option` and
+    // `builder(default)` here).
+    pub(crate) advertise: Advertise,
+}
+impl_standard_builder! { RelayConfig }
+
+/// The address(es) to advertise on the network.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "UncheckedAdvertise")]
+pub(crate) struct Advertise {
+    /// All relays must advertise an IPv4 address.
+    ipv4: SocketAddrV4,
+    /// Relays may optionally advertise an IPv6 address.
+    ipv6: Option<SocketAddrV6>,
+}
+
+/// A deserialize helper for [`Advertise`].
+///
+/// This is an `Advertise` that has not yet been validated.
+#[derive(Deserialize)]
+#[serde(rename = "Advertise")]
+struct UncheckedAdvertise {
+    /// See [`Advertise::ipv4`].
+    ipv4: SocketAddrV4,
+    /// See [`Advertise::ipv6`].
+    ipv6: Option<SocketAddrV6>,
+}
+
+impl TryFrom<UncheckedAdvertise> for Advertise {
+    type Error = AdvertiseError;
+
+    fn try_from(from: UncheckedAdvertise) -> Result<Self, Self::Error> {
+        let UncheckedAdvertise { ipv4, ipv6 } = from;
+
+        let addrs = Some(SocketAddr::V4(ipv4))
+            .into_iter()
+            .chain(ipv6.map(SocketAddr::V6));
+
+        // This isn't meant to be exhaustive.
+        // This is just to catch some simple cases early that we're sure won't work.
+        for addr in addrs {
+            if addr.ip().is_unspecified() {
+                return Err(AdvertiseError::NotPubliclyRoutable(addr));
+            }
+            if addr.ip().is_multicast() {
+                return Err(AdvertiseError::NotPubliclyRoutable(addr));
+            }
+            if addr.port() == 0 {
+                return Err(AdvertiseError::InvalidPort(addr));
+            }
+        }
+
+        Ok(Self { ipv4, ipv6 })
+    }
+}
+
+/// An error while deserializing an [`Advertise`].
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+pub(crate) enum AdvertiseError {
+    /// The provided address is not publicly routable.
+    #[error("{0} is not publicly routable")]
+    NotPubliclyRoutable(SocketAddr),
+    /// The provided address does not have a valid port.
+    #[error("{0} does not have a valid port")]
+    InvalidPort(SocketAddr),
 }
 
 /// Default log level.
