@@ -882,7 +882,7 @@ mod test {
             let _n_read = s.read_to_end(&mut buf).await?;
             let () = join.await?;
 
-            let reply = str::from_utf8(&buf)?;
+            let reply = std::str::from_utf8(&buf)?;
             assert!(dbg!(reply).starts_with("HTTP/1.0 200 OK\r\n"));
 
             Ok(())
