@@ -3,13 +3,13 @@
 // TODO(relay): don't import from the client module
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 
-use crate::{HopNum, Result};
 use crate::ccparams::CongestionControlParams;
 use crate::circuit::CircParameters;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
+use crate::{HopNum, Result};
 
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat};
 use tor_cell::relaycell::extend::{CcRequest, CircRequestExt};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat};
 use tor_protover::named;
 
 use cfg_if::cfg_if;
