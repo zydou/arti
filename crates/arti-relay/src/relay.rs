@@ -163,7 +163,6 @@ impl InertTorRelay {
 }
 
 /// Represent an active Relay on the Tor network.
-#[derive(Clone)]
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,
