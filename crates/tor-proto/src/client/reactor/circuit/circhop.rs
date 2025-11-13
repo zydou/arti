@@ -13,7 +13,9 @@ use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 use crate::stream::flow_ctrl::state::{StreamFlowCtrl, StreamRateLimit};
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::StreamQueueSender;
-use crate::streammap::{self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut, StreamMap};
+use crate::streammap::{
+    self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut, StreamMap,
+};
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
 use crate::util::tunnel_activity::TunnelActivity;
@@ -190,9 +192,13 @@ impl CircHopList {
     /// in this circuit, so it must **not** be called from any function where the
     /// stream map lock is held (such as [`ready_streams_iterator`](Self::ready_streams_iterator).
     pub(super) fn has_streams(&self) -> bool {
-        self.hops
-            .iter()
-            .any(|hop| hop.stream_map().lock().expect("lock poisoned").n_open_streams() > 0)
+        self.hops.iter().any(|hop| {
+            hop.stream_map()
+                .lock()
+                .expect("lock poisoned")
+                .n_open_streams()
+                > 0
+        })
     }
 
     /// Return the number of streams currently open on this circuit.
@@ -708,10 +714,7 @@ impl CircHop {
     /// Set the stream map of this hop to `map`.
     ///
     /// Returns an error if the existing stream map of the hop has any open stream.
-    pub(crate) fn set_stream_map(
-        &mut self,
-        map: Arc<Mutex<StreamMap>>,
-    ) -> StdResult<(), Bug> {
+    pub(crate) fn set_stream_map(&mut self, map: Arc<Mutex<StreamMap>>) -> StdResult<(), Bug> {
         if self.n_open_streams() != 0 {
             return Err(internal!("Tried to discard existing open streams?!"));
         }
