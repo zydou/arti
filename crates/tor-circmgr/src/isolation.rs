@@ -136,7 +136,7 @@ pub trait IsolationHelper: Sized {
     /// Return true if this `Isolation` object should be considered sufficiently strong
     /// as to permit long-lived circuits.
     ///
-    /// (See [`Isolation::allow_long_lived_circuits`] for more information.)
+    /// (See [`Isolation::enables_long_lived_circuits`] for more information.)
     fn enables_long_lived_circuits(&self) -> bool {
         false
     }
