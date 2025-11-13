@@ -341,34 +341,21 @@ impl CircHop {
         drain_rate_requester: NotifySender<DrainRateRequest>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<(SendRelayCell, StreamId)> {
-        let flow_ctrl = self.build_flow_ctrl(
-            Arc::clone(&self.outbound.flow_ctrl_params),
-            rate_limit_updater,
-            drain_rate_requester,
-        )?;
-        let r = self.outbound.map.lock().expect("lock poisoned").add_ent(
+        self.outbound.begin_stream(
+            Some(self.hop_num),
+            message,
             sender,
             rx,
-            flow_ctrl,
+            rate_limit_updater,
+            drain_rate_requester,
             cmd_checker,
-        )?;
-        let cell = AnyRelayMsgOuter::new(Some(r), message);
-        Ok((
-            SendRelayCell {
-                hop: Some(self.hop_num),
-                early: false,
-                cell,
-            },
-            r,
-        ))
+        )
     }
 
     /// Close the stream associated with `id` because the stream was
     /// dropped.
     ///
-    /// If we have not already received an END cell on this stream, send one.
-    /// If no END cell is specified, an END cell with the reason byte set to
-    /// REASON_MISC will be sent.
+    /// See [`CircHopOutbound::close_stream`].
     pub(crate) fn close_stream(
         &mut self,
         id: StreamId,
@@ -376,14 +363,240 @@ impl CircHop {
         why: streammap::TerminateReason,
         expiry: Instant,
     ) -> Result<Option<SendRelayCell>> {
+        self.outbound
+            .close_stream(self.unique_id, id, Some(self.hop_num), message, why, expiry)
+    }
+
+    /// Check if we should send an XON message.
+    ///
+    /// If we should, then returns the XON message that should be sent.
+    pub(crate) fn maybe_send_xon(
+        &mut self,
+        rate: XonKbpsEwma,
+        id: StreamId,
+    ) -> Result<Option<Xon>> {
+        self.outbound.maybe_send_xon(rate, id)
+    }
+
+    /// Check if we should send an XOFF message.
+    ///
+    /// If we should, then returns the XOFF message that should be sent.
+    pub(crate) fn maybe_send_xoff(&mut self, id: StreamId) -> Result<Option<Xoff>> {
+        self.outbound.maybe_send_xoff(id)
+    }
+
+    /// Return the format that is used for relay cells sent to this hop.
+    ///
+    /// For the most part, this format isn't necessary to interact with a CircHop;
+    /// it becomes relevant when we are deciding _what_ we can encode for the hop.
+    pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
+        self.outbound.relay_cell_format()
+    }
+
+    /// Delegate to CongestionControl, for testing purposes
+    #[cfg(test)]
+    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
+        self.outbound.send_window_and_expected_tags()
+    }
+
+    /// Return the number of open streams on this hop.
+    ///
+    /// WARNING: because this locks the stream map mutex,
+    /// it should never be called from a context where that mutex is already locked.
+    pub(crate) fn n_open_streams(&self) -> usize {
+        self.outbound.n_open_streams()
+    }
+
+    /// Return a reference to our CongestionControl object.
+    pub(crate) fn ccontrol(&self) -> &CongestionControl {
+        self.outbound.ccontrol()
+    }
+
+    /// Return a mutable reference to our CongestionControl object.
+    pub(crate) fn ccontrol_mut(&mut self) -> &mut CongestionControl {
+        self.outbound.ccontrol_mut()
+    }
+
+    /// We're about to send `msg`.
+    ///
+    /// See [`OpenStreamEnt::about_to_send`].
+    //
+    // TODO prop340: This should take a cell or similar, not a message.
+    pub(crate) fn about_to_send(&mut self, stream_id: StreamId, msg: &AnyRelayMsg) -> Result<()> {
+        self.outbound.about_to_send(self.unique_id, stream_id, msg)
+    }
+
+    /// Add an entry to this map using the specified StreamId.
+    #[cfg(feature = "hs-service")]
+    pub(crate) fn add_ent_with_id(
+        &self,
+        sink: StreamQueueSender,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
+        stream_id: StreamId,
+        cmd_checker: AnyCmdChecker,
+    ) -> Result<()> {
+        self.outbound.add_ent_with_id(
+            sink,
+            rx,
+            rate_limit_updater,
+            drain_rate_requester,
+            stream_id,
+            cmd_checker,
+        )
+    }
+
+    /// Note that we received an END message (or other message indicating the end of
+    /// the stream) on the stream with `id`.
+    ///
+    /// See [`StreamMap::ending_msg_received`](super::StreamMap::ending_msg_received).
+    #[cfg(feature = "hs-service")]
+    pub(crate) fn ending_msg_received(&self, stream_id: StreamId) -> Result<()> {
+        self.outbound.ending_msg_received(stream_id)
+    }
+
+    /// Parse a RELAY or RELAY_EARLY cell body.
+    ///
+    /// Requires that the cryptographic checks on the message have already been
+    /// performed
+    pub(crate) fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
+        self.inbound.decode(cell)
+    }
+
+    /// Handle `msg`, delivering it to the stream with the specified `streamid` if appropriate.
+    ///
+    /// Returns back the provided `msg`, if the message is an incoming stream request
+    /// that needs to be handled by the calling code.
+    ///
+    // TODO: the above is a bit of a code smell -- we should try to avoid passing the msg
+    // back and forth like this.
+    pub(super) fn handle_msg(
+        &self,
+        hop_detail: &PathEntry,
+        cell_counts_toward_windows: bool,
+        streamid: StreamId,
+        msg: UnparsedRelayMsg,
+        now: Instant,
+    ) -> Result<Option<UnparsedRelayMsg>> {
+        let possible_proto_violation_err = |streamid: StreamId| Error::UnknownStream {
+            src: sv(hop_detail.clone()),
+            streamid,
+        };
+
+        self.outbound.handle_msg(
+            possible_proto_violation_err,
+            cell_counts_toward_windows,
+            streamid,
+            msg,
+            now,
+        )
+    }
+
+    /// Get the stream map of this hop.
+    pub(crate) fn stream_map(&self) -> &Arc<Mutex<StreamMap>> {
+        self.outbound.stream_map()
+    }
+
+    /// Set the stream map of this hop to `map`.
+    ///
+    /// Returns an error if the existing stream map of the hop has any open stream.
+    pub(crate) fn set_stream_map(&mut self, map: Arc<Mutex<StreamMap>>) -> StdResult<(), Bug> {
+        self.outbound.set_stream_map(map)
+    }
+
+    /// Decrement the limit of outbound cells that may be sent to this hop; give
+    /// an error if it would reach zero.
+    pub(crate) fn decrement_outbound_cell_limit(&mut self) -> Result<()> {
+        self.outbound.decrement_cell_limit()
+    }
+
+    /// Decrement the limit of inbound cells that may be received from this hop; give
+    /// an error if it would reach zero.
+    pub(crate) fn decrement_inbound_cell_limit(&mut self) -> Result<()> {
+        self.inbound.decrement_cell_limit()
+    }
+}
+
+impl CircHopInbound {
+    /// Parse a RELAY or RELAY_EARLY cell body.
+    ///
+    /// Requires that the cryptographic checks on the message have already been
+    /// performed
+    pub(crate) fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
+        self.decoder
+            .decode(cell)
+            .map_err(|e| Error::from_bytes_err(e, "relay cell"))
+    }
+
+    /// Decrement the limit of inbound cells that may be received from this hop; give
+    /// an error if it would reach zero.
+    pub(crate) fn decrement_cell_limit(&mut self) -> Result<()> {
+        try_decrement_cell_limit(&mut self.n_incoming_cells_permitted)
+            .map_err(|_| Error::ExcessInboundCells)
+    }
+}
+
+impl CircHopOutbound {
+    /// Start a stream. Creates an entry in the stream map with the given channels, and sends the
+    /// `message` to the provided hop.
+    pub(crate) fn begin_stream(
+        &mut self,
+        hop: Option<HopNum>,
+        message: AnyRelayMsg,
+        sender: StreamQueueSender,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
+        rate_limit_updater: watch::Sender<StreamRateLimit>,
+        drain_rate_requester: NotifySender<DrainRateRequest>,
+        cmd_checker: AnyCmdChecker,
+    ) -> Result<(SendRelayCell, StreamId)> {
+        let flow_ctrl = self.build_flow_ctrl(
+            Arc::clone(&self.flow_ctrl_params),
+            rate_limit_updater,
+            drain_rate_requester,
+        )?;
+        let r =
+            self.map
+                .lock()
+                .expect("lock poisoned")
+                .add_ent(sender, rx, flow_ctrl, cmd_checker)?;
+        let cell = AnyRelayMsgOuter::new(Some(r), message);
+        Ok((
+            SendRelayCell {
+                hop,
+                early: false,
+                cell,
+            },
+            r,
+        ))
+    }
+
+    /// Close the stream associated with `id` because the stream was dropped.
+    ///
+    /// If we have not already received an END cell on this stream, send one.
+    /// If no END cell is specified, an END cell with the reason byte set to
+    /// REASON_MISC will be sent.
+    ///
+    // Note(relay): `circ_id` is an opaque displayable type
+    // because relays use a different circuit ID type
+    // than clients. Eventually, we should probably make
+    // them both use the same ID type, or have a nicer approach here
+    pub(crate) fn close_stream(
+        &mut self,
+        circ_id: impl std::fmt::Display,
+        id: StreamId,
+        hop: Option<HopNum>,
+        message: CloseStreamBehavior,
+        why: streammap::TerminateReason,
+        expiry: Instant,
+    ) -> Result<Option<SendRelayCell>> {
         let should_send_end = self
-            .outbound
             .map
             .lock()
             .expect("lock poisoned")
             .terminate(id, why, expiry)?;
         trace!(
-            circ_id = %self.unique_id,
+            circ_id = %circ_id,
             stream_id = %id,
             should_send_end = ?should_send_end,
             "Ending stream",
@@ -395,7 +608,7 @@ impl CircHop {
         {
             let end_cell = AnyRelayMsgOuter::new(Some(id), end_message.into());
             let cell = SendRelayCell {
-                hop: Some(self.hop_num),
+                hop,
                 early: false,
                 cell: end_cell,
             };
@@ -415,11 +628,11 @@ impl CircHop {
     ) -> Result<Option<Xon>> {
         // the call below will return an error if XON/XOFF aren't supported,
         // so we check for support here
-        if !self.outbound.ccontrol.uses_xon_xoff() {
+        if !self.ccontrol.uses_xon_xoff() {
             return Ok(None);
         }
 
-        let mut map = self.outbound.map.lock().expect("lock poisoned");
+        let mut map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = map.get_mut(id) else {
             // stream went away
             return Ok(None);
@@ -434,11 +647,11 @@ impl CircHop {
     pub(crate) fn maybe_send_xoff(&mut self, id: StreamId) -> Result<Option<Xoff>> {
         // the call below will return an error if XON/XOFF aren't supported,
         // so we check for support here
-        if !self.outbound.ccontrol.uses_xon_xoff() {
+        if !self.ccontrol.uses_xon_xoff() {
             return Ok(None);
         }
 
-        let mut map = self.outbound.map.lock().expect("lock poisoned");
+        let mut map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = map.get_mut(id) else {
             // stream went away
             return Ok(None);
@@ -452,13 +665,13 @@ impl CircHop {
     /// For the most part, this format isn't necessary to interact with a CircHop;
     /// it becomes relevant when we are deciding _what_ we can encode for the hop.
     pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
-        self.outbound.relay_format
+        self.relay_format
     }
 
     /// Delegate to CongestionControl, for testing purposes
     #[cfg(test)]
     pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<SendmeTag>) {
-        self.outbound.ccontrol.send_window_and_expected_tags()
+        self.ccontrol.send_window_and_expected_tags()
     }
 
     /// Return the number of open streams on this hop.
@@ -466,21 +679,17 @@ impl CircHop {
     /// WARNING: because this locks the stream map mutex,
     /// it should never be called from a context where that mutex is already locked.
     pub(crate) fn n_open_streams(&self) -> usize {
-        self.outbound
-            .map
-            .lock()
-            .expect("lock poisoned")
-            .n_open_streams()
+        self.map.lock().expect("lock poisoned").n_open_streams()
     }
 
     /// Return a reference to our CongestionControl object.
     pub(crate) fn ccontrol(&self) -> &CongestionControl {
-        &self.outbound.ccontrol
+        &self.ccontrol
     }
 
     /// Return a mutable reference to our CongestionControl object.
     pub(crate) fn ccontrol_mut(&mut self) -> &mut CongestionControl {
-        &mut self.outbound.ccontrol
+        &mut self.ccontrol
     }
 
     /// We're about to send `msg`.
@@ -488,11 +697,21 @@ impl CircHop {
     /// See [`OpenStreamEnt::about_to_send`].
     //
     // TODO prop340: This should take a cell or similar, not a message.
-    pub(crate) fn about_to_send(&mut self, stream_id: StreamId, msg: &AnyRelayMsg) -> Result<()> {
-        let mut hop_map = self.outbound.map.lock().expect("lock poisoned");
+    //
+    // Note(relay): `circ_id` is an opaque displayable type
+    // because relays use a different circuit ID type
+    // than clients. Eventually, we should probably make
+    // them both use the same ID type, or have a nicer approach here
+    pub(crate) fn about_to_send(
+        &mut self,
+        circ_id: impl std::fmt::Display,
+        stream_id: StreamId,
+        msg: &AnyRelayMsg,
+    ) -> Result<()> {
+        let mut hop_map = self.map.lock().expect("lock poisoned");
         let Some(StreamEntMut::Open(ent)) = hop_map.get_mut(stream_id) else {
             warn!(
-                circ_id = %self.unique_id,
+                circ_id = %circ_id,
                 stream_id = %stream_id,
                 "sending a relay cell for non-existent or non-open stream!",
             );
@@ -516,12 +735,12 @@ impl CircHop {
         stream_id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
-        let mut hop_map = self.outbound.map.lock().expect("lock poisoned");
+        let mut hop_map = self.map.lock().expect("lock poisoned");
         hop_map.add_ent_with_id(
             sink,
             rx,
             self.build_flow_ctrl(
-                Arc::clone(&self.outbound.flow_ctrl_params),
+                Arc::clone(&self.flow_ctrl_params),
                 rate_limit_updater,
                 drain_rate_requester,
             )?,
@@ -530,105 +749,6 @@ impl CircHop {
         )?;
 
         Ok(())
-    }
-
-    /// Note that we received an END message (or other message indicating the end of
-    /// the stream) on the stream with `id`.
-    ///
-    /// See [`StreamMap::ending_msg_received`](super::StreamMap::ending_msg_received).
-    #[cfg(feature = "hs-service")]
-    pub(crate) fn ending_msg_received(&self, stream_id: StreamId) -> Result<()> {
-        let mut hop_map = self.outbound.map.lock().expect("lock poisoned");
-
-        hop_map.ending_msg_received(stream_id)?;
-
-        Ok(())
-    }
-
-    /// Parse a RELAY or RELAY_EARLY cell body.
-    ///
-    /// Requires that the cryptographic checks on the message have already been
-    /// performed
-    pub(crate) fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
-        self.inbound
-            .decoder
-            .decode(cell)
-            .map_err(|e| Error::from_bytes_err(e, "relay cell"))
-    }
-
-    /// Handle `msg`, delivering it to the stream with the specified `streamid` if appropriate.
-    ///
-    /// Returns back the provided `msg`, if the message is an incoming stream request
-    /// that needs to be handled by the calling code.
-    ///
-    // TODO: the above is a bit of a code smell -- we should try to avoid passing the msg
-    // back and forth like this.
-    pub(super) fn handle_msg(
-        &self,
-        hop_detail: &PathEntry,
-        cell_counts_toward_windows: bool,
-        streamid: StreamId,
-        msg: UnparsedRelayMsg,
-        now: Instant,
-    ) -> Result<Option<UnparsedRelayMsg>> {
-        let mut hop_map = self.outbound.map.lock().expect("lock poisoned");
-
-        let possible_proto_violation_err = || Error::UnknownStream {
-            src: sv(hop_detail.clone()),
-            streamid,
-        };
-
-        match hop_map.get_mut(streamid) {
-            Some(StreamEntMut::Open(ent)) => {
-                // Can't have a stream level SENDME when congestion control is enabled.
-                let message_closes_stream =
-                    Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
-
-                if message_closes_stream {
-                    hop_map.ending_msg_received(streamid)?;
-                }
-            }
-            Some(StreamEntMut::EndSent(EndSentStreamEnt { expiry, .. })) if now >= *expiry => {
-                return Err(possible_proto_violation_err());
-            }
-            #[cfg(feature = "hs-service")]
-            Some(StreamEntMut::EndSent(_))
-                if matches!(
-                    msg.cmd(),
-                    RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
-                ) =>
-            {
-                // If the other side is sending us a BEGIN but hasn't yet acknowledged our END
-                // message, just remove the old stream from the map and stop waiting for a
-                // response
-                hop_map.ending_msg_received(streamid)?;
-                return Ok(Some(msg));
-            }
-            Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
-                // We sent an end but maybe the other side hasn't heard.
-
-                match half_stream.handle_msg(msg)? {
-                    StreamStatus::Open => {}
-                    StreamStatus::Closed => {
-                        hop_map.ending_msg_received(streamid)?;
-                    }
-                }
-            }
-            #[cfg(feature = "hs-service")]
-            None if matches!(
-                msg.cmd(),
-                RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
-            ) =>
-            {
-                return Ok(Some(msg));
-            }
-            _ => {
-                // No stream wants this message, or ever did.
-                return Err(possible_proto_violation_err());
-            }
-        }
-
-        Ok(None)
     }
 
     /// Builds the reactor's flow control handler for a new stream.
@@ -640,7 +760,7 @@ impl CircHop {
         rate_limit_updater: watch::Sender<StreamRateLimit>,
         drain_rate_requester: NotifySender<DrainRateRequest>,
     ) -> Result<StreamFlowCtrl> {
-        if self.outbound.ccontrol.uses_stream_sendme() {
+        if self.ccontrol.uses_stream_sendme() {
             let window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
             Ok(StreamFlowCtrl::new_window(window))
         } else {
@@ -736,9 +856,95 @@ impl CircHop {
         Ok(message_closes_stream)
     }
 
+    /// Note that we received an END message (or other message indicating the end of
+    /// the stream) on the stream with `id`.
+    ///
+    /// See [`StreamMap::ending_msg_received`](super::StreamMap::ending_msg_received).
+    #[cfg(feature = "hs-service")]
+    pub(crate) fn ending_msg_received(&self, stream_id: StreamId) -> Result<()> {
+        let mut hop_map = self.map.lock().expect("lock poisoned");
+
+        hop_map.ending_msg_received(stream_id)?;
+
+        Ok(())
+    }
+
+    /// Handle `msg`, delivering it to the stream with the specified `streamid` if appropriate.
+    ///
+    /// Returns back the provided `msg`, if the message is an incoming stream request
+    /// that needs to be handled by the calling code.
+    ///
+    // TODO: the above is a bit of a code smell -- we should try to avoid passing the msg
+    // back and forth like this.
+    pub(crate) fn handle_msg<F>(
+        &self,
+        possible_proto_violation_err: F,
+        cell_counts_toward_windows: bool,
+        streamid: StreamId,
+        msg: UnparsedRelayMsg,
+        now: Instant,
+    ) -> Result<Option<UnparsedRelayMsg>>
+    where
+        F: FnOnce(StreamId) -> Error,
+    {
+        let mut hop_map = self.map.lock().expect("lock poisoned");
+
+        match hop_map.get_mut(streamid) {
+            Some(StreamEntMut::Open(ent)) => {
+                // Can't have a stream level SENDME when congestion control is enabled.
+                let message_closes_stream =
+                    Self::deliver_msg_to_stream(streamid, ent, cell_counts_toward_windows, msg)?;
+
+                if message_closes_stream {
+                    hop_map.ending_msg_received(streamid)?;
+                }
+            }
+            Some(StreamEntMut::EndSent(EndSentStreamEnt { expiry, .. })) if now >= *expiry => {
+                return Err(possible_proto_violation_err(streamid));
+            }
+            #[cfg(feature = "hs-service")]
+            Some(StreamEntMut::EndSent(_))
+                if matches!(
+                    msg.cmd(),
+                    RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
+                ) =>
+            {
+                // If the other side is sending us a BEGIN but hasn't yet acknowledged our END
+                // message, just remove the old stream from the map and stop waiting for a
+                // response
+                hop_map.ending_msg_received(streamid)?;
+                return Ok(Some(msg));
+            }
+            Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
+                // We sent an end but maybe the other side hasn't heard.
+
+                match half_stream.handle_msg(msg)? {
+                    StreamStatus::Open => {}
+                    StreamStatus::Closed => {
+                        hop_map.ending_msg_received(streamid)?;
+                    }
+                }
+            }
+            #[cfg(feature = "hs-service")]
+            None if matches!(
+                msg.cmd(),
+                RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
+            ) =>
+            {
+                return Ok(Some(msg));
+            }
+            _ => {
+                // No stream wants this message, or ever did.
+                return Err(possible_proto_violation_err(streamid));
+            }
+        }
+
+        Ok(None)
+    }
+
     /// Get the stream map of this hop.
     pub(crate) fn stream_map(&self) -> &Arc<Mutex<StreamMap>> {
-        &self.outbound.map
+        &self.map
     }
 
     /// Set the stream map of this hop to `map`.
@@ -749,23 +955,16 @@ impl CircHop {
             return Err(internal!("Tried to discard existing open streams?!"));
         }
 
-        self.outbound.map = map;
+        self.map = map;
 
         Ok(())
     }
 
     /// Decrement the limit of outbound cells that may be sent to this hop; give
     /// an error if it would reach zero.
-    pub(crate) fn decrement_outbound_cell_limit(&mut self) -> Result<()> {
-        try_decrement_cell_limit(&mut self.outbound.n_outgoing_cells_permitted)
+    pub(crate) fn decrement_cell_limit(&mut self) -> Result<()> {
+        try_decrement_cell_limit(&mut self.n_outgoing_cells_permitted)
             .map_err(|_| Error::ExcessOutboundCells)
-    }
-
-    /// Decrement the limit of inbound cells that may be received from this hop; give
-    /// an error if it would reach zero.
-    pub(crate) fn decrement_inbound_cell_limit(&mut self) -> Result<()> {
-        try_decrement_cell_limit(&mut self.inbound.n_incoming_cells_permitted)
-            .map_err(|_| Error::ExcessInboundCells)
     }
 }
 
