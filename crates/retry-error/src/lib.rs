@@ -238,9 +238,6 @@ impl<E: AsRef<dyn Error>> Display for RetryError<E> {
 
 /// Helper: formats a [`std::error::Error`] and its sources (as `"error: source"`)
 ///
-/// Avoids duplication in messages by not printing messages which are
-/// wholly-contained (textually) within already-printed messages.
-///
 /// Offered as a `fmt` function:
 /// this is for use in more-convenient higher-level error handling functionality,
 /// rather than directly in application/functional code.
@@ -277,14 +274,21 @@ impl<E: AsRef<dyn Error>> Display for RetryError<E> {
 /// assert_eq!(printed, "everything is terrible: some pernickety problem");
 /// ```
 pub fn fmt_error_with_sources(mut e: &dyn Error, f: &mut fmt::Formatter) -> fmt::Result {
-    let mut last = String::new();
     let mut sep = iter::once("").chain(iter::repeat(": "));
     loop {
-        let this = e.to_string();
-        if !last.contains(&this) {
-            write!(f, "{}{}", sep.next().expect("repeat ended"), &this)?;
-        }
-        last = this;
+        // Here we used to track the last error message and would only print the next error message
+        // if it was not contained in the earlier message, to try to avoid printing duplicate
+        // messages.
+        // But if there are duplicate error messages, that's an issue with the underlying error
+        // type. It's not something we should worry about here. If we add this extra comparison
+        // logic, then we only hide the root problem when it would be better to fix the problem in
+        // the error type.
+        // Not all arti users will be using this function to display errors. Many will be using
+        // something like anyhow, which doesn't do this workaround.
+        // If this ends up being an issue (for example duplicate error messages in an error type
+        // outside of the arti repository that we can't fix), we can reintroduce the string
+        // comparison.
+        write!(f, "{}{e}", sep.next().expect("repeat ended"))?;
 
         if let Some(ne) = e.source() {
             e = ne;

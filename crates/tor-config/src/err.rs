@@ -198,7 +198,13 @@ impl std::fmt::Display for ConfigLoadError {
 
 impl std::error::Error for ConfigLoadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.0)
+        // A `ConfigLoadError` isn't really a new higher-level error,
+        // it just wraps an existing figment error and formats it a little differently.
+        // Our `Display` implementation writes the `self.0` error message,
+        // so here in `source()` we skip `self.0` and return *its* source error.
+        // Otherwise an error formatter which iterates over error sources would print the same
+        // error message twice.
+        self.0.source()
     }
 }
 
