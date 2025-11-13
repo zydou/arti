@@ -461,6 +461,23 @@ impl ClientCirc {
         self.mutable.single_path()
     }
 
+    /// Return the time at which this circuit last had any open streams.
+    ///
+    /// Returns `None` if this circuit has never had any open streams,
+    /// or if it currently has open streams.
+    ///
+    /// NOTE that the Instant returned by this method is not affected by
+    /// any runtime mocking; it is the output of an ordinary call to
+    /// `Instant::now()`.
+    pub async fn disused_since(&self) -> Result<Option<std::time::Instant>> {
+        let (tx, rx) = oneshot::channel();
+        self.command
+            .unbounded_send(CtrlCmd::GetTunnelActivity { sender: tx })
+            .map_err(|_| Error::CircuitClosed)?;
+
+        Ok(rx.await.map_err(|_| Error::CircuitClosed)?.disused_since())
+    }
+
     /// Get the clock skew claimed by the first hop of the circuit.
     ///
     /// See [`Channel::clock_skew()`].

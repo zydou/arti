@@ -52,6 +52,20 @@ pub(super) struct Isolation {
     tor_isolation: Option<String>,
 }
 
+impl Isolation {
+    /// Return true if no isolation field in this object is set.
+    pub(super) fn is_empty(&self) -> bool {
+        let Isolation {
+            proxy_auth,
+            x_tor_isolation,
+            tor_isolation,
+        } = self;
+        proxy_auth.as_ref().is_none_or(ProxyAuthorization::is_empty)
+            && x_tor_isolation.as_ref().is_none_or(String::is_empty)
+            && tor_isolation.as_ref().is_none_or(String::is_empty)
+    }
+}
+
 /// Constants and code for the HTTP headers we use.
 mod hdr {
     pub(super) use http::header::{CONTENT_TYPE, PROXY_AUTHORIZATION, SERVER, VIA};
@@ -358,6 +372,14 @@ impl ProxyAuthorization {
             Some(ProxyAuthorization::Modern(decoded))
         } else {
             None
+        }
+    }
+
+    /// Return true if this ProxyAuthorization has no authorization information.
+    fn is_empty(&self) -> bool {
+        match self {
+            ProxyAuthorization::Legacy(s) => s.is_empty(),
+            ProxyAuthorization::Modern(v) => v.is_empty(),
         }
     }
 }

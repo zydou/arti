@@ -451,9 +451,16 @@
 # requests should wait for a circuit.
 [circuit_timing]
 
-# Once a circuit has been used for a request, we stop giving it out for
-# other requests after this time.
+# Once a circuit has been used for a weakly isolated request,
+# we stop giving it out for other requests after this time.
+#
+# (A request is weakly isolated if the application did not specify
+# an isolation string as part of the proxy handshake.)
 #max_dirtiness = "10 minutes"
+
+# If a circuit has only been used for strongly isolated requests,
+# we retain it until it has been idle for at least this long.
+#disused_circuit_timeout = "60 minutes"
 
 # When a circuit is requested, we keep trying to build circuits for up
 # to this long before the request gives up.

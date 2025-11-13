@@ -16,6 +16,7 @@ use crate::stream::queue::StreamQueueSender;
 use crate::streammap::{self, EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::notify::NotifySender;
+use crate::util::tunnel_activity::TunnelActivity;
 use crate::{Error, Result};
 
 use futures::Stream;
@@ -201,6 +202,20 @@ impl CircHopList {
             .map(|hop| hop.n_open_streams())
             // No need to worry about overflow; max streams per hop is U16_MAX
             .sum()
+    }
+
+    /// Return the most active [`TunnelActivity`] for any hop on this `CircHopList`.
+    pub(crate) fn tunnel_activity(&self) -> TunnelActivity {
+        self.hops
+            .iter()
+            .map(|hop| {
+                hop.stream_map()
+                    .lock()
+                    .expect("Poisoned lock")
+                    .tunnel_activity()
+            })
+            .max()
+            .unwrap_or_else(TunnelActivity::never_used)
     }
 }
 

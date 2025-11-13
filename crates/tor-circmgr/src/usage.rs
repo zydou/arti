@@ -571,6 +571,39 @@ impl SupportedTunnelUsage {
             SCU::HsOnly => CU::UserTraffic,
         }
     }
+
+    /// True if this usage is compatible with a long-lived circuit.
+    ///
+    /// (We leave long-lived circuits alive until they have been disused for a long time,
+    /// and never expire them for being dirty.)
+    pub(crate) fn is_long_lived(&self) -> bool {
+        use SupportedTunnelUsage::*;
+        match self {
+            // We _could_ say "true" for these, but in practice we are done with them pretty
+            // quickly, and we can make another cheaply.
+            //
+            // If we did make these "true", we'd want to give them a different lifetime.
+            Dir => false,
+            #[cfg(feature = "specific-relay")]
+            DirSpecificTarget(_) => false,
+
+            Exit { isolation, .. } => {
+                // For Exit usage, we just care about whether the isolation enables long-lived circuits.
+                isolation
+                    .as_ref()
+                    .is_some_and(StreamIsolation::enables_long_lived_circuits)
+            }
+            NoUsage => {
+                // If the circuit is suitable for nothing, it is not long-lived.
+                false
+            }
+            HsOnly => {
+                // This circuit's lifetime is managed by the hspool code, and later by the hsclient
+                // code.  We will not manage it within the mgr.rs code.
+                false
+            }
+        }
+    }
 }
 
 #[cfg(test)]

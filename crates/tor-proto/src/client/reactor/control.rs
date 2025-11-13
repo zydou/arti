@@ -23,6 +23,7 @@ use crate::stream::queue::StreamQueueSender;
 use crate::streammap;
 use crate::util::notify::NotifySender;
 use crate::util::skew::ClockSkew;
+use crate::util::tunnel_activity::TunnelActivity;
 #[cfg(test)]
 use crate::{circuit::UniqId, client::circuit::CircParameters, crypto::cell::HopNum};
 use postage::watch;
@@ -310,6 +311,12 @@ pub(crate) enum CtrlCmd {
         padder: Option<padding::CircuitPadder>,
         /// A sender to alert after we've changed the padding.
         sender: oneshot::Sender<Result<()>>,
+    },
+
+    /// Yield the most active [`TunnelActivity`] for any hop on any leg of this tunnel.
+    GetTunnelActivity {
+        /// A sender to receive the reply.
+        sender: oneshot::Sender<TunnelActivity>,
     },
 }
 
@@ -786,6 +793,11 @@ impl<'a> ControlHandler<'a> {
             } => {
                 let result = self.reactor.set_padding_at_hop(hop, padder);
                 let _ = sender.send(result);
+                Ok(())
+            }
+            CtrlCmd::GetTunnelActivity { sender } => {
+                let count = self.reactor.circuits.tunnel_activity();
+                let _ = sender.send(count);
                 Ok(())
             }
         }
