@@ -240,9 +240,10 @@ impl CircParameters {
     }
 }
 
-/// Cmd for sending a relay cell.
+/// Instructions for sending a RELAY cell.
 ///
-/// The contents of this struct are passed to `send_relay_cell`
+/// This instructs a circuit reactor to send a RELAY cell to a given target
+/// (a hop, if we are a client, or the client, if we are a relay).
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub(crate) struct SendRelayCell {
