@@ -181,6 +181,8 @@ impl Display for ListenItem {
 /// How we (de) serialize a [`Listen`]
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
+// the default error message from serde's "untagged" is useless for users, so we provide our own
+#[serde(expecting = "value was not a bool, `u16` integer, string, or list of integers/strings")]
 enum ListenSerde {
     /// for `listen = false` (in TOML syntax)
     Bool(bool),
@@ -195,6 +197,8 @@ enum ListenSerde {
 /// One item in the list of a list-ish `Listen`, or the plain value
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
+// the default error message from serde's "untagged" is useless for users, so we provide our own
+#[serde(expecting = "item was not a `u16` integer or string")]
 enum ListenItemSerde {
     /// An integer.
     ///
@@ -399,8 +403,15 @@ mod test {
             chk_err(el, &format!("listen = [ 23, {}, 77 ]", s));
         };
 
-        chk_err_1("need actual addr/port", "did not match any variant", "true");
-        chk_err("did not match any variant", r#"listen = [ [] ]"#);
+        chk_err_1(
+            "need actual addr/port",
+            "value was not a bool, `u16` integer, string, or list of integers/strings",
+            "true",
+        );
+        chk_err(
+            "value was not a bool, `u16` integer, string, or list of integers/strings",
+            r#"listen = [ [] ]"#,
+        );
     }
 
     #[test]
