@@ -108,9 +108,10 @@ impl Listen {
         })
     }
 
-    /// Return true if this `Listen` only configures listening on localhost.
+    /// Return true if this `Listen` only configures listening on loopback addresses (`127.0.0.0/8`
+    /// and `::1`).
     pub fn is_localhost_only(&self) -> bool {
-        self.0.iter().all(ListenItem::is_localhost)
+        self.0.iter().all(ListenItem::is_loopback)
     }
 }
 
@@ -159,8 +160,8 @@ impl ListenItem {
         }
     }
 
-    /// Return true if this is a localhost address.
-    fn is_localhost(&self) -> bool {
+    /// Return true if this is a loopback address.
+    fn is_loopback(&self) -> bool {
         use ListenItem as LI;
         match self {
             LI::Localhost(_) => true,
