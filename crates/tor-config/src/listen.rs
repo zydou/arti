@@ -404,6 +404,87 @@ mod test {
     }
 
     #[test]
+    fn more_parsing_checks() {
+        let config: TestConfigFile = toml::from_str(r#"listen = false"#).unwrap();
+        assert!(config.listen.unwrap().is_empty());
+
+        let config: TestConfigFile = toml::from_str(r#"listen = 0"#).unwrap();
+        assert!(config.listen.unwrap().is_empty());
+
+        let config: TestConfigFile = toml::from_str(r#"listen = 1"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 2);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = """#).unwrap();
+        assert!(config.listen.unwrap().is_empty());
+
+        let config: TestConfigFile = toml::from_str(r#"listen = "127.0.0.1:8080""#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = ["127.0.0.1:8080"]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = "127.0.0.1:0""#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = ["127.0.0.1:0"]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = [1]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 2);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = [1, 2]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 4);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = ["127.0.0.1:8080", 2]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 3);
+
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [false]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = true"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [true]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [0]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["127.0.0.1:8080", 0]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["foo"]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["127.0.0.1:8080", "foo"]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [""]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["127.0.0.1:8080", ""]"#).is_err());
+    }
+
+    #[test]
+    fn constructor() {
+        let l = Listen::new_none();
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
+
+        let l = Listen::new_localhost(1234);
+        assert!(!l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 2);
+
+        let l = Listen::new_localhost(0);
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
+
+        let l = Listen::new_localhost_optional(Some(1234));
+        assert!(!l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 2);
+
+        let l = Listen::new_localhost_optional(Some(0));
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
+
+        let l = Listen::new_localhost_optional(None);
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
+    }
+
+    #[test]
     fn display_listen() {
         let empty = Listen::new_none();
         assert_eq!(empty.to_string(), "");
