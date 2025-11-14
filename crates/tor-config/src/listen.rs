@@ -211,16 +211,12 @@ enum ListenItemSerde {
     String(String),
 }
 
-// This implementation isn't fallible, but clippy thinks it is because of the unwrap.
-// The unwrap is just there because we can't pattern-match on a Vec
-#[allow(clippy::fallible_impl_from)]
 impl From<Listen> for ListenSerde {
     fn from(l: Listen) -> ListenSerde {
-        let l = l.0;
-        match l.len() {
-            0 => ListenSerde::Bool(false),
-            1 => ListenSerde::One(l.into_iter().next().expect("len=1 but no next").into()),
-            _ => ListenSerde::List(l.into_iter().map(Into::into).collect()),
+        match l.0.as_slice() {
+            [] => ListenSerde::Bool(false),
+            [one] => ListenSerde::One(one.clone().into()),
+            list => ListenSerde::List(list.into_iter().cloned().map(Into::into).collect()),
         }
     }
 }
