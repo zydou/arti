@@ -483,7 +483,7 @@ impl Circuit {
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
-            circhop.ccontrol_mut().note_data_sent(&runtime, &tag)?;
+            circhop.ccontrol().note_data_sent(&runtime, &tag)?;
         }
 
         // Remember that we've enqueued this cell.
@@ -590,7 +590,7 @@ impl Circuit {
         let send_circ_sendme = if c_t_w {
             self.hop_mut(hopnum)
                 .ok_or_else(|| Error::CircProto("Sendme from nonexistent hop".into()))?
-                .ccontrol_mut()
+                .ccontrol()
                 .note_data_received()?
         } else {
             false
@@ -619,7 +619,7 @@ impl Circuit {
                         hopnum
                     ))
                 })?
-                .ccontrol_mut()
+                .ccontrol()
                 .note_sendme_sent()?;
         }
 
@@ -1383,7 +1383,7 @@ impl Circuit {
                 // but we don't support those any longer.
                  Error::CircProto("missing tag on circuit sendme".into()))?;
         // Update the CC object that we received a SENDME along with possible congestion signals.
-        hop.ccontrol_mut()
+        hop.ccontrol()
             .note_sendme_received(&runtime, tag, signals)?;
         Ok(None)
     }

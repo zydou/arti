@@ -32,7 +32,7 @@ use safelog::sensitive as sv;
 use tor_error::Bug;
 
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::Poll;
 use std::time::Instant;
 
@@ -242,13 +242,15 @@ impl CircHop {
     ) -> Self {
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
 
+        let ccontrol = Arc::new(Mutex::new(CongestionControl::new(&settings.ccontrol)));
         let inbound = CircHopInbound::new(
+            Arc::clone(&ccontrol),
             RelayCellDecoder::new(relay_format),
             settings,
         );
 
         let outbound = CircHopOutbound::new(
-            CongestionControl::new(&settings.ccontrol),
+            ccontrol,
             relay_format,
             Arc::new(settings.flow_ctrl_params.clone()),
             settings,
@@ -339,14 +341,9 @@ impl CircHop {
         self.outbound.n_open_streams()
     }
 
-    /// Return a reference to our CongestionControl object.
-    pub(crate) fn ccontrol(&self) -> &CongestionControl {
-        self.outbound.ccontrol()
-    }
-
     /// Return a mutable reference to our CongestionControl object.
-    pub(crate) fn ccontrol_mut(&mut self) -> &mut CongestionControl {
-        self.outbound.ccontrol_mut()
+    pub(crate) fn ccontrol(&self) -> MutexGuard<'_, CongestionControl> {
+        self.outbound.ccontrol()
     }
 
     /// We're about to send `msg`.
