@@ -234,7 +234,7 @@ impl From<ListenItem> for ListenItemSerde {
 /// Listen configuration is invalid
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
-pub enum InvalidListen {
+enum InvalidListen {
     /// Bool was `true` but that's not an address.
     #[error("Invalid listen specification: need actual addr/port, or `false`; not `true`")]
     InvalidBool,
