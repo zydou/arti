@@ -298,29 +298,19 @@ impl CircHop {
         hop_num: HopNum,
         settings: &HopSettings,
     ) -> Self {
-        /// Convert a limit from the form used in a HopSettings to that used here.
-        /// (The format we use here is more compact.)
-        fn cvt(limit: u32) -> NonZeroU32 {
-            // See "known limitations" comment on n_incoming_cells_permitted.
-            limit
-                .saturating_add(1)
-                .try_into()
-                .expect("Adding one left it as zero?")
-        }
         let relay_format = settings.relay_crypt_protocol().relay_cell_format();
 
-        let inbound = CircHopInbound {
-            decoder: RelayCellDecoder::new(relay_format),
-            n_incoming_cells_permitted: settings.n_incoming_cells_permitted.map(cvt),
-        };
+        let inbound = CircHopInbound::new(
+            RelayCellDecoder::new(relay_format),
+            settings,
+        );
 
-        let outbound = CircHopOutbound {
-            map: Arc::new(Mutex::new(StreamMap::new())),
-            ccontrol: CongestionControl::new(&settings.ccontrol),
+        let outbound = CircHopOutbound::new(
+            CongestionControl::new(&settings.ccontrol),
             relay_format,
-            flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
-            n_outgoing_cells_permitted: settings.n_outgoing_cells_permitted.map(cvt),
-        };
+            Arc::new(settings.flow_ctrl_params.clone()),
+            settings,
+        );
 
         CircHop {
             unique_id,
@@ -519,6 +509,17 @@ impl CircHop {
 }
 
 impl CircHopInbound {
+    /// Create a new [`CircHopInbound`].
+    pub(crate) fn new(
+        decoder: RelayCellDecoder,
+        settings: &HopSettings,
+    ) -> Self {
+        Self {
+            decoder,
+            n_incoming_cells_permitted: settings.n_incoming_cells_permitted.map(cvt),
+        }
+    }
+
     /// Parse a RELAY or RELAY_EARLY cell body.
     ///
     /// Requires that the cryptographic checks on the message have already been
@@ -538,6 +539,22 @@ impl CircHopInbound {
 }
 
 impl CircHopOutbound {
+    /// Create a new [`CircHopOutbound`].
+    pub(crate) fn new(
+        ccontrol: CongestionControl,
+        relay_format: RelayCellFormat,
+        flow_ctrl_params: Arc<FlowCtrlParameters>,
+        settings: &HopSettings,
+    ) -> Self {
+        Self {
+            ccontrol,
+            map: Arc::new(Mutex::new(StreamMap::new())),
+            relay_format,
+            flow_ctrl_params,
+            n_outgoing_cells_permitted: settings.n_outgoing_cells_permitted.map(cvt),
+        }
+    }
+
     /// Start a stream. Creates an entry in the stream map with the given channels, and sends the
     /// `message` to the provided hop.
     pub(crate) fn begin_stream(
@@ -985,4 +1002,14 @@ fn try_decrement_cell_limit(val: &mut Option<NonZeroU32>) -> StdResult<(), ()> {
         }
         None => Ok(()),
     }
+}
+
+/// Convert a limit from the form used in a HopSettings to that used here.
+/// (The format we use here is more compact.)
+fn cvt(limit: u32) -> NonZeroU32 {
+    // See "known limitations" comment on n_incoming_cells_permitted.
+    limit
+        .saturating_add(1)
+        .try_into()
+        .expect("Adding one left it as zero?")
 }
