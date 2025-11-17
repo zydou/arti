@@ -28,7 +28,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::StreamMpscReceiver;
+use crate::stream::{STREAM_READER_BUFFER, StreamMpscReceiver};
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
@@ -88,17 +88,6 @@ use {
 };
 
 pub(super) use circhop::{CircHop, CircHopList};
-
-/// Initial value for outbound flow-control window on streams.
-pub(crate) const SEND_WINDOW_INIT: u16 = 500;
-/// Initial value for inbound flow-control window on streams.
-pub(crate) const RECV_WINDOW_INIT: u16 = 500;
-/// Size of the buffer used between the reactor and a `StreamReader`.
-///
-/// FIXME(eta): We pick 2× the receive window, which is very conservative (we arguably shouldn't
-///             get sent more than the receive window anyway!). We might do due to things that
-///             don't count towards the window though.
-pub(crate) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
 
 /// A circuit "leg" from a tunnel.
 ///

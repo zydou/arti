@@ -92,13 +92,12 @@ use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::incoming::{IncomingCmdChecker, IncomingStream, StreamReqInfo};
-use crate::stream::{StreamComponents, StreamTarget, Tunnel};
+use crate::stream::{StreamComponents, StreamTarget, Tunnel, RECV_WINDOW_INIT};
 use crate::util::err::ReactorError;
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 
-use crate::client::reactor::RECV_WINDOW_INIT;
 use crate::client::stream::StreamReceiver;
 
 use backward::{BackwardReactor, IncomingStreamRequestHandler};
@@ -421,9 +420,8 @@ fn prepare_incoming_stream<'a, R: Runtime>(
 )> {
     /// The size of the channel receiving IncomingStreamRequestContexts.
     ///
-    // TODO(relay): move this out of client::
     // TODO(relay-tuning): buffer size
-    const INCOMING_BUFFER: usize = crate::client::reactor::STREAM_READER_BUFFER;
+    const INCOMING_BUFFER: usize = crate::stream::STREAM_READER_BUFFER;
 
     let time_prov = DynTimeProvider::new(runtime);
 

@@ -32,6 +32,18 @@ use crate::{ClientTunnel, Error, HopLocation, Result};
 use std::pin::Pin;
 use std::sync::Arc;
 
+/// Initial value for outbound flow-control window on streams.
+pub(crate) const SEND_WINDOW_INIT: u16 = 500;
+/// Initial value for inbound flow-control window on streams.
+pub(crate) const RECV_WINDOW_INIT: u16 = 500;
+
+/// Size of the buffer used between the reactor and a `StreamReader`.
+///
+/// FIXME(eta): We pick 2× the receive window, which is very conservative (we arguably shouldn't
+///             get sent more than the receive window anyway!). We might do due to things that
+///             don't count towards the window though.
+pub(crate) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
+
 /// MPSC queue relating to a stream (either inbound or outbound), sender
 pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
 /// MPSC queue relating to a stream (either inbound or outbound), receiver

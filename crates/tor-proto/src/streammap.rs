@@ -2,11 +2,7 @@
 
 mod halfstream;
 
-// TODO(relay): streammap is meant to be impl-agnostic
-// (it's used both by clients and relays), so ideally
-// it shouldn't need to import from client::
-use crate::client::reactor::circuit::RECV_WINDOW_INIT;
-
+use crate::stream::RECV_WINDOW_INIT;
 use crate::congestion::sendme;
 use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::AnyCmdChecker;
