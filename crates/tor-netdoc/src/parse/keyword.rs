@@ -18,7 +18,9 @@ use std::hash::Hash;
 ///
 /// See macro::decl_keyword! for help defining a Keyword type for a
 /// network document.
-pub(crate) trait Keyword: crate::KeywordEncodable + Hash + Eq + PartialEq + Copy + Clone {
+pub(crate) trait Keyword:
+    crate::KeywordEncodable + Hash + Eq + PartialEq + Copy + Clone
+{
     /// Find a Keyword corresponding to a string that appears in a
     /// network document.
     fn from_str(s: &str) -> Self;
