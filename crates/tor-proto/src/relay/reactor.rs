@@ -193,7 +193,14 @@ impl<R: Runtime, T: HasRelayIds> RelayReactor<R, T> {
     ) -> (Self, RelayCirc) {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
         let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
-        let (cell_tx, cell_rx) = mpsc::unbounded();
+
+        // NOTE: not registering this channel with the memquota subsystem is okay,
+        // because it has no buffering (if ever decide to make the size of this buffer
+        // non-zero for whatever reason, we must remember to register it with memquota
+        // so that it counts towards the total memory usage for the circuit.
+        #[allow(clippy::disallowed_methods)]
+        let (cell_tx, cell_rx) = mpsc::channel(0);
+
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
 

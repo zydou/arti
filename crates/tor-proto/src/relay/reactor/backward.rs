@@ -85,7 +85,7 @@ pub(super) struct BackwardReactor {
     ///   * it lets the `BackwardReactor` know if the `ForwardReactor` has shut down:
     ///     we select! on this MPSC channel in the main loop, so if the `ForwardReactor`
     ///     shuts down, we will get EOS upon calling `.next()`)
-    cell_rx: mpsc::UnboundedReceiver<BackwardReactorCmd>,
+    cell_rx: mpsc::Receiver<BackwardReactorCmd>,
     /// A sender for sending newly opened outgoing [`Channel`]`s to the reactor.
     ///
     /// This is passed to the [`ChannelProvider`](crate::relay::channel_provider::ChannelProvider)
@@ -119,7 +119,7 @@ impl BackwardReactor {
         unique_id: UniqId,
         crypto_in: Box<dyn InboundRelayLayer + Send>,
         settings: &HopSettings,
-        cell_rx: mpsc::UnboundedReceiver<BackwardReactorCmd>,
+        cell_rx: mpsc::Receiver<BackwardReactorCmd>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {

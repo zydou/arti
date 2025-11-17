@@ -76,7 +76,7 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
     ///
     /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending all client-bound cells.
-    cell_tx: mpsc::UnboundedSender<BackwardReactorCmd>,
+    cell_tx: mpsc::Sender<BackwardReactorCmd>,
     /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
     ///
     /// Note: all circuit reactors of a relay need to be initialized
@@ -108,7 +108,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
-        cell_tx: mpsc::UnboundedSender<BackwardReactorCmd>,
+        cell_tx: mpsc::Sender<BackwardReactorCmd>,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {
