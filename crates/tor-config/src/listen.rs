@@ -130,10 +130,18 @@ impl Listen {
     /// and `::1`).
     ///
     /// Returns true if there are no addresses configured.
-    pub fn is_localhost_only(&self) -> bool {
+    pub fn is_loopback_only(&self) -> bool {
         self.ip_addrs_internal()
             .flatten()
             .all(|a| a.ip().is_loopback())
+    }
+
+    /// Deprecated.
+    /// Use [`Self::is_loopback_only`] instead,
+    /// which behaves the same but has the correct method name.
+    #[deprecated(since = "0.37.0", note = "please use `is_loopback_only` instead")]
+    pub fn is_localhost_only(&self) -> bool {
+        self.is_loopback_only()
     }
 }
 
@@ -612,7 +620,7 @@ mod test {
     fn is_localhost() {
         fn localhost_only(s: &str) -> bool {
             let tc: TestConfigFile = toml::from_str(s).expect(s);
-            tc.listen.unwrap().is_localhost_only()
+            tc.listen.unwrap().is_loopback_only()
         }
 
         assert_eq!(localhost_only(r#"listen = [ ]"#), true);
