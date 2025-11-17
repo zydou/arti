@@ -310,7 +310,19 @@ impl Drop for ItemEncoder<'_> {
     }
 }
 
-/// A trait for building and signing netdocs.
+/// Builders for network documents.
+///
+/// This trait is a bit weird, because its `Self` type must contain the *private* keys
+/// necessary to sign the document!
+///
+/// So it is implemented for "builders", not for documents themselves.
+/// Some existing documents can be constructed only via these builders.
+/// The newer approach is for documents to be transparent data, at the Rust level,
+/// and to derive an encoder.
+/// TODO this derive approach is not yet implemented!
+///
+/// Actual document types, which only contain the information in the document,
+/// don't implement this trait.
 pub trait NetdocBuilder {
     /// Build the document into textual form.
     fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError>;
