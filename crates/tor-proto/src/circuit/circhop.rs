@@ -287,7 +287,7 @@ pub(crate) struct SendRelayCell {
     pub(crate) cell: AnyRelayMsgOuter,
 }
 
-/// The inbound state of a [`CircHop`].
+/// The inbound state of a hop.
 pub(crate) struct CircHopInbound {
     /// Congestion control object.
     ///
@@ -306,7 +306,7 @@ pub(crate) struct CircHopInbound {
     n_incoming_cells_permitted: Option<NonZeroU32>,
 }
 
-/// The outbound state of a [`CircHop`].
+/// The outbound state of a hop.
 pub(crate) struct CircHopOutbound {
     /// Congestion control object.
     ///
@@ -318,13 +318,13 @@ pub(crate) struct CircHopOutbound {
     /// reactor needs it for every incoming cell on a stream, whereas
     /// the circuit only needs it when allocating new streams.
     ///
-    /// NOTE: this is behind a mutex because the reactor polls the `StreamMap`s
-    /// of all hops concurrently, in a [`FuturesUnordered`]. Without the mutex,
+    /// NOTE: this is behind a mutex because the client reactor polls the `StreamMap`s
+    /// of all hops concurrently, in a `FuturesUnordered`. Without the mutex,
     /// this wouldn't be possible, because it would mean holding multiple
     /// mutable references to `self` (the reactor). Note, however,
     /// that there should never be any contention on this mutex:
     /// we never create more than one
-    /// [`ready_streams_iterator`](CircHopList::ready_streams_iterator) stream
+    /// `CircHopList::ready_streams_iterator()` stream
     /// at a time, and we never clone/lock the hop's `StreamMap` outside of it.
     ///
     /// Additionally, the stream map of the last hop (join point) of a conflux tunnel
@@ -549,7 +549,7 @@ impl CircHopOutbound {
 
     /// We're about to send `msg`.
     ///
-    /// See [`OpenStreamEnt::about_to_send`].
+    /// See [`OpenStreamEnt::about_to_send`](crate::streammap::OpenStreamEnt::about_to_send).
     //
     // TODO prop340: This should take a cell or similar, not a message.
     //
@@ -714,7 +714,7 @@ impl CircHopOutbound {
     /// Note that we received an END message (or other message indicating the end of
     /// the stream) on the stream with `id`.
     ///
-    /// See [`StreamMap::ending_msg_received`](super::StreamMap::ending_msg_received).
+    /// See [`StreamMap::ending_msg_received`](crate::streammap::StreamMap::ending_msg_received).
     #[cfg(feature = "hs-service")]
     pub(crate) fn ending_msg_received(&self, stream_id: StreamId) -> Result<()> {
         let mut hop_map = self.map.lock().expect("lock poisoned");

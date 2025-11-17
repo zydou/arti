@@ -348,7 +348,7 @@ impl CircHop {
 
     /// We're about to send `msg`.
     ///
-    /// See [`OpenStreamEnt::about_to_send`].
+    /// See [`OpenStreamEnt::about_to_send`](crate::streammap::OpenStreamEnt::about_to_send).
     //
     // TODO prop340: This should take a cell or similar, not a message.
     pub(crate) fn about_to_send(&mut self, stream_id: StreamId, msg: &AnyRelayMsg) -> Result<()> {
@@ -379,7 +379,7 @@ impl CircHop {
     /// Note that we received an END message (or other message indicating the end of
     /// the stream) on the stream with `id`.
     ///
-    /// See [`StreamMap::ending_msg_received`](super::StreamMap::ending_msg_received).
+    /// See [`StreamMap::ending_msg_received`](crate::streammap::StreamMap::ending_msg_received).
     #[cfg(feature = "hs-service")]
     pub(crate) fn ending_msg_received(&self, stream_id: StreamId) -> Result<()> {
         self.outbound.ending_msg_received(stream_id)
