@@ -164,6 +164,13 @@ impl NetdocEncoder {
     }
 }
 
+impl Default for NetdocEncoder {
+    fn default() -> Self {
+        // We must open-code this because the actual encoder contains Result, which isn't Default
+        NetdocEncoder::new()
+    }
+}
+
 impl ItemArgument for str {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         // Implements this
