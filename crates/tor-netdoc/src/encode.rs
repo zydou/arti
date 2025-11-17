@@ -20,7 +20,7 @@ use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::{Bug, internal};
 
-use crate::parse::keyword::Keyword;
+use crate::KeywordEncodable;
 use crate::parse::tokenize::tag_keywords_ok;
 use crate::types::misc::Iso8601TimeSp;
 
@@ -95,7 +95,7 @@ impl NetdocEncoder {
     ///
     /// The item can be further extended with arguments or an object,
     /// using the returned `ItemEncoder`.
-    pub(crate) fn item(&mut self, keyword: impl Keyword) -> ItemEncoder {
+    pub(crate) fn item(&mut self, keyword: impl KeywordEncodable) -> ItemEncoder {
         self.raw(&keyword.to_str());
         ItemEncoder { doc: self }
     }

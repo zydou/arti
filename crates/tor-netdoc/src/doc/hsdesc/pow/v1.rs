@@ -1,9 +1,9 @@
 //! Implement parsing for the `pow-params v1` scheme
 
 use crate::doc::hsdesc::inner::HsInnerKwd;
-use crate::parse::{keyword::Keyword, tokenize::Item};
+use crate::parse::tokenize::Item;
 use crate::types::misc::{B64, Iso8601TimeNoSp};
-use crate::{NetdocErrorKind, Result};
+use crate::{KeywordEncodable, NetdocErrorKind, Result};
 use std::time::SystemTime;
 use tor_checkable::timed::TimerangeBound;
 use tor_hscrypto::pow::v1::{Effort, Seed};

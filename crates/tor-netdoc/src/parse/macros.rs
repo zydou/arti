@@ -40,7 +40,7 @@ macro_rules! decl_keyword {
             UNRECOGNIZED,
             ANN_UNRECOGNIZED
         }
-        impl $crate::parse::keyword::Keyword for $name {
+        impl $crate::KeywordEncodable for $name {
             fn to_str(self) -> &'static str {
                 use $name::*;
                 match self {
@@ -49,6 +49,8 @@ macro_rules! decl_keyword {
                     ANN_UNRECOGNIZED => "<unrecognized annotation>"
                 }
             }
+        }
+        impl $crate::parse::keyword::Keyword for $name {
             fn idx(self) -> usize { self as usize }
             fn n_vals() -> usize { ($name::ANN_UNRECOGNIZED as usize) + 1 }
             fn unrecognized() -> Self { $name::UNRECOGNIZED }
@@ -102,6 +104,7 @@ macro_rules! decl_keyword {
 #[cfg(test)]
 pub(crate) mod test {
     #![allow(clippy::cognitive_complexity)]
+    use crate::KeywordEncodable;
 
     decl_keyword! {
         pub(crate) Fruit {

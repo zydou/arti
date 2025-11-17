@@ -80,6 +80,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// module.
 pub type BuildResult<T> = std::result::Result<T, BuildError>;
 
+/// Keywords that can be encoded (written) into a (being-built) network document
+pub trait KeywordEncodable {
+    /// Encoding of the keyword.
+    ///
+    /// Used for error reporting, and also by `NetdocEncoder::item`.
+    fn to_str(self) -> &'static str;
+}
+
 /// Indicates whether we should parse an annotated list of objects or a
 /// non-annotated list.
 #[derive(PartialEq, Debug, Eq)]
