@@ -88,6 +88,12 @@ pub trait KeywordEncodable {
     fn to_str(self) -> &'static str;
 }
 
+impl KeywordEncodable for &'static str {
+    fn to_str(self) -> &'static str {
+        self
+    }
+}
+
 /// Indicates whether we should parse an annotated list of objects or a
 /// non-annotated list.
 #[derive(PartialEq, Debug, Eq)]
