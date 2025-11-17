@@ -292,6 +292,7 @@ pub(crate) struct CircHopInbound {
     /// Congestion control object.
     ///
     /// This object is also in charge of handling circuit level SENDME logic for this hop.
+    #[allow(dead_code)] // TODO(relay)
     ccontrol: Arc<Mutex<CongestionControl>>,
     /// Decodes relay cells received from this hop.
     decoder: RelayCellDecoder,
@@ -356,6 +357,7 @@ impl CircHopInbound {
     }
 
     /// Return a mutable reference to our CongestionControl object.
+    #[allow(dead_code)] // TODO(relay)
     pub(crate) fn ccontrol(&self) -> MutexGuard<'_, CongestionControl> {
         self.ccontrol.lock().expect("poisoned lock")
     }
@@ -397,6 +399,7 @@ impl CircHopOutbound {
 
     /// Start a stream. Creates an entry in the stream map with the given channels, and sends the
     /// `message` to the provided hop.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn begin_stream(
         &mut self,
         hop: Option<HopNum>,
