@@ -30,13 +30,11 @@ use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::queue::stream_queue;
-use crate::stream::{StreamComponents, StreamTarget, Tunnel, RECV_WINDOW_INIT};
+use crate::stream::{RECV_WINDOW_INIT, StreamComponents, StreamTarget, Tunnel};
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
 use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path};
-use reactor::{
-    CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler, STREAM_READER_BUFFER,
-};
+use reactor::{CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler, STREAM_READER_BUFFER};
 
 use postage::watch;
 use tor_cell::relaycell::StreamId;

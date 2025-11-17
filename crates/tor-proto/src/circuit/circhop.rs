@@ -3,11 +3,11 @@
 // TODO(relay): don't import from the client module
 use crate::client::circuit::handshake::RelayCryptLayerProtocol;
 
-use crate::stream::SEND_WINDOW_INIT;
 use crate::ccparams::CongestionControlParams;
 use crate::circuit::CircParameters;
 use crate::congestion::{CongestionControl, sendme};
 use crate::stream::CloseStreamBehavior;
+use crate::stream::SEND_WINDOW_INIT;
 use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;

@@ -2,8 +2,8 @@
 
 mod halfstream;
 
-use crate::stream::RECV_WINDOW_INIT;
 use crate::congestion::sendme;
+use crate::stream::RECV_WINDOW_INIT;
 use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};

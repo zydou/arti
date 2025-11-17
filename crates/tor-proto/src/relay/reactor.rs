@@ -92,7 +92,7 @@ use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::incoming::{IncomingCmdChecker, IncomingStream, StreamReqInfo};
-use crate::stream::{StreamComponents, StreamTarget, Tunnel, RECV_WINDOW_INIT};
+use crate::stream::{RECV_WINDOW_INIT, StreamComponents, StreamTarget, Tunnel};
 use crate::util::err::ReactorError;
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
