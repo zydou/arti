@@ -26,8 +26,9 @@ pub(crate) trait Keyword: Hash + Eq + PartialEq + Copy + Clone {
     /// as used in Section and SectionRules.
     #[allow(unused)] // TODO keep Keyword::from_idx ?
     fn from_idx(i: usize) -> Option<Self>;
-    /// Find a string corresponding to this keyword.  This may not be the
-    /// actual string from the document; it is intended for reporting errors.
+    /// Encoding of the keyword.
+    ///
+    /// Used for error reporting, and also by `NetdocEncoder::item`.
     fn to_str(self) -> &'static str;
     /// Return the index for this keyword.
     fn idx(self) -> usize;
