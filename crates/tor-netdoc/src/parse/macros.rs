@@ -41,6 +41,14 @@ macro_rules! decl_keyword {
             ANN_UNRECOGNIZED
         }
         impl $crate::parse::keyword::Keyword for $name {
+            fn to_str(self) -> &'static str {
+                use $name::*;
+                match self {
+                    $( $i => decl_keyword![@impl join $($s),+], )*
+                    UNRECOGNIZED => "<unrecognized>",
+                    ANN_UNRECOGNIZED => "<unrecognized annotation>"
+                }
+            }
             fn idx(self) -> usize { self as usize }
             fn n_vals() -> usize { ($name::ANN_UNRECOGNIZED as usize) + 1 }
             fn unrecognized() -> Self { $name::UNRECOGNIZED }
@@ -71,14 +79,6 @@ macro_rules! decl_keyword {
                               $name::UNRECOGNIZED,
                                  $name::ANN_UNRECOGNIZED ]);
                 VALS.get(i).copied()
-            }
-            fn to_str(self) -> &'static str {
-                use $name::*;
-                match self {
-                    $( $i => decl_keyword![@impl join $($s),+], )*
-                    UNRECOGNIZED => "<unrecognized>",
-                    ANN_UNRECOGNIZED => "<unrecognized annotation>"
-                }
             }
             fn is_annotation(self) -> bool {
                 use $name::*;
