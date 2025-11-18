@@ -411,7 +411,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::types::relay_flags::RelayFlags;
+    use crate::types::relay_flags::RelayFlag;
 
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
@@ -458,8 +458,8 @@ mod test {
             .add_or_port(SocketAddr::from(([10, 0, 0, 60], 9100)))
             .add_or_port("[f00f::1]:9200".parse().unwrap())
             .doc_digest([99; 32])
-            .set_flags(RelayFlags::FAST)
-            .add_flags(RelayFlags::STABLE | RelayFlags::V2_DIR)
+            .set_flags(RelayFlag::Fast)
+            .add_flags(RelayFlag::Stable | RelayFlag::V2Dir)
             .version("Arti 0.0.0".into())
             .protos("DirCache=7".parse().unwrap())
             .build_into(&mut builder)

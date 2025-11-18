@@ -87,7 +87,7 @@ pub(crate) mod testing {
     use std::collections::HashSet;
     use std::sync::LazyLock;
     use tor_netdir::{NetDir, Relay, SubnetConfig};
-    use tor_netdoc::types::relay_flags::RelayFlags;
+    use tor_netdoc::types::relay_flags::RelayFlag;
 
     /// Use a predicate to divide a NetDir into the relays that do and do not
     /// conform (respectively).
@@ -121,10 +121,10 @@ pub(crate) mod testing {
     pub(crate) fn testnet() -> NetDir {
         tor_netdir::testnet::construct_custom_netdir(|idx, node, _| {
             if idx % 7 == 0 {
-                node.rs.clear_flags(RelayFlags::FAST);
+                node.rs.clear_flags(RelayFlag::Fast);
             }
             if idx % 5 == 0 {
-                node.rs.clear_flags(RelayFlags::STABLE);
+                node.rs.clear_flags(RelayFlag::Stable);
             };
         })
         .unwrap()

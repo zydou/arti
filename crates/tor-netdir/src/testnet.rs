@@ -21,7 +21,7 @@ use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
 use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayWeight};
 use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
-use tor_netdoc::types::relay_flags::RelayFlags;
+use tor_netdoc::types::relay_flags::RelayFlag;
 pub use tor_netdoc::{BuildError, BuildResult};
 
 /// A set of builder objects for a single node.
@@ -187,17 +187,17 @@ pub fn construct_custom_network<F>(
 where
     F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder),
 {
-    let f = RelayFlags::RUNNING
-        | RelayFlags::VALID
-        | RelayFlags::V2_DIR
-        | RelayFlags::FAST
-        | RelayFlags::STABLE;
+    let f = RelayFlag::Running
+        | RelayFlag::Valid
+        | RelayFlag::V2Dir
+        | RelayFlag::Fast
+        | RelayFlag::Stable;
     // define 4 groups of flags
     let flags = [
-        f | RelayFlags::H_S_DIR,
-        f | RelayFlags::EXIT,
-        f | RelayFlags::GUARD,
-        f | RelayFlags::EXIT | RelayFlags::GUARD,
+        f | RelayFlag::HSDir,
+        f | RelayFlag::Exit,
+        f | RelayFlag::Guard,
+        f | RelayFlag::Exit | RelayFlag::Guard,
     ];
 
     let lifetime = lifetime.map(Ok).unwrap_or_else(|| {
@@ -219,7 +219,7 @@ where
         // Its identity fingerprints are set to `idx`, repeating.
         // They all get the same address.
         let flags = flags[(idx / 10) as usize];
-        let policy = if flags.contains(RelayFlags::EXIT) {
+        let policy = if flags.contains(RelayFlag::Exit) {
             if idx % 2 == 1 {
                 "accept 80,443"
             } else {

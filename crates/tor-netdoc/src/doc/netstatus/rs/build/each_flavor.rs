@@ -86,20 +86,20 @@ impl RouterStatusBuilder {
         self
     }
     /// Replace the current flags in this routerstatus with `flags`.
-    pub fn set_flags(&mut self, flags: RelayFlags) -> &mut Self {
-        self.flags = flags;
+    pub fn set_flags(&mut self, flags: impl Into<RelayFlags>) -> &mut Self {
+        self.flags = flags.into();
         self
     }
     /// Make all the flags in `flags` become set on this routerstatus,
     /// in addition to the flags already set.
-    pub fn add_flags(&mut self, flags: RelayFlags) -> &mut Self {
-        self.flags |= flags;
+    pub fn add_flags(&mut self, flags: impl Into<RelayFlags>) -> &mut Self {
+        self.flags |= flags.into();
         self
     }
     /// Make all the flags in `flags` become cleared on this routerstatus.
     #[cfg(feature = "testing")]
-    pub fn clear_flags(&mut self, flags: RelayFlags) -> &mut Self {
-        self.flags &= !flags;
+    pub fn clear_flags(&mut self, flags: impl Into<RelayFlags>) -> &mut Self {
+        self.flags &= !flags.into();
         self
     }
     /// Set the version of the relay described in this routerstatus.

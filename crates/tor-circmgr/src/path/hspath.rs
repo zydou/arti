@@ -423,7 +423,7 @@ mod test {
     use tor_linkspec::{ChannelMethod, OwnedCircTarget};
     use tor_netdir::{NetDirProvider, testnet::NodeBuilders, testprovider::TestNetDirProvider};
     use tor_netdoc::doc::netstatus::RelayWeight;
-    use tor_netdoc::types::relay_flags::RelayFlags;
+    use tor_netdoc::types::relay_flags::RelayFlag;
     use tor_rtmock::MockRuntime;
 
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -447,12 +447,12 @@ mod test {
         let netdir = construct_custom_netdir(|pos, nb, _| {
             nb.omit_rs = pos >= size;
             if !nb.omit_rs {
-                let f = RelayFlags::RUNNING
-                    | RelayFlags::VALID
-                    | RelayFlags::V2_DIR
-                    | RelayFlags::FAST
-                    | RelayFlags::STABLE;
-                nb.rs.set_flags(f | RelayFlags::GUARD);
+                let f = RelayFlag::Running
+                    | RelayFlag::Valid
+                    | RelayFlag::V2Dir
+                    | RelayFlag::Fast
+                    | RelayFlag::Stable;
+                nb.rs.set_flags(f | RelayFlag::Guard);
                 nb.rs.weight(RelayWeight::Measured(10_000));
 
                 set_family(pos, nb);

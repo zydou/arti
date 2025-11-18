@@ -43,39 +43,39 @@ impl RouterStatus {
     /// Return true if the ed25519 identity on this relay reflects a
     /// true consensus among the authorities.
     pub fn ed25519_id_is_usable(&self) -> bool {
-        !self.flags.contains(RelayFlags::NO_ED_CONSENSUS)
+        !self.flags.contains(RelayFlag::NoEdConsensus)
     }
     /// Return true if this routerstatus is listed with the BadExit flag.
     pub fn is_flagged_bad_exit(&self) -> bool {
-        self.flags.contains(RelayFlags::BAD_EXIT)
+        self.flags.contains(RelayFlag::BadExit)
     }
     /// Return true if this routerstatus is listed with the v2dir flag.
     pub fn is_flagged_v2dir(&self) -> bool {
-        self.flags.contains(RelayFlags::V2_DIR)
+        self.flags.contains(RelayFlag::V2Dir)
     }
     /// Return true if this routerstatus is listed with the Exit flag.
     pub fn is_flagged_exit(&self) -> bool {
-        self.flags.contains(RelayFlags::EXIT)
+        self.flags.contains(RelayFlag::Exit)
     }
     /// Return true if this routerstatus is listed with the Guard flag.
     pub fn is_flagged_guard(&self) -> bool {
-        self.flags.contains(RelayFlags::GUARD)
+        self.flags.contains(RelayFlag::Guard)
     }
     /// Return true if this routerstatus is listed with the HSDir flag.
     pub fn is_flagged_hsdir(&self) -> bool {
-        self.flags.contains(RelayFlags::H_S_DIR)
+        self.flags.contains(RelayFlag::HSDir)
     }
     /// Return true if this routerstatus is listed with the Stable flag.
     pub fn is_flagged_stable(&self) -> bool {
-        self.flags.contains(RelayFlags::STABLE)
+        self.flags.contains(RelayFlag::Stable)
     }
     /// Return true if this routerstatus is listed with the Fast flag.
     pub fn is_flagged_fast(&self) -> bool {
-        self.flags.contains(RelayFlags::FAST)
+        self.flags.contains(RelayFlag::Fast)
     }
     /// Return true if this routerstatus is listed with the MiddleOnly flag.
     pub fn is_flagged_middle_only(&self) -> bool {
-        self.flags.contains(RelayFlags::MIDDLE_ONLY)
+        self.flags.contains(RelayFlag::MiddleOnly)
     }
 }
 
@@ -132,7 +132,9 @@ impl RouterStatus {
         }).collect::<Result<Vec<_>>>()?;
 
         // S line
-        let flags = RelayFlags::from_item(sec.required(RS_S)?)?;
+        //
+        // Wrong for votes, but this code doesn't run for votes.
+        let flags = DocRelayFlags::from_item_consensus(sec.required(RS_S)?)?;
 
         // V line
         let version = sec.maybe(RS_V).args_as_str().map(str::parse).transpose()?;
