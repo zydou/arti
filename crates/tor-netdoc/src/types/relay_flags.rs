@@ -156,9 +156,9 @@ impl RelayFlags {
 /// We don't want to do that while parsing flags in routerstatus entries.
 ///
 /// Generates the `FromStr` impl (which is weird, see [`RelayFlags`]),
-/// and [`RelayFlags::iter_keywords`] for encoding flags in netdocs.
+/// and [`RelayFlag::set_iter_keywords`] for encoding flags in netdocs.
 macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
-    impl RelayFlags {
+    impl RelayFlag {
         /// Parses *one* relay flag
         ///
         /// This function is not a `FromStr` impl.
@@ -174,13 +174,14 @@ macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
         }
     }
 
-    impl RelayFlags {
+    impl RelayFlag {
         /// Report the keywords for the flags in this set
         ///
         /// If there are unknown bits in the flags, yields `Err` for those, once.
         ///
         /// The values are yielded in an arbitrary order.
-        pub fn iter_keywords(&self) -> impl Iterator<Item = Result<&'static str, RelayFlags>> {
+        // XXXX this whole method is going to be deleted
+        pub fn set_iter_keywords(&self) -> impl Iterator<Item = Result<&'static str, RelayFlags>> {
             self.iter().map(|f| {
                 $(
                     if f.intersects(RelayFlags::[< $keyword:snake:upper >]) {
@@ -279,7 +280,7 @@ impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits
                 return Err(RelayFlagsParseError::OutOfOrder);
             }
         }
-        match RelayFlags::from_str_one(arg) {
+        match RelayFlag::from_str_one(arg) {
             Ok(fl) => self.flags.known |= fl,
             Err(()) => self.flags.unknown.with_mut_unknown(|u| {
                 u.insert(arg.to_string());
@@ -373,7 +374,7 @@ mod test {
     fn relay_flags_keywords() {
         // Check that the macro lists all the known flags.
         // (If the macro has unknown flags, it won't compile.)
-        for f in RelayFlags::all().iter_keywords() {
+        for f in RelayFlag::set_iter_keywords(&RelayFlags::all()) {
             assert!(
                 f.is_ok(),
                 "flag {f:?} not listed in `relay_flags_keywords!` call"
@@ -386,7 +387,7 @@ mod test {
         let unknown = 3 << 14;
         itertools::assert_equal(
             (RelayFlags::GUARD | RelayFlags::BAD_EXIT | RelayFlags::from_bits_retain(unknown))
-                .iter_keywords()
+                .set_iter_keywords()
                 .map(|r| r.map_err(|f| f.bits())),
             [Ok("BadExit"), Ok("Guard"), Err(unknown)],
         );
