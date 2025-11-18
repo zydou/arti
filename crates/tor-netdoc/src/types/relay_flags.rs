@@ -4,7 +4,6 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use enumset::{EnumSet, EnumSetType, enum_set};
-use paste::paste;
 use thiserror::Error;
 
 use tor_error::internal;
@@ -137,53 +136,6 @@ pub type RelayFlags = EnumSet<RelayFlag>;
         /// directory protocol.
         V2Dir,
     }
-
-/// Define conversions for `RelayFlags` to and from the netdoc keyword
-///
-/// The arguments are the netdoc flag keywords.
-/// Every constant in the bitlfags must be in this list, and vice versa.
-/// They are automatically recased in this macro to geet the corresponding Rust constants.
-///
-/// (Sadly we still need to list the keywords a second time, because we
-/// can't sensibly derive from the bitlfags! input.)
-///
-/// `bitflags` would let us access the flags and access their names,
-/// but it has no compile-time rename, so we would need to do run-time
-/// re-casing (from netdoc keywords in pascal case to Rust constants in shouty snake case.).
-/// We don't want to do that while parsing flags in routerstatus entries.
-///
-/// Generates the `FromStr` impl (which is weird, see [`RelayFlags`]),
-/// and [`RelayFlag::set_iter_keywords`] for encoding flags in netdocs.
-macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
-    impl RelayFlag {
-        /// Report the keywords for the flags in this set
-        ///
-        /// If there are unknown bits in the flags, yields `Err` for those, once.
-        // ^ XXXX this no longer makes any sense.
-        ///
-        /// The values are yielded in an arbitrary order.
-        // XXXX this whole method is going to be deleted
-        pub fn set_iter_keywords(self_: &RelayFlags) -> impl Iterator<Item = Result<&'static str, RelayFlags>> {
-            self_.iter().map(|f| f.into()).map(Ok)
-        }
-    }
-} } }
-
-relay_flags_keywords! {
-    Authority
-    BadExit
-    Exit
-    Fast
-    Guard
-    HSDir
-    MiddleOnly
-    NoEdConsensus
-    Stable
-    StaleDesc
-    Running
-    Valid
-    V2Dir
-}
 
 impl PartialEq for DocRelayFlags {
     fn eq(&self, other: &DocRelayFlags) -> bool {
@@ -329,36 +281,6 @@ mod parse2_impl {
                     .map_err(item.invalid_argument_handler("flags"))?;
             }
             Ok(flags.finish())
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    // @@ begin test lint list maintained by maint/add_warning @@
-    #![allow(clippy::bool_assert_comparison)]
-    #![allow(clippy::clone_on_copy)]
-    #![allow(clippy::dbg_macro)]
-    #![allow(clippy::mixed_attributes_style)]
-    #![allow(clippy::print_stderr)]
-    #![allow(clippy::print_stdout)]
-    #![allow(clippy::single_char_pattern)]
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::unchecked_time_subtraction)]
-    #![allow(clippy::useless_vec)]
-    #![allow(clippy::needless_pass_by_value)]
-    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use super::*;
-
-    #[test]
-    fn relay_flags_keywords() {
-        // Check that the macro lists all the known flags.
-        // (If the macro has unknown flags, it won't compile.)
-        for f in RelayFlag::set_iter_keywords(&RelayFlags::all()) {
-            assert!(
-                f.is_ok(),
-                "flag {f:?} not listed in `relay_flags_keywords!` call"
-            );
         }
     }
 }
