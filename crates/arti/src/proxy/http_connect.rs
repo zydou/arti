@@ -89,6 +89,19 @@ mod hdr {
     /// Proxy-to-client: A machine-readable list of failure reasons.
     pub(super) const TOR_REQUEST_FAILED: &str = "Tor-Request-Failed";
 
+    /// A list of all the headers that we support from client-to-proxy.
+    ///
+    /// Does not include headers that we check for HTTP conformance,
+    /// but not for any other purpose.
+    pub(super) const ALL_REQUEST_HEADERS: &[&str] = &[
+        TOR_FAMILY_PREFERENCE,
+        TOR_RPC_TARGET,
+        X_TOR_STREAM_ISOLATION,
+        TOR_STREAM_ISOLATION,
+        // Can't use 'PROXY_AUTHORIZATION', since it isn't a str, and its as_str() isn't const.
+        "Proxy-Authorization",
+    ];
+
     /// Return the unique string-valued value of the header `name`;
     /// or None if the header doesn't exist,
     /// or an error if the header is duplicated or not UTF-8.
@@ -472,9 +485,21 @@ impl RespBldExt for ResponseBuilder {
     }
 }
 
+/// Return a string representing our capabilities.
+fn capabilities() -> &'static str {
+    use std::sync::LazyLock;
+    static CAPS: LazyLock<String> = LazyLock::new(|| {
+        let mut caps = hdr::ALL_REQUEST_HEADERS.to_vec();
+        caps.sort();
+        caps.join(" ")
+    });
+
+    CAPS.as_str()
+}
+
 /// Add all common headers to the builder `bld`, and return a new builder.
 fn add_common_headers(mut bld: ResponseBuilder, method: &Method) -> ResponseBuilder {
-    bld = bld.header(hdr::TOR_CAPABILITIES, "");
+    bld = bld.header(hdr::TOR_CAPABILITIES, capabilities());
     if let (Some(software), Some(version)) = (
         option_env!("CARGO_PKG_NAME"),
         option_env!("CARGO_PKG_VERSION"),
