@@ -7,7 +7,7 @@
 mod listen;
 
 use std::borrow::Cow;
-use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::net::{SocketAddrV4, SocketAddrV6};
 use std::path::PathBuf;
 
 use derive_builder::Builder;
@@ -168,64 +168,19 @@ pub(crate) struct RelayConfig {
 impl_standard_builder! { RelayConfig: !Default }
 
 /// The address(es) to advertise on the network.
+// TODO: We'll want to make sure we check that the addresses are valid before uploading them in a
+// server descriptor (for example no `INADDR_ANY`, multicast, etc). We can't do that validation here
+// during parsing, since we don't know exactly which addresses are valid or not. For example we
+// don't know if local addresses are allowed as we don't know here whether the user plans to run a
+// testing tor network. We also don't want to do the validation too late (for example when uploading
+// the server descriptor) as it's better to validate at startup. A better place might be to perform
+// the validation in the `RelayConfig` builder validate.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "UncheckedAdvertise")]
 pub(crate) struct Advertise {
     /// All relays must advertise an IPv4 address.
     ipv4: SocketAddrV4,
     /// Relays may optionally advertise an IPv6 address.
     ipv6: Option<SocketAddrV6>,
-}
-
-/// A deserialize helper for [`Advertise`].
-///
-/// This is an `Advertise` that has not yet been validated.
-#[derive(Deserialize)]
-#[serde(rename = "Advertise")]
-struct UncheckedAdvertise {
-    /// See [`Advertise::ipv4`].
-    ipv4: SocketAddrV4,
-    /// See [`Advertise::ipv6`].
-    ipv6: Option<SocketAddrV6>,
-}
-
-impl TryFrom<UncheckedAdvertise> for Advertise {
-    type Error = AdvertiseError;
-
-    fn try_from(from: UncheckedAdvertise) -> Result<Self, Self::Error> {
-        let UncheckedAdvertise { ipv4, ipv6 } = from;
-
-        let addrs = Some(SocketAddr::V4(ipv4))
-            .into_iter()
-            .chain(ipv6.map(SocketAddr::V6));
-
-        // This isn't meant to be exhaustive.
-        // This is just to catch some simple cases early that we're sure won't work.
-        for addr in addrs {
-            if addr.ip().is_unspecified() {
-                return Err(AdvertiseError::NotPubliclyRoutable(addr));
-            }
-            if addr.ip().is_multicast() {
-                return Err(AdvertiseError::NotPubliclyRoutable(addr));
-            }
-            if addr.port() == 0 {
-                return Err(AdvertiseError::InvalidPort(addr));
-            }
-        }
-
-        Ok(Self { ipv4, ipv6 })
-    }
-}
-
-/// An error while deserializing an [`Advertise`].
-#[derive(Copy, Clone, Debug, thiserror::Error)]
-pub(crate) enum AdvertiseError {
-    /// The provided address is not publicly routable.
-    #[error("{0} is not publicly routable")]
-    NotPubliclyRoutable(SocketAddr),
-    /// The provided address does not have a valid port.
-    #[error("{0} does not have a valid port")]
-    InvalidPort(SocketAddr),
 }
 
 /// Default log level.
