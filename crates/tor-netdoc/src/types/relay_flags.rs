@@ -30,15 +30,15 @@ pub struct DocRelayFlags {
 }
 
 /// Flags that are implied by existence of a relay in a consensus.
-pub const RELAY_FLAGS_CONSENSUS_IMPLIED: RelayFlags = RelayFlags::RUNNING.union(RelayFlags::VALID);
+pub const RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT: RelayFlags = RelayFlags::RUNNING.union(RelayFlags::VALID);
 /// Flags that are implied by existence of a relay in a consensus and not even stated there.
-pub const RELAY_FLAGS_CONSENSUS_IMPLICIT: RelayFlags = RelayFlags::empty();
+pub const RELAY_FLAGS_CONSENSUS_ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 
 /// Relay flags parsing as found in the consensus (md or plain)
 pub(crate) type ConsensusRelayFlagsParser<'s> = RelayFlagsParser<
     's,
-    { RELAY_FLAGS_CONSENSUS_IMPLIED.bits() },
-    { RELAY_FLAGS_CONSENSUS_IMPLICIT.bits() },
+    { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.bits() },
+    { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.bits() },
 >;
 
 /// Relay flags parsing as found in votes.
@@ -196,15 +196,15 @@ impl PartialEq for DocRelayFlags {
 
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
-/// `IMPLIED` lists flags that should be treated as being present when parsing,
+/// `PARSE_IMPLICIT` lists flags that should be treated as being present when parsing,
 /// even if they aren't actually listed in the document.
 ///
-/// `IMPLICIT` lists flags that should be treated as being present,
+/// `ENCODE_OMIT` lists flags that should be treated as being present,
 /// and won't even be encoded.
 ///
-/// (During parsing `IMPLICIT` and `IMPLIED` flags are treated the same.)
+/// (During parsing `ENCODE_OMIT` and `PARSE_IMPLICIT` flags are treated the same.)
 #[derive(Debug, Clone)]
-pub struct RelayFlagsParser<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits> {
+pub struct RelayFlagsParser<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits> {
     /// Flags so far, including the implied ones
     flags: DocRelayFlags,
 
@@ -223,16 +223,16 @@ pub enum RelayFlagsParseError {
     OutOfOrder,
 }
 
-impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
-    RelayFlagsParser<'s, IMPLIED, IMPLICIT>
+impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits>
+    RelayFlagsParser<'s, PARSE_IMPLICIT, ENCODE_OMIT>
 {
     /// Start parsing relay flags
     ///
-    /// If `IMPLIED` or `IMPLICIT` contains unknown bits, compile will fail.
+    /// If `PARSE_IMPLICIT` or `ENCODE_OMIT` contains unknown bits, compile will fail.
     pub fn new(unknown: Unknown<()>) -> Self {
         // These flags are implicit.
         let known: RelayFlags = const {
-            RelayFlags::from_bits(IMPLIED | IMPLICIT).expect("unknown bits in IMPLIED / IMPLICIT")
+            RelayFlags::from_bits(PARSE_IMPLICIT | ENCODE_OMIT).expect("unknown bits in PARSE_IMPLICIT / ENCODE_OMIT")
         };
         RelayFlagsParser {
             flags: DocRelayFlags {
@@ -283,8 +283,8 @@ mod parse_impl {
                 );
             }
             let mut flags = RelayFlagsParser::<
-                { RELAY_FLAGS_CONSENSUS_IMPLIED.bits() },
-                { RELAY_FLAGS_CONSENSUS_IMPLICIT.bits() },
+                { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.bits() },
+                { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.bits() },
             >::new(Unknown::new_discard());
 
             for s in item.args() {
@@ -305,8 +305,8 @@ mod parse2_impl {
     use crate::parse2;
     use parse2::ErrorProblem as EP;
 
-    impl<'s, const IMPLIED: RelayFlagsBits, const IMPLICIT: RelayFlagsBits>
-        RelayFlagsParser<'s, IMPLIED, IMPLICIT>
+    impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits>
+        RelayFlagsParser<'s, PARSE_IMPLICIT, ENCODE_OMIT>
     {
         /// Parse relay flags
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
