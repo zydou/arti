@@ -1,8 +1,8 @@
 //! Types and functions to configure a Tor Relay.
-//!
-//! TODO: It would be nice to remove the builder aspect of these config objects, as we don't need
-//! them for arti-relay. But I don't think we can do so while still using tor-config. See:
-//! https://gitlab.torproject.org/tpo/core/arti/-/issues/2253
+
+// TODO: It would be nice to remove the builder aspect of these config objects, as we don't need
+// them for arti-relay. But I don't think we can do so while still using tor-config. See:
+// https://gitlab.torproject.org/tpo/core/arti/-/issues/2253
 
 mod listen;
 
@@ -151,7 +151,7 @@ impl tor_config::load::TopLevel for TorRelayConfig {
 /// comment.
 ///
 /// TODO: There's a high-level issue for discussing these options:
-/// https://gitlab.torproject.org/tpo/core/arti/-/issues/2252
+/// <https://gitlab.torproject.org/tpo/core/arti/-/issues/2252>
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
