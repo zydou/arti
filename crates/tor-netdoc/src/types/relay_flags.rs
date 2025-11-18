@@ -27,7 +27,7 @@ pub type RelayFlagsBits = u16;
 ///
 /// Two `RelayFlags` only *one* of which retained unknown flags are treated as unequal.
 /// Such a comparison is probably a bug, but panicking would be worse.
-#[derive(Debug, Clone, derive_more::Deref)]
+#[derive(Debug, Clone, derive_more::Deref, PartialEq)]
 #[non_exhaustive]
 pub struct DocRelayFlags {
     /// Known flags
@@ -136,13 +136,6 @@ pub type RelayFlags = EnumSet<RelayFlag>;
         /// directory protocol.
         V2Dir,
     }
-
-impl PartialEq for DocRelayFlags {
-    fn eq(&self, other: &DocRelayFlags) -> bool {
-        let DocRelayFlags { known, unknown } = self;
-        known.as_repr() == other.known.as_repr() && unknown == &other.unknown
-    }
-}
 
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
