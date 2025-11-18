@@ -5,7 +5,7 @@ use bitvec::prelude::*;
 use super::DataStream;
 use crate::circuit::syncview::CircSyncView;
 use crate::client::StreamComponents;
-use crate::client::reactor::CloseStreamBehavior;
+use crate::stream::CloseStreamBehavior;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::{Error, Result};
 use derive_deftly::Deftly;

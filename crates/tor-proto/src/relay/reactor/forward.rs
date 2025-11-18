@@ -3,7 +3,7 @@
 use crate::channel::ChannelSender;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
-use crate::congestion::CongestionControl;
+use crate::circuit::circhop::CircHopInbound;
 use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 use crate::util::err::ReactorError;
@@ -15,8 +15,8 @@ use crate::client::circuit::padding::QueuedCellPaddingInfo;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
+use tor_cell::relaycell::StreamId;
 use tor_cell::relaycell::msg::AnyRelayMsg;
-use tor_cell::relaycell::{RelayCellDecoder, StreamId};
 use tor_error::{internal, trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
 
@@ -27,7 +27,6 @@ use postage::broadcast;
 use tracing::{debug, trace};
 
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
 use super::CircuitRxReceiver;
@@ -48,19 +47,15 @@ use super::CircuitRxReceiver;
 pub(super) struct ForwardReactor<T: HasRelayIds> {
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
+    /// The inbound hop state
+    hop: CircHopInbound,
     /// An MPSC channel for receiving newly opened outgoing [`Channel`](crate::channel::Channel)s.
     ///
     /// This channel is polled from the main loop of the reactor,
     /// and is used when extending the circuit.
     outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
-    /// Congestion control object.
-    ///
-    /// This object is also in charge of handling circuit level SENDME logic for this hop.
-    ccontrol: Arc<Mutex<CongestionControl>>,
     /// The cryptographic state for this circuit for inbound cells.
     crypto_out: Box<dyn OutboundRelayLayer + Send>,
-    /// Decodes relay cells received from the client.
-    decoder: RelayCellDecoder,
     /// The reading end of the backward Tor channel.
     ///
     /// Yields cells moving from the client towards the exit.
@@ -99,10 +94,9 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     /// Create a new [`ForwardReactor`].
     #[allow(clippy::too_many_arguments)] // TODO
     pub(super) fn new(
+        hop: CircHopInbound,
         unique_id: UniqId,
-        decoder: RelayCellDecoder,
         input: CircuitRxReceiver,
-        ccontrol: Arc<Mutex<CongestionControl>>,
         outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
@@ -110,11 +104,10 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {
+            hop,
             unique_id,
             input,
-            decoder,
             outgoing_chan_rx,
-            ccontrol,
             crypto_out,
             // Initially, we are the last hop in the circuit.
             forward: None,
@@ -305,10 +298,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         let mut body = cell.into_relay_body().into();
         if let Some(_tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) {
             // The message is addressed to us! Now it's time to handle it...
-            let _decode_res = self
-                .decoder
-                .decode(body.into())
-                .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+            let _decode_res = self.hop.decode(body.into())?;
 
             // TODO: actually handle the cell
             // TODO: if the message is recognized, it may need to be delivered

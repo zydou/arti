@@ -137,8 +137,8 @@ impl CongestionControlAlgorithm for Vegas {
         self.num_inflight < self.cwnd.get()
     }
 
-    fn cwnd(&self) -> Option<&CongestionWindow> {
-        Some(&self.cwnd)
+    fn cwnd(&self) -> Option<CongestionWindow> {
+        Some(self.cwnd)
     }
 
     /// Called when a SENDME cell is received.
@@ -439,7 +439,7 @@ pub(crate) mod test {
             let ret = self.rtt.update(
                 now + Duration::from_micros(p.got_sendme_usec_in),
                 &self.state,
-                self.vegas.cwnd().expect("No CWND"),
+                &self.vegas.cwnd().expect("No CWND"),
             );
             assert!(ret.is_ok());
 

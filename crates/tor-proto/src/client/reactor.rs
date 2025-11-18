@@ -24,6 +24,7 @@ pub(super) mod syncview;
 
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::ClientCircChanMsg;
+use crate::circuit::circhop::SendRelayCell;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
 #[cfg(feature = "hs-service")]
@@ -32,11 +33,11 @@ use crate::client::{HopLocation, TargetHop};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::{CircuitAccount, StreamAccount};
-use crate::stream::StreamMpscSender;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::StreamQueueReceiver;
+use crate::stream::{CloseStreamBehavior, StreamMpscSender};
 use crate::streammap;
 use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
@@ -51,7 +52,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::mem::size_of;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
-use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
+use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{Bug, bad_api_usage, debug_report, internal, into_bad_api_usage};
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
@@ -128,27 +129,6 @@ pub(crate) enum CircuitHandshake {
         /// The public key of the relay.
         public_key: NtorV3PublicKey,
     },
-}
-
-/// A behavior to perform when closing a stream.
-///
-/// We don't use `Option<End>`` here, since the behavior of `SendNothing` is so surprising
-/// that we shouldn't let it pass unremarked.
-#[derive(Clone, Debug)]
-pub(crate) enum CloseStreamBehavior {
-    /// Send nothing at all, so that the other side will not realize we have
-    /// closed the stream.
-    ///
-    /// We should only do this for incoming onion service streams when we
-    /// want to black-hole the client's requests.
-    SendNothing,
-    /// Send an End cell, if we haven't already sent one.
-    SendEnd(End),
-}
-impl Default for CloseStreamBehavior {
-    fn default() -> Self {
-        Self::SendEnd(End::new_misc())
-    }
 }
 
 // TODO: the RunOnceCmd/RunOnceCmdInner/CircuitCmd/CircuitAction enum
@@ -343,7 +323,11 @@ impl RunOnceCmdInner {
             CircuitCmd::Conflux(ConfluxCmd::RemoveLeg(reason)) => Self::RemoveLeg { leg, reason },
             #[cfg(feature = "conflux")]
             CircuitCmd::Conflux(ConfluxCmd::HandshakeComplete { hop, early, cell }) => {
-                let cell = SendRelayCell { hop, early, cell };
+                let cell = SendRelayCell {
+                    hop: Some(hop),
+                    early,
+                    cell,
+                };
                 Self::ConfluxHandshakeComplete { leg, cell }
             }
             #[cfg(feature = "conflux")]
@@ -351,20 +335,6 @@ impl RunOnceCmdInner {
             CircuitCmd::CleanShutdown => Self::CleanShutdown,
         }
     }
-}
-
-/// Cmd for sending a relay cell.
-///
-/// The contents of this struct are passed to `send_relay_cell`
-#[derive(educe::Educe)]
-#[educe(Debug)]
-pub(crate) struct SendRelayCell {
-    /// The hop number.
-    pub(crate) hop: HopNum,
-    /// Whether to use a RELAY_EARLY cell.
-    pub(crate) early: bool,
-    /// The cell to send.
-    pub(crate) cell: AnyRelayMsgOuter,
 }
 
 /// A command to execute at the end of [`Reactor::run_once`].
@@ -1039,7 +1009,7 @@ impl Reactor {
                             .circuits
                             .leg_mut(leg)
                             .ok_or_else(|| internal!("leg disappeared?!"))?;
-                        let cell_hop = cell.hop;
+                        let cell_hop = cell.hop.expect("missing hop in client SendRelayCell?!");
                         let relay_format = circ
                             .hop_mut(cell_hop)
                             // TODO: Is this the right error type here? Or should there be a "HopDisappeared"?
@@ -1172,7 +1142,7 @@ impl Reactor {
 
                 let cell = AnyRelayMsgOuter::new(Some(stream_id), msg.into());
                 let cell = SendRelayCell {
-                    hop: hop_num,
+                    hop: Some(hop_num),
                     early: false,
                     cell,
                 };
@@ -1402,7 +1372,7 @@ impl Reactor {
                     "MsgHandler doesn't have a precise HopLocation"
                 ))?;
                 Ok::<_, crate::Error>(SendRelayCell {
-                    hop,
+                    hop: Some(hop),
                     early: false,
                     cell: msg,
                 })

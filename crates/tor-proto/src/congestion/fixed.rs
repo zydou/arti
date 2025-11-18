@@ -56,7 +56,7 @@ impl CongestionControlAlgorithm for FixedWindow {
         self.sendwindow.window() > 0
     }
 
-    fn cwnd(&self) -> Option<&CongestionWindow> {
+    fn cwnd(&self) -> Option<CongestionWindow> {
         None
     }
 

@@ -314,7 +314,7 @@ impl Circuit {
         }
 
         let cell = SendRelayCell {
-            hop,
+            hop: Some(hop),
             early: false,
             cell,
         };
@@ -450,6 +450,7 @@ impl Circuit {
         let runtime = self.runtime.clone();
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
+        let hop = hop.expect("missing hop in client SendRelayCell?!");
         let circhop = self.hops.get_mut(hop).ok_or(Error::NoSuchHop)?;
 
         // We might be out of capacity entirely; see if we are about to hit a limit.
@@ -482,7 +483,7 @@ impl Circuit {
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
-            circhop.ccontrol_mut().note_data_sent(&runtime, &tag)?;
+            circhop.ccontrol().note_data_sent(&runtime, &tag)?;
         }
 
         // Remember that we've enqueued this cell.
@@ -589,7 +590,7 @@ impl Circuit {
         let send_circ_sendme = if c_t_w {
             self.hop_mut(hopnum)
                 .ok_or_else(|| Error::CircProto("Sendme from nonexistent hop".into()))?
-                .ccontrol_mut()
+                .ccontrol()
                 .note_data_received()?
         } else {
             false
@@ -605,7 +606,7 @@ impl Circuit {
             let sendme = Sendme::from(tag);
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
             circ_cmds.push(CircuitCmd::Send(SendRelayCell {
-                hop: hopnum,
+                hop: Some(hopnum),
                 early: false,
                 cell,
             }));
@@ -618,7 +619,7 @@ impl Circuit {
                         hopnum
                     ))
                 })?
-                .ccontrol_mut()
+                .ccontrol()
                 .note_sendme_sent()?;
         }
 
@@ -753,7 +754,7 @@ impl Circuit {
         if let Some(cell) = hop.maybe_send_xoff(streamid)? {
             let cell = AnyRelayMsgOuter::new(Some(streamid), cell.into());
             let cell = SendRelayCell {
-                hop: hopnum,
+                hop: Some(hopnum),
                 early: false,
                 cell,
             };
@@ -906,7 +907,7 @@ impl Circuit {
                 RejectRequest(end) => {
                     let end_msg = AnyRelayMsgOuter::new(Some(stream_id), end.into());
                     let cell = SendRelayCell {
-                        hop: hop_num,
+                        hop: Some(hop_num),
                         early: false,
                         cell: end_msg,
                     };
@@ -977,7 +978,7 @@ impl Circuit {
                 );
 
                 let cell = SendRelayCell {
-                    hop: hop_num,
+                    hop: Some(hop_num),
                     early: false,
                     cell: end_msg,
                 };
@@ -1382,7 +1383,7 @@ impl Circuit {
                 // but we don't support those any longer.
                  Error::CircProto("missing tag on circuit sendme".into()))?;
         // Update the CC object that we received a SENDME along with possible congestion signals.
-        hop.ccontrol_mut()
+        hop.ccontrol()
             .note_sendme_received(&runtime, tag, signals)?;
         Ok(None)
     }
@@ -1689,7 +1690,7 @@ impl Circuit {
     ) -> Result<()> {
         use tor_cell::relaycell::msg::Drop as DropMsg;
         let msg = SendRelayCell {
-            hop: target_hop,
+            hop: Some(target_hop),
             // TODO circpad: we will probably want padding machines that can send EARLY cells.
             early: false,
             cell: AnyRelayMsgOuter::new(None, DropMsg::default().into()),

@@ -3,18 +3,17 @@
 use crate::channel::{Channel, ChannelSender};
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
-use crate::circuit::circhop::HopSettings;
-use crate::congestion::CongestionControl;
+use crate::circuit::circhop::{CircHopOutbound, HopSettings};
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::ChannelResult;
-use crate::stream::flow_ctrl::params::FlowCtrlParameters;
-use crate::streammap::{self, StreamMap};
+use crate::stream::CloseStreamBehavior;
+use crate::streammap;
 use crate::util::err::ReactorError;
 use crate::util::poll_all::PollAll;
 use crate::{Error, Result};
+
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::QueuedCellPaddingInfo;
-use crate::client::reactor::CloseStreamBehavior;
 
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
@@ -30,7 +29,7 @@ use postage::broadcast;
 use tracing::trace;
 
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::Poll;
 
 use super::CircuitRxReceiver;
@@ -56,10 +55,8 @@ use super::CircuitRxReceiver;
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
 pub(super) struct BackwardReactor {
-    /// Format to use for relay cells.
-    //
-    // When we have packed/fragmented cells, this may be replaced by a RelayCellEncoder.
-    relay_format: RelayCellFormat,
+    /// The state of this circuit hop.
+    hop: CircHopOutbound,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
     /// The circuit identifier on the backward Tor channel.
@@ -74,12 +71,6 @@ pub(super) struct BackwardReactor {
     chan_sender: ChannelSender,
     /// The cryptographic state for this circuit for client-bound cells.
     crypto_in: Box<dyn InboundRelayLayer + Send>,
-    /// Congestion control object.
-    ///
-    /// This object is also in charge of handling circuit level SENDME logic for this hop.
-    ccontrol: Arc<Mutex<CongestionControl>>,
-    /// Flow control parameters for new Tor streams.
-    flow_ctrl_params: Arc<FlowCtrlParameters>,
     /// Receiver for Tor stream data that need to be delivered to a Tor stream.
     ///
     /// The sender is in [`ForwardReactor`](super::ForwardReactor), which will forward all cells
@@ -96,10 +87,6 @@ pub(super) struct BackwardReactor {
     /// This is passed to the [`ChannelProvider`](crate::relay::channel_provider::ChannelProvider)
     /// for each Tor channel request.
     outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
-    /// A mapping from stream IDs to Tor stream entries.
-    /// TODO: can we use a CircHop instead??
-    /// Otherwise we'll duplicate much of it here.
-    streams: StreamMap,
     /// A broadcast receiver used to detect when the
     /// [`RelayReactor`](super::RelayReactor) or
     /// [`ForwardReactor`](super::ForwardReactor) are dropped.
@@ -122,27 +109,23 @@ impl BackwardReactor {
     #[allow(clippy::too_many_arguments)] // TODO
     pub(super) fn new(
         channel: Arc<Channel>,
+        hop: CircHopOutbound,
         circ_id: CircId,
         unique_id: UniqId,
         crypto_in: Box<dyn InboundRelayLayer + Send>,
-        ccontrol: Arc<Mutex<CongestionControl>>,
         settings: &HopSettings,
-        relay_format: RelayCellFormat,
         cell_rx: mpsc::UnboundedReceiver<(StreamId, AnyRelayMsg)>,
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {
-            relay_format,
+            hop,
             input: None,
             chan_sender: channel.sender(),
             crypto_in,
-            ccontrol,
-            flow_ctrl_params: Arc::new(settings.flow_ctrl_params.clone()),
             unique_id,
             circ_id,
             outgoing_chan_tx,
-            streams: StreamMap::new(),
             cell_rx,
             shutdown_rx,
         }
@@ -237,8 +220,10 @@ impl BackwardReactor {
             self.chan_sender.poll_ready_unpin(cx)
         });
 
-        let ready_streams_fut = future::poll_fn(|cx| {
-            let Some((sid, msg)) = self.streams.poll_ready_streams_iter(cx).next() else {
+        let mut streams = Arc::clone(self.hop.stream_map());
+        let ready_streams_fut = future::poll_fn(move |cx| {
+            let mut streams = streams.lock().expect("lock poisoned");
+            let Some((sid, msg)) = streams.poll_ready_streams_iter(cx).next() else {
                 // No ready streams
                 //
                 // TODO(flushing): if there are no ready Tor streams, we might want to defer
@@ -263,12 +248,12 @@ impl BackwardReactor {
                 });
             };
 
-            let msg = self.streams.take_ready_msg(sid).expect("msg disappeared");
+            let msg = streams.take_ready_msg(sid).expect("msg disappeared");
 
             Poll::Ready(StreamEvent::ReadyMsg { sid, msg })
         });
 
-        let cc_can_send = self.ccontrol.lock().expect("poisoned lock").can_send();
+        let cc_can_send = self.hop.ccontrol().can_send();
 
         let (tx, rx) = oneshot::channel::<()>();
 
@@ -388,7 +373,7 @@ impl BackwardReactor {
         msg: AnyRelayMsgOuter,
     ) -> Result<(AnyChanMsg, SendmeTag)> {
         let mut body: RelayCellBody = msg
-            .encode(relay_format, &mut rand::rng())
+            .encode(self.hop.relay_cell_format(), &mut rand::rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
             .into();
 
@@ -407,7 +392,7 @@ impl BackwardReactor {
         info: Option<QueuedCellPaddingInfo>,
     ) -> StdResult<(), ReactorError> {
         let msg = AnyRelayMsgOuter::new(streamid, msg);
-        let (msg, tag) = self.encode_clientbound_relay_cell(self.relay_format, msg)?;
+        let (msg, tag) = self.encode_clientbound_relay_cell(self.hop.relay_cell_format(), msg)?;
         let cell = AnyChanCell::new(Some(self.circ_id), msg);
 
         // Note: this future is always `Ready`, because we checked the sink for readiness

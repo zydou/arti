@@ -869,7 +869,7 @@ impl StreamTarget {
     #[cfg(feature = "hs-service")]
     pub(crate) fn close_pending(
         &self,
-        message: reactor::CloseStreamBehavior,
+        message: crate::stream::CloseStreamBehavior,
     ) -> Result<oneshot::Receiver<Result<()>>> {
         let (tx, rx) = oneshot::channel();
 
