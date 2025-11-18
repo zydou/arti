@@ -1,6 +1,7 @@
 //! Relay flags (aka Router Status Flags), eg in network status documents
 
 use std::collections::HashSet;
+use std::str::FromStr;
 
 use enumset::{EnumSet, EnumSetType, enum_set};
 use paste::paste;
@@ -155,19 +156,6 @@ pub type RelayFlags = EnumSet<RelayFlag>;
 /// and [`RelayFlag::set_iter_keywords`] for encoding flags in netdocs.
 macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
     impl RelayFlag {
-        /// Parses *one* relay flag
-        ///
-        /// This function is not a `FromStr` impl.
-        /// It recognises only a single flag at a time.
-        //
-        // XXXX abolish this and just use FromStr instead.
-        #[allow(clippy::result_unit_err)] // internal function for RelayParser
-        fn from_str_one(s: &str) -> Result<Self, ()> {
-            s.parse().map_err(|_| ())
-        }
-    }
-
-    impl RelayFlag {
         /// Report the keywords for the flags in this set
         ///
         /// If there are unknown bits in the flags, yields `Err` for those, once.
@@ -272,9 +260,9 @@ impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits
                 return Err(RelayFlagsParseError::OutOfOrder);
             }
         }
-        match RelayFlag::from_str_one(arg) {
+        match RelayFlag::from_str(arg) {
             Ok(fl) => self.flags.known |= fl,
-            Err(()) => self.flags.unknown.with_mut_unknown(|u| {
+            Err(_) => self.flags.unknown.with_mut_unknown(|u| {
                 u.insert(arg.to_string());
             }),
         }
