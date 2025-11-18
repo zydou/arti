@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use bitflags::bitflags;
+use enumset::{EnumSet, EnumSetType, enum_set};
 use paste::paste;
 use thiserror::Error;
 
@@ -44,7 +44,7 @@ pub struct DocRelayFlags {
 
 /// Flags that are implied by existence of a relay in a consensus.
 pub const RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT: RelayFlags =
-    RelayFlags::RUNNING.union(RelayFlags::VALID);
+    enum_set!(RelayFlag::RUNNING | RelayFlag::VALID);
 /// Flags that are implied by existence of a relay in a consensus and not even stated there.
 pub const RELAY_FLAGS_CONSENSUS_ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 
@@ -58,11 +58,23 @@ pub(crate) type ConsensusRelayFlagsParser<'s> = RelayFlagsParser<
 /// Relay flags parsing as found in votes.
 pub(crate) type VoteRelayFlagsParser<'s> = RelayFlagsParser<'s, 0, 0>;
 
-/// Transitional alias.  XXXX This will become a type for *one* relay flag.
-pub type RelayFlag = RelayFlags;
+/// Set of (known) router status flags
+///
+/// Set of [`RelayFlag`], in a cheap and compact representation.
+///
+/// Can contain only flags known to this implementation.
+/// This is a newtype around a machine integer.
+///
+/// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
+/// different documents.  Use an appropriate parameterised [`RelayFlagsParser`],
+/// in `#[deftly(netdoc(with))]`.
+///
+/// To also maybe handle unknown flags, use [`DocRelayFlags`].
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
+pub type RelayFlags = EnumSet<RelayFlag>;
 
-bitflags! {
-    /// Router status flags - a set of recognized directory flags on a single relay.
+    /// Router status flags - one recognized directory flag on a single relay.
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
     ///
@@ -71,75 +83,59 @@ bitflags! {
     /// If the document contained any flags that we _didn't_ recognize,
     /// they are not listed in this type.
     ///
-    /// The bit values used to represent the flags have no meaning;
-    /// they may change between releases of this crate.  Relying on their
-    /// values may void your semver guarantees.
-    ///
-    /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
-    /// different documents.  Use an appropriate parameterised [`RelayFlagsParser`],
-    /// in `#[deftly(netdoc(with))]`.
-    ///
-    /// To also maybe handle unknown flags, use [`DocRelayFlags`].
-    ///
     /// TODO SPEC: Make the terminology the same everywhere.
-    #[derive(Clone, Copy, Debug)]
-    pub struct RelayFlags: RelayFlagsBits {
+    #[derive(Debug, strum::Display, strum::EnumString, strum::IntoStaticStr, EnumSetType)]
+    #[enumset(repr = "u16")] // Must be the same as RelayFlagBits
+    #[non_exhaustive]
+    pub enum RelayFlag {
         /// Is this a directory authority?
-        const AUTHORITY = (1<<0);
+        Authority,
         /// Is this relay marked as a bad exit?
         ///
         /// Bad exits can be used as intermediate relays, but not to
         /// deliver traffic.
-        const BAD_EXIT = (1<<1);
+        BadExit,
         /// Is this relay marked as an exit for weighting purposes?
-        const EXIT = (1<<2);
+        Exit,
         /// Is this relay considered "fast" above a certain threshold?
-        const FAST = (1<<3);
+        Fast,
         /// Is this relay suitable for use as a guard relay?
         ///
         /// Clients choose their their initial relays from among the set
         /// of Guard relays.
-        const GUARD = (1<<4);
+        Guard,
         /// Does this relay participate on the onion service directory
         /// ring?
-        const H_S_DIR = (1<<5);
+        HSDir,
         /// Set if this relay is considered "middle only", not suitable to run
         /// as an exit or guard relay.
         ///
         /// Note that this flag is only used by authorities as part of
         /// the voting process; clients do not and should not act
         /// based on whether it is set.
-        const MIDDLE_ONLY = (1<<6);
+        MiddleOnly,
         /// If set, there is no consensus for the ed25519 key for this relay.
-        const NO_ED_CONSENSUS = (1<<7);
+        NoEdConsensus,
         /// Is this relay considered "stable" enough for long-lived circuits?
-        const STABLE = (1<<8);
+        Stable,
         /// Set if the authorities are requesting a fresh descriptor for
         /// this relay.
-        const STALE_DESC = (1<<9);
+        StaleDesc,
         /// Set if this relay is currently running.
         ///
         /// This flag can appear in votes, but in consensuses, every relay
         /// is assumed to be running.
-        const RUNNING = (1<<10);
+        Running,
         /// Set if this relay is considered "valid" -- allowed to be on
         /// the network.
         ///
         /// This flag can appear in votes, but in consensuses, every relay
         /// is assumed to be valid.
-        const VALID = (1<<11);
+        Valid,
         /// Set if this relay supports a currently recognized version of the
         /// directory protocol.
-        const V2_DIR = (1<<12);
+        V2Dir,
     }
-}
-
-impl RelayFlags {
-    /// Get the representation as a machine integer - XXXX transitional method impl, will go away
-    const fn as_repr(&self) -> RelayFlagsBits {
-        self.bits()
-    }
-}
 
 /// Define conversions for `RelayFlags` to and from the netdoc keyword
 ///
@@ -159,18 +155,22 @@ impl RelayFlags {
 /// and [`RelayFlag::set_iter_keywords`] for encoding flags in netdocs.
 macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
     impl RelayFlag {
+      $(
+        /// Transitional constant - XXXX will be deleted
+        pub const [< $keyword:snake:upper >]: RelayFlag = RelayFlag::$keyword;
+      )*
+    }
+
+    impl RelayFlag {
         /// Parses *one* relay flag
         ///
         /// This function is not a `FromStr` impl.
         /// It recognises only a single flag at a time.
+        //
+        // XXXX abolish this and just use FromStr instead.
         #[allow(clippy::result_unit_err)] // internal function for RelayParser
         fn from_str_one(s: &str) -> Result<Self, ()> {
-            Ok(match s {
-              $(
-                  stringify!($keyword) => RelayFlags::[< $keyword:snake:upper >],
-              )*
-                _ => return Err(()),
-            })
+            s.parse().map_err(|_| ())
         }
     }
 
@@ -178,20 +178,12 @@ macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
         /// Report the keywords for the flags in this set
         ///
         /// If there are unknown bits in the flags, yields `Err` for those, once.
+        // ^ XXXX this no longer makes any sense.
         ///
         /// The values are yielded in an arbitrary order.
         // XXXX this whole method is going to be deleted
-        pub fn set_iter_keywords(&self) -> impl Iterator<Item = Result<&'static str, RelayFlags>> {
-            self.iter().map(|f| {
-                $(
-                    if f.intersects(RelayFlags::[< $keyword:snake:upper >]) {
-                        Ok(stringify!($keyword))
-                    } else
-                )*
-                    {
-                        Err(f)
-                    }
-            })
+        pub fn set_iter_keywords(self_: &RelayFlags) -> impl Iterator<Item = Result<&'static str, RelayFlags>> {
+            self_.iter().map(|f| f.into()).map(Ok)
         }
     }
 } } }
@@ -259,10 +251,17 @@ impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits
     ///
     /// If `PARSE_IMPLICIT` or `ENCODE_OMIT` contains unknown bits, compile will fail.
     pub fn new(unknown: Unknown<()>) -> Self {
-        // These flags are implicit.
-        let known: RelayFlags = const {
-            RelayFlags::from_bits(PARSE_IMPLICIT | ENCODE_OMIT)
-                .expect("unknown bits in PARSE_IMPLICIT / ENCODE_OMIT")
+        let known: RelayFlags = {
+            /// The starting bits, as an integer.  Can't be a `const` or `let` for Rust Reasons.
+            macro_rules! BITS { {} => { PARSE_IMPLICIT | ENCODE_OMIT } }
+            // Prove, at compile-time, that the generic parameters contain no bad bits
+            const {
+                let wrong = BITS!() & !RelayFlags::all().as_repr();
+                if wrong != 0 {
+                    panic!()
+                }
+            };
+            RelayFlags::try_from_repr(BITS!()).expect("but we checked!")
         };
         RelayFlagsParser {
             flags: DocRelayFlags {
@@ -380,16 +379,5 @@ mod test {
                 "flag {f:?} not listed in `relay_flags_keywords!` call"
             );
         }
-
-        // If we assign flag values 1<<14 or 1<<15, this will need to change.
-        // It may even become impossible to test the handling of unknown flags -
-        // if all the flags are assigned, such a situation is impossible.
-        let unknown = 3 << 14;
-        itertools::assert_equal(
-            (RelayFlags::GUARD | RelayFlags::BAD_EXIT | RelayFlags::from_bits_retain(unknown))
-                .set_iter_keywords()
-                .map(|r| r.map_err(|f| f.bits())),
-            [Ok("BadExit"), Ok("Guard"), Err(unknown)],
-        );
     }
 }
