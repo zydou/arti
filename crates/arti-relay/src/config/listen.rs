@@ -44,8 +44,7 @@ impl TryFrom<UncheckedListen> for Listen {
 
     fn try_from(from: UncheckedListen) -> Result<Self, Self::Error> {
         // We don't allow a port of 0 to be consistent with arti's proxy port config.
-        // TODO: Handle "auto" as a port which assigns as 0?
-        // (See https://gitlab.torproject.org/tpo/core/arti/-/issues/2252)
+        // We also don't want an "auto" port option at the moment.
         // TODO: Maybe accept and handle network interface names to bind to.
         match from {
             UncheckedListen::Port(port @ 0) => Err(ListenError::InvalidPort { ip: None, port }),
