@@ -3,13 +3,15 @@
 use super::ErrorKind;
 use http::StatusCode;
 
-// XXXX Convert this into a method.
-
-/// Convert an ErrorKind into a StatusCode.
-pub fn kind_to_status(kind: ErrorKind) -> StatusCode {
+#[rustfmt::skip]
+impl ErrorKind {
+/// Return an HTTP status code corresponding to this `ErrorKind`.
+///
+/// These codes are not guaranteed to be the same across different versions of `tor-error`.
+pub fn http_status_code(self) -> StatusCode {
     use ErrorKind as EK;
     use http::StatusCode as SC;
-    match kind {
+    match self {
         EK::ArtiShuttingDown
         | EK::BadApiUsage
         | EK::BootstrapRequired
@@ -72,4 +74,5 @@ pub fn kind_to_status(kind: ErrorKind) -> StatusCode {
         | EK::RemoteStreamError
         | EK::RemoteStreamReset => SC::SERVICE_UNAVAILABLE,
     }
+}
 }

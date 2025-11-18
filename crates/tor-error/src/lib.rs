@@ -62,7 +62,7 @@ pub use misc::*;
 pub mod tracing;
 
 #[cfg(feature = "http")]
-pub mod http;
+mod http;
 
 /// Classification of an error arising from Arti's Tor operations
 ///

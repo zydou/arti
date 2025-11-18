@@ -564,8 +564,8 @@ impl HttpConnectError {
             | HCE::InvalidFamilyPreference
             | HCE::RpcObjectNotFound
             | HCE::NoRpcSupport => SC::BAD_REQUEST,
-            HCE::ConnectFailed(_, e) => tor_error::http::kind_to_status(e.kind()),
-            HCE::Internal(e) => tor_error::http::kind_to_status(e.kind()),
+            HCE::ConnectFailed(_, e) => e.kind().http_status_code(),
+            HCE::Internal(e) => e.kind().http_status_code(),
         }
     }
 
