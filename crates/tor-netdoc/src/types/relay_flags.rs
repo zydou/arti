@@ -184,7 +184,7 @@ impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits
             const {
                 let wrong = BITS!() & !RelayFlags::all().as_repr();
                 if wrong != 0 {
-                    panic!()
+                    panic!("unknown bit values in RelayFlagsParser const generics")
                 }
             };
             RelayFlags::try_from_repr(BITS!()).expect("but we checked!")
