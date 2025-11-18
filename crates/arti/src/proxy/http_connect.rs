@@ -573,15 +573,36 @@ impl HttpConnectError {
     fn try_into_response(self) -> Result<Response<Body>, HttpConnectError> {
         let error_kind = self.kind();
         let status_code = self.status_code();
-        // TODO: It would be neat to also include specific END reasons here.  But to get them we'd
-        // need to depend on the "details" feature of arti-client, which I'm not sure we want to do.
-        //
-        // If we _do_ get a way to extract END reasons, we can also use them manually alongside
-        // kind_to_status.
+        let mut request_failed = format!("arti/{error_kind:?}");
+        if let Some(end_reason) = self.remote_end_reason() {
+            request_failed.push_str(&format!(" end/{end_reason}"));
+        }
+
         ResponseBuilder::new()
             .status(status_code)
-            .header(hdr::TOR_REQUEST_FAILED, format!("arti/{error_kind:?}"))
+            .header(hdr::TOR_REQUEST_FAILED, request_failed)
             .err(&Method::CONNECT, self.report().to_string())
+    }
+
+    /// Return the end reason for this error, if this error does in fact represent an END message
+    /// from the remote side of a stream.
+    //
+    // TODO: This function is a bit fragile; it forces us to use APIs from tor-proto and
+    // tor-cell that are not re-exported from arti-client.  It also relies on the fact that
+    // there is a single error type way down in `tor-proto` representing a received END message.
+    fn remote_end_reason(&self) -> Option<tor_cell::relaycell::msg::EndReason> {
+        use tor_proto::Error as ProtoErr;
+        let mut error: &(dyn std::error::Error + 'static) = self;
+        loop {
+            if let Some(ProtoErr::EndReceived(reason)) = error.downcast_ref::<ProtoErr>() {
+                return Some(*reason);
+            }
+            if let Some(source) = error.source() {
+                error = source;
+            } else {
+                return None;
+            }
+        }
     }
 }
 
