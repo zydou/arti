@@ -688,7 +688,7 @@ pub(crate) mod test {
 
         let network = construct_custom_netdir(|idx, nb, _| {
             if (0x21..0x27).contains(&idx) {
-                nb.rs.add_flags(RelayFlag::BAD_EXIT);
+                nb.rs.add_flags(RelayFlag::BadExit);
             }
         })
         .unwrap()

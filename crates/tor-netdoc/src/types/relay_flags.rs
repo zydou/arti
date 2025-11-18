@@ -44,7 +44,7 @@ pub struct DocRelayFlags {
 
 /// Flags that are implied by existence of a relay in a consensus.
 pub const RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT: RelayFlags =
-    enum_set!(RelayFlag::RUNNING | RelayFlag::VALID);
+    enum_set!(RelayFlag::Running | RelayFlag::Valid);
 /// Flags that are implied by existence of a relay in a consensus and not even stated there.
 pub const RELAY_FLAGS_CONSENSUS_ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 
@@ -154,13 +154,6 @@ pub type RelayFlags = EnumSet<RelayFlag>;
 /// Generates the `FromStr` impl (which is weird, see [`RelayFlags`]),
 /// and [`RelayFlag::set_iter_keywords`] for encoding flags in netdocs.
 macro_rules! relay_flags_keywords { { $($keyword:ident)* } => { paste! {
-    impl RelayFlag {
-      $(
-        /// Transitional constant - XXXX will be deleted
-        pub const [< $keyword:snake:upper >]: RelayFlag = RelayFlag::$keyword;
-      )*
-    }
-
     impl RelayFlag {
         /// Parses *one* relay flag
         ///

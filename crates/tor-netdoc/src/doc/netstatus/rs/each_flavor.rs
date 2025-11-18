@@ -43,39 +43,39 @@ impl RouterStatus {
     /// Return true if the ed25519 identity on this relay reflects a
     /// true consensus among the authorities.
     pub fn ed25519_id_is_usable(&self) -> bool {
-        !self.flags.contains(RelayFlag::NO_ED_CONSENSUS)
+        !self.flags.contains(RelayFlag::NoEdConsensus)
     }
     /// Return true if this routerstatus is listed with the BadExit flag.
     pub fn is_flagged_bad_exit(&self) -> bool {
-        self.flags.contains(RelayFlag::BAD_EXIT)
+        self.flags.contains(RelayFlag::BadExit)
     }
     /// Return true if this routerstatus is listed with the v2dir flag.
     pub fn is_flagged_v2dir(&self) -> bool {
-        self.flags.contains(RelayFlag::V2_DIR)
+        self.flags.contains(RelayFlag::V2Dir)
     }
     /// Return true if this routerstatus is listed with the Exit flag.
     pub fn is_flagged_exit(&self) -> bool {
-        self.flags.contains(RelayFlag::EXIT)
+        self.flags.contains(RelayFlag::Exit)
     }
     /// Return true if this routerstatus is listed with the Guard flag.
     pub fn is_flagged_guard(&self) -> bool {
-        self.flags.contains(RelayFlag::GUARD)
+        self.flags.contains(RelayFlag::Guard)
     }
     /// Return true if this routerstatus is listed with the HSDir flag.
     pub fn is_flagged_hsdir(&self) -> bool {
-        self.flags.contains(RelayFlag::H_S_DIR)
+        self.flags.contains(RelayFlag::HSDir)
     }
     /// Return true if this routerstatus is listed with the Stable flag.
     pub fn is_flagged_stable(&self) -> bool {
-        self.flags.contains(RelayFlag::STABLE)
+        self.flags.contains(RelayFlag::Stable)
     }
     /// Return true if this routerstatus is listed with the Fast flag.
     pub fn is_flagged_fast(&self) -> bool {
-        self.flags.contains(RelayFlag::FAST)
+        self.flags.contains(RelayFlag::Fast)
     }
     /// Return true if this routerstatus is listed with the MiddleOnly flag.
     pub fn is_flagged_middle_only(&self) -> bool {
-        self.flags.contains(RelayFlag::MIDDLE_ONLY)
+        self.flags.contains(RelayFlag::MiddleOnly)
     }
 }
 

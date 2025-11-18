@@ -2584,7 +2584,7 @@ mod test {
         use tor_netdoc::types::relay_flags::RelayFlag;
         let netdir = construct_custom_netdir(|pos, nb, _| {
             if (10..20).contains(&pos) {
-                nb.rs.add_flags(RelayFlag::BAD_EXIT);
+                nb.rs.add_flags(RelayFlag::BadExit);
             }
             nb.md.parse_ipv6_policy("accept 443").unwrap();
         })

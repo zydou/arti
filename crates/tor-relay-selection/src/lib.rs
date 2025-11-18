@@ -121,10 +121,10 @@ pub(crate) mod testing {
     pub(crate) fn testnet() -> NetDir {
         tor_netdir::testnet::construct_custom_netdir(|idx, node, _| {
             if idx % 7 == 0 {
-                node.rs.clear_flags(RelayFlag::FAST);
+                node.rs.clear_flags(RelayFlag::Fast);
             }
             if idx % 5 == 0 {
-                node.rs.clear_flags(RelayFlag::STABLE);
+                node.rs.clear_flags(RelayFlag::Stable);
             };
         })
         .unwrap()

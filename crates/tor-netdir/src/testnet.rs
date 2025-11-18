@@ -187,17 +187,17 @@ pub fn construct_custom_network<F>(
 where
     F: FnMut(usize, &mut NodeBuilders, &mut MdConsensusBuilder),
 {
-    let f = RelayFlag::RUNNING
-        | RelayFlag::VALID
-        | RelayFlag::V2_DIR
-        | RelayFlag::FAST
-        | RelayFlag::STABLE;
+    let f = RelayFlag::Running
+        | RelayFlag::Valid
+        | RelayFlag::V2Dir
+        | RelayFlag::Fast
+        | RelayFlag::Stable;
     // define 4 groups of flags
     let flags = [
-        f | RelayFlag::H_S_DIR,
-        f | RelayFlag::EXIT,
-        f | RelayFlag::GUARD,
-        f | RelayFlag::EXIT | RelayFlag::GUARD,
+        f | RelayFlag::HSDir,
+        f | RelayFlag::Exit,
+        f | RelayFlag::Guard,
+        f | RelayFlag::Exit | RelayFlag::Guard,
     ];
 
     let lifetime = lifetime.map(Ok).unwrap_or_else(|| {
@@ -219,7 +219,7 @@ where
         // Its identity fingerprints are set to `idx`, repeating.
         // They all get the same address.
         let flags = flags[(idx / 10) as usize];
-        let policy = if flags.contains(RelayFlag::EXIT) {
+        let policy = if flags.contains(RelayFlag::Exit) {
             if idx % 2 == 1 {
                 "accept 80,443"
             } else {

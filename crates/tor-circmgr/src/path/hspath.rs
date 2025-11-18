@@ -447,12 +447,12 @@ mod test {
         let netdir = construct_custom_netdir(|pos, nb, _| {
             nb.omit_rs = pos >= size;
             if !nb.omit_rs {
-                let f = RelayFlag::RUNNING
-                    | RelayFlag::VALID
-                    | RelayFlag::V2_DIR
-                    | RelayFlag::FAST
-                    | RelayFlag::STABLE;
-                nb.rs.set_flags(f | RelayFlag::GUARD);
+                let f = RelayFlag::Running
+                    | RelayFlag::Valid
+                    | RelayFlag::V2Dir
+                    | RelayFlag::Fast
+                    | RelayFlag::Stable;
+                nb.rs.set_flags(f | RelayFlag::Guard);
                 nb.rs.weight(RelayWeight::Measured(10_000));
 
                 set_family(pos, nb);
