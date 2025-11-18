@@ -564,8 +564,8 @@ impl HttpConnectError {
             | HCE::InvalidFamilyPreference
             | HCE::RpcObjectNotFound
             | HCE::NoRpcSupport => SC::BAD_REQUEST,
-            HCE::ConnectFailed(_, e) => kind_to_status(e.kind()),
-            HCE::Internal(e) => kind_to_status(e.kind()),
+            HCE::ConnectFailed(_, e) => tor_error::http::kind_to_status(e.kind()),
+            HCE::Internal(e) => tor_error::http::kind_to_status(e.kind()),
         }
     }
 
@@ -582,82 +582,6 @@ impl HttpConnectError {
             .status(status_code)
             .header(hdr::TOR_REQUEST_FAILED, format!("arti/{error_kind:?}"))
             .err(&Method::CONNECT, self.report().to_string())
-    }
-}
-
-/// Convert an ErrorKind into a StatusCode.
-//
-// TODO: Perhaps move this to tor-error, so it can be an exhaustive match.
-fn kind_to_status(kind: ErrorKind) -> StatusCode {
-    use http::StatusCode as SC;
-    use tor_error::ErrorKind as EK;
-    match kind {
-        EK::ArtiShuttingDown
-        | EK::BadApiUsage
-        | EK::BootstrapRequired
-        | EK::CacheAccessFailed
-        | EK::CacheCorrupted
-        | EK::ClockSkew
-        | EK::DirectoryExpired
-        | EK::ExternalToolFailed
-        | EK::FsPermissions
-        | EK::Internal
-        | EK::InvalidConfig
-        | EK::InvalidConfigTransition
-        | EK::KeystoreAccessFailed
-        | EK::KeystoreCorrupted
-        | EK::NoHomeDirectory
-        | EK::Other
-        | EK::PersistentStateAccessFailed
-        | EK::PersistentStateCorrupted
-        | EK::SoftwareDeprecated
-        | EK::TorDirectoryUnusable
-        | EK::TransientFailure
-        | EK::ReactorShuttingDown
-        | EK::RelayIdMismatch
-        | EK::RelayTooBusy
-        | EK::TorAccessFailed
-        | EK::TorDirectoryError => SC::INTERNAL_SERVER_ERROR,
-
-        EK::FeatureDisabled | EK::NotImplemented => SC::NOT_IMPLEMENTED,
-
-        EK::CircuitCollapse
-        | EK::CircuitRefused
-        | EK::ExitPolicyRejected
-        | EK::LocalNetworkError
-        | EK::LocalProtocolViolation
-        | EK::LocalResourceAlreadyInUse
-        | EK::LocalResourceExhausted
-        | EK::NoExit
-        | EK::NoPath => SC::SERVICE_UNAVAILABLE,
-
-        EK::TorProtocolViolation | EK::RemoteProtocolViolation | EK::RemoteNetworkFailed => {
-            SC::BAD_GATEWAY
-        }
-
-        EK::ExitTimeout | EK::TorNetworkTimeout | EK::RemoteNetworkTimeout => SC::GATEWAY_TIMEOUT,
-
-        EK::ForbiddenStreamTarget => SC::FORBIDDEN,
-
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceAddressInvalid | EK::InvalidStreamTarget => SC::BAD_REQUEST,
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceWrongClientAuth => SC::FORBIDDEN,
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceConnectionFailed
-        | EK::OnionServiceMissingClientAuth
-        | EK::OnionServiceNotFound
-        | EK::OnionServiceNotRunning
-        | EK::OnionServiceProtocolViolation => SC::SERVICE_UNAVAILABLE,
-
-        EK::RemoteConnectionRefused
-        | EK::RemoteHostNotFound
-        | EK::RemoteHostResolutionFailed
-        | EK::RemoteStreamClosed
-        | EK::RemoteStreamError
-        | EK::RemoteStreamReset => SC::SERVICE_UNAVAILABLE,
-
-        _ => SC::INTERNAL_SERVER_ERROR,
     }
 }
 

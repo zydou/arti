@@ -6741,6 +6741,7 @@ dependencies = [
  "anyhow",
  "derive_more",
  "futures",
+ "http",
  "paste",
  "retry-error",
  "static_assertions",

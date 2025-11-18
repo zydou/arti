@@ -140,7 +140,7 @@ experimental = [
     "tokio-console",
 ]
 metrics = ["dep:metrics-exporter-prometheus", "tor-hsservice?/metrics", "tor-hsrproxy?/metrics", "__is_experimental"]
-http-connect = ["__is_experimental", "base64ct", "http", "hyper"]
+http-connect = ["__is_experimental", "base64ct", "http", "hyper", "tor-error/http"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 tokio-console = ["dep:console-subscriber", "__is_experimental"]
 __is_experimental = []
