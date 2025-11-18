@@ -292,9 +292,9 @@ mod parse_impl {
     use crate::parse::tokenize::Item;
     use crate::{Error, NetdocErrorKind as EK, Result};
 
-    impl RelayFlags {
+    impl DocRelayFlags {
         /// Parse a relay-flags entry from an "s" line.
-        pub(crate) fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<DocRelayFlags> {
+        pub(crate) fn from_item_consensus(item: &Item<'_, NetstatusKwd>) -> Result<DocRelayFlags> {
             if item.kwd() != NetstatusKwd::RS_S {
                 return Err(
                     Error::from(internal!("Wrong keyword {:?} for S line", item.kwd()))

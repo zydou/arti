@@ -132,7 +132,9 @@ impl RouterStatus {
         }).collect::<Result<Vec<_>>>()?;
 
         // S line
-        let flags = RelayFlags::from_item(sec.required(RS_S)?)?;
+        //
+        // Wrong for votes, but this code doesn't run for votes.
+        let flags = DocRelayFlags::from_item_consensus(sec.required(RS_S)?)?;
 
         // V line
         let version = sec.maybe(RS_V).args_as_str().map(str::parse).transpose()?;
