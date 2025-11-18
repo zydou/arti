@@ -51,8 +51,8 @@ pub const RELAY_FLAGS_CONSENSUS_ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 /// Relay flags parsing as found in the consensus (md or plain)
 pub(crate) type ConsensusRelayFlagsParser<'s> = RelayFlagsParser<
     's,
-    { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.bits() },
-    { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.bits() },
+    { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.as_repr() },
+    { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.as_repr() },
 >;
 
 /// Relay flags parsing as found in votes.
@@ -134,6 +134,13 @@ bitflags! {
     }
 }
 
+impl RelayFlags {
+    /// Get the representation as a machine integer - XXXX transitional method impl, will go away
+    const fn as_repr(&self) -> RelayFlagsBits {
+        self.bits()
+    }
+}
+
 /// Define conversions for `RelayFlags` to and from the netdoc keyword
 ///
 /// The arguments are the netdoc flag keywords.
@@ -207,7 +214,7 @@ relay_flags_keywords! {
 impl PartialEq for DocRelayFlags {
     fn eq(&self, other: &DocRelayFlags) -> bool {
         let DocRelayFlags { known, unknown } = self;
-        known.bits() == other.known.bits() && unknown == &other.unknown
+        known.as_repr() == other.known.as_repr() && unknown == &other.unknown
     }
 }
 
@@ -305,8 +312,8 @@ mod parse_impl {
                 );
             }
             let mut flags = RelayFlagsParser::<
-                { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.bits() },
-                { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.bits() },
+                { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.as_repr() },
+                { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.as_repr() },
             >::new(Unknown::new_discard());
 
             for s in item.args() {
