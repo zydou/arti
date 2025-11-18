@@ -14,6 +14,19 @@ use super::Unknown;
 pub type RelayFlagsBits = u16;
 
 /// Router flags (aka relay flags), including, maybe, unknown ones
+///
+/// ### PartialEq implementation
+///
+/// `DocRelayFlags` implements `PartialEq`.
+///
+/// Two `DocRelayFlags` which both omit unknown flags (ie, contain `Unknown::Discarded`)
+/// are treated as equal if they contain the same set of *known* flags.
+/// This makes sense, because applications (like clients) that discard flags during netdoc
+/// parsing *want* to completely ignore unknown flags, and want to have a working comparison
+/// function for relay flags (eg to tell if two relays are similar enough).
+///
+/// Two `RelayFlags` only *one* of which retained unknown flags are treated as unequal.
+/// Such a comparison is probably a bug, but panicking would be worse.
 #[derive(Debug, Clone, derive_more::Deref)]
 #[non_exhaustive]
 pub struct DocRelayFlags {
