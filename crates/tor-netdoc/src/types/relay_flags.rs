@@ -74,68 +74,68 @@ pub(crate) type VoteRelayFlagsParser<'s> = RelayFlagsParser<'s, 0, 0>;
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
 pub type RelayFlags = EnumSet<RelayFlag>;
 
-    /// Router status flags - one recognized directory flag on a single relay.
+/// Router status flags - one recognized directory flag on a single relay.
+///
+/// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
+///
+/// These flags come from a consensus directory document, and are
+/// used to describe what the authorities believe about the relay.
+/// If the document contained any flags that we _didn't_ recognize,
+/// they are not listed in this type.
+///
+/// TODO SPEC: Make the terminology the same everywhere.
+#[derive(Debug, strum::Display, strum::EnumString, strum::IntoStaticStr, EnumSetType)]
+#[enumset(repr = "u16")] // Must be the same as RelayFlagBits
+#[non_exhaustive]
+pub enum RelayFlag {
+    /// Is this a directory authority?
+    Authority,
+    /// Is this relay marked as a bad exit?
     ///
-    /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:s>
+    /// Bad exits can be used as intermediate relays, but not to
+    /// deliver traffic.
+    BadExit,
+    /// Is this relay marked as an exit for weighting purposes?
+    Exit,
+    /// Is this relay considered "fast" above a certain threshold?
+    Fast,
+    /// Is this relay suitable for use as a guard relay?
     ///
-    /// These flags come from a consensus directory document, and are
-    /// used to describe what the authorities believe about the relay.
-    /// If the document contained any flags that we _didn't_ recognize,
-    /// they are not listed in this type.
+    /// Clients choose their their initial relays from among the set
+    /// of Guard relays.
+    Guard,
+    /// Does this relay participate on the onion service directory
+    /// ring?
+    HSDir,
+    /// Set if this relay is considered "middle only", not suitable to run
+    /// as an exit or guard relay.
     ///
-    /// TODO SPEC: Make the terminology the same everywhere.
-    #[derive(Debug, strum::Display, strum::EnumString, strum::IntoStaticStr, EnumSetType)]
-    #[enumset(repr = "u16")] // Must be the same as RelayFlagBits
-    #[non_exhaustive]
-    pub enum RelayFlag {
-        /// Is this a directory authority?
-        Authority,
-        /// Is this relay marked as a bad exit?
-        ///
-        /// Bad exits can be used as intermediate relays, but not to
-        /// deliver traffic.
-        BadExit,
-        /// Is this relay marked as an exit for weighting purposes?
-        Exit,
-        /// Is this relay considered "fast" above a certain threshold?
-        Fast,
-        /// Is this relay suitable for use as a guard relay?
-        ///
-        /// Clients choose their their initial relays from among the set
-        /// of Guard relays.
-        Guard,
-        /// Does this relay participate on the onion service directory
-        /// ring?
-        HSDir,
-        /// Set if this relay is considered "middle only", not suitable to run
-        /// as an exit or guard relay.
-        ///
-        /// Note that this flag is only used by authorities as part of
-        /// the voting process; clients do not and should not act
-        /// based on whether it is set.
-        MiddleOnly,
-        /// If set, there is no consensus for the ed25519 key for this relay.
-        NoEdConsensus,
-        /// Is this relay considered "stable" enough for long-lived circuits?
-        Stable,
-        /// Set if the authorities are requesting a fresh descriptor for
-        /// this relay.
-        StaleDesc,
-        /// Set if this relay is currently running.
-        ///
-        /// This flag can appear in votes, but in consensuses, every relay
-        /// is assumed to be running.
-        Running,
-        /// Set if this relay is considered "valid" -- allowed to be on
-        /// the network.
-        ///
-        /// This flag can appear in votes, but in consensuses, every relay
-        /// is assumed to be valid.
-        Valid,
-        /// Set if this relay supports a currently recognized version of the
-        /// directory protocol.
-        V2Dir,
-    }
+    /// Note that this flag is only used by authorities as part of
+    /// the voting process; clients do not and should not act
+    /// based on whether it is set.
+    MiddleOnly,
+    /// If set, there is no consensus for the ed25519 key for this relay.
+    NoEdConsensus,
+    /// Is this relay considered "stable" enough for long-lived circuits?
+    Stable,
+    /// Set if the authorities are requesting a fresh descriptor for
+    /// this relay.
+    StaleDesc,
+    /// Set if this relay is currently running.
+    ///
+    /// This flag can appear in votes, but in consensuses, every relay
+    /// is assumed to be running.
+    Running,
+    /// Set if this relay is considered "valid" -- allowed to be on
+    /// the network.
+    ///
+    /// This flag can appear in votes, but in consensuses, every relay
+    /// is assumed to be valid.
+    Valid,
+    /// Set if this relay supports a currently recognized version of the
+    /// directory protocol.
+    V2Dir,
+}
 
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
