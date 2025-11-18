@@ -42,6 +42,7 @@ experimental = [
     "hs-pow-full",
     "ns-vote",
     "parse2",
+    "retain-unknown",
 ]
 
 # Enable code to build the objects that represent different network documents.
@@ -80,6 +81,9 @@ hsdesc-inner-docs = [
 
 # Onion service proof of work schemes
 hs-pow-full = ["tor-hscrypto/hs-pow-full", "__is_experimental"]
+
+# Ability to round-trip network status documents (as eg an authority needs to)
+retain-unknown = ["__is_experimental"]
 
 # Enable experimental APIs that are not yet officially supported.
 #

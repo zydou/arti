@@ -6,8 +6,31 @@ use super::*;
 // Only pub via internal_prelude, for benefit of macros
 pub const WS: &[char] = &[' ', '\t'];
 
+define_derive_deftly! {
+    /// Define `parse_options` accessor
+    ///
+    /// The driver must have a lifetime named `'s`, which is suitable for the returned
+    /// `&'s ParseOptions`.
+    ///
+    /// # Top-level attributes:
+    ///
+    ///  * **`#[deftly(parse_options(field = ".field.field"))]`**, default `.options`
+    ParseOptions beta_deftly, expect items:
+
+    impl<$tgens> $ttype {
+        /// Examine the parsing options
+        pub fn parse_options(&self) -> &'s ParseOptions {
+            &self
+                ${tmeta(parse_options(field))
+                  as token_stream,
+                  default { .options }}
+        }
+    }
+}
+
 /// Top-level reader: Netdoc text interpreted as a stream of items
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(ParseOptions)]
 pub struct ItemStream<'s> {
     /// The whole document.  Used for signature hashing.
     whole_for_signatures: &'s str,
@@ -15,6 +38,8 @@ pub struct ItemStream<'s> {
     lines: Lines<'s>,
     /// If we have peeked ahead, what we discovered
     peeked: PeekState<'s>,
+    /// Parsing options.
+    options: &'s ParseOptions,
 }
 
 /// Whether an `ItemStream` has peeked ahead, and if so what it discovered
@@ -45,7 +70,9 @@ struct ItemStreamPeeked<'s> {
 }
 
 /// An Item that has been lexed but not parsed
-#[derive(Debug, Clone, amplify::Getters)]
+#[derive(Debug, Clone, amplify::Getters, Deftly)]
+#[derive_deftly(ParseOptions)]
+#[deftly(parse_options(field = ".args.options"))]
 pub struct UnparsedItem<'s> {
     /// The item's Keyword
     #[getter(as_copy)]
@@ -61,7 +88,8 @@ pub struct UnparsedItem<'s> {
 /// Reader for arguments on an Item
 ///
 /// Represents the (remaining) arguments.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(ParseOptions)]
 pub struct ArgumentStream<'s> {
     /// The remaining unparsed arguments
     ///
@@ -75,28 +103,37 @@ pub struct ArgumentStream<'s> {
 
     /// Remaining length *before* we last yielded.
     previous_rest_len: usize,
+
+    /// Parsing options.
+    options: &'s ParseOptions,
 }
 
 /// An Object that has been lexed but not parsed
-#[derive(Debug, Clone, amplify::Getters)]
+#[derive(Debug, Clone, amplify::Getters, Deftly)]
+#[derive_deftly(ParseOptions)]
 pub struct UnparsedObject<'s> {
     /// The Label
     #[getter(as_copy)]
     label: &'s str,
+
     /// The portion of the input document which is base64 data (and newlines)
     #[getter(skip)]
     data_b64: &'s str,
+
+    /// Parsing options.
+    options: &'s ParseOptions,
 }
 
 impl<'s> ItemStream<'s> {
     /// Start reading a network document as a series of Items
-    pub fn new(s: &'s str) -> Result<Self, ParseError> {
+    pub fn new(input: &'s ParseInput<'s>) -> Result<Self, ParseError> {
         Ok(ItemStream {
-            whole_for_signatures: s,
-            lines: Lines::new(s),
+            whole_for_signatures: input.input,
+            lines: Lines::new(input.input),
             peeked: PeekState::None {
                 yielded_item_lno: 0,
             },
+            options: &input.options,
         })
     }
 
@@ -228,7 +265,8 @@ impl<'s> ItemStream<'s> {
         let keyword = peeked.keyword;
         let line = self.lines.consume_peeked(peeked.line);
         let args = &line[keyword.len()..];
-        let args = ArgumentStream::new(args, line.len());
+        let options = self.options;
+        let args = ArgumentStream::new(args, line.len(), options);
 
         let object = if self.lines.remaining().starts_with('-') {
             fn pem_delimiter<'s>(lines: &mut Lines<'s>, start: &str) -> Result<&'s str, EP> {
@@ -256,7 +294,11 @@ impl<'s> ItemStream<'s> {
                 .into_iter()
                 .all_equal_value()
                 .map_err(|_| EP::ObjectMismatchedLabels)?;
-            Some(UnparsedObject { label, data_b64 })
+            Some(UnparsedObject {
+                label,
+                data_b64,
+                options,
+            })
         } else {
             None
         };
@@ -335,12 +377,13 @@ impl<'s> ArgumentStream<'s> {
     /// Make a new `ArgumentStream` from a string
     ///
     /// The string may start with whitespace (which will be ignored).
-    pub fn new(rest: &'s str, whole_line_len: usize) -> Self {
+    pub fn new(rest: &'s str, whole_line_len: usize, options: &'s ParseOptions) -> Self {
         let previous_rest_len = whole_line_len;
         ArgumentStream {
             rest,
             whole_line_len,
             previous_rest_len,
+            options,
         }
     }
 

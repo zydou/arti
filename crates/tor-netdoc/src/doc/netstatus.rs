@@ -75,7 +75,6 @@ use std::{net, result, time};
 use tor_error::{HasKind, internal};
 use tor_protover::Protocols;
 
-use bitflags::bitflags;
 use derive_deftly::{Deftly, define_derive_deftly};
 use digest::Digest;
 use std::sync::LazyLock;
@@ -97,8 +96,6 @@ ns_export_each_flavor! {
 ns_export_each_variety! {
     ty: RouterStatus, Preamble;
 }
-
-use void::ResultVoidExt as _;
 
 #[deprecated]
 #[cfg(feature = "ns_consensus")]
@@ -566,69 +563,6 @@ pub struct DirSource {
     pub or_port: u16,
 }
 
-bitflags! {
-    /// A set of recognized directory flags on a single relay.
-    ///
-    /// These flags come from a consensus directory document, and are
-    /// used to describe what the authorities believe about the relay.
-    /// If the document contained any flags that we _didn't_ recognize,
-    /// they are not listed in this type.
-    ///
-    /// The bit values used to represent the flags have no meaning;
-    /// they may change between releases of this crate.  Relying on their
-    /// values may void your semver guarantees.
-    #[derive(Clone, Copy, Debug)]
-    pub struct RelayFlags: u16 {
-        /// Is this a directory authority?
-        const AUTHORITY = (1<<0);
-        /// Is this relay marked as a bad exit?
-        ///
-        /// Bad exits can be used as intermediate relays, but not to
-        /// deliver traffic.
-        const BAD_EXIT = (1<<1);
-        /// Is this relay marked as an exit for weighting purposes?
-        const EXIT = (1<<2);
-        /// Is this relay considered "fast" above a certain threshold?
-        const FAST = (1<<3);
-        /// Is this relay suitable for use as a guard relay?
-        ///
-        /// Clients choose their their initial relays from among the set
-        /// of Guard relays.
-        const GUARD = (1<<4);
-        /// Does this relay participate on the onion service directory
-        /// ring?
-        const HSDIR = (1<<5);
-        /// Set if this relay is considered "middle only", not suitable to run
-        /// as an exit or guard relay.
-        ///
-        /// Note that this flag is only used by authorities as part of
-        /// the voting process; clients do not and should not act
-        /// based on whether it is set.
-        const MIDDLE_ONLY = (1<<6);
-        /// If set, there is no consensus for the ed25519 key for this relay.
-        const NO_ED_CONSENSUS = (1<<7);
-        /// Is this relay considered "stable" enough for long-lived circuits?
-        const STABLE = (1<<8);
-        /// Set if the authorities are requesting a fresh descriptor for
-        /// this relay.
-        const STALE_DESC = (1<<9);
-        /// Set if this relay is currently running.
-        ///
-        /// This flag can appear in votes, but in consensuses, every relay
-        /// is assumed to be running.
-        const RUNNING = (1<<10);
-        /// Set if this relay is considered "valid" -- allowed to be on
-        /// the network.
-        ///
-        /// This flag can appear in votes, but in consensuses, every relay
-        /// is assumed to be valid.
-        const VALID = (1<<11);
-        /// Set if this relay supports a currently recognized version of the
-        /// directory protocol.
-        const V2DIR = (1<<12);
-    }
-}
-
 /// Recognized weight fields on a single relay in a consensus
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
@@ -1078,88 +1012,6 @@ impl ConsensusVoterInfo {
     }
 }
 
-impl std::str::FromStr for RelayFlags {
-    type Err = void::Void;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(match s {
-            "Authority" => RelayFlags::AUTHORITY,
-            "BadExit" => RelayFlags::BAD_EXIT,
-            "Exit" => RelayFlags::EXIT,
-            "Fast" => RelayFlags::FAST,
-            "Guard" => RelayFlags::GUARD,
-            "HSDir" => RelayFlags::HSDIR,
-            "MiddleOnly" => RelayFlags::MIDDLE_ONLY,
-            "NoEdConsensus" => RelayFlags::NO_ED_CONSENSUS,
-            "Stable" => RelayFlags::STABLE,
-            "StaleDesc" => RelayFlags::STALE_DESC,
-            "Running" => RelayFlags::RUNNING,
-            "Valid" => RelayFlags::VALID,
-            "V2Dir" => RelayFlags::V2DIR,
-            _ => RelayFlags::empty(),
-        })
-    }
-}
-
-/// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
-struct RelayFlagsParser<'s> {
-    /// Flags so far, including the implied ones
-    flags: RelayFlags,
-
-    /// The previous argument, if any
-    ///
-    /// Used only for checking that the arguments are sorted, as per the spec.
-    prev: Option<&'s str>,
-}
-
-impl<'s> RelayFlagsParser<'s> {
-    /// Start parsing relay flags
-    fn new() -> Self {
-        // These flags are implicit.
-        RelayFlagsParser {
-            flags: RelayFlags::RUNNING | RelayFlags::VALID,
-            prev: None,
-        }
-    }
-    /// Parse the next relay flag argument
-    fn add(&mut self, arg: &'s str) -> StdResult<(), &'static str> {
-        if let Some(prev) = self.prev {
-            if prev >= arg {
-                // Arguments out of order.
-                return Err("Flags out of order");
-            }
-        }
-        let fl = arg.parse().void_unwrap();
-        self.flags |= fl;
-        self.prev = Some(arg);
-        Ok(())
-    }
-    /// Finish parsing relay flags
-    fn finish(self) -> RelayFlags {
-        self.flags
-    }
-}
-
-impl RelayFlags {
-    /// Parse a relay-flags entry from an "s" line.
-    fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<RelayFlags> {
-        if item.kwd() != NetstatusKwd::RS_S {
-            return Err(
-                Error::from(internal!("Wrong keyword {:?} for S line", item.kwd()))
-                    .at_pos(item.pos()),
-            );
-        }
-        let mut flags = RelayFlagsParser::new();
-
-        for s in item.args() {
-            flags
-                .add(s)
-                .map_err(|msg| EK::BadArgument.at_pos(item.pos()).with_msg(msg))?;
-        }
-
-        Ok(flags.finish())
-    }
-}
-
 impl Default for RelayWeight {
     fn default() -> RelayWeight {
         RelayWeight::Unmeasured(0)
@@ -1220,19 +1072,6 @@ mod parse2_impls {
                 Self::from_net_params(&params)
             })()
             .map_err(item.invalid_argument_handler("weights"))
-        }
-    }
-
-    impl ItemValueParseable for RelayFlags {
-        fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<Self, EP> {
-            item.check_no_object()?;
-            let mut flags = RelayFlagsParser::new();
-            for arg in item.args_copy() {
-                flags
-                    .add(arg)
-                    .map_err(item.invalid_argument_handler("flags"))?;
-            }
-            Ok(flags.finish())
         }
     }
 
@@ -1458,7 +1297,7 @@ mod test {
     use hex_literal::hex;
     #[cfg(all(feature = "ns-vote", feature = "parse2"))]
     use {
-        crate::parse2::{NetdocSigned as _, parse_netdoc},
+        crate::parse2::{NetdocSigned as _, ParseInput, parse_netdoc},
         std::fs,
     };
 
@@ -1582,7 +1421,8 @@ mod test {
         // TODO replace the poc struct here when we have parsing of proper whole votes
         use crate::parse2::poc::netstatus::NetworkStatusSignedVote;
 
-        let doc: NetworkStatusSignedVote = parse_netdoc(&text, file)?;
+        let input = ParseInput::new(&text, file);
+        let doc: NetworkStatusSignedVote = parse_netdoc(&input)?;
 
         println!("{doc:?}");
         println!("{:#?}", doc.inspect_unverified().0.r[0]);

@@ -2581,7 +2581,7 @@ mod test {
     fn test_badexit() {
         // make a netdir where relays 10-19 are badexit, and everybody
         // exits to 443 on IPv6.
-        use tor_netdoc::doc::netstatus::RelayFlags;
+        use tor_netdoc::types::relay_flags::RelayFlags;
         let netdir = construct_custom_netdir(|pos, nb, _| {
             if (10..20).contains(&pos) {
                 nb.rs.add_flags(RelayFlags::BAD_EXIT);

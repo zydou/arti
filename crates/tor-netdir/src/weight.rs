@@ -425,7 +425,8 @@ mod test {
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayFlags};
+    use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder};
+    use tor_netdoc::types::relay_flags::RelayFlags;
 
     #[test]
     fn t_clamp() {
@@ -593,7 +594,7 @@ mod test {
 
         // Now try those last few with routerstatuses.
         let rs = rs_builder()
-            .set_flags(RelayFlags::GUARD | RelayFlags::V2DIR)
+            .set_flags(RelayFlags::GUARD | RelayFlags::V2_DIR)
             .weight(RW::Measured(7777))
             .build()
             .unwrap();
@@ -625,7 +626,7 @@ mod test {
         let rs1 = rs_builder().set_flags(RelayFlags::GUARD).build().unwrap();
         assert_eq!(WeightKind::for_rs(&rs1), WeightKind::GUARD);
 
-        let rs1 = rs_builder().set_flags(RelayFlags::V2DIR).build().unwrap();
+        let rs1 = rs_builder().set_flags(RelayFlags::V2_DIR).build().unwrap();
         assert_eq!(WeightKind::for_rs(&rs1), WeightKind::DIR);
 
         let rs1 = rs_builder().build().unwrap();

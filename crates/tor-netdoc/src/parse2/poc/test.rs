@@ -26,11 +26,13 @@ fn parse_consensus_ns() -> anyhow::Result<()> {
     let text = fs::read_to_string(&file)?;
     let now = parse_rfc3339("2000-01-01T00:02:05Z")?;
 
-    let doc: netstatus::NetworkStatusSignedNs = parse_netdoc(&text, file)?;
+    let input = ParseInput::new(&text, file);
+    let doc: netstatus::NetworkStatusSignedNs = parse_netdoc(&input)?;
 
     let file = "testdata2/cached-certs";
     let text = fs::read_to_string(&file)?;
-    let certs: Vec<authcert::DirAuthKeyCertSigned> = parse_netdoc_multiple(&text, file)?;
+    let input = ParseInput::new(&text, file);
+    let certs: Vec<authcert::DirAuthKeyCertSigned> = parse_netdoc_multiple(&input)?;
     let certs = certs
         .into_iter()
         .map(|cert| cert.verify_selfcert(now))
@@ -55,7 +57,8 @@ fn parse_consensus_md() -> anyhow::Result<()> {
     let file = "testdata2/cached-microdesc-consensus";
     let text = fs::read_to_string(&file)?;
 
-    let doc: netstatus::md::NetworkStatusSigned = parse_netdoc(&text, file)?;
+    let input = ParseInput::new(&text, file);
+    let doc: netstatus::md::NetworkStatusSigned = parse_netdoc(&input)?;
 
     println!("{doc:?}");
 
@@ -66,7 +69,9 @@ fn parse_consensus_md() -> anyhow::Result<()> {
 fn parse_authcert() -> anyhow::Result<()> {
     let file = "testdata2/cached-certs--1";
     let now = parse_rfc3339("2000-06-01T00:00:05Z")?;
-    let doc: authcert::DirAuthKeyCertSigned = parse_netdoc(&fs::read_to_string(file)?, file)?;
+    let text = fs::read_to_string(file)?;
+    let input = ParseInput::new(&text, file);
+    let doc: authcert::DirAuthKeyCertSigned = parse_netdoc(&input)?;
     let doc = doc.verify_selfcert(now)?;
     println!("{doc:?}");
     assert_eq!(

@@ -1,8 +1,9 @@
 //! Provide builder functionality for routerstatuses.
 
 use crate::doc;
-use crate::doc::netstatus::{IgnoredPublicationTimeSp, RelayFlags, RelayWeight};
-use crate::types::{Base64Fingerprint, NotPresent};
+use crate::doc::netstatus::{IgnoredPublicationTimeSp, RelayWeight};
+use crate::types::relay_flags::{DocRelayFlags, RelayFlags};
+use crate::types::{Base64Fingerprint, NotPresent, Unknown};
 use crate::{BuildError as Error, BuildResult as Result};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;

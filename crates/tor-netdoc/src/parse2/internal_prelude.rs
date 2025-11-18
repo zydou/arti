@@ -46,6 +46,7 @@ pub use super::{
         NetdocSigned,
     },
 };
+pub use crate::types::Unknown;
 pub use crate::{NormalItemArgument, netdoc_ordering_check, stop_at};
 
 pub use ArgumentError as AE;

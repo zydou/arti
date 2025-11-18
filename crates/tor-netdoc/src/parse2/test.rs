@@ -163,12 +163,14 @@ fn t_ok<D>(doc: &str, exp: &[D]) -> TestResult<()>
 where
     D: NetdocParseable + Debug + PartialEq,
 {
+    let input = ParseInput::new(doc, "<literal>");
+
     if exp.len() == 1 {
-        let got = parse_netdoc::<D>(doc, "<literal>").context(doc.to_owned())?;
+        let got = parse_netdoc::<D>(&input).context(doc.to_owned())?;
         assert_eq!(got, exp[0], "doc={doc}");
     }
 
-    let got = parse_netdoc_multiple::<D>(doc, "<literal>")?;
+    let got = parse_netdoc_multiple::<D>(&input)?;
     assert_eq!(got, exp, "doc={doc}");
     Ok(())
 }
@@ -183,7 +185,8 @@ fn t_err_raw<D>(
 where
     D: NetdocParseable + Debug,
 {
-    let got = parse_netdoc::<D>(doc, "<massaged>").expect_err("unexpectedly parsed ok");
+    let input = ParseInput::new(doc, "<massaged>");
+    let got = parse_netdoc::<D>(&input).expect_err("unexpectedly parsed ok");
     let got_err = got.problem.to_string();
     assert_eq!(
         (got.lno, got.column),

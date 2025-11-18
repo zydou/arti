@@ -410,7 +410,7 @@ define_derive_deftly! {
     /// use tor_netdoc::derive_deftly_template_NetdocParseable;
     /// use tor_netdoc::derive_deftly_template_NetdocSigned;
     /// use tor_netdoc::derive_deftly_template_ItemValueParseable;
-    /// use tor_netdoc::parse2::{parse_netdoc, VerifyFailed};
+    /// use tor_netdoc::parse2::{parse_netdoc, ParseInput, VerifyFailed};
     /// use tor_netdoc::parse2::{SignatureItemParseable, SignatureHashInputs};
     ///
     /// #[derive(Deftly, Debug, Clone)]
@@ -456,7 +456,8 @@ define_derive_deftly! {
     ///     }
     /// }
     ///
-    /// let doc: NdThingSigned = parse_netdoc(&doc_text, "<input>").unwrap();
+    /// let input = ParseInput::new(&doc_text, "<input>");
+    /// let doc: NdThingSigned = parse_netdoc(&input).unwrap();
     /// let doc = doc.verify_foolish_timeless().unwrap();
     /// assert_eq!(doc.value.0, "something");
     /// ```

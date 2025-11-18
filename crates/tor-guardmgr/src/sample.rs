@@ -1031,7 +1031,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use tor_linkspec::{HasRelayIds, RelayIdType};
     use tor_netdir::NetDir;
-    use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
+    use tor_netdoc::doc::netstatus::RelayWeight;
+    use tor_netdoc::types::relay_flags::RelayFlags;
 
     use super::*;
     use crate::FirstHopId;

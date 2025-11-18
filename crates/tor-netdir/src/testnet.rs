@@ -19,9 +19,9 @@ use std::time::{Duration, SystemTime};
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
-use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayFlags, RelayWeight};
+use tor_netdoc::doc::netstatus::{Lifetime, MdRouterStatusBuilder, RelayWeight};
 use tor_netdoc::doc::netstatus::{MdConsensus, MdConsensusBuilder};
-
+use tor_netdoc::types::relay_flags::RelayFlags;
 pub use tor_netdoc::{BuildError, BuildResult};
 
 /// A set of builder objects for a single node.
@@ -189,12 +189,12 @@ where
 {
     let f = RelayFlags::RUNNING
         | RelayFlags::VALID
-        | RelayFlags::V2DIR
+        | RelayFlags::V2_DIR
         | RelayFlags::FAST
         | RelayFlags::STABLE;
     // define 4 groups of flags
     let flags = [
-        f | RelayFlags::HSDIR,
+        f | RelayFlags::H_S_DIR,
         f | RelayFlags::EXIT,
         f | RelayFlags::GUARD,
         f | RelayFlags::EXIT | RelayFlags::GUARD,
