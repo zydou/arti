@@ -277,6 +277,10 @@ impl<E: AsRef<dyn Error>> Display for RetryError<E> {
 /// assert_eq!(printed, "everything is terrible: some pernickety problem");
 /// ```
 pub fn fmt_error_with_sources(mut e: &dyn Error, f: &mut fmt::Formatter) -> fmt::Result {
+    // We deduplicate the errors here under the assumption that the `Error` trait is poorly defined
+    // and contradictory, and that some error types will duplicate error messages. This is
+    // controversial, and since there isn't necessarily agreement, we should stick with the status
+    // quo here and avoid changing this behaviour without further discussion.
     let mut last = String::new();
     let mut sep = iter::once("").chain(iter::repeat(": "));
     loop {
