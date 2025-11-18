@@ -1032,7 +1032,7 @@ mod test {
     use tor_linkspec::{HasRelayIds, RelayIdType};
     use tor_netdir::NetDir;
     use tor_netdoc::doc::netstatus::RelayWeight;
-    use tor_netdoc::types::relay_flags::RelayFlags;
+    use tor_netdoc::types::relay_flags::RelayFlag;
 
     use super::*;
     use crate::FirstHopId;
@@ -1055,7 +1055,7 @@ mod test {
             // The default network has 40 relays, and the first 10 are
             // not Guard by default.
             if idx >= 10 {
-                builder.rs.add_flags(RelayFlags::GUARD);
+                builder.rs.add_flags(RelayFlag::GUARD);
                 if idx >= 20 {
                     builder.rs.protos("DirCache=2".parse().unwrap());
                 } else {

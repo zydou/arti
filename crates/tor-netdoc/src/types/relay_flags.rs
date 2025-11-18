@@ -58,6 +58,9 @@ pub(crate) type ConsensusRelayFlagsParser<'s> = RelayFlagsParser<
 /// Relay flags parsing as found in votes.
 pub(crate) type VoteRelayFlagsParser<'s> = RelayFlagsParser<'s, 0, 0>;
 
+/// Transitional alias.  XXXX This will become a type for *one* relay flag.
+pub type RelayFlag = RelayFlags;
+
 bitflags! {
     /// Router status flags - a set of recognized directory flags on a single relay.
     ///
