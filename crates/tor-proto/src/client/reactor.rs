@@ -636,12 +636,9 @@ pub(crate) struct StreamReqInfo {
     pub(crate) stream_id: StreamId,
     /// The [`HopNum`].
     //
-    // TODO: When we add support for exit relays, we need to turn this into an Option<HopNum>.
-    // (For outbound messages (towards relays), there is only one hop that can send them: the client.)
-    //
     // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
     // incoming stream request from two separate hops.  (There is only one that's valid.)
-    pub(crate) hop: HopLocation,
+    pub(crate) hop: Option<HopLocation>,
     /// The format which must be used with this stream to encode messages.
     #[deftly(has_memory_cost(indirect_size = "0"))]
     pub(crate) relay_cell_format: RelayCellFormat,

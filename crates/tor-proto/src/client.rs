@@ -306,7 +306,7 @@ impl ClientTunnel {
             // assertion is just here to make sure that we don't ever
             // accidentally remove or fail to enforce that check, since it is
             // security-critical.
-            assert_eq!(allowed_hop_loc, hop);
+            assert_eq!(Some(allowed_hop_loc), hop);
 
             // TODO(#2002): figure out what this is going to look like
             // for onion services (perhaps we should forbid this function
