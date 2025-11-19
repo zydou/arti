@@ -295,8 +295,8 @@ impl<
         peer_cert: &[u8],
         now: Option<std::time::SystemTime>,
     ) -> Result<VerifiedChannel<T, S>> {
-        let peer_cert_sha256 = ll::d::Sha256::digest(peer_cert);
-        self.check_internal(peer, &peer_cert_sha256[..], now)
+        let peer_cert_sha256 = ll::d::Sha256::digest(peer_cert).into();
+        self.check_internal(peer, peer_cert_sha256, now)
     }
 
     /// Same as `check`, but takes the SHA256 hash of the peer certificate,
@@ -304,7 +304,7 @@ impl<
     pub(crate) fn check_internal<U: ChanTarget + ?Sized>(
         self,
         peer: &U,
-        peer_cert_sha256: &[u8],
+        peer_cert_digest: [u8; 32],
         now: Option<SystemTime>,
     ) -> Result<VerifiedChannel<T, S>> {
         use tor_cert::CertType;
@@ -405,7 +405,7 @@ impl<
         sigs.push(&sk_tls_sig);
         let (sk_tls_timeliness, sk_tls) = check_timeliness(sk_tls, now, self.clock_skew);
 
-        if peer_cert_sha256 != sk_tls.subject_key().as_bytes() {
+        if peer_cert_digest != sk_tls.subject_key().as_bytes() {
             return Err(Error::HandshakeProto(
                 "Peer cert did not authenticate TLS cert".into(),
             ));
@@ -512,9 +512,7 @@ impl<
             ed25519_id: *identity_key,
             rsa_id,
             rsa_cert_digest: *rsa_cert.digest(),
-            peer_cert_digest: peer_cert_sha256
-                .try_into()
-                .expect("SHA256 digest not 32 bytes"),
+            peer_cert_digest,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
             memquota: self.memquota,
@@ -861,7 +859,7 @@ pub(super) mod test {
         when: Option<SystemTime>,
         peer_ed: &[u8],
         peer_rsa: &[u8],
-        peer_cert_sha256: &[u8],
+        peer_cert_sha256: [u8; 32],
         runtime: &R,
     ) -> Result<VerifiedChannel<MsgBuf, R>>
     where
@@ -887,7 +885,7 @@ pub(super) mod test {
             None,
             &[0_u8; 32],
             &[0_u8; 20],
-            &[0_u8; 128],
+            [0_u8; 32],
             &rt,
         )
         .err()
@@ -912,7 +910,7 @@ pub(super) mod test {
             Some(cert_timestamp()),
             certs::PEER_ED,
             certs::PEER_RSA,
-            certs::PEER_CERT_DIGEST,
+            *certs::PEER_CERT_DIGEST,
             &rt,
         );
         let _ = res.unwrap();
@@ -945,7 +943,7 @@ pub(super) mod test {
                 Some(cert_timestamp()),
                 certs::PEER_ED,
                 certs::PEER_RSA,
-                certs::PEER_CERT_DIGEST,
+                *certs::PEER_CERT_DIGEST,
                 &rt,
             )
             .err()
@@ -971,7 +969,7 @@ pub(super) mod test {
             Some(cert_timestamp()),
             &[0x10; 32],
             certs::PEER_RSA,
-            certs::PEER_CERT_DIGEST,
+            *certs::PEER_CERT_DIGEST,
             &rt,
         )
         .err()
@@ -989,7 +987,7 @@ pub(super) mod test {
             Some(cert_timestamp()),
             certs::PEER_ED,
             &[0x99; 20],
-            certs::PEER_CERT_DIGEST,
+            *certs::PEER_CERT_DIGEST,
             &rt,
         )
         .err()
@@ -1007,7 +1005,7 @@ pub(super) mod test {
             Some(cert_timestamp()),
             certs::PEER_ED,
             certs::PEER_RSA,
-            &[0; 32],
+            [0; 32],
             &rt,
         )
         .err()
@@ -1037,7 +1035,7 @@ pub(super) mod test {
             Some(cert_timestamp()),
             certs::PEER_ED,
             certs::PEER_RSA,
-            certs::PEER_CERT_DIGEST,
+            *certs::PEER_CERT_DIGEST,
             &rt,
         )
         .err()
@@ -1058,7 +1056,7 @@ pub(super) mod test {
             Some(cert_timestamp()),
             certs::PEER_ED,
             certs::PEER_RSA,
-            certs::PEER_CERT_DIGEST,
+            *certs::PEER_CERT_DIGEST,
             &rt,
         )
         .err()
@@ -1093,7 +1091,7 @@ pub(super) mod test {
             "DCB604DB2034B00FD16986D4ADB9D16B21CB4E4457A33DEC0F538903683E96E90006DA3A805CF6006F9179066534DE6B45AD47A5C469063EE462762723396DC9F25452A0A52DA3F5087DD239F2A311F6B0D4DFEFF4ABD089DC3D0237A0ABAB19EB2045B91CDCAF04BE0A72D548A27BF2E77BD876ECFE5E1BE622350DA6BF31F6E306ED896488DD5B39409B23FC3EB7B2C9F7328EB18DA36D54D80575899EA6507CCBFCDF1F"
         );
 
-        pub(crate) const PEER_CERT_DIGEST: &[u8] =
+        pub(crate) const PEER_CERT_DIGEST: &[u8; 32] =
             &hex!("b4fd606b64e4cbd466b8d76cb131069bae6f3aa1878857c9f624e31d77a799b8");
 
         pub(crate) const PEER_ED: &[u8] =
