@@ -34,7 +34,8 @@ pub struct NetdocEncoder {
     ///
     /// If an [`ItemEncoder`] exists, it will add a newline when it's dropped.
     ///
-    /// `Err` means bad values passed to some builder function
+    /// `Err` means bad values passed to some builder function.
+    /// Such errors are accumulated here for the benefit of handwritten document encoders.
     built: Result<String, Bug>,
 }
 

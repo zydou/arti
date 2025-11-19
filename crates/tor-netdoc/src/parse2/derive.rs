@@ -859,12 +859,12 @@ define_derive_deftly! {
     /// Each field should be:
     ///
     ///  * `impl `[`ItemArgumentParseable`] (one argument),
-    ///  * `Option<impl ItemArgumentParseable>` (one optional argument), or
-    ///  * `Vec<impl ItemArgumentParseable>` (zero or more arguments).
+    ///  * `Option<impl ItemArgumentParseable>` (one optional argument),
+    ///  * `Vec<impl ItemArgumentParseable>` (zero or more arguments), or
+    ///  * `BTreeSet<impl ItemArgumentParseable + Ord>` (zero or more arguments).
     ///
-    /// `ItemArgumentParseable` is implemented for every `impl FromStr`,
-    /// so `impl FromStr`, `Option<impl FromStr>` and `Vec<impl FromStr>`
-    /// are supported.
+    /// `ItemArgumentParseable` can be implemented via `impl FromStr`,
+    /// by writing `impl NormalItemArgument`.
     ///
     /// For `Option` or `Vec`, we expect that *if* there are any further arguments,
     /// they are for this field.
@@ -891,8 +891,10 @@ define_derive_deftly! {
     ///
     ///    The field is the whole rest of the line.
     ///    Must come after any other normal argument fields.
+    ///    Only allowed once.
     ///
     ///    The field type must implement `FromStr`.
+    ///    (I.e. `Vec` , `Option` etc., are not allowed.)
     ///
     ///  * **`#[deftly(netdoc(object))]**:
     ///

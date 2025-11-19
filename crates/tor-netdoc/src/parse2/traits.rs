@@ -90,7 +90,7 @@ pub trait NetdocSigned {
     fn from_parts(body: Self::Body, signatures: Self::Signatures) -> Self;
 }
 
-/// An item (value) that can appear in a netdoc
+/// An item (value) that can be parsed in a netdoc
 ///
 /// This is the type `T` of a field `item: T` in a netdoc type.
 ///
@@ -108,7 +108,7 @@ pub trait ItemValueParseable: Sized {
     fn from_unparsed(item: UnparsedItem<'_>) -> Result<Self, ErrorProblem>;
 }
 
-/// An (individual) argument that can appear in a netdoc
+/// An (individual) argument that can be parsed from in a netdoc
 ///
 /// An implementations is provided for **`T: FromStr`**,
 /// which expects a single argument and passes it to `FromStr`.
@@ -120,10 +120,7 @@ pub trait ItemArgumentParseable: Sized {
     fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError>;
 }
 
-/// A possibly-optional Object value that can appear in netdoc
-///
-/// Implemented for `Option`, so that `field: Option<ObjectValue>`
-/// allows parsing an optional object.
+/// An Object value that be parsed from a netdoc
 pub trait ItemObjectParseable: Sized {
     /// Check that the Label is right
     fn check_label(label: &str) -> Result<(), ErrorProblem>;
