@@ -392,11 +392,9 @@ impl BackwardReactor {
     /// Send a RELAY cell with the specified `msg` to the client.
     async fn send_msg_to_client(
         &mut self,
-        streamid: Option<StreamId>,
-        msg: AnyRelayMsg,
+        msg: AnyRelayMsgOuter,
         info: Option<QueuedCellPaddingInfo>,
     ) -> StdResult<(), ReactorError> {
-        let msg = AnyRelayMsgOuter::new(streamid, msg);
         let (msg, tag) = self.encode_clientbound_relay_cell(self.hop.relay_cell_format(), msg)?;
         let cell = AnyChanCell::new(Some(self.circ_id), msg);
 
@@ -413,7 +411,10 @@ impl BackwardReactor {
     async fn handle_stream_event(&mut self, event: StreamEvent) -> StdResult<(), ReactorError> {
         match event {
             StreamEvent::Closed { .. } => todo!(),
-            StreamEvent::ReadyMsg { sid, msg } => self.send_msg_to_client(Some(sid), msg, None).await,
+            StreamEvent::ReadyMsg { sid, msg } => {
+                let msg = AnyRelayMsgOuter::new(Some(sid), msg);
+                self.send_msg_to_client(msg, None).await
+            }
         }
     }
 
