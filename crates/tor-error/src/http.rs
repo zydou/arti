@@ -6,7 +6,15 @@ use http::StatusCode;
 impl ErrorKind {
     /// Return an HTTP status code corresponding to this `ErrorKind`.
     ///
+    /// These HTTP status codes are used by Arti in reply to client requests
+    /// on the HTTP CONNECT proxy port.
+    ///
+    /// The specific status code for a given ErrorKind is _not_ formally specified.
+    /// As such, it is okay to change them to be more appropriate.
     /// These codes are not guaranteed to be the same across different versions of `tor-error`.
+    //
+    // NOTE: One reason this method is in `tor-error` is to ensure that the match can remain
+    // exhaustive.  Don't add a `_ =>` at the end!
     pub fn http_status_code(self) -> StatusCode {
         use ErrorKind as EK;
         use http::StatusCode as SC;
@@ -74,6 +82,8 @@ impl ErrorKind {
             | EK::RemoteStreamClosed
             | EK::RemoteStreamError
             | EK::RemoteStreamReset => SC::SERVICE_UNAVAILABLE,
+            //
+            // NOTE: Do not add a `_ =>` catch-all here; see NOTE above.
         }
     }
 }
