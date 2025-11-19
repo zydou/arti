@@ -564,8 +564,8 @@ impl HttpConnectError {
             | HCE::InvalidFamilyPreference
             | HCE::RpcObjectNotFound
             | HCE::NoRpcSupport => SC::BAD_REQUEST,
-            HCE::ConnectFailed(_, e) => kind_to_status(e.kind()),
-            HCE::Internal(e) => kind_to_status(e.kind()),
+            HCE::ConnectFailed(_, e) => e.kind().http_status_code(),
+            HCE::Internal(e) => e.kind().http_status_code(),
         }
     }
 
@@ -573,91 +573,36 @@ impl HttpConnectError {
     fn try_into_response(self) -> Result<Response<Body>, HttpConnectError> {
         let error_kind = self.kind();
         let status_code = self.status_code();
-        // TODO: It would be neat to also include specific END reasons here.  But to get them we'd
-        // need to depend on the "details" feature of arti-client, which I'm not sure we want to do.
-        //
-        // If we _do_ get a way to extract END reasons, we can also use them manually alongside
-        // kind_to_status.
-        ResponseBuilder::new()
-            .status(status_code)
-            .header(hdr::TOR_REQUEST_FAILED, format!("arti/{error_kind:?}"))
-            .err(&Method::CONNECT, self.report().to_string())
-    }
-}
-
-/// Convert an ErrorKind into a StatusCode.
-//
-// TODO: Perhaps move this to tor-error, so it can be an exhaustive match.
-fn kind_to_status(kind: ErrorKind) -> StatusCode {
-    use http::StatusCode as SC;
-    use tor_error::ErrorKind as EK;
-    match kind {
-        EK::ArtiShuttingDown
-        | EK::BadApiUsage
-        | EK::BootstrapRequired
-        | EK::CacheAccessFailed
-        | EK::CacheCorrupted
-        | EK::ClockSkew
-        | EK::DirectoryExpired
-        | EK::ExternalToolFailed
-        | EK::FsPermissions
-        | EK::Internal
-        | EK::InvalidConfig
-        | EK::InvalidConfigTransition
-        | EK::KeystoreAccessFailed
-        | EK::KeystoreCorrupted
-        | EK::NoHomeDirectory
-        | EK::Other
-        | EK::PersistentStateAccessFailed
-        | EK::PersistentStateCorrupted
-        | EK::SoftwareDeprecated
-        | EK::TorDirectoryUnusable
-        | EK::TransientFailure
-        | EK::ReactorShuttingDown
-        | EK::RelayIdMismatch
-        | EK::RelayTooBusy
-        | EK::TorAccessFailed
-        | EK::TorDirectoryError => SC::INTERNAL_SERVER_ERROR,
-
-        EK::FeatureDisabled | EK::NotImplemented => SC::NOT_IMPLEMENTED,
-
-        EK::CircuitCollapse
-        | EK::CircuitRefused
-        | EK::ExitPolicyRejected
-        | EK::LocalNetworkError
-        | EK::LocalProtocolViolation
-        | EK::LocalResourceAlreadyInUse
-        | EK::LocalResourceExhausted
-        | EK::NoExit
-        | EK::NoPath => SC::SERVICE_UNAVAILABLE,
-
-        EK::TorProtocolViolation | EK::RemoteProtocolViolation | EK::RemoteNetworkFailed => {
-            SC::BAD_GATEWAY
+        let mut request_failed = format!("arti/{error_kind:?}");
+        if let Some(end_reason) = self.remote_end_reason() {
+            request_failed.push_str(&format!(" end/{end_reason}"));
         }
 
-        EK::ExitTimeout | EK::TorNetworkTimeout | EK::RemoteNetworkTimeout => SC::GATEWAY_TIMEOUT,
+        ResponseBuilder::new()
+            .status(status_code)
+            .header(hdr::TOR_REQUEST_FAILED, request_failed)
+            .err(&Method::CONNECT, self.report().to_string())
+    }
 
-        EK::ForbiddenStreamTarget => SC::FORBIDDEN,
-
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceAddressInvalid | EK::InvalidStreamTarget => SC::BAD_REQUEST,
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceWrongClientAuth => SC::FORBIDDEN,
-        #[cfg(feature = "onion-service-client")]
-        EK::OnionServiceConnectionFailed
-        | EK::OnionServiceMissingClientAuth
-        | EK::OnionServiceNotFound
-        | EK::OnionServiceNotRunning
-        | EK::OnionServiceProtocolViolation => SC::SERVICE_UNAVAILABLE,
-
-        EK::RemoteConnectionRefused
-        | EK::RemoteHostNotFound
-        | EK::RemoteHostResolutionFailed
-        | EK::RemoteStreamClosed
-        | EK::RemoteStreamError
-        | EK::RemoteStreamReset => SC::SERVICE_UNAVAILABLE,
-
-        _ => SC::INTERNAL_SERVER_ERROR,
+    /// Return the end reason for this error, if this error does in fact represent an END message
+    /// from the remote side of a stream.
+    //
+    // TODO: This function is a bit fragile; it forces us to use APIs from tor-proto and
+    // tor-cell that are not re-exported from arti-client.  It also relies on the fact that
+    // there is a single error type way down in `tor-proto` representing a received END message.
+    fn remote_end_reason(&self) -> Option<tor_cell::relaycell::msg::EndReason> {
+        use tor_proto::Error as ProtoErr;
+        let mut error: &(dyn std::error::Error + 'static) = self;
+        loop {
+            if let Some(ProtoErr::EndReceived(reason)) = error.downcast_ref::<ProtoErr>() {
+                return Some(*reason);
+            }
+            if let Some(source) = error.source() {
+                error = source;
+            } else {
+                return None;
+            }
+        }
     }
 }
 

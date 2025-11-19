@@ -140,7 +140,7 @@ experimental = [
     "tokio-console",
 ]
 metrics = ["dep:metrics-exporter-prometheus", "tor-hsservice?/metrics", "tor-hsrproxy?/metrics", "__is_experimental"]
-http-connect = ["__is_experimental", "base64ct", "http", "hyper"]
+http-connect = ["__is_experimental", "base64ct", "http", "hyper", "tor-error/http", "tor-cell", "tor-proto"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental"]
 tokio-console = ["dep:console-subscriber", "__is_experimental"]
 __is_experimental = []
@@ -198,6 +198,7 @@ tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 toml = "0.9.5"
 tor-async-utils = { path = "../tor-async-utils", version = "0.36.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.36.0" }
+tor-cell = { path = "../tor-cell", version = "0.36.0", optional = true }
 tor-config = { path = "../tor-config", version = "0.36.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.36.0" }
 tor-error = { path = "../tor-error", version = "0.36.0", default-features = false, features = ["tracing"] }
@@ -206,6 +207,7 @@ tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.36.0", optional = true }
 tor-hsservice = { path = "../tor-hsservice", version = "0.36.0", optional = true }
 tor-key-forge = { path = "../tor-key-forge", version = "0.36.0" }
 tor-keymgr = { path = "../tor-keymgr", version = "0.36.0" }
+tor-proto = { path = "../tor-proto", version = "0.36.0", optional = true }
 tor-rpc-connect = { path = "../tor-rpc-connect", version = "0.36.0", optional = true, features = ["rpc-server"] }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.36.0", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.36.0", default-features = false }

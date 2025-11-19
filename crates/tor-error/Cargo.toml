@@ -13,7 +13,7 @@ categories = ["rust-patterns"]
 
 [features]
 default = ["backtrace", "futures"]
-full = ["backtrace", "futures", "tracing", "retry-error/full"]
+full = ["backtrace", "futures", "tracing", "http", "retry-error/full"]
 
 experimental = ["experimental-api", "rpc"]
 experimental-api = ["rpc", "__is_experimental"]
@@ -25,10 +25,12 @@ tracing = ["dep:tracing", "static_assertions"]
 __is_experimental = []
 
 backtrace = []
+http = ["dep:http"]
 
 [dependencies]
 derive_more = { version = "2.0.1", features = ["full"] }
 futures = { version = "0.3", optional = true }
+http = { version = "1.3.1", optional = true }
 paste = "1"
 retry-error = { path = "../retry-error", version = "0.9.0" } # WRONG should be 0.4.3
 static_assertions = { version = "1", optional = true }
