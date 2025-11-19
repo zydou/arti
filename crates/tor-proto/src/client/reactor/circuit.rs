@@ -28,11 +28,11 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::{STREAM_READER_BUFFER, StreamMpscReceiver};
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::{StreamQueueSender, stream_queue};
+use crate::stream::{STREAM_READER_BUFFER, StreamMpscReceiver, msg_streamid};
 use crate::streammap;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
@@ -55,7 +55,6 @@ use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use postage::watch;
-use safelog::sensitive as sv;
 use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 use tracing::{debug, trace, warn};
 
@@ -1719,23 +1718,6 @@ enum CircPaddingDisposition {
     /// Do not take any actual padding action:
     /// existing data on our outbound queue will count as padding.
     TreatQueuedCellAsPadding,
-}
-
-/// Return the stream ID of `msg`, if it has one.
-///
-/// Returns `Ok(None)` if `msg` is a meta cell.
-fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
-    let cmd = msg.cmd();
-    let streamid = msg.stream_id();
-    if !cmd.accepts_streamid_val(streamid) {
-        return Err(Error::CircProto(format!(
-            "Invalid stream ID {} for relay command {}",
-            sv(StreamId::get_or_zero(streamid)),
-            msg.cmd()
-        )));
-    }
-
-    Ok(streamid)
 }
 
 impl Drop for Circuit {

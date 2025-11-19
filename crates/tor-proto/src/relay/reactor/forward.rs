@@ -7,6 +7,7 @@ use crate::circuit::circhop::CircHopInbound;
 use crate::congestion::sendme;
 use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
+use crate::stream::msg_streamid;
 use crate::util::err::ReactorError;
 use crate::{Error, HopNum, Result};
 
@@ -19,7 +20,7 @@ use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
 use tor_cell::relaycell::msg::Sendme;
-use tor_cell::relaycell::{RelayCmd, StreamId, UnparsedRelayMsg};
+use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 use tor_error::{internal, trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
 
@@ -27,7 +28,6 @@ use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, future, select_biased};
 use postage::broadcast;
-use safelog::sensitive;
 use tracing::{debug, trace};
 
 use std::result::Result as StdResult;
@@ -526,22 +526,4 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     fn handle_padding_negotiate(&mut self, _cell: PaddingNegotiate) -> StdResult<(), ReactorError> {
         Err(internal!("PADDING_NEGOTIATE is not implemented").into())
     }
-}
-
-// XXX: duplicated from client/
-/// Return the stream ID of `msg`, if it has one.
-///
-/// Returns `Ok(None)` if `msg` is a meta cell.
-fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
-    let cmd = msg.cmd();
-    let streamid = msg.stream_id();
-    if !cmd.accepts_streamid_val(streamid) {
-        return Err(Error::CircProto(format!(
-            "Invalid stream ID {} for relay command {}",
-            sensitive(StreamId::get_or_zero(streamid)),
-            msg.cmd()
-        )));
-    }
-
-    Ok(streamid)
 }

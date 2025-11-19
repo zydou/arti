@@ -15,11 +15,12 @@ pub(crate) mod queue;
 use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use postage::watch;
+use safelog::sensitive;
 
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 use tor_cell::relaycell::msg::{AnyRelayMsg, End};
-use tor_cell::relaycell::{RelayCellFormat, StreamId};
+use tor_cell::relaycell::{RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_memquota::mq_queue::{self, MpscSpec};
 
 use flow_ctrl::state::StreamRateLimit;
@@ -253,4 +254,21 @@ impl StreamTarget {
     pub(crate) fn rate_limit_stream(&self) -> &watch::Receiver<StreamRateLimit> {
         &self.rate_limit_stream
     }
+}
+
+/// Return the stream ID of `msg`, if it has one.
+///
+/// Returns `Ok(None)` if `msg` is a meta cell.
+pub(crate) fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
+    let cmd = msg.cmd();
+    let streamid = msg.stream_id();
+    if !cmd.accepts_streamid_val(streamid) {
+        return Err(Error::CircProto(format!(
+            "Invalid stream ID {} for relay command {}",
+            sensitive(StreamId::get_or_zero(streamid)),
+            msg.cmd()
+        )));
+    }
+
+    Ok(streamid)
 }
