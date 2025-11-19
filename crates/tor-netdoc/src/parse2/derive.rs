@@ -919,7 +919,7 @@ define_derive_deftly! {
     ///    `<FIELD AS FromStr>::from_str`.
     ///
     ///    With `#[deftly(netdoc(objecte))]`, uses `MODULE::try_from`
-    ///    must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
+    ///    which must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
     ///    like `TryFrom::<Vec<u8>>>::try_from`.
     ///    LABEL must also be specified
     ///    unless the object also implements `ItemObjectParseable`.
