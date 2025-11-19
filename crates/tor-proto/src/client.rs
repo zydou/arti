@@ -1,5 +1,6 @@
 //! Client-specific types and implementation.
 
+pub mod channel;
 pub mod circuit;
 pub mod stream;
 

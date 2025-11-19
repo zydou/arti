@@ -15,9 +15,9 @@
 //!
 //!  * Create a TLS connection as an object that implements AsyncRead +
 //!    AsyncWrite + StreamOps, and pass it to a [ChannelBuilder].  This will
-//!    yield an [handshake::ClientInitiatorHandshake] that represents
+//!    yield an [crate::client::channel::handshake::ClientInitiatorHandshake] that represents
 //!    the state of the handshake.
-//!  * Call [handshake::ClientInitiatorHandshake::connect] on the result
+//!  * Call [crate::client::channel::handshake::ClientInitiatorHandshake::connect] on the result
 //!    to negotiate the rest of the handshake.  This will verify
 //!    syntactic correctness of the handshake, but not its cryptographic
 //!    integrity.
@@ -61,8 +61,10 @@ mod reactor;
 mod unique_id;
 
 pub use crate::channel::params::*;
-use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
+pub(crate) use crate::channel::reactor::Reactor;
+use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream};
 pub use crate::channel::unique_id::UniqId;
+use crate::client::channel::ClientChannelBuilder;
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::client::circuit::{PendingClientTunnel, TimeoutEstimator};
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
@@ -118,10 +120,10 @@ use std::task::{Context, Poll};
 use tracing::trace;
 
 // reexport
+pub use super::client::channel::handshake::ClientInitiatorHandshake;
 #[cfg(feature = "relay")]
 pub use super::relay::channel::handshake::RelayInitiatorHandshake;
 use crate::channel::unique_id::CircUniqIdContext;
-pub use handshake::ClientInitiatorHandshake;
 
 use kist::KistParams;
 
@@ -174,13 +176,6 @@ pub enum ChannelType {
         /// meaning a relay.
         authenticated: bool,
     },
-}
-
-impl ChannelType {
-    /// Return true if this channel type is an initiator.
-    pub(crate) fn is_initiator(&self) -> bool {
-        matches!(self, Self::ClientInitiator | Self::RelayInitiator)
-    }
 }
 
 /// A channel cell frame used for sending and receiving cells on a channel. The handler takes care
@@ -489,6 +484,8 @@ impl Sink<ChanCellQueueEntry> for ChannelSender {
 }
 
 /// Structure for building and launching a Tor channel.
+//
+// TODO(relay): Remove this as we now have ClientChannelBuilder and soon RelayChannelBuilder.
 #[derive(Default)]
 pub struct ChannelBuilder {
     /// If present, a description of the address we're trying to connect to,
@@ -538,7 +535,13 @@ impl ChannelBuilder {
         T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        handshake::ClientInitiatorHandshake::new(tls, self.target, sleep_prov, memquota)
+        // TODO(relay): We could just make the target be taken as a parameter instead of using a
+        // setter that is also replicated on the client builder? Food for thought on refactor here.
+        let mut builder = ClientChannelBuilder::new();
+        if let Some(target) = self.target {
+            builder.set_declared_method(target);
+        }
+        builder.launch(tls, sleep_prov, memquota)
     }
 }
 

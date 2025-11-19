@@ -5,10 +5,12 @@
 
 pub(crate) mod handshake;
 
+use digest::Digest;
 use futures::{AsyncRead, AsyncWrite};
 use std::sync::Arc;
 
 use tor_cert::{Ed25519Cert, rsa::RsaCrosscert};
+use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
@@ -58,6 +60,18 @@ impl RelayIdentities {
             cert_id_x509_rsa,
             cert_id_rsa,
         }
+    }
+}
+
+impl RelayIdentities {
+    /// Return our Ed identity key (KP_relayid_ed) as bytes.
+    pub(crate) fn ed_id_bytes(&self) -> [u8; 32] {
+        self.ed_id.into()
+    }
+
+    /// Return the digest of the RSA x509 certificate (CertType 2) as bytes.
+    pub(crate) fn rsa_x509_digest(&self) -> [u8; 32] {
+        ll::d::Sha256::digest(&self.cert_id_x509_rsa).into()
     }
 }
 
