@@ -343,7 +343,6 @@ impl<
     /// circuit.
     #[instrument(skip_all, level = "trace")]
     pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
-        // Send the NETINFO message.
         let peer_ip = self
             .inner
             .target_method
@@ -367,6 +366,7 @@ impl<
         // VerifiedRelayChannel values?
         let my_addrs = Vec::new();
 
+        // Send the NETINFO message.
         let netinfo = msg::Netinfo::from_relay(timestamp, peer_ip, my_addrs);
         trace!(stream_id = %self.inner.unique_id, "Sending netinfo cell.");
         self.inner.framed_tls.send(netinfo.into()).await?;
