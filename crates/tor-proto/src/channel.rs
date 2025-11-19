@@ -484,6 +484,8 @@ impl Sink<ChanCellQueueEntry> for ChannelSender {
 }
 
 /// Structure for building and launching a Tor channel.
+//
+// TODO(relay): Remove this as we now have ClientChannelBuilder and soon RelayChannelBuilder.
 #[derive(Default)]
 pub struct ChannelBuilder {
     /// If present, a description of the address we're trying to connect to,
