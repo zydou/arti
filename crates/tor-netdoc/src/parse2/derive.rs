@@ -863,9 +863,8 @@ define_derive_deftly! {
     ///  * `Vec<impl ItemArgumentParseable>` (zero or more arguments), or
     ///  * `BTreeSet<impl ItemArgumentParseable + Ord>` (zero or more arguments).
     ///
-    /// `ItemArgumentParseable` is implemented for every `impl FromStr`,
-    /// so `impl FromStr`, `Option<impl FromStr>` and `Vec<impl FromStr>`
-    /// are supported.
+    /// `ItemArgumentParseable` can be implemented via `impl FromStr`,
+    /// by writing `impl NormalItemArgument`.
     ///
     /// For `Option` or `Vec`, we expect that *if* there are any further arguments,
     /// they are for this field.
