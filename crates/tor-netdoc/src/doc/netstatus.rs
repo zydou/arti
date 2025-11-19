@@ -65,7 +65,7 @@ use crate::parse::parser::{Section, SectionRules, SectionRulesBuilder};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::PeekableIterator;
-use crate::{Error, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
+use crate::{Error, KeywordEncodable, NetdocErrorKind as EK, NormalItemArgument, Pos, Result};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::{self, Display};
 use std::result::Result as StdResult;

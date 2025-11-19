@@ -51,7 +51,7 @@
 #[macro_use]
 pub mod parse2;
 #[cfg(feature = "encode")]
-pub(crate) mod encode;
+pub mod encode;
 #[macro_use]
 pub(crate) mod parse;
 pub mod doc;
@@ -79,6 +79,20 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Alias for the Result type returned by document-builder functions in this
 /// module.
 pub type BuildResult<T> = std::result::Result<T, BuildError>;
+
+/// Keywords that can be encoded (written) into a (being-built) network document
+pub trait KeywordEncodable {
+    /// Encoding of the keyword.
+    ///
+    /// Used for error reporting, and also by `NetdocEncoder::item`.
+    fn to_str(self) -> &'static str;
+}
+
+impl KeywordEncodable for &'static str {
+    fn to_str(self) -> &'static str {
+        self
+    }
+}
 
 /// Indicates whether we should parse an annotated list of objects or a
 /// non-annotated list.

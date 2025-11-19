@@ -40,7 +40,7 @@ use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::util::PeekableIterator;
-use crate::{AllowAnnotations, Error, NetdocErrorKind as EK, Result, doc};
+use crate::{AllowAnnotations, Error, KeywordEncodable, NetdocErrorKind as EK, Result, doc};
 
 use ll::pk::ed25519::Ed25519Identity;
 use std::sync::Arc;

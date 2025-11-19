@@ -20,7 +20,7 @@ use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::{Bug, internal};
 
-use crate::parse::keyword::Keyword;
+use crate::KeywordEncodable;
 use crate::parse::tokenize::tag_keywords_ok;
 use crate::types::misc::Iso8601TimeSp;
 
@@ -29,7 +29,7 @@ use crate::types::misc::Iso8601TimeSp;
 /// For example usage, see the tests in this module, or a descriptor building
 /// function in tor-netdoc (such as `hsdesc::build::inner::HsDescInner::build_sign`).
 #[derive(Debug, Clone)]
-pub(crate) struct NetdocEncoder {
+pub struct NetdocEncoder {
     /// The being-built document, with everything accumulated so far
     ///
     /// If an [`ItemEncoder`] exists, it will add a newline when it's dropped.
@@ -42,7 +42,7 @@ pub(crate) struct NetdocEncoder {
 ///
 /// Returned by [`NetdocEncoder::item()`].
 #[derive(Debug)]
-pub(crate) struct ItemEncoder<'n> {
+pub struct ItemEncoder<'n> {
     /// The document including the partial item that we're building
     ///
     /// We will always add a newline when we're dropped
@@ -57,7 +57,7 @@ pub(crate) struct ItemEncoder<'n> {
 ///
 /// There is no enforced linkage between this and the document it refers to.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct Cursor {
+pub struct Cursor {
     /// The offset (in bytes, as for `&str`)
     ///
     /// Can be out of range if the corresponding `NetdocEncoder` is contains an `Err`.
@@ -70,7 +70,7 @@ pub(crate) struct Cursor {
 ///
 /// This is a separate trait so we can control the formatting of (eg) [`Iso8601TimeSp`],
 /// without having a method on `ItemEncoder` for each argument type.
-pub(crate) trait ItemArgument {
+pub trait ItemArgument {
     /// Format as a string suitable for including as a netdoc keyword line argument
     ///
     /// The implementation is responsible for checking that the syntax is legal.
@@ -85,7 +85,7 @@ pub(crate) trait ItemArgument {
 
 impl NetdocEncoder {
     /// Start encoding a document
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         NetdocEncoder {
             built: Ok(String::new()),
         }
@@ -95,7 +95,7 @@ impl NetdocEncoder {
     ///
     /// The item can be further extended with arguments or an object,
     /// using the returned `ItemEncoder`.
-    pub(crate) fn item(&mut self, keyword: impl Keyword) -> ItemEncoder {
+    pub fn item(&mut self, keyword: impl KeywordEncodable) -> ItemEncoder {
         self.raw(&keyword.to_str());
         ItemEncoder { doc: self }
     }
@@ -134,13 +134,12 @@ impl NetdocEncoder {
     /// In particular, `s` should end with a newline.
     /// No checks are performed.
     /// Incorrect use might lead to malformed documents, or later errors.
-    #[allow(dead_code)] // TODO: We should remove this if it never used.
-    pub(crate) fn push_raw_string(&mut self, s: &dyn Display) {
+    pub fn push_raw_string(&mut self, s: &dyn Display) {
         self.raw(s);
     }
 
     /// Return a cursor, pointing to just after the last item (if any)
-    pub(crate) fn cursor(&self) -> Cursor {
+    pub fn cursor(&self) -> Cursor {
         let offset = match &self.built {
             Ok(b) => b.len(),
             Err(_) => usize::MAX,
@@ -151,7 +150,7 @@ impl NetdocEncoder {
     /// Obtain the text of a section of the document
     ///
     /// Useful for making a signature.
-    pub(crate) fn slice(&self, begin: Cursor, end: Cursor) -> Result<&str, Bug> {
+    pub fn slice(&self, begin: Cursor, end: Cursor) -> Result<&str, Bug> {
         self.built
             .as_ref()
             .map_err(Clone::clone)?
@@ -160,8 +159,15 @@ impl NetdocEncoder {
     }
 
     /// Build the document into textual form
-    pub(crate) fn finish(self) -> Result<String, Bug> {
+    pub fn finish(self) -> Result<String, Bug> {
         self.built
+    }
+}
+
+impl Default for NetdocEncoder {
+    fn default() -> Self {
+        // We must open-code this because the actual encoder contains Result, which isn't Default
+        NetdocEncoder::new()
     }
 }
 
@@ -225,7 +231,7 @@ impl<'n> ItemEncoder<'n> {
     /// error will be reported (later).
     //
     // This is not a hot path.  `dyn` for smaller code size.
-    pub(crate) fn arg(mut self, arg: &dyn ItemArgument) -> Self {
+    pub fn arg(mut self, arg: &dyn ItemArgument) -> Self {
         self.add_arg(arg);
         self
     }
@@ -269,7 +275,7 @@ impl<'n> ItemEncoder<'n> {
     /// `data` will be PEM (base64) encoded.
     //
     // If keyword is not in the correct syntax, a `Bug` is stored in self.doc.
-    pub(crate) fn object(
+    pub fn object(
         self,
         keywords: &str,
         // Writeable isn't dyn-compatible
@@ -310,7 +316,19 @@ impl Drop for ItemEncoder<'_> {
     }
 }
 
-/// A trait for building and signing netdocs.
+/// Builders for network documents.
+///
+/// This trait is a bit weird, because its `Self` type must contain the *private* keys
+/// necessary to sign the document!
+///
+/// So it is implemented for "builders", not for documents themselves.
+/// Some existing documents can be constructed only via these builders.
+/// The newer approach is for documents to be transparent data, at the Rust level,
+/// and to derive an encoder.
+/// TODO this derive approach is not yet implemented!
+///
+/// Actual document types, which only contain the information in the document,
+/// don't implement this trait.
 pub trait NetdocBuilder {
     /// Build the document into textual form.
     fn build_sign<R: RngCore + CryptoRng>(self, rng: &mut R) -> Result<String, EncodeError>;
