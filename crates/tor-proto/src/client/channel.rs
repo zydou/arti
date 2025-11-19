@@ -31,13 +31,6 @@ impl ClientChannelBuilder {
         ClientChannelBuilder::default()
     }
 
-    /// Set the declared target method of this channel to correspond to a direct
-    /// connection to a given socket address.
-    #[deprecated(note = "use set_declared_method instead", since = "0.7.1")]
-    pub fn set_declared_addr(&mut self, target: std::net::SocketAddr) {
-        self.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![target]));
-    }
-
     /// Set the declared target method of this channel.
     ///
     /// Note that nothing enforces the correctness of this method: it
