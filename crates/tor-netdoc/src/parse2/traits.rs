@@ -120,10 +120,7 @@ pub trait ItemArgumentParseable: Sized {
     fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<Self, ArgumentError>;
 }
 
-/// A possibly-optional Object value that can appear in netdoc
-///
-/// Implemented for `Option`, so that `field: Option<ObjectValue>`
-/// allows parsing an optional object.
+/// An Object value that can appear in netdoc
 pub trait ItemObjectParseable: Sized {
     /// Check that the Label is right
     fn check_label(label: &str) -> Result<(), ErrorProblem>;
