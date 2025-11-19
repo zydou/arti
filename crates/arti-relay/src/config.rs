@@ -1,9 +1,13 @@
 //! Types and functions to configure a Tor Relay.
-//!
-//! NOTE: At the moment, only StorageConfig is implemented but as we ramp up arti relay
-//! implementation, more configurations will show up.
+
+// TODO: It would be nice to remove the builder aspect of these config objects, as we don't need
+// them for arti-relay. But I don't think we can do so while still using tor-config. See:
+// https://gitlab.torproject.org/tpo/core/arti/-/issues/2253
+
+mod listen;
 
 use std::borrow::Cow;
+use std::net::{SocketAddrV4, SocketAddrV6};
 use std::path::PathBuf;
 
 use derive_builder::Builder;
@@ -19,6 +23,8 @@ use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
+
+use self::listen::Listen;
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
@@ -98,16 +104,20 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 
 /// A configuration used by a TorRelay.
 ///
-/// Most users will create a TorRelayConfig by running
-/// [`TorRelayConfig::default`].
-///
-/// Finally, you can get fine-grained control over the members of a
-/// TorRelayConfig using [`TorRelayConfigBuilder`].
+/// This is a builder so that it works with tor-config.
+/// We don't expect to ever use it as a builder since we don't provide this as a public rust API.
 #[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[non_exhaustive]
 pub(crate) struct TorRelayConfig {
+    /// Configuration for the "relay" part of the relay.
+    // TODO: Add a better doc comment here once we figure out exactly how we want the config to be
+    // structured.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) relay: RelayConfig,
+
     /// Logging configuration
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
@@ -128,10 +138,49 @@ pub(crate) struct TorRelayConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
 }
-impl_standard_builder! { TorRelayConfig }
+impl_standard_builder! { TorRelayConfig: !Default }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
+}
+
+/// Configuration for the "relay" part of the relay.
+///
+/// TODO: I'm not really sure what to call this yet. I'm expecting that we'll rename and reorganize
+/// things as we add more options. But we should come back to this and update the name and/or doc
+/// comment.
+///
+/// TODO: There's a high-level issue for discussing these options:
+/// <https://gitlab.torproject.org/tpo/core/arti/-/issues/2252>
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+pub(crate) struct RelayConfig {
+    /// Addresses to listen on for incoming OR connections.
+    pub(crate) listen: Listen,
+
+    /// Addresses to advertise on the network for receiving OR connections.
+    // For now, we've decided that we don't want to include any IP address auto-detection in
+    // arti-relay, so we require users to provide the addresses to advertise. (So no `Option` and
+    // `builder(default)` here).
+    pub(crate) advertise: Advertise,
+}
+impl_standard_builder! { RelayConfig: !Default }
+
+/// The address(es) to advertise on the network.
+// TODO: We'll want to make sure we check that the addresses are valid before uploading them in a
+// server descriptor (for example no `INADDR_ANY`, multicast, etc). We can't do that validation here
+// during parsing, since we don't know exactly which addresses are valid or not. For example we
+// don't know if local addresses are allowed as we don't know here whether the user plans to run a
+// testing tor network. We also don't want to do the validation too late (for example when uploading
+// the server descriptor) as it's better to validate at startup. A better place might be to perform
+// the validation in the `RelayConfig` builder validate.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub(crate) struct Advertise {
+    /// All relays must advertise an IPv4 address.
+    ipv4: SocketAddrV4,
+    /// Relays may optionally advertise an IPv6 address.
+    ipv6: Option<SocketAddrV6>,
 }
 
 /// Default log level.
@@ -299,26 +348,6 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-
-    #[test]
-    fn defaults() {
-        let dflt = TorRelayConfig::default();
-        let b2 = TorRelayConfigBuilder::default();
-        let dflt2 = b2.build().unwrap();
-        assert_eq!(&dflt, &dflt2);
-    }
-
-    #[test]
-    fn builder() {
-        let mut bld = TorRelayConfigBuilder::default();
-        bld.storage()
-            .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
-            .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-
-        let val = bld.build().unwrap();
-
-        assert_ne!(val, TorRelayConfig::default());
-    }
 
     fn cfg_variables() -> impl IntoIterator<Item = (&'static str, PathBuf)> {
         let project_dirs = project_dirs().unwrap();

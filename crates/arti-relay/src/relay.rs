@@ -1,11 +1,12 @@
 //! Entry point of a Tor relay that is the [`TorRelay`] objects
 
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
 use tokio::task::JoinSet;
-use tracing::info;
+use tracing::{info, warn};
 
 use fs_mistrust::Mistrust;
 use tor_chanmgr::Dormancy;
@@ -18,7 +19,7 @@ use tor_netdir::params::NetParameters;
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{NetStreamProvider, Runtime};
 
 use crate::config::TorRelayConfig;
 
@@ -163,7 +164,6 @@ impl InertTorRelay {
 }
 
 /// Represent an active Relay on the Tor network.
-#[derive(Clone)]
 pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,
@@ -178,6 +178,9 @@ pub(crate) struct TorRelay<R: Runtime> {
     /// Key manager holding all relay keys and certificates.
     #[expect(unused)] // TODO RELAY remove
     keymgr: Arc<KeyMgr>,
+
+    /// Listening OR ports.
+    or_listeners: Vec<<R as NetStreamProvider<SocketAddr>>::Listener>,
 }
 
 impl<R: Runtime> TorRelay<R> {
@@ -197,6 +200,53 @@ impl<R: Runtime> TorRelay<R> {
             Some(inert.keymgr.clone()),
         ));
 
+        // An iterator of `listen()` futures with some extra error handling.
+        let or_listeners = inert.config.relay.listen.addrs().map(async |addr| {
+            match runtime.listen(addr).await {
+                Ok(x) => Some(Ok(x)),
+                // If we don't support the address family (typically IPv6), only warn.
+                #[cfg(unix)]
+                Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
+                    let message =
+                        format!("Could not listen at {addr}: address family not supported");
+                    if addr.is_ipv6() {
+                        warn!("{message}");
+                    } else {
+                        // If we got `EAFNOSUPPORT` for a non-IPv6 address, then warn louder.
+                        tor_error::warn_report!(e, "{message}");
+                    }
+                    None
+                }
+                Err(e) => {
+                    Some(Err(e).with_context(|| format!("Failed to listen at address {addr}")))
+                }
+            }
+        });
+
+        // We await the futures sequentially rather than with something like `join_all` to make
+        // errors more reproducible.
+        let or_listeners = {
+            let mut awaited_listeners = vec![];
+            for listener in or_listeners {
+                match listener.await {
+                    Some(Ok(x)) => awaited_listeners.push(x),
+                    Some(Err(e)) => return Err(e),
+                    None => {}
+                };
+            }
+            awaited_listeners
+        };
+
+        // Typically we would have returned with an error if we failed to listen on an address,
+        // but we ignore `EAFNOSUPPORT` errors above, so it's possible that all failed with
+        // `EAFNOSUPPORT` and we ended up here.
+        if or_listeners.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Could not listen at any OR port addresses: {}",
+                crate::util::iter_join(", ", inert.config.relay.listen.addrs()),
+            ));
+        }
+
         // TODO: missing the actual bootstrapping
 
         Ok(Self {
@@ -204,6 +254,7 @@ impl<R: Runtime> TorRelay<R> {
             memquota,
             chanmgr,
             keymgr: inert.keymgr,
+            or_listeners,
         })
     }
 
@@ -211,7 +262,7 @@ impl<R: Runtime> TorRelay<R> {
     ///
     /// This only returns if something has gone wrong.
     /// Otherwise it runs forever.
-    pub(crate) async fn run(&self) -> anyhow::Result<void::Void> {
+    pub(crate) async fn run(self) -> anyhow::Result<void::Void> {
         let mut task_handles = JoinSet::new();
 
         // Channel housekeeping task.
@@ -226,21 +277,11 @@ impl<R: Runtime> TorRelay<R> {
 
         // Listen for new Tor (OR) connections.
         task_handles.spawn({
-            // TODO: Get address(es) from config.
-            // See https://gitlab.torproject.org/tpo/core/arti/-/issues/2252
-            let listen_addr = std::net::SocketAddrV4::new(std::net::Ipv4Addr::LOCALHOST, 8443);
-            let listen_addr = std::net::SocketAddr::V4(listen_addr);
-            let listener = self
-                .runtime
-                .listen(&listen_addr)
-                .await
-                .with_context(|| format!("Failed to listen at address {listen_addr}"))?;
-
             let runtime = self.runtime.clone();
             let chanmgr = Arc::clone(&self.chanmgr);
             async {
                 // TODO: Should we give all tasks a `start` method?
-                crate::tasks::listeners::or_listener(runtime, chanmgr, [listener])
+                crate::tasks::listeners::or_listener(runtime, chanmgr, self.or_listeners)
                     .await
                     .context("Failed to run OR listener task")
             }
