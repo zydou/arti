@@ -132,7 +132,7 @@ define_derive_deftly_module! {
           // See `mod multiplicity`.
         ${if not(all(F_INTRO, fmeta(netdoc(with)))) {
           // If the intro it has `with`, we don't check its trait impl, and this ends up unused
-          let $<selector_ $fname> = ItemSetSelector::<$F_EFFECTIVE_TYPE>::default();
+          let $<selector_ $fname> = MultiplicitySelector::<$F_EFFECTIVE_TYPE>::default();
         }}
         )
     }}
@@ -964,7 +964,7 @@ define_derive_deftly! {
           $(
             let $fpatname = ${select1
               F_NORMAL { {
-                  let selector = ArgumentSetSelector::<$ftype>::default();
+                  let selector = MultiplicitySelector::<$ftype>::default();
                 ${if not(fmeta(netdoc(with))) {
                   selector.${paste_spanned $fname check_argument_value_parseable}();
                 }}
@@ -976,7 +976,7 @@ define_derive_deftly! {
                   ).map_err(args.error_handler(stringify!($fname)))?
               } }
               F_OBJECT { {
-                  let selector = ObjectSetSelector::<$ftype>::default();
+                  let selector = MultiplicitySelector::<$ftype>::default();
                   let object = object.map(|object| {
                       let data = object.decode_data()?;
                       ${if fmeta(netdoc(object(label))) {
