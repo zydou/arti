@@ -18,7 +18,7 @@ pub use timeimpl::*;
 #[cfg(feature = "parse2")]
 use {
     crate::parse2::multiplicity::{
-        ItemSetMethods, ObjectSetMethods, MultiplicitySelector as P2MultiplicitySelector,
+        ItemSetMethods, MultiplicitySelector as P2MultiplicitySelector, ObjectSetMethods,
     },
     crate::parse2::{ArgumentError, ArgumentStream, ItemArgumentParseable, ItemObjectParseable}, //
 };
