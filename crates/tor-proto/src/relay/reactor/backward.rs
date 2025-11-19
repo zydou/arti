@@ -1,15 +1,24 @@
 //! A relay's view of the backward (away from the exit, towards the client) state of the circuit.
 
 use crate::channel::Channel;
-use crate::circuit::UniqId;
 use crate::circuit::cell_sender::CircuitCellSender;
 use crate::circuit::celltypes::RelayCircChanMsg;
-use crate::circuit::circhop::{CircHopOutbound, HopSettings};
+use crate::circuit::circhop::{CircHopOutbound, HopSettings, SendRelayCell};
+use crate::circuit::{CircSyncView, UniqId};
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
+use crate::memquota::SpecificAccount as _;
 use crate::relay::channel_provider::ChannelResult;
 use crate::stream::CloseStreamBehavior;
+use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
+use crate::stream::flow_ctrl::state::StreamRateLimit;
+use crate::stream::incoming::{
+    InboundDataCmdChecker, IncomingStreamRequest, IncomingStreamRequestContext,
+    IncomingStreamRequestDisposition, IncomingStreamRequestFilter, StreamReqInfo,
+};
+use crate::stream::queue::stream_queue;
 use crate::streammap;
 use crate::util::err::ReactorError;
+use crate::util::notify::NotifySender;
 use crate::util::poll_all::PollAll;
 use crate::{Error, Result};
 
@@ -18,18 +27,24 @@ use crate::client::circuit::padding::{
     PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
 
+// TOOD(relay): is this right?
+use crate::client::circuit::CIRCUIT_BUFFER_SIZE;
+
+use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::msg::{AnyChanMsg, Relay};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanCmd, CircId};
-use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme, SendmeTag};
+use tor_cell::relaycell::msg::{AnyRelayMsg, Begin, End, EndReason, Sendme, SendmeTag};
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
-use tor_error::{internal, trace_report};
-use tor_rtcompat::{DynTimeProvider, Runtime};
+use tor_error::{internal, into_internal, trace_report};
+use tor_log_ratelim::log_ratelim;
+use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
+use tor_rtcompat::{DynTimeProvider, Runtime, SleepProvider as _};
 
 use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, future, select_biased};
-use postage::broadcast;
-use tracing::trace;
+use postage::{broadcast, watch};
+use tracing::{debug, trace};
 
 use std::pin::Pin;
 use std::result::Result as StdResult;
@@ -93,6 +108,8 @@ pub(super) struct BackwardReactor {
     /// This is passed to the [`ChannelProvider`](crate::relay::channel_provider::ChannelProvider)
     /// for each Tor channel request.
     outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
+    /// A handler for incoming streams.
+    incoming: IncomingStreamRequestHandler,
     /// A padding controller to which padding-related events should be reported.
     padding_ctrl: PaddingController,
     /// An event stream telling us about padding-related events.
@@ -101,6 +118,28 @@ pub(super) struct BackwardReactor {
     /// [`Reactor`](super::Reactor) or
     /// [`ForwardReactor`](super::ForwardReactor) are dropped.
     shutdown_rx: broadcast::Receiver<void::Void>,
+}
+
+/// MPSC queue containing stream requests
+//
+// TODO(relay): duplicates client impl
+type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
+
+/// Data required for handling an incoming stream request.
+///
+// TODO(relay): duplicates client impl
+#[derive(educe::Educe)]
+#[educe(Debug)]
+#[allow(dead_code)] // TODO(relay)
+pub(super) struct IncomingStreamRequestHandler {
+    /// A sender for sharing information about an incoming stream request.
+    pub(super) incoming_sender: StreamReqSender,
+    /// A [`CmdChecker`] for validating incoming streams.
+    pub(super) cmd_checker: AnyCmdChecker,
+    /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
+    /// this request, or wants to reject it immediately.
+    #[educe(Debug(ignore))]
+    pub(super) filter: Box<dyn IncomingStreamRequestFilter>,
 }
 
 // TODO(relay): consider moving some of the BackwardReactor fields
@@ -129,6 +168,7 @@ impl BackwardReactor {
         outgoing_chan_tx: mpsc::UnboundedSender<ChannelResult>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
+        incoming: IncomingStreamRequestHandler,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         let chan_sender = CircuitCellSender::from_channel_sender(channel.sender());
@@ -142,6 +182,7 @@ impl BackwardReactor {
             unique_id,
             circ_id,
             outgoing_chan_tx,
+            incoming,
             cell_rx,
             padding_ctrl,
             padding_event_stream,
@@ -366,7 +407,7 @@ impl BackwardReactor {
         match event {
             Stream(e) => self.handle_stream_event(e).await,
             Cell(cell) => self.handle_backward_cell(cell),
-            Forwarded(msg) => todo!(),
+            Forwarded(msg) => self.handle_reactor_cmd(msg).await,
             ForwardShutdown => {
                 // The forward reactor has crashed, so we have to shut down.
                 trace!(
@@ -377,6 +418,300 @@ impl BackwardReactor {
                 Err(ReactorError::Shutdown)
             }
         }
+    }
+
+    /// Handle a command sent to us by the forward reactor.
+    ///
+    /// This is either a message destined to us, or a circuit-level SENDME
+    /// we need to send to the client.
+    async fn handle_reactor_cmd(&mut self, msg: BackwardReactorCmd) -> StdResult<(), ReactorError> {
+        use BackwardReactorCmd::*;
+
+        let cell = match msg {
+            HandleMsg {
+                sid,
+                msg,
+                cell_counts_toward_windows,
+            } => self.handle_msg(sid, msg, cell_counts_toward_windows)?,
+            HandleSendme(sendme) => {
+                self.handle_sendme(sendme).await?;
+                None
+            }
+            SendSendme(sendme) => todo!(),
+        };
+
+        if let Some(SendRelayCell {
+            hop: _,
+            early,
+            cell,
+        }) = cell
+        {
+            // Note: if we reach this point, it means we are ready to send at least one cell
+            // over the backward channel (because in the reactor main loop, we only read from
+            // the cell_rx MPSC channel if chan_sender is ready)
+            self.send_msg_to_client(cell, None).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle a RELAY message that has a non-zero stream ID.
+    ///
+    // TODO(relay): this is very similar to the client impl from
+    // Circuit::handle_in_order_relay_msg()
+    fn handle_msg(
+        &mut self,
+        streamid: StreamId,
+        msg: UnparsedRelayMsg,
+        cell_counts_toward_windows: bool,
+    ) -> StdResult<Option<SendRelayCell>, ReactorError> {
+        let cmd = msg.cmd();
+        let possible_proto_violation_err = move |streamid: StreamId| {
+            Error::StreamProto(format!(
+                "Unexpected {cmd:?} message on unknown stream {streamid}"
+            ))
+        };
+        let now = self.time_provider.now();
+
+        // Check if any of our already-open streams want this message
+        let res = self.hop.handle_msg(
+            possible_proto_violation_err,
+            cell_counts_toward_windows,
+            streamid,
+            msg,
+            now,
+        )?;
+
+        // If it was an incoming stream request, we don't need to worry about
+        // sending an XOFF as there's no stream data within this message.
+        if let Some(msg) = res {
+            return self.handle_incoming_stream_request(streamid, msg);
+        }
+
+        // We may want to send an XOFF if the incoming buffer is too large.
+        if let Some(cell) = self.hop.maybe_send_xoff(streamid)? {
+            let cell = AnyRelayMsgOuter::new(Some(streamid), cell.into());
+            let cell = SendRelayCell {
+                hop: None,
+                early: false,
+                cell,
+            };
+
+            return Ok(Some(cell));
+        }
+
+        Ok(None)
+    }
+
+    /// A helper for handling incoming stream requests.
+    fn handle_incoming_stream_request(
+        &mut self,
+        sid: StreamId,
+        msg: UnparsedRelayMsg,
+    ) -> StdResult<Option<SendRelayCell>, ReactorError> {
+        let message_closes_stream =
+            self.incoming.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+
+        if message_closes_stream {
+            self.hop
+                .stream_map()
+                .lock()
+                .expect("poisoned lock")
+                .ending_msg_received(sid)?;
+
+            return Ok(None);
+        }
+
+        let req = parse_incoming_stream_req(msg)?;
+        if let Some(reject) = self.should_reject_incoming(sid, &req)? {
+            // We can't honor this request, so we bail by sending an END.
+            Ok(Some(reject))
+        } else {
+            self.accept_incoming_stream(sid, req)
+        }
+    }
+
+    /// Check if we should reject this incoming stream request or not.
+    ///
+    /// Returns a cell we need to send back to the client if we must reject the request,
+    /// or `None` if we are allowed to accept it.
+    ///`
+    /// Any error returned from this function will shut down the reactor.
+    fn should_reject_incoming(
+        &mut self,
+        sid: StreamId,
+        request: &IncomingStreamRequest,
+    ) -> StdResult<Option<SendRelayCell>, ReactorError> {
+        use IncomingStreamRequestDisposition::*;
+
+        let ctx = IncomingStreamRequestContext { request };
+
+        // TODO(relay): put something in the sync view??
+        let view = CircSyncView::new_relay();
+
+        // Run the externally provided filter to check if we should
+        // open the stream or not.
+        match self.incoming.filter.as_mut().disposition(&ctx, &view)? {
+            Accept => {
+                // All is well, we can accept the stream request
+                Ok(None)
+            }
+            CloseCircuit => Err(ReactorError::Shutdown),
+            RejectRequest(end) => {
+                let end_msg = AnyRelayMsgOuter::new(Some(sid), end.into());
+
+                let cell = SendRelayCell {
+                    hop: None,
+                    early: false,
+                    cell: end_msg,
+                };
+
+                Ok(Some(cell))
+            }
+        }
+    }
+
+    /// Accept the specified incoming stream request,
+    /// by adding a new entry to our stream map.
+    ///
+    /// Returns the cell we need to send back to the client,
+    /// if an error occurred and the stream cannot be opened.
+    ///
+    /// Returns None if everything went well
+    /// (the CONNECTED response only comes if the external
+    /// consumer of our [Stream](futures::Stream) of incoming Tor streams
+    /// is able to actually establish the connection to the address
+    /// specified in the BEGIN).
+    ///
+    /// Any error returned from this function will shut down the reactor.
+    fn accept_incoming_stream(
+        &mut self,
+        sid: StreamId,
+        req: IncomingStreamRequest,
+    ) -> StdResult<Option<SendRelayCell>, ReactorError> {
+        // TOOD(relay): hook the reactors up to the memquota system
+        let memquota = todo!();
+
+        let (sender, receiver) = stream_queue(
+            #[cfg(not(feature = "flowctl-cc"))]
+            STREAM_READER_BUFFER,
+            &memquota,
+            self.chan_sender.time_provider(),
+        )
+        .map_err(|e| ReactorError::Err(e.into()))?;
+
+        let (msg_tx, msg_rx) = MpscSpec::new(CIRCUIT_BUFFER_SIZE)
+            .new_mq(
+                self.chan_sender.time_provider().clone(),
+                memquota.as_raw_account(),
+            )
+            .map_err(|e| ReactorError::Err(e.into()))?;
+
+        let (rate_limit_tx, rate_limit_rx) = watch::channel_with(StreamRateLimit::MAX);
+
+        // A channel for the reactor to request a new drain rate from the reader.
+        // Typically this notification will be sent after an XOFF is sent so that the reader can
+        // send us a new drain rate when the stream data queue becomes empty.
+        let mut drain_rate_request_tx = NotifySender::new_typed();
+        let drain_rate_request_rx = drain_rate_request_tx.subscribe();
+
+        let cmd_checker = InboundDataCmdChecker::new_connected();
+        self.hop.add_ent_with_id(
+            sender,
+            msg_rx,
+            rate_limit_tx,
+            drain_rate_request_tx,
+            sid,
+            cmd_checker,
+        )?;
+
+        let outcome = Pin::new(&mut self.incoming.incoming_sender).try_send(StreamReqInfo {
+            req,
+            stream_id: sid,
+            hop: None,
+            msg_tx,
+            receiver,
+            rate_limit_stream: rate_limit_rx,
+            drain_rate_request_stream: drain_rate_request_rx,
+            memquota,
+            relay_cell_format: self.hop.relay_cell_format(),
+        });
+
+        log_ratelim!("Delivering message to incoming stream handler"; outcome);
+
+        if let Err(e) = outcome {
+            if e.is_full() {
+                // The IncomingStreamRequestHandler's stream is full; it isn't
+                // handling requests fast enough. So instead, we reply with an
+                // END cell.
+                let end_msg = AnyRelayMsgOuter::new(
+                    Some(sid),
+                    End::new_with_reason(EndReason::RESOURCELIMIT).into(),
+                );
+
+                let cell = SendRelayCell {
+                    hop: None,
+                    early: false,
+                    cell: end_msg,
+                };
+
+                return Ok(Some(cell));
+            } else if e.is_disconnected() {
+                // The IncomingStreamRequestHandler's stream has been dropped.
+                // In the Tor protocol as it stands, this always means that the
+                // circuit itself is out-of-use and should be closed.
+                //
+                // Note that we will _not_ reach this point immediately after
+                // the IncomingStreamRequestHandler is dropped; we won't hit it
+                // until we next get an incoming request.  Thus, if we later
+                // want to add early detection for a dropped
+                // IncomingStreamRequestHandler, we need to do it elsewhere, in
+                // a different way.
+                debug!(
+                    circ_id = %self.unique_id,
+                    "Incoming stream request receiver dropped",
+                );
+                // This will _cause_ the circuit to get closed.
+                return Err(ReactorError::Err(Error::CircuitClosed));
+            } else {
+                // There are no errors like this with the current design of
+                // futures::mpsc, but we shouldn't just ignore the possibility
+                // that they'll be added later.
+                return Err(
+                    Error::from((into_internal!("try_send failed unexpectedly"))(e)).into(),
+                );
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Handle a circuit-level SENDME (stream ID = 0).
+    ///
+    /// Returns an error if the SENDME does not have an authentication tag
+    /// (versions of Tor <=0.3.5 omit the SENDME tag, but we don't support
+    /// those any longer).
+    ///
+    /// Any error returned from this function will shut down the reactor.
+    ///
+    // TODO(relay): this duplicates the logic from the client reactor's
+    // handle_sendme() function
+    async fn handle_sendme(&mut self, sendme: Sendme) -> StdResult<(), ReactorError> {
+        let tag = sendme
+            .into_sendme_tag()
+            .ok_or_else(|| Error::CircProto("missing tag on circuit sendme".into()))?;
+
+        // NOTE: it's okay to await. We are only awaiting on the congestion_signals
+        // future which *should* resolve immediately
+        let signals = self.chan_sender.congestion_signals().await;
+
+        // Update the CC object that we received a SENDME along
+        // with possible congestion signals.
+        self.hop
+            .ccontrol()
+            .note_sendme_received(&self.time_provider, tag, signals)?;
+
+        Ok(())
     }
 
     /// Encode `msg` and encrypt it, returning the resulting cell
@@ -494,4 +829,16 @@ enum StreamEvent {
         /// The message.
         msg: AnyRelayMsg,
     },
+}
+
+/// Convert an incoming stream request message (BEGIN, BEGIN_DIR, RESOLVE, etc.)
+/// to an [`IncomingStreamRequest`]
+fn parse_incoming_stream_req(msg: UnparsedRelayMsg) -> crate::Result<IncomingStreamRequest> {
+    // TODO(relay): support other stream-initiating messages, not just BEGIN
+    let begin = msg
+        .decode::<Begin>()
+        .map_err(|e| Error::from_bytes_err(e, "Invalid Begin message"))?
+        .into_msg();
+
+    Ok(IncomingStreamRequest::Begin(begin))
 }

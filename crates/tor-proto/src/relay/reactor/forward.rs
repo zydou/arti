@@ -4,10 +4,11 @@ use crate::channel::ChannelSender;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::CircHopInbound;
+use crate::congestion::sendme;
 use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 use crate::util::err::ReactorError;
-use crate::{Error, Result};
+use crate::{Error, HopNum, Result};
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
@@ -17,6 +18,8 @@ use super::backward::BackwardReactorCmd;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
+use tor_cell::relaycell::msg::Sendme;
+use tor_cell::relaycell::{RelayCmd, StreamId, UnparsedRelayMsg};
 use tor_error::{internal, trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
 
@@ -24,6 +27,7 @@ use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, future, select_biased};
 use postage::broadcast;
+use safelog::sensitive;
 use tracing::{debug, trace};
 
 use std::result::Result as StdResult;
@@ -308,20 +312,177 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     async fn handle_relay_cell(&mut self, cell: Relay) -> StdResult<(), ReactorError> {
         let cmd = cell.cmd();
         let mut body = cell.into_relay_body().into();
-        let Some(_tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
+        let Some(tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
             // The message is not addressed to us, so we must relay it forward, towards the exit
             return self.send_msg_to_exit(body, None);
         };
 
         // The message is addressed to us! Now it's time to handle it...
-        let _decode_res = self.hop.decode(body.into())?;
+        let decode_res = self.hop.decode(body.into())?;
 
-        // TODO: actually handle the cell
-        // TODO: if the message is recognized, it may need to be delivered
-        // to the BackwardReactor via the cell_tx channel for handling
-        // (because e.g. Tor stream data is handled in the BackwardReactor)
+        // NOTE(padding): the PaddingController wants a HopNum,
+        // but the concept of a HopNum doesn't really make sense in this context,
+        // As a workaround, we pass in HopNum(0), like we do for the channel padding
+        let hopnum = HopNum::from(0);
+        if decode_res.is_padding() {
+            self.padding_ctrl.decrypted_padding(hopnum)?;
+        } else {
+            self.padding_ctrl.decrypted_data(hopnum);
+        }
+
+        let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
+
+        // Decrement the circuit sendme windows, and see if we need to
+        // send a sendme cell.
+        let send_circ_sendme = if c_t_w {
+            self.hop.ccontrol().note_data_received()?
+        } else {
+            false
+        };
+
+        // If we do need to send a circuit-level SENDME cell, do so.
+        if send_circ_sendme {
+            // This always sends a V1 (tagged) sendme cell, and thereby assumes
+            // that SendmeEmitMinVersion is no more than 1.  If the authorities
+            // every increase that parameter to a higher number, this will
+            // become incorrect.  (Higher numbers are not currently defined.)
+            let forward = BackwardReactorCmd::SendSendme(Sendme::from(tag));
+
+            // NOTE: sending the SENDME to the backward reactor for handling
+            // might seem counterintuitive, given that we have access to
+            // the congestion control object right here
+            // (CC state is shared between CircHopInbound and CircHopOutbound).
+            //
+            // However, the forward reactor does not have access to the
+            // chan_sender part of the inbound (towards the client) Tor channel,
+            // and so it cannot handle the SENDME on its own
+            // (because it cannot obtain the congestion signals),
+            // so the SENDME needs to be handled in the backward reactor.
+            //
+            // NOTE: this will block if the backward reactor is not ready
+            // to send any more cells.
+            self.send_reactor_cmd(forward).await?;
+        }
+
+        let (mut msgs, incomplete) = decode_res.into_parts();
+        while let Some(msg) = msgs.next() {
+            match self.handle_relay_msg(msg, c_t_w).await {
+                Ok(()) => continue,
+                Err(e) => {
+                    for m in msgs {
+                        debug!(
+                            circ_id = %self.unique_id,
+                            "Ignoring relay msg received after triggering shutdown: {m:?}",
+                        );
+                    }
+                    if let Some(incomplete) = incomplete {
+                        debug!(
+                            circ_id = %self.unique_id,
+                            "Ignoring partial relay msg received after triggering shutdown: {:?}",
+                            incomplete,
+                        );
+                    }
+
+                    return Err(e);
+                }
+            }
+        }
 
         Ok(())
+    }
+
+    /// Handle a single incoming RELAY message.
+    async fn handle_relay_msg(
+        &mut self,
+        msg: UnparsedRelayMsg,
+        cell_counts_toward_windows: bool,
+    ) -> StdResult<(), ReactorError> {
+        // If this msg wants/refuses to have a Stream ID, does it
+        // have/not have one?
+        let streamid = msg_streamid(&msg)?;
+
+        // If this doesn't have a StreamId, it's a meta cell,
+        // not meant for a particular stream.
+        let Some(sid) = streamid else {
+            return self.handle_meta_msg(msg).await;
+        };
+
+        // All messages on streams are handled in the backward reactor
+        // (because that's where the stream map is)
+        self.send_reactor_cmd(BackwardReactorCmd::HandleMsg {
+            sid,
+            msg,
+            cell_counts_toward_windows,
+        })
+        .await
+    }
+
+    /// Handle a RELAY message on this circuit with stream ID 0.
+    async fn handle_meta_msg(&mut self, msg: UnparsedRelayMsg) -> StdResult<(), ReactorError> {
+        match msg.cmd() {
+            RelayCmd::SENDME => {
+                let sendme = msg
+                    .decode::<Sendme>()
+                    .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
+                    .into_msg();
+
+                let forward = BackwardReactorCmd::HandleSendme(sendme);
+                self.send_reactor_cmd(forward).await
+            }
+            RelayCmd::DROP => self.handle_drop(),
+            RelayCmd::EXTEND => self.handle_extend().await,
+            RelayCmd::EXTEND2 => self.handle_extend2().await,
+            RelayCmd::TRUNCATE => self.handle_truncate().await,
+            _ => todo!(),
+        }
+    }
+
+    /// Handle a DROP message.
+    #[allow(clippy::unnecessary_wraps)] // Returns Err if circ-padding is disabled
+    fn handle_drop(&mut self) -> StdResult<(), ReactorError> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "circ-padding")] {
+                // Note: we have already checked if padding was negotiated this hop
+                // (via the call to decrypted_padding() in handle_relay_cell())
+                Ok(())
+            } else {
+                use crate::util::err::ExcessPadding;
+
+                let hopnum = HopNum::from(0);
+                Err(Error::ExcessPadding(ExcessPadding::NoPaddingNegotiated, hopnum).into())
+            }
+        }
+    }
+
+    /// Handle an EXTEND cell.
+    async fn handle_extend(&mut self) -> StdResult<(), ReactorError> {
+        todo!()
+    }
+
+    /// Handle an EXTEND2 cell.
+    async fn handle_extend2(&mut self) -> StdResult<(), ReactorError> {
+        todo!()
+    }
+
+    /// Handle a TRUNCATE cell.
+    async fn handle_truncate(&mut self) -> StdResult<(), ReactorError> {
+        todo!()
+    }
+
+    /// Send a command to the backward reactor.
+    ///
+    /// Blocks if the `cell_tx` channel is full, i.e. if the backward reactor
+    /// is not ready to send any more cells.
+    ///
+    /// Returns an error if the backward reactor has shut down.
+    async fn send_reactor_cmd(
+        &mut self,
+        forward: BackwardReactorCmd,
+    ) -> StdResult<(), ReactorError> {
+        self.cell_tx.send(forward).await.map_err(|_| {
+            // The other reactor has shut down
+            ReactorError::Shutdown
+        })
     }
 
     /// Send a RELAY cell with the specified `body` to the exit.
@@ -365,4 +526,22 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     fn handle_padding_negotiate(&mut self, _cell: PaddingNegotiate) -> StdResult<(), ReactorError> {
         Err(internal!("PADDING_NEGOTIATE is not implemented").into())
     }
+}
+
+// XXX: duplicated from client/
+/// Return the stream ID of `msg`, if it has one.
+///
+/// Returns `Ok(None)` if `msg` is a meta cell.
+fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
+    let cmd = msg.cmd();
+    let streamid = msg.stream_id();
+    if !cmd.accepts_streamid_val(streamid) {
+        return Err(Error::CircProto(format!(
+            "Invalid stream ID {} for relay command {}",
+            sensitive(StreamId::get_or_zero(streamid)),
+            msg.cmd()
+        )));
+    }
+
+    Ok(streamid)
 }

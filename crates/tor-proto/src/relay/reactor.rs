@@ -68,7 +68,7 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use futures::{FutureExt as _, StreamExt as _, select_biased};
+use futures::{FutureExt as _, Stream, StreamExt as _, select_biased};
 use postage::broadcast;
 use tracing::{debug, trace};
 
@@ -76,7 +76,7 @@ use tor_cell::chancell::CircId;
 use tor_cell::relaycell::{RelayCellDecoder, RelayCmd};
 use tor_error::{debug_report, internal};
 use tor_linkspec::HasRelayIds;
-use tor_memquota::mq_queue::{self, MpscSpec};
+use tor_memquota::mq_queue::{self, ChannelSpec, MpscSpec};
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use crate::channel::Channel;
@@ -85,16 +85,23 @@ use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopInbound, CircHopOutbound, HopSettings};
 use crate::client::stream::IncomingStreamRequestFilter;
 use crate::congestion::CongestionControl;
+use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
-use crate::memquota::CircuitAccount;
+use crate::memquota::{CircuitAccount, SpecificAccount};
 use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
+use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
+use crate::stream::incoming::{IncomingCmdChecker, IncomingStream, StreamReqInfo};
+use crate::stream::{StreamComponents, StreamTarget, Tunnel};
 use crate::util::err::ReactorError;
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
 
-use backward::BackwardReactor;
+use crate::client::reactor::RECV_WINDOW_INIT;
+use crate::client::stream::StreamReceiver;
+
+use backward::{BackwardReactor, IncomingStreamRequestHandler};
 use forward::ForwardReactor;
 
 /// A message telling the reactor to do something.
@@ -204,8 +211,8 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
         incoming: IncomingStreamConfig<'a>,
         padding_ctrl: PaddingController,
         padding_event_stream: PaddingEventStream,
-        memquota: CircuitAccount,
-    ) -> (Self, RelayCirc) {
+        memquota: &CircuitAccount,
+    ) -> crate::Result<(Self, Arc<RelayCirc>, impl Stream<Item = IncomingStream>)> {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
         let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
 
@@ -246,6 +253,15 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
             settings,
         );
 
+        let handle = Arc::new(RelayCirc {
+            control: control_tx,
+            command: command_tx,
+            time_provider: DynTimeProvider::new(runtime.clone()),
+        });
+
+        let (incoming, stream) =
+            prepare_incoming_stream(runtime.clone(), Arc::clone(&handle), incoming, memquota)?;
+
         let backward = BackwardReactor::new(
             runtime.clone(),
             channel,
@@ -258,14 +274,9 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
             outgoing_chan_tx,
             padding_ctrl.clone(),
             padding_event_stream,
+            incoming,
             reactor_closed_rx.clone(),
         );
-
-        let handle = RelayCirc {
-            control: control_tx,
-            command: command_tx,
-            time_provider: DynTimeProvider::new(runtime.clone()),
-        };
 
         let reactor = Reactor {
             runtime,
@@ -277,7 +288,7 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
             reactor_closed_tx,
         };
 
-        (reactor, handle)
+        Ok((reactor, handle, stream))
     }
 
     /// Launch the reactor, and run until the circuit closes or we
@@ -378,4 +389,105 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
 
         Err(ReactorError::Shutdown)
     }
+}
+
+/// Prepare the [`Stream`] of [`IncomingStream`]s and corresponding handler.
+///
+/// Needed for exits. Middle relays should reject every incoming stream,
+/// either through the `filter` provided in the [`IncomingStreamConfig`],
+/// or by explicitly calling .reject() on each received stream.
+///
+// TODO(relay): I think we will prefer using the .reject() approach
+// for this, because the filter is only meant for inexpensive quick
+// checks that are done immediately in the reactor (any blocking
+// in the filter will block the relay reactor main loop!).
+///
+/// The user of the reactor **must** handle this stream
+/// (either by .accept()ing and opening and proxying the corresponding
+/// streams as appropriate, or by .reject()ing).
+///
+// TODO: declare a type-alias for the return type when support for
+// impl in type aliases gets stabilized.
+//
+// See issue #63063 <https://github.com/rust-lang/rust/issues/63063>
+fn prepare_incoming_stream<'a, R: Runtime>(
+    runtime: R,
+    tunnel: Arc<RelayCirc>,
+    incoming: IncomingStreamConfig<'a>,
+    memquota: &CircuitAccount,
+) -> crate::Result<(
+    IncomingStreamRequestHandler,
+    impl Stream<Item = IncomingStream>,
+)> {
+    /// The size of the channel receiving IncomingStreamRequestContexts.
+    ///
+    // TODO(relay): move this out of client::
+    // TODO(relay-tuning): buffer size
+    const INCOMING_BUFFER: usize = crate::client::reactor::STREAM_READER_BUFFER;
+
+    let time_prov = DynTimeProvider::new(runtime);
+
+    let (incoming_sender, incoming_receiver) =
+        MpscSpec::new(INCOMING_BUFFER).new_mq(time_prov.clone(), memquota.as_raw_account())?;
+
+    let IncomingStreamConfig {
+        allow_commands,
+        filter,
+    } = incoming;
+
+    let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
+    let incoming = IncomingStreamRequestHandler {
+        incoming_sender,
+        cmd_checker,
+        filter,
+    };
+
+    // TODO(relay): this is more or less copy-pasta from client code
+    let stream = incoming_receiver.map(move |req_ctx| {
+        let StreamReqInfo {
+            req,
+            stream_id,
+            hop,
+            receiver,
+            msg_tx,
+            rate_limit_stream,
+            drain_rate_request_stream,
+            memquota,
+            relay_cell_format,
+        } = req_ctx;
+
+        // There is no originating hop if we're a relay
+        debug_assert!(hop.is_none());
+
+        let target = StreamTarget {
+            tunnel: Tunnel::Relay(Arc::clone(&tunnel)),
+            tx: msg_tx,
+            hop: None,
+            stream_id,
+            relay_cell_format,
+            rate_limit_stream,
+        };
+
+        // can be used to build a reader that supports XON/XOFF flow control
+        let xon_xoff_reader_ctrl =
+            XonXoffReaderCtrl::new(drain_rate_request_stream, target.clone());
+
+        let reader = StreamReceiver {
+            target: target.clone(),
+            receiver,
+            recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
+            ended: false,
+        };
+
+        let components = StreamComponents {
+            stream_receiver: reader,
+            target,
+            memquota,
+            xon_xoff_reader_ctrl,
+        };
+
+        IncomingStream::new(time_prov.clone(), req, components)
+    });
+
+    Ok((incoming, stream))
 }
