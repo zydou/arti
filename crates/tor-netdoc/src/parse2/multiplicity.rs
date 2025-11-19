@@ -31,6 +31,20 @@ use super::*;
 ///
 /// **For use by macros**.
 ///
+/// See the [module-level docs](multiplicity).
+#[derive(Educe)]
+#[educe(Clone, Copy, Default)]
+pub struct ItemSetSelector<Field>(PhantomData<fn() -> Field>);
+
+/// Methods for handling some multiplicity of Items
+///
+/// **For use by macros**.
+///
+/// During parsing, we accumulate into a value of type `Option<Self::Field>`.
+/// The semantics of this are item-set-implementation-dependent;
+/// using a type which is generic over the field type in a simple way
+/// allows the partially-parsed accumulation state for a whole netdoc to have a concrete type.
+///
 /// See the [module-level docs](multiplicity), and
 /// [Field type in `NetdocParseable`](derive_deftly_template_NetdocParseable#field-type).
 ///
@@ -48,20 +62,6 @@ use super::*;
 ///
 /// assert_eq!(out, [12]);
 /// ```
-#[derive(Educe)]
-#[educe(Clone, Copy, Default)]
-pub struct ItemSetSelector<Field>(PhantomData<fn() -> Field>);
-
-/// Methods for handling some multiplicity of Items
-///
-/// **For use by macros**.
-///
-/// During parsing, we accumulate into a value of type `Option<Self::Field>`.
-/// The semantics of this are item-set-implementation-dependent;
-/// using a type which is generic over the field type in a simple way
-/// allows the partially-parsed accumulation state for a whole netdoc to have a concrete type.
-///
-/// See [`ItemSetSelector`] and the [module-level docs](multiplicity).
 pub trait ItemSetMethods: Copy + Sized {
     /// The value for each Item.
     type Each: Sized;
@@ -205,6 +205,15 @@ impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
 ///
 /// **For use by macros**.
 ///
+/// See the [module-level docs](multiplicity).
+#[derive(Educe)]
+#[educe(Clone, Copy, Default)]
+pub struct ArgumentSetSelector<Field>(PhantomData<fn() -> Field>);
+
+/// Method for handling some multiplicity of Arguments
+///
+/// **For use by macros**.
+///
 /// See the [module-level docs](multiplicity), and
 /// [Field type in `ItemValueParseable`](derive_deftly_template_ItemValueParseable#field-type).
 ///
@@ -225,15 +234,6 @@ impl<T> ItemSetMethods for &'_ ItemSetSelector<T> {
 ///     .unwrap();
 /// assert_eq!(args, [12, 66]);
 /// ```
-#[derive(Educe)]
-#[educe(Clone, Copy, Default)]
-pub struct ArgumentSetSelector<Field>(PhantomData<fn() -> Field>);
-
-/// Method for handling some multiplicity of Arguments
-///
-/// **For use by macros**.
-///
-/// See [`ArgumentSetSelector`] and the [module-level docs](multiplicity).
 pub trait ArgumentSetMethods: Copy + Sized {
     /// The value for each Item.
     type Each: Sized;
@@ -317,6 +317,15 @@ impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
 ///
 /// **For use by macros**.
 ///
+/// See the [module-level docs](multiplicity).
+#[derive(Educe)]
+#[educe(Clone, Copy, Default)]
+pub struct ObjectSetSelector<Field>(PhantomData<fn() -> Field>);
+
+/// Method for handling some multiplicity of Objects
+///
+/// **For use by macros**.
+///
 /// See the [module-level docs](multiplicity), and
 /// [Field type in `ItemValueParseable`](derive_deftly_template_ItemValueParseable#field-type).
 ///
@@ -340,15 +349,6 @@ impl<T> ArgumentSetMethods for &ArgumentSetSelector<T> {
 /// let obj = selector.resolve_option(obj).unwrap();
 /// assert_eq!(obj, Some("hello".to_owned()));
 /// ```
-#[derive(Educe)]
-#[educe(Clone, Copy, Default)]
-pub struct ObjectSetSelector<Field>(PhantomData<fn() -> Field>);
-
-/// Method for handling some multiplicity of Objects
-///
-/// **For use by macros**.
-///
-/// See [`ObjectSetSelector`] and the [module-level docs](multiplicity).
 pub trait ObjectSetMethods: Copy + Sized {
     /// The value for each Item.
     type Each: Sized;
