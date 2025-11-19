@@ -830,7 +830,6 @@ pub(super) mod test {
     where
         R: Runtime,
     {
-        let localhost = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
         let mut framed_tls = new_frame(MsgBuf::new(&b""[..]), ChannelType::ClientInitiator);
         let _ = framed_tls.codec_mut().set_link_version(4);
         let _ = framed_tls.codec_mut().set_open();
