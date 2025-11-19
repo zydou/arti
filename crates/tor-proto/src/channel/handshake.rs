@@ -200,9 +200,11 @@ where
     }
 }
 
-/// A client channel on which versions have been negotiated and the
-/// relay's handshake has been read, but where the certs have not
-/// been checked.
+/// A base channel on which versions have been negotiated and the relay's handshake has been read,
+/// but where the certs have not been checked.
+///
+/// Both relay and client have specialized objects for an unverified channel which include this one
+/// as the base in order to share functionnalities.
 pub(crate) struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
@@ -230,13 +232,14 @@ pub(crate) struct UnverifiedChannel<
     pub(crate) unique_id: UniqId,
 }
 
-/// A client channel on which versions have been negotiated,
-/// relay's handshake has been read, but the client has not yet
-/// finished the handshake.
+/// A base channel on which versions have been negotiated, relay's handshake has been read, but the
+/// client has not yet finished the handshake.
 ///
-/// This type is separate from UnverifiedChannel, since finishing the
-/// handshake requires a bunch of CPU, and you might want to do it as
-/// a separate task or after a yield.
+/// This type is separate from UnverifiedChannel, since finishing the handshake requires a bunch of
+/// CPU, and you might want to do it as a separate task or after a yield.
+///
+/// Both relay and client have specialized objects for an unverified channel which include this one
+/// as the base in order to share functionnalities.
 pub(crate) struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
