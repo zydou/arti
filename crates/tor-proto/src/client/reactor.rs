@@ -98,8 +98,6 @@ pub(super) type ConfluxHandshakeResult = Vec<StdResult<(), ConfluxHandshakeError
 #[cfg(feature = "conflux")]
 pub(super) type ConfluxLinkResultChannel = ReactorResultChannel<ConfluxHandshakeResult>;
 
-pub(crate) use crate::stream::STREAM_READER_BUFFER;
-
 /// MPSC queue containing stream requests
 #[cfg(feature = "hs-service")]
 type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;

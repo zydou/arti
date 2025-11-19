@@ -26,6 +26,7 @@ use crate::client::stream::{
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::HopNum;
 use crate::memquota::{SpecificAccount as _, StreamAccount};
+use crate::stream::STREAM_READER_BUFFER;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
@@ -34,7 +35,7 @@ use crate::stream::{RECV_WINDOW_INIT, StreamComponents, StreamTarget, Tunnel};
 use crate::util::notify::NotifySender;
 use crate::{Error, ResolveError, Result};
 use circuit::{CIRCUIT_BUFFER_SIZE, ClientCirc, Path};
-use reactor::{CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler, STREAM_READER_BUFFER};
+use reactor::{CtrlCmd, CtrlMsg, FlowCtrlMsg, MetaCellHandler};
 
 use postage::watch;
 use tor_cell::relaycell::StreamId;
