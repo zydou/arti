@@ -521,9 +521,10 @@ pub struct SharedRandVal([u8; 32]);
 
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
 #[non_exhaustive]
-#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
+#[cfg_attr(feature = "parse2", derive_deftly(ItemValueParseable))]
+#[cfg_attr(feature = "encode", derive_deftly(ItemValueEncodable))]
 pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     pub n_reveals: u8,
