@@ -859,8 +859,9 @@ define_derive_deftly! {
     /// Each field should be:
     ///
     ///  * `impl `[`ItemArgumentParseable`] (one argument),
-    ///  * `Option<impl ItemArgumentParseable>` (one optional argument), or
-    ///  * `Vec<impl ItemArgumentParseable>` (zero or more arguments).
+    ///  * `Option<impl ItemArgumentParseable>` (one optional argument),
+    ///  * `Vec<impl ItemArgumentParseable>` (zero or more arguments), or
+    ///  * `BTreeSet<impl ItemArgumentParseable + Ord>` (zero or more arguments).
     ///
     /// `ItemArgumentParseable` is implemented for every `impl FromStr`,
     /// so `impl FromStr`, `Option<impl FromStr>` and `Vec<impl FromStr>`
