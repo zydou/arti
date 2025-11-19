@@ -891,8 +891,10 @@ define_derive_deftly! {
     ///
     ///    The field is the whole rest of the line.
     ///    Must come after any other normal argument fields.
+    ///    Only allowed once.
     ///
     ///    The field type must implement `FromStr`.
+    ///    (I.e. `Vec` , `Option` etc., are not allowed.)
     ///
     ///  * **`#[deftly(netdoc(object))]**:
     ///
