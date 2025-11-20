@@ -32,7 +32,7 @@ use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::{StreamQueueSender, stream_queue};
-use crate::stream::{STREAM_READER_BUFFER, StreamMpscReceiver, msg_streamid};
+use crate::stream::{StreamMpscReceiver, msg_streamid};
 use crate::streammap;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
@@ -85,6 +85,9 @@ use {
     crate::conflux::msghandler::{ConfluxAction, ConfluxCmd, ConfluxMsgHandler, OooRelayMsg},
     crate::tunnel::TunnelId,
 };
+
+#[cfg(not(feature = "flowctl-cc"))]
+use crate::stream::STREAM_READER_BUFFER;
 
 pub(super) use circhop::{CircHop, CircHopList};
 
