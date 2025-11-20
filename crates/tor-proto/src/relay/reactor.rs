@@ -23,20 +23,91 @@
 //!  * `BackwardReactor` holds the reading end of the outbound channel, if there is one,
 //!    and the writing end of the inbound channel, if there is one
 //!
-//! Upon receiving an unrecognized cell, the `ForwardReactor` forwards it towards the exit.
-//! However, upon receiving a *recognized* cell, the `ForwardReactor` might need to
-//! send that cell to the `BackwardReactor` for handling (for example, a cell
-//! containing stream data needs to be delivered to the appropriate stream
-//! in the `StreamMap`). For this, it uses the `cell_tx` MPSC channel.
-//! This is needed because the read and write sides of `StreamMap` are not "splittable",
-//! so we are stuck having to reroute all stream data to the reactor that owns the `StreamMap`
-//! (i.e. to `BackwardReactor`). In the future, we'd like to redesign the `StreamMap`
+//! #### `ForwardReactor`
+//!
+//! It handles
+//!
+//!  * unrecognized RELAY cells, by moving them in the forward direction (towards the exit)
+//!  * recognized RELAY cells, by splitting each cell into messages, and handling
+//!    each message individually as described in the table below
+//!    (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell).
+//!  * RELAY_EARLY cells (**not yet implemented**)
+//!  * DESTROY cells (**not yet implemented**)
+//!  * PADDING_NEGOTIATE cells (**not yet implemented**)
+//!
+//! ```text
+//!
+//! Legend: `F` = "forward reactor", `B` = "backward reactor"
+//!
+//! | RELAY cmd         | Received in | Handled in | Description                            |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | SENDME            | F           | B          | Sent to BackwardReactor for handling   |
+//! |                   |             |            | (BackwardReactorCmd::HandleSendme)     |
+//! |                   |             |            | because the forward reactor doesn't    |
+//! |                   |             |            | have access to the chan_sender part    |
+//! |                   |             |            | of the inbound (towards the client)    |
+//! |                   |             |            | Tor channel, and so cannot obtain the  |
+//! |                   |             |            | congestion signals needed for SENDME   |
+//! |                   |             |            | handling                               |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | DROP              | F           | F          | Passed to PaddingController for        |
+//! |                   |             |            | validation                             |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | EXTEND2           | F           |            | Handled by instructing the channel     |
+//! |                   |             |            | provider to launch a new channel, and  |
+//! |                   |             |            | waiting for the new channel on its     |
+//! |                   |             |            | outgoing_chan_rx receiver              |
+//! |                   |             |            | (**not yet implemented**)              |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | EXTEND            | F           | F          | See EXTEND2                            |
+//! |                   |             |            |                                        |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | TRUNCATE          | F           | F          | (**not yet implemented**)              |
+//! |                   |             |            |                                        |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | Any command where | F           | B          | All messages with a non-zero stream ID |
+//! | stream Id != 0    |             |            | are forwarded to the Backward reactor  |
+//! |                   |             |            | (BackwardReactorCmd::HandleMsg)        |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | TODO              |             |            |                                        |
+//! |                   |             |            |                                        |
+//! ```
+//!
+//! The `ForwardReactor` uses the `cell_tx` MPSC channel to forward cells to the `BackwardReactor`.
+//! The cells are wrapped in a `BackwardReactorCmd`, which specified how the cell should be
+//! handled.
+//!
+//! > **Note**: in addition to forwarding cells received from the client, the `ForwardReactor`
+//! > also passes any circuit-level SENDME cells that need to be delivered to the client
+//! > to the `BackwardReactor` (see [`BackwardReactorCmd::SendSendme`](backward::BackwardReactorCmd).
+//!
+//! The reason we need this cross-reactor forwarding is because the read and write sides
+//! of `StreamMap` are not "splittable", so we are stuck having to reroute all stream data
+//! to the reactor that owns the `StreamMap` (i.e. to `BackwardReactor`).
+//! In the future, we'd like to redesign the `StreamMap`
 //! to split the read ends of the streams from the write ones, which will enable us
 //! to pass the read side to the `ForwardReactor` and the write side to the `BackwardReactor`.
+//!
+//! > **Note**: the `cell_tx` MPSC channel has no buffering, so if the `BackwardReactor`
+//! > is not reading from it quickly enough (for example if its client-facing Tor channel
+//! > sink is not ready to accept any more cells), the `ForwardReactor` will block,
+//! > and therefore cease reading from its input channel, providing backpressure
+//!
+//! #### `BackwardReactor`
+//!
+//! It handles
+//!
+//!  * the delivery of all client-bound cells (it writes them to the towards-the-client
+//!    Tor channel sink) (**partially implemented**)
+//!  * all stream management operations (the opening/closing of streams, and the delivery
+//!    of DATA cells to their corresponding streams) (**partially implemented**)
+//!  * the sending of padding cells, according to the PaddingController's instructions
+//!    (**not yet implemented**)
 //
 // TODO(relay): the above is underspecified, because it's not implemented yet,
 // but the plan is to iron out these details soon
 //
+//!
 //! This dual reactor architecture should, in theory, have better performance than
 //! a single reactor system, because it enables us to parallelize some of the work:
 //! the forward and backward directions share little state,
