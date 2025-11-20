@@ -25,7 +25,6 @@ use tor_error::{internal, trace_report};
 use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::{FutureExt as _, StreamExt, future, select_biased};
-use oneshot_fused_workaround as oneshot;
 use postage::broadcast;
 use tracing::trace;
 
@@ -191,6 +190,8 @@ impl BackwardReactor {
     ///   * deliver one message worth of application-bound Tor stream data received
     ///     over `cell_rx`
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
+        use postage::prelude::{Sink as _, Stream as _};
+
         /// The maximum number of events we expect to handle per reactor loop.
         ///
         /// This is bounded by the number of futures we push into the PollAll.
@@ -259,19 +260,10 @@ impl BackwardReactor {
 
         let cc_can_send = self.hop.ccontrol().can_send();
 
-        let (tx, rx) = oneshot::channel::<()>();
-
         // Concurrently, drive :
         //  1. a future that reads from the ready application streams
         //  (this resolves to a message that needs to be delivered to the client)
         poll_all.push(async move {
-            // Avoid polling the application streams if the outgoing sink is blocked
-            let _ = backward_chan_ready.await;
-
-            // Kludge to notify the other future that the backward chan is ready
-            // needed because we can't poll for readiness from two separate tasks
-            let _ = tx.send(());
-
             if !cc_can_send {
                 // We can't send anything on this hop that counts towards SENDME windows.
                 //
@@ -306,10 +298,6 @@ impl BackwardReactor {
         // so the poll_all will only really drive the two Tor stream-related futures
         // (for reading from and writing to the application streams)
         poll_all.push(async {
-            // Avoid reading from the forward Tor channel (if there even is one!)
-            // if the outgoing sink is blocked.
-            let () = rx.await.expect("streams_fut future disappeared?!");
-
             if let Some(input) = self.input.as_mut() {
                 // Forward channel unexpectedly closed, we should close too
                 match input.next().await {
@@ -323,6 +311,13 @@ impl BackwardReactor {
                 future::pending().await
             }
         });
+
+        let poll_all = async move {
+            // Avoid polling **any** of the futures if the outgoing sink is blocked
+            let _ = backward_chan_ready.await;
+
+            poll_all.await
+        };
 
         let events = select_biased! {
             _res = self.shutdown_rx.next().fuse() => {
