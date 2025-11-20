@@ -562,7 +562,7 @@ pub(super) enum TerminateReason {
     /// corresponding senders were all dropped.
     StreamTargetClosed,
     /// Closing a stream because we were explicitly told to end it via
-    /// [`StreamTarget::close_pending`](crate::client::StreamTarget::close_pending).
+    /// [`StreamTarget::close_pending`](crate::stream::StreamTarget::close_pending).
     ExplicitEnd,
 }
 

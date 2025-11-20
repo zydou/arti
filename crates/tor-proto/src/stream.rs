@@ -145,7 +145,8 @@ impl StreamTarget {
     /// Close the pending stream that owns this StreamTarget, delivering the specified
     /// END message (if any)
     ///
-    /// The stream is closed by sending a [`CtrlMsg::ClosePendingStream`] message to the reactor.
+    /// The stream is closed by sending a control message (`CtrlMsg::ClosePendingStream`)
+    /// to the reactor.
     ///
     /// Returns a [`oneshot::Receiver`] that can be used to await the reactor's response.
     ///

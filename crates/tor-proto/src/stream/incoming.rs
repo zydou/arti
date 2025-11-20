@@ -296,7 +296,7 @@ pub(crate) struct StreamReqInfo {
     pub(crate) req: IncomingStreamRequest,
     /// The ID of the stream being requested.
     pub(crate) stream_id: StreamId,
-    /// The [`HopNum`].
+    /// The [`HopNum`](crate::HopNum).
     ///
     /// Set to `None` if we are an exit relay.
     //

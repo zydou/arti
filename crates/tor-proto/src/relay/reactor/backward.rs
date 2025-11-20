@@ -134,7 +134,7 @@ type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
 pub(super) struct IncomingStreamRequestHandler {
     /// A sender for sharing information about an incoming stream request.
     pub(super) incoming_sender: StreamReqSender,
-    /// A [`CmdChecker`] for validating incoming streams.
+    /// A [`CmdChecker`](crate::stream::cmdcheck::CmdChecker) for validating incoming streams.
     pub(super) cmd_checker: AnyCmdChecker,
     /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
     /// this request, or wants to reject it immediately.
