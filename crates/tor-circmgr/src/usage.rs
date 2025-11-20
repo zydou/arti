@@ -597,6 +597,7 @@ impl SupportedTunnelUsage {
                 // If the circuit is suitable for nothing, it is not long-lived.
                 false
             }
+            #[cfg(feature = "hs-common")]
             HsOnly => {
                 // This circuit's lifetime is managed by the hspool code, and later by the hsclient
                 // code.  We will not manage it within the mgr.rs code.
