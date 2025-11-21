@@ -323,9 +323,21 @@ impl BackwardReactor {
             if !cc_can_send {
                 // We can't send anything on this hop that counts towards SENDME windows.
                 //
-                // TODO: This shouldn't block outgoing flow-control messages (e.g.
-                // SENDME), which are initiated via the control-message
-                // MPSC channel, handled above.
+                // Note: this does not block outgoing flow-control messages:
+                //
+                //   * circuit SENDMEs are initiated by the forward reactor,
+                //     by sending a BackwardReactorCmd::SendSendme to us,
+                //     which is received via cell_tx below
+                //   * stream SENDMEs will be initiated by StreamTarget::send_sendme(),
+                //     by sending a a control message to the reactor
+                //     (TODO(relay): not yet implemented)
+                //   * XOFFs are sent in response to messages on streams
+                //     (i.e. RELAY messages with non-zero stream IDs).
+                //     These messages are delivered to us by the forward reactor
+                //     inside BackwardReactorCmd::HandleMsg
+                //   * XON will be initiated by StreamTarget::drain_rate_update(),
+                //     by sending a control message to the reactor
+                //     (TODO(relay): not yet implemented)
                 let () = future::pending().await;
             }
 
