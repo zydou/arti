@@ -130,7 +130,6 @@ type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
 // TODO(relay): duplicates client impl
 #[derive(educe::Educe)]
 #[educe(Debug)]
-#[allow(dead_code)] // TODO(relay)
 pub(super) struct IncomingStreamRequestHandler {
     /// A sender for sharing information about an incoming stream request.
     pub(super) incoming_sender: StreamReqSender,
@@ -154,11 +153,10 @@ pub(super) struct IncomingStreamRequestHandler {
 #[allow(unused)] // TODO(relay)
 impl BackwardReactor {
     /// Create a new [`BackwardReactor`].
-    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     #[allow(clippy::too_many_arguments)] // TODO
     pub(super) fn new<R: Runtime>(
         runtime: R,
-        channel: Arc<Channel>,
+        channel: &Arc<Channel>,
         hop: CircHopOutbound,
         circ_id: CircId,
         unique_id: UniqId,

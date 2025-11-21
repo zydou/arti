@@ -266,11 +266,10 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
     /// [`CircId`] provided.
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
-    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     #[allow(clippy::too_many_arguments)] // TODO
     pub(super) fn new<'a>(
         runtime: R,
-        channel: Arc<Channel>,
+        channel: &Arc<Channel>,
         circ_id: CircId,
         unique_id: UniqId,
         input: CircuitRxReceiver,
@@ -342,7 +341,7 @@ impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
             settings,
             cell_rx,
             outgoing_chan_tx,
-            padding_ctrl.clone(),
+            padding_ctrl,
             padding_event_stream,
             incoming,
             reactor_closed_rx.clone(),
