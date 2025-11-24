@@ -92,6 +92,18 @@ to Arti's keystore using the experimental `arti hsc ctor-migrate` command.
 > Note: this feature is only available in builds that have the experimental
 > `onion-service-cli-extra` feature enabled.
 
+This command converts restricted discovery keys to the Arti native key format
+(OpenSSH key format), and copies them to Arti's keystore.
+
+> ⚠️**WARNING** ⚠️
+>
+> `arti hsc ctor-migrate` will **not** remove the migrated C Tor keys from disk.
+> After running this command, the discovery keys of your client
+> will exist both in its original location, and in the Arti native keystore.
+> **You will need to manually remove one  set of keys at the end of the migration**
+> (the C Tor ones, if you are confident you no longer want to use C Tor
+> as an onion service client, or the Arti ones if you don't wish to switch to Arti)
+
 To use this command, you will first need to configure Arti to point to the
 `ClientOnionAuthDir` of the onion service you wish to migrate, this location
 needs to be a valid C Tor client keystore. You can do this either in the
@@ -123,18 +135,6 @@ The `hsc ctor-migrate` command can detect conflicts where multiple keys in the
 registered C Tor keystore belong to the same service. This situation is invalid
 because a C Tor keystore cannot contain more than one key for the same hidden
 service. In such cases, the migration is aborted.
-
-The original C Tor keystore remains unchanged after the operation.
-
-> ⚠️**WARNING** ⚠️
->
-> `arti hsc ctor-migrate` will **not** remove the migrated C Tor keys from disk.
-> After running this command, the client key of the
-> service will exist both in its original location, and in the
-> Arti native keystore. **You will need to manually remove one
-> of the copies at the end of the migration** (the C Tor one, if
-> you are confident you no longer want to access the service
-> using C Tor, or the Arti one if you don't wish to switch to Arti)
 
 See `arti hsc ctor-migrate --help` for more information.
 
