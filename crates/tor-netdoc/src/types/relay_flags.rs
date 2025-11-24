@@ -188,9 +188,7 @@ pub enum RelayFlagsParseError {
     OutOfOrder,
 }
 
-impl<'s, M: ReprMode>
-    Parser<'s, M>
-{
+impl<'s, M: ReprMode> Parser<'s, M> {
     /// Start parsing relay flags
     ///
     /// If `PARSE_IMPLICIT` or `ENCODE_OMIT` contains unknown bits, compile will fail.
@@ -245,9 +243,7 @@ mod parse_impl {
                         .at_pos(item.pos()),
                 );
             }
-            let mut flags = Parser::<
-                ConsensusRepr,
-            >::new(Unknown::new_discard());
+            let mut flags = Parser::<ConsensusRepr>::new(Unknown::new_discard());
 
             for s in item.args() {
                 flags
@@ -267,9 +263,7 @@ mod parse2_impl {
     use crate::parse2;
     use parse2::ErrorProblem as EP;
 
-    impl<'s, M: ReprMode>
-        Parser<'s, M>
-    {
+    impl<'s, M: ReprMode> Parser<'s, M> {
         /// Parse relay flags
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
         pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<DocRelayFlags, EP> {
