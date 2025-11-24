@@ -8,7 +8,7 @@ const ONION_ADDR: &str = "fpqqmiwzqiv63jczrshh4qcmlxw6gujcai3arobq23wikt7hk7ojad
 /// Length of the onion address without ".onion" suffix.
 const ADDR_LEN: usize = 56;
 /// Path to a test specific configuration
-const CFG_PATH: &str = "./tests/testcases/hsc/conf/hsc.toml";
+const CFG_PATH: &str = "./tests/testcases/hsc-common/conf/hsc.toml";
 
 /// An `arti hsc` subcommand.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, derive_more::Display)]

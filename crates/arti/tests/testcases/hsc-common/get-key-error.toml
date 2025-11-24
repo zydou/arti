@@ -1,0 +1,4 @@
+bin.name = "arti"
+args = "-c ./tests/testcases/hsc-common/conf/hsc.toml hsc key get --batch --key-type=service-discovery --generate=no --output -"
+stdin = "fpqqmiwzqiv63jczrshh4qcmlxw6gujcai3arobq23wikt7hk7ojadid.onion"
+status.code = 127

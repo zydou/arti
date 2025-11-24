@@ -8,6 +8,13 @@ use arti_client::{HsClientDescEncKey, HsId, InertTorClient, KeystoreSelector, To
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
 use safelog::DisplayRedacted;
 use tor_rtcompat::Runtime;
+#[cfg(feature = "onion-service-cli-extra")]
+use {
+    std::collections::{HashMap, hash_map::Entry},
+    tor_hsclient::HsClientDescEncKeypairSpecifier,
+    tor_hscrypto::pk::HsClientDescEncKeypair,
+    tor_keymgr::{CTorPath, KeyPath, KeystoreEntry, KeystoreEntryResult, KeystoreId},
+};
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -34,6 +41,12 @@ pub(crate) enum HscSubcommand {
     /// Key management subcommands.
     #[command(subcommand)]
     Key(KeySubcommand),
+
+    /// Migrate service discovery keys from a registered CTor keystore to the primary
+    /// keystore
+    #[cfg(feature = "onion-service-cli-extra")]
+    #[command(name = "ctor-migrate")]
+    CTorMigrate(CTorMigrateArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -141,6 +154,22 @@ pub(crate) struct RemoveKeyArgs {
     common: CommonArgs,
 }
 
+/// The arguments of the [`CTorMigrate`](HscSubcommand::CTorMigrate) subcommand.
+#[derive(Debug, Clone, Args)]
+#[cfg(feature = "onion-service-cli-extra")]
+pub(crate) struct CTorMigrateArgs {
+    /// With this flag active no prompt will be shown
+    /// and no confirmation will be asked.
+    #[arg(long, short, default_value_t = false)]
+    batch: bool,
+
+    /// The ID of the keystore that should be migrated.
+    // TODO: The command should detect if the ID provided belongs to a CTor keystore and return an
+    // error if it does not.
+    #[arg(long, short)]
+    from: KeystoreId,
+}
+
 /// Run the `hsc` subcommand.
 pub(crate) fn run<R: Runtime>(
     runtime: R,
@@ -165,6 +194,8 @@ pub(crate) fn run<R: Runtime>(
             }
         }
         HscSubcommand::Key(subcommand) => run_key(subcommand, &client),
+        #[cfg(feature = "onion-service-cli-extra")]
+        HscSubcommand::CTorMigrate(args) => migrate_ctor_keys(&args, &client),
     }
 }
 
@@ -278,6 +309,53 @@ fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -
     Ok(())
 }
 
+/// Run the `hsc ctor-migrate` subcommand.
+#[cfg(feature = "onion-service-cli-extra")]
+fn migrate_ctor_keys(args: &CTorMigrateArgs, client: &InertTorClient) -> Result<()> {
+    let keymgr = client.keymgr()?;
+    let ctor_client_entries = read_ctor_keys(&keymgr.list_by_id(&args.from)?, args)?;
+
+    // TODO: Simplify this logic when addressing issue #1359.
+    // See [!3390 (comment 3288090)](https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3390#note_3288090).
+    let arti_keystore_id = KeystoreId::from_str("arti")
+        .map_err(|_| anyhow!("Default arti keystore ID is not valid?!"))?;
+    for (hsid, entry) in ctor_client_entries {
+        if let Ok(Some(key)) = keymgr.get_entry::<HsClientDescEncKeypair>(&entry) {
+            let key_exists = keymgr
+                .get_from::<HsClientDescEncKeypair>(
+                    &HsClientDescEncKeypairSpecifier::new(hsid),
+                    &arti_keystore_id,
+                )?
+                .is_some();
+            let proceed = if args.batch || !key_exists {
+                true
+            } else {
+                let p = format!(
+                    "Found key in the primary keystore for service {}, do you want to replace it? ",
+                    hsid.display_redacted()
+                );
+                prompt(&p)?
+            };
+            if proceed {
+                let res = keymgr.insert(
+                    key,
+                    &HsClientDescEncKeypairSpecifier::new(hsid),
+                    (&arti_keystore_id).into(),
+                    true,
+                );
+                if let Err(e) = res {
+                    eprintln!(
+                        "Failed to insert key for service {}: {e}",
+                        hsid.display_redacted()
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Prompt the user for an onion address.
 fn get_onion_address(args: &CommonArgs) -> Result<HsId, anyhow::Error> {
     let mut addr = String::new();
@@ -288,4 +366,45 @@ fn get_onion_address(args: &CommonArgs) -> Result<HsId, anyhow::Error> {
     io::stdin().read_line(&mut addr).map_err(|e| anyhow!(e))?;
 
     HsId::from_str(addr.trim_end()).map_err(|e| anyhow!(e))
+}
+
+/// Helper function for `migrate_ctor_keys`.
+///
+/// Parses and returns the client keys from the CTor keystore identified by `--from` CLI flag.
+/// Detects if there is a clash (different keys for the same hidden service within
+/// the CTor keystore).
+/// Such a situation is invalid, as each service must have a unique key.
+/// If a clash is found, an error is returned.
+/// If no clashes are detected, returns a `HashMap` of keystore entries, keyed
+/// by hidden service identifier.
+#[cfg(feature = "onion-service-cli-extra")]
+fn read_ctor_keys<'a>(
+    entries: &[KeystoreEntryResult<KeystoreEntry<'a>>],
+    args: &CTorMigrateArgs,
+) -> Result<HashMap<HsId, KeystoreEntry<'a>>> {
+    let mut ctor_client_entries = HashMap::new();
+    for entry in entries.iter().flatten() {
+        if let KeyPath::CTor(CTorPath::ClientHsDescEncKey(hsid)) = entry.key_path() {
+            match ctor_client_entries.entry(*hsid) {
+                Entry::Occupied(_) => {
+                    return Err(anyhow!(
+                        "Invalid C Tor keystore (multiple keys exist for service {})",
+                        hsid.display_redacted()
+                    ));
+                }
+                Entry::Vacant(v) => {
+                    v.insert(entry.clone());
+                }
+            }
+        };
+    }
+
+    if ctor_client_entries.is_empty() {
+        return Err(anyhow!(
+            "No CTor client keys found in keystore {}",
+            args.from,
+        ));
+    }
+
+    Ok(ctor_client_entries)
 }
