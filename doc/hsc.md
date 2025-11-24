@@ -120,7 +120,7 @@ $ arti -c hsc.toml hsc ctor-migrate --from ctor-keystore-id
 Alternatively, you can pass the C Tor configuration as an argument using the `-o` flag:
 
 ```ignore
-$ arti hsc -c hsc.toml -o storage.keystore.ctor.clients='[{id = "ctor-keystore-id", path = "/path/to/ctor_keystore"}]' ctor-migrate --from ctor-keystore-id
+$ arti hsc -o storage.keystore.ctor.clients='[{id = "ctor-keystore-id", path = "/path/to/ctor_keystore"}]' ctor-migrate --from ctor-keystore-id
 ```
 
 The command detects whether keys for the services corresponding to the C Tor keys
