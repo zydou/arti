@@ -125,6 +125,9 @@ id = "ctor-keystore-id"
 path = "/path/to/ctor_keystore"
 ```
 
+Each C Tor keystore **must** have a unique identifier.
+It is an error to configure multiple keystores with the same ID.
+
 ```ignore
 $ arti -c hsc.toml hsc ctor-migrate --from ctor-keystore-id
 ```
