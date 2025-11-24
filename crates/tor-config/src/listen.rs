@@ -16,6 +16,10 @@ use serde::{Deserialize, Serialize};
 ///  * Listen on several addresses/ports
 ///
 /// Currently only IP (v6 and v4) is supported.
+//
+// NOTE: If you're adding or changing functionality for this type,
+// make sure that all existing users of this type (for example all config options in arti and
+// arti-relay which use this) want that functionality.
 #[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "CustomizableListen", into = "CustomizableListen")]
 pub struct Listen(CustomizableListen);
@@ -217,11 +221,9 @@ enum InvalidListen {
 ///
 /// This is meant to provide some basic parsing without being too opinionated.
 /// If you have further requirements, you should wrap this in a new type.
-///
-/// NOTE: If you're adding new functionality to this type,
-/// make sure that all existing users of this type want that functionality.
-/// For example arti might want an "auto" option for the socks port in the future,
-/// but it's likely that arti-relay won't want an "auto" option for its OR port.
+/// For example if `CustomizableListen` supports keywords or flags in the future such as "auto",
+/// any config options that don't want to support them should use a wrapper type that handles them
+/// and returns an error.
 #[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "ListenSerde", into = "ListenSerde")]
 enum CustomizableListen {
