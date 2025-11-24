@@ -83,7 +83,7 @@ removal using the `-f` option.
 
 See `arti hsc key remove --help` for more information.
 
-## Migrate service discovery keys from C Tor to Arti
+## Migrating from C Tor to Arti
 
 Service discovery keys from one of the registered C Tor keystores can be migrated
 to the Arti primary keystore using the `hsc ctor-migrate` command.
