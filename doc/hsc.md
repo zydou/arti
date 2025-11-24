@@ -111,7 +111,7 @@ pointing to the `ClientOnionAuthDir` of the client you wish to migrate:
 [[storage.keystore.ctor.clients]]
 
 # The identifier of this keystore.
-id = "ctor-keystore-id"
+id = "ctor-client"
 
 # This should be set to the `ClientOnionAuthDir` of your client.
 # If Arti is configured to run as a client (i.e. if it runs in SOCKS proxy mode),
@@ -131,13 +131,13 @@ It is an error to configure multiple keystores with the same ID.
 Once you are satisfied with the configuration, you can run the migration using:
 
 ```ignore
-$ arti -c hsc.toml hsc ctor-migrate --from ctor-keystore-id
+$ arti -c hsc.toml hsc ctor-migrate --from ctor-client
 ```
 
 Alternatively, you can pass the C Tor configuration as an argument using the `-o` flag:
 
 ```ignore
-$ arti hsc -o storage.keystore.ctor.clients='[{id = "ctor-keystore-id", path = "/path/to/ctor_keystore"}]' ctor-migrate --from ctor-keystore-id
+$ arti hsc -o storage.keystore.ctor.clients='[{id = "ctor-client", path = "/path/to/ctor_keystore"}]' ctor-migrate --from ctor-client
 ```
 
 If your Arti client already has some keys for the onion services
