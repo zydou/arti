@@ -74,9 +74,6 @@ impl ReprMode for ConsensusRepr {
     const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 }
 
-/// Relay flags parsing as found in the consensus (md or plain)
-pub(crate) type ConsensusRelayFlagsParser<'s> = RelayFlagsParser<'s, ConsensusRepr>;
-
 /// How relay flags are represented in a vote
 #[derive(Debug, Copy, Clone)]
 #[allow(clippy::exhaustive_structs)]
@@ -86,10 +83,6 @@ impl ReprMode for VoteRepr {
     const PARSE_IMPLICIT: RelayFlags = RelayFlags::empty();
     const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
 }
-
-/// Relay flags parsing as found in votes.
-// XXXX remove this type alias; it's not needed any more
-pub(crate) type VoteRelayFlagsParser<'s> = RelayFlagsParser<'s, VoteRepr>;
 
 /// Set of (known) router status flags
 ///
