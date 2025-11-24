@@ -109,7 +109,19 @@ pointing to the `ClientOnionAuthDir` of the client you wish to migrate:
 
 ```text
 [[storage.keystore.ctor.clients]]
+
+# The identifier of this keystore.
 id = "ctor-keystore-id"
+
+# This should be set to the `ClientOnionAuthDir` of your client.
+# If Arti is configured to run as a client (i.e. if it runs in SOCKS proxy mode),
+# it will read the client restricted discovery keys from this path.
+#
+# The key files are expected to have the `.auth_private` extension,
+# and their content **must** be of the form:
+# `<56-char-onion-addr-without-.onion-part>:descriptor:x25519:<x25519 private key in base32>`.
+#
+# Malformed files, and files that don't have the `.auth_private` extension, will be ignored.
 path = "/path/to/ctor_keystore"
 ```
 
