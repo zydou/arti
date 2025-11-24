@@ -78,7 +78,7 @@ use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
 
@@ -759,6 +759,7 @@ impl Reactor {
     ///
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
+    #[instrument(level = "trace", skip_all)]
     pub async fn run(mut self) -> Result<()> {
         trace!(tunnel_id = %self.tunnel_id, "Running tunnel reactor");
         let result: Result<()> = loop {
@@ -782,6 +783,7 @@ impl Reactor {
 
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
+    #[instrument(level = "trace", skip_all)]
     async fn run_once(&mut self) -> StdResult<(), ReactorError> {
         // If all the circuits are closed, shut down the reactor
         if self.circuits.is_empty() {
@@ -902,6 +904,7 @@ impl Reactor {
 
     /// Try to process the previously-out-of-order messages we might have buffered.
     #[cfg(feature = "conflux")]
+    #[instrument(level = "trace", skip_all)]
     async fn try_dequeue_ooo_msgs(&mut self) -> StdResult<(), ReactorError> {
         // Check if we're ready to dequeue any of the previously out-of-order cells.
         while let Some(entry) = self.ooo_msgs.peek() {
@@ -940,6 +943,7 @@ impl Reactor {
     }
 
     /// Handle a [`RunOnceCmd`].
+    #[instrument(level = "trace", skip_all)]
     async fn handle_run_once_cmd(&mut self, cmd: RunOnceCmd) -> StdResult<(), ReactorError> {
         match cmd {
             RunOnceCmd::Single(cmd) => return self.handle_single_run_once_cmd(cmd).await,
@@ -959,6 +963,7 @@ impl Reactor {
     }
 
     /// Handle a [`RunOnceCmd`].
+    #[instrument(level = "trace", skip_all)]
     async fn handle_single_run_once_cmd(
         &mut self,
         cmd: RunOnceCmdInner,
@@ -1258,6 +1263,7 @@ impl Reactor {
     /// Wait for a [`CtrlMsg::Create`] to come along to set up the circuit.
     ///
     /// Returns an error if an unexpected `CtrlMsg` is received.
+    #[instrument(level = "trace", skip_all)]
     async fn wait_for_create(&mut self) -> StdResult<(), ReactorError> {
         let msg = select_biased! {
             res = self.command.next() => {
@@ -1313,6 +1319,7 @@ impl Reactor {
     /// the `ConfluxHandshakeContext` is consumed, and the results we have collected
     /// are sent to the handshake initiator.
     #[cfg(feature = "conflux")]
+    #[instrument(level = "trace", skip_all)]
     fn note_conflux_handshake_result(
         &mut self,
         res: StdResult<(), ConfluxHandshakeError>,
@@ -1457,6 +1464,7 @@ impl Reactor {
     ///
     /// Returns [`NoJoinPointError`] if trying to resolve `HopLocation::JoinPoint`
     /// but it does not have a join point.
+    #[instrument(level = "trace", skip_all)]
     fn resolve_hop_location(
         &self,
         hop: HopLocation,
@@ -1520,6 +1528,7 @@ impl Reactor {
     ///
     /// NOTE: this blocks the reactor main loop until all the cells are sent.
     #[cfg(feature = "conflux")]
+    #[instrument(level = "trace", skip_all)]
     async fn handle_link_circuits(
         &mut self,
         circuits: Vec<Circuit>,

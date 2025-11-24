@@ -26,7 +26,7 @@ use tor_error::{Bug, debug_report, warn_report};
 use tor_hscrypto::Subcredential;
 use tor_proto::TargetHop;
 use tor_proto::client::circuit::handshake::hs_ntor;
-use tracing::{debug, trace};
+use tracing::{debug, instrument, trace};
 
 use retry_error::RetryError;
 use safelog::{DispRedacted, Sensitive};
@@ -153,6 +153,7 @@ struct IptExperience {
 /// between "mock connection, used for testing `state.rs`" and
 /// "mock circuit and netdir, used for testing `connect.rs`",
 /// so it is not, itself, unit-testable.
+#[instrument(level = "trace", skip_all)]
 pub(crate) async fn connect<R: Runtime>(
     connector: &HsClientConnector<R>,
     netdir: Arc<NetDir>,
@@ -402,6 +403,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ///
     /// This function handles all necessary retrying of fallible operations,
     /// (and, therefore, must also limit the total work done for a particular call).
+    #[instrument(level = "trace", skip_all)]
     async fn connect(&self, data: &mut Data) -> Result<DataTunnel!(R, M), ConnError> {
         // This function must do the following, retrying as appropriate.
         //  - Look up the onion descriptor in the state.
@@ -438,6 +440,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// Does all necessary retries and timeouts.
     /// Returns an error if no valid descriptor could be found.
     #[allow(clippy::cognitive_complexity)] // TODO: Refactor
+    #[instrument(level = "trace", skip_all)]
     async fn descriptor_ensure<'d>(&self, data: &'d mut DataHsDesc) -> Result<&'d HsDesc, CE> {
         // Maximum number of hsdir connection and retrieval attempts we'll make
         let max_total_attempts = self
@@ -564,6 +567,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     ///
     /// While the returned descriptor is `TimerangeBound`, its validity at the current time *has*
     /// been checked.
+    #[instrument(level = "trace", skip_all)]
     async fn descriptor_fetch_attempt(
         &self,
         hsdir: &Relay<'_>,
@@ -985,6 +989,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// This function will store `Some` when it finds out which relay
     /// it is talking to and starts to converse with it.
     /// That way, if a timeout occurs, the caller can add that information to the error.
+    #[instrument(level = "trace", skip_all)]
     async fn establish_rendezvous(
         &'c self,
         using_rend_pt: &mut Option<RendPtIdentityForError>,
@@ -1092,7 +1097,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     /// So if there's a failure, it's purely to do with the introduction point.
     ///
     /// Does not apply a timeout.
-    #[allow(clippy::cognitive_complexity)] // TODO: Refactor
+    #[allow(clippy::cognitive_complexity, clippy::type_complexity)] // TODO: Refactor
+    #[instrument(level = "trace", skip_all)]
     async fn exchange_introduce(
         &'c self,
         ipt: &UsableIntroPt<'_>,
@@ -1517,6 +1523,7 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
     type DataTunnel = ClientOnionServiceDataTunnel;
     type IntroTunnel = ClientOnionServiceIntroTunnel;
 
+    #[instrument(level = "trace", skip_all)]
     async fn m_get_or_launch_dir(
         &self,
         netdir: &NetDir,
@@ -1524,6 +1531,7 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
     ) -> tor_circmgr::Result<Self::DirTunnel> {
         Ok(HsCircPool::get_or_launch_client_dir(self, netdir, target).await?)
     }
+    #[instrument(level = "trace", skip_all)]
     async fn m_get_or_launch_intro(
         &self,
         netdir: &NetDir,
@@ -1531,6 +1539,7 @@ impl<R: Runtime> MockableCircPool<R> for HsCircPool<R> {
     ) -> tor_circmgr::Result<Self::IntroTunnel> {
         Ok(HsCircPool::get_or_launch_client_intro(self, netdir, target).await?)
     }
+    #[instrument(level = "trace", skip_all)]
     async fn m_get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,

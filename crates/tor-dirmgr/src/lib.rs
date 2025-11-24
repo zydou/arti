@@ -88,7 +88,7 @@ use oneshot_fused_workaround as oneshot;
 use tor_netdoc::doc::netstatus::ProtoStatuses;
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::{Runtime, SpawnExt};
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -233,6 +233,7 @@ impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
         DirMgr::reconfigure(self, new_config, how)
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn bootstrap(&self) -> Result<()> {
         DirMgr::bootstrap(self).await
     }
@@ -437,6 +438,7 @@ impl<R: Runtime> DirMgr<R> {
     /// Panics if the `DirMgr` passed to this function was not created in online mode, such as
     /// via `load_once`.
     #[allow(clippy::cognitive_complexity)] // TODO: Refactor
+    #[instrument(level = "trace", skip_all)]
     pub async fn bootstrap(self: &Arc<Self>) -> Result<()> {
         if self.offline {
             return Err(Error::OfflineMode);
@@ -549,6 +551,7 @@ impl<R: Runtime> DirMgr<R> {
 
     /// Return a new directory manager from a given configuration,
     /// bootstrapping from the network as necessary.
+    #[instrument(level = "trace", skip_all)]
     pub async fn bootstrap_from_config(
         config: DirMgrConfig,
         runtime: R,
@@ -644,6 +647,7 @@ impl<R: Runtime> DirMgr<R> {
     /// If we have begin to have a bootstrapped directory, send a
     /// message using `on_complete`.
     #[allow(clippy::cognitive_complexity)] // TODO: Refactor?
+    #[instrument(level = "trace", skip_all)]
     async fn download_forever(
         weak: Weak<Self>,
         schedule: &mut TaskSchedule<R>,

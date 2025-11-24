@@ -68,6 +68,7 @@ static CONNECTION_DELAY: Duration = Duration::from_millis(150);
 /// Connect to one of the addresses in `addrs` by running connections in parallel until one works.
 ///
 /// This implements a basic version of RFC 8305 "happy eyeballs".
+#[instrument(skip_all, level = "trace")]
 async fn connect_to_one<R: Runtime>(
     rt: &R,
     addrs: &[SocketAddr],

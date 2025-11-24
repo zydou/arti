@@ -80,6 +80,7 @@ use tor_config::file_watcher::{
 use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_dirclient::SourceInfo;
 use tor_netdir::{DirEvent, NetDir};
+use tracing::instrument;
 
 use crate::config::OnionServiceConfigPublisherView;
 use crate::config::restricted_discovery::{
@@ -357,6 +358,7 @@ impl<R: Runtime> Mockable for Real<R> {
         rand::rng()
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn get_or_launch_hs_dir<T>(
         &self,
         netdir: &NetDir,

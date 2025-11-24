@@ -16,6 +16,7 @@ use tor_cell::relaycell::{
 };
 use tor_circmgr::ServiceOnionServiceIntroTunnel;
 use tor_proto::TargetHop;
+use tracing::instrument;
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {
@@ -281,6 +282,7 @@ impl IptEstablisher {
     ///
     /// When the resulting `IptEstablisher` is dropped, it will cancel all tasks
     /// and close all circuits used to establish this introduction point.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn launch<R: Runtime>(
         runtime: &R,
         params: IptParameters,
@@ -640,6 +642,7 @@ impl<R: Runtime> Reactor<R> {
     /// Run forever, keeping an introduction point established.
     #[allow(clippy::blocks_in_conditions)]
     #[allow(clippy::cognitive_complexity)]
+    #[instrument(level = "trace", skip_all)]
     async fn keep_intro_established(
         &self,
         mut status_tx: DropNotifyWatchSender<IptStatus>,
@@ -710,6 +713,7 @@ impl<R: Runtime> Reactor<R> {
     /// point there.
     ///
     /// Does not retry.  Does not time out except via `HsCircPool`.
+    #[instrument(level = "trace", skip_all)]
     async fn establish_intro_once(
         &self,
     ) -> Result<(IntroPtSession, GoodIptDetails), IptEstablisherError> {

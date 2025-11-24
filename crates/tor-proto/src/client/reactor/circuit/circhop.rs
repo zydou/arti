@@ -30,6 +30,7 @@ use tor_cell::relaycell::{
 
 use safelog::sensitive as sv;
 use tor_error::Bug;
+use tracing::instrument;
 
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -304,6 +305,7 @@ impl CircHop {
     /// Check if we should send an XON message.
     ///
     /// If we should, then returns the XON message that should be sent.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn maybe_send_xon(
         &mut self,
         rate: XonKbpsEwma,

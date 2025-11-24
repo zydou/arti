@@ -34,7 +34,7 @@ use tor_rtcompat::{
     Runtime, SleepProviderExt, SpawnExt,
     scheduler::{TaskHandle, TaskSchedule},
 };
-use tracing::{debug, trace, warn};
+use tracing::{debug, instrument, trace, warn};
 
 use std::result::Result as StdResult;
 
@@ -223,6 +223,7 @@ impl<R: Runtime> HsCircPool<R> {
     /// Create a client directory circuit ending at the chosen hop `target`.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_client_dir<T>(
         &self,
         netdir: &NetDir,
@@ -241,6 +242,7 @@ impl<R: Runtime> HsCircPool<R> {
     /// Create a client introduction circuit ending at the chosen hop `target`.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_client_intro<T>(
         &self,
         netdir: &NetDir,
@@ -259,6 +261,7 @@ impl<R: Runtime> HsCircPool<R> {
     /// Create a service directory circuit ending at the chosen hop `target`.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_svc_dir<T>(
         &self,
         netdir: &NetDir,
@@ -277,6 +280,7 @@ impl<R: Runtime> HsCircPool<R> {
     /// Create a service introduction circuit ending at the chosen hop `target`.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_svc_intro<T>(
         &self,
         netdir: &NetDir,
@@ -295,6 +299,7 @@ impl<R: Runtime> HsCircPool<R> {
     /// Create a service rendezvous (data) circuit ending at the chosen hop `target`.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_svc_rend<T>(
         &self,
         netdir: &NetDir,
@@ -315,6 +320,7 @@ impl<R: Runtime> HsCircPool<R> {
     /// Return the circuit, along with a [`Relay`] from `netdir` representing its final hop.
     ///
     /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
@@ -406,6 +412,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     }
 
     /// Internal implementation for [`HsCircPool::launch_background_tasks`].
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn launch_background_tasks(
         self: &Arc<Self>,
         runtime: &R,
@@ -435,6 +442,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     }
 
     /// Internal implementation for [`HsCircPool::get_or_launch_client_rend`].
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
@@ -490,6 +498,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
     /// Helper for the [`HsCircPool`] functions that launch rendezvous,
     /// introduction, or directory circuits.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get_or_launch_specific<T>(
         &self,
         netdir: &NetDir,
@@ -606,6 +615,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// If vanguards are disabled, `kind` is unused.
     ///
     /// If there is no such circuit, build and return a new one.
+    #[instrument(level = "trace", skip_all)]
     async fn take_or_launch_stem_circuit<T>(
         &self,
         netdir: &NetDir,
@@ -1108,6 +1118,7 @@ fn relay_for_path_ent<'a>(
 
 /// Background task to launch onion circuits as needed.
 #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor, after !3007 is in.
+#[instrument(level = "trace", skip_all)]
 async fn launch_hs_circuits_as_needed<B: AbstractTunnelBuilder<R> + 'static, R: Runtime>(
     pool: Weak<HsCircPoolInner<B, R>>,
     netdir_provider: Weak<dyn NetDirProvider + 'static>,

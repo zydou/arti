@@ -49,7 +49,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
 use tor_rtcompat::SpawnExt;
-use tracing::{debug, warn};
+use tracing::{debug, instrument, trace, warn};
 use weak_table::PtrWeakHashSet;
 
 mod streams;
@@ -964,6 +964,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     ///
     /// This is the primary entry point for AbstractTunnelMgr.
     #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor?
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get_or_launch(
         self: &Arc<Self>,
         usage: &TargetTunnelUsage,
@@ -1075,6 +1076,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                 AbsRetryTime::At(t) => {
                     let remaining = timeout_at.saturating_duration_since(now);
                     let delay = t.saturating_duration_since(now);
+                    trace!(?delay, "Waiting to retry...");
                     self.runtime.sleep(std::cmp::min(delay, remaining)).await;
                 }
             }
@@ -1113,6 +1115,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     /// If `restrict_circ` is true, we restrict the spec of any
     /// circ we decide to use to mark that it _is_ being used for
     /// `usage`.
+    #[instrument(level = "trace", skip_all)]
     fn prepare_action(
         &self,
         usage: &TargetTunnelUsage,
@@ -1183,7 +1186,8 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
     /// Execute an action returned by pick-action, and return the
     /// resulting tunnel or error.
-    #[allow(clippy::cognitive_complexity)] // TODO #2010: Refactor
+    #[allow(clippy::cognitive_complexity, clippy::type_complexity)] // TODO #2010: Refactor
+    #[instrument(level = "trace", skip_all)]
     async fn take_action(
         self: Arc<Self>,
         act: Action<B, R>,
@@ -1223,17 +1227,20 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
             Action::Open(c) => {
                 // There's already a perfectly good open tunnel; we can return
                 // it now.
+                trace!("Returning existing tunnel.");
                 return Ok((c, TunnelProvenance::Preexisting));
             }
             Action::Wait(f) => {
                 // There is one or more pending tunnel that we're waiting for.
                 // If any succeeds, we try to use it.  If they all fail, we
                 // fail.
+                trace!("Waiting for tunnel.");
                 (false, f)
             }
             Action::Build(plans) => {
                 // We're going to launch one or more tunnels in parallel.  We
                 // report success if any succeeds, and failure of they all fail.
+                trace!("Building new tunnel.");
                 let futures = FuturesUnordered::new();
                 for plan in plans {
                     let self_clone = Arc::clone(&self);
@@ -1399,6 +1406,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     /// whether one already exists or is pending.
     ///
     /// Return a listener that will be informed when the tunnel is done.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn launch_by_usage(
         self: &Arc<Self>,
         usage: &TargetTunnelUsage,
@@ -1418,6 +1426,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     ///
     /// The `usage` argument is the usage from the original request that made
     /// us build this tunnel.
+    #[instrument(level = "trace", skip_all)]
     fn spawn_launch(
         self: Arc<Self>,
         usage: &TargetTunnelUsage,
@@ -1490,6 +1499,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
 
     /// Run in the background to launch a tunnel. Return a 2-tuple of the new
     /// tunnel spec and the outcome that should be sent to the initiator.
+    #[instrument(level = "trace", skip_all)]
     async fn do_launch(
         self: Arc<Self>,
         plan: <B as AbstractTunnelBuilder<R>>::Plan,
@@ -1565,6 +1575,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
     /// The new tunnel will participate in the guard and timeout apparatus as
     /// appropriate, no retry attempt will be made if the tunnel fails.
     #[cfg(feature = "hs-common")]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn launch_unmanaged(
         &self,
         usage: &TargetTunnelUsage,

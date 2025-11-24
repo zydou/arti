@@ -73,6 +73,7 @@ use tor_proto::memquota::ChannelAccount;
 use tor_proto::memquota::ToplevelAccount;
 use tor_rtcompat::SpawnExt;
 use tracing::debug;
+use tracing::instrument;
 use void::{ResultVoidErrExt, Void};
 
 pub use err::Error;
@@ -252,6 +253,7 @@ impl<R: Runtime> ChanMgr<R> {
     ///
     /// Returns a [`TaskHandle`] that can be used to manage
     /// those daemon tasks that poll periodically.
+    #[instrument(level = "trace", skip_all)]
     pub fn launch_background_tasks(
         self: &Arc<Self>,
         runtime: &R,
@@ -296,6 +298,7 @@ impl<R: Runtime> ChanMgr<R> {
     /// If there is already a channel launch attempt in progress, this
     /// function will wait until that launch is complete, and succeed
     /// or fail depending on its outcome.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch<T: ChanTarget + ?Sized>(
         &self,
         target: &T,
@@ -383,6 +386,7 @@ impl<R: Runtime> ChanMgr<R> {
     /// make sure that no other code with access to this `ChanMgr` will be able
     /// to use the channel.
     #[cfg(feature = "experimental-api")]
+    #[instrument(level = "trace", skip_all)]
     pub async fn build_unmanaged_channel(
         &self,
         target: impl tor_linkspec::IntoOwnedChanTarget,
@@ -404,6 +408,7 @@ impl<R: Runtime> ChanMgr<R> {
     ///
     /// This is a daemon task that runs indefinitely in the background,
     /// and exits when we find that `chanmgr` is dropped.
+    #[instrument(level = "trace", skip_all)]
     async fn continually_update_channels_config(
         self_: Weak<Self>,
         netdir: Arc<dyn NetDirProvider>,
@@ -445,6 +450,7 @@ impl<R: Runtime> ChanMgr<R> {
     /// Exist when we find that `chanmgr` is dropped
     ///
     /// This is a daemon task that runs indefinitely in the background
+    #[instrument(level = "trace", skip_all)]
     async fn continually_expire_channels(mut sched: TaskSchedule<R>, chanmgr: Weak<Self>) {
         while sched.next().await.is_some() {
             let Some(cm) = Weak::upgrade(&chanmgr) else {

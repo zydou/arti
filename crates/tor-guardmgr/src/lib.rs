@@ -325,6 +325,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// It won't be able to hand out any guards until a [`NetDirProvider`] has
     /// been installed.
+    #[instrument(skip_all, level = "trace")]
     pub fn new<S>(
         runtime: R,
         state_mgr: S,
@@ -475,6 +476,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// We only call this method if we _don't_ have the lock on the state
     /// files.  If we have the lock, we only want to save.
+    #[instrument(level = "trace", skip_all)]
     pub fn reload_persistent_state(&self) -> Result<(), GuardMgrError> {
         let mut inner = self.inner.lock().expect("Poisoned lock");
         if let Some(new_guards) = inner.storage.load()? {
@@ -486,6 +488,7 @@ impl<R: Runtime> GuardMgr<R> {
     /// Switch from having an unowned persistent state to having an owned one.
     ///
     /// Requires that we hold the lock on the state files.
+    #[instrument(level = "trace", skip_all)]
     pub fn upgrade_to_owned_persistent_state(&self) -> Result<(), GuardMgrError> {
         let mut inner = self.inner.lock().expect("Poisoned lock");
         debug_assert!(inner.storage.can_store());
@@ -540,6 +543,7 @@ impl<R: Runtime> GuardMgr<R> {
     }
 
     /// Replace the configuration in this `GuardMgr` with `config`.
+    #[instrument(level = "trace", skip_all)]
     pub fn reconfigure(
         &self,
         config: &impl GuardMgrConfig,
@@ -587,6 +591,7 @@ impl<R: Runtime> GuardMgr<R> {
     /// through the guard returned by this function, but you can't
     /// actually use it for traffic unless the [`GuardUsable`] future
     /// yields "true".
+    #[instrument(skip_all, level = "trace")]
     pub fn select_guard(
         &self,
         usage: GuardUsage,
@@ -899,6 +904,7 @@ impl GuardMgrInner {
 
     /// Replace our bridge configuration with the one from `new_config`.
     #[cfg(feature = "bridge-client")]
+    #[instrument(level = "trace", skip_all)]
     fn replace_bridge_config(
         &mut self,
         new_config: &impl GuardMgrConfig,
@@ -1078,6 +1084,7 @@ impl GuardMgrInner {
 
     /// Replace the active guard state with `new_state`, preserving
     /// non-persistent state for any guards that are retained.
+    #[instrument(level = "trace", skip_all)]
     fn replace_guards_with(
         &mut self,
         mut new_guards: GuardSets,
@@ -1158,6 +1165,7 @@ impl GuardMgrInner {
     }
 
     /// Replace the current GuardFilter with `filter`.
+    #[instrument(level = "trace", skip_all)]
     fn set_filter(&mut self, filter: GuardFilter, wallclock: SystemTime, now: Instant) {
         self.filter = filter;
         self.update(wallclock, now);
@@ -1443,6 +1451,7 @@ impl GuardMgrInner {
     }
 
     /// Try to select a guard, expanding the sample if the first attempt fails.
+    #[instrument(skip_all, level = "trace")]
     fn select_guard_with_expand(
         &mut self,
         usage: &GuardUsage,

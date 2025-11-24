@@ -19,6 +19,7 @@ pub(crate) mod net {
     use std::pin::Pin;
     use std::task::{Context, Poll};
     use tor_general_addr::unix;
+    use tracing::instrument;
 
     /// Provide wrapper for different stream types
     /// (e.g async_net::TcpStream and async_net::unix::UnixStream).
@@ -105,6 +106,7 @@ pub(crate) mod net {
         type Stream = TcpStream;
         type Listener = TcpListener;
 
+        #[instrument(skip_all, level = "trace")]
         async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream> {
             TcpStream::connect(addr).await
         }
@@ -124,6 +126,7 @@ pub(crate) mod net {
         type Stream = UnixStream;
         type Listener = UnixListener;
 
+        #[instrument(skip_all, level = "trace")]
         async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
             let path = addr
                 .as_pathname()

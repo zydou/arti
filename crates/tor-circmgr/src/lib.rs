@@ -67,7 +67,7 @@ use futures::StreamExt;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tor_rtcompat::SpawnExt;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(feature = "testing")]
 pub use config::test_config::TestConfig;
@@ -227,6 +227,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<ClientDirTunnel> {
         let tunnel = self.0.get_or_launch_dir(netdir).await?;
         Ok(tunnel.into())
@@ -237,6 +238,7 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// If the list of ports is empty, then the chosen circuit will
     /// still end at _some_ exit.
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_exit(
         &self,
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
@@ -265,6 +267,7 @@ impl<R: Runtime> CircMgr<R> {
     /// This could be used, for example, to download a descriptor for a bridge.
     #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
     #[cfg(feature = "specific-relay")]
+    #[instrument(level = "trace", skip_all)]
     pub async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
         &self,
         target: T,
@@ -278,6 +281,7 @@ impl<R: Runtime> CircMgr<R> {
     /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
     //
     // NOTE(eta): The ?Sized on D is so we can pass a trait object in.
+    #[instrument(level = "trace", skip_all)]
     pub fn launch_background_tasks<D, S>(
         self: &Arc<Self>,
         runtime: &R,
@@ -343,6 +347,7 @@ impl<R: Runtime> CircMgr<R> {
     /// The actual behavior here will depend on the value of `how`.
     ///
     /// Returns whether any of the circuit pools should be cleared.
+    #[instrument(level = "trace", skip_all)]
     pub fn reconfigure<CFG: CircMgrConfig>(
         &self,
         new_config: &CFG,
@@ -473,6 +478,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
     //
     // NOTE(eta): The ?Sized on D is so we can pass a trait object in.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn launch_background_tasks<D, S>(
         self: &Arc<Self>,
         runtime: &R,
@@ -545,6 +551,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<B::Tunnel>> {
         self.expire_circuits().await;
         let usage = TargetTunnelUsage::Dir;
@@ -556,6 +563,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     ///
     /// If the list of ports is empty, then the chosen circuit will
     /// still end at _some_ exit.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get_or_launch_exit(
         &self,
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
@@ -602,6 +610,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// This could be used, for example, to download a descriptor for a bridge.
     #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
     #[cfg(feature = "specific-relay")]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
         &self,
         target: T,
@@ -619,6 +628,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// The actual behavior here will depend on the value of `how`.
     ///
     /// Returns whether any of the circuit pools should be cleared.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn reconfigure<CFG: CircMgrConfig>(
         &self,
         new_config: &CFG,
@@ -688,6 +698,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// dangling.
     ///
     /// This is a daemon task: it runs indefinitely in the background.
+    #[instrument(level = "trace", skip_all)]
     async fn keep_circmgr_params_updated<D>(
         mut events: impl futures::Stream<Item = DirEvent> + Unpin,
         circmgr: Weak<Self>,
@@ -723,6 +734,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// Exit when we notice that `circmgr` or `dirmgr` has been dropped.
     ///
     /// This is a daemon task: it runs indefinitely in the background.
+    #[instrument(level = "trace", skip_all)]
     async fn continually_launch_timeout_testing_circuits<D>(
         mut sched: TaskSchedule<R>,
         circmgr: Weak<Self>,
@@ -800,6 +812,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     ///
     /// This is a daemon task: it runs indefinitely in the background.
     #[allow(clippy::cognitive_complexity)] // because of tracing
+    #[instrument(level = "trace", skip_all)]
     async fn update_persistent_state<S>(
         mut sched: TaskSchedule<R>,
         circmgr: Weak<Self>,
@@ -880,6 +893,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     ///
     /// This would be better handled entirely within `tor-circmgr`, like
     /// other daemon tasks.
+    #[instrument(level = "trace", skip_all)]
     async fn continually_preemptively_build_circuits<D>(
         mut sched: TaskSchedule<R>,
         circmgr: Weak<Self>,
@@ -926,6 +940,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// This function is invoked periodically from
     /// `continually_preemptively_build_circuits()`.
     #[allow(clippy::cognitive_complexity)]
+    #[instrument(level = "trace", skip_all)]
     async fn launch_circuits_preemptively(
         &self,
         netdir: DirInfo<'_>,
@@ -993,6 +1008,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     ///
     /// Used to implement onion service clients and services.
     #[cfg(feature = "hs-common")]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn launch_hs_unmanaged<T>(
         &self,
         planned_target: Option<T>,

@@ -68,6 +68,7 @@ use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
+use tracing::instrument;
 
 use crate::{Error, Result, hspool::HsCircKind, hspool::HsCircStemKind};
 
@@ -134,6 +135,7 @@ impl HsPathBuilder {
 
     /// Try to create and return a path for a hidden service circuit stem.
     #[cfg_attr(feature = "vanguards", allow(unused))]
+    #[instrument(skip_all, level = "trace")]
     pub(crate) fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -151,6 +153,7 @@ impl HsPathBuilder {
     /// [pick_path](HsPathBuilder::pick_path).
     #[cfg(feature = "vanguards")]
     #[cfg_attr(not(feature = "vanguards"), allow(unused))]
+    #[instrument(skip_all, level = "trace")]
     pub(crate) fn pick_path_with_vanguards<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -223,6 +226,7 @@ struct VanguardHsPathBuilder {
 #[cfg(feature = "vanguards")]
 impl VanguardHsPathBuilder {
     /// Try to create and return a path for a hidden service circuit stem.
+    #[instrument(skip_all, level = "trace")]
     fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
