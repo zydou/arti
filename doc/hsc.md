@@ -110,7 +110,8 @@ pointing to the `ClientOnionAuthDir` of the client you wish to migrate:
 ```toml
 [[storage.keystore.ctor.clients]]
 
-# The identifier of this keystore.
+# The identifier of this keystore.  (Ie, the local nickname
+# used to refer to this keystore in the rest of your config.)
 id = "ctor-client"
 
 # This should be set to the `ClientOnionAuthDir` of your client.
