@@ -85,8 +85,9 @@ See `arti hsc key remove --help` for more information.
 
 ## Migrating from C Tor to Arti
 
-Service discovery keys from one of the registered C Tor keystores can be migrated
-to the Arti primary keystore using the `hsc ctor-migrate` command.
+Arti supports importing C Tor client restricted discovery keys
+(formerly known as ["client authorization keys"])
+to Arti's keystore using the experimental `arti hsc ctor-migrate` command.
 
 > Note: this feature is only available in builds that have the experimental
 > `onion-service-cli-extra` feature enabled.
@@ -136,3 +137,5 @@ The original C Tor keystore remains unchanged after the operation.
 > using C Tor, or the Arti one if you don't wish to switch to Arti)
 
 See `arti hsc ctor-migrate --help` for more information.
+
+["client authorization keys"]: https://community.torproject.org/onion-services/advanced/client-auth/
