@@ -140,11 +140,11 @@ Alternatively, you can pass the C Tor configuration as an argument using the `-o
 $ arti hsc -o storage.keystore.ctor.clients='[{id = "ctor-keystore-id", path = "/path/to/ctor_keystore"}]' ctor-migrate --from ctor-keystore-id
 ```
 
-The command detects whether keys for the services corresponding to the C Tor keys
-are already present in the primary keystore. If so, the user is prompted before
-overwriting.
-
-You can disable the confirmation prompt and force overwriting using the `-b` option.
+If your Arti client already has some keys for the onion services
+you are migrating discovery keys for,
+they will be removed as part of the migration
+(by default, `ctor-migrate` prompts before removal,
+but you can disable that behavior using `--batch`).
 
 The `hsc ctor-migrate` command can detect conflicts where multiple keys in the
 registered C Tor keystore belong to the same service. This situation is invalid
