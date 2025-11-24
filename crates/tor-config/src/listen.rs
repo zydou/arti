@@ -74,6 +74,7 @@ impl Listen {
     fn ip_addrs_internal(
         &self,
     ) -> impl Iterator<Item = impl Iterator<Item = SocketAddr> + '_> + '_ {
+        // We interpret standalone ports to be localhost addresses.
         let ips = [Ipv6Addr::LOCALHOST.into(), Ipv4Addr::LOCALHOST.into()];
         self.0.items().map(move |item| item.iter(ips))
     }
@@ -243,7 +244,15 @@ impl CustomizableListen {
     }
 }
 
-/// One item in the `Listen`
+/// One item in the [`CustomizableListen`].
+///
+/// This type defines a common format for parsing.
+/// We don't assign any particular meaning to the variants.
+/// For example a standalone port doesn't imply anything about what IP address should be used.
+/// Similarly, a port of 0 doesn't have any inherent meaning.
+/// For example a port of 0 might mean "don't listen" (when network addresses are optional)
+/// or might mean "raise an error" (when network addresses are required).
+/// It's up to the user of this type to assign meaning to the values given.
 ///
 /// We distinguish a standalone port,
 /// rather than just storing two `net:SocketAddr`,
