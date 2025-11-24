@@ -471,7 +471,12 @@ where
         Some(p) if p == "" => Path::new("."),
         Some(d) => d,
     };
-    mistrust.make_directory(directory)?;
+    mistrust.make_directory(directory).with_context(|| {
+        format!(
+            "Unable to create parent directory for logfile \"{}\"",
+            path.display_lossy()
+        )
+    })?;
     let fname = path
         .file_name()
         .ok_or_else(|| anyhow!("No path for log file"))
