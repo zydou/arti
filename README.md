@@ -24,7 +24,7 @@ The trait itself offers four methods:
 * [`SaturatingTime::saturating_add()`] – Saturating addition for this type.
 * [`SaturatingTime::saturating_sub()`] – Saturating subtraction for this type.
 
-This trait is sealed, meaning applications may not implement itself.
+This trait is sealed, meaning applications may not implement it themselves.
 However, this crate implements this trait for two structures:
 * [`std::time::Instant`]
 * [`std::time::SystemTime`]
@@ -78,4 +78,4 @@ None yet.
 ## License and Copyright
 
 This crate is licensed under `MIT OR Apache-2.0`.
-See the respective `LICENSE-*` file in the repository for more information.
+See the respective `LICENSE-*` files in the repository for more information.

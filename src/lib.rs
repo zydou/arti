@@ -5,7 +5,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 mod internal;
 
-/// The core trait of this trait, [`SaturatingTime`].
+/// The core trait of this crait, [`SaturatingTime`].
 ///
 /// This trait provides methods for performing saturating arithmetic on those
 /// types in [`std::time`] that not already come with such a functionality,
