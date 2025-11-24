@@ -13,6 +13,7 @@ use std::{
 use tor_dirmgr::{DirMgrConfig, DirMgrStore};
 use tor_error::{ErrorKind, HasKind as _};
 use tor_rtcompat::Runtime;
+use tracing::instrument;
 
 /// An object that knows how to construct some kind of DirProvider.
 ///
@@ -183,6 +184,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// block the current thread.
     /// Use [`create_unbootstrapped_async`](Self::create_unbootstrapped_async)
     /// if that is not what you want.
+    #[instrument(skip_all, level = "trace")]
     pub fn create_unbootstrapped(&self) -> Result<TorClient<R>> {
         let timeout = self.local_resource_timeout_or(Duration::from_millis(0))?;
         let give_up_at = Instant::now() + timeout;
@@ -204,6 +206,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// If no [`local_resource_timeout`](Self::local_resource_timeout) has been set, this function may
     /// delay a short while (currently 500 msec) for local resources (such as lock files) to be available.
     /// Set `local_resource_timeout` to 0 if you do not want this behavior.
+    #[instrument(skip_all, level = "trace")]
     pub async fn create_unbootstrapped_async(&self) -> Result<TorClient<R>> {
         // TODO: This code is largely duplicated from create_unbootstrapped above.  It might be good
         // to have a single shared implementation to handle both the sync and async cases, but I am
@@ -228,6 +231,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     ///
     /// Does not retry on `LocalResourceAlreadyInUse`; instead, returns a time that we should wait,
     /// and log a message if `first_attempt` is true.
+    #[instrument(skip_all, level = "trace")]
     fn create_unbootstrapped_inner<F>(
         &self,
         now: F,

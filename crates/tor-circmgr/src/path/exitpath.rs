@@ -3,6 +3,7 @@
 use std::time::SystemTime;
 
 use rand::Rng;
+use tracing::instrument;
 
 use super::{AnonymousPathBuilder, TorPath};
 use crate::path::pick_path;
@@ -104,6 +105,7 @@ impl ExitPathBuilder {
 
     /// Try to create and return a path corresponding to the requirements of
     /// this builder.
+    #[instrument(skip_all, level = "trace")]
     pub(crate) fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,

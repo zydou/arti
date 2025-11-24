@@ -10,6 +10,7 @@ use cfg_if::cfg_if;
 use futures::Sink;
 use pin_project::pin_project;
 use tor_rtcompat::DynTimeProvider;
+use tracing::instrument;
 
 use crate::{
     HopNum,
@@ -156,6 +157,7 @@ impl CircuitCellSender {
     ///
     /// See note on [`CircuitCellSender`] type about polling:
     /// If you don't poll this sink, then queued items might never flush.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn send_unbounded(&mut self, entry: ChanCellQueueEntry) -> crate::Result<()> {
         Pin::new(self.sometimes_unbounded_mut())
             .send_unbounded(entry)
@@ -192,6 +194,7 @@ impl CircuitCellSender {
 
     /// Note: This is only async because we need a Context to check the underlying sink for readiness.
     /// This will register a new waker (or overwrite any existing waker).
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn congestion_signals(&mut self) -> CongestionSignals {
         futures::future::poll_fn(|cx| -> Poll<CongestionSignals> {
             // We're looking at the ChanSender's in order to deliberately ignore the blocked/unblocked

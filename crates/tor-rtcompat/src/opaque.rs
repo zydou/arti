@@ -74,6 +74,7 @@ macro_rules! implement_opaque_runtime {
         type Stream = <$mty as $crate::traits::NetStreamProvider>::Stream;
         type Listener = <$mty as $crate::traits::NetStreamProvider>::Listener;
         #[inline]
+        #[tracing::instrument(skip_all, level = "trace")]
         async fn connect(&self, addr: &std::net::SocketAddr) -> std::io::Result<Self::Stream> {
             self.$member.connect(addr).await
         }
@@ -87,6 +88,7 @@ macro_rules! implement_opaque_runtime {
         type Stream = <$mty as $crate::traits::NetStreamProvider<tor_general_addr::unix::SocketAddr>>::Stream;
         type Listener = <$mty as $crate::traits::NetStreamProvider<tor_general_addr::unix::SocketAddr>>::Listener;
         #[inline]
+        #[tracing::instrument(skip_all, level = "trace")]
         async fn connect(&self, addr: &tor_general_addr::unix::SocketAddr) -> std::io::Result<Self::Stream> {
             self.$member.connect(addr).await
         }

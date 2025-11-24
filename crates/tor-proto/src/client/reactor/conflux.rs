@@ -12,7 +12,7 @@ use itertools::Itertools;
 use itertools::structs::ExactlyOneError;
 use smallvec::{SmallVec, smallvec};
 use tor_rtcompat::{SleepProvider as _, SleepProviderExt as _};
-use tracing::{info, trace, warn};
+use tracing::{info, instrument, trace, warn};
 
 use tor_cell::relaycell::AnyRelayMsgOuter;
 use tor_error::{Bug, bad_api_usage, internal};
@@ -286,6 +286,7 @@ impl ConfluxSet {
     /// We do not yet support resumption. See [2.4.3. Closing circuits] in prop329.
     ///
     /// [2.4.3. Closing circuits]: https://spec.torproject.org/proposals/329-traffic-splitting.html#243-closing-circuits
+    #[instrument(level = "trace", skip_all)]
     pub(super) fn remove(&mut self, leg: UniqId) -> Result<Circuit, ReactorError> {
         let circ = self.remove_unchecked(leg)?;
 
@@ -904,6 +905,7 @@ impl ConfluxSet {
     ///
     /// This is cancellation-safe.
     #[allow(clippy::unnecessary_wraps)] // Can return Err if conflux is enabled
+    #[instrument(level = "trace", skip_all)]
     pub(super) async fn next_circ_action(
         &mut self,
         runtime: &tor_rtcompat::DynTimeProvider,
@@ -1091,6 +1093,7 @@ impl ConfluxSet {
     /// Encode `msg`, encrypt it, and send it to the 'hop'th hop.
     ///
     /// See [`Circuit::send_relay_cell`].
+    #[instrument(level = "trace", skip_all)]
     pub(super) async fn send_relay_cell_on_leg(
         &mut self,
         msg: SendRelayCell,

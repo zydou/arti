@@ -207,6 +207,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
     /// Get a channel whose identity is `ident` - internal implementation
     #[allow(clippy::cognitive_complexity)]
+    #[instrument(skip_all, level = "trace")]
     async fn get_or_launch_internal(
         &self,
         target: CF::BuildSpec,
@@ -341,6 +342,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     /// instead return `Ok(None)`.  (We could instead have the caller detect
     /// such actions, but it's less efficient to construct them, insert them,
     /// and immediately revert them.)
+    #[instrument(skip_all, level = "trace")]
     fn choose_action(
         &self,
         target: &CF::BuildSpec,

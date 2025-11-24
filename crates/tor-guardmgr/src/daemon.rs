@@ -124,6 +124,7 @@ pub(crate) async fn keep_netdir_updated<RT: tor_rtcompat::Runtime>(
 /// Background task to keep a guard manager up-to-date with a given bridge
 /// descriptor provider.
 #[cfg(feature = "bridge-client")]
+#[instrument(level = "trace", skip_all)]
 pub(crate) async fn keep_bridge_descs_updated<RT: tor_rtcompat::Runtime>(
     runtime: RT,
     inner: Weak<Mutex<GuardMgrInner>>,

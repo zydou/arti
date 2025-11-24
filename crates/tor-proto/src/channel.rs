@@ -117,7 +117,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use tracing::trace;
+use tracing::{instrument, trace};
 
 // reexport
 pub use super::client::channel::handshake::ClientInitiatorHandshake;
@@ -688,6 +688,7 @@ impl Channel {
     }
 
     /// Send a control message
+    #[instrument(level = "trace", skip_all)]
     fn send_control(&self, msg: CtrlMsg) -> StdResult<(), ChannelClosed> {
         self.control
             .unbounded_send(msg)
@@ -713,6 +714,7 @@ impl Channel {
     /// Idempotent.
     ///
     /// There is no way to undo the effect of this call.
+    #[instrument(level = "trace", skip_all)]
     pub fn engage_padding_activities(&self) {
         let mut mutable = self.mutable();
 
@@ -750,6 +752,7 @@ impl Channel {
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
+    #[instrument(level = "trace", skip_all)]
     pub fn reparameterize(&self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
         let mut mutable = self
             .mutable
@@ -772,6 +775,7 @@ impl Channel {
     /// Update the KIST parameters.
     ///
     /// Returns `Err` if the channel is closed.
+    #[instrument(level = "trace", skip_all)]
     pub fn reparameterize_kist(&self, kist_params: KistParams) -> Result<()> {
         Ok(self.send_control(CtrlMsg::KistConfigUpdate(kist_params))?)
     }
@@ -815,6 +819,7 @@ impl Channel {
     /// To use the results of this method, call Reactor::run() in a
     /// new task, then use the methods of
     /// [crate::client::circuit::PendingClientTunnel] to build the circuit.
+    #[instrument(level = "trace", skip_all)]
     pub async fn new_tunnel(
         self: &Arc<Self>,
         timeouts: Arc<dyn TimeoutEstimator>,
@@ -865,11 +870,13 @@ impl Channel {
     /// It's not necessary to call this method if you're just done
     /// with a channel: the channel should close on its own once nothing
     /// is using it any more.
+    #[instrument(level = "trace", skip_all)]
     pub fn terminate(&self) {
         let _ = self.send_control(CtrlMsg::Shutdown);
     }
 
     /// Tell the reactor that the circuit with the given ID has gone away.
+    #[instrument(level = "trace", skip_all)]
     pub fn close_circuit(&self, circid: CircId) -> Result<()> {
         self.send_control(CtrlMsg::CloseCircuit(circid))?;
         Ok(())

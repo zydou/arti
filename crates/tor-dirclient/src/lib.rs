@@ -73,7 +73,7 @@ use futures::io::{
 use memchr::memchr;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::info;
+use tracing::{info, instrument};
 
 pub use err::{Error, RequestError, RequestFailedError};
 pub use response::{DirResponse, SourceInfo};
@@ -110,6 +110,7 @@ pub enum AnonymizedRequest {
 ///
 /// This is the only function in this crate that knows about CircMgr and
 /// DirInfo.  Perhaps this function should move up a level into DirMgr?
+#[instrument(level = "trace", skip_all)]
 pub async fn get_resource<CR, R, SP>(
     req: &CR,
     dirinfo: DirInfo<'_>,

@@ -43,7 +43,7 @@ use std::sync::Arc;
 use crate::channel::{ChannelDetails, CloseInfo, kist::KistParams, padding, params::*, unique_id};
 use crate::circuit::celltypes::CreateResponse;
 use crate::client::circuit::CircuitRxSender;
-use tracing::{debug, trace};
+use tracing::{debug, instrument, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
 pub(super) type BoxedChannelStream =
@@ -231,6 +231,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
     ///
     /// Once this function returns, the channel is dead, and can't be
     /// used again.
+    #[instrument(level = "trace", skip_all)]
     pub async fn run(mut self) -> Result<()> {
         trace!(channel_id = %self, "Running reactor");
         let result: Result<()> = loop {
@@ -256,6 +257,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
     }
 
     /// Helper for run(): handles only one action.
+    #[instrument(level = "trace", skip_all)]
     async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
         select! {
 
@@ -344,6 +346,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
     }
 
     /// Handle a CtrlMsg other than Shutdown.
+    #[instrument(level = "trace", skip(self))] // Intentionally omitting skip_all, msg is useful and not sensitive
     async fn handle_control(&mut self, msg: CtrlMsg) -> Result<()> {
         trace!(
             channel_id = %self,
@@ -546,6 +549,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
 
     /// Helper: process a cell on a channel.  Most cell types get ignored
     /// or rejected; a few get delivered to circuits.
+    #[instrument(level = "trace", skip_all)]
     async fn handle_cell(&mut self, cell: AnyChanCell) -> Result<()> {
         let (circid, msg) = cell.into_circid_and_msg();
         use AnyChanMsg::*;

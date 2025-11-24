@@ -14,6 +14,7 @@ use oneshot_fused_workaround as oneshot;
 use std::net::IpAddr;
 use std::pin::Pin;
 use std::sync::Arc;
+use tracing::instrument;
 
 use crate::circuit::UniqId;
 #[cfg(feature = "circ-padding-manual")]
@@ -485,6 +486,7 @@ impl ClientTunnel {
     ///
     /// The use of a string for the address is intentional: you should let
     /// the remote Tor relay do the hostname lookup for you.
+    #[instrument(level = "trace", skip_all)]
     pub async fn begin_stream(
         self: &Arc<Self>,
         target: &str,

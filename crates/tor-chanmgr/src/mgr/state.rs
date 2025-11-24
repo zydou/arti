@@ -23,7 +23,7 @@ use tor_proto::channel::kist::{KistMode, KistParams};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
-use tracing::info;
+use tracing::{info, instrument};
 use void::{ResultVoidExt as _, Void};
 
 #[cfg(test)]
@@ -496,6 +496,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
 
     /// Upgrade the pending channel identified by its `handle` by replacing it with a new open
     /// `channel`.
+    #[instrument(skip_all, level = "trace")]
     pub(crate) fn upgrade_pending_channel_to_open(
         &self,
         handle: PendingChannelHandle,

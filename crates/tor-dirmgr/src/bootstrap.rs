@@ -26,7 +26,7 @@ use tor_dirclient::DirResponse;
 use tor_error::{info_report, warn_report};
 use tor_rtcompat::Runtime;
 use tor_rtcompat::scheduler::TaskSchedule;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use crate::storage::Store;
 #[cfg(test)]
@@ -273,6 +273,7 @@ pub(crate) fn make_requests_for_documents<R: Runtime>(
 }
 
 /// Launch a single client request and get an associated response.
+#[instrument(level = "trace", skip_all)]
 async fn fetch_single<R: Runtime>(
     rt: &R,
     request: ClientRequest,
@@ -305,6 +306,7 @@ static CANNED_RESPONSE: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::n
 ///
 /// Don't launch more than `parallelism` requests at once.
 #[allow(clippy::cognitive_complexity)] // TODO: maybe refactor?
+#[instrument(level = "trace", skip_all)]
 async fn fetch_multiple<R: Runtime>(
     dirmgr: Arc<DirMgr<R>>,
     attempt_id: AttemptId,
@@ -458,6 +460,7 @@ pub(crate) async fn load<R: Runtime>(
 /// This can launch one or more download requests, but will not launch more
 /// than `parallelism` requests at a time.
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor?
+#[instrument(level = "trace", skip_all)]
 async fn download_attempt<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
@@ -542,6 +545,7 @@ async fn download_attempt<R: Runtime>(
 /// The first time that the state becomes ["usable"](Readiness::Usable), notify
 /// the sender in `on_usable`.
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor!
+#[instrument(level = "trace", skip_all)]
 pub(crate) async fn download<R: Runtime>(
     dirmgr: Weak<DirMgr<R>>,
     state: &mut Box<dyn DirState>,

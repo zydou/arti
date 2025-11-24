@@ -869,6 +869,7 @@ impl<R: Runtime> TorClient<R> {
 
     /// Implementation of `create_unbootstrapped`, split out in order to avoid manually specifying
     /// double error conversions.
+    #[instrument(skip_all, level = "trace")]
     pub(crate) fn create_inner(
         runtime: R,
         config: &TorClientConfig,
@@ -1269,6 +1270,7 @@ impl<R: Runtime> TorClient<R> {
     /// This is split out from `reconfigure` so we can do the all-or-nothing
     /// check without recursion. the caller to this method must hold the
     /// `reconfigure_lock`.
+    #[instrument(level = "trace", skip_all)]
     fn reconfigure_inner(
         &self,
         new_config: &TorClientConfig,
@@ -1609,6 +1611,7 @@ impl<R: Runtime> TorClient<R> {
     /// Perform a remote DNS reverse lookup with the provided IP address.
     ///
     /// On success, return a list of hostnames.
+    #[instrument(level = "trace", skip_all)]
     pub async fn resolve_ptr_with_prefs(
         &self,
         addr: IpAddr,

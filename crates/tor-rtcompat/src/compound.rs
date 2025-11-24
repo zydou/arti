@@ -12,6 +12,7 @@ use std::future::Future;
 use std::io::Result as IoResult;
 use std::time::{Instant, SystemTime};
 use tor_general_addr::unix;
+use tracing::instrument;
 
 /// A runtime made of several parts, each of which implements one trait-group.
 ///
@@ -220,6 +221,7 @@ where
     type Listener = TcpR::Listener;
 
     #[inline]
+    #[instrument(skip_all, level = "trace")]
     async fn connect(&self, addr: &net::SocketAddr) -> IoResult<Self::Stream> {
         self.inner.tcp.connect(addr).await
     }
@@ -248,6 +250,7 @@ where
     type Listener = UnixR::Listener;
 
     #[inline]
+    #[instrument(skip_all, level = "trace")]
     async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
         self.inner.unix.connect(addr).await
     }

@@ -206,6 +206,7 @@ use std::io::Result as IoResult;
 use std::time::Duration;
 #[cfg(unix)]
 use tor_general_addr::unix;
+use tracing::instrument;
 
 impl SleepProvider for TokioRuntimeHandle {
     type SleepFuture = tokio_crate::time::Sleep;
@@ -219,6 +220,7 @@ impl crate::traits::NetStreamProvider for TokioRuntimeHandle {
     type Stream = net::TcpStream;
     type Listener = net::TcpListener;
 
+    #[instrument(skip_all, level = "trace")]
     async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::Stream> {
         let s = net::TokioTcpStream::connect(addr).await?;
         Ok(s.into())
@@ -237,6 +239,7 @@ impl crate::traits::NetStreamProvider<unix::SocketAddr> for TokioRuntimeHandle {
     type Stream = net::UnixStream;
     type Listener = net::UnixListener;
 
+    #[instrument(skip_all, level = "trace")]
     async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
         let path = addr
             .as_pathname()
