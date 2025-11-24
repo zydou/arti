@@ -658,6 +658,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use assert_matches::assert_matches;
     use testing::{Dir, MistrustOp, mistrust_build};
 
     #[cfg(target_family = "unix")]
@@ -976,6 +977,15 @@ mod test {
     fn default_mistrust() {
         // we can't test a mistrust without ignore_prefix, but we should make sure that we can build one.
         let _m = Mistrust::default();
+    }
+
+    #[test]
+    fn empty_path() {
+        let m = mistrust_build(&[MistrustOp::DangerouslyTrustEveryone()]);
+        assert_matches!(m.check_directory(""), Err(Error::NotFound(_)));
+
+        let m = Mistrust::default();
+        assert_matches!(m.check_directory(""), Err(Error::NotFound(_)));
     }
 
     // TODO: Write far more tests.
