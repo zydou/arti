@@ -35,7 +35,7 @@ $ echo "mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion" | arti -
 descriptor:x25519:RWWKYMW5EXDUZ2ESDDC7FQJCG6ROAR34LXNSTXFSY6JMQOWNDVNQ
 ```
 
-> NOTE: the public part of the generated keypair must be shared with the
+> Note: the public part of the generated keypair must be shared with the
 > service, and the service must be configured to allow the client that owns it
 > to discover its introduction points. The caller is responsible for sharing the
 > public key with the hidden service.
@@ -54,7 +54,7 @@ rotate client restricted discovery key for mnyizjj7m3hpcr7i5afph3zt7maa65johyu2r
 descriptor:x25519:4E4B6CILWAAM2JFSVTOTCANCCUIMSOOSXZWONSR52ETXSTCKIYIA
 ```
 
-> NOTE: if the client keystore already contains a restricted discovery keypair
+> Note: if the client keystore already contains a restricted discovery keypair
 > for the service, it will be overwritten. Otherwise, a new keypair is generated.
 
 As key rotation is a destructive operation (the old key will be lost),
@@ -62,7 +62,7 @@ As key rotation is a destructive operation (the old key will be lost),
 If you wish to force removal, or to run this command non-interactively,
 use the `-f` option, which disables the confirmation prompt.
 
-> NOTE: as with `arti gsc key get`, the public part of the new keypair
+> Note: as with `arti gsc key get`, the public part of the new keypair
 > must be shared with the service
 
 See `arti hsc key rotate --help` for more information.
@@ -82,3 +82,57 @@ As with `hsc key rotate`, you can disable the confirmation prompt and force
 removal using the `-f` option.
 
 See `arti hsc key remove --help` for more information.
+
+## Migrate service discovery keys from C Tor to Arti
+
+Service discovery keys from one of the registered C Tor keystores can be migrated
+to the Arti primary keystore using the `hsc ctor-migrate` command.
+
+> Note: this feature is only available in builds that have the experimental
+> `onion-service-cli-extra` feature enabled.
+
+To use this command, you will first need to configure Arti to point to the
+`ClientOnionAuthDir` of the onion service you wish to migrate, this location
+needs to be a valid C Tor client keystore. You can do this either in the
+configuration file:
+
+```text
+[[storage.keystore.ctor.clients]]
+id = "ctor-keystore-id"
+path = "/path/to/ctor_keystore"
+```
+
+```ignore
+$ arti -c hsc.toml hsc ctor-migrate --from ctor-keystore-id
+```
+
+or using the `-o` flag:
+
+```ignore
+$ arti hsc -c hsc.toml -o storage.keystore.ctor.clients='[{id = "ctor-keystore-id", path = "/path/to/ctor_keystore"}]' ctor-migrate --from ctor-keystore-id
+```
+
+The command detects whether keys for the services corresponding to the C Tor keys
+are already present in the primary keystore. If so, the user is prompted before
+overwriting.
+
+You can disable the confirmation prompt and force overwriting using the `-b` option.
+
+The `hsc ctor-migrate` command can detect conflicts where multiple keys in the
+registered C Tor keystore belong to the same service. This situation is invalid
+because a C Tor keystore cannot contain more than one key for the same hidden
+service. In such cases, the migration is aborted.
+
+The original C Tor keystore remains unchanged after the operation.
+
+> ⚠️**WARNING** ⚠️
+>
+> `arti hsc ctor-migrate` will **not** remove the migrated C Tor keys from disk.
+> After running this command, the client key of the
+> service will exist both in its original location, and in the
+> Arti native keystore. **You will need to manually remove one
+> of the copies at the end of the migration** (the C Tor one, if
+> you are confident you no longer want to access the service
+> using C Tor, or the Arti one if you don't wish to switch to Arti)
+
+See `arti hsc ctor-migrate --help` for more information.

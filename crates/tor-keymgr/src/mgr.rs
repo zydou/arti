@@ -235,6 +235,10 @@ impl KeyMgr {
     /// Returns `Ok(None)` if none of the key stores have the requested key.
     ///
     /// Returns an error if the specified keystore does not exist.
+    // TODO: The function takes `&KeystoreId`, but it would be better to accept a
+    // `KeystoreSelector`.
+    // This way, the caller can pass `KeystoreSelector::Primary` directly without
+    // needing to know the specific `KeystoreId` of the primary keystore.
     #[cfg(feature = "onion-service-cli-extra")]
     pub fn get_from<K: ToEncodableKey>(
         &self,
