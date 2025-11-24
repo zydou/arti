@@ -25,7 +25,7 @@ static MAX_INSTANT: LazyLock<Instant> = LazyLock::new(find_max);
 static MIN_INSTANT: LazyLock<Instant> = LazyLock::new(find_min);
 
 /// An internal trait implementing the actual magic behind this.
-pub trait SaturatingTime: Sized {
+pub trait SaturatingTime: Sized + Copy {
     /// Anchor method to obtain an instance of this type.
     fn anchor() -> Self;
 

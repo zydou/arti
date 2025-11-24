@@ -96,7 +96,7 @@ pub trait SaturatingTime: internal::SaturatingTime {
     /// // Adding 1ns would overflow so we saturate to the maximum.
     /// assert_eq!(max.saturating_add(Duration::new(0, 1)), max);
     /// ```
-    fn saturating_add(&self, duration: Duration) -> Self {
+    fn saturating_add(self, duration: Duration) -> Self {
         self.checked_add(duration)
             .unwrap_or(SaturatingTime::max_value())
     }
@@ -120,7 +120,7 @@ pub trait SaturatingTime: internal::SaturatingTime {
     /// // Subtracting 1ns would overflow so we saturate to the minimum.
     /// assert_eq!(min.saturating_sub(Duration::new(0, 1)), min);
     /// ```
-    fn saturating_sub(&self, duration: Duration) -> Self {
+    fn saturating_sub(self, duration: Duration) -> Self {
         self.checked_sub(duration)
             .unwrap_or(SaturatingTime::min_value())
     }
