@@ -35,7 +35,7 @@ impl PathExt for Path {
 #[non_exhaustive]
 pub enum Error {
     /// A target  (or one of its ancestors) was not found.
-    #[error("File or directory {} not found", _0.anonymize_home())]
+    #[error(r#"File or directory "{}" not found"#, _0.anonymize_home())]
     NotFound(PathBuf),
 
     /// A target  (or one of its ancestors) had incorrect permissions.
@@ -44,7 +44,7 @@ pub enum Error {
     ///
     /// The first integer contains the current permission bits, and the second
     /// contains the permission bits which were incorrectly set.
-    #[error("Incorrect permissions: {} is {}; must be {}",
+    #[error(r#"Incorrect permissions: "{}" is {}; must be {}"#,
             _0.anonymize_home(),
             format_access_bits(* .1, '='),
             format_access_bits(* .2, '-'))]
@@ -55,7 +55,7 @@ pub enum Error {
     /// Only generated on unix-like systems.
     ///
     /// The provided integer contains the user_id o
-    #[error("Bad owner (UID {1}) on file or directory {anon}", anon = _0.anonymize_home())]
+    #[error(r#"Bad owner (UID {1}) on file or directory "{anon}""#, anon = _0.anonymize_home())]
     BadOwner(PathBuf, u32),
 
     /// A target (or one of its ancestors) had the wrong type.
@@ -63,7 +63,7 @@ pub enum Error {
     /// Ordinarily, the target may be anything at all, though you can override
     /// this with [`require_file`](crate::Verifier::require_file) and
     /// [`require_directory`](crate::Verifier::require_directory).
-    #[error("Wrong type of file at {}", _0.anonymize_home())]
+    #[error(r#"Wrong type of file at "{}""#, _0.anonymize_home())]
     BadType(PathBuf),
 
     /// We were unable to inspect the target or one of its ancestors.
@@ -73,7 +73,7 @@ pub enum Error {
     ///
     /// (The `std::io::Error` that caused this problem is wrapped in an `Arc` so
     /// that our own [`Error`] type can implement `Clone`.)
-    #[error("Unable to access {}", _0.anonymize_home())]
+    #[error(r#"Unable to access "{}""#, _0.anonymize_home())]
     CouldNotInspect(PathBuf, #[source] Arc<IoError>),
 
     /// Multiple errors occurred while inspecting the target.
@@ -116,7 +116,7 @@ pub enum Error {
     InvalidSubdirectory,
 
     /// We encountered an error while attempting an IO operation on a file.
-    #[error("IO error on {} while attempting to {action}", filename.anonymize_home())]
+    #[error(r#"IO error on "{}" while attempting to {action}"#, filename.anonymize_home())]
     Io {
         /// The file that we were trying to modify or inspect
         filename: PathBuf,
@@ -133,11 +133,11 @@ pub enum Error {
     MissingField(#[from] derive_builder::UninitializedFieldError),
 
     /// A  group that we were configured to trust could not be found.
-    #[error("Configured with nonexistent group: {0}")]
+    #[error(r#"Configured with nonexistent group "{0}""#)]
     NoSuchGroup(String),
 
     /// A user that we were configured to trust could not be found.
-    #[error("Configured with nonexistent user: {0}")]
+    #[error(r#"Configured with nonexistent user: "{0}""#)]
     NoSuchUser(String),
 
     /// Error accessing passwd/group databases or obtaining our uids/gids
@@ -318,7 +318,7 @@ mod test {
     fn bad_perms() {
         assert_eq!(
             Error::BadPermission(PathBuf::from("/path"), 0o777, 0o022).to_string(),
-            "Incorrect permissions: /path is u=rwx,g=rwx,o=rwx; must be g-w,o-w"
+            r#"Incorrect permissions: "/path" is u=rwx,g=rwx,o=rwx; must be g-w,o-w"#
         );
     }
 }
