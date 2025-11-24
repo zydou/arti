@@ -115,7 +115,7 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
         for auth_client in auth_clients {
             encoder
                 .item(AUTH_CLIENT)
-                .arg(&Base64::encode_string(&*auth_client.client_id))
+                .arg(&Base64::encode_string(auth_client.client_id.as_ref()))
                 .arg(&Base64::encode_string(&auth_client.iv))
                 .arg(&Base64::encode_string(&auth_client.encrypted_cookie));
         }
