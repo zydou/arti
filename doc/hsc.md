@@ -107,7 +107,7 @@ This command converts restricted discovery keys to the Arti native key format
 To use this command, you will first need to configure Arti with a C Tor keystore
 pointing to the `ClientOnionAuthDir` of the client you wish to migrate:
 
-```text
+```toml
 [[storage.keystore.ctor.clients]]
 
 # The identifier of this keystore.
