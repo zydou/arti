@@ -146,13 +146,6 @@ they will be removed as part of the migration
 (by default, `ctor-migrate` prompts before removal,
 but you can disable that behavior using `--batch`).
 
-The `hsc ctor-migrate` command can detect conflicts where multiple keys in the
-registered C Tor keystore belong to the same service. This situation is invalid
-because a C Tor keystore cannot contain more than one key for the same hidden
-service. In such cases, the migration is aborted.
-
-See `arti hsc ctor-migrate --help` for more information.
-
 > ⚠️**WARNING** ⚠️
 >
 > To avoid data loss, `arti hsc ctor-migrate` should only be run when
