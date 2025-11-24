@@ -17,7 +17,7 @@ use crate::doc::netstatus::NetstatusKwd;
 use crate::doc::netstatus::{IgnoredPublicationTimeSp, Protocols, RelayWeight};
 use crate::parse::parser::Section;
 use crate::types::misc::*;
-use crate::types::relay_flags::{self, DocRelayFlags, RelayFlag, RelayFlags, RelayFlagsParser};
+use crate::types::relay_flags::{self, DocRelayFlags, RelayFlag, RelayFlags};
 use crate::types::version::TorVersion;
 use crate::util::intern::InternCache;
 use crate::{Error, NetdocErrorKind as EK, Result};

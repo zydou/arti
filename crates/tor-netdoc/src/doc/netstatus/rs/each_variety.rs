@@ -126,7 +126,7 @@ pub struct RouterStatus {
     #[cfg_attr(
         feature = "parse2",
         deftly(netdoc(keyword = "s")),
-        deftly(netdoc(with = "RelayFlagsParser::<VarietyRelayFlagsRepr>")),
+        deftly(netdoc(with = "relay_flags::Parser::<VarietyRelayFlagsRepr>")),
     )]
     pub flags: DocRelayFlags,
 

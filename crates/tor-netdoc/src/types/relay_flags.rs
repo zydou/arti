@@ -46,7 +46,7 @@ pub struct DocRelayFlags {
 
 /// Additional options for the representation of relay flags in network documents
 ///
-/// This is a generic argument to `RelayFlagsParser`
+/// This is a generic argument to `Parser`
 /// (and will be used for the encoder too).
 pub trait ReprMode: Debug + Copy {
     /// Flags that should be treated as being present when parsing
@@ -92,7 +92,7 @@ impl ReprMode for VoteRepr {
 /// This is a newtype around a machine integer.
 ///
 /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
-/// different documents.  Use an appropriate parameterised [`RelayFlagsParser`],
+/// different documents.  Use an appropriate parameterised [`Parser`],
 /// in `#[deftly(netdoc(with))]`.
 ///
 /// To also maybe handle unknown flags, use [`DocRelayFlags`].
@@ -166,7 +166,7 @@ pub enum RelayFlag {
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
 #[derive(Debug, Clone)]
-pub struct RelayFlagsParser<'s, M: ReprMode> {
+pub struct Parser<'s, M: ReprMode> {
     /// Flags so far, including the implied ones
     flags: DocRelayFlags,
 
@@ -189,14 +189,14 @@ pub enum RelayFlagsParseError {
 }
 
 impl<'s, M: ReprMode>
-    RelayFlagsParser<'s, M>
+    Parser<'s, M>
 {
     /// Start parsing relay flags
     ///
     /// If `PARSE_IMPLICIT` or `ENCODE_OMIT` contains unknown bits, compile will fail.
     pub fn new(unknown: Unknown<()>) -> Self {
         let known = M::PARSE_IMPLICIT | M::ENCODE_OMIT;
-        RelayFlagsParser {
+        Parser {
             flags: DocRelayFlags {
                 known,
                 unknown: unknown.map(|()| HashSet::new()),
@@ -245,7 +245,7 @@ mod parse_impl {
                         .at_pos(item.pos()),
                 );
             }
-            let mut flags = RelayFlagsParser::<
+            let mut flags = Parser::<
                 ConsensusRepr,
             >::new(Unknown::new_discard());
 
@@ -268,7 +268,7 @@ mod parse2_impl {
     use parse2::ErrorProblem as EP;
 
     impl<'s, M: ReprMode>
-        RelayFlagsParser<'s, M>
+        Parser<'s, M>
     {
         /// Parse relay flags
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
