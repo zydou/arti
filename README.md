@@ -11,6 +11,7 @@ A trait for limits and saturations on types inside [`std::time`].
 * **Portable**: The algorithm for determining the limits is portable across
   operating systems: enjoy this crate from Windows, Darwin, and Linux, across
   the BSD systems, up to exotic ones such as Hermit OS and Redox.
+* **Secure**: This crate does not make any use of `unsafe` Rust code.
 
 ## Overview
 
