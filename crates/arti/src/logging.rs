@@ -8,6 +8,7 @@ use std::io::IsTerminal as _;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
+use tor_basic_utils::PathExt as _;
 use tor_config::ConfigBuildError;
 use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
@@ -459,7 +460,17 @@ where
         _ => Rotation::NEVER,
     };
     let path = config.path.path(path_resolver)?;
-    let directory = path.parent().unwrap_or_else(|| Path::new("."));
+
+    let directory = match path.parent() {
+        None => {
+            return Err(anyhow!(
+                "Logfile path \"{}\" did not have a parent directory",
+                path.display_lossy()
+            ));
+        }
+        Some(p) if p == "" => Path::new("."),
+        Some(d) => d,
+    };
     mistrust.make_directory(directory)?;
     let fname = path
         .file_name()
