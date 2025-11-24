@@ -557,6 +557,9 @@ impl HttpConnectError {
     fn status_code(&self) -> StatusCode {
         use HttpConnectError as HCE; // Not a Joyce reference
         use StatusCode as SC;
+        if let Some(end_reason) = self.remote_end_reason() {
+            return end_reason_to_http_status(end_reason);
+        }
         match self {
             HCE::InvalidStreamTarget(_, _)
             | HCE::DuplicateHeader
@@ -572,9 +575,10 @@ impl HttpConnectError {
     /// If possible, return a response that we should give to this error.
     fn try_into_response(self) -> Result<Response<Body>, HttpConnectError> {
         let error_kind = self.kind();
+        let end_reason = self.remote_end_reason();
         let status_code = self.status_code();
         let mut request_failed = format!("arti/{error_kind:?}");
-        if let Some(end_reason) = self.remote_end_reason() {
+        if let Some(end_reason) = end_reason {
             request_failed.push_str(&format!(" end/{end_reason}"));
         }
 
@@ -603,6 +607,39 @@ impl HttpConnectError {
                 return None;
             }
         }
+    }
+}
+
+/// Return the appropriate HTTP status code for a remote END reason.
+///
+/// Return `None` if the END reason is unrecognized and we should use the `ErrorKind`
+///
+/// (We  _could_ use the ErrorKind unconditionally,
+/// but the mapping from END reason to ErrorKind is [given in the spec][spec],
+/// so we try to obey it.)
+///
+/// [spec]: https://spec.torproject.org/http-connect.html#error-codes
+fn end_reason_to_http_status(end_reason: tor_cell::relaycell::msg::EndReason) -> StatusCode {
+    use StatusCode as S;
+    use tor_cell::relaycell::msg::EndReason as R;
+    match end_reason {
+        //
+        R::CONNECTREFUSED => S::FORBIDDEN, // 403
+        // 500: Internal server error.
+        R::MISC | R::NOTDIRECTORY => S::INTERNAL_SERVER_ERROR,
+
+        // 502: Bad Gateway.
+        R::DESTROY | R::DONE | R::HIBERNATING | R::INTERNAL | R::RESOURCELIMIT | R::TORPROTOCOL => {
+            S::BAD_GATEWAY
+        }
+        // 503: Service unavailable
+        R::CONNRESET | R::EXITPOLICY | R::NOROUTE | R::RESOLVEFAILED => S::SERVICE_UNAVAILABLE,
+
+        // 504: Gateway timeout.
+        R::TIMEOUT => S::GATEWAY_TIMEOUT,
+
+        // This is possible if the other side sent an unrecognized error code.
+        _ => S::INTERNAL_SERVER_ERROR, // 500
     }
 }
 
