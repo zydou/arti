@@ -710,7 +710,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         let mut rend_attempts = 0..max_total_attempts;
 
         // But, we put all the errors into the same bucket, since we might have a mixture.
-        let mut errors = RetryError::in_attempt_to("make circuit to to hidden service");
+        let mut errors = RetryError::in_attempt_to("make circuit to hidden service");
 
         // Note that IntroPtIndex is *not* the index into this Vec.
         // It is the index into the original list of introduction points in the descriptor.
