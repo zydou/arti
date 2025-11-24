@@ -59,6 +59,9 @@ mod err;
 pub mod types;
 mod util;
 
+#[cfg(all(test, feature = "parse2"))]
+mod test2;
+
 #[doc(hidden)]
 pub use derive_deftly;
 

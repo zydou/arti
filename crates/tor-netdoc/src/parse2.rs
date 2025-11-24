@@ -111,9 +111,6 @@ mod traits;
 #[cfg(feature = "plain-consensus")]
 pub mod poc;
 
-#[cfg(test)]
-mod test;
-
 use internal_prelude::*;
 
 pub use error::{ArgumentError, ErrorProblem, ParseError, UnexpectedArgument, VerifyFailed};

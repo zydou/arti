@@ -13,11 +13,29 @@
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
-use super::*;
-use crate::types::{Ignored, NotPresent};
+use std::fmt::Debug;
+
 use anyhow::Context as _;
+use derive_deftly::Deftly;
 use testresult::TestResult;
 use tor_error::ErrorReport as _;
+
+use crate::parse2::{
+    parse_netdoc,
+    parse_netdoc_multiple,
+    ArgumentStream,
+    ArgumentError as AE, // XXXX rename
+    ErrorProblem, // XXXX rename
+    ItemObjectParseable,
+    NetdocParseable,
+    NetdocParseableFields,
+    ParseError,
+    ParseInput,
+    UnparsedItem,
+};
+use crate::types::{Ignored, NotPresent};
+
+use ErrorProblem as EP; // XXXX rename
 
 fn default<T: Default>() -> T {
     Default::default()
@@ -593,8 +611,6 @@ struct TestItemObjectIgnored {
 
 /// Conversion module for `String` as Object with [`ItemValueParseable`]
 mod string_data_object {
-    use super::*;
-
     /// Parse the data
     pub(super) fn try_from(data: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(data)
