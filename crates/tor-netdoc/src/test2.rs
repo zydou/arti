@@ -21,17 +21,9 @@ use testresult::TestResult;
 use tor_error::ErrorReport as _;
 
 use crate::parse2::{
-    parse_netdoc,
+    ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
+    NetdocParseable, NetdocParseableFields, ParseError, ParseInput, UnparsedItem, parse_netdoc,
     parse_netdoc_multiple,
-    ArgumentStream,
-    ArgumentError as P2AE,
-    ErrorProblem as P2EP,
-    ItemObjectParseable,
-    NetdocParseable,
-    NetdocParseableFields,
-    ParseError,
-    ParseInput,
-    UnparsedItem,
 };
 use crate::types::{Ignored, NotPresent};
 
