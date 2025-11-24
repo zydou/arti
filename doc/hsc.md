@@ -153,4 +153,10 @@ service. In such cases, the migration is aborted.
 
 See `arti hsc ctor-migrate --help` for more information.
 
+> ⚠️**WARNING** ⚠️
+>
+> To avoid data loss, `arti hsc ctor-migrate` should only be run when
+> no other process is accessing either keystore.
+> So, you must shut down your client while you do the migration.
+
 ["client authorization keys"]: https://community.torproject.org/onion-services/advanced/client-auth/
