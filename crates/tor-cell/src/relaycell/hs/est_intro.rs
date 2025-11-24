@@ -374,7 +374,7 @@ impl EstablishIntro {
         use tor_llcrypto::pk::ValidatableSignature;
 
         let mac_key: HsMacKey<'_> = mac_key.into();
-        let mac_okay = mac_key.validate(&self.mac_plaintext, &self.handshake_auth);
+        let mac_okay = mac_key.validate(&self.mac_plaintext, self.handshake_auth.as_ref());
         let sig_okay = self.sig.is_valid();
 
         if !(bool::from(mac_okay) & sig_okay) {

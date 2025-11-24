@@ -61,7 +61,7 @@ pub(crate) use {derive_deftly_template_ConstantTimeEq, derive_deftly_template_Pa
 ///
 /// (The decision to avoid implementing `Deref`/`DerefMut` is deliberate.)
 #[allow(clippy::derived_hash_with_manual_eq)]
-#[derive(Clone, Copy, Debug, Hash, Zeroize, derive_more::Deref)]
+#[derive(Clone, Copy, Debug, Hash, Zeroize)]
 #[cfg_attr(
     feature = "memquota-memcost",
     derive(Deftly),
