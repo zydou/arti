@@ -104,10 +104,8 @@ This command converts restricted discovery keys to the Arti native key format
 > (the C Tor ones, if you are confident you no longer want to use C Tor
 > as an onion service client, or the Arti ones if you don't wish to switch to Arti)
 
-To use this command, you will first need to configure Arti to point to the
-`ClientOnionAuthDir` of the onion service you wish to migrate, this location
-needs to be a valid C Tor client keystore. You can do this either in the
-configuration file:
+To use this command, you will first need to configure Arti with a C Tor keystore
+pointing to the `ClientOnionAuthDir` of the client you wish to migrate:
 
 ```text
 [[storage.keystore.ctor.clients]]
@@ -119,7 +117,7 @@ path = "/path/to/ctor_keystore"
 $ arti -c hsc.toml hsc ctor-migrate --from ctor-keystore-id
 ```
 
-or using the `-o` flag:
+Alternatively, you can pass the C Tor configuration as an argument using the `-o` flag:
 
 ```ignore
 $ arti hsc -c hsc.toml -o storage.keystore.ctor.clients='[{id = "ctor-keystore-id", path = "/path/to/ctor_keystore"}]' ctor-migrate --from ctor-keystore-id
