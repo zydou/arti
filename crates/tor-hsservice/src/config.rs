@@ -42,7 +42,7 @@ pub struct OnionServiceConfig {
 
     /// A rate-limit on the acceptable rate of introduction requests.
     ///
-    /// We send this to the send to the introduction point to configure how many
+    /// We send this to the introduction point to configure how many
     /// introduction requests it sends us.
     /// If this is not set, the introduction point chooses a default based on
     /// the current consensus.
