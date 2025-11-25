@@ -4,5 +4,6 @@ BREAKING: `RelayFlags`: no longer impl `FromStr`; use `RelayFlag` or `RelayFlags
 BREAKING: `RelayFlags` is now in new `types::relay_flags` module
 BREAKING: `RouterStatus` now contains new `DocRelayFlags`.
 BREAKING: `parse2` entrypoints now take a new `ParseInput`.
+BREAKING: `parse2::MultiplicitySelector` replaces `ItemSetSelector` etc.
 ADDED: Some initial support for encoding `RelayFlags`.
 ADDED: Much more API exposed in the `encode` module
