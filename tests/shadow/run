@@ -82,12 +82,12 @@ check_host_xfers() {
   min="$2"
   total="$3"
   successes="$(grep -c stream-success shadow.data/hosts/"$hostname"/tgen.*.stdout || true)"
-  echo "$hostname had $successes/$total successful streams (required at least $min)"
+  result="$hostname had $successes/$total successful streams (required at least $min)"
   if [ "$successes" -ge "$min" ]
   then
-    echo "^ PASS"
+    echo "PASS: $result"
   else
-    echo "^ FAIL"
+    echo "FAIL: $result"
     exit 1
   fi
 }
