@@ -13,13 +13,14 @@
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use anyhow::Context as _;
 use derive_deftly::Deftly;
 use testresult::TestResult;
-use tor_error::ErrorReport as _;
+use tor_error::{Bug, ErrorReport as _};
 
+use crate::encode::{ItemEncoder, ItemObjectEncodable};
 use crate::parse2::{
     ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
     NetdocParseable, NetdocParseableFields, ParseError, ParseInput, UnparsedItem, parse_netdoc,
@@ -32,7 +33,7 @@ fn default<T: Default>() -> T {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Top {
     top_intro: (),
     needed: (String,),
@@ -54,7 +55,7 @@ struct Top {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub1 {
     sub1_intro: (),
     sub1_field: Option<(String,)>,
@@ -62,7 +63,7 @@ struct Sub1 {
     flatten: Flat1,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseableFields)]
+#[derive_deftly(NetdocEncodableFields, NetdocParseableFields)]
 struct Flat1 {
     flat_needed: (String,),
     flat_optional: Option<(String,)>,
@@ -86,12 +87,12 @@ struct Flat1 {
     flat_flat: FlatInner,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseableFields)]
+#[derive_deftly(NetdocEncodableFields, NetdocParseableFields)]
 struct FlatInner {
     flat_inner_optional: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub2 {
     #[deftly(netdoc(with = "needs_with_intro"))]
     sub2_intro: NeedsWith,
@@ -113,27 +114,27 @@ struct Sub2 {
     #[deftly(netdoc(subdoc))]
     subsub: SubSub,
 }
-#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub3 {
     sub3_intro: (),
     sub3_field: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub4 {
     sub4_intro: (),
     sub4_field: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct SubSub {
     #[deftly(netdoc(single_arg))]
     subsub_intro: String,
     subsub_field: Option<(String,)>,
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct NeedsWith;
 
 impl NeedsWith {
@@ -149,6 +150,11 @@ mod needs_with_parse {
         NeedsWith::parse_expecting("normal", item.args_mut())
             .map_err(item.args().error_handler("in needs with"))
     }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn write_item_value_onto(_: &NeedsWith, out: ItemEncoder) -> Result<(), Bug> {
+        out.arg(&"normal");
+        Ok(())
+    }
 }
 mod needs_with_intro {
     use super::*;
@@ -156,14 +162,28 @@ mod needs_with_intro {
         NeedsWith::parse_expecting("intro", item.args_mut())
             .map_err(item.args().error_handler("in needs with"))
     }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn write_item_value_onto(_: &NeedsWith, out: ItemEncoder) -> Result<(), Bug> {
+        out.arg(&"intro");
+        Ok(())
+    }
 }
 mod needs_with_arg {
     use super::*;
     pub(super) fn from_args(args: &mut ArgumentStream) -> Result<NeedsWith, P2AE> {
         NeedsWith::parse_expecting("arg", args)
     }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn write_arg_onto(_self: &NeedsWith, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        out.args_raw_string(&"arg");
+        Ok(())
+    }
     pub(super) fn from_args_rest(s: &str) -> Result<NeedsWith, ()> {
         (s == "rest of line").then_some(NeedsWith).ok_or(())
+    }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn fmt_args_rest(_self: &NeedsWith, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "rest of line")
     }
 }
 
@@ -538,7 +558,7 @@ sub3-intro # missing item with-needed
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct TopMinimal {
     test_item0: TestItem0,
     test_item: Option<TestItem>,
@@ -549,7 +569,7 @@ struct TopMinimal {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 #[deftly(netdoc(no_extra_args))]
 struct TestItem0 {
     #[deftly(netdoc(object(label = "UTF-8 STRING"), with = "string_data_object"))]
@@ -557,7 +577,7 @@ struct TestItem0 {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItem {
     needed: String,
     #[deftly(netdoc(with = "needs_with_arg"))]
@@ -568,7 +588,7 @@ struct TestItem {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemRest {
     optional: Option<String>,
     #[deftly(netdoc(rest))]
@@ -576,7 +596,7 @@ struct TestItemRest {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemRestWith {
     #[deftly(netdoc(rest, with = "needs_with_arg"))]
     rest: NeedsWith,
@@ -586,14 +606,14 @@ struct TestItemRestWith {
 struct TestObject(String);
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemObjectNotPresent {
     #[deftly(netdoc(object))]
     object: NotPresent,
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemObjectIgnored {
     #[deftly(netdoc(object))]
     object: Ignored,
@@ -604,6 +624,16 @@ mod string_data_object {
     /// Parse the data
     pub(super) fn try_from(data: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(data)
+    }
+
+    /// Encode the data
+    #[allow(clippy::unnecessary_wraps)] // signature must match the derive's expectation
+    pub(super) fn write_object_onto<B>(self_: &String, b: &mut B) -> tor_bytes::EncodeResult<()>
+    where
+        B: tor_bytes::Writer + ?Sized,
+    {
+        b.write_all(self_.as_bytes());
+        Ok(())
     }
 }
 
@@ -618,6 +648,15 @@ impl ItemObjectParseable for TestObject {
         Ok(TestObject(
             String::from_utf8(data.to_owned()).map_err(|_| P2EP::ObjectInvalidData)?,
         ))
+    }
+}
+impl ItemObjectEncodable for TestObject {
+    fn label(&self) -> &'static str {
+        "TEST OBJECT"
+    }
+    fn write_object_onto(&self, b: &mut Vec<u8>) -> Result<(), Bug> {
+        b.extend(self.0.as_bytes());
+        Ok(())
     }
 }
 

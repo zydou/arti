@@ -63,7 +63,7 @@ mod err;
 pub mod types;
 mod util;
 
-#[cfg(all(test, feature = "parse2"))]
+#[cfg(all(test, feature = "parse2", feature = "encode"))]
 mod test2;
 
 #[doc(hidden)]
