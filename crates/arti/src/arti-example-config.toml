@@ -589,6 +589,11 @@
 
 # How many streams will we allow at a time for each circuit?
 #
+# If a client attempts to open more than this many streams on a rendezvous circuit,
+# the circuit will be torn down.
+#
+# Equivalent to C Tor's HiddenServiceMaxStreamsCloseCircuit option.
+#
 #    max_concurrent_streams_per_circuit = 65535
 
 # Whether to enable proof-of-work based DOS mitigation when under high load.
