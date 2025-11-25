@@ -32,6 +32,8 @@ while getopts "hs:" opt ; do
     esac
 done
 
+echo "SEED=$SEED"
+
 # Remove output of previous run
 rm -rf shadow.data
 
