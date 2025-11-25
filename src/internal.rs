@@ -40,6 +40,9 @@ pub trait SaturatingTime: Sized + Copy {
 
     /// Performs a checked subtraction on this type.
     fn checked_sub(&self, duration: Duration) -> Option<Self>;
+
+    /// Performs a checked time delta on this type.
+    fn checked_duration_since(&self, earlier: Self) -> Option<Duration>;
 }
 
 impl SaturatingTime for SystemTime {
@@ -62,6 +65,10 @@ impl SaturatingTime for SystemTime {
     fn checked_sub(&self, duration: Duration) -> Option<Self> {
         Self::checked_sub(self, duration)
     }
+
+    fn checked_duration_since(&self, earlier: Self) -> Option<Duration> {
+        Self::duration_since(self, earlier).ok()
+    }
 }
 
 impl SaturatingTime for Instant {
@@ -83,6 +90,14 @@ impl SaturatingTime for Instant {
 
     fn checked_sub(&self, duration: Duration) -> Option<Self> {
         Self::checked_sub(self, duration)
+    }
+
+    /// DO NOT USE!
+    ///
+    /// Instead, override the top-level provided implementation with the already
+    /// existing [`Instant::saturating_duration_since()`].
+    fn checked_duration_since(&self, _earlier: Self) -> Option<Duration> {
+        unreachable!()
     }
 }
 

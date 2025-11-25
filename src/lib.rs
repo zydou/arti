@@ -125,11 +125,41 @@ pub trait SaturatingTime: internal::SaturatingTime {
         self.checked_sub(duration)
             .unwrap_or(SaturatingTime::min_value())
     }
+
+    /// Performs a saturating time difference calculation between two points.
+    ///
+    /// The resulting value will saturate to [`Duration::ZERO`] in the case that
+    /// the `earlier` point in time is actually not earlier, thereby resulting
+    /// in a negative difference.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::time::{Duration, SystemTime};
+    /// use saturating_time::SaturatingTime;
+    ///
+    /// let epoch = SystemTime::UNIX_EPOCH;
+    /// let now = SystemTime::now();
+    /// let min = SystemTime::min_value();
+    ///
+    /// assert!(now.saturating_duration_since(epoch).as_secs() > 0);
+    /// assert!(epoch.saturating_duration_since(epoch) == Duration::ZERO);
+    /// assert!(min.saturating_duration_since(epoch) == Duration::ZERO);
+    /// ```
+    fn saturating_duration_since(&self, earlier: Self) -> Duration {
+        self.checked_duration_since(earlier)
+            .unwrap_or(Duration::ZERO)
+    }
 }
 
 impl SaturatingTime for SystemTime {}
 
-impl SaturatingTime for Instant {}
+impl SaturatingTime for Instant {
+    // Override to use the provided implementation from the standard library.
+    fn saturating_duration_since(&self, earlier: Self) -> Duration {
+        Self::saturating_duration_since(self, earlier)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -155,7 +185,7 @@ mod tests {
     }
 
     /// Verifies the saturating arithmetic for [`SaturatingTime`].
-    fn saturating<
+    fn saturating_add_sub<
         T: SaturatingTime + PartialEq + Debug + Add<Duration, Output = T> + Sub<Duration, Output = T>,
     >() {
         let max = <T as SaturatingTime>::max_value();
@@ -177,6 +207,30 @@ mod tests {
         );
     }
 
+    /// Verifies whether the saturating logic behind [`Duration`] types work.
+    fn saturating_duration<T: SaturatingTime + PartialEq + Debug>() {
+        // The duration from the same anchor should always be zero.
+        let anchor = T::anchor();
+        assert_eq!(anchor.saturating_duration_since(anchor), Duration::ZERO);
+
+        // Try with a later anchor.
+        let later_anchor = anchor.checked_add(Duration::from_secs(1)).unwrap();
+        assert!(later_anchor.saturating_duration_since(anchor) == Duration::from_secs(1));
+        assert_eq!(
+            anchor.saturating_duration_since(later_anchor),
+            Duration::ZERO
+        );
+
+        // Try with min and max.
+        let max = <T as SaturatingTime>::max_value();
+        let min = <T as SaturatingTime>::min_value();
+
+        // This first assertion might not be so portable, maybe remove it if
+        // this becomes a problem.
+        assert_eq!(max.saturating_duration_since(min), Duration::MAX);
+        assert_eq!(min.saturating_duration_since(max), Duration::ZERO);
+    }
+
     /// Calls [`min_max()`] using [`SystemTime`].
     #[test]
     fn system_time_min_max() {
@@ -189,15 +243,17 @@ mod tests {
         min_max::<Instant>();
     }
 
-    /// Calls [`saturating()`] using [`SystemTime`].
+    /// Calls [`saturating_add_sub()`] and [`saturating_duration()`] using [`SystemTime`].
     #[test]
     fn system_time_saturating() {
-        saturating::<SystemTime>();
+        saturating_add_sub::<SystemTime>();
+        saturating_duration::<SystemTime>();
     }
 
-    /// Calls [`saturating()`] using [`Instant`].
+    /// Calls [`saturating_add_sub()`] and [`saturating_duration()`] using [`Instant`].
     #[test]
     fn instant_saturating() {
-        saturating::<Instant>();
+        saturating_add_sub::<Instant>();
+        saturating_duration::<Instant>();
     }
 }

@@ -23,6 +23,7 @@ The trait itself offers four methods:
 * [`SaturatingTime::min_value()`] – Returns the minimum value for this type.
 * [`SaturatingTime::saturating_add()`] – Saturating addition for this type.
 * [`SaturatingTime::saturating_sub()`] – Saturating subtraction for this type.
+* [`SaturatingTime::saturating_duration_since()`] - Saturating time deltas for this type.
 
 This trait is sealed, meaning applications may not implement it themselves.
 However, this crate implements this trait for two structures:
@@ -48,6 +49,7 @@ let min = SystemTime::min_value();
 
 assert_eq!(max.saturating_add(Duration::new(1, 0)), max);
 assert_eq!(min.saturating_sub(Duration::new(1, 0)), min);
+assert!(max.saturating_duration_since(SystemTime::UNIX_EPOCH) >= Duration::ZERO);
 ```
 
 ## Standardization Efforts
