@@ -35,7 +35,7 @@ However, this crate implements this trait for two structures:
 Add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-saturating-time = "0.2.0"
+saturating-time = "0.3.0"
 ```
 
 Now, you can use `saturating-time` in your code:
