@@ -468,7 +468,7 @@ where
                 path.display_lossy()
             ));
         }
-        Some(p) if p == "" => Path::new("."),
+        Some(p) if p == Path::new("") => Path::new("."),
         Some(d) => d,
     };
     mistrust.make_directory(directory).with_context(|| {
