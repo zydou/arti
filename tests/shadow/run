@@ -115,7 +115,7 @@ HOSTS=(
   articlient-onion-auth
   articlient-onion-artiserver
   articlient-onion-artiserver-full-vanguards
-  articlient-onion-auth
+  articlient-onion-artiserver-auth
   articlient-onion-artiserver-auth-ctor
   fileserver-onion-arti
   fileserver-onion-arti-full-vanguards
