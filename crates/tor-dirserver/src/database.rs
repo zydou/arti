@@ -38,17 +38,64 @@
 //! eventually resulting in a calling a synchronous function taking the
 //! transaction handle to perform the lion's share of the operation.
 
-use std::{num::NonZero, path::Path};
+use std::{
+    num::NonZero,
+    path::Path,
+    time::{Duration, SystemTime},
+};
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::{params, Transaction, TransactionBehavior};
+use rusqlite::{
+    params,
+    types::{FromSql, FromSqlResult, ToSqlOutput, ValueRef},
+    ToSql, Transaction, TransactionBehavior,
+};
+use saturating_time::SaturatingTime;
 
 use crate::err::DatabaseError;
 
 /// Representation of a Sha256 hash in hexadecimal (upper-case)
 // TODO: Make this a real type that actually enforces the constraints.
 pub(crate) type Sha256 = String;
+
+/// A wrapper around [`SystemTime`] with [`FromSql`] and [`ToSql`].
+///
+/// While you can use this type directly for parameters and variables, it is
+/// recommended to only use the type for temporaries and store everything else
+/// in a [`SystemTime`], as otherwise lots manual wrapping and unwrapping will
+/// be required.  Likewise, hypothetical implementations of this type for]
+/// [`Into`] and [`From`] would lead to similar boilerplate by having to tell
+/// the compiler the concrete types and various places.  These attempts have
+/// been tried during development but they are not worth it.
+///
+/// TODO DIRMIRROR: Consider to make this type way more public and use it
+/// (almost) everywhere, instead of embracing the use of [`SystemTime`].
+/// This would allow us to safely avoid the use of the dangerous and panic-prone
+/// [`std::ops::Add`] and [`std::ops::Sub`] operations, alongside potentially
+/// other convenient features.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub(crate) struct Timestamp(pub(crate) SystemTime);
+
+impl FromSql for Timestamp {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        let mut res = SystemTime::UNIX_EPOCH;
+        res = res.saturating_add(Duration::from_secs(value.as_i64()?.try_into().unwrap_or(0)));
+        Ok(Self(res))
+    }
+}
+
+impl ToSql for Timestamp {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(
+            self.0
+                .saturating_duration_since(SystemTime::UNIX_EPOCH)
+                .as_secs()
+                .try_into()
+                .unwrap_or(i64::MAX),
+        ))
+    }
+}
 
 /// A no-op macro just returning the supplied.
 ///
