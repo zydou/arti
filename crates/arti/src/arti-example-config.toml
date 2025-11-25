@@ -587,6 +587,27 @@
 #
 #    num_intro_points = 3
 
+# A rate-limit on the acceptable rate of introduction requests.
+#
+# Consists of two parameters: the allowed client introduction rate per second
+# and maximum number of introductions in a single burst, which correspond to to the C Tor
+# HiddenServiceEnableIntroDoSRatePerSec and
+# HiddenServiceEnableIntroDoSBurstPerSec options, respectively.
+# If either of these parameters is set to 0, the defense is disabled,
+# and the introduction point will ignore the other parameter.
+#
+# We send this to the introduction point to configure how many
+# introduction requests it sends us.
+# If this is not set, the introduction point chooses a default based on
+# the current consensus.
+#
+# We do not enforce this limit ourselves.
+#
+# This configuration is sent as a `DOS_PARAMS` extension, as documented in
+# <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
+#
+#   rate_limit_at_intro = [25, 200]
+
 # How many streams will we allow at a time for each circuit?
 #
 # If a client attempts to open more than this many streams on a rendezvous circuit,
