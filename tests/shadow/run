@@ -134,7 +134,7 @@ for HOST in "${HOSTS[@]}"; do
 
   if [ "$bugs" -eq 0 ]
   then
-    echo "Simulation successful"
+    echo "$HOST simulation successful"
   else
     echo "Failed. Found $bugs internal errors in ${file[*]}."
     exit 1
