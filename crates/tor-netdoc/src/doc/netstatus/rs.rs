@@ -17,7 +17,7 @@ use crate::doc::netstatus::NetstatusKwd;
 use crate::doc::netstatus::{IgnoredPublicationTimeSp, Protocols, RelayWeight};
 use crate::parse::parser::Section;
 use crate::types::misc::*;
-use crate::types::relay_flags::{DocRelayFlags, RelayFlag, RelayFlags};
+use crate::types::relay_flags::{self, DocRelayFlags, RelayFlag, RelayFlags};
 use crate::types::version::TorVersion;
 use crate::util::intern::InternCache;
 use crate::{Error, NetdocErrorKind as EK, Result};
@@ -30,7 +30,6 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 #[cfg(feature = "parse2")]
 use {
     super::consensus_methods_comma_separated, //
-    crate::types::relay_flags::{ConsensusRelayFlagsParser, VoteRelayFlagsParser},
     derive_deftly::Deftly,
 };
 

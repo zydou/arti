@@ -1,6 +1,8 @@
 //! Relay flags (aka Router Status Flags), eg in network status documents
 
 use std::collections::HashSet;
+use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::str::FromStr;
 
 use enumset::{EnumSet, EnumSetType, enum_set};
@@ -42,21 +44,45 @@ pub struct DocRelayFlags {
     pub unknown: Unknown<HashSet<String>>,
 }
 
-/// Flags that are implied by existence of a relay in a consensus.
-pub const RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT: RelayFlags =
-    enum_set!(RelayFlag::Running | RelayFlag::Valid);
-/// Flags that are implied by existence of a relay in a consensus and not even stated there.
-pub const RELAY_FLAGS_CONSENSUS_ENCODE_OMIT: RelayFlags = RelayFlags::empty();
+/// Additional options for the representation of relay flags in network documents
+///
+/// This is a generic argument to `Parser`
+/// (and will be used for the encoder too).
+pub trait ReprMode: Debug + Copy {
+    /// Flags that should be treated as being present when parsing
+    ///
+    /// Ie, they should be inferred even if they aren't actually listed in the document.
+    ///
+    /// But, when encoding, they should still be emitted.
+    const PARSE_IMPLICIT: RelayFlags;
 
-/// Relay flags parsing as found in the consensus (md or plain)
-pub(crate) type ConsensusRelayFlagsParser<'s> = RelayFlagsParser<
-    's,
-    { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.as_repr() },
-    { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.as_repr() },
->;
+    /// Flags that should be treated as being present, and won't even be encoded.
+    ///
+    /// These are inferred when parsing, and omitted when encoding.
+    ///
+    /// (During parsing `ENCODE_OMIT` and `PARSE_IMPLICIT` flags are treated the same.)
+    const ENCODE_OMIT: RelayFlags;
+}
 
-/// Relay flags parsing as found in votes.
-pub(crate) type VoteRelayFlagsParser<'s> = RelayFlagsParser<'s, 0, 0>;
+/// How relay flags are represented in a consensus
+#[derive(Debug, Copy, Clone)]
+#[allow(clippy::exhaustive_structs)]
+pub struct ConsensusRepr;
+
+impl ReprMode for ConsensusRepr {
+    const PARSE_IMPLICIT: RelayFlags = enum_set!(RelayFlag::Running | RelayFlag::Valid);
+    const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
+}
+
+/// How relay flags are represented in a vote
+#[derive(Debug, Copy, Clone)]
+#[allow(clippy::exhaustive_structs)]
+pub struct VoteRepr;
+
+impl ReprMode for VoteRepr {
+    const PARSE_IMPLICIT: RelayFlags = RelayFlags::empty();
+    const ENCODE_OMIT: RelayFlags = RelayFlags::empty();
+}
 
 /// Set of (known) router status flags
 ///
@@ -66,7 +92,7 @@ pub(crate) type VoteRelayFlagsParser<'s> = RelayFlagsParser<'s, 0, 0>;
 /// This is a newtype around a machine integer.
 ///
 /// Does not implement `ItemValueParseable`.  Parsing (and encoding) is different in
-/// different documents.  Use an appropriate parameterised [`RelayFlagsParser`],
+/// different documents.  Use an appropriate parameterised [`Parser`],
 /// in `#[deftly(netdoc(with))]`.
 ///
 /// To also maybe handle unknown flags, use [`DocRelayFlags`].
@@ -139,19 +165,8 @@ pub enum RelayFlag {
 
 /// Parsing helper for a relay flags line (eg `s` item in a routerdesc)
 ///
-/// `PARSE_IMPLICIT` lists flags that should be treated as being present when parsing,
-/// even if they aren't actually listed in the document.
-///
-/// `ENCODE_OMIT` lists flags that should be treated as being present,
-/// and won't even be encoded.
-///
-/// (During parsing `ENCODE_OMIT` and `PARSE_IMPLICIT` flags are treated the same.)
 #[derive(Debug, Clone)]
-pub struct RelayFlagsParser<
-    's,
-    const PARSE_IMPLICIT: RelayFlagsBits,
-    const ENCODE_OMIT: RelayFlagsBits,
-> {
+pub struct Parser<'s, M: ReprMode> {
     /// Flags so far, including the implied ones
     flags: DocRelayFlags,
 
@@ -159,6 +174,9 @@ pub struct RelayFlagsParser<
     ///
     /// Used only for checking that the arguments are sorted, as per the spec.
     prev: Option<&'s str>,
+
+    /// The mode, which is just a type token
+    repr_mode: PhantomData<M>,
 }
 
 /// Problem parsing a relay flags line
@@ -170,31 +188,19 @@ pub enum RelayFlagsParseError {
     OutOfOrder,
 }
 
-impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits>
-    RelayFlagsParser<'s, PARSE_IMPLICIT, ENCODE_OMIT>
-{
+impl<'s, M: ReprMode> Parser<'s, M> {
     /// Start parsing relay flags
     ///
     /// If `PARSE_IMPLICIT` or `ENCODE_OMIT` contains unknown bits, compile will fail.
     pub fn new(unknown: Unknown<()>) -> Self {
-        let known: RelayFlags = {
-            /// The starting bits, as an integer.  Can't be a `const` or `let` for Rust Reasons.
-            macro_rules! BITS { {} => { PARSE_IMPLICIT | ENCODE_OMIT } }
-            // Prove, at compile-time, that the generic parameters contain no bad bits
-            const {
-                let wrong = BITS!() & !RelayFlags::all().as_repr();
-                if wrong != 0 {
-                    panic!("unknown bit values in RelayFlagsParser const generics")
-                }
-            };
-            RelayFlags::try_from_repr(BITS!()).expect("but we checked!")
-        };
-        RelayFlagsParser {
+        let known = M::PARSE_IMPLICIT | M::ENCODE_OMIT;
+        Parser {
             flags: DocRelayFlags {
                 known,
                 unknown: unknown.map(|()| HashSet::new()),
             },
             prev: None,
+            repr_mode: PhantomData,
         }
     }
     /// Parse the next relay flag argument
@@ -237,10 +243,7 @@ mod parse_impl {
                         .at_pos(item.pos()),
                 );
             }
-            let mut flags = RelayFlagsParser::<
-                { RELAY_FLAGS_CONSENSUS_PARSE_IMPLICIT.as_repr() },
-                { RELAY_FLAGS_CONSENSUS_ENCODE_OMIT.as_repr() },
-            >::new(Unknown::new_discard());
+            let mut flags = Parser::<ConsensusRepr>::new(Unknown::new_discard());
 
             for s in item.args() {
                 flags
@@ -260,9 +263,7 @@ mod parse2_impl {
     use crate::parse2;
     use parse2::ErrorProblem as EP;
 
-    impl<'s, const PARSE_IMPLICIT: RelayFlagsBits, const ENCODE_OMIT: RelayFlagsBits>
-        RelayFlagsParser<'s, PARSE_IMPLICIT, ENCODE_OMIT>
-    {
+    impl<'s, M: ReprMode> Parser<'s, M> {
         /// Parse relay flags
         #[allow(clippy::needless_pass_by_value)] // we must match trait signature
         pub(crate) fn from_unparsed(item: parse2::UnparsedItem<'_>) -> Result<DocRelayFlags, EP> {
