@@ -18,7 +18,7 @@ A trait for limits and saturations on types inside [`std::time`].
 `saturating-time` is a very minimal crate that only exposes a minimal trait:
 [`SaturatingTime`].
 
-The trait itself offers four methods:
+The trait itself offers the following methods:
 * [`SaturatingTime::max_value()`] – Returns the maximum value for this type.
 * [`SaturatingTime::min_value()`] – Returns the minimum value for this type.
 * [`SaturatingTime::saturating_add()`] – Saturating addition for this type.
