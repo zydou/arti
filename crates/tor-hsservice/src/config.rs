@@ -56,6 +56,11 @@ pub struct OnionServiceConfig {
 
     /// How many streams will we allow to be open at once for a single circuit on
     /// this service?
+    ///
+    /// If a client attempts to open more than this many streams on a rendezvous circuit,
+    /// the circuit will be torn down.
+    ///
+    /// Equivalent to C Tor's HiddenServiceMaxStreamsCloseCircuit option.
     #[builder(default = "65535")]
     max_concurrent_streams_per_circuit: u32,
 
