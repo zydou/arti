@@ -13,11 +13,19 @@
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
-use super::*;
-use crate::types::{Ignored, NotPresent};
+use std::fmt::Debug;
+
 use anyhow::Context as _;
+use derive_deftly::Deftly;
 use testresult::TestResult;
 use tor_error::ErrorReport as _;
+
+use crate::parse2::{
+    ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
+    NetdocParseable, NetdocParseableFields, ParseError, ParseInput, UnparsedItem, parse_netdoc,
+    parse_netdoc_multiple,
+};
+use crate::types::{Ignored, NotPresent};
 
 fn default<T: Default>() -> T {
     Default::default()
@@ -129,29 +137,29 @@ struct SubSub {
 struct NeedsWith;
 
 impl NeedsWith {
-    fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, AE> {
-        let got = args.next().ok_or(AE::Missing)?;
-        (got == exp).then_some(NeedsWith).ok_or(AE::Invalid)
+    fn parse_expecting(exp: &str, args: &mut ArgumentStream<'_>) -> Result<NeedsWith, P2AE> {
+        let got = args.next().ok_or(P2AE::Missing)?;
+        (got == exp).then_some(NeedsWith).ok_or(P2AE::Invalid)
     }
 }
 
 mod needs_with_parse {
     use super::*;
-    pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
+    pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, P2EP> {
         NeedsWith::parse_expecting("normal", item.args_mut())
             .map_err(item.args().error_handler("in needs with"))
     }
 }
 mod needs_with_intro {
     use super::*;
-    pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, ErrorProblem> {
+    pub(super) fn from_unparsed(mut item: UnparsedItem<'_>) -> Result<NeedsWith, P2EP> {
         NeedsWith::parse_expecting("intro", item.args_mut())
             .map_err(item.args().error_handler("in needs with"))
     }
 }
 mod needs_with_arg {
     use super::*;
-    pub(super) fn from_args(args: &mut ArgumentStream) -> Result<NeedsWith, AE> {
+    pub(super) fn from_args(args: &mut ArgumentStream) -> Result<NeedsWith, P2AE> {
         NeedsWith::parse_expecting("arg", args)
     }
     pub(super) fn from_rest(s: &str) -> Result<NeedsWith, ()> {
@@ -593,8 +601,6 @@ struct TestItemObjectIgnored {
 
 /// Conversion module for `String` as Object with [`ItemValueParseable`]
 mod string_data_object {
-    use super::*;
-
     /// Parse the data
     pub(super) fn try_from(data: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(data)
@@ -602,15 +608,15 @@ mod string_data_object {
 }
 
 impl ItemObjectParseable for TestObject {
-    fn check_label(label: &str) -> Result<(), ErrorProblem> {
+    fn check_label(label: &str) -> Result<(), P2EP> {
         if label != "TEST OBJECT" {
-            return Err(EP::ObjectIncorrectLabel);
+            return Err(P2EP::ObjectIncorrectLabel);
         }
         Ok(())
     }
-    fn from_bytes(data: &[u8]) -> Result<Self, ErrorProblem> {
+    fn from_bytes(data: &[u8]) -> Result<Self, P2EP> {
         Ok(TestObject(
-            String::from_utf8(data.to_owned()).map_err(|_| EP::ObjectInvalidData)?,
+            String::from_utf8(data.to_owned()).map_err(|_| P2EP::ObjectInvalidData)?,
         ))
     }
 }
