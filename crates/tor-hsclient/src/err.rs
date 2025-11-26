@@ -204,7 +204,7 @@ pub enum FailedAttemptError {
     },
 
     /// Introduction point reported error in its INTRODUCE_ACK
-    #[error("Introduction point reported error in its INTRODUCE_ACK: {status}")]
+    #[error("Introduction point {intro_index} reported error in its INTRODUCE_ACK: {status}")]
     IntroductionFailed {
         /// The status code provided by the introduction point
         status: IntroduceAckStatus,
