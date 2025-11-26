@@ -915,8 +915,8 @@ define_derive_deftly! {
     ///    Instead of `ItemArgumentParseable`, the argument is parsed with `MODULE::from_args`,
     ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
     ///
-    ///    With `#[deftly(netdoc(rest))]`, FUNCTION replaces
-    ///    `<FIELD AS FromStr>::from_str`.
+    ///    With `#[deftly(netdoc(rest))]`, the argument is parsed with `MODULE::from_args_rest`,
+    ///    which replaces `<FIELD as FromStr>::from_str`.
     ///
     ///    With `#[deftly(netdoc(objecte))]`, uses `MODULE::try_from`
     ///    which must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
@@ -1003,9 +1003,12 @@ define_derive_deftly! {
                   // consumes `args`, leading to compile error if the rest field
                   // isn't last (or is combined with no_extra_args).
                   let args_consume = args;
-                  ${fmeta(netdoc(with))
-                    as path,
-                    default { <$ftype as FromStr>::from_str }}(args_consume.into_remaining())
+                  ${if fmeta(netdoc(with)) {
+                      ${fmeta(netdoc(with)) as path}::${paste_spanned $fname from_args_rest}
+                  } else {
+                      <$ftype as FromStr>::from_str
+                  }}
+                      (args_consume.into_remaining())
                       .map_err(|_| AE::Invalid)
                       .map_err(args_consume.error_handler(stringify!($fname)))?
               } }
