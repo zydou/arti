@@ -689,6 +689,8 @@ pub struct TorClientConfig {
     pub(crate) stream_timeouts: StreamTimeoutConfig,
 
     /// Information about vanguards.
+    // NOTE: Don't use `#[as_ref]` below, since we provide our own AsRef impl to handle when
+    // vanguards are disabled.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) vanguards: vanguards::VanguardConfig,
@@ -743,8 +745,8 @@ pub struct SystemConfig {
 }
 impl_standard_builder! { SystemConfig }
 
-impl tor_circmgr::CircMgrConfig for TorClientConfig {
-    fn vanguard_config(&self) -> &tor_guardmgr::VanguardConfig {
+impl AsRef<tor_guardmgr::VanguardConfig> for TorClientConfig {
+    fn as_ref(&self) -> &tor_guardmgr::VanguardConfig {
         cfg_if::cfg_if! {
             if #[cfg(all(
                 feature = "vanguards",
@@ -758,6 +760,9 @@ impl tor_circmgr::CircMgrConfig for TorClientConfig {
         }
     }
 }
+
+impl tor_circmgr::CircMgrConfig for TorClientConfig {}
+
 #[cfg(feature = "onion-service-client")]
 impl tor_hsclient::HsClientConnectorConfig for TorClientConfig {}
 
