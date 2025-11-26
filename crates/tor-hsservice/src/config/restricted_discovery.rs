@@ -185,7 +185,7 @@ impl FromStr for HsClientNickname {
 ///
 /// See the [module-level documentation](self) for more details.
 #[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
-#[builder(build_fn(error = "ConfigBuildError", name = "build_unvalidated"))]
+#[builder(build_fn(private, error = "ConfigBuildError", name = "build_unvalidated"))]
 #[builder(derive(Serialize, Deserialize, Debug, Deftly))]
 #[non_exhaustive]
 pub struct RestrictedDiscoveryConfig {
