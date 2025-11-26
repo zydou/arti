@@ -177,6 +177,9 @@ impl ResolvePath {
         // The path resolution algorithm will _end_ with resolving the path we
         // were provided...
         push_prefix(&mut resolve.stack, path);
+        if resolve.stack.is_empty() {
+            return Err(Error::NotFound(path.to_path_buf()));
+        }
         // ...and if if the path is relative, we will first resolve the current
         // directory.
         if path.is_relative() {
