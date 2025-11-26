@@ -918,7 +918,7 @@ define_derive_deftly! {
     ///    With `#[deftly(netdoc(rest))]`, the argument is parsed with `MODULE::from_args_rest`,
     ///    which replaces `<FIELD as FromStr>::from_str`.
     ///
-    ///    With `#[deftly(netdoc(objecte))]`, uses `MODULE::try_from`
+    ///    With `#[deftly(netdoc(object))]`, uses `MODULE::try_from`
     ///    which must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
     ///    like `TryFrom::<Vec<u8>>>::try_from`.
     ///    LABEL must also be specified
