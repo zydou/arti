@@ -894,7 +894,7 @@ define_derive_deftly! {
     ///    Only allowed once.
     ///
     ///    The field type must implement `FromStr`.
-    ///    (I.e. `Vec` , `Option` etc., are not allowed.)
+    ///    (I.e. `Vec` , `Option` etc., are not allowed, and `ItemArgumentParseable` is not used.)
     ///
     ///  * **`#[deftly(netdoc(object))]**:
     ///
