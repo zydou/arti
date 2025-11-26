@@ -69,6 +69,32 @@ pub mod vanguards {
     pub use tor_guardmgr::{VanguardConfig, VanguardConfigBuilder};
 }
 
+#[cfg(not(all(
+    feature = "vanguards",
+    any(feature = "onion-service-client", feature = "onion-service-service"),
+)))]
+use {
+    std::sync::LazyLock,
+    tor_config::ExplicitOrAuto,
+    tor_guardmgr::{VanguardConfig, VanguardConfigBuilder, VanguardMode},
+};
+
+/// A [`VanguardConfig`] which is disabled.
+// It would be nice if the builder were const, but this is the best we can do.
+// Boxed so that this is guaranteed to use very little space if it's unused.
+#[cfg(not(all(
+    feature = "vanguards",
+    any(feature = "onion-service-client", feature = "onion-service-service"),
+)))]
+static DISABLED_VANGUARDS: LazyLock<Box<VanguardConfig>> = LazyLock::new(|| {
+    Box::new(
+        VanguardConfigBuilder::default()
+            .mode(ExplicitOrAuto::Explicit(VanguardMode::Disabled))
+            .build()
+            .expect("Could not build a disabled `VanguardConfig`"),
+    )
+});
+
 /// Configuration for client behavior relating to addresses.
 ///
 /// This type is immutable once constructed. To create an object of this type,
@@ -663,6 +689,8 @@ pub struct TorClientConfig {
     pub(crate) stream_timeouts: StreamTimeoutConfig,
 
     /// Information about vanguards.
+    // NOTE: Don't use `#[as_ref]` below, since we provide our own AsRef impl to handle when
+    // vanguards are disabled.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) vanguards: vanguards::VanguardConfig,
@@ -717,15 +745,24 @@ pub struct SystemConfig {
 }
 impl_standard_builder! { SystemConfig }
 
-impl tor_circmgr::CircMgrConfig for TorClientConfig {
-    #[cfg(all(
-        feature = "vanguards",
-        any(feature = "onion-service-client", feature = "onion-service-service")
-    ))]
-    fn vanguard_config(&self) -> &tor_guardmgr::VanguardConfig {
-        &self.vanguards
+impl AsRef<tor_guardmgr::VanguardConfig> for TorClientConfig {
+    fn as_ref(&self) -> &tor_guardmgr::VanguardConfig {
+        cfg_if::cfg_if! {
+            if #[cfg(all(
+                feature = "vanguards",
+                any(feature = "onion-service-client", feature = "onion-service-service"),
+            ))]
+            {
+                &self.vanguards
+            } else {
+                &DISABLED_VANGUARDS
+            }
+        }
     }
 }
+
+impl tor_circmgr::CircMgrConfig for TorClientConfig {}
+
 #[cfg(feature = "onion-service-client")]
 impl tor_hsclient::HsClientConnectorConfig for TorClientConfig {}
 
@@ -1018,6 +1055,17 @@ mod test {
         assert!(dflt[0].as_path().unwrap().ends_with("arti.toml"));
         assert!(dflt[1].as_path().unwrap().ends_with("arti.d"));
         assert_eq!(dflt.len(), 2);
+    }
+
+    #[test]
+    #[cfg(not(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service"),
+    )))]
+    fn check_disabled_vanguards_static() {
+        // Force us to evaluate the closure to ensure that it builds correctly.
+        #[allow(clippy::borrowed_box)]
+        let _: &Box<VanguardConfig> = LazyLock::force(&DISABLED_VANGUARDS);
     }
 
     #[test]

@@ -7,7 +7,7 @@
 use tor_basic_utils::define_accessor_trait;
 use tor_config::impl_standard_builder;
 use tor_config::{ConfigBuildError, define_list_builder_accessors, define_list_builder_helper};
-use tor_guardmgr::{GuardFilter, GuardMgrConfig};
+use tor_guardmgr::{GuardFilter, GuardMgrConfig, VanguardConfig};
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -382,17 +382,9 @@ define_accessor_trait! {
     // cloning all the fields an extra time.
     pub trait CircMgrConfig: GuardMgrConfig {
         path_rules: PathConfig,
+        vanguard_config: VanguardConfig,
         circuit_timing: CircuitTiming,
         preemptive_circuits: PreemptiveCircuitConfig,
-        +
-        // Note: ideally this would be defined in the same way as `path_rules`,
-        // `circuit_timing`, etc., but define_accessor_trait unconditionally adds
-        // AsRef<VanguardsConfig> as a supertrait, which can't be cfg'd behind
-        // the vanguards feature.
-
-        /// Access the field
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        fn vanguard_config(&self) -> &tor_guardmgr::VanguardConfig;
     }
 }
 
@@ -401,7 +393,6 @@ define_accessor_trait! {
 pub(crate) mod test_config {
     use super::*;
     use crate::*;
-    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use tor_guardmgr::VanguardConfig;
     use tor_guardmgr::bridge::BridgeConfig;
 
@@ -415,7 +406,6 @@ pub(crate) mod test_config {
         pub circuit_timing: CircuitTiming,
         pub preemptive_circuits: PreemptiveCircuitConfig,
         pub guardmgr: tor_guardmgr::TestConfig,
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         pub vanguard_config: VanguardConfig,
     }
     impl AsRef<[BridgeConfig]> for TestConfig {
@@ -443,7 +433,6 @@ pub(crate) mod test_config {
         fn preemptive_circuits(&self) -> &PreemptiveCircuitConfig {
             &self.preemptive_circuits
         }
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         fn vanguard_config(&self) -> &tor_guardmgr::VanguardConfig {
             &self.vanguard_config
         }

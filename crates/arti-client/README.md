@@ -231,6 +231,9 @@ match tor_client.connect(("example.com", 80)).await {
 * `onion-service-service` -- Build with support for running onion services.
   Note that this is not yet as secure as C-Tor and shouldn't
   be used for security-sensitive purposes.
+* `vanguards` -- Build with support for vanguards.
+  Requires that either `onion-service-client` or `onion-service-service`
+  is also enabled.
 * `pt-client` -- Build with support for pluggable transports.
 * `anyhow` -- Build with support for extracting `ErrorHint`s from
   anyhow::Error.
