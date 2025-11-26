@@ -15,13 +15,12 @@
 //! You can think of this module as the one implementing the things unique
 //! to directory mirrors.
 
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
 use rusqlite::{params, OptionalExtension, Transaction};
-use saturating_time::SaturatingTime;
 use tor_basic_utils::RngExt;
 use tor_dircommon::{
     authority::AuthorityContacts,
@@ -40,15 +39,15 @@ use crate::{
 /// This function queries the database using a [`Transaction`] in order to have
 /// a consistent view upon it.  It will return an [`Option`] containing various
 /// consensus related timestamps plus the raw consensus itself (more on this
-/// below).  In order to obtain a *valid* consensus, a [`SystemTime`] plus a
+/// below).  In order to obtain a *valid* consensus, a [`Timestamp`] plus a
 /// [`DirTolerance`] is supplied, which will be used for querying the datbaase.
 ///
 /// # The [`Ok`] Return Value
 ///
 /// In the [`Some`] case, the return value is composed of the following:
-/// 1. The `valid-after` timestamp represented by a [`SystemTime`].
-/// 2. The `fresh-until` timestamp represented by a [`SystemTime`].
-/// 3. The `valid-until` timestamp represented by a [`SystemTime`].
+/// 1. The `valid-after` timestamp represented by a [`Timestamp`].
+/// 2. The `fresh-until` timestamp represented by a [`Timestamp`].
+/// 3. The `valid-until` timestamp represented by a [`Timestamp`].
 /// 4. The raw consensus reprented by a [`String`].
 ///
 /// The [`None`] case implies that no valid recent consensus has been found,
@@ -58,8 +57,8 @@ fn get_recent_consensus(
     tx: &Transaction,
     flavor: ConsensusFlavor,
     tolerance: &DirTolerance,
-    now: SystemTime,
-) -> Result<Option<(SystemTime, SystemTime, SystemTime, String)>, DatabaseError> {
+    now: Timestamp,
+) -> Result<Option<(Timestamp, Timestamp, Timestamp, String)>, DatabaseError> {
     // Select the most recent flavored consensus document from the database.
     //
     // The `valid_after` and `valid_until` cells must be a member of the range:
@@ -90,15 +89,15 @@ fn get_recent_consensus(
         .query_one(
             params![
                 flavor.name(),
-                Timestamp(now),
+                now,
                 tolerance.pre_valid_tolerance().as_secs(),
                 tolerance.post_valid_tolerance().as_secs()
             ],
             |row| {
                 Ok((
-                    row.get::<_, Timestamp>(0)?.0,
-                    row.get::<_, Timestamp>(1)?.0,
-                    row.get::<_, Timestamp>(2)?.0,
+                    row.get::<_, Timestamp>(0)?,
+                    row.get::<_, Timestamp>(1)?,
+                    row.get::<_, Timestamp>(2)?,
                     row.get::<_, Vec<u8>>(3)?,
                 ))
             },
@@ -133,30 +132,19 @@ fn get_recent_consensus(
 /// TODO DIRMIRROR: Consider not naming this timeout but something like
 /// "download interval" or "poll interval".
 fn calculate_sync_timeout<R: Rng>(
-    fresh_until: SystemTime,
-    valid_until: SystemTime,
-    now: SystemTime,
+    fresh_until: Timestamp,
+    valid_until: Timestamp,
+    now: Timestamp,
     rng: &mut R,
 ) -> Duration {
     assert!(fresh_until < valid_until);
 
-    // Allowing this is fine.  The assert above alongside database contraints
-    // ensure it, although it may be fixed by making more use of Timestamp.
-    #[allow(clippy::unchecked_time_subtraction)]
-    #[allow(clippy::unchecked_duration_subtraction)]
     let offset = rng
-        .gen_range_checked(
-            0..=(valid_until.saturating_duration_since(SystemTime::UNIX_EPOCH)
-                - fresh_until.saturating_duration_since(SystemTime::UNIX_EPOCH))
-            .as_secs()
-                / 2,
-        )
+        .gen_range_checked(0..=((valid_until - fresh_until).as_secs() / 2))
         .expect("invalid range???");
 
     // fresh_until + offset - now
-    fresh_until
-        .saturating_add(Duration::from_secs(offset))
-        .saturating_duration_since(now)
+    fresh_until + Duration::from_secs(offset) - now
 }
 
 /// Runs forever in the current task, performing the core operation of a directory mirror.
@@ -189,7 +177,7 @@ fn calculate_sync_timeout<R: Rng>(
 ///
 /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#download-desc-from-auth>
 /// * <https://spec.torproject.org/dir-spec/client-operation.html#retrying-failed-downloads>
-pub(super) async fn serve<R: Rng, F: Fn() -> SystemTime>(
+pub(super) async fn serve<R: Rng, F: Fn() -> Timestamp>(
     pool: Pool<SqliteConnectionManager>,
     flavor: ConsensusFlavor,
     _authorities: AuthorityContacts,
@@ -276,6 +264,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use std::time::SystemTime;
+
     use crate::database;
 
     use super::*;
@@ -285,20 +275,20 @@ mod test {
 
     lazy_static! {
     /// Wed Jan 01 2020 00:00:00 GMT+0000
-    static ref VALID_AFTER: SystemTime =
-        SystemTime::UNIX_EPOCH.saturating_add(Duration::from_secs(1577836800));
+    static ref VALID_AFTER: Timestamp =
+        (SystemTime::UNIX_EPOCH + Duration::from_secs(1577836800)).into();
 
     /// Wed Jan 01 2020 01:00:00 GMT+0000
-    static ref FRESH_UNTIL: SystemTime =
-        VALID_AFTER.saturating_add(Duration::from_secs(60 * 60));
+    static ref FRESH_UNTIL: Timestamp =
+        *VALID_AFTER + Duration::from_secs(60 * 60);
 
     /// Wed Jan 01 2020 02:00:00 GMT+0000
-    static ref FRESH_UNTIL_HALF: SystemTime =
-        FRESH_UNTIL.saturating_add(Duration::from_secs(60 * 60));
+    static ref FRESH_UNTIL_HALF: Timestamp =
+        *FRESH_UNTIL + Duration::from_secs(60 * 60);
 
     /// Wed Jan 01 2020 03:00:00 GMT+0000
-    static ref VALID_UNTIL: SystemTime =
-        FRESH_UNTIL.saturating_add(Duration::from_secs(60 * 60 * 2));
+    static ref VALID_UNTIL: Timestamp =
+        *FRESH_UNTIL + Duration::from_secs(60 * 60 * 2);
     }
 
     const CONTENT: &str = "Lorem ipsum dolor sit amet.";
@@ -329,9 +319,9 @@ mod test {
                     "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66",
                     "0000000000000000000000000000000000000000000000000000000000000000", // not the correct hash
                     ConsensusFlavor::Plain.name(),
-                    Timestamp(*VALID_AFTER),
-                    Timestamp(*FRESH_UNTIL),
-                    Timestamp(*VALID_UNTIL),
+                    *VALID_AFTER,
+                    *FRESH_UNTIL,
+                    *VALID_UNTIL,
                 ],
             )
             .unwrap();
@@ -361,7 +351,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                SystemTime::UNIX_EPOCH,
+                SystemTime::UNIX_EPOCH.into(),
             )
             .unwrap()
             .is_none());
@@ -371,7 +361,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                VALID_UNTIL.saturating_add(Duration::from_secs(60 * 60 * 24 * 365)),
+                *VALID_UNTIL + Duration::from_secs(60 * 60 * 24 * 365),
             )
             .unwrap()
             .is_none());
@@ -381,7 +371,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                VALID_AFTER.saturating_sub(Duration::from_secs(1)),
+                *VALID_AFTER - Duration::from_secs(1),
             )
             .unwrap()
             .is_none());
@@ -391,7 +381,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                VALID_UNTIL.saturating_add(Duration::from_secs(1)),
+                *VALID_UNTIL + Duration::from_secs(1),
             )
             .unwrap()
             .is_none());
@@ -409,7 +399,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &no_tolerance,
-                VALID_AFTER.saturating_add(Duration::from_secs(60 * 30)),
+                *VALID_AFTER + Duration::from_secs(60 * 30),
             )
             .unwrap()
             .unwrap();
@@ -430,7 +420,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                VALID_AFTER.saturating_sub(Duration::from_secs(60 * 30)),
+                *VALID_AFTER - Duration::from_secs(60 * 30),
             )
             .unwrap()
             .unwrap();
@@ -438,7 +428,7 @@ mod test {
                 tx,
                 ConsensusFlavor::Plain,
                 &liberal_tolerance,
-                VALID_UNTIL.saturating_add(Duration::from_secs(60 * 30)),
+                *VALID_UNTIL + Duration::from_secs(60 * 30),
             )
             .unwrap()
             .unwrap();
@@ -460,11 +450,11 @@ mod test {
     fn sync_timeout() {
         // We repeat the tests a few thousand times to go over many random values.
         for _ in 0..10000 {
-            let now = SystemTime::UNIX_EPOCH.saturating_add(Duration::from_secs(42));
+            let now = (SystemTime::UNIX_EPOCH + Duration::from_secs(42)).into();
 
             let dur = calculate_sync_timeout(*FRESH_UNTIL, *VALID_UNTIL, now, &mut testing_rng());
-            assert!(dur >= FRESH_UNTIL.saturating_duration_since(now));
-            assert!(dur <= FRESH_UNTIL_HALF.saturating_duration_since(now));
+            assert!(dur >= *FRESH_UNTIL - now);
+            assert!(dur <= *FRESH_UNTIL_HALF - now);
         }
     }
 }
