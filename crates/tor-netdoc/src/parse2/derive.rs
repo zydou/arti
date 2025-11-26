@@ -923,7 +923,7 @@ define_derive_deftly! {
     ///    like `TryFrom::<Vec<u8>>>::try_from`.
     ///    LABEL must also be specified
     ///    unless the object also implements `ItemObjectParseable`.
-    ///    Errors from parsing will be discarded and replaced with
+    ///    Errors from parsing will all be collapsed into
     ///    [`ErrorProblem::ObjectInvalidData`].
     ///
     ///  * **`#[deftly(netdoc(sig_hash = "HASH_METHOD"))]**:
