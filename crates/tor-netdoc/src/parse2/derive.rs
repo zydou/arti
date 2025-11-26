@@ -912,7 +912,7 @@ define_derive_deftly! {
     ///
     ///  * **`#[deftly(netdoc(with = "MODULE")]**:
     ///
-    ///    Instead of `ItemArgumentParseable`, the item is parsed with `MODULE::from_args`,
+    ///    Instead of `ItemArgumentParseable`, the argument is parsed with `MODULE::from_args`,
     ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
     ///
     ///    With `#[deftly(netdoc(rest))]`, FUNCTION replaces
