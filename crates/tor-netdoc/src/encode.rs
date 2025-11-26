@@ -81,7 +81,7 @@ pub trait ItemArgument {
     /// Some netdoc values (eg times) turn into several arguments; in that case,
     /// one `ItemArgument` may format into multiple arguments, and this method
     /// is responsible for writing them all, with the necessary spaces.
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug>;
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug>;
 }
 
 impl NetdocEncoder {
@@ -173,7 +173,7 @@ impl Default for NetdocEncoder {
 }
 
 impl ItemArgument for str {
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         // Implements this
         // https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/106
         if self.is_empty() || self.chars().any(|c| !c.is_ascii_graphic()) {
@@ -185,13 +185,13 @@ impl ItemArgument for str {
 }
 
 impl ItemArgument for &str {
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        <str as ItemArgument>::write_onto(self, out)
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        <str as ItemArgument>::write_arg_onto(self, out)
     }
 }
 
 impl<T: crate::NormalItemArgument> ItemArgument for T {
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         let arg = self.to_string();
         out.add_arg(&arg.as_str());
         Ok(())
@@ -200,7 +200,7 @@ impl<T: crate::NormalItemArgument> ItemArgument for T {
 
 impl ItemArgument for Iso8601TimeSp {
     // Unlike the macro'd formats, contains a space while still being one argument
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         let arg = self.to_string();
         out.args_raw_nonempty(&arg.as_str());
         Ok(())
@@ -209,7 +209,7 @@ impl ItemArgument for Iso8601TimeSp {
 
 #[cfg(feature = "hs-pow-full")]
 impl ItemArgument for tor_hscrypto::pow::v1::Seed {
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         let mut seed_bytes = vec![];
         tor_bytes::Writer::write(&mut seed_bytes, &self)?;
         out.add_arg(&Base64Unpadded::encode_string(&seed_bytes));
@@ -219,7 +219,7 @@ impl ItemArgument for tor_hscrypto::pow::v1::Seed {
 
 #[cfg(feature = "hs-pow-full")]
 impl ItemArgument for tor_hscrypto::pow::v1::Effort {
-    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+    fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         out.add_arg(&<Self as Into<u32>>::into(*self));
         Ok(())
     }
@@ -245,7 +245,7 @@ impl<'n> ItemEncoder<'n> {
     // Needed for implementing `ItemArgument`
     pub(crate) fn add_arg(&mut self, arg: &dyn ItemArgument) {
         let () = arg
-            .write_onto(self)
+            .write_arg_onto(self)
             .unwrap_or_else(|err| self.doc.built = Err(err));
     }
 
