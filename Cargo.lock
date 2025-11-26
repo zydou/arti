@@ -5175,6 +5175,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "saturating-time"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b63583a1dd0647d1484228529ab4ecaa874048d2956f117362aa5f5826456230"
+
+[[package]]
 name = "scc"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6744,6 +6750,7 @@ dependencies = [
  "r2d2_sqlite",
  "rand 0.9.2",
  "rusqlite",
+ "saturating-time",
  "sha2",
  "strum",
  "tempfile",
