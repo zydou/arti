@@ -140,6 +140,10 @@ fn calculate_sync_timeout<R: Rng>(
 ) -> Duration {
     assert!(fresh_until < valid_until);
 
+    // Allowing this is fine.  The assert above alongside database contraints
+    // ensure it, although it may be fixed by making more use of Timestamp.
+    #[allow(clippy::unchecked_time_subtraction)]
+    #[allow(clippy::unchecked_duration_subtraction)]
     let offset = rng
         .gen_range_checked(
             0..=(valid_until.saturating_duration_since(SystemTime::UNIX_EPOCH)
