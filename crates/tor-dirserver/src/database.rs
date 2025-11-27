@@ -40,6 +40,7 @@
 
 use std::{
     num::NonZero,
+    ops::{Add, Sub},
     path::Path,
     time::{Duration, SystemTime},
 };
@@ -59,23 +60,67 @@ use crate::err::DatabaseError;
 // TODO: Make this a real type that actually enforces the constraints.
 pub(crate) type Sha256 = String;
 
-/// A wrapper around [`SystemTime`] with [`FromSql`] and [`ToSql`].
+/// A wrapper around [`SystemTime`] with convenient features.
 ///
-/// While you can use this type directly for parameters and variables, it is
-/// recommended to only use the type for temporaries and store everything else
-/// in a [`SystemTime`], as otherwise lots manual wrapping and unwrapping will
-/// be required.  Likewise, hypothetical implementations of this type for]
-/// [`Into`] and [`From`] would lead to similar boilerplate by having to tell
-/// the compiler the concrete types and various places.  These attempts have
-/// been tried during development but they are not worth it.
+/// Please use this type throughout the crate internally, instead of
+/// [`SystemTime`].
 ///
-/// TODO DIRMIRROR: Consider to make this type way more public and use it
-/// (almost) everywhere, instead of embracing the use of [`SystemTime`].
-/// This would allow us to safely avoid the use of the dangerous and panic-prone
-/// [`std::ops::Add`] and [`std::ops::Sub`] operations, alongside potentially
-/// other convenient features.
+/// # Conversion
+///
+/// This type can be safely converted from and into a [`SystemTime`], because
+/// it is just a wrapper type.
+///
+/// # Saturating Artihmetic
+///
+/// This type implements [`Add`] and [`Sub`] for [`Duration`] and [`Timestamp`]
+/// ([`Sub`] only) using saturating artihmetic from the [`saturating_time`]
+/// crate.  It means that addition and subtraction can be safely performed
+/// without the potential risk of an unexpected panic, instead wrapping to
+/// a local maximum/minimum or [`Duration::ZERO`] depending on the type.
+///
+/// Note that we don't provide a saturating version of [`Duration`], so addition
+/// or substraction of two [`Duration`]s still needs care to avoid panics.
+///
+/// # SQLite Interaction
+///
+/// This type implements [`FromSql`] and [`ToSql`], making it convenient to
+/// integrate into SQL statements, as the database schema represents timestamps
+/// internally using a non-negative [`i64`] storing the seconds since the epoch.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub(crate) struct Timestamp(pub(crate) SystemTime);
+pub(crate) struct Timestamp(SystemTime);
+
+impl From<SystemTime> for Timestamp {
+    fn from(value: SystemTime) -> Self {
+        Self(value)
+    }
+}
+
+impl Add<Duration> for Timestamp {
+    type Output = Self;
+
+    /// Performs a saturating addition wrapping to [`SystemTime::max_value()`].
+    fn add(self, rhs: Duration) -> Self::Output {
+        Self(self.0.saturating_add(rhs))
+    }
+}
+
+impl Sub<Duration> for Timestamp {
+    type Output = Self;
+
+    /// Performs a saturating subtraction wrapping to [`SystemTime::min_value()`].
+    fn sub(self, rhs: Duration) -> Self::Output {
+        Self(self.0.saturating_sub(rhs))
+    }
+}
+
+impl Sub<Timestamp> for Timestamp {
+    type Output = Duration;
+
+    /// Performs a saturating duration_since wrapping to [`Duration::ZERO`].
+    fn sub(self, rhs: Timestamp) -> Self::Output {
+        self.0.saturating_duration_since(rhs.0)
+    }
+}
 
 impl FromSql for Timestamp {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
