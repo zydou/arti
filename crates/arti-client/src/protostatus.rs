@@ -192,7 +192,7 @@ pub(crate) fn evaluate_protocol_status(
             if missing.difference(&missing_recommended_ok()).is_empty() =>
         {
             debug!(
-                "Recommended protocols ({}) are missing, but that's expected: we haven't built them them yet in Arti.",
+                "Recommended protocols ({}) are missing, but that's expected: we haven't built them yet in Arti.",
                 missing
             );
             Ok(())
