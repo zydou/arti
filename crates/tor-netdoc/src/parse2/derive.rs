@@ -916,7 +916,9 @@ define_derive_deftly! {
     ///    which must have the same signature as [`ItemArgumentParseable::from_args`].
     ///
     ///    With `#[deftly(netdoc(rest))]`, the argument is parsed with `MODULE::from_args_rest`,
-    ///    which replaces `<FIELD as FromStr>::from_str`.
+    ///    must have the signature
+    ///    `fn from_args_rest(s: &str) -> Result<FIELD, _>`).
+    ///    and replaces `<FIELD as FromStr>::from_str`.
     ///
     ///    With `#[deftly(netdoc(object))]`, uses `MODULE::try_from`
     ///    which must have the signature `fn(Vec<u8>) -> Result<OBJECT, _>;
