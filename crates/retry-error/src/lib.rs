@@ -47,6 +47,7 @@
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Error as FmtError, Formatter};
 use std::iter;
+use std::time::{Duration, Instant, SystemTime};
 
 /// An error type for use when we're going to do something a few times,
 /// and they might all fail.
@@ -56,17 +57,24 @@ use std::iter;
 /// fails, use [`RetryError::push()`] to add a new error to the list
 /// of errors.  If the operation fails too many times, you can use
 /// RetryError as an [`Error`] itself.
+///
+/// This type now tracks timestamps for each error occurrence, allowing
+/// users to see when errors occurred and how long the retry process took.
 #[derive(Debug, Clone)]
 pub struct RetryError<E> {
     /// The operation we were trying to do.
     doing: String,
     /// The errors that we encountered when doing the operation.
-    errors: Vec<(Attempt, E)>,
+    errors: Vec<(Attempt, E, Instant)>,
     /// The total number of errors we encountered.
     ///
     /// This can differ from errors.len() if the errors have been
     /// deduplicated.
     n_errors: usize,
+    /// The wall-clock time when the first error occurred.
+    ///
+    /// This is used for human-readable display.
+    first_error_at: Option<SystemTime>,
 }
 
 /// Represents which attempts, in sequence, failed to complete.
@@ -98,27 +106,61 @@ impl<E> RetryError<E> {
             doing: doing.into(),
             errors: Vec::new(),
             n_errors: 0,
+            first_error_at: None,
         }
     }
     /// Add an error to this RetryError.
     ///
     /// You should call this method when an attempt at the underlying operation
     /// has failed.
-    pub fn push<T>(&mut self, err: T)
+    ///
+    /// The `timestamp` parameter should be the monotonic time when the error
+    /// occurred, typically obtained from a runtime's `now()` method.
+    ///
+    /// # Example
+    /// ```
+    /// # use retry_error::RetryError;
+    /// # use std::time::Instant;
+    /// let mut retry_err: RetryError<&str> = RetryError::in_attempt_to("connect");
+    /// let now = Instant::now();
+    /// retry_err.push_timed("connection failed", now);
+    /// ```
+    pub fn push_timed<T>(&mut self, err: T, timestamp: Instant)
     where
         T: Into<E>,
     {
         if self.n_errors < usize::MAX {
             self.n_errors += 1;
             let attempt = Attempt::Single(self.n_errors);
-            self.errors.push((attempt, err.into()));
+
+            // Set first_error_at on the first error
+            if self.first_error_at.is_none() {
+                self.first_error_at = Some(SystemTime::now());
+            }
+
+            self.errors.push((attempt, err.into(), timestamp));
         }
+    }
+
+    /// Add an error to this RetryError using the current time.
+    ///
+    /// You should call this method when an attempt at the underlying operation
+    /// has failed.
+    ///
+    /// This is a convenience wrapper around [`push_timed()`](Self::push_timed)
+    /// that uses `Instant::now()` for the timestamp. For code that needs
+    /// mockable time (such as in tests), prefer `push_timed()`.
+    pub fn push<T>(&mut self, err: T)
+    where
+        T: Into<E>,
+    {
+        self.push_timed(err, Instant::now());
     }
 
     /// Return an iterator over all of the reasons that the attempt
     /// behind this RetryError has failed.
     pub fn sources(&self) -> impl Iterator<Item = &E> {
-        self.errors.iter().map(|(_, e)| e)
+        self.errors.iter().map(|(.., e, _)| e)
     }
 
     /// Return the number of underlying errors.
@@ -142,15 +184,15 @@ impl<E> RetryError<E> {
         let mut old_errs = Vec::new();
         std::mem::swap(&mut old_errs, &mut self.errors);
 
-        for (attempt, err) in old_errs {
-            if let Some((last_attempt, last_err)) = self.errors.last_mut() {
+        for (attempt, err, timestamp) in old_errs {
+            if let Some((last_attempt, last_err, ..)) = self.errors.last_mut() {
                 if same_err(last_err, &err) {
                     last_attempt.grow();
                 } else {
-                    self.errors.push((attempt, err));
+                    self.errors.push((attempt, err, timestamp));
                 }
             } else {
-                self.errors.push((attempt, err));
+                self.errors.push((attempt, err, timestamp));
             }
         }
     }
@@ -197,8 +239,11 @@ impl<E> IntoIterator for RetryError<E> {
     // `type IntoIter = impl Iterator<Item=E>` then we fix the code
     // and turn the Clippy warning back on.
     fn into_iter(self) -> Self::IntoIter {
-        let v: Vec<_> = self.errors.into_iter().map(|x| x.1).collect();
-        v.into_iter()
+        self.errors
+            .into_iter()
+            .map(|(.., e, _)| e)
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 
@@ -216,22 +261,123 @@ impl<E: AsRef<dyn Error>> Display for RetryError<E> {
         match self.n_errors {
             0 => write!(f, "Unable to {}. (No errors given)", self.doing),
             1 => {
-                write!(f, "Unable to {}: ", self.doing)?;
+                write!(f, "Unable to {}", self.doing)?;
+
+                // Show timestamp if available
+                if let (Some((.., timestamp)), Some(first_at)) =
+                    (self.errors.first(), self.first_error_at)
+                {
+                    write!(
+                        f,
+                        " at {} ({})",
+                        humantime::format_rfc3339(first_at),
+                        format_time_ago(timestamp.elapsed())
+                    )?;
+                }
+
+                write!(f, ": ")?;
                 fmt_error_with_sources(self.errors[0].1.as_ref(), f)
             }
             n => {
-                write!(
-                    f,
-                    "Tried to {} {} times, but all attempts failed",
-                    self.doing, n
-                )?;
+                write!(f, "Tried to {} {} times", self.doing, n)?;
 
-                for (attempt, e) in &self.errors {
-                    write!(f, "\n{}: ", attempt)?;
+                // Show time range if we have timestamps
+                if let (Some(first_at), Some((.., first_ts)), Some((.., last_ts))) =
+                    (self.first_error_at, self.errors.first(), self.errors.last())
+                {
+                    let duration = last_ts.saturating_duration_since(*first_ts);
+
+                    write!(f, " from {} ", humantime::format_rfc3339(first_at))?;
+
+                    if duration.as_secs() > 0 {
+                        write!(f, "to {} ", humantime::format_rfc3339(first_at + duration))?;
+                    }
+
+                    write!(f, "({})", format_time_ago(last_ts.elapsed()))?;
+                }
+
+                write!(f, ", but all attempts failed")?;
+
+                // Show individual attempts with time offsets
+                let first_ts = self.errors.first().map(|(.., ts)| ts);
+                for (attempt, e, timestamp) in &self.errors {
+                    write!(f, "\n{}", attempt)?;
+
+                    // Show offset from first error
+                    if let Some(first_ts) = first_ts {
+                        let offset = timestamp.saturating_duration_since(*first_ts);
+                        if offset.as_secs() > 0 {
+                            write!(f, " ({})", format_duration(offset))?;
+                        }
+                    }
+
+                    write!(f, ": ")?;
                     fmt_error_with_sources(e.as_ref(), f)?;
                 }
                 Ok(())
             }
+        }
+    }
+}
+
+/// Format a duration for display with "ago" suffix.
+///
+/// Returns strings like "2m 30s ago", "just now", "500ms ago".
+fn format_time_ago(d: Duration) -> String {
+    let secs = d.as_secs();
+
+    if secs == 0 {
+        let millis = d.as_millis();
+        if millis == 0 {
+            return "just now".to_string();
+        }
+        return format!("{}ms ago", millis);
+    }
+
+    let duration_str = if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        let mins = secs / 60;
+        let rem_secs = secs % 60;
+        if rem_secs == 0 {
+            format!("{}m", mins)
+        } else {
+            format!("{}m {}s", mins, rem_secs)
+        }
+    } else {
+        let hours = secs / 3600;
+        let mins = (secs % 3600) / 60;
+        if mins == 0 {
+            format!("{}h", hours)
+        } else {
+            format!("{}h {}m", hours, mins)
+        }
+    };
+
+    format!("{} ago", duration_str)
+}
+
+/// Format a duration without "ago" suffix (for offsets between attempts).
+fn format_duration(d: Duration) -> String {
+    let secs = d.as_secs();
+
+    if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        let mins = secs / 60;
+        let rem_secs = secs % 60;
+        if rem_secs == 0 {
+            format!("{}m", mins)
+        } else {
+            format!("{}m {}s", mins, rem_secs)
+        }
+    } else {
+        let hours = secs / 3600;
+        let mins = (secs % 3600) / 60;
+        if mins == 0 {
+            format!("{}h", hours)
+        } else {
+            format!("{}h {}m", hours, mins)
         }
     }
 }
@@ -330,14 +476,14 @@ mod test {
             err.push(e);
         }
         let disp = format!("{}", err);
-        assert_eq!(
-            disp,
-            "\
-Tried to convert some things 3 times, but all attempts failed
-Attempt 1: provided string was not `true` or `false`
-Attempt 2: invalid digit found in string
-Attempt 3: invalid IP address syntax"
-        );
+        // Check that the output contains the expected messages
+        assert!(disp.contains("Tried to convert some things 3 times"));
+        assert!(disp.contains("but all attempts failed"));
+        assert!(disp.contains("Attempt 1: provided string was not `true` or `false`"));
+        assert!(disp.contains("Attempt 2: invalid digit found in string"));
+        assert!(disp.contains("Attempt 3: invalid IP address syntax"));
+        // Check that timestamps are present
+        assert!(disp.contains("from 20")); // Year prefix for timestamp
     }
 
     #[test]
@@ -359,10 +505,10 @@ Attempt 3: invalid IP address syntax"
             err.push(e);
         }
         let disp = format!("{}", err);
-        assert_eq!(
-            disp,
-            "Unable to connect to torproject.org: invalid IP address syntax"
-        );
+        assert!(disp.contains("Unable to connect to torproject.org"));
+        assert!(disp.contains("invalid IP address syntax"));
+        // Check that timestamp is present
+        assert!(disp.contains("at 20")); // Year prefix for timestamp
     }
 
     #[test]
@@ -397,12 +543,11 @@ Attempt 3: invalid IP address syntax"
 
         err.dedup();
         let disp = format!("{}", err);
-        assert_eq!(
-            disp,
-            "\
-Tried to parse some integers 3 times, but all attempts failed
-Attempts 1..3: invalid digit found in string"
-        );
+        assert!(disp.contains("Tried to parse some integers 3 times"));
+        assert!(disp.contains("but all attempts failed"));
+        assert!(disp.contains("Attempts 1..3: invalid digit found in string"));
+        // Check that timestamps are present
+        assert!(disp.contains("from 20")); // Year prefix for timestamp
     }
 
     #[test]
@@ -419,6 +564,7 @@ Attempts 1..3: invalid digit found in string"
         err.errors.push((
             Attempt::Range(1, err.n_errors),
             errors.pop().expect("parser did not fail"),
+            Instant::now(),
         ));
         assert!(err.n_errors == usize::MAX);
         assert!(err.len() == 1);
