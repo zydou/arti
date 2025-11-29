@@ -320,7 +320,7 @@ macro_rules! define_list_builder_helper {
         default = $default:expr;
         $( item_build: $item_build:expr; )?
     } => {
-        define_list_builder_helper! {
+        $crate::define_list_builder_helper! {
             $(#[ $docs_and_attrs ])*
             $vis
             struct $ListBuilder $( [ $($generics)* ] )?
