@@ -365,6 +365,7 @@ macro_rules! define_list_builder_accessors {
             )*
         }
     } => {
+        #[allow(dead_code)]
         impl $OuterBuilder { $( $crate::deps::paste!{
             /// Access the being-built list (resolving default)
             ///
