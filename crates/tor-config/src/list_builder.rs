@@ -225,9 +225,8 @@ macro_rules! define_list_builder_helper {
         $( item_build: $item_build:expr; )?
         $(#[ serde $serde_attrs:tt ] )+
     } => {
-        #[derive($crate::deps::educe::Educe, Clone, Debug)]
+        #[derive(Clone, Debug)]
         #[derive($crate::deps::serde::Serialize, $crate::deps::serde::Deserialize)]
-        #[educe(Default)]
         $(#[ serde $serde_attrs ])+
         $(#[ $docs_and_attrs ])*
         /// Wrapper struct to help derive_builder find the right types and methods
@@ -239,6 +238,16 @@ macro_rules! define_list_builder_helper {
         {
             /// The list, as overridden
             $field_vis $things: Option<Vec<$EntryBuilder>>,
+        }
+
+        impl $( <$($generics)*> )? Default for $ListBuilder$( < $($generics)* > )?
+        $( where $($where_clauses)* )?
+        {
+            fn default() -> Self {
+                Self {
+                    $things: None
+                }
+            }
         }
 
         impl $( < $($generics)* > )? $ListBuilder $( < $($generics)* > )?
