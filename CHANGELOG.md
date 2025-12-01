@@ -125,7 +125,7 @@ which are documented below.
 - Added `rate_limit_at_intro` to the example onion service config.
   ([!3493])
 - Updated the anonticket URL in the README and CONTRIBUTING.md. ([!3500])
-- Moved the naming convention documentation to the `poc` module. ([!3505])
+- Moved a no-longer-intended naming convention to the `poc` module. ([!3505])
 
 ### Infrastructure
 
