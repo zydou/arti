@@ -13,7 +13,7 @@ and a configuration option for controlling which onion services to launch.
 As usual, there are also various under-the-hood improvements and bug fixes,
 which are documented below.
 
-<!-- Up to date as of f57f44a5. -->
+<!-- Up to date as of [f57f44a5]. -->
 
 ### Breaking changes
 
@@ -172,7 +172,7 @@ which are documented below.
 - Fixed an incorrectly gated `match` arm in `tor-circmgr`. ([!3482])
 - In `hashx`, the internal `Register::as_u8()` is now gated behind the
   `compiler` feature, fixing a dead code warning. ([!3483])
-- `CtByteArray` no longer derives `Deref` ([!3432], [#2172])
+- `CtByteArray` no longer derives `Deref`. ([!3432], [#2172])
 - Improved opentelemetry instrumentation, to help debug [#2079] and other
   related issues. ([!3403])
 - Arti's HTTP CONNECT proxy now returns a status code derived from the remote
@@ -326,7 +326,7 @@ proxy, and numerous smaller fixes and infrastructure improvements.
 Arti 1.7.0 increases our MSRV (Minimum Supported Rust Version)
 to 1.86, in accordance with our [MSRV policy].
 
-<!-- Up to date as of cd223074f082fdb5ae6683b98bdaf48d4dea47a8. -->
+<!-- Up to date as of [cd223074f082fdb5ae6683b98bdaf48d4dea47a8]. -->
 
 ### Breaking changes
 
