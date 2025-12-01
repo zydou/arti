@@ -192,9 +192,7 @@ impl ItemArgument for &str {
 
 impl<T: crate::NormalItemArgument> ItemArgument for T {
     fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        let arg = self.to_string();
-        out.add_arg(&arg.as_str());
-        Ok(())
+        (*self.to_string()).write_arg_onto(out)
     }
 }
 
