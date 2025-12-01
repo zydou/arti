@@ -59,12 +59,12 @@ class TrackingBlockParser(mistune.BlockParser):
         self.track = track
         super().__init__()
 
-    def parse_def_link(self, m, state):
+    def parse_ref_link(self, m, state):
         k = m.group(1)
         t = m.group(2)
         title = m.group(3)
         self.track.defined[k] = (t, title)
-        return super().parse_def_link(m, state)
+        return super().parse_ref_link(m, state)
 
 
 class TrackingInlineParser(mistune.InlineParser):
@@ -72,10 +72,10 @@ class TrackingInlineParser(mistune.InlineParser):
         self.track = track
         super().__init__()
 
-    def parse_ref_link(self, m, state):
+    def parse_link(self, m, state):
         k = m.group(2) or m.group(1)
         self.track.used[k] = True
-        return super().parse_ref_link(m, state)
+        return super().parse_link(m, state)
 
 
 def extract_links(md_string):
