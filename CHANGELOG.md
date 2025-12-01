@@ -113,7 +113,8 @@ which are documented below.
 
 ### Documentation
 
-- Added `perl-Time-Piece` to the list of required dependencies in `CONTRIBUTING.md`.
+- Added `perl-Time-Piece` to the list of required dependencies on Red Hat-derived
+  distributions in `CONTRIBUTING.md`.
   ([66eedd0140cd85bc8abd43d790d1a0093b35d21d])
 - Removed security disclaimer about onion service support. ([!3464])
 - Improved the documentation of the new netdoc parser. ([!3479])
