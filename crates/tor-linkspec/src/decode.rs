@@ -30,6 +30,11 @@ pub enum Strictness {
 impl OwnedChanTargetBuilder {
     /// Construct an [`OwnedChanTargetBuilder`] from a list of [`LinkSpec`],
     /// validating it according to a given level of [`Strictness`].
+    ///
+    // TODO: replace Itertools::exactly_one() with a stdlib equivalent when there is one.
+    //
+    // See issue #48919 <https://github.com/rust-lang/rust/issues/48919>
+    #[allow(unstable_name_collisions)]
     pub fn from_linkspecs(
         strictness: Strictness,
         linkspecs: &[LinkSpec],

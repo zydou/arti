@@ -65,6 +65,7 @@ pub(crate) enum TunnelProvenance {
     Preexisting,
 }
 
+/// An error returned when we cannot apply circuit restriction.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RestrictionFailed {

@@ -162,6 +162,7 @@ static_rpc_invoke_fn! {
 }
 
 #[cfg(feature = "describe-methods")]
+#[allow(clippy::missing_docs_in_private_items)] // TODO
 mod list_all_methods {
     use std::{convert::Infallible, sync::Arc};
 

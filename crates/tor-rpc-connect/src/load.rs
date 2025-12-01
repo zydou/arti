@@ -88,7 +88,7 @@ pub struct ConnPointIterator<'a> {
     /// (We compute the `PathBuf`s in advance,
     /// since every call to `DirEntry::file_name()` allocates a string).
     entries: Vec<(PathBuf, fs::DirEntry)>,
-    //// The `Options` map passed to `load_dir`.
+    /// The `Options` map passed to `load_dir`.
     options: &'a HashMap<PathBuf, LoadOptions>,
 }
 

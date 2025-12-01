@@ -32,6 +32,10 @@ impl mgr::AbstractTunnel for tor_proto::ClientTunnel {
         !self.is_closing()
     }
 
+    // TODO: replace Itertools::exactly_one() with a stdlib equivalent when there is one.
+    //
+    // See issue #48919 <https://github.com/rust-lang/rust/issues/48919>
+    #[allow(unstable_name_collisions)]
     fn single_path(&self) -> tor_proto::Result<Arc<Path>> {
         use itertools::Itertools as _;
 

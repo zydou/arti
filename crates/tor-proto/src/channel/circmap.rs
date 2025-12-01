@@ -68,7 +68,7 @@ pub(super) enum CircEnt {
         /// A sink which should receive all the relay cells for this circuit
         /// from this channel
         cell_sender: CircuitRxSender,
-        //// A padding controller we should use when reporting flushed cells.
+        /// A padding controller we should use when reporting flushed cells.
         padding_ctrl: PaddingController,
     },
 
@@ -77,7 +77,7 @@ pub(super) enum CircEnt {
         /// A sink which should receive all the relay cells for this circuit
         /// from this channel
         cell_sender: CircuitRxSender,
-        //// A padding controller we should use when reporting flushed cells.
+        /// A padding controller we should use when reporting flushed cells.
         padding_ctrl: PaddingController,
     },
 

@@ -28,6 +28,7 @@ pub(crate) enum HscSubcommands {
     Hsc(HscSubcommand),
 }
 
+/// The `hsc` subcommand.
 #[derive(Debug, Subcommand)]
 pub(crate) enum HscSubcommand {
     /// Prepare a service discovery key for connecting
@@ -49,6 +50,7 @@ pub(crate) enum HscSubcommand {
     CTorMigrate(CTorMigrateArgs),
 }
 
+/// The `hsc-key` subcommand.
 #[derive(Debug, Subcommand)]
 pub(crate) enum KeySubcommand {
     /// Get or generate a hidden service client key
