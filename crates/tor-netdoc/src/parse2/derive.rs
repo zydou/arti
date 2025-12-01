@@ -31,7 +31,7 @@ define_derive_deftly_module! {
     ///
     ///  * **`F_ACCUMULATE_VAR`** the variable or field into which to accumulate
     ///    normal items for this field.  Must be of type `&mut $F_ACCUMULATE_TYPE`.
-    NetdocParseableCommon beta_deftly:
+    NetdocSomeItemsParseableCommon beta_deftly:
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
@@ -250,7 +250,7 @@ define_derive_deftly_module! {
 }
 
 define_derive_deftly! {
-    use NetdocParseableCommon;
+    use NetdocSomeItemsParseableCommon;
 
     /// Derive [`NetdocParseable`] for a document (or sub-document)
     ///
@@ -616,7 +616,7 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
-    use NetdocParseableCommon;
+    use NetdocSomeItemsParseableCommon;
 
     /// Derive [`NetdocParseableFields`] for a struct with individual items
     ///
