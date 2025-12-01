@@ -12,6 +12,9 @@ keywords = ["futures", "tor", "arti"]
 categories = ["rust-patterns", "network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+full = []
+
 [dependencies]
 futures = "0.3.14"
 pin-project = "1"
