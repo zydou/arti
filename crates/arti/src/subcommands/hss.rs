@@ -25,6 +25,7 @@ pub(crate) enum HssSubcommands {
     Hss(Hss),
 }
 
+/// The `hss` subcommand and args.
 #[derive(Debug, Parser)]
 pub(crate) struct Hss {
     /// Arguments shared by all hss subcommands.
@@ -36,6 +37,7 @@ pub(crate) struct Hss {
     command: HssSubcommand,
 }
 
+/// The `hss` subcommand.
 #[derive(Subcommand, Debug, Clone)]
 pub(crate) enum HssSubcommand {
     /// Print the .onion address of a hidden service

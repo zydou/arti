@@ -17,6 +17,7 @@ pub(crate) enum RawSubcommands {
     KeysRaw(RawSubcommand),
 }
 
+/// The `keys-raw` subcommand.
 #[derive(Subcommand, Debug, Clone)]
 pub(crate) enum RawSubcommand {
     /// Remove keystore entry by raw ID.
