@@ -228,6 +228,9 @@ impl ItemArgument for tor_hscrypto::pow::v1::Effort {
 impl<'n> ItemEncoder<'n> {
     /// Add a single argument.
     ///
+    /// Convenience method that defers error handling, for use in infallible contexts.
+    /// Consider whether to use `ItemArgument::write_arg_onto` directly, instead.
+    ///
     /// If the argument is not in the correct syntax, a `Bug`
     /// error will be reported (later).
     //
