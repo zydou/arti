@@ -46,4 +46,4 @@ tokio-stream = { version = "0.1.17", features = ["full"] }
 zstd = "0.13.3"
 
 [features]
-full = ["tor-error/full"]
+full = ["tor-error/full","tor-basic-utils/full","tor-dircommon/full","tor-netdoc/full"]

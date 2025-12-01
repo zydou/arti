@@ -28,6 +28,7 @@ full = [
     "tor-config-path/full",
     "tor-llcrypto/full",
     "tor-persist/full",
+    "tor-general-addr/full",
 ]
 
 [dependencies]
