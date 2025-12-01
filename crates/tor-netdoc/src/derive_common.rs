@@ -1,5 +1,7 @@
 //! Common macro elements for deriving parsers and encoders
 
+use derive_deftly::define_derive_deftly_module;
+
 /// Macro to help check that netdoc items in a derive input are in the right order
 ///
 /// Used only by the `NetdocParseable` derive-deftly macro.
@@ -32,4 +34,57 @@ macro_rules! netdoc_ordering_check {
             " may not come after ", stringify!($k0),
         ));
     };
+}
+
+define_derive_deftly_module! {
+    /// Common definitions for any netdoc derives
+    NetdocDeriveAnyCommon beta_deftly:
+
+}
+
+define_derive_deftly_module! {
+    /// Common definitions for derives of structs containing items
+    ///
+    /// Used by `NetdocParseable`, `NetdocParseableFields`,
+    /// `NetdocEncodable` and `NetdocEncodableFields`.
+    ///
+    /// Importer must also import `NetdocDeriveAnyCommon`.
+    //
+    // We have the call sites import the other modules, rather than using them here, because:
+    //  - This avoids the human reader having to chase breadcrumbs
+    //    to find out what a particular template is using.
+    //  - The dependency graph is not a tree, so some things would be included twice
+    //    and derive-deftly cannot deduplicate them.
+    NetdocSomeItemsDeriveCommon beta_deftly:
+
+}
+
+define_derive_deftly_module! {
+    /// Common definitions for derives of whole network documents
+    ///
+    /// Used by `NetdocParseable` and `NetdocEncodable`.
+    ///
+    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
+    NetdocEntireDeriveCommon beta_deftly:
+
+}
+
+define_derive_deftly_module! {
+    /// Common definitions for derives of flattenable network document fields structs
+    ///
+    /// Used by `NetdocParseableFields` and `NetdocEncodableFields`.
+    ///
+    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
+    NetdocFieldsDeriveCommon beta_deftly:
+
+}
+
+define_derive_deftly_module! {
+    /// Common definitions for derives of network document item value structs
+    ///
+    /// Used by `ItemValueParseable` and `ItemValueEncodable`.
+    ///
+    /// Importer must also import `NetdocDeriveAnyCommon`.
+    NetdocItemDeriveCommon beta_deftly:
+
 }

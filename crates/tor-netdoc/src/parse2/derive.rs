@@ -31,6 +31,8 @@ define_derive_deftly_module! {
     ///
     ///  * **`F_ACCUMULATE_VAR`** the variable or field into which to accumulate
     ///    normal items for this field.  Must be of type `&mut $F_ACCUMULATE_TYPE`.
+    ///
+    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
     NetdocSomeItemsParseableCommon beta_deftly:
 
     // Convenience alias for our prelude
@@ -250,6 +252,9 @@ define_derive_deftly_module! {
 }
 
 define_derive_deftly! {
+    use NetdocDeriveAnyCommon;
+    use NetdocEntireDeriveCommon;
+    use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
 
     /// Derive [`NetdocParseable`] for a document (or sub-document)
@@ -616,6 +621,9 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
+    use NetdocDeriveAnyCommon;
+    use NetdocFieldsDeriveCommon;
+    use NetdocSomeItemsDeriveCommon;
     use NetdocSomeItemsParseableCommon;
 
     /// Derive [`NetdocParseableFields`] for a struct with individual items
@@ -719,6 +727,8 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
+    use NetdocDeriveAnyCommon;
+
     /// Derive `FooSigned` from `Foo`
     ///
     /// Apply this derive to the main body struct `Foo`.
@@ -818,6 +828,9 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
+    use NetdocDeriveAnyCommon;
+    use NetdocItemDeriveCommon;
+
     /// Derive `ItemValueParseable`
     ///
     /// Fields in the struct are parsed from the keyword line arguments,
