@@ -54,6 +54,7 @@ pub(super) struct HsDescInner<'a> {
     pub(super) pow_params: Option<&'a PowParams>,
 }
 
+/// Encode the pow-params line.
 #[cfg(feature = "hs-pow-full")]
 fn encode_pow_params(
     encoder: &mut NetdocEncoder,
