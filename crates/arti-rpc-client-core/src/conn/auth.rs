@@ -27,6 +27,7 @@ struct CookieBeginParams {
     client_nonce: CookieAuthNonce,
 }
 
+/// Response to an `auth:cookie_begin` request.
 #[derive(Deserialize, Debug)]
 struct CookieBeginReply {
     /// Temporary ID to use while authenticating.
