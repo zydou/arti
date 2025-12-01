@@ -177,7 +177,7 @@ impl ItemArgument for str {
         // Implements this
         // https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/106
         if self.is_empty() || self.chars().any(|c| !c.is_ascii_graphic()) {
-            return Err(internal!("invalid keyword argument syntax {:?}", self));
+            return Err(internal!("invalid netdoc keyword line argument syntax {:?}", self));
         }
         out.args_raw_nonempty(&self);
         Ok(())
