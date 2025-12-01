@@ -227,6 +227,11 @@ impl TunnelMutableState {
     /// Return a list of [`Path`] objects describing the only circuit in this tunnel.
     ///
     /// Returns an error if the tunnel has more than one tunnel.
+    //
+    // TODO: replace Itertools::exactly_one() with a stdlib equivalent when there is one.
+    //
+    // See issue #48919 <https://github.com/rust-lang/rust/issues/48919>
+    #[allow(unstable_name_collisions)]
     fn single_path(&self) -> Result<Arc<Path>> {
         use itertools::Itertools as _;
 
