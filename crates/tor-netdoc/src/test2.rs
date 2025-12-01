@@ -40,7 +40,7 @@ struct Top {
     several: Vec<(String,)>,
     not_present: NotPresent,
     #[deftly(netdoc(default))]
-    defaulted: (String,),
+    defaulted: (i32,),
     #[deftly(netdoc(keyword = "renamed"))]
     t4_renamed: Option<(String,)>,
     #[deftly(netdoc(subdoc))]
@@ -75,7 +75,7 @@ struct Flat1 {
     #[deftly(netdoc(single_arg))]
     flat_arg_several: Vec<String>,
     #[deftly(netdoc(single_arg, default))]
-    flat_arg_defaulted: String,
+    flat_arg_defaulted: i32,
     #[deftly(netdoc(with = "needs_with_parse"))]
     flat_with_needed: NeedsWith,
     #[deftly(netdoc(with = "needs_with_parse"))]
@@ -103,7 +103,7 @@ struct Sub2 {
     #[deftly(netdoc(single_arg))]
     arg_several: Vec<String>,
     #[deftly(netdoc(single_arg, default))]
-    arg_defaulted: String,
+    arg_defaulted: i32,
     #[deftly(netdoc(with = "needs_with_parse"))]
     with_needed: NeedsWith,
     #[deftly(netdoc(with = "needs_with_parse"))]
@@ -340,7 +340,7 @@ several 1
 not-present oh yes it is
 not-present but it is ignored
 several 2
-defaulted D
+defaulted -1
 renamed R
 sub1-intro
 flat-several FS1
@@ -358,7 +358,7 @@ flat-defaulted FD
 flat-arg-optional FAO
 flat-arg-several FAS1 ignored
 flat-arg-several FAS2
-flat-arg-defaulted FAD
+flat-arg-defaulted 31
 sub2-intro intro
 with-several normal
 with-several normal
@@ -367,7 +367,7 @@ sub2-field B
 arg-needed AN
 arg-optional AO
 with-optional normal
-arg-defaulted AD
+arg-defaulted 4
 arg-several A1
 arg-several A2
 with-needed normal
@@ -384,7 +384,7 @@ sub4-field D
             needed: val("N"),
             optional: sval("O"),
             several: ["1", "2"].map(val).into(),
-            defaulted: val("D"),
+            defaulted: (-1,),
             t4_renamed: sval("R"),
             sub1: Sub1 {
                 sub1_field: sval("A"),
@@ -396,7 +396,7 @@ sub4-field D
                     flat_arg_needed: "FAN".into(),
                     flat_arg_several: ["FAS1", "FAS2"].map(Into::into).into(),
                     flat_arg_optional: Some("FAO".into()),
-                    flat_arg_defaulted: "FAD".into(),
+                    flat_arg_defaulted: 31,
                     flat_with_optional: Some(NeedsWith),
                     flat_with_several: vec![NeedsWith; 2],
                     flat_flat: FlatInner {
@@ -409,7 +409,7 @@ sub4-field D
             sub2: Some(Sub2 {
                 sub2_field: sval("B"),
                 arg_optional: Some("AO".into()),
-                arg_defaulted: "AD".into(),
+                arg_defaulted: 4,
                 arg_several: ["A1", "A2"].map(Into::into).into(),
                 with_optional: Some(NeedsWith),
                 with_several: vec![NeedsWith; 3],
