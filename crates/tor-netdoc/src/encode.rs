@@ -259,13 +259,11 @@ impl<'n> ItemEncoder<'n> {
     /// separated by (single) spaces.
     /// This is not (properly) checked.
     /// Incorrect use might lead to malformed documents, or later errors.
-    #[allow(unused)] // TODO: We should eventually remove this if nothing starts to use it.
-    pub(crate) fn args_raw_string(mut self, args: &dyn Display) -> Self {
+    pub fn args_raw_string(&mut self, args: &dyn Display) {
         let args = args.to_string();
         if !args.is_empty() {
             self.args_raw_nonempty(&args);
         }
-        self
     }
 
     /// Add one or more arguments, supplied as a single string, without any checking
