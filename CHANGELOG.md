@@ -177,7 +177,7 @@ which are documented below.
   related issues. ([!3403])
 - Arti's HTTP CONNECT proxy now returns a status code derived from the remote
   END reason. Additionally, the proxy now includes its supported capabilities
-  in the `Tor-Capabilities` response header, to conform with [proposal365].
+  in the `Tor-Capabilities` response header, to conform with [proposal 365].
   ([!3481], [!3473], [#2259])
 - Added a missing test host to the shadow CI script. ([!3490])
 - Fixed a typo in an onion service client error message. ([!3488])
@@ -312,7 +312,7 @@ for funding the development of Arti!
 [`tokio-console`]: https://crates.io/crates/tokio-console
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [proposal 368]: https://spec.torproject.org/proposals/368-cdt-rethink.html
-[proposal365]: https://spec.torproject.org/proposals/365-http-connect-ext.html
+[proposal 365]: https://spec.torproject.org/proposals/365-http-connect-ext.html
 
 
 
