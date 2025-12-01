@@ -45,6 +45,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod cmdline;
+pub mod derive;
 mod err;
 #[macro_use]
 pub mod extend_builder;
