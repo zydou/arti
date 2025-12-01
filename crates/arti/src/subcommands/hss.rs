@@ -32,7 +32,7 @@ pub(crate) struct Hss {
     #[command(flatten)]
     common: CommonArgs,
 
-    /// Return the identity key for the specified service.
+    /// The `hss` subcommand to run.
     #[command(subcommand)]
     command: HssSubcommand,
 }
