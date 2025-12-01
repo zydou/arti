@@ -95,8 +95,6 @@ declare -A PERMIT_LICENSE
 # since never use aws-lc-sys by default.
 PERMIT_LICENSE["aws-lc-sys"]="ISC AND (Apache-2.0 OR ISC) AND OpenSSL"
 
-# priority-queue has some paperwork trouble
-#  - MPL but missing Exhibit A
 # We are using this in tor-rtmock, where it's IMO fine to have LGPL.
 # Upstream conversation here
 #   https://github.com/garro95/priority-queue/pull/48
