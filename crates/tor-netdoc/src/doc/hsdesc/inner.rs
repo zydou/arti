@@ -204,6 +204,11 @@ impl HsDescInner {
     ///
     /// On success, return the signing key that was used for every certificate in the
     /// inner document, and the inner document itself.
+    //
+    // TODO: replace Itertools::exactly_one() with a stdlib equivalent when there is one.
+    //
+    // See issue #48919 <https://github.com/rust-lang/rust/issues/48919>
+    #[allow(unstable_name_collisions)]
     fn take_from_reader(
         input: &mut NetDocReader<'_, HsInnerKwd>,
     ) -> Result<(Option<Ed25519Identity>, UncheckedHsDescInner)> {
