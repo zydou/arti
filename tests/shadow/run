@@ -97,9 +97,11 @@ check_host_xfers articlient 10 10
 check_host_xfers articlient-extra 10 10
 check_host_xfers articlient-bridge 10 10
 check_host_xfers articlient-bridge-obfs4 10 10
-# Onion-service transfers have tended to be a bit less reliable.
-# For a while we only required 1/10 to succeed. It looks like it's gotten better,
-# but still seeing some occasional failures so requiring 5/10 for now.
+check_host_xfers torclient-onion-artiserver 10 10
+check_host_xfers torclient-onion-artiserver-full-vanguards 10 10
+# arti-client onion-service transfers have tended to be a bit less reliable.
+# For a while we only required 1/10 to succeed. It looks like it's gotten
+# better, but still seeing some occasional failures so requiring 5/10 for now.
 # https://gitlab.torproject.org/tpo/core/arti/-/issues/2109
 check_host_xfers articlient-onion 5 10
 check_host_xfers articlient-onion-artiserver 5 10
@@ -107,8 +109,6 @@ check_host_xfers articlient-onion-artiserver-full-vanguards 5 10
 check_host_xfers articlient-onion-artiserver-auth 5 10
 check_host_xfers articlient-onion-artiserver-auth-2 5 10
 check_host_xfers articlient-onion-artiserver-auth-ctor 5 10
-check_host_xfers torclient-onion-artiserver 9 10
-check_host_xfers torclient-onion-artiserver-full-vanguards 9 10
 # https://gitlab.torproject.org/tpo/core/arti/-/issues/1986
 check_host_xfers articlient-onion-auth 1 10
 
