@@ -107,7 +107,8 @@ define_derive_deftly! {
     // The semantic behaviour of the template *does* have semver implications.
     export Flattenable for struct, expect items:
 
-    impl tor_config::Flattenable for $ttype {
+    impl<$tgens> tor_config::Flattenable for $ttype
+    where $twheres {
         fn has_field(s: &str) -> bool {
             let fnames = tor_config::flattenable_extract_fields::<'_, Self>();
             IntoIterator::into_iter(fnames).any(|f| *f == s)
