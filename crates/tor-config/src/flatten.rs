@@ -127,6 +127,7 @@ define_derive_deftly! {
         let _: bool = <$ttype as tor_config::Flattenable>::has_field("");
     }
 }
+pub use derive_deftly_template_Flattenable;
 
 /// Helper for flattening deserialisation, compatible with [`serde_ignored`]
 ///
