@@ -13,16 +13,32 @@
 //! It is the caller's responsibility to call `.item()` in the right order,
 //! with the right keywords and arguments.
 
-use std::fmt::{Display, Write};
+use std::cmp;
+use std::collections::BTreeSet;
+use std::fmt::Write;
+use std::iter;
+use std::marker::PhantomData;
 
 use base64ct::{Base64, Base64Unpadded, Encoding};
+use educe::Educe;
+use itertools::Itertools;
+use paste::paste;
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
-use tor_error::{Bug, internal};
+use tor_error::internal;
+use void::Void;
 
 use crate::KeywordEncodable;
 use crate::parse::tokenize::tag_keywords_ok;
 use crate::types::misc::Iso8601TimeSp;
+
+// Exports used by macros, which treat this module as a prelude
+#[doc(hidden)]
+pub use {
+    std::fmt::{self, Display},
+    std::result::Result,
+    tor_error::{Bug, into_internal},
+};
 
 /// Encoder, representing a partially-built document.
 ///

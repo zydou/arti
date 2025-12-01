@@ -1,3 +1,4 @@
+#![allow(unused)] // XXXX
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
@@ -51,6 +52,7 @@
 #[macro_use]
 pub mod parse2;
 #[cfg(feature = "encode")]
+#[macro_use]
 pub mod encode;
 #[macro_use]
 pub(crate) mod parse;
