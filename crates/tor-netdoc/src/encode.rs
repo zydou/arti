@@ -311,6 +311,11 @@ impl<'n> ItemEncoder<'n> {
             Ok(())
         });
     }
+
+    /// Finish encoding this item
+    ///
+    /// The item will also automatically be finished if the `ItemEncoder` is dropped.
+    pub fn finish(self) {}
 }
 
 impl Drop for ItemEncoder<'_> {
