@@ -120,6 +120,18 @@ impl Bug {
     {
         Bug::new_inner(kind, message.into(), Some(Arc::new(source)))
     }
+
+    /// Adds context to an internal error or bug
+    ///
+    /// Prepends `prepend + ": "` to the message.
+    //
+    // The name is by analogy with `anyhow`, and matches the `BugContext` trait
+    // (But distinguished to avoid mental and trait method clashes with `anyhow`
+    // and make things clear at the call site.)
+    pub fn bug_context(mut self, prepend: impl Display) -> Self {
+        self.0.message = format!("{prepend}: {}", self.0.message);
+        self
+    }
 }
 
 impl std::error::Error for Bug {
@@ -142,6 +154,27 @@ impl Display for Bug {
         Ok(())
     }
 }
+
+/// Extension trait for `.bug_context()` on `Result`
+pub trait BugContext: Sealed {
+    /// Adds context to a internal error or bug
+    ///
+    /// Prepends `prepend + ": "` to the error message, if it's an error (`[Bug]`).
+    fn bug_context<D: Display>(self, prefix: D) -> Self;
+}
+impl<T> BugContext for Result<T, Bug> {
+    fn bug_context<D: Display>(self, prefix: D) -> Self {
+        self.map_err(move |e| e.bug_context(prefix))
+    }
+}
+impl<T> Sealed for Result<T, Bug> {}
+/// Sealed (for `BugContext`)
+// Separate from crate::sealed::Sealed because that has wide blanket impls which we don't want
+mod sealed {
+    /// Sealed
+    pub trait Sealed {}
+}
+use sealed::Sealed;
 
 /// Create an internal error, including a message like `format!`, and capturing this call site
 ///
