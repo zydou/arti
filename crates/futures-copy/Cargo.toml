@@ -19,14 +19,14 @@ full = []
 futures = "0.3.14"
 pin-project = "1"
 
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Networking_WinSock"] }
-
 [dev-dependencies]
 tokio = { version = "1.7", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
 tor-error = { path = "../tor-error", version = "0.36.0" }
 tor-rtcompat = { version = "0.36.0", path = "../tor-rtcompat" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.36.0" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Networking_WinSock"] }
