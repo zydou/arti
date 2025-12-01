@@ -301,6 +301,17 @@ macro_rules! define_list_builder_helper {
                 &mut self.$things
             }
         }
+
+        impl $( < $($generics)* > )? $crate::extend_builder::ExtendBuilder
+        for $ListBuilder $( < $($generics)* > )?
+        $( where $($where_clauses)* )? {
+            fn extend_from(&mut self, other: Self, strategy: $crate::extend_builder::ExtendStrategy) {
+                match strategy {
+                    $crate::extend_builder::ExtendStrategy::ReplaceLists =>
+                        *self = other,
+                }
+            }
+        }
     };
 
     // Expand the version without `#[ serde $serde_attrs ]` into a call
