@@ -218,6 +218,7 @@ pub(crate) enum BuiltinVariant {
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(bound = "R::Path : Deserialize<'de>, AddrWithStr<R::SocketAddr> : Deserialize<'de>")]
+#[allow(clippy::missing_docs_in_private_items)]
 pub(crate) struct Connect<R: Addresses> {
     /// The address of the socket at which the client should try to reach the RPC server,
     /// and which the RPC server should bind.
