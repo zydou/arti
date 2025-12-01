@@ -108,7 +108,8 @@ which are documented below.
   fixing a deprecation warning. ([4ed5695f844aec6bbe05ced9e8efde437bfece27])
 - Fixed the flaky `client::circuit::test::bad_extend_crypto` test.
   ([!3433], [#2232])
-- Replaced the deprecated `MockSleepProvider` with `SimpleMockTimeProvider`.
+- Replaced the deprecated `MockSleepProvider` with `SimpleMockTimeProvider`
+  in a few crates.
   ([!3424], [#1885])
 
 ### Documentation
