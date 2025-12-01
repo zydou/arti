@@ -14,13 +14,15 @@
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
 use std::fmt::{self, Debug};
+use std::mem;
 
 use anyhow::Context as _;
 use derive_deftly::Deftly;
+use itertools::{Itertools, chain};
 use testresult::TestResult;
 use tor_error::{Bug, ErrorReport as _};
 
-use crate::encode::{ItemEncoder, ItemObjectEncodable};
+use crate::encode::{ItemEncoder, ItemObjectEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse2::{
     ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
     NetdocParseable, NetdocParseableFields, ParseError, ParseInput, UnparsedItem, parse_netdoc,
@@ -187,19 +189,141 @@ mod needs_with_arg {
     }
 }
 
-fn t_ok<D>(doc: &str, exp: &[D]) -> TestResult<()>
+/// Test parsing and encoding
+///
+/// `doc_spec` is the document to parse.
+/// `exp` is what it should parse as.
+///
+/// `doc_spec` can have magic instructions at end of each line.
+/// These allow the re-encoding to be not quite identical to the input document.
+///
+///  * **`@ re-encoded:`:
+///    This line is re-encoded differently.  The *next* source line is the encoding.
+///
+///  * **`@ not re-encoded`:
+///    This line is omitted from the re-encoding.
+///
+///  * **`@ re-encoded later N`:
+///    This line is reordered, to later in the re-encoding, by `N` lines.
+///
+///  * **`@ re-encoded only`:
+///    This line eppears only in the re-encoding.
+///    Prefer `re-encoded later` or `re-encoded:` if possible as they're clearer.
+fn t_ok<D>(doc_spec: &str, exp: &[D]) -> TestResult<()>
 where
-    D: NetdocParseable + Debug + PartialEq,
+    D: NetdocEncodable + NetdocParseable + Debug + PartialEq,
 {
-    let input = ParseInput::new(doc, "<literal>");
+    eprintln!("#####");
+    eprint!("====== doc_spec ======\n{doc_spec}");
+    eprintln!("====== exp ======\n{exp:#?}");
+
+    let mut lines = doc_spec.split_inclusive('\n');
+    let mut doc = String::new();
+    let mut enc = String::new();
+
+    // indices are line numbers but starting at 0
+    let mut moved = Vec::<String>::new();
+    let process_moved = |enc: &mut String, moved: &mut Vec<String>| {
+        if moved.is_empty() {
+            return;
+        }
+        loop {
+            let lno = enc.lines().count();
+            let Some(m) = moved.get_mut(lno) else {
+                eprintln!("PN {lno:2} nothing");
+                break;
+            };
+            if m.is_empty() {
+                eprintln!("PN {lno:2} empty");
+                break;
+            }
+            eprintln!("PN {lno:2} adding {m:?}");
+            *enc += &mem::take(m);
+        }
+    };
+
+    while let Some(l) = lines.next() {
+        if let Some((l, insn)) = l.split_once('@') {
+            eprintln!("LL    insn  {l:?}");
+            let insn = insn.trim();
+            let l = &format!("{}\n", l.trim_end());
+            let insn = insn.trim_end();
+            if insn == "re-encoded:" {
+                doc += l;
+                enc += lines.next().expect(r#""re-encoded:" needs re-encoded"#);
+            } else if insn == "not re-encoded" {
+                doc += l;
+            } else if insn == "re-encoded only" {
+                enc += l;
+            } else if let Some(later) = insn.strip_prefix("re-encoded later ") {
+                doc += l;
+                let later: usize = later.parse().expect(later);
+                let lno = later + enc.lines().count();
+                loop {
+                    if let Some(m) = moved.get_mut(lno) {
+                        *m += l;
+                        break;
+                    }
+                    moved.push("".into());
+                }
+            } else {
+                panic!("unknown insn {insn:?} in {doc_spec:?}");
+            }
+        } else {
+            eprintln!("LL    line  {l:?}");
+            doc += l;
+            enc += l;
+        }
+        process_moved(&mut enc, &mut moved);
+    }
+    process_moved(&mut enc, &mut moved);
+    for (i, l) in moved.iter().enumerate() {
+        assert_eq!(l, "", "line too late! {}: {l:?}", i + 1);
+    }
+
+    eprint!("====== doc ======\n{doc}");
+    eprint!("====== enc exp ======\n{enc}");
+    eprintln!("======");
+
+    let input = ParseInput::new(&doc, "<literal>");
 
     if exp.len() == 1 {
-        let got = parse_netdoc::<D>(&input).context(doc.to_owned())?;
-        assert_eq!(got, exp[0], "doc={doc}");
+        let got = parse_netdoc::<D>(&input).context(doc.clone())?;
+        assert_eq!(got, exp[0], "parse 1 mismatch");
     }
 
     let got = parse_netdoc_multiple::<D>(&input)?;
-    assert_eq!(got, exp, "doc={doc}");
+    assert_eq!(got, exp, "parse_multiple mismatch");
+
+    let reenc = {
+        let mut encoder = NetdocEncoder::default();
+        for d in exp {
+            d.encode_unsigned(&mut encoder)?;
+        }
+        encoder.finish()?
+    };
+
+    eprintln!("====== enc got ======\n{reenc}====== end ======");
+
+    assert_eq!(
+        &enc,
+        &reenc,
+        "re-encode mismatch:\n{}",
+        Itertools::zip_longest(
+            chain!(["EXPECTED"], enc.lines()),
+            chain!(["GOT"], reenc.lines()),
+        )
+        .enumerate()
+        .map(|(i, eob)| {
+            let lno = i + 1;
+            let [l, r] = [eob.clone().left(), eob.right()];
+            let yn = if l == r { "  " } else { "!=" };
+            let [l, r] = [l, r].map(|s| s.unwrap_or_default());
+            format!(" {lno:2} {l:30} {yn} {r}\n")
+        })
+        .collect::<String>(),
+    );
+
     Ok(())
 }
 
@@ -316,10 +440,13 @@ fn various_docs() -> TestResult<()> {
     t_ok(
         r#"top-intro
 needed N
+defaulted 0                             @ re-encoded only
 sub1-intro
 flat-needed FN
 flat-arg-needed FAN
+flat-arg-defaulted 0                    @ re-encoded only
 flat-with-needed normal
+sub4-intro                              @ re-encoded only
 "#,
         &[Top {
             needed: val("N"),
@@ -331,13 +458,16 @@ flat-with-needed normal
     t_ok(
         r#"top-intro
 needed N
+defaulted 0                             @ re-encoded only
 sub1-intro
 flat-needed FN
 flat-arg-needed FAN
+flat-arg-defaulted 0                    @ re-encoded only
 flat-with-needed normal
 sub2-intro intro
-with-needed normal
+with-needed normal                      @ re-encoded later 2
 arg-needed AN
+arg-defaulted 0                         @ re-encoded only
 subsub-intro SSI
 sub3-intro
 sub3-intro
@@ -357,37 +487,38 @@ sub4-intro
 needed N
 optional O
 several 1
-not-present oh yes it is
-not-present but it is ignored
+not-present oh yes it is                @ not re-encoded
+not-present but it is ignored           @ not re-encoded
 several 2
 defaulted -1
 renamed R
 sub1-intro
-flat-several FS1
-flat-needed FN
-flat-with-needed normal
-flat-inner-optional nested
+flat-several FS1                        @ re-encoded later 3
+flat-needed FN                          @ re-encoded later 1
+flat-with-needed normal                 @ re-encoded later 11
+flat-inner-optional nested              @ re-encoded later 15
 sub1-field A
-flat-with-several normal
-flat-with-several normal
+flat-with-several normal                @ re-encoded later 11
+flat-with-several normal                @ re-encoded later 11
 flat-optional FO
-flat-arg-needed FAN
-flat-with-optional normal
+flat-arg-needed FAN                     @ re-encoded later 2
+flat-with-optional normal               @ re-encoded later 8
 flat-several FS2
 flat-defaulted FD
 flat-arg-optional FAO
-flat-arg-several FAS1 ignored
+flat-arg-several FAS1 ignored           @ re-encoded:
+flat-arg-several FAS1
 flat-arg-several FAS2
 flat-arg-defaulted 31
 sub2-intro intro
-with-several normal
-with-several normal
-with-several normal
+with-several normal                     @ re-encoded later 8
+with-several normal                     @ re-encoded later 8
+with-several normal                     @ re-encoded later 8
 sub2-field B
 arg-needed AN
 arg-optional AO
-with-optional normal
-arg-defaulted 4
+with-optional normal                    @ re-encoded later 4
+arg-defaulted 4                         @ re-encoded later 2
 arg-several A1
 arg-several A2
 with-needed normal
@@ -712,13 +843,15 @@ test-item N arg R1 R2
 -----BEGIN TEST OBJECT-----
 aGVsbG8=
 -----END TEST OBJECT-----
-test-item-rest O  and  the rest
-test-item-rest-with   rest of line
+test-item-rest O  and  the rest                 @ re-encoded:
+test-item-rest O and  the rest
+test-item-rest-with   rest of line              @ re-encoded:
+test-item-rest-with rest of line
 test-item-object-not-present
 test-item-object-ignored
------BEGIN TEST OBJECT-----
-aGVsbG8=
------END TEST OBJECT-----
+-----BEGIN TEST OBJECT-----                     @ not re-encoded
+aGVsbG8=         @ not re-encoded
+-----END TEST OBJECT-----                       @ not re-encoded
 "#,
         &[TopMinimal {
             test_item0: TestItem0 {
