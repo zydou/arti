@@ -28,6 +28,7 @@ When run as a program, prints a json document
 # during processing.
 
 import mistune  # type: ignore
+import textwrap
 from typing import Tuple
 
 
@@ -140,6 +141,40 @@ def extract_links(md_string):
     return track
 
 
+def self_test():
+    """
+    A basic runtime test.
+    """
+
+    md = textwrap.dedent(
+        """
+        # Foo
+
+        Test [link]. And [another]. What about [this][one]? Or [this](https://wikipedia.org)?
+
+        [another]: https://example.com
+        [not-present]: https://www.torproject.org
+        """
+    )
+
+    extracted = extract_links(md)
+
+    try:
+        assert extracted.used == {"link": True, "another": True, "one": True}
+        assert extracted.defined == {
+            "another": ("https://example.com", None),
+            "not-present": ("https://www.torproject.org", None),
+        }
+    except AssertionError as e:
+        print("used:", extracted.used, file=sys.stderr)
+        print("defined:", extracted.defined, file=sys.stderr)
+
+        raise RuntimeError(
+            "Failed self-test. "
+            "This script appears to be incompatible with your version of mistune."
+        ) from e
+
+
 if __name__ == "__main__":
     # In theory we ought to be able to load file this as a Python module
     # instead of running it as a script.  But this does not work
@@ -154,6 +189,10 @@ if __name__ == "__main__":
     import sys
     import json
     import argparse
+
+    # Ensure that a basic self-test passes,
+    # since we rely on some internal details of mistune.
+    self_test()
 
     parser = argparse.ArgumentParser(prog="extract-md-links")
     parser.add_argument("filename", nargs="?", default="-")
