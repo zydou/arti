@@ -47,6 +47,8 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::upper_case_acronyms)]
 
+use std::sync::Arc;
+
 use caret::caret_int;
 
 use thiserror::Error;
@@ -240,7 +242,13 @@ struct SubprotocolEntry {
     feature = "serde",
     derive(serde_with::DeserializeFromStr, serde_with::SerializeDisplay)
 )]
-pub struct Protocols {
+pub struct Protocols(Arc<ProtocolsInner>);
+
+/// Inner representation of Protocols.
+///
+/// We make this a separate type so that we can intern it inside an Arc.
+#[derive(Default, Clone, Debug, Eq, PartialEq, Hash)]
+struct ProtocolsInner {
     /// A mapping from protocols' integer encodings to bit-vectors.
     recognized: [u64; N_RECOGNIZED],
     /// A vector of unrecognized protocol versions,
@@ -248,6 +256,12 @@ pub struct Protocols {
     ///
     /// Every entry in this list has supported != 0.
     unrecognized: Vec<SubprotocolEntry>,
+}
+
+impl From<ProtocolsInner> for Protocols {
+    fn from(value: ProtocolsInner) -> Self {
+        Protocols(Arc::new(value))
+    }
 }
 
 impl Protocols {
@@ -268,10 +282,10 @@ impl Protocols {
         if usize::from(ver) > MAX_VER {
             return false;
         }
-        if proto >= self.recognized.len() {
+        if proto >= self.0.recognized.len() {
             return false;
         }
-        (self.recognized[proto] & (1 << ver)) != 0
+        (self.0.recognized[proto] & (1 << ver)) != 0
     }
     /// Helper: return true iff this protocol set contains version
     /// `ver` of the unrecognized protocol represented by the string
@@ -283,6 +297,7 @@ impl Protocols {
             return false;
         }
         let ent = self
+            .0
             .unrecognized
             .iter()
             .find(|ent| ent.proto.is_unrecognized(proto));
@@ -294,8 +309,8 @@ impl Protocols {
 
     /// Return true if this list of protocols is empty.
     pub fn is_empty(&self) -> bool {
-        self.recognized.iter().all(|v| *v == 0)
-            && self.unrecognized.iter().all(|p| p.supported == 0)
+        self.0.recognized.iter().all(|v| *v == 0)
+            && self.0.unrecognized.iter().all(|p| p.supported == 0)
     }
 
     // TODO: Combine these next two functions into one by using a trait.
@@ -367,22 +382,22 @@ impl Protocols {
     ///            "Desc=2,4 Microdesc=1-2,4-5".parse().unwrap());
     /// ```
     pub fn difference(&self, other: &Protocols) -> Protocols {
-        let mut r = Protocols::default();
+        let mut r = ProtocolsInner::default();
 
         for i in 0..N_RECOGNIZED {
-            r.recognized[i] = self.recognized[i] & !other.recognized[i];
+            r.recognized[i] = self.0.recognized[i] & !other.0.recognized[i];
         }
         // This is not super efficient, but we don't have to do it often.
-        for ent in self.unrecognized.iter() {
+        for ent in self.0.unrecognized.iter() {
             let mut ent = ent.clone();
-            if let Some(other_ent) = other.unrecognized.iter().find(|e| e.proto == ent.proto) {
+            if let Some(other_ent) = other.0.unrecognized.iter().find(|e| e.proto == ent.proto) {
                 ent.supported &= !other_ent.supported;
             }
             if ent.supported != 0 {
                 r.unrecognized.push(ent);
             }
         }
-        r
+        Protocols::from(r)
     }
 
     /// Return a Protocols holding every protocol flag that is present in `self`
@@ -396,11 +411,11 @@ impl Protocols {
     ///            "Desc=2-4 Microdesc=1-5,10".parse().unwrap());
     /// ```
     pub fn union(&self, other: &Protocols) -> Protocols {
-        let mut r = self.clone();
+        let mut r = (*self.0).clone();
         for i in 0..N_RECOGNIZED {
-            r.recognized[i] |= other.recognized[i];
+            r.recognized[i] |= other.0.recognized[i];
         }
-        for ent in other.unrecognized.iter() {
+        for ent in other.0.unrecognized.iter() {
             if let Some(my_ent) = r.unrecognized.iter_mut().find(|e| e.proto == ent.proto) {
                 my_ent.supported |= ent.supported;
             } else {
@@ -408,7 +423,7 @@ impl Protocols {
             }
         }
         r.unrecognized.sort();
-        r
+        Protocols::from(r)
     }
 
     /// Return a Protocols holding every protocol flag that is present in both `self`
@@ -422,12 +437,12 @@ impl Protocols {
     ///            "Desc=3".parse().unwrap());
     /// ```
     pub fn intersection(&self, other: &Protocols) -> Protocols {
-        let mut r = Protocols::default();
+        let mut r = ProtocolsInner::default();
         for i in 0..N_RECOGNIZED {
-            r.recognized[i] = self.recognized[i] & other.recognized[i];
+            r.recognized[i] = self.0.recognized[i] & other.0.recognized[i];
         }
-        for ent in self.unrecognized.iter() {
-            if let Some(other_ent) = other.unrecognized.iter().find(|e| e.proto == ent.proto) {
+        for ent in self.0.unrecognized.iter() {
+            if let Some(other_ent) = other.0.unrecognized.iter().find(|e| e.proto == ent.proto) {
                 let supported = ent.supported & other_ent.supported;
                 if supported != 0 {
                     r.unrecognized.push(SubprotocolEntry {
@@ -438,9 +453,11 @@ impl Protocols {
             }
         }
         r.unrecognized.sort();
-        r
+        Protocols::from(r)
     }
+}
 
+impl ProtocolsInner {
     /// Parsing helper: Try to add a new entry `ent` to this set of protocols.
     ///
     /// Uses `foundmask`, a bit mask saying which recognized protocols
@@ -601,7 +618,7 @@ impl std::str::FromStr for Protocols {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, ParseError> {
-        let mut result = Protocols::new();
+        let mut result = ProtocolsInner::default();
         let mut foundmask = 0_u64;
         for ent in s.split(' ') {
             if ent.is_empty() {
@@ -612,7 +629,7 @@ impl std::str::FromStr for Protocols {
             result.add(&mut foundmask, s)?;
         }
         result.unrecognized.sort();
-        Ok(result)
+        Ok(result.into())
     }
 }
 
@@ -677,13 +694,13 @@ fn dumpmask(mut mask: u64) -> String {
 impl std::fmt::Display for Protocols {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut entries = Vec::new();
-        for (idx, mask) in self.recognized.iter().enumerate() {
+        for (idx, mask) in self.0.recognized.iter().enumerate() {
             if *mask != 0 {
                 let pk: ProtoKind = (idx as u8).into();
                 entries.push(format!("{}={}", pk, dumpmask(*mask)));
             }
         }
-        for ent in &self.unrecognized {
+        for ent in &self.0.unrecognized {
             if ent.supported != 0 {
                 entries.push(format!(
                     "{}={}",
@@ -700,7 +717,7 @@ impl std::fmt::Display for Protocols {
 
 impl FromIterator<NamedSubver> for Protocols {
     fn from_iter<T: IntoIterator<Item = NamedSubver>>(iter: T) -> Self {
-        let mut r = Protocols::new();
+        let mut r = ProtocolsInner::default();
         for named_subver in iter {
             let proto_idx = usize::from(named_subver.kind.get());
             let proto_ver = named_subver.version;
@@ -710,7 +727,7 @@ impl FromIterator<NamedSubver> for Protocols {
             assert!(usize::from(proto_ver) <= MAX_VER);
             r.recognized[proto_idx] |= 1_u64 << proto_ver;
         }
-        r
+        Protocols::from(r)
     }
 }
 
