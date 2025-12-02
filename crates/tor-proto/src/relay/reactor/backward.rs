@@ -357,9 +357,7 @@ impl BackwardReactor {
         });
 
         // 3. Messages moving from the exit towards the client,
-        // if we have a forward Tor channel, **iff** the backward sink (towards the client)
-        // is ready to accept them
-        //
+        // if we have a forward Tor channel.
         // NOTE: in practice (ignoring leaky pipe), exits won't have a forward Tor channel,
         // so the poll_all will only really drive the two Tor stream-related futures
         // (for reading from and writing to the application streams)
@@ -379,7 +377,31 @@ impl BackwardReactor {
         });
 
         let poll_all = async move {
-            // Avoid polling **any** of the futures if the outgoing sink is blocked
+            // Avoid polling **any** of the futures if the outgoing sink is blocked.
+            //
+            // This implements backpressure: we avoid reading from our input sources
+            // if we know we're unable to write to the backward sink.
+            //
+            // More specifically, if our sink towards the client is full and can no longer
+            // accept cells, we stop reading:
+            //
+            //   1. From the application streams, if we have any.
+            //
+            //   2. From the cell_rx channel, used by the forward reactor to send us
+            //     - a circuit-level SENDME that we have received, or
+            //     - a circuit-level SENDME that we need to deliver to the client, or
+            //     - a stream message that needs to be handled by our application streams
+            //
+            //     Not reading from the cell_rx channel, in turn, causes the forward reactor
+            //     to block and therefore stop reading from **its** input sources,
+            //     propagating backpressure all the way to the client.
+            //
+            //   3. From the Tor channel towards the exit, if there is one.
+            //
+            // This will delay any SENDMEs the client or exit might have sent along
+            // the way, and therefore count as a congestion signal.
+            //
+            // TODO: memquota setup to make sure this doesn't turn into a memory DOS vector
             let _ = backward_chan_ready.await;
 
             poll_all.await
