@@ -9,7 +9,7 @@ use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
 use crate::stream::msg_streamid;
 use crate::util::err::ReactorError;
-use crate::{Error, HopNum, Result};
+use crate::{Error, Result};
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
@@ -320,15 +320,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         // The message is addressed to us! Now it's time to handle it...
         let decode_res = self.hop.decode(body.into())?;
 
-        // NOTE(padding): the PaddingController wants a HopNum,
-        // but the concept of a HopNum doesn't really make sense in this context,
-        // As a workaround, we pass in HopNum(0), like we do for the channel padding
-        let hopnum = HopNum::from(0);
-        if decode_res.is_padding() {
-            self.padding_ctrl.decrypted_padding(hopnum)?;
-        } else {
-            self.padding_ctrl.decrypted_data(hopnum);
-        }
+        // TODO(relay): tell padding_ctrl we decrypted data or padding
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
 
@@ -437,18 +429,13 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     }
 
     /// Handle a DROP message.
-    #[allow(clippy::unnecessary_wraps)] // Returns Err if circ-padding is disabled
+    #[allow(clippy::unnecessary_wraps)] // Returns Err if circ-padding is enabled
     fn handle_drop(&mut self) -> StdResult<(), ReactorError> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "circ-padding")] {
-                // Note: we have already checked if padding was negotiated this hop
-                // (via the call to decrypted_padding() in handle_relay_cell())
-                Ok(())
+                Err(internal!("relay circuit padding not yet supported").into())
             } else {
-                use crate::util::err::ExcessPadding;
-
-                let hopnum = HopNum::from(0);
-                Err(Error::ExcessPadding(ExcessPadding::NoPaddingNegotiated, hopnum).into())
+                Ok(())
             }
         }
     }
