@@ -40,7 +40,7 @@ use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::util::PeekableIterator;
-use crate::{AllowAnnotations, Error, KeywordEncodable, NetdocErrorKind as EK, Result, doc};
+use crate::{AllowAnnotations, Error, KeywordEncodable, NetdocErrorKind as EK, Result};
 
 use ll::pk::ed25519::Ed25519Identity;
 use std::sync::Arc;
@@ -132,7 +132,7 @@ pub struct RouterDesc {
     /// (deprecated) TAP protocol.
     pub tap_onion_key: Option<ll::pk::rsa::PublicKey>,
     /// List of subprotocol versions supported by this relay.
-    pub proto: Arc<tor_protover::Protocols>,
+    pub proto: tor_protover::Protocols,
     /// True if this relay says it's a directory cache.
     pub is_dircache: bool,
     /// True if this relay says that it caches extrainfo documents.
@@ -357,7 +357,7 @@ impl RouterDesc {
     /// Return a reference to the list of subprotocol versions supported by this
     /// relay.
     pub fn protocols(&self) -> &tor_protover::Protocols {
-        self.proto.as_ref()
+        &self.proto
     }
 
     /// Return a reference to this relay's Ntor onion key.
@@ -633,12 +633,10 @@ impl RouterDesc {
         // List of subprotocol versions
         let proto = {
             let proto_tok = body.required(PROTO)?;
-            doc::PROTOVERS_CACHE.intern(
-                proto_tok
-                    .args_as_str()
-                    .parse::<tor_protover::Protocols>()
-                    .map_err(|e| EK::BadArgument.at_pos(proto_tok.pos()).with_source(e))?,
-            )
+            proto_tok
+                .args_as_str()
+                .parse::<tor_protover::Protocols>()
+                .map_err(|e| EK::BadArgument.at_pos(proto_tok.pos()).with_source(e))?
         };
 
         // tunneled-dir-server

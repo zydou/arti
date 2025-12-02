@@ -12,7 +12,6 @@ pub(crate) mod plain;
 pub(crate) mod vote;
 
 use super::{ConsensusFlavor, ConsensusMethods};
-use crate::doc;
 use crate::doc::netstatus::NetstatusKwd;
 use crate::doc::netstatus::{IgnoredPublicationTimeSp, Protocols, RelayWeight};
 use crate::parse::parser::Section;

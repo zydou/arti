@@ -95,9 +95,7 @@ impl RouterStatus {
     ///
     /// Requires that the section obeys the right SectionRules,
     /// matching `consensus_flavor`.
-    pub(crate) fn from_section(
-        sec: &Section<'_, NetstatusKwd>,
-    ) -> Result<RouterStatus> {
+    pub(crate) fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<RouterStatus> {
         use NetstatusKwd::*;
         // R line
         let r_item = sec.required(RS_R)?;
@@ -127,9 +125,10 @@ impl RouterStatus {
 
         // main address and A lines.
         let a_items = sec.slice(RS_A);
-        let a = a_items.iter().map(|a_item| {
-            Ok(a_item.required_arg(0)?.parse::<net::SocketAddr>()?)
-        }).collect::<Result<Vec<_>>>()?;
+        let a = a_items
+            .iter()
+            .map(|a_item| Ok(a_item.required_arg(0)?.parse::<net::SocketAddr>()?))
+            .collect::<Result<Vec<_>>>()?;
 
         // S line
         //
@@ -142,11 +141,9 @@ impl RouterStatus {
         // PR line
         let protos = {
             let tok = sec.required(RS_PR)?;
-            doc::PROTOVERS_CACHE.intern(
-                tok.args_as_str()
-                    .parse::<Protocols>()
-                    .map_err(|e| EK::BadArgument.at_pos(tok.pos()).with_source(e))?,
-            )
+            tok.args_as_str()
+                .parse::<Protocols>()
+                .map_err(|e| EK::BadArgument.at_pos(tok.pos()).with_source(e))?
         };
 
         // W line

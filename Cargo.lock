@@ -7313,7 +7313,6 @@ dependencies = [
  "visibility",
  "visible",
  "void",
- "weak-table",
  "zeroize",
 ]
 
