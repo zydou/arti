@@ -252,9 +252,16 @@ pub struct Protocols {
 
 impl Protocols {
     /// Return a new empty set of protocol versions.
+    ///
+    /// # Warning
+    ///
+    /// To the extend possible, avoid using empty lists to represent the capabilities
+    /// of an unknown target.  Instead, if there is a consensus present, use the
+    /// `required-relay-protocols` field of the consensus.
     pub fn new() -> Self {
         Protocols::default()
     }
+
     /// Helper: return true iff this protocol set contains the
     /// version `ver` of the protocol represented by the integer `proto`.
     fn supports_recognized_ver(&self, proto: usize, ver: u8) -> bool {
