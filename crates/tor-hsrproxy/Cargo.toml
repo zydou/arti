@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsrproxy"
-version = "0.36.0"
+version = "0.37.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2024"
 rust-version = "1.86"
@@ -42,7 +42,7 @@ __is_experimental = []
 derive-deftly = { version = "~1.5.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 futures = "0.3.14"
-futures-copy = { version = "0.2.0", path = "../futures-copy" }
+futures-copy = { version = "0.2.1", path = "../futures-copy" }
 # postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 itertools = "0.14.0"
 metrics = { version = "0.24.1", optional = true }
@@ -53,14 +53,14 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2"
-tor-async-utils = { version = "0.36.0", path = "../tor-async-utils" }
-tor-cell = { version = "0.36.0", path = "../tor-cell" }
-tor-config = { version = "0.36.0", path = "../tor-config" }
-tor-error = { version = "0.36.0", path = "../tor-error" }
-tor-hsservice = { path = "../tor-hsservice", version = "0.36.0" }
-tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.36.0" }
-tor-proto = { version = "0.36.0", path = "../tor-proto", features = ["hs-service"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.36.0" }
+tor-async-utils = { version = "0.37.0", path = "../tor-async-utils" }
+tor-cell = { version = "0.37.0", path = "../tor-cell" }
+tor-config = { version = "0.37.0", path = "../tor-config" }
+tor-error = { version = "0.37.0", path = "../tor-error" }
+tor-hsservice = { path = "../tor-hsservice", version = "0.37.0" }
+tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.37.0" }
+tor-proto = { version = "0.37.0", path = "../tor-proto", features = ["hs-service"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.37.0" }
 tracing = "0.1.36"
 void = "1"
 

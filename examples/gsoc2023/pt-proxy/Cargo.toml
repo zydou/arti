@@ -13,11 +13,11 @@ fast-socks5 = "0.10.0"
 thiserror = "2"
 tokio = { version = "1.7", features = ["full"] }
 tokio-stream = "0.1.14"
-tor-chanmgr = { path = "../../../crates/tor-chanmgr", version = "0.36", features = ["pt-client"] }
-tor-linkspec = { path = "../../../crates/tor-linkspec", version = "0.36" }
-tor-ptmgr = { path = "../../../crates/tor-ptmgr", version = "0.36", features = [ "experimental-api"] }
-tor-rtcompat = { path = "../../../crates/tor-rtcompat", version = "0.36", features = ["tokio", "native-tls"] }
-tor-socksproto = { path = "../../../crates/tor-socksproto", version = "0.36" }
+tor-chanmgr = { path = "../../../crates/tor-chanmgr", version = "0.37", features = ["pt-client"] }
+tor-linkspec = { path = "../../../crates/tor-linkspec", version = "0.37" }
+tor-ptmgr = { path = "../../../crates/tor-ptmgr", version = "0.37", features = [ "experimental-api"] }
+tor-rtcompat = { path = "../../../crates/tor-rtcompat", version = "0.37", features = ["tokio", "native-tls"] }
+tor-socksproto = { path = "../../../crates/tor-socksproto", version = "0.37" }
 tracing-subscriber = "0.3.20"
 
 [features]
