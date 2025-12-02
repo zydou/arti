@@ -377,8 +377,7 @@ impl<R: Runtime> GetConsensusState<R> {
 
         // Check out what authorities we believe in, and see if enough
         // of them are purported to have signed this consensus.
-        let n_authorities = self.authority_ids.len() as u16;
-        let unvalidated = unvalidated.set_n_authorities(n_authorities);
+        let unvalidated = unvalidated.set_n_authorities(self.authority_ids.len());
 
         let id_refs: Vec<_> = self.authority_ids.iter().collect();
         if !unvalidated.authorities_are_correct(&id_refs[..]) {
