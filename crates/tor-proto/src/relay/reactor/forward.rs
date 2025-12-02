@@ -430,7 +430,6 @@ impl<T: HasRelayIds> ForwardReactor<T> {
                 self.send_reactor_cmd(forward).await
             }
             RelayCmd::DROP => self.handle_drop(),
-            RelayCmd::EXTEND => self.handle_extend().await,
             RelayCmd::EXTEND2 => self.handle_extend2().await,
             RelayCmd::TRUNCATE => self.handle_truncate().await,
             _ => todo!(),
@@ -452,11 +451,6 @@ impl<T: HasRelayIds> ForwardReactor<T> {
                 Err(Error::ExcessPadding(ExcessPadding::NoPaddingNegotiated, hopnum).into())
             }
         }
-    }
-
-    /// Handle an EXTEND cell.
-    async fn handle_extend(&mut self) -> StdResult<(), ReactorError> {
-        todo!()
     }
 
     /// Handle an EXTEND2 cell.
