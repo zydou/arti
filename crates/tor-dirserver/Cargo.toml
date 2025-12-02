@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirserver"
-version = "0.36.0"
+version = "0.37.0"
 authors = ["The Tor Project, Inc.", "Clara Engler <cve@torproject.org>"]
 edition = "2021"
 rust-version = "1.86"
@@ -35,10 +35,10 @@ saturating-time = "0.3.0"
 strum = { version = "0.27.1", features = ["derive"] }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full"] }
-tor-basic-utils = { version = "0.36.0", path = "../tor-basic-utils" }
-tor-dircommon = { version = "0.36.0", path = "../tor-dircommon" }
-tor-error = { version = "0.36.0", path = "../tor-error" }
-tor-netdoc = { version = "0.36.0", path = "../tor-netdoc" }
+tor-basic-utils = { version = "0.37.0", path = "../tor-basic-utils" }
+tor-dircommon = { version = "0.37.0", path = "../tor-dircommon" }
+tor-error = { version = "0.37.0", path = "../tor-error" }
+tor-netdoc = { version = "0.37.0", path = "../tor-netdoc" }
 tracing = "0.1.41"
 weak-table = "0.3.2"
 

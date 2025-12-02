@@ -1,6 +1,6 @@
 [package]
 name = "tor-key-forge"
-version = "0.36.0"
+version = "0.37.0"
 authors = ["The Tor Project, Inc."]
 edition = "2024"
 rust-version = "1.86"
@@ -34,13 +34,13 @@ rsa = "0.9.0"
 signature = "2"
 ssh-key = { version = "0.6.1", features = ["std", "rsa"] }
 thiserror = "2"
-tor-bytes = { path = "../tor-bytes", version = "0.36.0", default-features = false }
-tor-cert = { path = "../tor-cert", version = "0.36.0", features = ["encode", "experimental-api"] }
-tor-checkable = { path = "../tor-checkable", version = "0.36.0" }
-tor-error = { version = "0.36.0", path = "../tor-error" }
-tor-llcrypto = { version = "0.36.0", path = "../tor-llcrypto" }
+tor-bytes = { path = "../tor-bytes", version = "0.37.0", default-features = false }
+tor-cert = { path = "../tor-cert", version = "0.37.0", features = ["encode", "experimental-api"] }
+tor-checkable = { path = "../tor-checkable", version = "0.37.0" }
+tor-error = { version = "0.37.0", path = "../tor-error" }
+tor-llcrypto = { version = "0.37.0", path = "../tor-llcrypto" }
 
 [dev-dependencies]
 signature = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.36.0" }
-tor-llcrypto = { version = "0.36.0", path = "../tor-llcrypto", features = ["testing"] }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.37.0" }
+tor-llcrypto = { version = "0.37.0", path = "../tor-llcrypto", features = ["testing"] }
