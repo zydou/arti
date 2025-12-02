@@ -209,7 +209,7 @@ humantime-serde = "1.1.1"
 hyper = { version = "1.7", features = ["http1", "server"], optional = true }
 itertools = "0.14.0"
 libc = "0.2"
-metrics-exporter-prometheus = { version = "0.17.0", optional = true, default-features = false, features = [
+metrics-exporter-prometheus = { version = "0.18.0", optional = true, default-features = false, features = [
     "http-listener",
 ] }
 notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
