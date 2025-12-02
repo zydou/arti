@@ -42,8 +42,12 @@ class Tracking:
     The keys here are *un*normalised, so they have not been lowercased.
     """
 
-    defined: dict[str, Tuple[str, str]] = {}
-    used: dict[str, bool] = {}
+    defined: dict[str, Tuple[str, str]]
+    used: dict[str, bool]
+
+    def __init__(self):
+        self.defined = {}
+        self.used = {}
 
     def as_json(self):
         return json.dumps(
