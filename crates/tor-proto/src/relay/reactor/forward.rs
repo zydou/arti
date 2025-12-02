@@ -460,6 +460,11 @@ impl<T: HasRelayIds> ForwardReactor<T> {
 
     /// Handle a TRUNCATE cell.
     async fn handle_truncate(&mut self) -> StdResult<(), ReactorError> {
+        // TODO(relay): when we implement this, we should try to do better than C Tor:
+        // if we have some cells queued for the next hop in the circuit,
+        // we should try to flush them *before* tearing it down.
+        //
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3487#note_3296035
         todo!()
     }
 
