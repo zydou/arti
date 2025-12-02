@@ -27,32 +27,24 @@ use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::circuit::circhop::SendRelayCell;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
 use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
-#[cfg(feature = "hs-service")]
-use crate::client::stream::{IncomingStreamRequest, IncomingStreamRequestFilter};
 use crate::client::{HopLocation, TargetHop};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
-use crate::memquota::{CircuitAccount, StreamAccount};
+use crate::memquota::CircuitAccount;
+use crate::stream::CloseStreamBehavior;
 use crate::stream::cmdcheck::AnyCmdChecker;
-use crate::stream::flow_ctrl::state::StreamRateLimit;
-use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
-use crate::stream::queue::StreamQueueReceiver;
-use crate::stream::{CloseStreamBehavior, StreamMpscSender};
 use crate::streammap;
 use crate::tunnel::{TunnelId, TunnelScopedCircId};
 use crate::util::err::ReactorError;
-use crate::util::notify::NotifyReceiver;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use circuit::Circuit;
 use conflux::ConfluxSet;
 use control::ControlHandler;
-use postage::watch;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::mem::size_of;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
-use tor_cell::relaycell::msg::{AnyRelayMsg, Sendme};
+use tor_cell::relaycell::msg::Sendme;
 use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCellFormat, StreamId, UnparsedRelayMsg};
 use tor_error::{Bug, bad_api_usage, debug_report, internal, into_bad_api_usage};
 use tor_rtcompat::{DynTimeProvider, SleepProvider};
@@ -71,16 +63,17 @@ use crate::channel::Channel;
 use crate::conflux::msghandler::RemoveLegReason;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use circuit::CircuitCmd;
-use derive_deftly::Deftly;
 use derive_more::From;
 use smallvec::smallvec;
 use tor_cell::chancell::CircId;
 use tor_llcrypto::pk;
-use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::circuit::{MutableState, TunnelMutableState};
+
+#[cfg(feature = "hs-service")]
+use {crate::client::stream::IncomingStreamRequestFilter, crate::stream::incoming::StreamReqInfo};
 
 #[cfg(feature = "conflux")]
 use {
@@ -104,8 +97,6 @@ pub(super) type ConfluxHandshakeResult = Vec<StdResult<(), ConfluxHandshakeError
 /// to link in the tunnel.
 #[cfg(feature = "conflux")]
 pub(super) type ConfluxLinkResultChannel = ReactorResultChannel<ConfluxHandshakeResult>;
-
-pub(crate) use circuit::{RECV_WINDOW_INIT, STREAM_READER_BUFFER};
 
 /// MPSC queue containing stream requests
 #[cfg(feature = "hs-service")]
@@ -623,46 +614,6 @@ struct CellHandlers {
     /// A handler for incoming stream requests.
     #[cfg(feature = "hs-service")]
     incoming_stream_req_handler: Option<IncomingStreamRequestHandler>,
-}
-
-/// Information about an incoming stream request.
-#[cfg(feature = "hs-service")]
-#[derive(Debug, Deftly)]
-#[derive_deftly(HasMemoryCost)]
-pub(crate) struct StreamReqInfo {
-    /// The [`IncomingStreamRequest`].
-    pub(crate) req: IncomingStreamRequest,
-    /// The ID of the stream being requested.
-    pub(crate) stream_id: StreamId,
-    /// The [`HopNum`].
-    //
-    // TODO: When we add support for exit relays, we need to turn this into an Option<HopNum>.
-    // (For outbound messages (towards relays), there is only one hop that can send them: the client.)
-    //
-    // TODO: For onion services, we might be able to enforce the HopNum earlier: we would never accept an
-    // incoming stream request from two separate hops.  (There is only one that's valid.)
-    pub(crate) hop: HopLocation,
-    /// The format which must be used with this stream to encode messages.
-    #[deftly(has_memory_cost(indirect_size = "0"))]
-    pub(crate) relay_cell_format: RelayCellFormat,
-    /// A channel for receiving messages from this stream.
-    #[deftly(has_memory_cost(indirect_size = "0"))] // estimate
-    pub(crate) receiver: StreamQueueReceiver,
-    /// A channel for sending messages to be sent on this stream.
-    #[deftly(has_memory_cost(indirect_size = "size_of::<AnyRelayMsg>()"))] // estimate
-    pub(crate) msg_tx: StreamMpscSender<AnyRelayMsg>,
-    /// A [`Stream`](futures::Stream) that provides updates to the rate limit for sending data.
-    // TODO(arti#2068): we should consider making this an `Option`
-    // the `watch::Sender` owns the indirect data
-    #[deftly(has_memory_cost(indirect_size = "0"))]
-    pub(crate) rate_limit_stream: watch::Receiver<StreamRateLimit>,
-    /// A [`Stream`](futures::Stream) that provides notifications when a new drain rate is
-    /// requested.
-    #[deftly(has_memory_cost(indirect_size = "0"))]
-    pub(crate) drain_rate_request_stream: NotifyReceiver<DrainRateRequest>,
-    /// The memory quota account to be used for this stream
-    #[deftly(has_memory_cost(indirect_size = "0"))] // estimate (it contains an Arc)
-    pub(crate) memquota: StreamAccount,
 }
 
 /// Data required for handling an incoming stream request.

@@ -12,28 +12,23 @@
 #[cfg(feature = "stream-ctrl")]
 mod ctrl;
 mod data;
-#[cfg(feature = "hs-service")]
-mod incoming;
 mod params;
 mod resolve;
 
-// TODO(relay): this is only pub(crate) because it's referenced in the
-// crate::stream::queue docs. We should consider moving this out of client,
-// and making the raw module private.
-pub(crate) mod raw;
-
+#[cfg(feature = "hs-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
+pub(crate) use crate::stream::incoming::IncomingCmdChecker;
 pub use data::{DataReader, DataStream, DataWriter};
+
+// TODO(relay): stop reexporting these from here
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub(crate) use incoming::IncomingCmdChecker;
-#[cfg(feature = "hs-service")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub use incoming::{
+pub use crate::stream::incoming::{
     IncomingStream, IncomingStreamRequest, IncomingStreamRequestContext,
     IncomingStreamRequestDisposition, IncomingStreamRequestFilter,
 };
+pub use crate::stream::raw::StreamReceiver;
 pub use params::StreamParameters;
-pub use raw::StreamReceiver;
 pub use resolve::ResolveStream;
 pub(crate) use {data::OutboundDataCmdChecker, resolve::ResolveCmdChecker};
 

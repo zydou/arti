@@ -1,6 +1,6 @@
 //! Module exposing the relay circuit reactor subsystem.
 //!
-//! The entry point of the reactor is [`RelayReactor::run`], which launches the
+//! The entry point of the reactor is [`Reactor::run`], which launches the
 //! reactor background tasks, and begins listening for inbound cells on the provided
 //! inbound Tor channel.
 //!
@@ -23,20 +23,88 @@
 //!  * `BackwardReactor` holds the reading end of the outbound channel, if there is one,
 //!    and the writing end of the inbound channel, if there is one
 //!
-//! Upon receiving an unrecognized cell, the `ForwardReactor` forwards it towards the exit.
-//! However, upon receiving a *recognized* cell, the `ForwardReactor` might need to
-//! send that cell to the `BackwardReactor` for handling (for example, a cell
-//! containing stream data needs to be delivered to the appropriate stream
-//! in the `StreamMap`). For this, it uses the `cell_tx` MPSC channel.
-//! This is needed because the read and write sides of `StreamMap` are not "splittable",
-//! so we are stuck having to reroute all stream data to the reactor that owns the `StreamMap`
-//! (i.e. to `BackwardReactor`). In the future, we'd like to redesign the `StreamMap`
+//! #### `ForwardReactor`
+//!
+//! It handles
+//!
+//!  * unrecognized RELAY cells, by moving them in the forward direction (towards the exit)
+//!  * recognized RELAY cells, by splitting each cell into messages, and handling
+//!    each message individually as described in the table below
+//!    (Note: since prop340 is not yet implemented, in practice there is only 1 message per cell).
+//!  * RELAY_EARLY cells (**not yet implemented**)
+//!  * DESTROY cells (**not yet implemented**)
+//!  * PADDING_NEGOTIATE cells (**not yet implemented**)
+//!
+//! ```text
+//!
+//! Legend: `F` = "forward reactor", `B` = "backward reactor"
+//!
+//! | RELAY cmd         | Received in | Handled in | Description                            |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | SENDME            | F           | B          | Sent to BackwardReactor for handling   |
+//! |                   |             |            | (BackwardReactorCmd::HandleSendme)     |
+//! |                   |             |            | because the forward reactor doesn't    |
+//! |                   |             |            | have access to the chan_sender part    |
+//! |                   |             |            | of the inbound (towards the client)    |
+//! |                   |             |            | Tor channel, and so cannot obtain the  |
+//! |                   |             |            | congestion signals needed for SENDME   |
+//! |                   |             |            | handling                               |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | DROP              | F           | F          | Passed to PaddingController for        |
+//! |                   |             |            | validation                             |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | EXTEND2           | F           |            | Handled by instructing the channel     |
+//! |                   |             |            | provider to launch a new channel, and  |
+//! |                   |             |            | waiting for the new channel on its     |
+//! |                   |             |            | outgoing_chan_rx receiver              |
+//! |                   |             |            | (**not yet implemented**)              |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | TRUNCATE          | F           | F          | (**not yet implemented**)              |
+//! |                   |             |            |                                        |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | Any command where | F           | B          | All messages with a non-zero stream ID |
+//! | stream Id != 0    |             |            | are forwarded to the Backward reactor  |
+//! |                   |             |            | (BackwardReactorCmd::HandleMsg)        |
+//! |-------------------|-------------|------------|----------------------------------------|
+//! | TODO              |             |            |                                        |
+//! |                   |             |            |                                        |
+//! ```
+//!
+//! The `ForwardReactor` uses the `cell_tx` MPSC channel to forward cells to the `BackwardReactor`.
+//! The cells are wrapped in a `BackwardReactorCmd`, which specified how the cell should be
+//! handled.
+//!
+//! > **Note**: in addition to forwarding cells received from the client, the `ForwardReactor`
+//! > also passes any circuit-level SENDME cells that need to be delivered to the client
+//! > to the `BackwardReactor` (see [`BackwardReactorCmd::SendSendme`](backward::BackwardReactorCmd).
+//!
+//! The reason we need this cross-reactor forwarding is because the read and write sides
+//! of `StreamMap` are not "splittable", so we are stuck having to reroute all stream data
+//! to the reactor that owns the `StreamMap` (i.e. to `BackwardReactor`).
+//! In the future, we'd like to redesign the `StreamMap`
 //! to split the read ends of the streams from the write ones, which will enable us
 //! to pass the read side to the `ForwardReactor` and the write side to the `BackwardReactor`.
+//!
+//! > **Note**: the `cell_tx` MPSC channel has no buffering, so if the `BackwardReactor`
+//! > is not reading from it quickly enough (for example if its client-facing Tor channel
+//! > sink is not ready to accept any more cells), the `ForwardReactor` will block,
+//! > and therefore cease reading from its input channel, providing backpressure
+//!
+//! #### `BackwardReactor`
+//!
+//! It handles
+//!
+//!  * the delivery of all client-bound cells (it writes them to the towards-the-client
+//!    Tor channel sink) (**partially implemented**)
+//!  * all stream management operations (the opening/closing of streams, and the delivery
+//!    of DATA cells to their corresponding streams) (**partially implemented**)
+//!  * the sending of padding cells, according to the PaddingController's instructions
+//!    (**not yet implemented**)
 //
 // TODO(relay): the above is underspecified, because it's not implemented yet,
 // but the plan is to iron out these details soon
 //
+//!
 //! This dual reactor architecture should, in theory, have better performance than
 //! a single reactor system, because it enables us to parallelize some of the work:
 //! the forward and backward directions share little state,
@@ -68,28 +136,39 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use futures::{FutureExt as _, StreamExt as _, select_biased};
+use futures::{FutureExt as _, Stream, StreamExt as _, select_biased};
 use postage::broadcast;
 use tracing::{debug, trace};
 
 use tor_cell::chancell::CircId;
-use tor_cell::relaycell::RelayCellDecoder;
-use tor_error::internal;
+use tor_cell::relaycell::{RelayCellDecoder, RelayCmd};
+use tor_error::{debug_report, internal};
 use tor_linkspec::HasRelayIds;
-use tor_memquota::mq_queue::{self, MpscSpec};
+use tor_memquota::mq_queue::{self, ChannelSpec, MpscSpec};
+use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopInbound, CircHopOutbound, HopSettings};
+use crate::client::stream::IncomingStreamRequestFilter;
 use crate::congestion::CongestionControl;
+use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
-use crate::memquota::CircuitAccount;
+use crate::memquota::{CircuitAccount, SpecificAccount};
 use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
+use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
+use crate::stream::incoming::{IncomingCmdChecker, IncomingStream, StreamReqInfo};
+use crate::stream::{RECV_WINDOW_INIT, StreamComponents, StreamTarget, Tunnel};
 use crate::util::err::ReactorError;
 
-use backward::BackwardReactor;
+// TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
+use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
+
+use crate::client::stream::StreamReceiver;
+
+use backward::{BackwardReactor, IncomingStreamRequestHandler};
 use forward::ForwardReactor;
 
 /// A message telling the reactor to do something.
@@ -123,7 +202,11 @@ pub(crate) enum RelayCtrlCmd {
 /// The entry point of the circuit reactor subsystem.
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
-pub(crate) struct RelayReactor<T: HasRelayIds> {
+pub(crate) struct Reactor<R: Runtime, T: HasRelayIds> {
+    /// The runtime.
+    ///
+    /// Used for spawning the two reactors.
+    runtime: R,
     /// The process-unique identifier of this circuit.
     ///
     /// Used for logging;
@@ -163,8 +246,16 @@ pub(crate) type CircuitRxSender = mq_queue::Sender<RelayCircChanMsg, MpscSpec>;
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpec>;
 
+/// Configuration for incoming stream requests.
+pub(super) struct IncomingStreamConfig<'a> {
+    /// The stream-initiating commands (BEGIN, RESOLVE, etc.) allowed on this circuit.
+    allow_commands: &'a [RelayCmd],
+    /// A filter applied to all incoming stream requests
+    filter: Box<dyn IncomingStreamRequestFilter>,
+}
+
 #[allow(unused)] // TODO(relay)
-impl<T: HasRelayIds> RelayReactor<T> {
+impl<R: Runtime, T: HasRelayIds> Reactor<R, T> {
     /// Create a new circuit reactor.
     ///
     /// The reactor will send outbound messages on `channel`, receive incoming
@@ -172,10 +263,10 @@ impl<T: HasRelayIds> RelayReactor<T> {
     /// [`CircId`] provided.
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
-    #[allow(clippy::needless_pass_by_value)] // TODO(relay)
     #[allow(clippy::too_many_arguments)] // TODO
-    pub(super) fn new(
-        channel: Arc<Channel>,
+    pub(super) fn new<'a>(
+        runtime: R,
+        channel: &Arc<Channel>,
         circ_id: CircId,
         unique_id: UniqId,
         input: CircuitRxReceiver,
@@ -183,11 +274,21 @@ impl<T: HasRelayIds> RelayReactor<T> {
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         settings: &HopSettings,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
-        memquota: CircuitAccount,
-    ) -> (Self, RelayCirc) {
+        incoming: IncomingStreamConfig<'a>,
+        padding_ctrl: PaddingController,
+        padding_event_stream: PaddingEventStream,
+        memquota: &CircuitAccount,
+    ) -> crate::Result<(Self, Arc<RelayCirc>, impl Stream<Item = IncomingStream>)> {
         let (outgoing_chan_tx, outgoing_chan_rx) = mpsc::unbounded();
         let (reactor_closed_tx, reactor_closed_rx) = broadcast::channel(0);
-        let (cell_tx, cell_rx) = mpsc::unbounded();
+
+        // NOTE: not registering this channel with the memquota subsystem is okay,
+        // because it has no buffering (if ever decide to make the size of this buffer
+        // non-zero for whatever reason, we must remember to register it with memquota
+        // so that it counts towards the total memory usage for the circuit.
+        #[allow(clippy::disallowed_methods)]
+        let (cell_tx, cell_rx) = mpsc::channel(0);
+
         let (control_tx, control_rx) = mpsc::unbounded();
         let (command_tx, command_rx) = mpsc::unbounded();
 
@@ -207,6 +308,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             crypto_out,
             chan_provider,
             cell_tx,
+            padding_ctrl.clone(),
             reactor_closed_rx.clone(),
         );
 
@@ -217,7 +319,17 @@ impl<T: HasRelayIds> RelayReactor<T> {
             settings,
         );
 
+        let handle = Arc::new(RelayCirc {
+            control: control_tx,
+            command: command_tx,
+            time_provider: DynTimeProvider::new(runtime.clone()),
+        });
+
+        let (incoming, stream) =
+            prepare_incoming_stream(runtime.clone(), Arc::clone(&handle), incoming, memquota)?;
+
         let backward = BackwardReactor::new(
+            runtime.clone(),
             channel,
             outbound,
             circ_id,
@@ -226,15 +338,14 @@ impl<T: HasRelayIds> RelayReactor<T> {
             settings,
             cell_rx,
             outgoing_chan_tx,
+            padding_ctrl,
+            padding_event_stream,
+            incoming,
             reactor_closed_rx.clone(),
         );
 
-        let handle = RelayCirc {
-            control: control_tx,
-            command: command_tx,
-        };
-
-        let reactor = RelayReactor {
+        let reactor = Reactor {
+            runtime,
             unique_id,
             forward: Some(forward),
             backward: Some(backward),
@@ -243,7 +354,7 @@ impl<T: HasRelayIds> RelayReactor<T> {
             reactor_closed_tx,
         };
 
-        (reactor, handle)
+        Ok((reactor, handle, stream))
     }
 
     /// Launch the reactor, and run until the circuit closes or we
@@ -251,21 +362,29 @@ impl<T: HasRelayIds> RelayReactor<T> {
     ///
     /// Once this method returns, the circuit is dead and cannot be
     /// used again.
-    pub(crate) async fn run(mut self) -> StdResult<(), ReactorError> {
+    pub(crate) async fn run(mut self) -> crate::Result<()> {
         let unique_id = self.unique_id;
+
         debug!(
             circ_id = %unique_id,
             "Running relay circuit reactor",
         );
 
-        let res = self.run_inner().await;
+        let result = match self.run_inner().await {
+            Ok(()) => return Err(internal!("reactor shut down without an error?!").into()),
+            Err(ReactorError::Shutdown) => Ok(()),
+            Err(ReactorError::Err(e)) => Err(e),
+        };
 
-        debug!(
-            circ_id = %unique_id,
-            "Relay circuit reactor shutting down",
-        );
+        // Log that the reactor stopped, possibly with the associated error as a report.
+        // May log at a higher level depending on the error kind.
+        const MSG: &str = "Relay circuit reactor shut down";
+        match &result {
+            Ok(()) => trace!(circ_id = %unique_id, "{MSG}"),
+            Err(e) => debug_report!(e, circ_id = %unique_id, "{MSG}"),
+        }
 
-        res
+        result
     }
 
     /// Helper for [`run`](Self::run).
@@ -336,4 +455,104 @@ impl<T: HasRelayIds> RelayReactor<T> {
 
         Err(ReactorError::Shutdown)
     }
+}
+
+/// Prepare the [`Stream`] of [`IncomingStream`]s and corresponding handler.
+///
+/// Needed for exits. Middle relays should reject every incoming stream,
+/// either through the `filter` provided in the [`IncomingStreamConfig`],
+/// or by explicitly calling .reject() on each received stream.
+///
+// TODO(relay): I think we will prefer using the .reject() approach
+// for this, because the filter is only meant for inexpensive quick
+// checks that are done immediately in the reactor (any blocking
+// in the filter will block the relay reactor main loop!).
+///
+/// The user of the reactor **must** handle this stream
+/// (either by .accept()ing and opening and proxying the corresponding
+/// streams as appropriate, or by .reject()ing).
+///
+// TODO: declare a type-alias for the return type when support for
+// impl in type aliases gets stabilized.
+//
+// See issue #63063 <https://github.com/rust-lang/rust/issues/63063>
+fn prepare_incoming_stream<'a, R: Runtime>(
+    runtime: R,
+    tunnel: Arc<RelayCirc>,
+    incoming: IncomingStreamConfig<'a>,
+    memquota: &CircuitAccount,
+) -> crate::Result<(
+    IncomingStreamRequestHandler,
+    impl Stream<Item = IncomingStream>,
+)> {
+    /// The size of the channel receiving IncomingStreamRequestContexts.
+    ///
+    // TODO(relay-tuning): buffer size
+    const INCOMING_BUFFER: usize = crate::stream::STREAM_READER_BUFFER;
+
+    let time_prov = DynTimeProvider::new(runtime);
+
+    let (incoming_sender, incoming_receiver) =
+        MpscSpec::new(INCOMING_BUFFER).new_mq(time_prov.clone(), memquota.as_raw_account())?;
+
+    let IncomingStreamConfig {
+        allow_commands,
+        filter,
+    } = incoming;
+
+    let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
+    let incoming = IncomingStreamRequestHandler {
+        incoming_sender,
+        cmd_checker,
+        filter,
+    };
+
+    // TODO(relay): this is more or less copy-pasta from client code
+    let stream = incoming_receiver.map(move |req_ctx| {
+        let StreamReqInfo {
+            req,
+            stream_id,
+            hop,
+            receiver,
+            msg_tx,
+            rate_limit_stream,
+            drain_rate_request_stream,
+            memquota,
+            relay_cell_format,
+        } = req_ctx;
+
+        // There is no originating hop if we're a relay
+        debug_assert!(hop.is_none());
+
+        let target = StreamTarget {
+            tunnel: Tunnel::Relay(Arc::clone(&tunnel)),
+            tx: msg_tx,
+            hop: None,
+            stream_id,
+            relay_cell_format,
+            rate_limit_stream,
+        };
+
+        // can be used to build a reader that supports XON/XOFF flow control
+        let xon_xoff_reader_ctrl =
+            XonXoffReaderCtrl::new(drain_rate_request_stream, target.clone());
+
+        let reader = StreamReceiver {
+            target: target.clone(),
+            receiver,
+            recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
+            ended: false,
+        };
+
+        let components = StreamComponents {
+            stream_receiver: reader,
+            target,
+            memquota,
+            xon_xoff_reader_ctrl,
+        };
+
+        IncomingStream::new(time_prov.clone(), req, components)
+    });
+
+    Ok((incoming, stream))
 }

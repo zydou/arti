@@ -2,12 +2,8 @@
 
 mod halfstream;
 
-// TODO(relay): streammap is meant to be impl-agnostic
-// (it's used both by clients and relays), so ideally
-// it shouldn't need to import from client::
-use crate::client::reactor::circuit::RECV_WINDOW_INIT;
-
 use crate::congestion::sendme;
+use crate::stream::RECV_WINDOW_INIT;
 use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::AnyCmdChecker;
 use crate::stream::flow_ctrl::state::{FlowCtrlHooks, StreamFlowCtrl};
@@ -566,7 +562,7 @@ pub(super) enum TerminateReason {
     /// corresponding senders were all dropped.
     StreamTargetClosed,
     /// Closing a stream because we were explicitly told to end it via
-    /// [`StreamTarget::close_pending`](crate::client::StreamTarget::close_pending).
+    /// [`StreamTarget::close_pending`](crate::stream::StreamTarget::close_pending).
     ExplicitEnd,
 }
 

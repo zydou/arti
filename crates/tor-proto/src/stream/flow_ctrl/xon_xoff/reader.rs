@@ -12,7 +12,7 @@ use pin_project::pin_project;
 use tor_basic_utils::assert_val_impl_trait;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
 
-use crate::client::StreamTarget;
+use crate::stream::StreamTarget;
 use crate::util::notify::NotifyReceiver;
 
 /// A wrapper for an [`AsyncRead`] to support XON/XOFF flow control.

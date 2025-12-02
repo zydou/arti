@@ -28,11 +28,11 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
-use crate::stream::StreamMpscReceiver;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
 use crate::stream::flow_ctrl::xon_xoff::reader::DrainRateRequest;
 use crate::stream::queue::{StreamQueueSender, stream_queue};
+use crate::stream::{StreamMpscReceiver, msg_streamid};
 use crate::streammap;
 use crate::tunnel::TunnelScopedCircId;
 use crate::util::err::ReactorError;
@@ -55,7 +55,6 @@ use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use futures::SinkExt as _;
 use oneshot_fused_workaround as oneshot;
 use postage::watch;
-use safelog::sensitive as sv;
 use tor_rtcompat::{DynTimeProvider, SleepProvider as _};
 use tracing::{debug, instrument, trace, warn};
 
@@ -87,18 +86,10 @@ use {
     crate::tunnel::TunnelId,
 };
 
-pub(super) use circhop::{CircHop, CircHopList};
+#[cfg(not(feature = "flowctl-cc"))]
+use crate::stream::STREAM_READER_BUFFER;
 
-/// Initial value for outbound flow-control window on streams.
-pub(crate) const SEND_WINDOW_INIT: u16 = 500;
-/// Initial value for inbound flow-control window on streams.
-pub(crate) const RECV_WINDOW_INIT: u16 = 500;
-/// Size of the buffer used between the reactor and a `StreamReader`.
-///
-/// FIXME(eta): We pick 2× the receive window, which is very conservative (we arguably shouldn't
-///             get sent more than the receive window anyway!). We might do due to things that
-///             don't count towards the window though.
-pub(crate) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
+pub(super) use circhop::{CircHop, CircHopList};
 
 /// A circuit "leg" from a tunnel.
 ///
@@ -958,7 +949,7 @@ impl Circuit {
         let outcome = Pin::new(&mut handler.incoming_sender).try_send(StreamReqInfo {
             req,
             stream_id,
-            hop: (leg, hop_num).into(),
+            hop: Some((leg, hop_num).into()),
             msg_tx,
             receiver,
             rate_limit_stream: rate_limit_rx,
@@ -1735,23 +1726,6 @@ enum CircPaddingDisposition {
     /// Do not take any actual padding action:
     /// existing data on our outbound queue will count as padding.
     TreatQueuedCellAsPadding,
-}
-
-/// Return the stream ID of `msg`, if it has one.
-///
-/// Returns `Ok(None)` if `msg` is a meta cell.
-fn msg_streamid(msg: &UnparsedRelayMsg) -> Result<Option<StreamId>> {
-    let cmd = msg.cmd();
-    let streamid = msg.stream_id();
-    if !cmd.accepts_streamid_val(streamid) {
-        return Err(Error::CircProto(format!(
-            "Invalid stream ID {} for relay command {}",
-            sv(StreamId::get_or_zero(streamid)),
-            msg.cmd()
-        )));
-    }
-
-    Ok(streamid)
 }
 
 impl Drop for Circuit {

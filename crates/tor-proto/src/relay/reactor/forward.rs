@@ -4,19 +4,23 @@ use crate::channel::ChannelSender;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::CircHopInbound;
+use crate::congestion::sendme;
 use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
+use crate::stream::msg_streamid;
 use crate::util::err::ReactorError;
 use crate::{Error, Result};
 
 // TODO(circpad): once padding is stabilized, the padding module will be moved out of client.
-use crate::client::circuit::padding::QueuedCellPaddingInfo;
+use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
+
+use super::backward::BackwardReactorCmd;
 
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::msg::{Destroy, PaddingNegotiate, Relay, RelayEarly};
 use tor_cell::chancell::{AnyChanCell, BoxedCellBody, ChanMsg, CircId};
-use tor_cell::relaycell::StreamId;
-use tor_cell::relaycell::msg::AnyRelayMsg;
+use tor_cell::relaycell::msg::Sendme;
+use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 use tor_error::{internal, trace_report, warn_report};
 use tor_linkspec::HasRelayIds;
 
@@ -35,12 +39,12 @@ use super::CircuitRxReceiver;
 ///
 /// Handles the "forward direction": moves cells towards the exit.
 ///
-/// Shuts downs down if an error occurs, or if either the [`RelayReactor`](super::RelayReactor)
+/// Shuts downs down if an error occurs, or if either the [`Reactor`](super::Reactor)
 /// or the [`BackwardReactor`](super::BackwardReactor) shuts down:
 ///
-///   * if `RelayReactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
+///   * if `Reactor` shuts down, we are alerted via the `shutdown_tx` broadcast channel
 ///     (we will notice this its closure in the main loop)
-///   * if `BackwardReactor` shuts down, `RelayReactor` will notice, and itself shutdown
+///   * if `BackwardReactor` shuts down, `Reactor` will notice, and itself shutdown
 ///     (as in the previous case, we will notice this because the `shutdown_tx` channel will close)
 #[allow(unused)] // TODO(relay)
 #[must_use = "If you don't call run() on a reactor, the circuit won't work."]
@@ -64,19 +68,29 @@ pub(super) struct ForwardReactor<T: HasRelayIds> {
     ///
     /// Delivers cells towards the exit.
     forward: Option<Forward>,
-    /// Sender for RELAY cells that need to be forwarded to the client.
+    /// Sender for RELAY cells that need to be forwarded to the client,
+    /// or otherwise handled in the BackwardReactor.
     ///
-    /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for all
+    /// Used for sending:
+    ///
+    ///    * circuit-level SENDMEs received from the client (`[BackwardReactorCmd::HandleSendme]`)
+    ///    * circuit-level SENDMEs that need to be delivered to the client
+    ///      (`[BackwardReactorCmd::SendSendme]`)
+    ///    * stream messages, i.e. messages with a non-zero stream ID (`[BackwardReactorCmd::HandleMsg]`)
+    ///
+    /// The receiver is in [`BackwardReactor`](super::BackwardReactor), which is responsible for
     /// sending all client-bound cells.
-    cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
+    cell_tx: mpsc::Sender<BackwardReactorCmd>,
     /// A handle to a [`ChannelProvider`], used for initiating outgoing Tor channels.
     ///
     /// Note: all circuit reactors of a relay need to be initialized
     /// with the *same* underlying Tor channel provider (`ChanMgr`),
     /// to enable the reuse of existing Tor channels where possible.
     chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
+    /// A padding controller to which padding-related events should be reported.
+    padding_ctrl: PaddingController,
     /// A broadcast receiver used to detect when the
-    /// [`RelayReactor`](super::RelayReactor) or
+    /// [`Reactor`](super::Reactor) or
     /// [`BackwardReactor`](super::BackwardReactor) are dropped.
     shutdown_rx: broadcast::Receiver<void::Void>,
 }
@@ -100,7 +114,8 @@ impl<T: HasRelayIds> ForwardReactor<T> {
         outgoing_chan_rx: mpsc::UnboundedReceiver<ChannelResult>,
         crypto_out: Box<dyn OutboundRelayLayer + Send>,
         chan_provider: Box<dyn ChannelProvider<BuildSpec = T> + Send>,
-        cell_tx: mpsc::UnboundedSender<(StreamId, AnyRelayMsg)>,
+        cell_tx: mpsc::Sender<BackwardReactorCmd>,
+        padding_ctrl: PaddingController,
         shutdown_rx: broadcast::Receiver<void::Void>,
     ) -> Self {
         Self {
@@ -113,6 +128,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
             forward: None,
             chan_provider,
             cell_tx,
+            padding_ctrl,
             shutdown_rx,
         }
     }
@@ -296,20 +312,163 @@ impl<T: HasRelayIds> ForwardReactor<T> {
     async fn handle_relay_cell(&mut self, cell: Relay) -> StdResult<(), ReactorError> {
         let cmd = cell.cmd();
         let mut body = cell.into_relay_body().into();
-        if let Some(_tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) {
-            // The message is addressed to us! Now it's time to handle it...
-            let _decode_res = self.hop.decode(body.into())?;
-
-            // TODO: actually handle the cell
-            // TODO: if the message is recognized, it may need to be delivered
-            // to the BackwardReactor via the cell_tx channel for handling
-            // (because e.g. Tor stream data is handled in the BackwardReactor)
-        } else {
+        let Some(tag) = self.crypto_out.decrypt_outbound(cmd, &mut body) else {
             // The message is not addressed to us, so we must relay it forward, towards the exit
-            self.send_msg_to_exit(body, None)?;
+            return self.send_msg_to_exit(body, None);
+        };
+
+        // The message is addressed to us! Now it's time to handle it...
+        let decode_res = self.hop.decode(body.into())?;
+
+        // TODO(relay): tell padding_ctrl we decrypted data or padding
+
+        let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
+
+        // Decrement the circuit sendme windows, and see if we need to
+        // send a sendme cell.
+        let send_circ_sendme = if c_t_w {
+            self.hop.ccontrol().note_data_received()?
+        } else {
+            false
+        };
+
+        // If we do need to send a circuit-level SENDME cell, do so.
+        if send_circ_sendme {
+            // This always sends a V1 (tagged) sendme cell, and thereby assumes
+            // that SendmeEmitMinVersion is no more than 1.  If the authorities
+            // every increase that parameter to a higher number, this will
+            // become incorrect.  (Higher numbers are not currently defined.)
+            let forward = BackwardReactorCmd::SendSendme(Sendme::from(tag));
+
+            // NOTE: sending the SENDME to the backward reactor for handling
+            // might seem counterintuitive, given that we have access to
+            // the congestion control object right here
+            // (CC state is shared between CircHopInbound and CircHopOutbound).
+            //
+            // However, the forward reactor does not have access to the
+            // chan_sender part of the inbound (towards the client) Tor channel,
+            // and so it cannot handle the SENDME on its own
+            // (because it cannot obtain the congestion signals),
+            // so the SENDME needs to be handled in the backward reactor.
+            //
+            // NOTE: this will block if the backward reactor is not ready
+            // to send any more cells.
+            self.send_reactor_cmd(forward).await?;
+        }
+
+        let (mut msgs, incomplete) = decode_res.into_parts();
+        while let Some(msg) = msgs.next() {
+            match self.handle_relay_msg(msg, c_t_w).await {
+                Ok(()) => continue,
+                Err(e) => {
+                    for m in msgs {
+                        debug!(
+                            circ_id = %self.unique_id,
+                            "Ignoring relay msg received after triggering shutdown: {m:?}",
+                        );
+                    }
+                    if let Some(incomplete) = incomplete {
+                        debug!(
+                            circ_id = %self.unique_id,
+                            "Ignoring partial relay msg received after triggering shutdown: {:?}",
+                            incomplete,
+                        );
+                    }
+
+                    return Err(e);
+                }
+            }
         }
 
         Ok(())
+    }
+
+    /// Handle a single incoming RELAY message.
+    async fn handle_relay_msg(
+        &mut self,
+        msg: UnparsedRelayMsg,
+        cell_counts_toward_windows: bool,
+    ) -> StdResult<(), ReactorError> {
+        // If this msg wants/refuses to have a Stream ID, does it
+        // have/not have one?
+        let streamid = msg_streamid(&msg)?;
+
+        // If this doesn't have a StreamId, it's a meta cell,
+        // not meant for a particular stream.
+        let Some(sid) = streamid else {
+            return self.handle_meta_msg(msg).await;
+        };
+
+        // All messages on streams are handled in the backward reactor
+        // (because that's where the stream map is)
+        self.send_reactor_cmd(BackwardReactorCmd::HandleMsg {
+            sid,
+            msg,
+            cell_counts_toward_windows,
+        })
+        .await
+    }
+
+    /// Handle a RELAY message on this circuit with stream ID 0.
+    async fn handle_meta_msg(&mut self, msg: UnparsedRelayMsg) -> StdResult<(), ReactorError> {
+        match msg.cmd() {
+            RelayCmd::SENDME => {
+                let sendme = msg
+                    .decode::<Sendme>()
+                    .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
+                    .into_msg();
+
+                let forward = BackwardReactorCmd::HandleSendme(sendme);
+                self.send_reactor_cmd(forward).await
+            }
+            RelayCmd::DROP => self.handle_drop(),
+            RelayCmd::EXTEND2 => self.handle_extend2().await,
+            RelayCmd::TRUNCATE => self.handle_truncate().await,
+            _ => todo!(),
+        }
+    }
+
+    /// Handle a DROP message.
+    #[allow(clippy::unnecessary_wraps)] // Returns Err if circ-padding is enabled
+    fn handle_drop(&mut self) -> StdResult<(), ReactorError> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "circ-padding")] {
+                Err(internal!("relay circuit padding not yet supported").into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// Handle an EXTEND2 cell.
+    async fn handle_extend2(&mut self) -> StdResult<(), ReactorError> {
+        todo!()
+    }
+
+    /// Handle a TRUNCATE cell.
+    async fn handle_truncate(&mut self) -> StdResult<(), ReactorError> {
+        // TODO(relay): when we implement this, we should try to do better than C Tor:
+        // if we have some cells queued for the next hop in the circuit,
+        // we should try to flush them *before* tearing it down.
+        //
+        // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3487#note_3296035
+        todo!()
+    }
+
+    /// Send a command to the backward reactor.
+    ///
+    /// Blocks if the `cell_tx` channel is full, i.e. if the backward reactor
+    /// is not ready to send any more cells.
+    ///
+    /// Returns an error if the backward reactor has shut down.
+    async fn send_reactor_cmd(
+        &mut self,
+        forward: BackwardReactorCmd,
+    ) -> StdResult<(), ReactorError> {
+        self.cell_tx.send(forward).await.map_err(|_| {
+            // The other reactor has shut down
+            ReactorError::Shutdown
+        })
     }
 
     /// Send a RELAY cell with the specified `body` to the exit.
