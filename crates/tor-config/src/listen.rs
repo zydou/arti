@@ -1,7 +1,7 @@
 //! Configuration for ports and addresses to listen on.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::{fmt::Display, iter, num::NonZeroU16};
+use std::{fmt::Display, iter};
 
 use either::Either;
 use itertools::Itertools as _;
@@ -16,28 +16,29 @@ use serde::{Deserialize, Serialize};
 ///  * Listen on several addresses/ports
 ///
 /// Currently only IP (v6 and v4) is supported.
+//
+// NOTE: If you're adding or changing functionality for this type,
+// make sure that all existing users of this type (for example all config options in arti and
+// arti-relay which use this) want that functionality.
 #[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "ListenSerde", into = "ListenSerde")]
-#[derive(Default)]
-pub struct Listen(Vec<ListenItem>);
+#[serde(try_from = "CustomizableListen", into = "CustomizableListen")]
+pub struct Listen(CustomizableListen);
 
 impl Listen {
     /// Create a new `Listen` specifying no addresses (no listening)
     pub fn new_none() -> Listen {
-        Listen(vec![])
+        CustomizableListen::Disabled
+            .try_into()
+            .expect("'disabled' should be valid")
     }
 
     /// Create a new `Listen` specifying listening on a port on localhost
     ///
     /// Special case: if `port` is zero, specifies no listening.
     pub fn new_localhost(port: u16) -> Listen {
-        Listen(
-            port.try_into()
-                .ok()
-                .map(ListenItem::Localhost)
-                .into_iter()
-                .collect_vec(),
-        )
+        CustomizableListen::One(ListenItem::Port(port))
+            .try_into()
+            .expect("a standalone port (including 0) should be valid")
     }
 
     /// Create a new `Listen`, possibly specifying listening on a port on localhost
@@ -49,7 +50,7 @@ impl Listen {
 
     /// Return true if no listening addresses have been configured
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.ip_addrs_internal().count() == 0
     }
 
     /// List the network socket addresses to listen on
@@ -68,7 +69,18 @@ impl Listen {
         &self,
     ) -> Result<impl Iterator<Item = impl Iterator<Item = SocketAddr> + '_> + '_, ListenUnsupported>
     {
-        Ok(self.0.iter().map(|i| i.iter()))
+        Ok(self.ip_addrs_internal())
+    }
+
+    /// List the network socket addresses to listen on.
+    ///
+    /// See [`Self::ip_addrs`], which wraps this result in an `Ok`.
+    fn ip_addrs_internal(
+        &self,
+    ) -> impl Iterator<Item = impl Iterator<Item = SocketAddr> + '_> + '_ {
+        // We interpret standalone ports to be localhost addresses.
+        let ips = [Ipv6Addr::LOCALHOST.into(), Ipv4Addr::LOCALHOST.into()];
+        self.0.items().map(move |item| item.iter(ips))
     }
 
     /// Get the localhost port to listen on
@@ -78,11 +90,16 @@ impl Listen {
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single localhost port in all address families"
     pub fn localhost_port_legacy(&self) -> Result<Option<u16>, ListenUnsupported> {
-        use ListenItem as LI;
-        Ok(match &*self.0 {
-            [] => None,
-            [LI::Localhost(port)] => Some((*port).into()),
-            _ => return Err(ListenUnsupported {}),
+        Ok(match &self.0 {
+            CustomizableListen::Disabled => None,
+            CustomizableListen::One(ListenItem::Port(port)) => Some(*port),
+            CustomizableListen::One(ListenItem::General(_)) => return Err(ListenUnsupported {}),
+            CustomizableListen::List(list) => match list.as_slice() {
+                [] => None,
+                [ListenItem::Port(port)] => Some(*port),
+                [ListenItem::General(_)] => return Err(ListenUnsupported {}),
+                [_, _, ..] => return Err(ListenUnsupported {}),
+            },
         })
     }
 
@@ -99,48 +116,157 @@ impl Listen {
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single port on one address family".
     pub fn single_address_legacy(&self) -> Result<Option<SocketAddr>, ListenUnsupported> {
-        use ListenItem as LI;
-        Ok(match &*self.0 {
-            [] => None,
-            [LI::Localhost(port)] => Some((Ipv4Addr::LOCALHOST, u16::from(*port)).into()),
-            [LI::General(sa)] => Some(*sa),
-            _ => return Err(ListenUnsupported {}),
+        Ok(match &self.0 {
+            CustomizableListen::Disabled => None,
+            CustomizableListen::One(ListenItem::Port(port)) => {
+                Some((Ipv4Addr::LOCALHOST, *port).into())
+            }
+            CustomizableListen::One(ListenItem::General(addr)) => Some(*addr),
+            CustomizableListen::List(list) => match list.as_slice() {
+                [] => None,
+                [ListenItem::Port(port)] => Some((Ipv4Addr::LOCALHOST, *port).into()),
+                [ListenItem::General(addr)] => Some(*addr),
+                [_, _, ..] => return Err(ListenUnsupported {}),
+            },
         })
     }
 
-    /// Return true if this `Listen` only configures listening on localhost.
+    /// Return true if this `Listen` only configures listening on loopback addresses (`127.0.0.0/8`
+    /// and `::1`).
+    ///
+    /// Returns true if there are no addresses configured.
+    pub fn is_loopback_only(&self) -> bool {
+        self.ip_addrs_internal()
+            .flatten()
+            .all(|a| a.ip().is_loopback())
+    }
+
+    /// Deprecated.
+    /// Use [`Self::is_loopback_only`] instead,
+    /// which behaves the same but has the correct method name.
+    #[deprecated(since = "0.37.0", note = "please use `is_loopback_only` instead")]
     pub fn is_localhost_only(&self) -> bool {
-        self.0.iter().all(ListenItem::is_localhost)
+        self.is_loopback_only()
+    }
+}
+
+impl Default for Listen {
+    fn default() -> Self {
+        Self::new_none()
     }
 }
 
 impl Display for Listen {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut sep = "";
-        for a in &self.0 {
-            write!(f, "{sep}{a}")?;
-            sep = ", ";
+        for item in self.0.items() {
+            match item {
+                ListenItem::Port(_) => {
+                    write!(f, "{sep}localhost {item}")?;
+                    sep = ", ";
+                }
+                ListenItem::General(_) => {
+                    write!(f, "{sep}{item}")?;
+                    sep = ", ";
+                }
+            }
         }
         Ok(())
     }
 }
+
+impl TryFrom<CustomizableListen> for Listen {
+    type Error = InvalidListen;
+
+    fn try_from(l: CustomizableListen) -> Result<Self, Self::Error> {
+        match &l {
+            CustomizableListen::Disabled | CustomizableListen::One(ListenItem::Port(0)) => {
+                // A non-list standalone 0 means "none".
+                Ok(Self(CustomizableListen::Disabled))
+            }
+            CustomizableListen::One(_) => Ok(Self(l)),
+            CustomizableListen::List(list) => {
+                // We don't support a standalone 0 port in a list item.
+                if list.iter().any(|item| matches!(item, ListenItem::Port(0))) {
+                    return Err(InvalidListen::ZeroPortInList);
+                }
+                Ok(Self(l))
+            }
+        }
+    }
+}
+
+impl From<Listen> for CustomizableListen {
+    fn from(l: Listen) -> Self {
+        l.0
+    }
+}
+
 /// [`Listen`] configuration specified something not supported by application code
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
 #[error("Unsupported listening configuration")]
 pub struct ListenUnsupported {}
 
-/// One item in the `Listen`
+/// Listen configuration is invalid
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+enum InvalidListen {
+    /// Specified listen was a list containing a zero integer
+    #[error("Invalid listen specification: zero (for no port) not permitted in list")]
+    ZeroPortInList,
+}
+
+/// A general structure for configuring listening ports.
 ///
-/// We distinguish `Localhost`,
+/// This is meant to provide some basic parsing without being too opinionated.
+/// If you have further requirements, you should wrap this in a new type.
+/// For example if `CustomizableListen` supports keywords or flags in the future such as "auto",
+/// any config options that don't want to support them should use a wrapper type that handles them
+/// and returns an error.
+#[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "ListenSerde", into = "ListenSerde")]
+enum CustomizableListen {
+    /// Explicitly disabled with `false`.
+    Disabled,
+    /// A single item not in a list.
+    One(ListenItem),
+    /// A list of items.
+    List(Vec<ListenItem>),
+}
+
+impl CustomizableListen {
+    /// All configured listen options.
+    fn items(&self) -> impl Iterator<Item = &ListenItem> {
+        match self {
+            Self::Disabled => Either::Right(std::slice::Iter::default()),
+            Self::One(one) => Either::Left(iter::once(one)),
+            Self::List(many) => Either::Right(many.iter()),
+        }
+    }
+}
+
+/// One item in the [`CustomizableListen`].
+///
+/// This type defines a common format for parsing.
+/// We don't assign any particular meaning to the variants.
+/// For example a standalone port doesn't imply anything about what IP address should be used.
+/// Similarly, a port of 0 doesn't have any inherent meaning.
+/// For example a port of 0 might mean "don't listen" (when network addresses are optional)
+/// or might mean "raise an error" (when network addresses are required).
+/// It's up to the user of this type to assign meaning to the values given.
+///
+/// We distinguish a standalone port,
 /// rather than just storing two `net:SocketAddr`,
 /// so that we can handle localhost (which means two address families) specially
 /// in order to implement `localhost_port_legacy()`.
-#[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq)]
+// If we add new variants, it *is* a breaking change.
+// We want a compile-time error, not a runtime error.
+#[allow(clippy::exhaustive_enums)]
 enum ListenItem {
     /// One port, both IPv6 and IPv4
-    Localhost(NonZeroU16),
+    Port(u16),
 
     /// Any other single socket address
     General(SocketAddr),
@@ -148,24 +274,21 @@ enum ListenItem {
 
 impl ListenItem {
     /// Return the `SocketAddr`s implied by this item
-    fn iter(&self) -> impl Iterator<Item = SocketAddr> + '_ {
+    ///
+    /// If the item is a standalone port, then the returned iterator will return a socket address
+    /// using that port for each IP address in `ips_for_port`.
+    fn iter<'a>(
+        &'a self,
+        ips_for_port: impl IntoIterator<Item = IpAddr> + 'a,
+    ) -> impl Iterator<Item = SocketAddr> + 'a {
         use ListenItem as LI;
         match self {
-            &LI::Localhost(port) => Either::Left({
-                let port = port.into();
-                let addrs: [IpAddr; 2] = [Ipv6Addr::LOCALHOST.into(), Ipv4Addr::LOCALHOST.into()];
-                addrs.into_iter().map(move |ip| SocketAddr::new(ip, port))
+            &LI::Port(port) => Either::Left({
+                ips_for_port
+                    .into_iter()
+                    .map(move |ip| SocketAddr::new(ip, port))
             }),
             LI::General(addr) => Either::Right(iter::once(addr).cloned()),
-        }
-    }
-
-    /// Return true if this is a localhost address.
-    fn is_localhost(&self) -> bool {
-        use ListenItem as LI;
-        match self {
-            LI::Localhost(_) => true,
-            LI::General(addr) => addr.ip().is_loopback(),
         }
     }
 }
@@ -173,7 +296,7 @@ impl ListenItem {
 impl Display for ListenItem {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ListenItem::Localhost(port) => write!(f, "localhost port {}", port)?,
+            ListenItem::Port(port) => write!(f, "port {}", port)?,
             ListenItem::General(addr) => write!(f, "{}", addr)?,
         }
         Ok(())
@@ -182,6 +305,8 @@ impl Display for ListenItem {
 /// How we (de) serialize a [`Listen`]
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
+// the default error message from serde's "untagged" is useless for users, so we provide our own
+#[serde(expecting = "value was not a bool, `u16` integer, string, or list of integers/strings")]
 enum ListenSerde {
     /// for `listen = false` (in TOML syntax)
     Bool(bool),
@@ -196,38 +321,35 @@ enum ListenSerde {
 /// One item in the list of a list-ish `Listen`, or the plain value
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
+// the default error message from serde's "untagged" is useless for users, so we provide our own
+#[serde(expecting = "item was not a `u16` integer or string")]
 enum ListenItemSerde {
     /// An integer.
-    ///
-    /// When appearing "loose" (in ListenSerde::One), `0` is parsed as none.
     Port(u16),
 
-    /// An string which will be parsed as an address and port
-    ///
-    /// When appearing "loose" (in ListenSerde::One), `""` is parsed as none.
+    /// A string.
     String(String),
 }
 
-// This implementation isn't fallible, but clippy thinks it is because of the unwrap.
-// The unwrap is just there because we can't pattern-match on a Vec
-#[allow(clippy::fallible_impl_from)]
-impl From<Listen> for ListenSerde {
-    fn from(l: Listen) -> ListenSerde {
-        let l = l.0;
-        match l.len() {
-            0 => ListenSerde::Bool(false),
-            1 => ListenSerde::One(l.into_iter().next().expect("len=1 but no next").into()),
-            _ => ListenSerde::List(l.into_iter().map(Into::into).collect()),
+impl From<CustomizableListen> for ListenSerde {
+    fn from(l: CustomizableListen) -> Self {
+        match l {
+            CustomizableListen::Disabled => ListenSerde::Bool(false),
+            CustomizableListen::One(item) => ListenSerde::One(item.into()),
+            CustomizableListen::List(list) => match list.as_slice() {
+                [] => ListenSerde::List(Vec::new()),
+                [one] => ListenSerde::List(vec![one.clone().into()]),
+                list => ListenSerde::List(list.iter().cloned().map(Into::into).collect()),
+            },
         }
     }
 }
 impl From<ListenItem> for ListenItemSerde {
-    fn from(i: ListenItem) -> ListenItemSerde {
+    fn from(i: ListenItem) -> Self {
         use ListenItem as LI;
-        use ListenItemSerde as LIS;
         match i {
-            LI::Localhost(port) => LIS::Port(port.into()),
-            LI::General(addr) => LIS::String(addr.to_string()),
+            LI::Port(port) => Self::Port(port),
+            LI::General(addr) => Self::String(addr.to_string()),
         }
     }
 }
@@ -235,7 +357,7 @@ impl From<ListenItem> for ListenItemSerde {
 /// Listen configuration is invalid
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
-pub enum InvalidListen {
+enum InvalidCustomizableListen {
     /// Bool was `true` but that's not an address.
     #[error("Invalid listen specification: need actual addr/port, or `false`; not `true`")]
     InvalidBool,
@@ -243,46 +365,35 @@ pub enum InvalidListen {
     /// Specified listen was a string but couldn't parse to a [`SocketAddr`].
     #[error("Invalid listen specification: failed to parse string: {0}")]
     InvalidString(#[from] std::net::AddrParseError),
-
-    /// Specified listen was a list containing a zero integer
-    #[error("Invalid listen specification: zero (for no port) not permitted in list")]
-    ZeroPortInList,
 }
-impl TryFrom<ListenSerde> for Listen {
-    type Error = InvalidListen;
+impl TryFrom<ListenSerde> for CustomizableListen {
+    type Error = InvalidCustomizableListen;
 
-    fn try_from(l: ListenSerde) -> Result<Listen, Self::Error> {
+    fn try_from(l: ListenSerde) -> Result<CustomizableListen, Self::Error> {
         use ListenSerde as LS;
-        Ok(Listen(match l {
-            LS::Bool(false) => vec![],
-            LS::Bool(true) => return Err(InvalidListen::InvalidBool),
-            LS::One(i) if i.means_none() => vec![],
-            LS::One(i) => vec![i.try_into()?],
-            LS::List(l) => l.into_iter().map(|i| i.try_into()).try_collect()?,
-        }))
+        Ok(match l {
+            // A false value not in a list is interpreted as "none".
+            LS::Bool(false) => CustomizableListen::Disabled,
+            LS::Bool(true) => return Err(InvalidCustomizableListen::InvalidBool),
+            // An empty string not in a list is interpreted as "none".
+            LS::One(ListenItemSerde::String(s)) if s.is_empty() => CustomizableListen::List(vec![]),
+            LS::One(i) => CustomizableListen::One(i.try_into()?),
+            LS::List(l) => {
+                CustomizableListen::List(l.into_iter().map(|i| i.try_into()).try_collect()?)
+            }
+        })
     }
 }
-impl ListenItemSerde {
-    /// Is this item actually a sentinel, meaning "don't listen, disable this thing"?
-    ///
-    /// Allowed only bare, not in a list.
-    fn means_none(&self) -> bool {
-        use ListenItemSerde as LIS;
-        match self {
-            &LIS::Port(port) => port == 0,
-            LIS::String(s) => s.is_empty(),
-        }
-    }
-}
+impl ListenItemSerde {}
 impl TryFrom<ListenItemSerde> for ListenItem {
-    type Error = InvalidListen;
+    type Error = InvalidCustomizableListen;
 
     fn try_from(i: ListenItemSerde) -> Result<ListenItem, Self::Error> {
         use ListenItem as LI;
         use ListenItemSerde as LIS;
         Ok(match i {
-            LIS::String(s) => LI::General(s.parse()?),
-            LIS::Port(p) => LI::Localhost(p.try_into().map_err(|_| InvalidListen::ZeroPortInList)?),
+            LIS::String(a) => LI::General(a.parse()?),
+            LIS::Port(p) => LI::Port(p),
         })
     }
 }
@@ -328,7 +439,7 @@ mod test {
             let tc: TestConfigFile = toml::from_str(s).expect(s);
             let ll = tc.listen.unwrap();
             eprintln!("s={:?} ll={:?}", &s, &ll);
-            assert_eq!(ll, Listen(exp_i));
+            assert_eq!(ll.0.items().cloned().collect::<Vec<_>>(), exp_i);
             assert_eq!(
                 ll.ip_addrs()
                     .map(|a| a.map(|l| l.collect_vec()).collect_vec())
@@ -366,7 +477,7 @@ mod test {
                 &format!("listen = [ {} ]", s),
             );
             chk(
-                vec![v, LI::Localhost(23.try_into().unwrap())],
+                vec![v, LI::Port(23.try_into().unwrap())],
                 Ok([addrs, vec![vec![localhost6(23), localhost4(23)]]]
                     .into_iter()
                     .flatten()
@@ -382,7 +493,7 @@ mod test {
         chk(vec![], Ok(vec![]), Ok(None), r#"listen = []"#);
 
         chk_1(
-            LI::Localhost(42.try_into().unwrap()),
+            LI::Port(42.try_into().unwrap()),
             vec![vec![localhost6(42), localhost4(42)]],
             Ok(Some(42)),
             "42",
@@ -400,8 +511,96 @@ mod test {
             chk_err(el, &format!("listen = [ 23, {}, 77 ]", s));
         };
 
-        chk_err_1("need actual addr/port", "did not match any variant", "true");
-        chk_err("did not match any variant", r#"listen = [ [] ]"#);
+        chk_err_1(
+            "need actual addr/port",
+            "value was not a bool, `u16` integer, string, or list of integers/strings",
+            "true",
+        );
+        chk_err(
+            "value was not a bool, `u16` integer, string, or list of integers/strings",
+            r#"listen = [ [] ]"#,
+        );
+    }
+
+    #[test]
+    fn more_parsing_checks() {
+        let config: TestConfigFile = toml::from_str(r#"listen = false"#).unwrap();
+        assert!(config.listen.unwrap().is_empty());
+
+        let config: TestConfigFile = toml::from_str(r#"listen = 0"#).unwrap();
+        assert!(config.listen.unwrap().is_empty());
+
+        let config: TestConfigFile = toml::from_str(r#"listen = 1"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 2);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = """#).unwrap();
+        assert!(config.listen.unwrap().is_empty());
+
+        let config: TestConfigFile = toml::from_str(r#"listen = "127.0.0.1:8080""#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = ["127.0.0.1:8080"]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = "127.0.0.1:0""#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = ["127.0.0.1:0"]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 1);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = [1]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 2);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = [1, 2]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 4);
+
+        let config: TestConfigFile = toml::from_str(r#"listen = ["127.0.0.1:8080", 2]"#).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(config.listen.unwrap().ip_addrs().unwrap().flatten().count(), 3);
+
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [false]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = true"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [true]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [0]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["127.0.0.1:8080", 0]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["foo"]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["127.0.0.1:8080", "foo"]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = [""]"#).is_err());
+        assert!(toml::from_str::<TestConfigFile>(r#"listen = ["127.0.0.1:8080", ""]"#).is_err());
+    }
+
+    #[test]
+    fn constructor() {
+        let l = Listen::new_none();
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
+
+        let l = Listen::new_localhost(1234);
+        assert!(!l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 2);
+
+        let l = Listen::new_localhost(0);
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
+
+        let l = Listen::new_localhost_optional(Some(1234));
+        assert!(!l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 2);
+
+        let l = Listen::new_localhost_optional(Some(0));
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
+
+        let l = Listen::new_localhost_optional(None);
+        assert!(l.is_empty());
+        assert_eq!(l.ip_addrs().unwrap().flatten().count(), 0);
     }
 
     #[test]
@@ -412,19 +611,19 @@ mod test {
         let one_port = Listen::new_localhost(1234);
         assert_eq!(one_port.to_string(), "localhost port 1234");
 
-        let multi_port = Listen(vec![
-            ListenItem::Localhost(1111.try_into().unwrap()),
-            ListenItem::Localhost(2222.try_into().unwrap()),
-        ]);
+        let multi_port = Listen(CustomizableListen::List(vec![
+            ListenItem::Port(1111.try_into().unwrap()),
+            ListenItem::Port(2222.try_into().unwrap()),
+        ]));
         assert_eq!(
             multi_port.to_string(),
             "localhost port 1111, localhost port 2222"
         );
 
-        let multi_addr = Listen(vec![
-            ListenItem::Localhost(1234.try_into().unwrap()),
+        let multi_addr = Listen(CustomizableListen::List(vec![
+            ListenItem::Port(1234.try_into().unwrap()),
             ListenItem::General("1.2.3.4:5678".parse().unwrap()),
-        ]);
+        ]));
         assert_eq!(multi_addr.to_string(), "localhost port 1234, 1.2.3.4:5678");
     }
 
@@ -432,7 +631,7 @@ mod test {
     fn is_localhost() {
         fn localhost_only(s: &str) -> bool {
             let tc: TestConfigFile = toml::from_str(s).expect(s);
-            tc.listen.unwrap().is_localhost_only()
+            tc.listen.unwrap().is_loopback_only()
         }
 
         assert_eq!(localhost_only(r#"listen = [ ]"#), true);

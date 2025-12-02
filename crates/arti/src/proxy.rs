@@ -353,7 +353,7 @@ pub(crate) async fn run_proxy<R: Runtime>(
     #[cfg(not(feature = "rpc"))]
     let rpc_mgr = None;
 
-    if !listen.is_localhost_only() {
+    if !listen.is_loopback_only() {
         warn!(
             "Configured to listen for proxy connections on non-local addresses. \
             This is usually insecure! We recommend listening on localhost only."
