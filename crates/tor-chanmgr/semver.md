@@ -1,1 +1,0 @@
-- BREAKING: Changed signature of the experimental relay `ChanMgr::handle_incoming` method.
