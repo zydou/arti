@@ -1,6 +1,5 @@
 //! Misc helper functions and types for use in parsing network documents
 
-pub(crate) mod intern;
 pub(crate) mod str;
 
 pub mod batching_split_before;

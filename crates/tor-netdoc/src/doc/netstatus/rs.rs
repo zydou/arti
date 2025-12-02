@@ -19,11 +19,11 @@ use crate::parse::parser::Section;
 use crate::types::misc::*;
 use crate::types::relay_flags::{self, DocRelayFlags, RelayFlag, RelayFlags};
 use crate::types::version::TorVersion;
-use crate::util::intern::InternCache;
 use crate::{Error, NetdocErrorKind as EK, Result};
 use itertools::chain;
 use std::sync::Arc;
 use std::{net, time};
+use tor_basic_utils::intern::InternCache;
 use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 

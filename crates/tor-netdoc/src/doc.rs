@@ -29,7 +29,7 @@
 //! Finally, there are the voting documents themselves that authorities
 //! use in order to calculate the consensus.
 
-use crate::util::intern::InternCache;
+use tor_basic_utils::intern::InternCache;
 
 #[macro_use]
 mod ns_variety_definition_macros;
