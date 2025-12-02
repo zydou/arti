@@ -13,7 +13,7 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["cdylib", "lib", "staticlib"] # staticlib needed for iOS + macOS
 
 [dependencies]
 
