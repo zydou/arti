@@ -92,7 +92,7 @@ derive_more = { version = "2.0.1", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.22"
 equix = { path = "../equix", version = "0.5.0", optional = true }
-fs-mistrust = { path = "../fs-mistrust", version = "0.13.0", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.13.1", features = ["serde"] }
 futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
 hex = "0.4"
