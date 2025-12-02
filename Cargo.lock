@@ -7433,6 +7433,7 @@ dependencies = [
  "paste",
  "serde_with",
  "thiserror 2.0.17",
+ "tor-basic-utils",
  "tor-bytes",
 ]
 

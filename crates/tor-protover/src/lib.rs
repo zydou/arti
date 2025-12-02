@@ -52,6 +52,7 @@ use std::sync::Arc;
 use caret::caret_int;
 
 use thiserror::Error;
+use tor_basic_utils::intern::InternCache;
 
 pub mod named;
 
@@ -258,9 +259,17 @@ struct ProtocolsInner {
     unrecognized: Vec<SubprotocolEntry>,
 }
 
+/// An InternCache of ProtocolsInner.
+///
+/// We intern ProtocolsInner objects because:
+///  - There are very few _distinct_ values in any given set of relays.
+///  - Every relay has one.
+///  - We often want to copy them when we're remembering information about circuits.
+static PROTOCOLS: InternCache<ProtocolsInner> = InternCache::new();
+
 impl From<ProtocolsInner> for Protocols {
     fn from(value: ProtocolsInner) -> Self {
-        Protocols(Arc::new(value))
+        Protocols(PROTOCOLS.intern(value))
     }
 }
 

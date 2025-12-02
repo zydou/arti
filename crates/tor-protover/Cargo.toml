@@ -16,6 +16,7 @@ caret = { path = "../caret", version = "0.8.0" }
 paste = "1"
 serde_with = { version = "3.0.0", optional = true }
 thiserror = "2"
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.37.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.37.0", optional = true }
 
 [features]
