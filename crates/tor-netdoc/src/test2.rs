@@ -162,7 +162,7 @@ mod needs_with_arg {
     pub(super) fn from_args(args: &mut ArgumentStream) -> Result<NeedsWith, P2AE> {
         NeedsWith::parse_expecting("arg", args)
     }
-    pub(super) fn from_rest(s: &str) -> Result<NeedsWith, ()> {
+    pub(super) fn from_args_rest(s: &str) -> Result<NeedsWith, ()> {
         (s == "rest of line").then_some(NeedsWith).ok_or(())
     }
 }
@@ -578,7 +578,7 @@ struct TestItemRest {
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
 #[derive_deftly(ItemValueParseable)]
 struct TestItemRestWith {
-    #[deftly(netdoc(rest, with = "needs_with_arg::from_rest"))]
+    #[deftly(netdoc(rest, with = "needs_with_arg"))]
     rest: NeedsWith,
 }
 
