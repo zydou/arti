@@ -16,6 +16,8 @@ use weak_table::WeakHashSet;
 /// Later, the hash entry is (lazily) removed.
 pub(crate) struct InternCache<T: ?Sized> {
     /// Underlying hashset for interned objects
+    //
+    // TODO: If WeakHashSet::new is someday const, we can do away with OnceLock here.
     cache: OnceLock<Mutex<WeakHashSet<Weak<T>>>>,
 }
 
