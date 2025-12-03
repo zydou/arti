@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 
-use arti_client::{InertTorClient, TorClient, TorClientBuilder, TorClientConfig};
+use arti_client::{InertTorClient, TorClient, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand};
 use safelog::DisplayRedacted;
 use tor_keymgr::{
@@ -130,9 +130,12 @@ pub(crate) fn run<R: Runtime>(
     match subcommand {
         KeysSubcommand::List(args) => run_list_keys(&args, &client_builder.create_inert()?),
         KeysSubcommand::ListKeystores => run_list_keystores(&client_builder.create_inert()?),
-        KeysSubcommand::CheckIntegrity(args) => {
-            run_check_integrity(&args, &client_builder, &rt, config, client_config)
-        }
+        KeysSubcommand::CheckIntegrity(args) => run_check_integrity(
+            &args,
+            &rt.reenter_block_on(client_builder.create_bootstrapped())?,
+            config,
+            client_config,
+        ),
     }
 }
 
@@ -224,16 +227,11 @@ fn run_list_keystores(client: &InertTorClient) -> Result<()> {
 /// Run `keys check-integrity` subcommand.
 fn run_check_integrity<R: Runtime>(
     args: &CheckIntegrityArgs,
-    builder: &TorClientBuilder<R>,
-    runtime: &R,
+    client: &TorClient<R>,
     config: &ArtiConfig,
     client_config: &TorClientConfig,
 ) -> Result<()> {
-    let inert_client = builder.create_inert()?;
-    let client = runtime.reenter_block_on(builder.create_bootstrapped())?;
-
-    // TODO: `TorClient` should have a `KeyMgr` accessor.
-    let keymgr = inert_client.keymgr()?;
+    let keymgr = client.keymgr()?;
 
     let keystore_ids = match &args.keystore_id {
         Some(id) => vec![id.to_owned()],
@@ -255,7 +253,7 @@ fn run_check_integrity<R: Runtime>(
             // `service` cannot be dropped as long as `expired_entries` is in use, since
             // `expired_entries` holds references to `services`.
             let services = create_all_services(config, client_config)?;
-            let mut expired_entries: Vec<_> = get_expired_keys(&services, &client)?;
+            let mut expired_entries: Vec<_> = get_expired_keys(&services, client)?;
         }
     }
 

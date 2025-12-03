@@ -2133,6 +2133,12 @@ impl<R: Runtime> TorClient<R> {
         // dropped—which is what we want.
         self.statemgr.wait_for_unlock()
     }
+
+    /// Getter for keymgr.
+    #[cfg(feature = "onion-service-cli-extra")]
+    pub fn keymgr(&self) -> crate::Result<&KeyMgr> {
+        self.inert_client.keymgr()
+    }
 }
 
 /// Monitor `dormant_mode` and enable/disable periodic tasks as applicable
