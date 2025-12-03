@@ -102,6 +102,15 @@ class TrackingInlineParser(mistune.InlineParser):
                 file=sys.stderr,
             )
         else:
+            # Here we unfortunately need to do some markdown parsing ourselves.
+            # This is roughly what `InlineParser.parse_link()` does, but
+            # unfortunately `InlineParser` throws the result away if a
+            # corresponding link reference hasn't been defined[1], which
+            # doesn't work for us since we want to find labels even when a link
+            # reference hasn't been defined.
+            #
+            # [1]
+            # https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/src/mistune/inline_parser.py#L174-L175
             if end_pos is not None and end_pos < len(state.src):
                 if state.src[end_pos] == "[":
                     # link with format [text][label]
