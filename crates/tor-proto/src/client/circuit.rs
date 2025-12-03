@@ -826,9 +826,10 @@ impl PendingClientTunnel {
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
     pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<ClientTunnel> {
-        // We no nothing about this relay, so we assume it supports no protocol capabilities at all.
+        // We know nothing about this relay, so we assume it supports no protocol capabilities at all.
         //
         // TODO: If we had a consensus, we could assume it supported all required-relay-protocols.
+        // TODO prop364: When we implement CreateOneHop, we will want a Protocols argument here.
         let protocols = tor_protover::Protocols::new();
         let settings =
             HopSettings::from_params_and_caps(HopNegotiationType::None, &params, &protocols)?;
