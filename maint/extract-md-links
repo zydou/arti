@@ -32,6 +32,37 @@ import textwrap
 from typing import Tuple
 
 
+class InjectedRefLinks:
+    """
+    Wrapper around mistune's "ref_links" state dictionary.
+
+    Generally we want to pass all attributes through,
+    but we do something non-sensible for `get()` so that mistune internally
+    behaves in a way that we need it to.
+    """
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+    # There are other things like `__getitem__`, `__setitem__`, `__iter__`, etc
+    # we could handle here in our wrapper. But it's best to wait until they're
+    # actually needed by mistune before adding them to make sure we're adding
+    # them in a way that will be handled properly.
+
+    def get(self, key):
+        # Always return a fake ref link,
+        # so that the `ref_links.get(key)` will return something truthy
+        # and will satisfy the following code:
+        # https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/src/mistune/inline_parser.py#L174
+        return {
+            "url": "https://example.com/fake-url-from-extract-md-links",
+            "title": "fake-url-from-extract-md-links",
+        }
+
+
 class Tracking:
     """
     Data structure which tracks used and defined keys.
@@ -41,6 +72,10 @@ class Tracking:
     `used` is a map from keys to `True`,
 
     The keys here are *un*normalised, so they have not been lowercased.
+
+    This relies on internal implementation details of mistune.
+    Expect this to break as the mistune version changes.
+    Last tested with mistune 3.1.3.
     """
 
     defined: dict[str, Tuple[str, str]]
@@ -65,23 +100,34 @@ class TrackingBlockParser(mistune.BlockParser):
         super().__init__()
 
     def parse_ref_link(self, m, state):
-        # This relies on internal implementation details of mistune.
-        # Expect this to break as the mistune version changes.
-        # Last tested with mistune 3.1.3.
+        # We rely here on specific implementation behaviour of `BlockParser.parse_ref_link()`.
+        # We inject an empty `state.env["ref_links"]` so that it won't conflict with any previous
+        # ref links, and we'll always add the link as long as it parses correctly.
+        # (mistune tracks ref links using a key based on a case-smashed version of the label,
+        # which means that two different labels could conflict, and we don't want that.)
 
-        key = m.group("reflink_1")
-        href, href_pos = mistune.helpers.parse_link_href(state.src, m.end(), block=True)
+        # Pretend we haven't had any ref links yet.
+        original = state.env["ref_links"]
+        state.env["ref_links"] = {}
 
-        _blank = mistune.BlockParser.BLANK_LINE.search(state.src, href_pos)
-        if _blank:
-            max_pos = _blank.start()
-        else:
-            max_pos = state.cursor_max
+        rv = super().parse_ref_link(m, state)
 
-        title, _ = mistune.helpers.parse_link_title(state.src, href_pos, max_pos)
+        # Replace with the original `ref_links`, not including any new ref links.
+        added = state.env["ref_links"]
+        state.env["ref_links"] = original
 
-        self.track.defined[key] = (href, title)
-        return super().parse_ref_link(m, state)
+        if added:
+            # We expect that only one ref link was added.
+            assert len(added) == 1
+            added = next(iter(added.values()))
+
+            label = added["label"]
+            href = added["url"]
+            title = added.get("title")
+
+            self.track.defined[label] = (href, title)
+
+        return rv
 
 
 class TrackingInlineParser(mistune.InlineParser):
@@ -90,45 +136,33 @@ class TrackingInlineParser(mistune.InlineParser):
         super().__init__()
 
     def parse_link(self, m, state):
-        # Since we use `m.end()`, we won't find multi-line labels.
-        # This is how mistune seems to handle it:
-        # https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/src/mistune/inline_parser.py#L127
-        label, end_pos = mistune.helpers.parse_link_label(state.src, m.end())
+        # We rely here on specific implementation behaviour of `InlineParser.parse_link()`.
+        # We inject a custom wrapper around `state.env["ref_links"]`
+        # which returns a fake reference link from `get(key)` in:
+        # https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/src/mistune/inline_parser.py#L174
+        # This causes the parsed label to be added to `state.tokens`,
+        # even if the reference wasn't actually in the markdown document.
 
-        if label is None:
-            print(
-                "WARNING: skipping incorrectly formatted link:",
-                state.src,
-                file=sys.stderr,
-            )
-        else:
-            # Here we unfortunately need to do some markdown parsing ourselves.
-            # This is roughly what `InlineParser.parse_link()` does, but
-            # unfortunately `InlineParser` throws the result away if a
-            # corresponding link reference hasn't been defined[1], which
-            # doesn't work for us since we want to find labels even when a link
-            # reference hasn't been defined.
-            #
-            # [1]
-            # https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/src/mistune/inline_parser.py#L174-L175
-            if end_pos is not None and end_pos < len(state.src):
-                if state.src[end_pos] == "[":
-                    # link with format [text][label]
-                    label2, end_pos2 = mistune.helpers.parse_link_label(
-                        state.src, end_pos + 1
-                    )
-                    if label2 is not None and end_pos2 is not None:
-                        label = label2
-                elif state.src[end_pos] == "(":
-                    # link with format [text](url)
-                    _, end_pos2 = mistune.helpers.parse_link(state.src, end_pos + 1)
-                    if end_pos2 is not None:
-                        label = None
+        prev_token = state.tokens[-1] if state.tokens else None
+        state.env["ref_links"] = InjectedRefLinks(state.env.get("ref_links"))
 
-            if label is not None:
-                self.track.used[label] = True
+        rv = super().parse_link(m, state)
 
-        return super().parse_link(m, state)
+        # Replace with the original `ref_links`, including any changes.
+        state.env["ref_links"] = state.env.get("ref_links").inner
+        new_token = state.tokens[-1] if state.tokens else None
+
+        # We don't have access to the state outside of this method,
+        # so we try to grab the label here if a new token was added.
+        # Alternatively, since it was added as a token in `super().parse_link()`,
+        # we could wait until the end and search the final AST for links.
+        # But I think just getting it here from the last token is simplest.
+
+        # If a new token was added, we assume it was for the reference.
+        if new_token != prev_token and "label" in new_token:
+            self.track.used[new_token["label"]] = True
+
+        return rv
 
 
 def extract_links(md_string):
