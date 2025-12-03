@@ -218,6 +218,7 @@ define_derive_deftly_module! {
           if kw == $F_KEYWORD {
             ${select1
               F_NORMAL {
+                #[allow(clippy::redundant_locals)] // $THIS_ITEM might be item
                 let item = $THIS_ITEM;
                 dtrace!("is normal", item);
                 let item = $ITEM_VALUE_FROM_UNPARSED;
