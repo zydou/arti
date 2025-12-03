@@ -37,6 +37,29 @@ impl HasKind for Error {
     }
 }
 
+/// An error that has occurred while trying to decode a set of externally provided link specifiers
+/// into a reasonable [`VerbatimLinkSpecCircTarget`](tor_linkspec::verbatim::VerbatimLinkSpecCircTarget).
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+#[cfg(feature = "hs-common")]
+pub enum VerbatimCircTargetDecodeError {
+    /// We failed to interpret the provided link specs, or didn't find enough detail in them.
+    #[error("Unable to decode relay information")]
+    CantDecode(#[from] tor_linkspec::decode::ChanTargetDecodeError),
+
+    /// When we went to look up the relay, we found that the identities were not compatible with one another.
+    #[error("Impossible combination of identities")]
+    ImpossibleIds(#[source] crate::RelayLookupError),
+
+    /// The onion key type was one that we don't support.
+    #[error("Received an unsupported onion key type")]
+    UnsupportedOnionKey,
+
+    /// An internal error occurred, probably due to a programming mistake.
+    #[error("Internal error")]
+    Internal(#[from] tor_error::Bug),
+}
+
 /// An error returned when looking up onion service directories.
 #[derive(Error, Clone, Debug)]
 #[cfg(feature = "hs-common")]

@@ -10,6 +10,8 @@ description = "Types to represent and use a Tor network directory"
 keywords = ["tor", "arti"]
 categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = []
@@ -23,7 +25,14 @@ experimental = ["experimental-api", "testing", "geoip"]
 experimental-api = ["visibility", "__is_experimental"]
 hs-client = ["hs-common"]
 hs-service = ["hs-common", "tor-hscrypto/ope"]
-hs-common = ["digest", "hex", "time", "tor-hscrypto"]
+hs-common = [
+    "digest",
+    "hex",
+    "time",
+    "tor-hscrypto",
+    "tor-linkspec/decode",
+    "tor-linkspec/verbatim",
+]
 geoip = ["tor-geoip", "__is_experimental"]
 
 # Enable testing-only APIs.  APIs under this feature are not
@@ -79,5 +88,3 @@ float_eq = "1.0.0"
 hex = "0.4"
 hex-literal = "1.0"
 tor-netdoc = { path = "../tor-netdoc", version = "0.37.0", features = ["build_docs"] }
-[package.metadata.docs.rs]
-all-features = true

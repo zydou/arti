@@ -8,7 +8,7 @@ use tor_cell::relaycell::{
     msg::{Introduce2, Rendezvous1},
 };
 use tor_circmgr::{ServiceOnionServiceDataTunnel, build::onion_circparams_from_netparams};
-use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
+use tor_linkspec::verbatim::VerbatimLinkSpecCircTarget;
 use tor_proto::{
     client::circuit::handshake::{
         self,
@@ -23,6 +23,19 @@ use tor_proto::{
 #[allow(clippy::enum_variant_names)]
 #[non_exhaustive]
 pub enum IntroRequestError {
+    /// We couldn't get a timely network directory in
+    /// chosen circuits.
+    #[error("Network directory not available")]
+    NetdirUnavailable(#[source] tor_netdir::Error),
+
+    /// Got an onion key with an unrecognized type (not ntor).
+    #[error("Received an unsupported type of onion key")]
+    UnsupportedOnionKey,
+
+    /// The rendezvous point in the Introduce2 message was invalid and couldn't be used.
+    #[error("Couldn't decode rendezvous point")]
+    InvalidRendezvousPoint(#[source] tor_netdir::VerbatimCircTargetDecodeError),
+
     /// The handshake (e.g. hs_ntor) in the Introduce2 message was invalid and
     /// could not be completed.
     #[error("Introduction handshake was invalid")]
@@ -46,6 +59,9 @@ impl HasKind for IntroRequestError {
         use IntroRequestError as E;
         use tor_error::ErrorKind as EK;
         match self {
+            E::NetdirUnavailable(e) => e.kind(),
+            E::UnsupportedOnionKey => EK::RemoteProtocolViolation,
+            E::InvalidRendezvousPoint(_) => EK::RemoteProtocolViolation,
             E::InvalidHandshake(e) => e.kind(),
             E::InvalidPayload(_) => EK::RemoteProtocolViolation,
             E::InvalidLinkSpecs(_) => EK::RemoteProtocolViolation,
@@ -63,9 +79,6 @@ pub enum EstablishSessionError {
     /// chosen circuits.
     #[error("Network directory not available")]
     NetdirUnavailable(#[source] tor_netdir::Error),
-    /// Got an onion key with an unrecognized type (not ntor).
-    #[error("Received an unsupported type of onion key")]
-    UnsupportedOnionKey,
     /// Unable to build a circuit to the rendezvous point.
     #[error("Could not establish circuit to rendezvous point")]
     RendCirc(#[source] RetryError<tor_circmgr::Error>),
@@ -79,12 +92,6 @@ pub enum EstablishSessionError {
     /// We encountered an error while sending the rendezvous1 message.
     #[error("Could not send RENDEZVOUS1 message")]
     SendRendezvous(#[source] tor_circmgr::Error),
-    /// The client sent us a rendezvous point with an impossible set of identities.
-    ///
-    /// (For example, it gave us `(Ed1, Rsa1)`, but in the network directory `Ed1` is
-    /// associated with `Rsa2`.)
-    #[error("Impossible combination of identities for rendezvous point")]
-    ImpossibleIds(#[source] tor_netdir::RelayLookupError),
     /// An internal error occurred.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -93,17 +100,14 @@ pub enum EstablishSessionError {
 impl HasKind for EstablishSessionError {
     fn kind(&self) -> tor_error::ErrorKind {
         use EstablishSessionError as E;
-        use tor_error::ErrorKind as EK;
         match self {
             E::NetdirUnavailable(e) => e.kind(),
-            E::UnsupportedOnionKey => EK::RemoteProtocolViolation,
             EstablishSessionError::RendCirc(e) => {
                 tor_circmgr::Error::summarized_error_kind(e.sources())
             }
             EstablishSessionError::VirtualHop(e) => e.kind(),
             EstablishSessionError::AcceptBegins(e) => e.kind(),
             EstablishSessionError::SendRendezvous(e) => e.kind(),
-            EstablishSessionError::ImpossibleIds(_) => EK::RemoteProtocolViolation,
             EstablishSessionError::Bug(e) => e.kind(),
         }
     }
@@ -137,9 +141,8 @@ pub(crate) struct IntroRequest {
     /// The decrypted and parsed body of the introduce2 message.
     intro_payload: IntroduceHandshakePayload,
 
-    /// The (in progress) ChanTarget that we'll use to build a circuit target
-    /// for connecting to the rendezvous point.
-    chan_target: OwnedChanTargetBuilder,
+    /// The circuit target for the rendezvous point.
+    rend_point: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
 }
 
 /// An open session with a single client.
@@ -242,13 +245,19 @@ impl IntroRequest {
             // padded to hide its size.
         };
 
-        // We build the OwnedChanTargetBuilder now, so that we can detect any
-        // problems here earlier.
-        let chan_target = OwnedChanTargetBuilder::from_encoded_linkspecs(
-            Strictness::Standard,
-            intro_payload.link_specifiers(),
-        )
-        .map_err(E::InvalidLinkSpecs)?;
+        // We build the rend_point now, so that we can detect any
+        // problems as early as possible.
+        let netdir = context
+            .netdir_provider
+            .netdir(tor_netdir::Timeliness::Timely)
+            .map_err(E::NetdirUnavailable)?;
+        let ntor_onion_key = match intro_payload.onion_key() {
+            OnionKey::NtorOnionKey(ntor_key) => ntor_key,
+            _ => return Err(E::UnsupportedOnionKey),
+        };
+        let rend_point = netdir
+            .circ_target_from_verbatim_linkspecs(intro_payload.link_specifiers(), ntor_onion_key)
+            .map_err(E::InvalidRendezvousPoint)?;
 
         let rend1_msg = Rendezvous1::new(*intro_payload.cookie(), rend1_body);
 
@@ -257,7 +266,7 @@ impl IntroRequest {
             key_gen,
             rend1_msg,
             intro_payload,
-            chan_target,
+            rend_point,
         })
     }
 
@@ -280,41 +289,6 @@ impl IntroRequest {
             .netdir(tor_netdir::Timeliness::Timely)
             .map_err(E::NetdirUnavailable)?;
 
-        // Try to construct a CircTarget for rendezvous point based on the
-        // intro_payload.
-        let rend_point = {
-            // TODO: We might have checked for a recognized onion key type earlier.
-            let ntor_onion_key = match self.intro_payload.onion_key() {
-                OnionKey::NtorOnionKey(ntor_key) => ntor_key,
-                _ => return Err(E::UnsupportedOnionKey),
-            };
-            let mut bld = OwnedCircTarget::builder();
-            *bld.chan_target() = self.chan_target;
-
-            // TODO (#1223): This block is very similar to circtarget_from_pieces in
-            // relay_info.rs.
-            // Is there a clean way to refactor this?
-            let protocols = {
-                let chan_target = bld.chan_target().build().map_err(into_internal!(
-                    "from_encoded_linkspecs gave an invalid output"
-                ))?;
-                match netdir
-                    .by_ids_detailed(&chan_target)
-                    .map_err(E::ImpossibleIds)?
-                {
-                    Some(relay) => relay.protovers().clone(),
-                    None => netdir.relay_protocol_status().required_protocols().clone(),
-                }
-            };
-            bld.protocols(protocols);
-            bld.ntor_onion_key(*ntor_onion_key);
-            VerbatimLinkSpecCircTarget::new(
-                bld.build()
-                    .map_err(into_internal!("Failed to construct a valid circtarget"))?,
-                self.intro_payload.link_specifiers().into(),
-            )
-        };
-
         let max_n_attempts = netdir.params().hs_service_rendezvous_failures_max;
         let mut tunnel = None;
         let mut retry_err: RetryError<tor_circmgr::Error> =
@@ -323,7 +297,7 @@ impl IntroRequest {
         // Open circuit to rendezvous point.
         for _attempt in 1..=max_n_attempts.into() {
             match hs_pool
-                .get_or_launch_specific(&netdir, rend_point.clone())
+                .get_or_launch_specific(&netdir, self.rend_point.clone())
                 .await
             {
                 Ok(t) => {

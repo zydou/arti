@@ -62,6 +62,8 @@ use async_trait::async_trait;
 #[cfg(feature = "hs-service")]
 use itertools::chain;
 use tor_error::warn_report;
+#[cfg(feature = "hs-common")]
+use tor_linkspec::OwnedCircTarget;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
 };
@@ -90,8 +92,11 @@ use typed_index_collections::{TiSlice, TiVec};
 use {
     itertools::Itertools,
     std::collections::HashSet,
+    std::result::Result as StdResult,
     tor_error::{Bug, internal},
     tor_hscrypto::{pk::HsBlindId, time::TimePeriod},
+    tor_linkspec::{OwnedChanTargetBuilder, verbatim::VerbatimLinkSpecCircTarget},
+    tor_llcrypto::pk::curve25519,
 };
 
 pub use err::Error;
@@ -100,7 +105,7 @@ pub use weight::WeightRole;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(feature = "hs-common")]
-pub use err::OnionDirLookupError;
+pub use err::{OnionDirLookupError, VerbatimCircTargetDecodeError};
 
 use params::NetParameters;
 #[cfg(feature = "geoip")]
@@ -1465,6 +1470,51 @@ impl NetDir {
     #[cfg(feature = "hs-common")]
     pub fn client_protocol_status(&self) -> &netstatus::ProtoStatus {
         self.consensus.client_protocol_status()
+    }
+
+    /// Construct a `CircTarget` from an externally provided list of link specifiers,
+    /// and an externally provided onion key.
+    ///
+    /// This method is used in the onion service protocol,
+    /// where introduction points and rendezvous points are specified using these inputs.
+    ///
+    /// This function is a member of `NetDir` so that it can provide a reasonable list of
+    /// [`Protocols`](tor_protover::Protocols) capabilities for the generated `CircTarget`.
+    /// It does not (and should not!) look up anything else from the directory.
+    #[cfg(feature = "hs-common")]
+    pub fn circ_target_from_verbatim_linkspecs(
+        &self,
+        linkspecs: &[tor_linkspec::EncodedLinkSpec],
+        ntor_onion_key: &curve25519::PublicKey,
+    ) -> StdResult<VerbatimLinkSpecCircTarget<OwnedCircTarget>, VerbatimCircTargetDecodeError> {
+        use VerbatimCircTargetDecodeError as E;
+        use tor_linkspec::CircTarget as _;
+        use tor_linkspec::decode::Strictness;
+
+        let mut bld = OwnedCircTarget::builder();
+        use tor_error::into_internal;
+
+        *bld.chan_target() =
+            OwnedChanTargetBuilder::from_encoded_linkspecs(Strictness::Standard, linkspecs)?;
+        let protocols = {
+            let chan_target = bld.chan_target().build().map_err(into_internal!(
+                "from_encoded_linkspecs gave an invalid output"
+            ))?;
+            match self
+                .by_ids_detailed(&chan_target)
+                .map_err(E::ImpossibleIds)?
+            {
+                Some(relay) => relay.protovers().clone(),
+                None => self.relay_protocol_status().required_protocols().clone(),
+            }
+        };
+        bld.protocols(protocols);
+        bld.ntor_onion_key(*ntor_onion_key);
+        Ok(VerbatimLinkSpecCircTarget::new(
+            bld.build()
+                .map_err(into_internal!("Failed to construct a valid circtarget"))?,
+            linkspecs.to_vec(),
+        ))
     }
 
     /// Return weighted the fraction of relays we can use.  We only
