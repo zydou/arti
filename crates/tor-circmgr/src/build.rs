@@ -107,7 +107,7 @@ async fn create_common<RT: Runtime>(
                 unique_id: None,
             })?;
 
-    tracing::info!("Spawning reactor...");
+    tracing::debug!("Spawning reactor...");
 
     rt.spawn(async {
         let _ = reactor.run().await;
