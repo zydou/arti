@@ -19,9 +19,9 @@ An example request looks something like this:
 { "id": "121879",
   "obj": "8966",
   "method": "arti:example_method",
-  "params: {
+  "params": {
       "an_argument": {},
-      "another_argument": "example",
+      "another_argument": "example"
   },
   "meta": {
      "updates": true
