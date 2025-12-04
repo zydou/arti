@@ -39,7 +39,7 @@ experimental-api = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
-derive-deftly = { version = "~1.5.0", features = ["full", "beta"] }
+derive-deftly = { version = "~1.6.0", features = ["full", "beta"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 futures = "0.3.14"
 futures-copy = { version = "0.2.1", path = "../futures-copy" }
