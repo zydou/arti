@@ -51,6 +51,7 @@ use std::ops::{RangeInclusive, RangeToInclusive};
 use std::path::Path;
 use std::time::Duration;
 
+pub mod intern;
 pub mod iter;
 pub mod n_key_list;
 pub mod n_key_set;

@@ -6,9 +6,9 @@
 use std::sync::Arc;
 
 use crate::types::misc::LongIdent;
-use crate::util::intern::InternCache;
 use crate::{Error, NetdocErrorKind, Pos, Result};
 use base64ct::Encoding;
+use tor_basic_utils::intern::InternCache;
 use tor_llcrypto::pk::ed25519::{ED25519_ID_LEN, Ed25519Identity};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 

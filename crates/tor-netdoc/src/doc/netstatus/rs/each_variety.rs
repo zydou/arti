@@ -44,16 +44,12 @@ ns_choose! { (
 ) }
 
 /// Intro item for a router status entry
-/// 
+///
 /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:r>
 ///
 /// <https://spec.torproject.org/dir-spec/computing-consensus.html#flavor:microdesc>
 /// `r` item.
-#[cfg_attr(
-    feature = "parse2",
-    derive(Deftly),
-    derive_deftly(ItemValueParseable),
-)]
+#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(ItemValueParseable))]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RouterStatusIntroItem {
@@ -68,9 +64,13 @@ pub struct RouterStatusIntroItem {
     // TODO SPEC rename in the spec from `digest` to "doc_digest"
     // TODO SPEC in md consensuses the referenced document digest is in a separate `m` item
     #[cfg_attr(feature = "parse2", deftly(netdoc(with = "doc_digest_parse2_r")))]
-    pub doc_digest: ns_type!( DocDigest, NotPresent, DocDigest ),
+    pub doc_digest: ns_type!(DocDigest, NotPresent, DocDigest),
     /// Publication time.
-    pub publication: ns_type!( IgnoredPublicationTimeSp, IgnoredPublicationTimeSp, Iso8601TimeSp ),
+    pub publication: ns_type!(
+        IgnoredPublicationTimeSp,
+        IgnoredPublicationTimeSp,
+        Iso8601TimeSp
+    ),
     /// IPv4 address
     pub ip: std::net::Ipv4Addr,
     /// Relay port
@@ -87,11 +87,7 @@ pub struct RouterStatusIntroItem {
 // In most netdocs we would use the item keywords as the field names.  But routerstatus
 // entry keywords are chosen to be very short to minimise the consensus size, so we
 // use longer names in the struct and specify the keyword separately.
-#[cfg_attr(
-    feature = "parse2",
-    derive(Deftly),
-    derive_deftly(NetdocParseable),
-)]
+#[cfg_attr(feature = "parse2", derive(Deftly), derive_deftly(NetdocParseable))]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RouterStatus {
@@ -111,7 +107,7 @@ pub struct RouterStatus {
     // We call this field `m` rather than `doc_digest` because it's not always the doc digest.
     // TODO SPEC in all but md consensuses the referenced document digest is in the `r` intro item
     #[cfg_attr(feature = "parse2", deftly(netdoc(with = "doc_digest_parse2_m")))]
-    pub m: ns_type!( NotPresent, DocDigest, Vec<RouterStatusMdDigestsVote> ),
+    pub m: ns_type!(NotPresent, DocDigest, Vec<RouterStatusMdDigestsVote>),
 
     /// `a` --- Further router address(es) (IPv6)
     ///
@@ -126,7 +122,7 @@ pub struct RouterStatus {
     #[cfg_attr(
         feature = "parse2",
         deftly(netdoc(keyword = "s")),
-        deftly(netdoc(with = "relay_flags::Parser::<VarietyRelayFlagsRepr>")),
+        deftly(netdoc(with = "relay_flags::Parser::<VarietyRelayFlagsRepr>"))
     )]
     pub flags: DocRelayFlags,
 
@@ -140,7 +136,7 @@ pub struct RouterStatus {
     ///
     /// <https://spec.torproject.org/dir-spec/consensus-formats.html#item:v>
     #[cfg_attr(feature = "parse2", deftly(netdoc(keyword = "pr")))]
-    pub protos: Arc<Protocols>,
+    pub protos: Protocols,
 
     /// `w` --- Bandwidth estimates
     ///
@@ -157,11 +153,7 @@ impl RouterStatus {
     /// to help paper over the protocol anomaly, that the digest is in a different place
     /// in md routerstatus entries.
     pub fn doc_digest(&self) -> &DocDigest {
-        ns_expr!(
-            &self.r.doc_digest,
-            &self.m,
-            &self.r.doc_digest,
-        )
+        ns_expr!(&self.r.doc_digest, &self.m, &self.r.doc_digest,)
     }
 }
 
@@ -172,14 +164,17 @@ impl RouterStatus {
 #[cfg(feature = "parse2")]
 pub(crate) mod doc_digest_parse2_real {
     use super::*;
-    use std::result::Result;
-    use crate::parse2::ArgumentStream;
     use crate::parse2::ArgumentError as AE;
+    use crate::parse2::ArgumentStream;
+    use std::result::Result;
 
     /// Parse a single argument
     pub(crate) fn from_args<'s>(args: &mut ArgumentStream<'s>) -> Result<DocDigest, AE> {
-        let data = args.next().ok_or(AE::Missing)?
-            .parse::<B64>().map_err(|_| AE::Invalid)?;
+        let data = args
+            .next()
+            .ok_or(AE::Missing)?
+            .parse::<B64>()
+            .map_err(|_| AE::Invalid)?;
         data.into_array().map_err(|_| AE::Invalid)
     }
 }

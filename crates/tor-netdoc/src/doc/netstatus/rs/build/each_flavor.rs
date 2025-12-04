@@ -147,15 +147,17 @@ impl RouterStatusBuilder {
         let version = self.version.as_deref().map(str::parse).transpose()?;
 
         let mut ip = None;
-        let a = self.addrs.iter().filter_map(|a| match a {
-            SocketAddr::V4(a) if ip.is_none() => {
-                ip = Some(a);
-                None
-            }
-            other => {
-                Some(*other)
-            }
-        }).collect::<Vec<_>>();
+        let a = self
+            .addrs
+            .iter()
+            .filter_map(|a| match a {
+                SocketAddr::V4(a) if ip.is_none() => {
+                    ip = Some(a);
+                    None
+                }
+                other => Some(*other),
+            })
+            .collect::<Vec<_>>();
         let ip = ip.ok_or_else(|| Error::CannotBuild("No IPv4 address"))?;
 
         ns_choose! { (
@@ -180,7 +182,7 @@ impl RouterStatusBuilder {
             m: m_doc_digest,
             a,
             version,
-            protos: doc::PROTOVERS_CACHE.intern(protos),
+            protos,
             flags: DocRelayFlags {
                 known: self.flags,
                 unknown: Unknown::new_discard(),
@@ -191,10 +193,7 @@ impl RouterStatusBuilder {
 
     /// Try to finish this builder and add its RouterStatus to a
     /// provided ConsensusBuilder.x
-    pub fn build_into(
-        &self,
-        builder: &mut ConsensusBuilder,
-    ) -> Result<()> {
+    pub fn build_into(&self, builder: &mut ConsensusBuilder) -> Result<()> {
         builder.add_rs(self.build()?);
         Ok(())
     }

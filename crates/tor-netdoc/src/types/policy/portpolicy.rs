@@ -7,7 +7,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use super::{PolicyError, PortRange};
-use crate::util::intern::InternCache;
+use tor_basic_utils::intern::InternCache;
 
 /// A policy to match zero or more TCP/UDP ports.
 ///

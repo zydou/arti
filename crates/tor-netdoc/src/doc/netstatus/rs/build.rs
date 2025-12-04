@@ -1,6 +1,5 @@
 //! Provide builder functionality for routerstatuses.
 
-use crate::doc;
 use crate::doc::netstatus::{IgnoredPublicationTimeSp, RelayWeight};
 use crate::types::relay_flags::{DocRelayFlags, RelayFlags};
 use crate::types::{Base64Fingerprint, NotPresent, Unknown};

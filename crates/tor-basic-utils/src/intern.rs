@@ -14,17 +14,25 @@ use weak_table::WeakHashSet;
 /// It's "weak" because it only holds weak references to its objects;
 /// once every strong reference is gone, the object is unallocated.
 /// Later, the hash entry is (lazily) removed.
-pub(crate) struct InternCache<T: ?Sized> {
+pub struct InternCache<T: ?Sized> {
     /// Underlying hashset for interned objects
+    //
+    // TODO: If WeakHashSet::new is someday const, we can do away with OnceLock here.
     cache: OnceLock<Mutex<WeakHashSet<Weak<T>>>>,
 }
 
 impl<T: ?Sized> InternCache<T> {
     /// Create a new, empty, InternCache.
-    pub(crate) const fn new() -> Self {
+    pub const fn new() -> Self {
         InternCache {
             cache: OnceLock::new(),
         }
+    }
+}
+
+impl<T: ?Sized> Default for InternCache<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -42,7 +50,7 @@ impl<T: Eq + Hash> InternCache<T> {
     /// If `value` is already stored in this cache, we return a
     /// reference to the stored value.  Otherwise, we insert `value`
     /// into the cache, and return that.
-    pub(crate) fn intern(&self, value: T) -> Arc<T> {
+    pub fn intern(&self, value: T) -> Arc<T> {
         let mut cache = self.cache();
         if let Some(pp) = cache.get(&value) {
             pp
@@ -59,7 +67,7 @@ impl<T: Hash + Eq + ?Sized> InternCache<T> {
     ///
     /// Works with unsized types, but requires that the reference implements
     /// `Into<Arc<T>>`.
-    pub(crate) fn intern_ref<'a, V>(&self, value: &'a V) -> Arc<T>
+    pub fn intern_ref<'a, V>(&self, value: &'a V) -> Arc<T>
     where
         V: Hash + Eq + ?Sized,
         &'a V: Into<Arc<T>>,

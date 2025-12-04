@@ -209,8 +209,6 @@ impl OwnedCircTarget {
         OwnedCircTarget {
             chan_target: OwnedChanTarget::from_chan_target(target),
             ntor_onion_key: *target.ntor_onion_key(),
-            // TODO: I don't like having to clone here.  Our underlying
-            // protovers parsing uses an Arc, IIRC.  Can we expose that here?
             protocols: target.protovers().clone(),
         }
     }
