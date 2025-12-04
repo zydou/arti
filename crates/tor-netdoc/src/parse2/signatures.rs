@@ -5,6 +5,8 @@
 // But the tor_checkable API might need some updates and this seems nontrivial.
 // Each verification function seems to take different inputs.
 
+use saturating_time::SaturatingTime;
+
 use super::*;
 
 /// A signature item that can appear in a netdoc
@@ -109,4 +111,20 @@ pub fn check_validity_time(
     } else {
         Ok(())
     }
+}
+
+/// Like [`check_validity_time()`] but with a tolerance to support clock skews.
+///
+/// This function does not use the `DirTolerance` struct because we want to be
+/// agnostic of directories in this context.
+pub fn check_validity_time_tolerance(
+    now: SystemTime,
+    validity: std::ops::RangeInclusive<SystemTime>,
+    pre_tolerance: Duration,
+    post_tolerance: Duration,
+) -> Result<(), VF> {
+    let start = *validity.start();
+    let end = *validity.end();
+    let validity = start.saturating_sub(pre_tolerance)..=end.saturating_add(post_tolerance);
+    check_validity_time(now, validity)
 }
