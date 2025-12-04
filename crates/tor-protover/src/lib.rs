@@ -238,6 +238,14 @@ struct SubprotocolEntry {
 /// use tor_protover::Protocols;
 /// let p: Result<Protocols,_> = "Link=1-3 LinkAuth=2-3 Relay=1-2".parse();
 /// ```
+///
+/// # Implementation notes
+///
+/// Because the number of distinct `Protocols` sets at any given time
+/// is much smaller than the number of relays, this type is interned in order to
+/// save memory and copying time.
+///
+/// This type is an Arc internally; it is cheap to clone.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 #[cfg_attr(
     feature = "serde",
