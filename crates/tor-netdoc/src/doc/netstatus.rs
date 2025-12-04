@@ -1239,7 +1239,7 @@ impl SignatureGroup {
     /// authorities.  This API requires that `n_authorities` is the number of
     /// authorities we believe in, and that every cert in `certs` belongs
     /// to a real authority.
-    fn validate(&self, n_authorities: u16, certs: &[AuthCert]) -> bool {
+    fn validate(&self, n_authorities: usize, certs: &[AuthCert]) -> bool {
         // A set of the authorities (by identity) who have have signed
         // this document.  We use a set here in case `certs` has more
         // than one certificate for a single authority.
@@ -1274,7 +1274,7 @@ impl SignatureGroup {
             }
         }
 
-        ok.len() > (n_authorities / 2) as usize
+        ok.len() > (n_authorities / 2)
     }
 }
 

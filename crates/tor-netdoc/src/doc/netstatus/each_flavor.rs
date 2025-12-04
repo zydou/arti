@@ -435,7 +435,7 @@ pub struct UnvalidatedConsensus {
     /// The total number of authorities that we believe in.  We need
     /// this information in order to validate the signatures, since it
     /// determines how many signatures we need to find valid in `siggroup`.
-    pub n_authorities: Option<u16>,
+    pub n_authorities: Option<usize>,
 }
 
 impl UnvalidatedConsensus {
@@ -443,7 +443,7 @@ impl UnvalidatedConsensus {
     ///
     /// Without knowing this number, we can't validate the signature.
     #[must_use]
-    pub fn set_n_authorities(self, n_authorities: u16) -> Self {
+    pub fn set_n_authorities(self, n_authorities: usize) -> Self {
         UnvalidatedConsensus {
             n_authorities: Some(n_authorities),
             ..self
@@ -509,7 +509,7 @@ impl ExternallySigned<Consensus> for UnvalidatedConsensus {
     fn key_is_correct(&self, k: &Self::Key) -> result::Result<(), Self::KeyHint> {
         let (n_ok, missing) = self.siggroup.list_missing(k);
         match self.n_authorities {
-            Some(n) if n_ok > (n / 2) as usize => Ok(()),
+            Some(n) if n_ok > (n / 2) => Ok(()),
             _ => Err(missing.iter().map(|cert| cert.key_ids).collect()),
         }
     }
