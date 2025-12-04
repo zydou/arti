@@ -102,7 +102,7 @@ async fn create_common<RT: Runtime>(
             .await
             .map_err(|error| Error::Protocol {
                 error,
-                peer: None, // we don't blame the peer, because new_circ() does no networking.
+                peer: None, // we don't blame the peer, because new_tunnel() does no networking.
                 action: "initializing circuit",
                 unique_id: None,
             })?;
