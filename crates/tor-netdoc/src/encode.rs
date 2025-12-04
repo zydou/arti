@@ -177,7 +177,10 @@ impl ItemArgument for str {
         // Implements this
         // https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/106
         if self.is_empty() || self.chars().any(|c| !c.is_ascii_graphic()) {
-            return Err(internal!("invalid keyword argument syntax {:?}", self));
+            return Err(internal!(
+                "invalid netdoc keyword line argument syntax {:?}",
+                self
+            ));
         }
         out.args_raw_nonempty(&self);
         Ok(())
@@ -192,9 +195,7 @@ impl ItemArgument for &str {
 
 impl<T: crate::NormalItemArgument> ItemArgument for T {
     fn write_arg_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        let arg = self.to_string();
-        out.add_arg(&arg.as_str());
-        Ok(())
+        (*self.to_string()).write_arg_onto(out)
     }
 }
 
@@ -228,6 +229,9 @@ impl ItemArgument for tor_hscrypto::pow::v1::Effort {
 impl<'n> ItemEncoder<'n> {
     /// Add a single argument.
     ///
+    /// Convenience method that defers error handling, for use in infallible contexts.
+    /// Consider whether to use `ItemArgument::write_arg_onto` directly, instead.
+    ///
     /// If the argument is not in the correct syntax, a `Bug`
     /// error will be reported (later).
     //
@@ -255,13 +259,11 @@ impl<'n> ItemEncoder<'n> {
     /// separated by (single) spaces.
     /// This is not (properly) checked.
     /// Incorrect use might lead to malformed documents, or later errors.
-    #[allow(unused)] // TODO: We should eventually remove this if nothing starts to use it.
-    pub(crate) fn args_raw_string(mut self, args: &dyn Display) -> Self {
+    pub fn args_raw_string(&mut self, args: &dyn Display) {
         let args = args.to_string();
         if !args.is_empty() {
             self.args_raw_nonempty(&args);
         }
-        self
     }
 
     /// Add one or more arguments, supplied as a single string, without any checking
@@ -309,6 +311,11 @@ impl<'n> ItemEncoder<'n> {
             Ok(())
         });
     }
+
+    /// Finish encoding this item
+    ///
+    /// The item will also automatically be finished if the `ItemEncoder` is dropped.
+    pub fn finish(self) {}
 }
 
 impl Drop for ItemEncoder<'_> {
