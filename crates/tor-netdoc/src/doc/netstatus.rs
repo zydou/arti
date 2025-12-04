@@ -1274,7 +1274,7 @@ impl SignatureGroup {
             }
         }
 
-        ok.len() > (n_authorities / 2) as usize
+        ok.len() > (n_authorities / 2)
     }
 }
 

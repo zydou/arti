@@ -509,7 +509,7 @@ impl ExternallySigned<Consensus> for UnvalidatedConsensus {
     fn key_is_correct(&self, k: &Self::Key) -> result::Result<(), Self::KeyHint> {
         let (n_ok, missing) = self.siggroup.list_missing(k);
         match self.n_authorities {
-            Some(n) if n_ok > (n / 2) as usize => Ok(()),
+            Some(n) if n_ok > (n / 2) => Ok(()),
             _ => Err(missing.iter().map(|cert| cert.key_ids).collect()),
         }
     }
