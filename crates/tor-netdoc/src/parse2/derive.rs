@@ -218,7 +218,6 @@ define_derive_deftly_module! {
           if kw == $F_KEYWORD {
             ${select1
               F_NORMAL {
-                #[allow(clippy::redundant_locals)] // $THIS_ITEM might be item
                 let item = $THIS_ITEM;
                 dtrace!("is normal", item);
                 let item = $ITEM_VALUE_FROM_UNPARSED;
@@ -491,6 +490,7 @@ define_derive_deftly! {
 
         //##### main parsing function #####
 
+        #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
         fn from_items<'s>(
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
@@ -707,6 +707,7 @@ define_derive_deftly! {
             false
         }
 
+        #[allow(clippy::redundant_locals)] // let item = $THIS_ITEM, which might be item
         fn accumulate_item(
             #[allow(unused_variables)] // If there are no fields, this is unused
             acc: &mut Self::Accumulator,
