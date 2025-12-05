@@ -58,7 +58,6 @@ pub mod map_builder;
 mod misc;
 pub mod mistrust;
 mod mut_cfg;
-pub mod serde_utils;
 pub mod setter_traits;
 pub mod sources;
 #[cfg(feature = "testing")]
