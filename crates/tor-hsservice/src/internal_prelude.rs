@@ -96,9 +96,7 @@ pub(crate) use {
         KeystoreSelector, derive_deftly_template_KeySpecifier,
         {ArtiPathRange, KeySpecifierComponent},
     },
-    tor_linkspec::{
-        CircTarget, HasRelayIds as _, OwnedChanTargetBuilder, OwnedCircTarget, RelayIds,
-    },
+    tor_linkspec::{CircTarget, HasRelayIds as _, OwnedCircTarget, RelayIds},
     tor_llcrypto::pk::{curve25519, ed25519},
     tor_log_ratelim::log_ratelim,
     tor_netdir::{HsDirParams, NetDirProvider, Relay, Timeliness},
