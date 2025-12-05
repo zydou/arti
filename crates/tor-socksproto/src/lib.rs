@@ -52,25 +52,18 @@ pub use err::Error;
 pub use handshake::Action;
 
 #[cfg(feature = "proxy-handshake")]
-#[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
 pub use handshake::proxy::SocksProxyHandshake;
 
 #[cfg(feature = "client-handshake")]
-#[cfg_attr(docsrs, doc(cfg(feature = "client-handshake")))]
 pub use handshake::client::SocksClientHandshake;
 
 #[cfg(any(feature = "proxy-handshake", feature = "client-handshake"))]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(any(feature = "proxy-handshake", feature = "client-handshake")))
-)]
 pub use handshake::framework::{
     Buffer, Finished, Handshake, NextStep, PreciseReads, ReadPrecision, RecvStep,
 };
 
 #[deprecated(since = "0.5.2", note = "Use SocksProxyHandshake instead.")]
 #[cfg(feature = "proxy-handshake")]
-#[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
 pub use SocksProxyHandshake as SocksHandshake;
 
 pub use msg::{

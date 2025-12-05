@@ -16,7 +16,6 @@ use tracing::instrument;
 
 use crate::circuit::UniqId;
 #[cfg(feature = "circ-padding-manual")]
-#[cfg_attr(docsrs, doc(cfg(feature = "circ-padding-manual")))]
 pub use crate::client::circuit::padding::{
     CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError,
 };
@@ -64,11 +63,9 @@ use msghandler::{MsgHandler, UserMsgHandler};
 // TODO(conflux): this should use ClientTunnel, and it should be moved into
 // the tunnel module.
 #[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 pub struct Conversation<'r>(&'r ClientTunnel);
 
 #[cfg(feature = "send-control-msg")]
-#[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
 impl Conversation<'_> {
     /// Send a protocol message as part of an ad-hoc exchange
     ///

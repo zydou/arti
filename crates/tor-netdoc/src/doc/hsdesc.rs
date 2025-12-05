@@ -39,11 +39,9 @@ use std::result::Result as StdResult;
 use std::time::SystemTime;
 
 #[cfg(feature = "hsdesc-inner-docs")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hsdesc-inner-docs")))]
 pub use {inner::HsDescInner, middle::HsDescMiddle, outer::HsDescOuter};
 
 #[cfg(feature = "hs-service")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
 pub use build::{HsDescBuilder, create_desc_sign_key_cert};
 
 /// Metadata about an onion service descriptor, as stored at an HsDir.

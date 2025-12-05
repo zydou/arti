@@ -103,7 +103,6 @@ define_derive_deftly! {
         ///
         /// See [`ClientTunnel::start_conversation`](tor_proto::ClientTunnel::start_conversation)
         /// documentation for more details.
-        #[cfg_attr(docsrs, doc(cfg(feature = "send-control-msg")))]
         #[cfg(feature = "send-control-msg")]
         pub async fn start_conversation(&self,
             msg: Option<tor_cell::relaycell::msg::AnyRelayMsg>,

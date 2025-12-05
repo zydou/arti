@@ -90,7 +90,6 @@ pub trait Keystore: Send + Sync + 'static {
     /// If the entry wasn't successfully removed, or if the entry doesn't
     /// exists, `Err` is returned.
     #[cfg(feature = "onion-service-cli-extra")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "onion-service-cli-extra")))]
     fn remove_unchecked(&self, entry_id: &RawEntryId) -> Result<()>;
 
     /// List all the entries in this keystore.

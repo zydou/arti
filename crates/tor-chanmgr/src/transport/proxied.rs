@@ -241,7 +241,6 @@ impl tor_error::HasRetryTime for ProxyError {
 }
 
 #[cfg(feature = "pt-client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pt-client")))]
 /// An object that connects to a Tor bridge via an external pluggable transport
 /// that provides a proxy.
 #[derive(Clone, Debug)]
@@ -255,7 +254,6 @@ pub struct ExternalProxyPlugin<R> {
 }
 
 #[cfg(feature = "pt-client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pt-client")))]
 impl<R: NetStreamProvider + Send + Sync> ExternalProxyPlugin<R> {
     /// Make a new `ExternalProxyPlugin`.
     pub fn new(rt: R, proxy_addr: SocketAddr, proxy_version: SocksVersion) -> Self {

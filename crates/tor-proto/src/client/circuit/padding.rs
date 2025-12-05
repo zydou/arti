@@ -54,7 +54,6 @@ cfg_if::cfg_if! {
 // since they are not exclusively for circuits: They can also be used to send padding to
 // padding on channels.
 #[cfg(feature = "circ-padding-manual")]
-#[cfg_attr(docsrs, doc(cfg(feature = "circ-padding-manual")))]
 pub use maybenot_padding::{CircuitPadder, CircuitPadderConfig, CircuitPadderConfigError};
 
 pub(crate) use padding_impl::{
