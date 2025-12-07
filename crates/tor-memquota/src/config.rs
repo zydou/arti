@@ -230,15 +230,21 @@ fn compute_max_from_total_system_mem(mem: Result<usize, MemQueryError>) -> Qty {
         }
     };
 
-    let mem = if mem >= 8 * GIB {
+    let mem = {
         // From c-tor:
         //
         // > The idea behind this value is that the amount of RAM is more than enough
         // > for a single relay and should allow the relay operator to run two relays
         // > if they have additional bandwidth available.
-        (mem as f64 * 0.40) as usize
-    } else {
-        (mem as f64 * 0.75) as usize
+        let mut factor = 0.75;
+        // Multiplying 8 * GIB overflows the usize limit (4 GIB - 1) on 32-bit
+        // platforms. So handle this properly for 32-bit platforms. Memory on 32-bit
+        // targets cannot exceed 4 GIB anyways.
+        #[cfg(target_pointer_width = "64")]
+        if mem >= 8 * GIB {
+            factor = 0.40;
+        }
+        (mem as f64 * factor) as usize
     };
 
     // The (min, max) range to clamp `mem` to.
