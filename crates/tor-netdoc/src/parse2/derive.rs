@@ -19,13 +19,6 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
 define_derive_deftly_module! {
     /// Common definitions for `NetdocParseable` and `NetdocParseableFields`
     ///
-    /// Importing template must define these:
-    ///
-    ///  * **`F_INTRO`**, **`F_SUBDOC`**, **`F_SIGNATURE`**
-    ///    conditions for the fundamental field kinds which aren't supported everywhere.
-    ///
-    ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
-    ///
     ///  * **`THIS_ITEM`**: consumes the next item and evaluates to it as an `UnparsedItem`.
     ///    See the definition in `NetdocParseable`.
     ///
@@ -51,33 +44,6 @@ define_derive_deftly_module! {
           }}
         }}
     }}
-
-    // Is this field `flatten`?
-    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
-    // Is this field normal (non-structural)?
-    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
-
-    // Field keyword as `&str`
-    ${define F_KEYWORD_STR { ${concat
-        ${if any(F_FLATTEN, F_SUBDOC) {
-          ${if F_INTRO {
-            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
-          } else {
-            // Sub-documents and flattened fields have their keywords inside;
-            // if we ask for the field-based keyword name for one of those then that's a bug.
-            ${error "internal error, subdoc KeywordRef"}
-          }}
-        }}
-        ${fmeta(netdoc(keyword)) as str,
-          default ${concat ${kebab_case $fname}}}
-    }}}
-    // Field keyword as `&str` for debugging and error reporting
-    ${define F_KEYWORD_REPORT {
-        ${if F_SUBDOC { ${concat $fname} }
-             else { $F_KEYWORD_STR }}
-    }}
-    // Field keyword as `KeywordRef`
-    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
 
     // The effective field type for parsing.
     //
