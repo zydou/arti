@@ -80,8 +80,8 @@ pub(crate) mod sealed {
 
 /// A request for an object that can be served over the Tor directory system.
 ///
-/// See also [`Downloadable`], [`Uploadable`], and [`Votable`], which further
-/// divide [`Requestable`] objects into semantic categories.
+/// See also [`Downloadable`] which further divides [`Requestable`] objects into
+/// semantic categories.
 pub trait Requestable: sealed::RequestableInner {
     /// Return a wrapper around this [`Requestable`] that implements `Debug`,
     /// and whose output shows the actual HTTP request that will be generated.
