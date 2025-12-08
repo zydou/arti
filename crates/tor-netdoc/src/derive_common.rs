@@ -84,8 +84,8 @@ define_derive_deftly_module! {
           default ${concat ${kebab_case $fname}}}
     }}}
     // Field keyword as `&str` for debugging and error reporting
-    ${define F_KEYWORD_REPORT {
-        ${if F_SUBDOC { ${concat $fname} }
+    ${define F_KEYWORD_REPORT ${concat
+        ${if any(F_FLATTEN, F_SUBDOC) { $fname }
              else { $F_KEYWORD_STR }}
     }}
     // Field keyword as `KeywordRef`
