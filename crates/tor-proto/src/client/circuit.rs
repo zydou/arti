@@ -106,7 +106,7 @@ pub use crate::circuit::CircParameters;
 #[derive_deftly(HasMemoryCost)]
 #[derive_deftly(RestrictedChanMsgSet)]
 #[deftly(usage = "on an open client circuit")]
-pub(crate) enum ClientCircChanMsg {
+pub(super) enum ClientCircChanMsg {
     /// A relay cell telling us some kind of remote command from some
     /// party on the circuit.
     Relay(chanmsg::Relay),
