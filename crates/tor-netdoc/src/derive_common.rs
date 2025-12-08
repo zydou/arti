@@ -100,6 +100,13 @@ define_derive_deftly_module! {
     /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
     NetdocEntireDeriveCommon beta_deftly:
 
+    // Predicate for the toplevel
+    ${defcond T_SIGNATURES tmeta(netdoc(signatures))}
+
+    // Predicates for the field kinds
+    ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
+    ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
+    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
 }
 
 define_derive_deftly_module! {
@@ -110,6 +117,10 @@ define_derive_deftly_module! {
     /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
     NetdocFieldsDeriveCommon beta_deftly:
 
+    // Predicates for the field kinds, used by NetdocSomeItemsDeriveCommon etc.
+    ${defcond F_INTRO false}
+    ${defcond F_SUBDOC false}
+    ${defcond F_SIGNATURE false}
 }
 
 define_derive_deftly_module! {

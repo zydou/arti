@@ -401,14 +401,6 @@ define_derive_deftly! {
     /// ```
     export NetdocParseable for struct, expect items, beta_deftly:
 
-    // Predicate for the toplevel
-    ${defcond T_SIGNATURES tmeta(netdoc(signatures))}
-
-    // Predicates for the field kinds
-    ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
-    ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
-    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
-
     ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
 
     impl<$tgens> $P::NetdocParseable for $ttype {
@@ -611,10 +603,6 @@ define_derive_deftly! {
     ///    `#[deftly(netdoc(with = "MODULE"))]`
     ///    `#[deftly(netdoc(flatten))]`
     export NetdocParseableFields for struct , expect items, beta_deftly:
-
-    ${defcond F_INTRO false}
-    ${defcond F_SUBDOC false}
-    ${defcond F_SIGNATURE false}
 
     ${define THIS_ITEM item}
     ${define F_ACCUMULATE_VAR { (&mut acc.$fname) }}
