@@ -107,6 +107,23 @@ define_derive_deftly_module! {
     ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
     ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
     ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
+
+    // compile-time check that fields are in the right order in the struct
+    ${define FIELD_ORDERING_CHECK {
+        ${if not(T_SIGNATURES) { // signatures structs have only signature fields
+          netdoc_ordering_check! {
+            $(
+                ${select1
+                  F_INTRO     { intro     }
+                  F_NORMAL    { normal    }
+                  F_FLATTEN   { normal    }
+                  F_SUBDOC    { subdoc    }
+                }
+                $fname
+            )
+          }
+        }}
+    }}
 }
 
 define_derive_deftly_module! {

@@ -427,22 +427,7 @@ define_derive_deftly! {
         ) -> $P::Result<$ttype, $P::ErrorProblem> {
             use $P::*;
             $DEFINE_DTRACE
-
-            //----- compile-time check that fields are in the right order in the struct -----
-
-            ${if not(T_SIGNATURES) { // signatures structs have only signature fields
-              netdoc_ordering_check! {
-                $(
-                    ${select1
-                      F_INTRO     { intro     }
-                      F_NORMAL    { normal    }
-                      F_FLATTEN   { normal    }
-                      F_SUBDOC    { subdoc    }
-                    }
-                    $fname
-                )
-              }
-            }}
+            $FIELD_ORDERING_CHECK
 
             //----- prepare item set selectors for every field -----
             $ITEM_SET_SELECTORS
