@@ -14,14 +14,37 @@ pub(crate) mod channel;
 pub mod channel_provider;
 pub(crate) mod reactor;
 
+use derive_deftly::Deftly;
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
+use tor_cell::chancell::msg::{self as chanmsg};
 use tor_cell::relaycell::StreamId;
 use tor_cell::relaycell::flow_ctrl::XonKbpsEwma;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_rtcompat::DynTimeProvider;
 
 use reactor::{RelayCtrlCmd, RelayCtrlMsg};
+
+/// A subclass of ChanMsg that can correctly arrive on a live relay
+/// circuit (one where a CREATE* has been received).
+#[derive(Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+#[derive_deftly(RestrictedChanMsgSet)]
+#[deftly(usage = "on an open relay circuit")]
+#[cfg(feature = "relay")]
+#[cfg_attr(not(test), allow(unused))] // TODO(relay)
+pub(crate) enum RelayCircChanMsg {
+    /// A relay cell telling us some kind of remote command from some
+    /// party on the circuit.
+    Relay(chanmsg::Relay),
+    /// A relay early cell that is allowed to contain a CREATE message.
+    RelayEarly(chanmsg::RelayEarly),
+    /// A cell telling us to destroy the circuit.
+    Destroy(chanmsg::Destroy),
+    /// A cell telling us to enable/disable channel padding.
+    PaddingNegotiate(chanmsg::PaddingNegotiate),
+}
 
 /// A handle for interacting with a relay circuit.
 #[allow(unused)] // TODO(relay)

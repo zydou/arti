@@ -2,11 +2,11 @@
 
 use crate::channel::ChannelSender;
 use crate::circuit::UniqId;
-use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::CircHopInbound;
 use crate::congestion::sendme;
 use crate::crypto::cell::{OutboundRelayLayer, RelayCellBody};
 use crate::relay::channel_provider::{ChannelProvider, ChannelResult};
+use crate::relay::RelayCircChanMsg;
 use crate::stream::msg_streamid;
 use crate::util::err::ReactorError;
 use crate::{Error, Result};

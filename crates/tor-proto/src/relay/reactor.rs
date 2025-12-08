@@ -149,14 +149,13 @@ use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use crate::channel::Channel;
 use crate::circuit::UniqId;
-use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopInbound, CircHopOutbound, HopSettings};
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
 use crate::memquota::{CircuitAccount, SpecificAccount};
-use crate::relay::RelayCirc;
 use crate::relay::channel_provider::ChannelProvider;
+use crate::relay::{RelayCirc, RelayCircChanMsg};
 use crate::stream::flow_ctrl::xon_xoff::reader::XonXoffReaderCtrl;
 use crate::stream::incoming::IncomingStreamRequestFilter;
 use crate::stream::incoming::{IncomingCmdChecker, IncomingStream, StreamReqInfo};

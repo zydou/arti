@@ -4,11 +4,9 @@
 //! request, or when received in particular circumstances.  They're used
 //! so that Rust's typesafety can help enforce protocol properties.
 
-use crate::Result;
 use derive_deftly::{Deftly, define_derive_deftly};
 use std::fmt::{self, Display};
 use tor_cell::chancell::msg::{self as chanmsg};
-use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 define_derive_deftly! {
     /// Derives a `TryFrom<AnyChanMsg>` implementation for enums
@@ -23,7 +21,7 @@ define_derive_deftly! {
     impl TryFrom<tor_cell::chancell::msg::AnyChanMsg> for $ttype {
         type Error = $crate::Error;
 
-        fn try_from(m: tor_cell::chancell::msg::AnyChanMsg) -> Result<$ttype> {
+        fn try_from(m: tor_cell::chancell::msg::AnyChanMsg) -> $crate::Result<$ttype> {
             match m {
                 $( tor_cell::chancell::msg::AnyChanMsg::$vname(m) => Ok($ttype::$vname(m)), )
                 _ => Err($crate::Error::ChanProto(format!(
@@ -62,26 +60,6 @@ impl Display for CreateResponse {
             CR::Created2(_) => Display::fmt("CREATED2", f),
         }
     }
-}
-
-/// A subclass of ChanMsg that can correctly arrive on a live relay
-/// circuit (one where a CREATE* has been received).
-#[derive(Debug, Deftly)]
-#[derive_deftly(HasMemoryCost)]
-#[derive_deftly(RestrictedChanMsgSet)]
-#[deftly(usage = "on an open relay circuit")]
-#[cfg(feature = "relay")]
-#[cfg_attr(not(test), allow(unused))] // TODO(relay)
-pub(crate) enum RelayCircChanMsg {
-    /// A relay cell telling us some kind of remote command from some
-    /// party on the circuit.
-    Relay(chanmsg::Relay),
-    /// A relay early cell that is allowed to contain a CREATE message.
-    RelayEarly(chanmsg::RelayEarly),
-    /// A cell telling us to destroy the circuit.
-    Destroy(chanmsg::Destroy),
-    /// A cell telling us to enable/disable channel padding.
-    PaddingNegotiate(chanmsg::PaddingNegotiate),
 }
 
 #[cfg(test)]
@@ -145,9 +123,11 @@ mod test {
     fn relay_circ_chan_msg() {
         use tor_cell::chancell::msg::{self, AnyChanMsg};
         fn good(m: AnyChanMsg) {
+            use crate::relay::RelayCircChanMsg;
             assert!(RelayCircChanMsg::try_from(m).is_ok());
         }
         fn bad(m: AnyChanMsg) {
+            use crate::relay::RelayCircChanMsg;
             assert!(RelayCircChanMsg::try_from(m).is_err());
         }
 

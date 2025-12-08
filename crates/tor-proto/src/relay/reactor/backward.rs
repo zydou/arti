@@ -2,12 +2,12 @@
 
 use crate::channel::Channel;
 use crate::circuit::cell_sender::CircuitCellSender;
-use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings, SendRelayCell};
 use crate::circuit::{CircSyncView, UniqId};
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
 use crate::memquota::SpecificAccount as _;
 use crate::relay::channel_provider::ChannelResult;
+use crate::relay::RelayCircChanMsg;
 use crate::stream::CloseStreamBehavior;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
 use crate::stream::flow_ctrl::state::StreamRateLimit;
