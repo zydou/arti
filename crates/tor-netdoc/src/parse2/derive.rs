@@ -878,12 +878,6 @@ define_derive_deftly! {
 
     ${define P { $crate::parse2::internal_prelude }}
 
-    ${defcond F_REST fmeta(netdoc(rest))}
-    ${defcond F_OBJECT fmeta(netdoc(object))}
-    ${defcond F_SIG_HASH fmeta(netdoc(sig_hash))}
-    ${defcond F_NORMAL not(any(F_REST, F_OBJECT, F_SIG_HASH))}
-
-    ${defcond T_IS_SIGNATURE not(approx_equal(${for fields { ${when F_SIG_HASH} 1 }}, {}))}
     ${define TRAIT ${if T_IS_SIGNATURE { SignatureItemParseable } else { ItemValueParseable }}}
     ${define METHOD ${if T_IS_SIGNATURE { from_unparsed_and_body } else { from_unparsed }}}
 

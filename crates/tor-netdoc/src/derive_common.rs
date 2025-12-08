@@ -131,4 +131,10 @@ define_derive_deftly_module! {
     /// Importer must also import `NetdocDeriveAnyCommon`.
     NetdocItemDeriveCommon beta_deftly:
 
+    ${defcond F_REST fmeta(netdoc(rest))}
+    ${defcond F_OBJECT fmeta(netdoc(object))}
+    ${defcond F_SIG_HASH fmeta(netdoc(sig_hash))}
+    ${defcond F_NORMAL not(any(F_REST, F_OBJECT, F_SIG_HASH))}
+
+    ${defcond T_IS_SIGNATURE not(approx_equal(${for fields { ${when F_SIG_HASH} 1 }}, {}))}
 }
