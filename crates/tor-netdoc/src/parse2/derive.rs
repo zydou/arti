@@ -302,6 +302,7 @@ define_derive_deftly! {
     /// Each field must be
     ///  * `impl `[`ItemValueParseable`] for an "exactly once" field,
     ///  * `Vec<T: ItemValueParseable>` for "zero or more", or
+    ///  * `BTreeSet<T: ItemValueParseable + Ord>`, or
     ///  * `Option<T: ItemValueParseable>` for "zero or one".
     ///
     /// We don't directly support "at least once":

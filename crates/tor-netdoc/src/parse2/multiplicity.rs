@@ -65,6 +65,8 @@ pub struct MultiplicitySelector<Field>(PhantomData<fn() -> Field>);
 ///
 /// assert_eq!(out, [12]);
 /// ```
+//
+// When implementing this, update the documentation in the `NetdocParseable` derive.
 pub trait ItemSetMethods: Copy + Sized {
     /// The value for each Item.
     type Each: Sized;
@@ -228,6 +230,8 @@ impl<T> ItemSetMethods for &'_ MultiplicitySelector<T> {
 ///     .unwrap();
 /// assert_eq!(args, [12, 66]);
 /// ```
+//
+// When implementing this, update the documentation in the `ItemValueParseable` derive.
 pub trait ArgumentSetMethods: Copy + Sized {
     /// The value for each Item.
     type Each: Sized;
