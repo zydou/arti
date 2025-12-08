@@ -96,14 +96,13 @@ pub trait Requestable: sealed::RequestableInner {
 }
 impl<T: sealed::RequestableInner> Requestable for T {}
 
-/// A semantical trait indicating that a [`Requestable`] may be downloaded.
-pub trait Downloadable: sealed::RequestableInner {}
-
-/// A semantical trait indicating that a [`Requestable`] may be uploaded.
-pub trait Uploadable: Requestable {}
-
-/// A semantical trait indicating that a [`Requestable`] may be used for voting.
-pub trait Votable: Requestable {}
+/// [`Requestable`]'s that may be downloaded.
+///
+/// The idea behind this is to allow more fine-grained control in the parameters
+/// of code that utilizes this crate.
+// TODO: Use this outside of tor-dirserver.
+// TODO: Implement this for uploads, when we need it.
+pub trait Downloadable: Requestable {}
 
 impl Downloadable for AuthCertRequest {}
 impl Downloadable for ConsensusRequest {}
@@ -117,9 +116,6 @@ impl Downloadable for RouterDescRequest {}
 
 #[cfg(feature = "routerdesc")]
 impl Downloadable for RoutersOwnDescRequest {}
-
-#[cfg(feature = "hs-service")]
-impl Uploadable for HsDescUploadRequest {}
 
 /// A wrapper to implement [`Requestable::debug_request`].
 pub struct DisplayRequestable<'a, R: Requestable>(&'a R);
