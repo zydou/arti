@@ -138,6 +138,17 @@ define_derive_deftly_module! {
     ${defcond F_INTRO false}
     ${defcond F_SUBDOC false}
     ${defcond F_SIGNATURE false}
+
+    ${define DOC_NETDOC_FIELDS_DERIVE_SUPPORTED {
+        ///  * The input struct can contain only normal non-structural items
+        ///    (so it's not a sub-document with an intro item).
+        ///  * The only attributes supported are the field attributes
+        ///    `#[deftly(netdoc(keyword = STR))]`
+        ///    `#[deftly(netdoc(default))]`
+        ///    `#[deftly(netdoc(single_arg))]`
+        ///    `#[deftly(netdoc(with = "MODULE"))]`
+        ///    `#[deftly(netdoc(flatten))]`
+    }}
 }
 
 define_derive_deftly_module! {

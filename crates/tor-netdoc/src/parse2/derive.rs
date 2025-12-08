@@ -579,14 +579,8 @@ define_derive_deftly! {
     /// but:
     ///
     ///  * Derives [`NetdocParseableFields`]
-    ///  * The input struct can contain only normal non-structural items
-    ///    (so it's not a sub-document with an intro item).
-    ///  * The only attributes supported are the field attributes
-    ///    `#[deftly(netdoc(keyword = STR))]`
-    ///    `#[deftly(netdoc(default))]`
-    ///    `#[deftly(netdoc(single_arg))]`
-    ///    `#[deftly(netdoc(with = "MODULE"))]`
-    ///    `#[deftly(netdoc(flatten))]`
+    $DOC_NETDOC_FIELDS_DERIVE_SUPPORTED
+    ///
     export NetdocParseableFields for struct , expect items, beta_deftly:
 
     ${define THIS_ITEM item}
