@@ -53,10 +53,10 @@ pub(super) struct DownloadManager<'a, 'b> {
     /// The list of download authorities.
     ///
     /// TODO DIRMIRROR: Consider accepting an AuthorityContacts and extract the
-    /// downloads ourselves?
+    /// download addresses ourselves?
     authorities: &'a Vec<Vec<SocketAddr>>,
 
-    /// An optional preferred authority within authorities.
+    /// The authority we currently prefer, because it worked for us recently.
     preferred_authority: Option<&'a Vec<SocketAddr>>,
 
     /// A handle to the runtime that is being used.
@@ -77,7 +77,9 @@ impl<'a, 'b> DownloadManager<'a, 'b> {
     ///
     /// All [`SocketAddr`] elements in `endpoints` MUST refer to the same
     /// logical directory authority, as we will perform a round-robin connect
-    /// approach to them.
+    /// approach to them.  The idea behind this is, to support dual-stack
+    /// directory authorities and try IPv4 and IPv6 at the same time, picking
+    /// the first that succeeds.
     async fn download_single<Req: Downloadable + Debug>(
         &self,
         endpoints: &[SocketAddr],
