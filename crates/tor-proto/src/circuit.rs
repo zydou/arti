@@ -16,6 +16,18 @@ pub use unique_id::UniqId;
 use crate::ccparams::CongestionControlParams;
 use crate::stream::flow_ctrl::params::FlowCtrlParameters;
 
+use tor_cell::chancell::msg::AnyChanMsg;
+use tor_memquota::mq_queue::{self, MpscSpec};
+
+/// The following two MPSCs take any channel message as the receiving end can be either a client or
+/// a relay circuit reactor. The reactor itself will convert into its restricted message set. On
+/// error, the circuit will shutdown as it will be considered a protocol violation.
+///
+/// MPSC queue for inbound data on its way from channel to circuit, sender
+pub(crate) type CircuitRxSender = mq_queue::Sender<AnyChanMsg, MpscSpec>;
+/// MPSC queue for inbound data on its way from channel to circuit, receiver
+pub(crate) type CircuitRxReceiver = mq_queue::Receiver<AnyChanMsg, MpscSpec>;
+
 /// Description of the network's current rules for building circuits.
 ///
 /// This type describes rules derived from the consensus,

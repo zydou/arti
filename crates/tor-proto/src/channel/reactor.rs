@@ -7,6 +7,7 @@
 //! or in the error handling behavior.
 
 use super::circmap::{CircEnt, CircMap};
+use crate::circuit::CircuitRxSender;
 use crate::client::circuit::halfcirc::HalfCirc;
 use crate::client::circuit::padding::{
     PaddingController, PaddingEvent, PaddingEventStream, SendPadding, StartBlocking,
@@ -42,7 +43,6 @@ use std::sync::Arc;
 
 use crate::channel::{ChannelDetails, CloseInfo, kist::KistParams, padding, params::*, unique_id};
 use crate::circuit::celltypes::CreateResponse;
-use crate::client::circuit::CircuitRxSender;
 use tracing::{debug, instrument, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -601,7 +601,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
         match &mut *ent {
             CircEnt::Open { cell_sender: s, .. } => {
                 // There's an open circuit; we can give it the RELAY cell.
-                if s.send(msg.try_into()?).await.is_err() {
+                if s.send(msg).await.is_err() {
                     drop(ent);
                     // The circuit's receiver went away, so we should destroy the circuit.
                     self.outbound_destroy_circ(circid).await?;
@@ -665,7 +665,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             }) => {
                 trace!(channel_id = %self, "Passing destroy to open circuit {}", circid);
                 cell_sender
-                    .send(msg.try_into()?)
+                    .send(msg)
                     .await
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
@@ -751,8 +751,8 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::{ChannelType, ClosedUnexpectedly, UniqId};
-    use crate::client::circuit::{CircParameters, ClientCircChanMsg};
     use crate::client::circuit::padding::new_padding;
+    use crate::client::circuit::{CircParameters, ClientCircChanMsg};
     use crate::fake_mpsc;
     use crate::util::{DummyTimeoutEstimator, fake_mq};
     use futures::sink::SinkExt;

@@ -3,13 +3,13 @@
 // NOTE: This is a work in progress and I bet I'll refactor it a lot;
 // it needs to stay opaque!
 
+use crate::circuit::CircuitRxSender;
 use crate::client::circuit::padding::{PaddingController, QueuedCellPaddingInfo};
 use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
 
 use crate::circuit::celltypes::CreateResponse;
-use crate::client::circuit::CircuitRxSender;
 use crate::client::circuit::halfcirc::HalfCirc;
 
 use oneshot_fused_workaround as oneshot;

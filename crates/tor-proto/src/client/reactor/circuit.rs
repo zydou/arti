@@ -5,15 +5,15 @@ pub(super) mod create;
 pub(super) mod extender;
 
 use crate::channel::Channel;
-use crate::circuit::UniqId;
 use crate::circuit::cell_sender::CircuitCellSender;
 use crate::circuit::celltypes::CreateResponse;
 use crate::circuit::circhop::HopSettings;
+use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::client::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::client::circuit::padding::{
     self, PaddingController, PaddingEventStream, QueuedCellPaddingInfo,
 };
-use crate::client::circuit::{CircuitRxReceiver, ClientCircChanMsg, MutableState};
+use crate::client::circuit::{ClientCircChanMsg, MutableState};
 use crate::client::circuit::{TimeoutEstimator, path};
 use crate::client::reactor::MetaCellDisposition;
 use crate::congestion::CongestionSignals;

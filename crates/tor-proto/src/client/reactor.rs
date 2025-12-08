@@ -22,10 +22,10 @@ mod conflux;
 mod control;
 pub(super) mod syncview;
 
-use crate::circuit::UniqId;
 use crate::circuit::circhop::SendRelayCell;
+use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
-use crate::client::circuit::{CircuitRxReceiver, ClientCircChanMsg, TimeoutEstimator};
+use crate::client::circuit::{ClientCircChanMsg, TimeoutEstimator};
 use crate::client::{HopLocation, TargetHop};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
@@ -378,6 +378,11 @@ enum CircuitAction {
         /// The action to take.
         padding_action: PaddingEvent,
     },
+    /// Shutdown the circuit reactor. The cause is set in err.
+    Shutdown {
+        /// The error that causes this reactor shutdown.
+        err: crate::Error,
+    },
 }
 
 impl CircuitAction {
@@ -417,6 +422,7 @@ impl CircuitAction {
             },
             #[cfg(not(feature = "circ-padding"))]
             CA::PaddingAction { .. } => NORMAL,
+            CA::Shutdown { .. } => EARLY,
         }
     }
 }
@@ -841,6 +847,9 @@ impl Reactor {
                             void::unreachable(padding_action.0);
                         }
                     }
+                }
+                CircuitAction::Shutdown { err } => {
+                    return Err(err.into());
                 }
             };
 

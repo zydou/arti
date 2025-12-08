@@ -971,9 +971,14 @@ impl ConfluxSet {
             let mut poll_all_circ = PollAll::<NUM_CIRC_FUTURES, CircuitAction>::new();
 
             let input = leg.input.next().map(move |res| match res {
-                Some(cell) => CircuitAction::HandleCell {
-                    leg: unique_id,
-                    cell,
+                Some(msg) => match msg.try_into() {
+                    Ok(cell) => CircuitAction::HandleCell {
+                        leg: unique_id,
+                        cell,
+                    },
+                    // A message outside our restricted set is either a fatal internal error or
+                    // a protocol violation somehow so shutdown.
+                    Err(e) => CircuitAction::Shutdown { err: e },
                 },
                 None => CircuitAction::RemoveLeg {
                     leg: unique_id,
