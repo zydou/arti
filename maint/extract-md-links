@@ -28,7 +28,39 @@ When run as a program, prints a json document
 # during processing.
 
 import mistune  # type: ignore
+import textwrap
 from typing import Tuple
+
+
+class InjectedRefLinks:
+    """
+    Wrapper around mistune's "ref_links" state dictionary.
+
+    Generally we want to pass all attributes through,
+    but we do something non-sensible for `get()` so that mistune internally
+    behaves in a way that we need it to.
+    """
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+    # There are other things like `__getitem__`, `__setitem__`, `__iter__`, etc
+    # we could handle here in our wrapper. But it's best to wait until they're
+    # actually needed by mistune before adding them to make sure we're adding
+    # them in a way that will be handled properly.
+
+    def get(self, key):
+        # Always return a fake ref link,
+        # so that the `ref_links.get(key)` will return something truthy
+        # and will satisfy the following code:
+        # https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/src/mistune/inline_parser.py#L174
+        return {
+            "url": "https://example.com/fake-url-from-extract-md-links",
+            "title": "fake-url-from-extract-md-links",
+        }
 
 
 class Tracking:
@@ -40,10 +72,18 @@ class Tracking:
     `used` is a map from keys to `True`,
 
     The keys here are *un*normalised, so they have not been lowercased.
+
+    This relies on internal implementation details of mistune.
+    Expect this to break as the mistune version changes.
+    Last tested with mistune 3.1.3.
     """
 
-    defined: dict[str, Tuple[str, str]] = {}
-    used: dict[str, bool] = {}
+    defined: dict[str, Tuple[str, str]]
+    used: dict[str, bool]
+
+    def __init__(self):
+        self.defined = {}
+        self.used = {}
 
     def as_json(self):
         return json.dumps(
@@ -59,12 +99,35 @@ class TrackingBlockParser(mistune.BlockParser):
         self.track = track
         super().__init__()
 
-    def parse_def_link(self, m, state):
-        k = m.group(1)
-        t = m.group(2)
-        title = m.group(3)
-        self.track.defined[k] = (t, title)
-        return super().parse_def_link(m, state)
+    def parse_ref_link(self, m, state):
+        # We rely here on specific implementation behaviour of `BlockParser.parse_ref_link()`.
+        # We inject an empty `state.env["ref_links"]` so that it won't conflict with any previous
+        # ref links, and we'll always add the link as long as it parses correctly.
+        # (mistune tracks ref links using a key based on a case-smashed version of the label,
+        # which means that two different labels could conflict, and we don't want that.)
+
+        # Pretend we haven't had any ref links yet.
+        original = state.env["ref_links"]
+        state.env["ref_links"] = {}
+
+        rv = super().parse_ref_link(m, state)
+
+        # Replace with the original `ref_links`, not including any new ref links.
+        added = state.env["ref_links"]
+        state.env["ref_links"] = original
+
+        if added:
+            # We expect that only one ref link was added.
+            assert len(added) == 1
+            added = next(iter(added.values()))
+
+            label = added["label"]
+            href = added["url"]
+            title = added.get("title")
+
+            self.track.defined[label] = (href, title)
+
+        return rv
 
 
 class TrackingInlineParser(mistune.InlineParser):
@@ -72,10 +135,34 @@ class TrackingInlineParser(mistune.InlineParser):
         self.track = track
         super().__init__()
 
-    def parse_ref_link(self, m, state):
-        k = m.group(2) or m.group(1)
-        self.track.used[k] = True
-        return super().parse_ref_link(m, state)
+    def parse_link(self, m, state):
+        # We rely here on specific implementation behaviour of `InlineParser.parse_link()`.
+        # We inject a custom wrapper around `state.env["ref_links"]`
+        # which returns a fake reference link from `get(key)` in:
+        # https://github.com/lepture/mistune/blob/4adac1c6e7e14e7deeb1bf6c6cd8c6816f537691/src/mistune/inline_parser.py#L174
+        # This causes the parsed label to be added to `state.tokens`,
+        # even if the reference wasn't actually in the markdown document.
+
+        prev_token = state.tokens[-1] if state.tokens else None
+        state.env["ref_links"] = InjectedRefLinks(state.env.get("ref_links"))
+
+        rv = super().parse_link(m, state)
+
+        # Replace with the original `ref_links`, including any changes.
+        state.env["ref_links"] = state.env.get("ref_links").inner
+        new_token = state.tokens[-1] if state.tokens else None
+
+        # We don't have access to the state outside of this method,
+        # so we try to grab the label here if a new token was added.
+        # Alternatively, since it was added as a token in `super().parse_link()`,
+        # we could wait until the end and search the final AST for links.
+        # But I think just getting it here from the last token is simplest.
+
+        # If a new token was added, we assume it was for the reference.
+        if new_token != prev_token and "label" in new_token:
+            self.track.used[new_token["label"]] = True
+
+        return rv
 
 
 def extract_links(md_string):
@@ -97,6 +184,40 @@ def extract_links(md_string):
     return track
 
 
+def self_test():
+    """
+    A basic runtime test.
+    """
+
+    md = textwrap.dedent(
+        """
+        # Foo
+
+        Test [link]. And [another]. What about [this][one]? Or [this](https://wikipedia.org)?
+
+        [another]: https://example.com
+        [not-present]: https://www.torproject.org
+        """
+    )
+
+    extracted = extract_links(md)
+
+    try:
+        assert extracted.used == {"link": True, "another": True, "one": True}
+        assert extracted.defined == {
+            "another": ("https://example.com", None),
+            "not-present": ("https://www.torproject.org", None),
+        }
+    except AssertionError as e:
+        print("used:", extracted.used, file=sys.stderr)
+        print("defined:", extracted.defined, file=sys.stderr)
+
+        raise RuntimeError(
+            "Failed self-test. "
+            "This script appears to be incompatible with your version of mistune."
+        ) from e
+
+
 if __name__ == "__main__":
     # In theory we ought to be able to load file this as a Python module
     # instead of running it as a script.  But this does not work
@@ -111,6 +232,10 @@ if __name__ == "__main__":
     import sys
     import json
     import argparse
+
+    # Ensure that a basic self-test passes,
+    # since we rely on some internal details of mistune.
+    self_test()
 
     parser = argparse.ArgumentParser(prog="extract-md-links")
     parser.add_argument("filename", nargs="?", default="-")

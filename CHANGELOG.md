@@ -311,8 +311,8 @@ for funding the development of Arti!
 [`rust-maint-common`]: https://gitlab.torproject.org/tpo/core/rust-maint-common
 [`tokio-console`]: https://crates.io/crates/tokio-console
 [other sponsors]: https://www.torproject.org/about/sponsors/
-[proposal 368]: https://spec.torproject.org/proposals/368-cdt-rethink.html
 [proposal 365]: https://spec.torproject.org/proposals/365-http-connect-ext.html
+[proposal 368]: https://spec.torproject.org/proposals/368-cdt-rethink.html
 
 
 
