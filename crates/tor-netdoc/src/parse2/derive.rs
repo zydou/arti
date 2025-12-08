@@ -5,6 +5,8 @@ use super::*;
 /// Helper to implemnet `dtrace!` inside `NetdocParseable` derive-deftly macro.
 #[doc(hidden)]
 pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]) {
+    // Take a lock like this so that all our output appears at once,
+    // rather than possibly being interleaved with similar output for other types.
     let mut out = std::io::stderr().lock();
     (|| {
         write!(out, "netdoc {ttype} parse: {msg}")?;
