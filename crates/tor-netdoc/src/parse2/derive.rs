@@ -36,7 +36,7 @@ define_derive_deftly_module! {
         #[allow(unused_macros)]
         macro_rules! dtrace { { $$msg:literal $$(, $$val:expr )* $$(,)? } => {
           ${if tmeta(netdoc(debug)) {
-              netdoc_parseable_derive_debug(
+              $P::netdoc_parseable_derive_debug(
                   ${concat $ttype},
                   $$msg,
                   &[ $$( &&$$val as _, )* ],

@@ -29,6 +29,7 @@ pub const PEM_FOOTER_START: &str = crate::parse::tokenize::object::END_STR;
 pub const PEM_AFTER_LABEL: &str = crate::parse::tokenize::object::TAG_END;
 
 pub use super::{
+    derive::netdoc_parseable_derive_debug,
     error::{ArgumentError, ErrorProblem, ParseError, UnexpectedArgument, VerifyFailed},
     keyword::KeywordRef,
     lex::{ArgumentStream, ItemStream, UnparsedItem, WS},
