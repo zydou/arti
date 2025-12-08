@@ -751,7 +751,7 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::{ChannelType, ClosedUnexpectedly, UniqId};
-    use crate::client::circuit::CircParameters;
+    use crate::client::circuit::{CircParameters, ClientCircChanMsg};
     use crate::client::circuit::padding::new_padding;
     use crate::fake_mpsc;
     use crate::util::{DummyTimeoutEstimator, fake_mq};
@@ -977,7 +977,6 @@ pub(crate) mod test {
     #[test]
     fn deliver_relay() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::circuit::celltypes::ClientCircChanMsg;
             use oneshot_fused_workaround as oneshot;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());

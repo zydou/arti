@@ -4,13 +4,10 @@
 //! request, or when received in particular circumstances.  They're used
 //! so that Rust's typesafety can help enforce protocol properties.
 
-use crate::{Error, Result};
+use crate::Result;
 use derive_deftly::{Deftly, define_derive_deftly};
 use std::fmt::{self, Display};
-use tor_cell::chancell::{
-    ChanMsg,
-    msg::{self as chanmsg, AnyChanMsg},
-};
+use tor_cell::chancell::msg::{self as chanmsg};
 use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 define_derive_deftly! {
@@ -23,15 +20,16 @@ define_derive_deftly! {
     /// subset of the variants of [`AnyChanMsg`].
     RestrictedChanMsgSet:
 
-    impl TryFrom<AnyChanMsg> for $ttype {
-        type Error = crate::Error;
+    impl TryFrom<tor_cell::chancell::msg::AnyChanMsg> for $ttype {
+        type Error = $crate::Error;
 
-        fn try_from(m: AnyChanMsg) -> Result<$ttype> {
+        fn try_from(m: tor_cell::chancell::msg::AnyChanMsg) -> Result<$ttype> {
             match m {
-                $( AnyChanMsg::$vname(m) => Ok($ttype::$vname(m)), )
-                _ => Err(Error::ChanProto(format!(
+                $( tor_cell::chancell::msg::AnyChanMsg::$vname(m) => Ok($ttype::$vname(m)), )
+                _ => Err($crate::Error::ChanProto(format!(
                     "Got a {} {}",
-                    m.cmd(), ${tmeta(usage) as str},
+                    <tor_cell::chancell::msg::AnyChanMsg as tor_cell::chancell::ChanMsg>::cmd(&m),
+                    ${tmeta(usage) as str},
                 ))),
             }
         }
@@ -64,22 +62,6 @@ impl Display for CreateResponse {
             CR::Created2(_) => Display::fmt("CREATED2", f),
         }
     }
-}
-
-/// A subclass of ChanMsg that can correctly arrive on a live client
-/// circuit (one where a CREATED* has been received).
-#[derive(Debug, Deftly)]
-#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
-#[derive_deftly(HasMemoryCost)]
-#[derive_deftly(RestrictedChanMsgSet)]
-#[deftly(usage = "on an open client circuit")]
-pub enum ClientCircChanMsg {
-    /// A relay cell telling us some kind of remote command from some
-    /// party on the circuit.
-    Relay(chanmsg::Relay),
-    /// A cell telling us to destroy the circuit.
-    Destroy(chanmsg::Destroy),
-    // Note: RelayEarly is not valid for clients!
 }
 
 /// A subclass of ChanMsg that can correctly arrive on a live relay
@@ -117,6 +99,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use crate::client::circuit::ClientCircChanMsg;
+
     use super::*;
 
     #[test]

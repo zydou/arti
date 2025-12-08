@@ -23,10 +23,9 @@ mod control;
 pub(super) mod syncview;
 
 use crate::circuit::UniqId;
-use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::circuit::circhop::SendRelayCell;
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
-use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
+use crate::client::circuit::{CircuitRxReceiver, ClientCircChanMsg, TimeoutEstimator};
 use crate::client::{HopLocation, TargetHop};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;

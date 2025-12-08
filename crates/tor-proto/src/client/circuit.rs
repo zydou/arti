@@ -58,9 +58,13 @@ use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::CircuitAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
+use derive_deftly::Deftly;
 use educe::Educe;
 use path::HopDetail;
-use tor_cell::chancell::CircId;
+use tor_cell::chancell::{
+    CircId,
+    msg::{self as chanmsg},
+};
 use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
@@ -77,6 +81,7 @@ use futures::FutureExt as _;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_memquota::mq_queue::{self, MpscSpec};
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -99,6 +104,22 @@ pub use crate::circuit::CircParameters;
 pub(crate) type CircuitRxSender = mq_queue::Sender<ClientCircChanMsg, MpscSpec>;
 /// MPSC queue for inbound data on its way from channel to circuit, receiver
 pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSpec>;
+
+/// A subclass of ChanMsg that can correctly arrive on a live client
+/// circuit (one where a CREATED* has been received).
+#[derive(Debug, Deftly)]
+#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+#[derive_deftly(HasMemoryCost)]
+#[derive_deftly(RestrictedChanMsgSet)]
+#[deftly(usage = "on an open client circuit")]
+pub(crate) enum ClientCircChanMsg {
+    /// A relay cell telling us some kind of remote command from some
+    /// party on the circuit.
+    Relay(chanmsg::Relay),
+    /// A cell telling us to destroy the circuit.
+    Destroy(chanmsg::Destroy),
+    // Note: RelayEarly is not valid for clients!
+}
 
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.

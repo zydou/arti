@@ -56,6 +56,7 @@
 #[cfg(feature = "bench")]
 pub mod bench_utils;
 pub mod channel;
+#[macro_use]
 pub mod circuit;
 pub mod client;
 pub(crate) mod conflux;
