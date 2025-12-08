@@ -294,7 +294,7 @@ pub(crate) struct StreamMap {
     /// The next StreamId that we should use for a newly allocated
     /// circuit.
     next_stream_id: StreamId,
-    /// Next priority to use in `rxs`. We implement round-robin scheduling of
+    /// Next priority to use in `open_streams`. We implement round-robin scheduling of
     /// handling outgoing messages from streams by assigning a stream the next
     /// priority whenever an outgoing message is processed from that stream,
     /// putting it last in line.
