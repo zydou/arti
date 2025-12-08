@@ -73,6 +73,9 @@ pub struct SingletonMultiplicitySelector<Field>(PhantomData<fn(Field)>);
 ///
 /// Methods are also provided for typechecking, which are used by the derive macro to
 /// produce reasonable error messages when a trait impl is missing.
+//
+// When adding features here, for example by implementing this trait,
+// update the documentation in the `NetdocEncodable` and `ItemValueEncodable` derives.
 pub trait MultiplicityMethods<'f>: Copy + Sized {
     /// The value for each thing.
     type Each: Sized + 'f;

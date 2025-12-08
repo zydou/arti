@@ -14,6 +14,8 @@
 //! with the right keywords and arguments.
 
 mod multiplicity;
+#[macro_use]
+mod derive;
 
 use std::cmp;
 use std::collections::BTreeSet;
@@ -37,6 +39,7 @@ use crate::types::misc::Iso8601TimeSp;
 // Exports used by macros, which treat this module as a prelude
 #[doc(hidden)]
 pub use {
+    derive::{DisplayHelper, RestMustComeLastMarker},
     multiplicity::{
         MultiplicityMethods, MultiplicitySelector, OptionalityMethods,
         SingletonMultiplicitySelector,

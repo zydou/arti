@@ -211,6 +211,8 @@ define_derive_deftly_module! {
         }}
         $(
             ${when not(F_INTRO)}
+            // These conditions are mirrored in NetdocSomeItemsEncodableCommon,
+            // which is supposed to recognise netdoc(default) precisely when we do.
           ${if fmeta(netdoc(default)) {
             let $fpatname = Option::unwrap_or_default($fpatname);
           }}
@@ -227,6 +229,9 @@ define_derive_deftly! {
 
     /// Derive [`NetdocParseable`] for a document (or sub-document)
     ///
+    // NB there is very similar wording in the NetdocEncodable derive docs.
+    // If editing any of this derive's documentation, considering editing that too.
+    //
     /// ### Expected input structure
     ///
     /// Should be applied named-field struct, where each field is
@@ -771,6 +776,9 @@ define_derive_deftly! {
 
     /// Derive `ItemValueParseable`
     ///
+    // NB there is very similar wording in the ItemValueEncodable derive docs.
+    // If editing any of this derive's documentation, considering editing that too.
+    //
     /// Fields in the struct are parsed from the keyword line arguments,
     /// in the order they appear in the struct.
     ///
