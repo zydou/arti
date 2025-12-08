@@ -96,29 +96,4 @@ mod test {
         bad(msg::CreateFast::new(&b"for a lifetime or more"[..]).into());
         bad(msg::Versions::new([1, 2, 3]).unwrap().into());
     }
-
-    #[test]
-    #[cfg(feature = "relay")]
-    fn relay_circ_chan_msg() {
-        use tor_cell::chancell::msg::{self, AnyChanMsg};
-        fn good(m: AnyChanMsg) {
-            use crate::relay::RelayCircChanMsg;
-            assert!(RelayCircChanMsg::try_from(m).is_ok());
-        }
-        fn bad(m: AnyChanMsg) {
-            use crate::relay::RelayCircChanMsg;
-            assert!(RelayCircChanMsg::try_from(m).is_err());
-        }
-
-        good(msg::Destroy::new(2.into()).into());
-        bad(msg::CreatedFast::new(&b"The great globular mass"[..]).into());
-        bad(msg::Created2::new(&b"of protoplasmic slush"[..]).into());
-        good(msg::Relay::new(&b"undulated slightly,"[..]).into());
-        good(msg::AnyChanMsg::RelayEarly(
-            msg::Relay::new(&b"as if aware of him"[..]).into(),
-        ));
-        bad(msg::Versions::new([1, 2, 3]).unwrap().into());
-        good(msg::PaddingNegotiate::start_default().into());
-        good(msg::RelayEarly::from(msg::Relay::new(b"snail-like unipedular organism")).into());
-    }
 }
