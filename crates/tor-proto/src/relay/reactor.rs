@@ -151,7 +151,7 @@ use crate::channel::Channel;
 use crate::circuit::UniqId;
 use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopInbound, CircHopOutbound, HopSettings};
-use crate::client::stream::IncomingStreamRequestFilter;
+use crate::stream::incoming::IncomingStreamRequestFilter;
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};

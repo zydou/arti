@@ -170,13 +170,21 @@ impl StreamTarget {
     ///
     /// **NOTE**: This function should be called at most once per request.
     /// Calling it twice is an error.
-    #[cfg(feature = "hs-service")]
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
     pub(crate) fn close_pending(
         &self,
         message: crate::stream::CloseStreamBehavior,
     ) -> Result<oneshot::Receiver<Result<()>>> {
         match &self.tunnel {
-            Tunnel::Client(t) => t.close_pending(self.stream_id, self.hop, message),
+            Tunnel::Client(t) => {
+                cfg_if::cfg_if! {
+                    if #[cfg(feature = "hs-service")] {
+                        t.close_pending(self.stream_id, self.hop, message)
+                    } else {
+                        Err(tor_error::internal!("close_pending() called on client stream?!").into())
+                    }
+                }
+            }
             #[cfg(feature = "relay")]
             Tunnel::Relay(t) => t.close_pending(self.stream_id, message),
         }
