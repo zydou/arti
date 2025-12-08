@@ -12,7 +12,6 @@ use std::path::PathBuf;
 
 use derive_builder::Builder;
 use derive_more::AsRef;
-
 use directories::ProjectDirs;
 use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
@@ -23,6 +22,8 @@ use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 use tracing::metadata::Level;
 use tracing_subscriber::filter::EnvFilter;
+
+use crate::util::NonEmptyList;
 
 use self::listen::Listen;
 
@@ -175,12 +176,12 @@ impl_standard_builder! { RelayConfig: !Default }
 // testing tor network. We also don't want to do the validation too late (for example when uploading
 // the server descriptor) as it's better to validate at startup. A better place might be to perform
 // the validation in the `RelayConfig` builder validate.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Advertise {
     /// All relays must advertise an IPv4 address.
-    ipv4: SocketAddrV4,
+    ipv4: NonEmptyList<SocketAddrV4>,
     /// Relays may optionally advertise an IPv6 address.
-    ipv6: Option<SocketAddrV6>,
+    ipv6: Vec<SocketAddrV6>,
 }
 
 /// Default log level.
