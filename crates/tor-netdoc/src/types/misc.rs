@@ -15,6 +15,18 @@ pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
 pub use timeimpl::*;
 
+#[cfg(feature = "encode")]
+use {
+    crate::encode::{
+        self,
+        ItemEncoder,
+        ItemObjectEncodable,
+        ItemValueEncodable,
+        // `E` for "encode`; different from `parse2::MultiplicitySelector`
+        MultiplicitySelector as EMultiplicitySelector,
+    },
+    std::iter,
+};
 #[cfg(feature = "parse2")]
 use {
     crate::parse2::multiplicity::{
@@ -329,6 +341,24 @@ mod ignored_impl {
         type Each = Void;
         fn resolve_option(self, _found: Option<Void>) -> Result<NotPresent, EP> {
             Ok(NotPresent)
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl<'f> encode::MultiplicityMethods<'f> for EMultiplicitySelector<NotPresent> {
+        type Field = NotPresent;
+        type Each = Void;
+        fn iter_ordered(self, _: &'f Self::Field) -> impl Iterator<Item = &'f Self::Each> {
+            iter::empty()
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl encode::OptionalityMethods for EMultiplicitySelector<NotPresent> {
+        type Field = NotPresent;
+        type Each = Void;
+        fn as_option<'f>(self, _: &'f Self::Field) -> Option<&'f Self::Each> {
+            None
         }
     }
 
