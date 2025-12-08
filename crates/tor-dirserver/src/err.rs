@@ -1,5 +1,7 @@
 //! Error module for `tor-dirserver`.
 
+use std::net::SocketAddr;
+
 use thiserror::Error;
 
 /// An error while communicating with a directory authority.
@@ -10,9 +12,15 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum AuthorityCommunicationError {
-    /// There has been an I/O error.
-    #[error("I/O error: {0}")]
-    IO(#[from] std::io::Error),
+    /// A TCP connection to an authority failed.
+    ///
+    /// A failure of this implies that both, the V4 and V6 (if present), have
+    /// failed.
+    #[error("TCP connection failure: {endpoints:?}: {error}")]
+    TcpConnect {
+        endpoints: Vec<SocketAddr>,
+        error: std::io::Error,
+    },
 
     /// A failure related to [`tor_dirclient`].
     ///

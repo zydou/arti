@@ -91,7 +91,13 @@ impl<'a, 'b> DownloadManager<'a, 'b> {
         }
 
         // Fortunately, Tokio's TcpStream::connect already offers round-robin.
-        let stream = TcpStream::connect(&endpoints).await?;
+        let stream = TcpStream::connect(&endpoints).await.map_err(|error| {
+            AuthorityCommunicationError::TcpConnect {
+                endpoints: endpoints.to_vec(),
+                error,
+            }
+        })?;
+
         debug!(
             "connected to {}",
             stream
