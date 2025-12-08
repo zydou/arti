@@ -77,7 +77,6 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use crate::client::circuit::ClientCircChanMsg;
 
     use super::*;
 
@@ -95,26 +94,6 @@ mod test {
         good(msg::CreatedFast::new(&b"this offer is unrepeatable"[..]).into());
         good(msg::Created2::new(&b"guaranteed guaranteed"[..]).into());
         bad(msg::CreateFast::new(&b"for a lifetime or more"[..]).into());
-        bad(msg::Versions::new([1, 2, 3]).unwrap().into());
-    }
-
-    #[test]
-    fn client_circ_chan_msg() {
-        use tor_cell::chancell::msg::{self, AnyChanMsg};
-        fn good(m: AnyChanMsg) {
-            assert!(ClientCircChanMsg::try_from(m).is_ok());
-        }
-        fn bad(m: AnyChanMsg) {
-            assert!(ClientCircChanMsg::try_from(m).is_err());
-        }
-
-        good(msg::Destroy::new(2.into()).into());
-        bad(msg::CreatedFast::new(&b"guaranteed in this world"[..]).into());
-        bad(msg::Created2::new(&b"and the next"[..]).into());
-        good(msg::Relay::new(&b"guaranteed guaranteed"[..]).into());
-        bad(msg::AnyChanMsg::RelayEarly(
-            msg::Relay::new(&b"for the world and its mother"[..]).into(),
-        ));
         bad(msg::Versions::new([1, 2, 3]).unwrap().into());
     }
 

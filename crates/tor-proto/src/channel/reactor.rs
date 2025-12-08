@@ -751,8 +751,8 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::{ChannelType, ClosedUnexpectedly, UniqId};
+    use crate::client::circuit::CircParameters;
     use crate::client::circuit::padding::new_padding;
-    use crate::client::circuit::{CircParameters, ClientCircChanMsg};
     use crate::fake_mpsc;
     use crate::util::{DummyTimeoutEstimator, fake_mq};
     use futures::sink::SinkExt;
@@ -1020,7 +1020,7 @@ pub(crate) mod test {
                 .unwrap();
             reactor.run_once().await.unwrap();
             let got = circ_stream_13.next().await.unwrap();
-            assert!(matches!(got, ClientCircChanMsg::Relay(_)));
+            assert!(matches!(got, AnyChanMsg::Relay(_)));
 
             // If a relay cell is sent on an opening channel, that's an error.
             input
@@ -1124,7 +1124,7 @@ pub(crate) mod test {
                 .unwrap();
             reactor.run_once().await.unwrap();
             let msg = circ_stream_13.next().await.unwrap();
-            assert!(matches!(msg, ClientCircChanMsg::Destroy(_)));
+            assert!(matches!(msg, AnyChanMsg::Destroy(_)));
 
             // Destroying a DestroySent circuit is fine.
             input
