@@ -18,7 +18,11 @@ pub(crate) enum AuthorityCommunicationError {
     /// failed.
     #[error("TCP connection failure: {endpoints:?}: {error}")]
     TcpConnect {
+        /// The [`SocketAddr`] items we tried to connect to, most typically
+        /// the IPv4 and IPv6 address + port of the directory authority.
         endpoints: Vec<SocketAddr>,
+
+        /// The actual I/O error that happened.
         error: std::io::Error,
     },
 
