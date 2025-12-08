@@ -5,10 +5,13 @@
   <key attr.name="recvsize" attr.type="string" for="node" id="d2" />
   <key attr.name="count" attr.type="string" for="node" id="d1" />
   <key attr.name="time" attr.type="string" for="node" id="d0" />
+  <key attr.name="stallout" attr.type="string" for="node" id="stallout" />
   <graph edgedefault="directed">
     <node id="start">
       <data key="d5">fpqqmiwzqiv63jczrshh4qcmlxw6gujcai3arobq23wikt7hk7ojadid.onion:80</data>
       <data key="d7">localhost:9000</data>
+      <!-- Mitigate arti#2209 -->
+      <data key="stallout">0</data>
     </node>
     <node id="stream">
       <!-- TODO: Increase to 5 MB once arti#2109 is addressed -->

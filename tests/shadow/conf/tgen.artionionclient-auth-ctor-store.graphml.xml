@@ -1,4 +1,5 @@
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key attr.name="stallout" attr.type="string" for="node" id="stallout" />
   <key attr.name="socksproxy" attr.type="string" for="node" id="d7" />
   <key attr.name="peers" attr.type="string" for="node" id="d5" />
   <key attr.name="sendsize" attr.type="string" for="node" id="d3" />
@@ -7,6 +8,8 @@
   <key attr.name="time" attr.type="string" for="node" id="d0" />
   <graph edgedefault="directed">
     <node id="start">
+      <!-- mitigate arti#2209 -->
+      <data key="stallout">0</data>
       <data key="d5">ppvgxz3zgfbxxidraxeaxoqfelb76xlhjtvta7h6dw52osvztdykncad.onion:80</data>
       <data key="d7">localhost:9000</data>
     </node>
