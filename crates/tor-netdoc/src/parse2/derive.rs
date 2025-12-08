@@ -682,6 +682,8 @@ define_derive_deftly! {
     ///   Normally this is achieved with
     ///   `#[derive_deftly(NetdocParseable)] #[deftly(netdoc(signatures))]`.
     ///
+    $DOC_DEBUG_PLACEHOLDER
+    ///
     /// ### Generated struct
     ///
     /// ```
@@ -743,6 +745,7 @@ define_derive_deftly! {
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
         ) -> $P::Result<$<$ttype Signed>, $P::ErrorProblem> {
+            $EMIT_DEBUG_PLACEHOLDER
             input.parse_signed(outer_stop)
         }
     }
@@ -801,6 +804,16 @@ define_derive_deftly! {
     ///
     ///    Reject, rather than ignore, additional arguments found in the document
     ///    which aren't described by the struct.
+    ///
+    /// * **`#[deftly(netdoc(debug))]`**:
+    ///
+    ///   Currently implemented only as a placeholde
+    ///
+    ///   The generated implementation may in future generate copious debug output
+    ///   to the program's stderr when it is run.
+    ///   Do not enable in production!
+    ///
+    $DOC_DEBUG_PLACEHOLDER
     ///
     /// ### Field-level attributes:
     ///
@@ -872,6 +885,8 @@ define_derive_deftly! {
         {
             #[allow(unused_imports)] // false positive when macro is used with prelude in scope
             use $P::*;
+
+            $EMIT_DEBUG_PLACEHOLDER
 
             let object = input.object();
             #[allow(unused)]

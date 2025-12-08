@@ -40,6 +40,27 @@ define_derive_deftly_module! {
     /// Common definitions for any netdoc derives
     NetdocDeriveAnyCommon beta_deftly:
 
+    // Emit an eprintln with deftly(netdoc(debug)), just so that we don't get surprises
+    // where someone leaves a (debug) in where it's not implemented, and we later implement it.
+    ${define EMIT_DEBUG_PLACEHOLDER {
+        ${if tmeta(netdoc(debug)) {
+            // This messing about with std::io::stderr() mirrors netdoc_parseable_derive_debug.
+            // (We could use eprintln! #[test] captures eprintln! but not io::stderr.)
+            writeln!(
+                std::io::stderr().lock(),
+                ${concat "#[deftly(netdoc(debug))] applied to " $tname},
+            ).expect("write to stderr failed");
+        }}
+    }}
+    ${define DOC_DEBUG_PLACEHOLDER {
+        /// * **`#[deftly(netdoc(debug))]`**:
+        ///
+        ///   Currently implemented only as a placeholde
+        ///
+        ///   The generated implementation may in future generate copious debug output
+        ///   to the program's stderr when it is run.
+        ///   Do not enable in production!
+    }}
 }
 
 define_derive_deftly_module! {
