@@ -215,7 +215,7 @@ impl<T: HasRelayIds> ForwardReactor<T> {
                 // TODO: if the cell carries Tor stream data, this function will need to
                 // send the cell to the BackwardReactor, to have it delivered
                 // to the appropriate Tor stream
-                self.handle_forward_cell(cell).await
+                self.handle_forward_cell(cell.try_into()?).await
             },
         }
     }

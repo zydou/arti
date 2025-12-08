@@ -365,7 +365,10 @@ impl BackwardReactor {
             if let Some(input) = self.input.as_mut() {
                 // Forward channel unexpectedly closed, we should close too
                 match input.next().await {
-                    Some(cell) => CircuitEvent::Cell(cell),
+                    Some(msg) => match msg.try_into() {
+                        Err(e) => CircuitEvent::Shutdown(e),
+                        Ok(cell) => CircuitEvent::Cell(cell),
+                    },
                     None => {
                         // The forward reactor has crashed, so we have to shut down.
                         CircuitEvent::ForwardShutdown
@@ -449,6 +452,7 @@ impl BackwardReactor {
 
                 Err(ReactorError::Shutdown)
             }
+            Shutdown(err) => Err(err.into()),
         }
     }
 
@@ -820,6 +824,11 @@ enum CircuitEvent {
     ///
     /// We need to shut down too.
     ForwardShutdown,
+    /// Shutdown of the reactor.
+    ///
+    /// This can happen if we receive a channel message that is not supported
+    /// on a relay-to-relay channel.
+    Shutdown(Error),
 }
 
 /// Instructions from the forward reactor.
