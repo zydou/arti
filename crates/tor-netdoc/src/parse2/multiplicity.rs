@@ -5,6 +5,8 @@
 //!
 //! It is **for use by macros**, rather than directly.
 //!
+//! See also `encode::multiplicity` which is the corresponding module for encoding.
+//!
 //! # Explanation
 //!
 //! We use autoref specialisation to allow macros to dispatch to
@@ -27,6 +29,12 @@
 //! For Arguments we have [`ArgumentSetMethods`],
 //! and for Objects, [`ObjectSetMethods`],
 //! which work similarly.
+//!
+//! (We need separate traits for each of the kinds of netdoc element,
+//! for good support of inference in the derive macro.
+//! Type inference is particularly difficult during parsing, since we need the type
+//! information to flow from the field type, which is the *destination*
+//!  to which a value is going to be stored.)
 
 use super::*;
 
@@ -35,11 +43,14 @@ use super::*;
 /// **For use by macros**.
 ///
 /// See the [module-level docs](multiplicity).
+///
+/// This is distinct from `encode::MultiplicitySelector`,
+/// principally because it has the opposite variance.
 #[derive(Educe)]
 #[educe(Clone, Copy, Default)]
 pub struct MultiplicitySelector<Field>(PhantomData<fn() -> Field>);
 
-/// Methods for handling some multiplicity of Items
+/// Methods for handling some multiplicity of Items, during parsing
 ///
 /// **For use by macros**.
 ///

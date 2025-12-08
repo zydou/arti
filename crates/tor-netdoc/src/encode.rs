@@ -13,6 +13,8 @@
 //! It is the caller's responsibility to call `.item()` in the right order,
 //! with the right keywords and arguments.
 
+mod multiplicity;
+
 use std::cmp;
 use std::collections::BTreeSet;
 use std::fmt::Write;
@@ -35,6 +37,10 @@ use crate::types::misc::Iso8601TimeSp;
 // Exports used by macros, which treat this module as a prelude
 #[doc(hidden)]
 pub use {
+    multiplicity::{
+        MultiplicityMethods, MultiplicitySelector, OptionalityMethods,
+        SingletonMultiplicitySelector,
+    },
     std::fmt::{self, Display},
     std::result::Result,
     tor_error::{Bug, into_internal},
