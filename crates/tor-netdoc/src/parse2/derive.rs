@@ -13,7 +13,7 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
         }
         writeln!(out)
     })()
-    .expect("write to String failed");
+    .expect("write to stderr failed");
 }
 
 define_derive_deftly_module! {
