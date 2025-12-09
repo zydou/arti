@@ -90,16 +90,10 @@ impl Listen {
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single localhost port in all address families"
     pub fn localhost_port_legacy(&self) -> Result<Option<u16>, ListenUnsupported> {
-        Ok(match &self.0 {
-            CustomizableListen::Disabled => None,
-            CustomizableListen::One(ListenItem::Port(port)) => Some(*port),
-            CustomizableListen::One(ListenItem::General(_)) => return Err(ListenUnsupported {}),
-            CustomizableListen::List(list) => match list.as_slice() {
-                [] => None,
-                [ListenItem::Port(port)] => Some(*port),
-                [ListenItem::General(_)] => return Err(ListenUnsupported {}),
-                [_, _, ..] => return Err(ListenUnsupported {}),
-            },
+        Ok(match self.to_singleton_legacy()? {
+            None => None,
+            Some(ListenItem::Port(port)) => Some(*port),
+            Some(ListenItem::General(_)) => return Err(ListenUnsupported {}),
         })
     }
 
@@ -116,19 +110,29 @@ impl Listen {
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single port on one address family".
     pub fn single_address_legacy(&self) -> Result<Option<SocketAddr>, ListenUnsupported> {
-        Ok(match &self.0 {
-            CustomizableListen::Disabled => None,
-            CustomizableListen::One(ListenItem::Port(port)) => {
-                Some((Ipv4Addr::LOCALHOST, *port).into())
-            }
-            CustomizableListen::One(ListenItem::General(addr)) => Some(*addr),
-            CustomizableListen::List(list) => match list.as_slice() {
-                [] => None,
-                [ListenItem::Port(port)] => Some((Ipv4Addr::LOCALHOST, *port).into()),
-                [ListenItem::General(addr)] => Some(*addr),
-                [_, _, ..] => return Err(ListenUnsupported {}),
-            },
+        Ok(match self.to_singleton_legacy()? {
+            None => None,
+            Some(ListenItem::Port(port)) => Some((Ipv4Addr::LOCALHOST, *port).into()),
+            Some(ListenItem::General(addr)) => Some(*addr),
         })
+    }
+
+    /// Helper: return a ListenItem if this Listen has exactly one.
+    ///
+    /// Return None if there are multiple items, or an error if there are multiple items.
+    ///
+    /// (Note that all users of this function are, or should be, deprecated.)
+    fn to_singleton_legacy(&self) -> Result<Option<&ListenItem>, ListenUnsupported> {
+        use CustomizableListen as CL;
+        match &self.0 {
+            CL::Disabled => Ok(None),
+            CL::One(li) => Ok(Some(li)),
+            CL::List(lst) => match lst.as_slice() {
+                [] => Ok(None),
+                [li] => Ok(Some(li)),
+                [_, _, ..] => Err(ListenUnsupported {}),
+            },
+        }
     }
 
     /// Return true if this `Listen` only configures listening on loopback addresses (`127.0.0.0/8`
