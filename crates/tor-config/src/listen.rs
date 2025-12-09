@@ -89,6 +89,7 @@ impl Listen {
     ///
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single localhost port in all address families"
+    #[deprecated(since = "0.38.0")]
     pub fn localhost_port_legacy(&self) -> Result<Option<u16>, ListenUnsupported> {
         Ok(match self.to_singleton_legacy()? {
             None => None,
@@ -450,7 +451,10 @@ mod test {
                     .map_err(|_| ()),
                 exp_addrs
             );
-            assert_eq!(ll.localhost_port_legacy().map_err(|_| ()), exp_lpd);
+            #[allow(deprecated)]
+            {
+                assert_eq!(ll.localhost_port_legacy().map_err(|_| ()), exp_lpd);
+            }
         }
 
         let chk_err = |exp, s: &str| {
