@@ -371,7 +371,7 @@ impl StreamMap {
     }
 
     /// Add an entry to this map using the specified StreamId.
-    #[cfg(feature = "hs-service")]
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
     pub(super) fn add_ent_with_id(
         &mut self,
         sink: StreamQueueSender,
@@ -548,9 +548,6 @@ impl StreamMap {
             ClosedStreamEnt::EndSent(ent) => ent.expiry > now,
         });
     }
-
-    // TODO: Eventually if we want relay support, we'll need to support
-    // stream IDs chosen by somebody else. But for now, we don't need those.
 }
 
 /// A reason for terminating a stream.

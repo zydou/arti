@@ -580,7 +580,7 @@ impl CircHopOutbound {
     }
 
     /// Add an entry to this map using the specified StreamId.
-    #[cfg(feature = "hs-service")]
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
     pub(crate) fn add_ent_with_id(
         &self,
         sink: StreamQueueSender,

@@ -552,7 +552,7 @@ impl DataStream {
     /// CONNECTED cell.
     ///
     /// This is used by hidden services, exit relays, and directory servers to accept streams.
-    #[cfg(feature = "hs-service")]
+    #[cfg(any(feature = "hs-service", feature = "relay"))]
     pub(crate) fn new_connected<P: SleepProvider + CoarseTimeProvider>(
         time_provider: P,
         receiver: StreamReceiver,
