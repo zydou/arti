@@ -36,6 +36,19 @@ use crate::err::AuthorityCommunicationError;
 /// case it will randomly try and pick a new one, just like it did during the
 /// initial invocation.
 ///
+/// It may be worth to note that two round-robin loops, with one of them being
+/// nested inside the other, are being used here.  The first serves as an
+/// implementation of the specification in order to retry a download from a
+/// different authority.  The second, inner, round-robin loop serves as an
+/// implementation for happy-eyeballs, which, most commonly,  tries to connect
+/// to both, the IPv4 and IPv6 (if present), utilizing the first one that
+/// succeeds.  Keep in mind that error handling between these two is different.
+/// The outer round-robin loop uses [`RetryError`], keeping track of all errors
+/// in case that the download fails from all authorities, whereas the inner
+/// round-robin loop uses [`TcpStream::connect()`], which only returns the error
+/// of the last failed connection attempt, in the case that all attempts have
+/// failed.
+///
 /// # Algorithm
 ///
 /// 1. Shuffle the list of authorities in a randomized fashion.
@@ -120,8 +133,8 @@ impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
     /// Downloads a [`Requestable`] from the download authorities.
     ///
     /// The relevant algorithm is non-trivial, but well-documented in the
-    /// [`ConsensusBoundDownloader`], which is why we will leave it out here by just
-    /// referencing to it.
+    /// [`ConsensusBoundDownloader`], which is why we will leave it out here by
+    /// just referencing to it.
     #[allow(clippy::cognitive_complexity)]
     pub(super) async fn download<Req: Requestable + Debug, R: Rng>(
         &mut self,
