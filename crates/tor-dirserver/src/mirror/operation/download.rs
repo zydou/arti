@@ -1,6 +1,6 @@
 //! Download Management for [`super`].
 //!
-//! This module consists of [`DownloadManager`], a structure whose lifetime
+//! This module consists of [`ConsensusBoundDownloader`], a structure whose lifetime
 //! SHOULD be tied to the context of a single consensus.
 //!
 //! More information about the proper use can be found in the documentation
@@ -20,7 +20,10 @@ use tracing::{debug, warn};
 
 use crate::err::AuthorityCommunicationError;
 
-/// Download mangement for authority requests.
+/// Consensus bound download mangement for authority requests.
+///
+/// **The instance of [`ConsensusBoundDownloader`] shall be dropped once the
+/// context lifetime of a consensus is over.**
 ///
 /// This structure serves as the main interface for downloading documents from
 /// a directory authority.  It implements the logic for retrying failed
@@ -32,9 +35,6 @@ use crate::err::AuthorityCommunicationError;
 /// which will be re-used for all further request unless it fails, in which
 /// case it will randomly try and pick a new one, just like it did during the
 /// initial invocation.
-///
-/// The instance of [`DownloadManager`] shall be dropped once the context
-/// lifetime of a consensus is over.
 ///
 /// # Algorithm
 ///
@@ -49,7 +49,7 @@ use crate::err::AuthorityCommunicationError;
 /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#general-download-behavior>
 /// * <https://spec.torproject.org/dir-spec/directory-cache-operation.html#retry-as-cache>
 #[derive(Debug)]
-pub(super) struct DownloadManager<'a, 'b> {
+pub(super) struct ConsensusBoundDownloader<'a, 'b> {
     /// The list of download authorities.
     ///
     /// TODO DIRMIRROR: Consider accepting an AuthorityContacts and extract the
@@ -63,8 +63,8 @@ pub(super) struct DownloadManager<'a, 'b> {
     rt: &'b PreferredRuntime,
 }
 
-impl<'a, 'b> DownloadManager<'a, 'b> {
-    /// Creates a new [`DownloadManager`] with a set of download authorities.
+impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
+    /// Creates a new [`ConsensusBoundDownloader`] with a set of download authorities.
     pub(super) fn new(authorities: &'a Vec<Vec<SocketAddr>>, rt: &'b PreferredRuntime) -> Self {
         Self {
             authorities,
@@ -123,7 +123,7 @@ impl<'a, 'b> DownloadManager<'a, 'b> {
     /// Downloads a [`Requestable`] from the download authorities.
     ///
     /// The relevant algorithm is non-trivial, but well-documented in the
-    /// [`DownloadManager`], which is why we will leave it out here by just
+    /// [`ConsensusBoundDownloader`], which is why we will leave it out here by just
     /// referencing to it.
     #[allow(clippy::cognitive_complexity)]
     pub(super) async fn download<Req: Requestable + Debug, R: Rng>(
@@ -233,7 +233,7 @@ mod test {
         let authorities = vec![vec![server_addr]];
         let rt = PreferredRuntime::current().unwrap();
 
-        let mut mgr = DownloadManager::new(&authorities, &rt);
+        let mut mgr = ConsensusBoundDownloader::new(&authorities, &rt);
         let resp = mgr
             .download(
                 &ConsensusRequest::new(ConsensusFlavor::Plain),
@@ -287,7 +287,7 @@ mod test {
         }
 
         let rt = PreferredRuntime::current().unwrap();
-        let mut mgr = DownloadManager::new(&server_addrs, &rt);
+        let mut mgr = ConsensusBoundDownloader::new(&server_addrs, &rt);
 
         let resp = mgr
             .download(
@@ -318,7 +318,7 @@ mod test {
         }
 
         let rt = PreferredRuntime::current().unwrap();
-        let mut mgr = DownloadManager::new(&server_addrs, &rt);
+        let mut mgr = ConsensusBoundDownloader::new(&server_addrs, &rt);
 
         let errs = mgr
             .download(
@@ -361,7 +361,7 @@ mod test {
         }
 
         let rt = PreferredRuntime::current().unwrap();
-        let mut mgr = DownloadManager::new(&addrs, &rt);
+        let mut mgr = ConsensusBoundDownloader::new(&addrs, &rt);
 
         let _elapsed = tokio::time::timeout(
             Duration::from_secs(5),
