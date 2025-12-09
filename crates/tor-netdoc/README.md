@@ -16,14 +16,17 @@ This crate is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 implement [Tor](https://www.torproject.org/) in Rust.
 
-### Design notes
+### Structure
 
-The crate is derived into three main parts.  In the (private) `parse`
-module, we have the generic code that we use to parse different
-kinds of network documents.  In the [`types`] module we have
-implementations for parsing specific data structures that are used
-inside directory documents.  Finally, the [`doc`] module defines
-the parsers for the documents themselves.
+The parts of the crate that new code should usually interface with are:
+
+ * `encode`: Support for encoding the metaformat.
+ * `parse2`: Support for parsing the metaformat.
+ * `types`: Type definitions for elements common across various documents.
+ * `doc`: Implementations for specific concrete document types.
+
+Additionally, there is an older internal `parse` module
+based on different parsing principles.
 
 ## Features
 
