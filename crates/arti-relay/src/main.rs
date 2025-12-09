@@ -268,6 +268,12 @@ fn init_runtime() -> std::io::Result<impl ToplevelRuntime> {
     // See https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744.
     // Relays must use rustls as native-tls doesn't support
     // `CertifiedConn::export_keying_material()`.
+
+    // Note: See comments in `tor_rtcompat::impls::rustls::RustlsProvider`
+    // about choice of default crypto provider.
+    let _idempotent_ignore =
+        rustls::crypto::CryptoProvider::install_default(rustls::crypto::ring::default_provider());
+
     TokioRustlsRuntime::create()
 }
 
