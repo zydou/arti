@@ -34,6 +34,9 @@
 //! Otherwise, when a field has type (say) `Vec<NotItemValueParseable>`,
 //! a call to `.check_item_value_encodable` could be resolved by autoref
 //! so the compiler reports that **`Vec<..>`** doesn't implement the needed trait.
+//! We prevent this by having
+//! [`MultiplicitySelector::<Vec<_>>::default().selector()`](MultiplicitySelector::<Vec<T>>::selector)
+//! be an inherent method returning [`DeterminedMultiplicitySelector`].
 //!
 //! `SingletonMultiplicitySelector` is used explicitly in the derive when we
 //! know that we want to encode exactly one element:
