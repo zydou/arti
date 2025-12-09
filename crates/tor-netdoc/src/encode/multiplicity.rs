@@ -37,7 +37,7 @@
 //!
 //! `DeterminedMultiplicitySelector` is used explicitly in the derive when we
 //! know that we want to encode exactly one element:
-//! for example, a document's intro item cannot be repeated.
+//! for example, a document's intro item cannot be repeated or omitted.
 
 use super::*;
 
