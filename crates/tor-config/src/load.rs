@@ -111,10 +111,26 @@ pub enum ConfigResolveError {
     Build(#[from] ConfigBuildError),
 }
 
-/// A type that can be built from a builder via a build method
+/// A type that can be built from a builder.
+pub trait Buildable {
+    /// The type that constructs this Buildable.
+    ///
+    /// Typically, this type will implement [`Builder`].
+    /// If it does, then `<Self::Builder>::Built` should be `Self`.
+    type Builder;
+
+    /// Return a new Builder for this type.
+    fn builder() -> Self::Builder;
+}
+
+/// A type that can build some buildable type via a build method.
 pub trait Builder {
-    /// The type that this builder constructs
+    /// The type that this builder constructs.
+    ///
+    /// Typically, this type will implement [`Buildable`].
+    /// If it does, then `<Self::Built as Buildable>::Builder` should be `Self`.
     type Built;
+
     /// Build into a `Built`
     ///
     /// Often shadows an inherent `build` method

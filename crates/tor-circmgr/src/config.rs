@@ -4,15 +4,13 @@
 //!
 //! Most types in this module are re-exported by `arti-client`.
 
+use derive_deftly::Deftly;
 use tor_basic_utils::define_accessor_trait;
-use tor_config::impl_standard_builder;
-use tor_config::{ConfigBuildError, define_list_builder_accessors, define_list_builder_helper};
 use tor_guardmgr::{GuardFilter, GuardMgrConfig, VanguardConfig};
-
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
 use tor_netdoc::types::policy::AddrPortPattern;
 use tor_relay_selection::RelaySelectionConfig;
+
+use tor_config::derive::prelude::*;
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -26,75 +24,35 @@ use std::time::Duration;
 /// paths that are constructed in the future, and prevents requests from being
 /// attached to existing circuits, if the configuration has become more
 /// restrictive.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Eq, PartialEq, Deftly)]
+#[derive_deftly(TorConfig)]
 pub struct PathConfig {
     /// Set the length of a bit-prefix for a default IPv4 subnet-family.
     ///
     /// Any two relays will be considered to belong to the same family if their
     /// IPv4 addresses share at least this many initial bits.
-    #[builder(default = "ipv4_prefix_default()")]
+    #[deftly(tor_config(default = "ipv4_prefix_default()"))]
     ipv4_subnet_family_prefix: u8,
 
     /// Set the length of a bit-prefix for a default IPv6 subnet-family.
     ///
     /// Any two relays will be considered to belong to the same family if their
     /// IPv6 addresses share at least this many initial bits.
-    #[builder(default = "ipv6_prefix_default()")]
+    #[deftly(tor_config(default = "ipv6_prefix_default()"))]
     ipv6_subnet_family_prefix: u8,
 
     /// A set of ports that need to be sent over Stable circuits.
-    #[builder(sub_builder, setter(custom))]
-    #[builder_field_attr(serde(default))]
-    pub(crate) long_lived_ports: LongLivedPorts,
+    #[deftly(tor_config(list(element(clone)), default = "long_lived_ports_default()"))]
+    pub(crate) long_lived_ports: HashSet<u16>,
 
     /// The set of addresses to which we're willing to make direct connections.
-    #[builder(sub_builder, setter(custom))]
-    #[builder_field_attr(serde(default))]
-    pub(crate) reachable_addrs: ReachableAddrs,
+    #[deftly(tor_config(list(element(clone)), default = "default_reachable_addrs()"))]
+    pub(crate) reachable_addrs: Vec<AddrPortPattern>,
 }
-impl_standard_builder! { PathConfig }
-
-/// Type alias for a list of reachable addresses.
-type ReachableAddrs = Vec<AddrPortPattern>;
 
 /// Return the default list of reachable addresses (namely, "*:*")
-fn default_reachable_addrs() -> ReachableAddrs {
+fn default_reachable_addrs() -> Vec<AddrPortPattern> {
     vec![AddrPortPattern::new_all()]
-}
-
-define_list_builder_helper! {
-    struct ReachableAddrsBuilder {
-        pub(crate) patterns: [AddrPortPattern],
-    }
-    built: ReachableAddrs = patterns;
-    default = default_reachable_addrs();
-    item_build: |pat| Ok(pat.clone());
-}
-
-define_list_builder_accessors! {
-    struct PathConfigBuilder {
-        pub reachable_addrs: [AddrPortPattern],
-    }
-}
-
-/// Type alias to help define long_lived_ports.
-type LongLivedPorts = HashSet<u16>;
-
-define_list_builder_helper! {
-    pub struct LongLivedPortsBuilder {
-        long_lived_ports:[u16],
-    }
-    built: LongLivedPorts = long_lived_ports;
-    default = long_lived_ports_default();
-    item_build: |item| Ok(*item);
-}
-
-define_list_builder_accessors! {
-    struct PathConfigBuilder {
-        pub long_lived_ports: [u16],
-    }
 }
 
 /// Default value for ipv4_subnet_family_prefix.
@@ -162,14 +120,13 @@ impl PathConfig {
 /// use [`PreemptiveCircuitConfigBuilder`].
 ///
 /// Except as noted, this configuration can be changed on a running Arti client.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Deftly, Eq, PartialEq)]
+#[derive_deftly(TorConfig)]
 pub struct PreemptiveCircuitConfig {
     /// If we have at least this many available circuits, we suspend
     /// construction of preemptive circuits. whether our available circuits
     /// support our predicted exit ports or not.
-    #[builder(default = "default_preemptive_threshold()")]
+    #[deftly(tor_config(default = "default_preemptive_threshold()"))]
     pub(crate) disable_at_threshold: usize,
 
     /// At startup, which exit ports should we expect that the client will want?
@@ -181,22 +138,20 @@ pub struct PreemptiveCircuitConfig {
     /// would be meaningless.
     ///
     /// The default is `[80, 443]`.
-    #[builder(sub_builder, setter(custom))]
-    pub(crate) initial_predicted_ports: PredictedPortsList,
+    #[deftly(tor_config(list(element(clone)), default = "default_preemptive_ports()"))]
+    pub(crate) initial_predicted_ports: Vec<u16>,
 
     /// After we see the client request a connection to a new port, how long
     /// should we predict that the client will still want to have circuits
     /// available for that port?
-    #[builder(default = "default_preemptive_duration()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_preemptive_duration()"))]
     pub(crate) prediction_lifetime: Duration,
 
     /// How many available circuits should we try to have, at minimum, for each
     /// predicted exit port?
-    #[builder(default = "default_preemptive_min_exit_circs_for_port()")]
+    #[deftly(tor_config(default = "default_preemptive_min_exit_circs_for_port()"))]
     pub(crate) min_exit_circs_for_port: usize,
 }
-impl_standard_builder! { PreemptiveCircuitConfig }
 
 /// Configuration for circuit timeouts, expiration, and so on.
 ///
@@ -208,21 +163,19 @@ impl_standard_builder! { PreemptiveCircuitConfig }
 /// not currently expired, and the request timing of all _future_
 /// requests.  However, there are currently bugs: see bug
 /// [#263](https://gitlab.torproject.org/tpo/core/arti/-/issues/263).
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(Debug, Clone, Eq, PartialEq, Deftly)]
 // TODO Use a getters derive macro which lets us only generate getters
 // for fields we explicitly request, rather than having to mark the rest with `skip`.
 // (amplify::Getters doesn't allow #[getter(skip)] at the type level)
 #[derive(amplify::Getters)]
+#[derive_deftly(TorConfig)]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
     ///
     /// This setting applies to circuits without strong isolation.
     /// See also [`disused_circuit_timeout`](Self::disused_circuit_timeout)
-    #[builder(default = "default_max_dirtiness()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_max_dirtiness()"))]
     #[getter(skip)]
     pub(crate) max_dirtiness: Duration,
 
@@ -231,31 +184,28 @@ pub struct CircuitTiming {
     /// This setting applies to circuits _with_ strong isolation.
     /// See also [`max_dirtiness`](Self::max_dirtiness)
     // TODO: Impose a maximum or minimum?
-    #[builder(default = "default_disused_timeout()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_disused_timeout()"))]
     #[getter(skip)]
     pub(crate) disused_circuit_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits
     /// after this much time.
     // TODO: Impose a maximum or minimum?
-    #[builder(default = "default_request_timeout()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_request_timeout()"))]
     #[getter(skip)]
     pub(crate) request_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits after
     /// this many attempts.
     // TODO: Impose a maximum or minimum?
-    #[builder(default = "default_request_max_retries()")]
+    #[deftly(tor_config(default = "default_request_max_retries()"))]
     #[getter(skip)]
     pub(crate) request_max_retries: u32,
 
     /// When waiting for requested circuits, wait at least this long
     /// before using a suitable-looking circuit launched by some other
     /// request.
-    #[builder(default = "default_request_loyalty()")]
-    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
+    #[deftly(tor_config(default = "default_request_loyalty()"))]
     #[getter(skip)]
     pub(crate) request_loyalty: Duration,
 
@@ -264,43 +214,27 @@ pub struct CircuitTiming {
     // This parameter is honoured by tor-hsclient, not here.
     // This is because the best configuration taxonomy isn't the same as the best code structure.
     // This, and `hs_intro_rend_attempts`, fit rather well amongst the other tunings here.
+    //
+    // NOTE: we could use #[deftly(tor_config(cfg = ))] rather than #[cfg] here, if we wanted to give
+    // a warning when the user provided a setting for this value while hs-client was compiled out.
     #[cfg(feature = "hs-client")]
-    #[builder(default = "default_hs_max_attempts()")]
+    #[deftly(tor_config(default = "default_hs_max_attempts()"))]
     #[getter(as_copy)]
     pub(crate) hs_desc_fetch_attempts: u32,
 
-    /// When an HS connection is attempted, we stop trying intro/rendezvous
+    /// When an HS connection is attempted, we stop trying intro/rendezvous
     /// after this many attempts
     //
     // This parameter is honoured by tor-hsclient, not here.
     #[cfg(feature = "hs-client")]
-    #[builder(default = "default_hs_max_attempts()")]
+    #[deftly(tor_config(default = "default_hs_max_attempts()"))]
     #[getter(as_copy)]
     pub(crate) hs_intro_rend_attempts: u32,
 }
-impl_standard_builder! { CircuitTiming }
 
 /// Return default threshold
 fn default_preemptive_threshold() -> usize {
     12
-}
-
-/// Built list of configured preemptive ports
-type PredictedPortsList = Vec<u16>;
-
-define_list_builder_helper! {
-    struct PredictedPortsListBuilder {
-        pub(crate) ports: [u16],
-    }
-    built: PredictedPortsList = ports;
-    default = default_preemptive_ports();
-    item_build: |&port| Ok(port);
-}
-
-define_list_builder_accessors! {
-    struct PreemptiveCircuitConfigBuilder {
-        pub initial_predicted_ports: [u16],
-    }
 }
 
 /// Return default target ports

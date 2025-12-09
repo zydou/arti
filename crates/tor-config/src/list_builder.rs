@@ -225,9 +225,8 @@ macro_rules! define_list_builder_helper {
         $( item_build: $item_build:expr; )?
         $(#[ serde $serde_attrs:tt ] )+
     } => {
-        #[derive($crate::deps::educe::Educe, Clone, Debug)]
+        #[derive(Clone, Debug)]
         #[derive($crate::deps::serde::Serialize, $crate::deps::serde::Deserialize)]
-        #[educe(Default)]
         $(#[ serde $serde_attrs ])+
         $(#[ $docs_and_attrs ])*
         /// Wrapper struct to help derive_builder find the right types and methods
@@ -239,6 +238,16 @@ macro_rules! define_list_builder_helper {
         {
             /// The list, as overridden
             $field_vis $things: Option<Vec<$EntryBuilder>>,
+        }
+
+        impl $( <$($generics)*> )? Default for $ListBuilder$( < $($generics)* > )?
+        $( where $($where_clauses)* )?
+        {
+            fn default() -> Self {
+                Self {
+                    $things: None
+                }
+            }
         }
 
         impl $( < $($generics)* > )? $ListBuilder $( < $($generics)* > )?
@@ -292,6 +301,17 @@ macro_rules! define_list_builder_helper {
                 &mut self.$things
             }
         }
+
+        impl $( < $($generics)* > )? $crate::extend_builder::ExtendBuilder
+        for $ListBuilder $( < $($generics)* > )?
+        $( where $($where_clauses)* )? {
+            fn extend_from(&mut self, other: Self, strategy: $crate::extend_builder::ExtendStrategy) {
+                match strategy {
+                    $crate::extend_builder::ExtendStrategy::ReplaceLists =>
+                        *self = other,
+                }
+            }
+        }
     };
 
     // Expand the version without `#[ serde $serde_attrs ]` into a call
@@ -311,7 +331,7 @@ macro_rules! define_list_builder_helper {
         default = $default:expr;
         $( item_build: $item_build:expr; )?
     } => {
-        define_list_builder_helper! {
+        $crate::define_list_builder_helper! {
             $(#[ $docs_and_attrs ])*
             $vis
             struct $ListBuilder $( [ $($generics)* ] )?
@@ -356,6 +376,7 @@ macro_rules! define_list_builder_accessors {
             )*
         }
     } => {
+        #[allow(dead_code)]
         impl $OuterBuilder { $( $crate::deps::paste!{
             /// Access the being-built list (resolving default)
             ///

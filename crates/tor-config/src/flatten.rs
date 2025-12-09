@@ -107,9 +107,10 @@ define_derive_deftly! {
     // The semantic behaviour of the template *does* have semver implications.
     export Flattenable for struct, expect items:
 
-    impl tor_config::Flattenable for $ttype {
+    impl<$tgens> $crate::Flattenable for $ttype
+    where $twheres {
         fn has_field(s: &str) -> bool {
-            let fnames = tor_config::flattenable_extract_fields::<'_, Self>();
+            let fnames = $crate::flattenable_extract_fields::<'_, Self>();
             IntoIterator::into_iter(fnames).any(|f| *f == s)
 
         }
@@ -123,9 +124,10 @@ define_derive_deftly! {
         // and thereby ensures that we didn't have a mismatch that
         // allows broken impls to slip through.
         // (We know the type is at least similar because we go via the Flattenable impl.)
-        let _: bool = <$ttype as tor_config::Flattenable>::has_field("");
+        let _: bool = <$ttype as $crate::Flattenable>::has_field("");
     }
 }
+pub use derive_deftly_template_Flattenable;
 
 /// Helper for flattening deserialisation, compatible with [`serde_ignored`]
 ///
@@ -559,7 +561,6 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate as tor_config; // for the benefit of the macros
 
     use std::collections::HashMap;
 

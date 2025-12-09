@@ -45,6 +45,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod cmdline;
+pub mod derive;
 mod err;
 #[macro_use]
 pub mod extend_builder;
@@ -57,6 +58,7 @@ pub mod map_builder;
 mod misc;
 pub mod mistrust;
 mod mut_cfg;
+pub mod setter_traits;
 pub mod sources;
 #[cfg(feature = "testing")]
 pub mod testing;

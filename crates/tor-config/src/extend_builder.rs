@@ -1,7 +1,7 @@
 //! Functionality for merging one config builder into another.
 
 use derive_deftly::define_derive_deftly;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// A builder that can be extended from another builder.
 pub trait ExtendBuilder {
@@ -54,6 +54,22 @@ pub enum ExtendStrategy {
 impl<K: Ord, T: ExtendBuilder> ExtendBuilder for BTreeMap<K, T> {
     fn extend_from(&mut self, other: Self, strategy: ExtendStrategy) {
         use std::collections::btree_map::Entry::*;
+        for (other_k, other_v) in other.into_iter() {
+            match self.entry(other_k) {
+                Vacant(vacant_entry) => {
+                    vacant_entry.insert(other_v);
+                }
+                Occupied(mut occupied_entry) => {
+                    occupied_entry.get_mut().extend_from(other_v, strategy);
+                }
+            }
+        }
+    }
+}
+
+impl<K: std::hash::Hash + Eq, T: ExtendBuilder> ExtendBuilder for HashMap<K, T> {
+    fn extend_from(&mut self, other: Self, strategy: ExtendStrategy) {
+        use std::collections::hash_map::Entry::*;
         for (other_k, other_v) in other.into_iter() {
             match self.entry(other_k) {
                 Vacant(vacant_entry) => {

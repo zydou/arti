@@ -165,16 +165,60 @@ macro_rules! define_map_builder {
         $(#[ $m:meta ])*
         $v:vis type $maptype:ident = $coltype:ident < $keytype:ty , $valtype: ty >;
         $( defaults: $defaults:expr; )?
+    } => {
+        $crate::deps::paste!{$crate::define_map_builder! {
+            $(#[$b_m])*
+            $b_v struct $btype =>
+            $(#[$m])*
+            $v type $maptype = {
+                map: $coltype < $keytype , $valtype >,
+                builder_map: $coltype < $keytype, [<$valtype Builder>] > ,
+            }
+            $( defaults: $defaults; )?
+        }}
+    };
+    // This _undocumented_ internal syntax allows us to take the map types explicitly,
+    // so that we can accept derive-deftly outputs.
+    //
+    // Syntax:
+    // ```
+    //   «#[builder_attrs]»
+    //   «vis» struct «FooMapBuilder» =>
+    //   «#[maptype_attrs]»
+    //   «vis» type «FooMap» = {
+    //       map: «maptype»,
+    //       builder_map: «builder_map_type»,
+    //   }
+    //   ⟦ defaults: «default_expr» ; ⟧
+    // ```
+    //
+    // The defaults line and the attributes are optional.
+    // This (undocumented) syntax is identical to the documented variant above,
+    // except in the braced section after the `=` and before the optional `defaults`.
+    // In that section,
+    // the `maptype` is the type of the map which we are trying to build,
+    // (for example, `HashMap<String, WombatCfg>`),
+    // and the `builder_map` is the type of the map which instantiates the builder
+    // (for example, `HashMap<String, WombatCfgBuilder>`).
+    {
+        $(#[ $b_m:meta ])*
+        $b_v:vis struct $btype:ident =>
+        $(#[ $m:meta ])*
+        $v:vis type $maptype:ident = {
+            map: $mtype:ty,
+            builder_map: $bmtype:ty $(,)?
+        }
+        $( defaults: $defaults:expr; )?
     } =>
-    {paste::paste!{
+    {$crate::deps::paste!{
         $(#[ $m ])*
-        $v type $maptype = $coltype < $keytype , $valtype > ;
+        $v type $maptype = $mtype ;
 
         $(#[ $b_m ])*
         #[derive(Clone,Debug,$crate::deps::serde::Serialize, $crate::deps::educe::Educe)]
         #[educe(Deref, DerefMut)]
         #[serde(transparent)]
-        $b_v struct $btype( $coltype < $keytype, [<$valtype Builder>] > );
+        $b_v struct $btype( $bmtype );
 
         impl $btype {
             $b_v fn build(&self) -> ::std::result::Result<$maptype, $crate::ConfigBuildError> {
@@ -195,10 +239,11 @@ macro_rules! define_map_builder {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
                     D: $crate::deps::serde::Deserializer<'de> {
+                        use $crate::deps::serde::Deserialize;
                         // To deserialize into this type, we create a builder holding the defaults,
                         // and we create a builder holding the values from the deserializer.
                         // We then use ExtendBuilder to extend the defaults with the deserialized values.
-                        let deserialized = $coltype::<$keytype, [<$valtype Builder>]>::deserialize(deserializer)?;
+                        let deserialized = <$bmtype as Deserialize>::deserialize(deserializer)?;
                         let mut defaults = $btype::default();
                         $crate::extend_builder::ExtendBuilder::extend_from(
                             &mut defaults,
@@ -221,7 +266,8 @@ macro_rules! define_map_builder {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
                     D: $crate::deps::serde::Deserializer<'de> {
-                    Ok(Self($coltype::deserialize(deserializer)?))
+                    use $crate::deps::serde::Deserialize;
+                    Ok(Self(<$bmtype as Deserialize>::deserialize(deserializer)?))
                 }
             }
         }}
