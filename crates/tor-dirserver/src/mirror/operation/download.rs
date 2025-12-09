@@ -75,11 +75,8 @@ impl<'a, 'b> ConsensusBoundDownloader<'a, 'b> {
 
     /// Performs a download to a single authority.
     ///
-    /// All [`SocketAddr`] elements in `endpoints` MUST refer to the same
-    /// logical directory authority, as we will perform a round-robin connect
-    /// approach to them.  The idea behind this is, to support dual-stack
-    /// directory authorities and try IPv4 and IPv6 at the same time, picking
-    /// the first that succeeds.
+    /// To implement the retry algorithm from the spec, `endpoints` must be the
+    /// available addresses (for all address families) for a single authority.
     async fn download_single<Req: Requestable + Debug>(
         &self,
         endpoints: &[SocketAddr],
