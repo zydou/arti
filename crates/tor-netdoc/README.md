@@ -6,7 +6,7 @@ Parse and represent directory objects used in Tor.
 
 Tor has several "network documents" that it uses to convey
 information about relays on the network. They are documented in
-dir-spec.txt.
+the [Tor Directory Protocol Spec](https://spec.torproject.org/dir-spec/index.html).
 
 This crate has common code to parse and validate these documents.
 Currently, it can handle the metaformat, along with certain parts
