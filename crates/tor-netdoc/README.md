@@ -4,7 +4,7 @@ Parse and represent directory objects used in Tor.
 
 ## Overview
 
-Tor has several "directory objects" that it uses to convey
+Tor has several "network documents" that it uses to convey
 information about relays on the network. They are documented in
 dir-spec.txt.
 
