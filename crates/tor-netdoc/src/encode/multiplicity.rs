@@ -20,7 +20,7 @@
 //! we use `OptionalityMethods`.
 //!
 //! We implement traits on helper types `struct `[`MultiplicitySelector<Field>`],
-//! `DeterminedMultiplicitySelector` and `SingletonMultiplicitySelector`.
+//! [`DeterminedMultiplicitySelector`] and [`SingletonMultiplicitySelector`].
 //!
 //! The three selector types allow us to force the compiler to nail down the multiplicity,
 //! during type inference, before considering whether the "each" type implements the
