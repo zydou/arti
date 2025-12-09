@@ -8,10 +8,9 @@ Tor has several "network documents" that it uses to convey
 information about relays on the network. They are documented in
 the [Tor Directory Protocol Spec](https://spec.torproject.org/dir-spec/index.html).
 
-This crate has common code to parse and validate these documents.
-Currently, it can handle the metaformat, along with certain parts
-of the router descriptor type. We will eventually need to handle
-more types.
+This crate has common code to parse, validate and encode
+the network document metaformat.
+It also has specific implementations for various document types.
 
 This crate is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
