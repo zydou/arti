@@ -978,6 +978,12 @@ impl ConfluxSet {
                     },
                     // A message outside our restricted set is either a fatal internal error or
                     // a protocol violation somehow so shutdown.
+                    //
+                    // TODO(relay): We have this spec ticket open about this behavior:
+                    // https://gitlab.torproject.org/tpo/core/torspec/-/issues/385. It is plausible
+                    // that we decide to either keep this circuit close behavior or close the
+                    // entire channel in this case. Resolution of the above ticket needs to fix
+                    // this part.
                     Err(e) => CircuitAction::Shutdown { err: e },
                 },
                 None => CircuitAction::RemoveLeg {
