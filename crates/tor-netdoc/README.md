@@ -28,6 +28,44 @@ The parts of the crate that new code should usually interface with are:
 Additionally, there is an older internal `parse` module
 based on different parsing principles.
 
+### Traits and derives
+
+Each of `encode` and `parse2` define:
+
+ * traits for encoding and parsing;
+ * derive macros allowing automatically generated encoders and parsers
+   for document data structures which closely match the netdoc spec;
+ * helper types and traits.
+
+Network document elements categories, and the corresponding traits, are:
+
+ * Whole network documents (possibly with signatures).
+   `NetdocParseable`, `NetdocSigned` (for parsing), `NetdocEncodable`.
+
+ * Data structures containing sets of ordinary fields
+   appearing within ("flattened" into) network documents:
+   `NetdocParseableFields`, `NetdocEncodableFields`.
+
+ * The value for an individual Item.
+   (The same value type may be used for multiple different Items with different keywords,
+   depending the specific document format(s).)
+   `ItemValueParseable`, `SignatureItemParseable`, `ItemValueEncodable`.
+
+ * An Argument (or several Arguments) found on an Item line.
+   `ItemArgumentParseable`, `ItemArgument` (for encoding), `NormalItemArgument`.
+
+ * An Object (encoded as base-64 in PEM format).
+   `ItemObjectParseable`, `ItemObjectEncodable`.
+
+### Design notes
+
+The crate is derived into three main parts.  In the (private) `parse`
+module, we have the generic code that we use to parse different
+kinds of network documents.  In the [`types`] module we have
+implementations for parsing specific data structures that are used
+inside directory documents.  Finally, the [`doc`] module defines
+the parsers for the documents themselves.
+
 ## Features
 
 `routerdesc`: enable support for the "router descriptor" document type, which
