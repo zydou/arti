@@ -26,7 +26,7 @@
 //! during type inference, before considering whether the "each" type implements the
 //! required trait.
 //!
-//! This is done by calling the `.selewctor()` method:
+//! This is done by calling the `.selector()` method:
 //! deref specialisation and inherent method vs trait method priority selects
 //! the appropriate `.selector()` method, giving *another* selector,
 //! so that the compiler only considers other selector's `MultiplicityMethods`,
