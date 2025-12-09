@@ -79,9 +79,6 @@ pub(crate) mod sealed {
 }
 
 /// A request for an object that can be served over the Tor directory system.
-///
-/// See also [`Downloadable`] which further divides [`Requestable`] objects into
-/// semantic categories.
 pub trait Requestable: sealed::RequestableInner {
     /// Return a wrapper around this [`Requestable`] that implements `Debug`,
     /// and whose output shows the actual HTTP request that will be generated.
@@ -95,27 +92,6 @@ pub trait Requestable: sealed::RequestableInner {
     }
 }
 impl<T: sealed::RequestableInner> Requestable for T {}
-
-/// [`Requestable`]'s that may be downloaded.
-///
-/// The idea behind this is to allow more fine-grained control in the parameters
-/// of code that utilizes this crate.
-// TODO: Use this outside of tor-dirserver.
-// TODO: Implement this for uploads, when we need it.
-pub trait Downloadable: Requestable {}
-
-impl Downloadable for AuthCertRequest {}
-impl Downloadable for ConsensusRequest {}
-impl Downloadable for MicrodescRequest {}
-
-#[cfg(feature = "hs-client")]
-impl Downloadable for HsDescDownloadRequest {}
-
-#[cfg(feature = "routerdesc")]
-impl Downloadable for RouterDescRequest {}
-
-#[cfg(feature = "routerdesc")]
-impl Downloadable for RoutersOwnDescRequest {}
 
 /// A wrapper to implement [`Requestable::debug_request`].
 pub struct DisplayRequestable<'a, R: Requestable>(&'a R);

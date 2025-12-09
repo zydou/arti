@@ -13,7 +13,7 @@ use retry_error::RetryError;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use tor_basic_utils::retry::RetryDelay;
-use tor_dirclient::request::Downloadable;
+use tor_dirclient::request::Requestable;
 use tor_error::internal;
 use tor_rtcompat::PreferredRuntime;
 use tracing::{debug, warn};
@@ -80,7 +80,7 @@ impl<'a, 'b> DownloadManager<'a, 'b> {
     /// approach to them.  The idea behind this is, to support dual-stack
     /// directory authorities and try IPv4 and IPv6 at the same time, picking
     /// the first that succeeds.
-    async fn download_single<Req: Downloadable + Debug>(
+    async fn download_single<Req: Requestable + Debug>(
         &self,
         endpoints: &[SocketAddr],
         req: &Req,
@@ -120,13 +120,13 @@ impl<'a, 'b> DownloadManager<'a, 'b> {
         }
     }
 
-    /// Downloads a [`Downloadable`] from the download authorities.
+    /// Downloads a [`Requestable`] from the download authorities.
     ///
     /// The relevant algorithm is non-trivial, but well-documented in the
     /// [`DownloadManager`], which is why we will leave it out here by just
     /// referencing to it.
     #[allow(clippy::cognitive_complexity)]
-    pub(super) async fn download<Req: Downloadable + Debug, R: Rng>(
+    pub(super) async fn download<Req: Requestable + Debug, R: Rng>(
         &mut self,
         req: &Req,
         rng: &mut R,
