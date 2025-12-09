@@ -94,25 +94,25 @@ pub trait MultiplicityMethods<'f>: Copy + Sized {
     /// Yield the items, in a stable order
     fn iter_ordered(self, f: &'f Self::Field) -> impl Iterator<Item = &'f Self::Each> + 'f;
 
-    /// Cause a copiler error if the element is not `NetdocEncodable`
+    /// Cause a compiler error if the element is not `NetdocEncodable`
     fn check_netdoc_encodable(self)
     where
         Self::Each: NetdocEncodable,
     {
     }
-    /// Cause a copiler error if the element is not `ItemValueEncodable`
+    /// Cause a compiler error if the element is not `ItemValueEncodable`
     fn check_item_value_encodable(self)
     where
         Self::Each: ItemValueEncodable,
     {
     }
-    /// Cause a copiler error if the element is not `ItemArgument`
+    /// Cause a compiler error if the element is not `ItemArgument`
     fn check_item_argument_encodable(self)
     where
         Self::Each: ItemArgument,
     {
     }
-    /// Cause a copiler error if the element is not `ItemObjectEncodable`
+    /// Cause a compiler error if the element is not `ItemObjectEncodable`
     fn check_item_object_encodable(self)
     where
         Self::Each: ItemObjectEncodable,
