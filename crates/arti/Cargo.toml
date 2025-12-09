@@ -223,7 +223,6 @@ pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rlimit = "0.10.1"
 rustls-crate = { package = "rustls", version = "0.23.5", optional = true, default-features = false, features = [
-    "tls12",
     "logging",
     "ring",
 ] }
