@@ -15,7 +15,7 @@ const config = {
   url: 'https://tpo.pages.torproject.net',
 
   // Set the /<baseUrl>/ pathname under which your site is served
-  baseUrl: '/core/arti',
+  baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
 
