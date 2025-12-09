@@ -305,7 +305,7 @@ impl IntroRequest {
                     break;
                 }
                 Err(e) => {
-                    retry_err.push_timed(e, std::time::Instant::now());
+                    retry_err.push_timed(e, std::time::Instant::now(), None);
                     // Note that we do not sleep on errors: if there is any
                     // error that will be solved by waiting, it would probably
                     // require waiting too long to satisfy the client.

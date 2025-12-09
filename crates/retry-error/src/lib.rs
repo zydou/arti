@@ -73,7 +73,17 @@ pub struct RetryError<E> {
     n_errors: usize,
     /// The wall-clock time when the first error occurred.
     ///
-    /// This is used for human-readable display.
+    /// This is used for human-readable display of absolute timestamps.
+    ///
+    /// We store both types because they serve different purposes:
+    /// - `Instant` (in the errors vec): Monotonic clock for reliable duration calculations.
+    ///   Immune to clock adjustments, but can't be displayed as wall-clock time.
+    /// - `SystemTime` (here): Wall-clock time for displaying when the first error occurred
+    ///   in a human-readable format (e.g., "2025-12-09T10:24:02Z").
+    ///
+    /// We only store `SystemTime` for the first error to show users *when* the problem
+    /// started. Subsequent errors are displayed relative to the first ("+2m 30s"),
+    /// using the reliable `Instant` timestamps.
     first_error_at: Option<SystemTime>,
 }
 
@@ -109,23 +119,27 @@ impl<E> RetryError<E> {
             first_error_at: None,
         }
     }
-    /// Add an error to this RetryError.
+    /// Add an error to this RetryError with explicit timestamps.
     ///
     /// You should call this method when an attempt at the underlying operation
     /// has failed.
     ///
-    /// The `timestamp` parameter should be the monotonic time when the error
+    /// The `instant` parameter should be the monotonic time when the error
     /// occurred, typically obtained from a runtime's `now()` method.
+    ///
+    /// The `wall_clock` parameter is the wall-clock time when the error occurred,
+    /// used for human-readable display. Pass `None` to skip wall-clock tracking,
+    /// or `Some(SystemTime::now())` for the current time.
     ///
     /// # Example
     /// ```
     /// # use retry_error::RetryError;
-    /// # use std::time::Instant;
+    /// # use std::time::{Instant, SystemTime};
     /// let mut retry_err: RetryError<&str> = RetryError::in_attempt_to("connect");
     /// let now = Instant::now();
-    /// retry_err.push_timed("connection failed", now);
+    /// retry_err.push_timed("connection failed", now, Some(SystemTime::now()));
     /// ```
-    pub fn push_timed<T>(&mut self, err: T, timestamp: Instant)
+    pub fn push_timed<T>(&mut self, err: T, instant: Instant, wall_clock: Option<SystemTime>)
     where
         T: Into<E>,
     {
@@ -133,12 +147,11 @@ impl<E> RetryError<E> {
             self.n_errors += 1;
             let attempt = Attempt::Single(self.n_errors);
 
-            // Set first_error_at on the first error
             if self.first_error_at.is_none() {
-                self.first_error_at = Some(SystemTime::now());
+                self.first_error_at = wall_clock;
             }
 
-            self.errors.push((attempt, err.into(), timestamp));
+            self.errors.push((attempt, err.into(), instant));
         }
     }
 
@@ -148,13 +161,13 @@ impl<E> RetryError<E> {
     /// has failed.
     ///
     /// This is a convenience wrapper around [`push_timed()`](Self::push_timed)
-    /// that uses `Instant::now()` for the timestamp. For code that needs
-    /// mockable time (such as in tests), prefer `push_timed()`.
+    /// that uses `Instant::now()` and `SystemTime::now()` for the timestamps.
+    /// For code that needs mockable time (such as in tests), prefer `push_timed()`.
     pub fn push<T>(&mut self, err: T)
     where
         T: Into<E>,
     {
-        self.push_timed(err, Instant::now());
+        self.push_timed(err, Instant::now(), Some(SystemTime::now()));
     }
 
     /// Return an iterator over all of the reasons that the attempt
@@ -258,56 +271,62 @@ impl Display for Attempt {
 
 impl<E: AsRef<dyn Error>> Display for RetryError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
+        let show_timestamps = f.alternate();
+
         match self.n_errors {
             0 => write!(f, "Unable to {}. (No errors given)", self.doing),
             1 => {
                 write!(f, "Unable to {}", self.doing)?;
 
-                // Show timestamp if available
-                if let (Some((.., timestamp)), Some(first_at)) =
-                    (self.errors.first(), self.first_error_at)
-                {
-                    write!(
-                        f,
-                        " at {} ({})",
-                        humantime::format_rfc3339(first_at),
-                        format_time_ago(timestamp.elapsed())
-                    )?;
+                if show_timestamps {
+                    if let (Some((.., timestamp)), Some(first_at)) =
+                        (self.errors.first(), self.first_error_at)
+                    {
+                        write!(
+                            f,
+                            " at {} ({})",
+                            humantime::format_rfc3339(first_at),
+                            FormatTimeAgo(timestamp.elapsed())
+                        )?;
+                    }
                 }
 
                 write!(f, ": ")?;
                 fmt_error_with_sources(self.errors[0].1.as_ref(), f)
             }
             n => {
-                write!(f, "Tried to {} {} times", self.doing, n)?;
+                write!(
+                    f,
+                    "Tried to {} {} times, but all attempts failed",
+                    self.doing, n
+                )?;
 
-                // Show time range if we have timestamps
-                if let (Some(first_at), Some((.., first_ts)), Some((.., last_ts))) =
-                    (self.first_error_at, self.errors.first(), self.errors.last())
-                {
-                    let duration = last_ts.saturating_duration_since(*first_ts);
+                if show_timestamps {
+                    if let (Some(first_at), Some((.., first_ts)), Some((.., last_ts))) =
+                        (self.first_error_at, self.errors.first(), self.errors.last())
+                    {
+                        let duration = last_ts.saturating_duration_since(*first_ts);
 
-                    write!(f, " from {} ", humantime::format_rfc3339(first_at))?;
+                        write!(f, " (from {} ", humantime::format_rfc3339(first_at))?;
 
-                    if duration.as_secs() > 0 {
-                        write!(f, "to {} ", humantime::format_rfc3339(first_at + duration))?;
+                        if duration.as_secs() > 0 {
+                            write!(f, "to {}", humantime::format_rfc3339(first_at + duration))?;
+                        }
+
+                        write!(f, ", {})", FormatTimeAgo(last_ts.elapsed()))?;
                     }
-
-                    write!(f, "({})", format_time_ago(last_ts.elapsed()))?;
                 }
 
-                write!(f, ", but all attempts failed")?;
-
-                // Show individual attempts with time offsets
                 let first_ts = self.errors.first().map(|(.., ts)| ts);
                 for (attempt, e, timestamp) in &self.errors {
                     write!(f, "\n{}", attempt)?;
 
-                    // Show offset from first error
-                    if let Some(first_ts) = first_ts {
-                        let offset = timestamp.saturating_duration_since(*first_ts);
-                        if offset.as_secs() > 0 {
-                            write!(f, " ({})", format_duration(offset))?;
+                    if show_timestamps {
+                        if let Some(first_ts) = first_ts {
+                            let offset = timestamp.saturating_duration_since(*first_ts);
+                            if offset.as_secs() > 0 {
+                                write!(f, " (+{})", FormatDuration(offset))?;
+                            }
                         }
                     }
 
@@ -320,64 +339,68 @@ impl<E: AsRef<dyn Error>> Display for RetryError<E> {
     }
 }
 
-/// Format a duration for display with "ago" suffix.
+/// A wrapper for formatting a [`Duration`] in a human-readable way.
+/// Produces output like "2m 30s", "5h 12m", "45s", "500ms".
 ///
-/// Returns strings like "2m 30s ago", "just now", "500ms ago".
-fn format_time_ago(d: Duration) -> String {
-    let secs = d.as_secs();
+/// We use this instead of `humantime::format_duration` because humantime tends to produce overly verbose output.
+struct FormatDuration(Duration);
 
-    if secs == 0 {
-        let millis = d.as_millis();
-        if millis == 0 {
-            return "just now".to_string();
-        }
-        return format!("{}ms ago", millis);
+impl Display for FormatDuration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt_duration_impl(self.0, f)
     }
-
-    let duration_str = if secs < 60 {
-        format!("{}s", secs)
-    } else if secs < 3600 {
-        let mins = secs / 60;
-        let rem_secs = secs % 60;
-        if rem_secs == 0 {
-            format!("{}m", mins)
-        } else {
-            format!("{}m {}s", mins, rem_secs)
-        }
-    } else {
-        let hours = secs / 3600;
-        let mins = (secs % 3600) / 60;
-        if mins == 0 {
-            format!("{}h", hours)
-        } else {
-            format!("{}h {}m", hours, mins)
-        }
-    };
-
-    format!("{} ago", duration_str)
 }
 
-/// Format a duration without "ago" suffix (for offsets between attempts).
-fn format_duration(d: Duration) -> String {
-    let secs = d.as_secs();
+/// A wrapper for formatting a [`Duration`] with "ago" suffix.
+struct FormatTimeAgo(Duration);
+
+impl Display for FormatTimeAgo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let secs = self.0.as_secs();
+        let millis = self.0.as_millis();
+
+        // Special case: very recent times show as "just now" rather than "0s ago" or "0ms ago"
+        if secs == 0 && millis == 0 {
+            return write!(f, "just now");
+        }
+
+        fmt_duration_impl(self.0, f)?;
+        write!(f, " ago")
+    }
+}
+
+/// Internal helper to format a duration.
+///
+/// This function contains the actual formatting logic to avoid duplication
+/// between `FormatDuration` and `FormatTimeAgo`.
+fn fmt_duration_impl(duration: Duration, f: &mut Formatter<'_>) -> fmt::Result {
+    let secs = duration.as_secs();
+
+    if secs == 0 {
+        let millis = duration.as_millis();
+        if millis == 0 {
+            return write!(f, "0s");
+        }
+        return write!(f, "{}ms", millis);
+    }
 
     if secs < 60 {
-        format!("{}s", secs)
+        write!(f, "{}s", secs)
     } else if secs < 3600 {
         let mins = secs / 60;
         let rem_secs = secs % 60;
         if rem_secs == 0 {
-            format!("{}m", mins)
+            write!(f, "{}m", mins)
         } else {
-            format!("{}m {}s", mins, rem_secs)
+            write!(f, "{}m {}s", mins, rem_secs)
         }
     } else {
         let hours = secs / 3600;
         let mins = (secs % 3600) / 60;
         if mins == 0 {
-            format!("{}h", hours)
+            write!(f, "{}h", hours)
         } else {
-            format!("{}h {}m", hours, mins)
+            write!(f, "{}h {}m", hours, mins)
         }
     }
 }
@@ -475,15 +498,20 @@ mod test {
         if let Err(e) = "the_g1b50n".parse::<std::net::IpAddr>() {
             err.push(e);
         }
+
         let disp = format!("{}", err);
-        // Check that the output contains the expected messages
-        assert!(disp.contains("Tried to convert some things 3 times"));
-        assert!(disp.contains("but all attempts failed"));
-        assert!(disp.contains("Attempt 1: provided string was not `true` or `false`"));
-        assert!(disp.contains("Attempt 2: invalid digit found in string"));
-        assert!(disp.contains("Attempt 3: invalid IP address syntax"));
-        // Check that timestamps are present
-        assert!(disp.contains("from 20")); // Year prefix for timestamp
+        assert_eq!(
+            disp,
+            "\
+Tried to convert some things 3 times, but all attempts failed
+Attempt 1: provided string was not `true` or `false`
+Attempt 2: invalid digit found in string
+Attempt 3: invalid IP address syntax"
+        );
+
+        let disp_alt = format!("{:#}", err);
+        assert!(disp_alt.contains("Tried to convert some things 3 times, but all attempts failed"));
+        assert!(disp_alt.contains("(from 20")); // Year prefix for timestamp
     }
 
     #[test]
@@ -505,10 +533,14 @@ mod test {
             err.push(e);
         }
         let disp = format!("{}", err);
-        assert!(disp.contains("Unable to connect to torproject.org"));
-        assert!(disp.contains("invalid IP address syntax"));
-        // Check that timestamp is present
-        assert!(disp.contains("at 20")); // Year prefix for timestamp
+        assert_eq!(
+            disp,
+            "Unable to connect to torproject.org: invalid IP address syntax"
+        );
+
+        let disp_alt = format!("{:#}", err);
+        assert!(disp_alt.contains("Unable to connect to torproject.org at 20")); // Year prefix
+        assert!(disp_alt.contains("invalid IP address syntax"));
     }
 
     #[test]
@@ -542,12 +574,18 @@ mod test {
         }
 
         err.dedup();
+
         let disp = format!("{}", err);
-        assert!(disp.contains("Tried to parse some integers 3 times"));
-        assert!(disp.contains("but all attempts failed"));
-        assert!(disp.contains("Attempts 1..3: invalid digit found in string"));
-        // Check that timestamps are present
-        assert!(disp.contains("from 20")); // Year prefix for timestamp
+        assert_eq!(
+            disp,
+            "\
+Tried to parse some integers 3 times, but all attempts failed
+Attempts 1..3: invalid digit found in string"
+        );
+
+        let disp_alt = format!("{:#}", err);
+        assert!(disp_alt.contains("Tried to parse some integers 3 times, but all attempts failed"));
+        assert!(disp_alt.contains("(from 20")); // Year prefix for timestamp
     }
 
     #[test]

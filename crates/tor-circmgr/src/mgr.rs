@@ -1007,7 +1007,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
             // How much time is remaining?
             let remaining = match timeout_at.checked_duration_since(self.runtime.now()) {
                 None => {
-                    retry_err.push_timed(Error::RequestTimeout, self.runtime.now());
+                    retry_err.push_timed(Error::RequestTimeout, self.runtime.now(), None);
                     break;
                 }
                 Some(t) => t,
@@ -1031,7 +1031,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                             // We ran out of "remaining" time; there is nothing
                             // more to be done.
                             warn!("All tunnel attempts failed due to timeout");
-                            retry_err.push_timed(Error::RequestTimeout, self.runtime.now());
+                            retry_err.push_timed(Error::RequestTimeout, self.runtime.now(), None);
                             break;
                         }
                     }
@@ -1060,7 +1060,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
             // Record the error, flattening it if needed.
             match error {
                 Error::RequestFailed(e) => retry_err.extend(e),
-                e => retry_err.push_timed(e, now),
+                e => retry_err.push_timed(e, now, None),
             }
 
             *count += 1;
@@ -1212,7 +1212,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
                 // secondary reports of other tunnels' failures.
                 err = Error::PendingFailed(Box::new(err));
             }
-            retry_err.push_timed(err, timestamp);
+            retry_err.push_timed(err, timestamp, None);
         }
         /// Return a string describing what it means, within the context of this
         /// function, to have gotten an answer from `source`.

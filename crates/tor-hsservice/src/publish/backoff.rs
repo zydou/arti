@@ -101,7 +101,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                                 "failed to {}: {e}", self.doing
                             );
 
-                            errors.push_timed(e.clone(), self.runtime.now());
+                            errors.push_timed(e.clone(), self.runtime.now(), None);
                             (e.should_retry(), self.schedule.next_delay(&e))
                         }
                         Err(e) => {
