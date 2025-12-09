@@ -64,6 +64,8 @@ pub trait NetdocParseableFields: Sized {
 ///
 /// Typically implemented automatically, for `FooSigned` structs, as defined by
 /// [`#[derive_deftly(NetdocSigned)]`](derive_deftly_template_NetdocSigned).
+//
+// TODO is this only useable for parsing?  It needs to be renamed, or maybe impooved and moved
 pub trait NetdocSigned {
     /// The body, ie not including the signatures
     type Body: Sized;

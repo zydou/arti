@@ -96,6 +96,8 @@ pub struct Cursor {
 ///
 /// This is a separate trait so we can control the formatting of (eg) [`Iso8601TimeSp`],
 /// without having a method on `ItemEncoder` for each argument type.
+//
+// TODO consider renaming this to ItemArgumentEncodable to mirror all the other related traits.
 pub trait ItemArgument {
     /// Format as a string suitable for including as a netdoc keyword line argument
     ///
