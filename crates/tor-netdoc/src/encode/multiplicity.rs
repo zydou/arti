@@ -35,7 +35,7 @@
 //! a call to `.check_item_value_encodable` could be resolved by autoref
 //! so the compiler reports that **`Vec<..>`** doesn't implement the needed trait.
 //!
-//! `DeterminedMultiplicitySelector` is used explicitly in the derive when we
+//! `SingletonMultiplicitySelector` is used explicitly in the derive when we
 //! know that we want to encode exactly one element:
 //! for example, a document's intro item cannot be repeated or omitted.
 
