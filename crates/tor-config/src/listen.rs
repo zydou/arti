@@ -53,6 +53,20 @@ impl Listen {
         self.ip_addrs_internal().count() == 0
     }
 
+    /// Return true if there are any "auto" addresses in this Listen.
+    ///
+    /// See also [`using_port_zero()`](Self::using_port_zero).
+    pub fn using_auto(&self) -> bool {
+        self.0.items().any(ListenItem::is_auto)
+    }
+
+    /// Return true if there are any "auto" addresses in this Listen.
+    ///
+    /// See also [`using_auto()`](Self::using_auto).
+    pub fn using_port_zero(&self) -> bool {
+        self.0.items().any(ListenItem::is_port_zero)
+    }
+
     /// List the network socket addresses to listen on
     ///
     /// Each returned item is a list of `SocketAddr`,
@@ -310,6 +324,29 @@ impl ListenItem {
             LI::Auto => with_ips(0),
             LI::AutoPort(addr) => Either::Right(iter::once((*addr, 0).into())),
             LI::General(addr) => Either::Right(iter::once(*addr)),
+        }
+    }
+
+    /// Return true if this ListenItem is "addr:auto" or "auto"
+    fn is_auto(&self) -> bool {
+        use ListenItem as LI;
+        match self {
+            LI::Port(_) => false,
+            LI::Auto => true,
+            LI::AutoPort(_) => true,
+            LI::General(_) => false,
+        }
+    }
+
+    /// Return true if this ListenItem is using an explicit (deprecated) port value of 0.
+    fn is_port_zero(&self) -> bool {
+        use ListenItem as LI;
+
+        match self {
+            LI::Port(port) => *port == 0,
+            LI::Auto => false,
+            LI::AutoPort(_) => false,
+            LI::General(addr) => addr.port() == 0,
         }
     }
 }
