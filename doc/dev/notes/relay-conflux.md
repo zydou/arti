@@ -390,15 +390,201 @@ I think the `XON` sending logic can stay the same in our multi-reactor design
 Ideally, we should be able to rewrite the client circuit reactor using
 the multi-reactor, multi-task architecture we have on the relay side.
 
-A client will have both a `FWD` and a `BWD` reactor, but its `FWD` reactor
-will never get initialized with an outgoing Tor channel. The only responsibility
-of this reactor will be to forward cells either to `BWD` (in the case of
-circuit-level SENDMEs), or to the stream data `Sink`
-(connected either to `StreamReactor`, for single-path cirucits,
-or `ConfluxController`, for the multi-path ones).
+A client will have both a `FWD` and a `BWD` reactor but its `FWD` reactor
+will never get initialized with an outgoing Tor channel.
+The only responsibility of this reactor will be to read cells coming from the guard,
+and forward them either to `BWD` (in the case of circuit-level SENDMEs),
+or to the stream data `Sink` (connected either to `StreamReactor`, for
+single-path cirucits, or `ConfluxController`, for the multi-path ones).
+The `BWD` will write cells to the (Tor) channel to the guard.
+
+> At this point, it's obvious `FWD` and `BWD` have become misnomers:
+> for a client reactor, it is `BWD` who forwards cells in the CREATE direction,
+> not `FWD`!
+>
+> In both cases, however, `FWD` is responsible for accepting cells
+> coming from a Tor channel, and decrypting them, if possible.
+> Similarly, in both cases `BWD` is the component in charge
+> of encrypting and sending outgoing cells.
+>
+> A better name for these is TBD.
 
 
-Various parts of the `FWD` reactor will need to be abstracted away,
+Unlike relays, clients have multiple stream maps, one for each hop
+(because of leaky pipe).
+This means each client circuit will have up to one stream reactor task per `CircHop`.
+
+Cell flow, from guard to client backward reactor,
+assuming the streams are all on the same hop:
+
+```
+  +--------------- FWD <--------------------+
+  |                 |                       |
+  |                 |                       |
+  |                 |                       |
+  v                 |                       |
+StreamReactor  BackwardReactorCmd         guard
+  |               <MPSC (0)>                ^
+  |                 |                       |
+  |                 |                       |
+  |                 |                       |
+  |                 v                       |
+  +--------------> BWD ---------------------+
+```
+
+With leaky pipe (`SR` = `StreamReactor`):
+
+```
+
+
+  +------------------------------+
+  |       +--------------------+ |
+  |       |                    | |
+  |       |       +----------- FWD <------------------+
+  |       |       |             |                     |
+  |       |       |             |                     |
+  |       |       |             |                     |
+  v       v       v             |                     |
+ SR      SR      SR           BackwardReactorCmd    guard
+(hop 4) (hop 3)  (hop 2)      <MPSC (0)>              ^
+  |       |       |             |                     |
+  |       |       |             |                     |
+  |       |       |             |                     |
+  |       |       |             v                     |
+  |       |       |            BWD -------------------+
+  |       |       |             ^
+  |       |       |             |
+  |       |       |             | <stream_rx
+  |       |       |             |  MPSC (0)>
+  +-------+-------+-------------+
+```
+
+The `BWD` will have a `stream_rx` MPSC channel for receiving `(HopNum, StreamEvent)` from
+its various `StreamReactor`s (each `StreamReactor` will need to know the
+`HopNum` it's associated with). The `HopNum` is there because on the client side,
+the `BWD` needs to know the `HopNum` to encrypt outgoing cells. For relays,
+the `HopNum` can just be `0`, as it will be unused (we could also make it an `Option<>`).
+
+
+The conflux case is even more complicated.
+For example, consider a conflux tunnel with two legs,
+where the first leg has leaky pipe streams on two of its hops:
+
+```
+                                     +--------------------------------+
+                                     |       +----------------------+ |
+                                     |       |                      | |
+                                     |       |       +------------- FWD 1 <--------+
+         stream_tx                   |       |       |               |             |
+   +-------------------+             |       |       |               |             |
+   |                   |             |       |       |               |             |
+   v                   |             |       v       v               |             |
+   SR          ConfluxController <-- +      SR      SR               |           guard 1
+(join point)           ^  | |        |     (hop 3)  (hop 2)       <MPSC (0)>       ^
+   |                   |  | |        |       |       |               |             |
+   +-------------------+  | |        |       |       |               |             |
+         stream_rx        | |        |       |       |               |             |
+                          | |        |       |       |               v             |
+                          | |        |       |       |              BWD 1 ---------+
+                          | |        |       |       |               ^
+                          | |        |       |       |               |
+                          | |        |       |       |               | <stream_rx
+                          | |        |       |       |               |  MPSC (0)>
+                          | +--------/-------+-------+---------------+
+                          |          |
+                          |          |
+                          |          +----------------------------- FWD 2 <--------+
+                          |                                          |             |
+                          |                                          |             |
+                          |                                          |           guard 2
+                          |                                       <MPSC (0)>       ^
+                          |                                          |             |
+                          |                                          v             |
+                          +---------------------------------------> BWD 2 ---------+
+```
+
+To support all of this `FWD` will need the ability to dispatch cells to the right `StreamReactor`.
+Conceptually, we would need an SPMC channel, but for now we can just create an abstraction
+over multiple MPSC/SPSC channels, and later swap out the implementation:
+
+```rust
+struct StreamReactorSender {
+    /// The sender is set to None for the hops that don't have a stream reactor
+    tx: SmallVec<[Option<mpsc::Sender<(StreamId, UnparsedRelayMsg)>>; MAX_HOPS]>,
+}
+
+impl StreamReactorSender {
+    /// API used by the FWD to deliver messages to streams.
+    fn send(&self, sid: StreamId, msg: UnparsedRelayMsg) -> Result<()> { ... }
+}
+
+struct ForwardReactor {
+    /// A channel for delivering messages to the stream reactor.
+    stream_tx: StreamReactorSender,
+    ...
+}
+```
+
+However, the logic for delivering stream messages
+is unfortunately not trivial to decouple from the circuit reactor:
+
+1. If the target stream reactor doesn't have an entry for the specified `sid`,
+and the relay message is `BEGIN`, `BEGIN_DIR`, or `RESOLVE`,
+it means we need to accept (or reject) an incoming stream,
+and send a cell back to the stream initiator (`CONNECTED`/`END`),
+which we cannot do directly from the `StreamReactor`
+
+2. If the target stream reactor doesn't have an entry for the specified `sid`,
+and the relay message is **not** `BEGIN`, `BEGIN_DIR`, or `RESOLVE`,
+the circuit must be torn down with a protocol violation error
+
+On top of that, the `StreamReactor`, which in this new design
+is the only entity with access to the stream maps,
+will sometimes decide it is time to send an `XOFF`
+(if the stream entry it has just delivered the message for has too much data buffered).
+
+This means the `StreamReactor`-> `BackwardReactor` MPSC channels need to be able
+to send
+
+  * `CONNECTED`/`END`, in response to an incoming stream request
+  * `XOFF`, if `StreamReactor` notices a stream is not read from quickly enough
+  * ready stream messages, obtained from `StreamMap::poll_ready_streams_iter()`
+
+So the `StreamEvent`s `StreamReactor` sends to the `BackwardReactor` are:
+
+```rust
+/// A Tor stream event.
+enum StreamEvent {
+    /// A stream has a ready message.
+    ReadyMsg {
+        /// The ID of the stream to close.
+        sid: StreamId,
+        /// The message.
+        msg: AnyRelayMsg,
+    },
+    /// Send a message to the other endpoint.
+    ///
+    /// This might be be XOFF, CONNECTED, or END
+    SendMsg {
+        /// The message.
+        msg: AnyRelayMsgOuter,
+    },
+}
+```
+
+For 2., we can simply log the protocol violation error and shut down the `StreamReactor`.
+When the `StreamReactor` shuts down, the other reactors will shut down as well,
+tearing down the entire circuit:
+
+  * the `BWD` shuts down because its RX channel towards the `StreamReactor` will close
+  * the `relay::Reactor` shuts down because the `backward.run()` future resolves
+  * the `FWD` shuts down because the `shutdown_rx` channel with `relay::Reactor` is closed
+  * this will trickle down to all the other `StreamReactor` tasks,
+    because they all have rx channels reading from the `FWD`
+
+-----
+
+Various parts of the `FWD`/`BWD` reactors will need to be abstracted away,
 as they will be different on the client side:
 
   * the `crypto_out` state (set to `OutboundClientCrypt` for clients, and
@@ -407,3 +593,8 @@ as they will be different on the client side:
     always be `None` in the client reactor
   * clients and relays support different incoming messages,
     so we might need to delegate their handling to an abstract `MsgHandler`
+  * `FWD` and `BWD` will need to support handling `CtrlMsg`s.
+    And since `CtrlMsg`s are going to be implementation-dependent,
+    the `CtrlMsg` type will be eventually become one of the generic params on the reactors
+  * `TunnelMutableState`, which is shared with `ClientCirc`,
+    will need to be removed/redesigned
