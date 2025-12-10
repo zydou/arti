@@ -177,6 +177,11 @@ client           <MPSC (0)>                            <MPSC (unbounded if flowc
 
 ```
 
+`FWD` will have a `stream_fwd_tx` `Sink` (internally an MPSC channel with no buffering)
+for sending stream cells (`BEGIN`, `DATA`, `END`, `RESOLVE`, etc.) to `StreamWrite` for handling.
+
+`BWD` will have a `stream_bwd_rx` `Stream` for reading ready stream messages
+from `StreamRead`. `BWD` will write these messages to its "towards the client" Tor channel.
 
 To implement this, we would need the ability to split the `StreamMap` in two,
 such that each stream entry can be read from, and written to, from separate
@@ -198,12 +203,6 @@ for middle relays that don't do leaky pipe.
 
 With this change, exits (and relays with leaky pipe) will spawn 4 tasks per circuit,
 instead of just 2.
-
-`FWD` will have a `stream_fwd_tx` `Sink` (internally an MPSC channel with no buffering)
-for sending stream cells (`BEGIN`, `DATA`, `END`, `RESOLVE`, etc.) to `StreamWrite` for handling.
-
-`BWD` will have a `stream_bwd_rx` `Stream` for reading ready stream messages
-from `StreamRead`. `BWD` will write these messages to its "towards the client" Tor channel.
 
 > Note: in the case of conflux circuits (tunnels), the `Stream{Read Write}` tasks won't be launched by `FWD`.
 >
