@@ -378,9 +378,10 @@ enum CircuitAction {
         /// The action to take.
         padding_action: PaddingEvent,
     },
-    /// Shutdown the circuit reactor. The cause is set in err.
-    Shutdown {
-        /// The error that causes this reactor shutdown.
+    /// Protocol violation. This leads for now to the close of the circuit reactor. The
+    /// error causing the violation is set in err.
+    ProtoViolation {
+        /// The error that causes this protocol violation.
         err: crate::Error,
     },
 }
@@ -422,7 +423,7 @@ impl CircuitAction {
             },
             #[cfg(not(feature = "circ-padding"))]
             CA::PaddingAction { .. } => NORMAL,
-            CA::Shutdown { .. } => EARLY,
+            CA::ProtoViolation { .. } => EARLY,
         }
     }
 }
@@ -848,7 +849,7 @@ impl Reactor {
                         }
                     }
                 }
-                CircuitAction::Shutdown { err } => {
+                CircuitAction::ProtoViolation { err } => {
                     return Err(err.into());
                 }
             };

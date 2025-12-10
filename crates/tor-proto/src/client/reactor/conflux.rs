@@ -984,7 +984,7 @@ impl ConfluxSet {
                     // that we decide to either keep this circuit close behavior or close the
                     // entire channel in this case. Resolution of the above ticket needs to fix
                     // this part.
-                    Err(e) => CircuitAction::Shutdown { err: e },
+                    Err(e) => CircuitAction::ProtoViolation { err: e },
                 },
                 None => CircuitAction::RemoveLeg {
                     leg: unique_id,

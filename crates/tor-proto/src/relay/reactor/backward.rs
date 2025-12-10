@@ -366,7 +366,7 @@ impl BackwardReactor {
                 // Forward channel unexpectedly closed, we should close too
                 match input.next().await {
                     Some(msg) => match msg.try_into() {
-                        Err(e) => CircuitEvent::Shutdown(e),
+                        Err(e) => CircuitEvent::ProtoViolation(e),
                         Ok(cell) => CircuitEvent::Cell(cell),
                     },
                     None => {
@@ -452,7 +452,7 @@ impl BackwardReactor {
 
                 Err(ReactorError::Shutdown)
             }
-            Shutdown(err) => Err(err.into()),
+            ProtoViolation(err) => Err(err.into()),
         }
     }
 
@@ -824,11 +824,11 @@ enum CircuitEvent {
     ///
     /// We need to shut down too.
     ForwardShutdown,
-    /// Shutdown of the reactor.
+    /// Protocol violation.
     ///
     /// This can happen if we receive a channel message that is not supported
-    /// on a relay-to-relay channel.
-    Shutdown(Error),
+    /// on a relay-to-relay channel. The error is the cause of the violation.
+    ProtoViolation(Error),
 }
 
 /// Instructions from the forward reactor.
