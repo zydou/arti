@@ -233,6 +233,7 @@ impl<E, T> Extend<T> for RetryError<E>
 where
     T: Into<E>,
 {
+    #[allow(clippy::disallowed_methods)]
     fn extend<C>(&mut self, iter: C)
     where
         C: IntoIterator<Item = T>,
@@ -379,12 +380,11 @@ fn fmt_duration_impl(duration: Duration, f: &mut Formatter<'_>) -> fmt::Result {
     if secs == 0 {
         let millis = duration.as_millis();
         if millis == 0 {
-            return write!(f, "0s");
+            write!(f, "0s")
+        } else {
+            write!(f, "{}ms", millis)
         }
-        return write!(f, "{}ms", millis);
-    }
-
-    if secs < 60 {
+    } else if secs < 60 {
         write!(f, "{}s", secs)
     } else if secs < 3600 {
         let mins = secs / 60;
@@ -483,6 +483,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::disallowed_methods)]
     use super::*;
     use derive_more::From;
 
