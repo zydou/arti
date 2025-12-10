@@ -47,10 +47,14 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
+#[cfg(any(feature = "encode", feature = "parse2"))]
+#[macro_use]
+mod derive_common;
 #[cfg(feature = "parse2")]
 #[macro_use]
 pub mod parse2;
 #[cfg(feature = "encode")]
+#[macro_use]
 pub mod encode;
 #[macro_use]
 pub(crate) mod parse;
@@ -59,7 +63,7 @@ mod err;
 pub mod types;
 mod util;
 
-#[cfg(all(test, feature = "parse2"))]
+#[cfg(all(test, feature = "parse2", feature = "encode"))]
 mod test2;
 
 #[doc(hidden)]

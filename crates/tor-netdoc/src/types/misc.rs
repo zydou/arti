@@ -15,6 +15,18 @@ pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
 pub use timeimpl::*;
 
+#[cfg(feature = "encode")]
+use {
+    crate::encode::{
+        self,
+        ItemEncoder,
+        ItemObjectEncodable,
+        ItemValueEncodable,
+        // `E` for "encode`; different from `parse2::MultiplicitySelector`
+        MultiplicitySelector as EMultiplicitySelector,
+    },
+    std::iter,
+};
 #[cfg(feature = "parse2")]
 use {
     crate::parse2::multiplicity::{
@@ -32,7 +44,7 @@ pub use fingerprint::{Base64Fingerprint, Fingerprint};
 
 pub use identified_digest::{DigestName, IdentifiedDigest};
 
-pub use ignored_impl::{Ignored, NotPresent};
+pub use ignored_impl::{Ignored, IgnoredItemOrObjectValue, NotPresent};
 
 use crate::NormalItemArgument;
 use derive_deftly::{Deftly, define_derive_deftly};
@@ -289,9 +301,13 @@ mod ignored_impl {
     /// When deriving `parse2` traits, and a field is absent in a particular netstatus variety,
     /// use `ns_type!` with [`NotPresent`], rather than `Ignored`.
     ///
-    /// Cannot be encoded.  During encoding, the multiplicity arrangements must ensure that
-    /// no attempt is made to encode an `Ignored`.
-    // TODO there are no derives or multiplicity arrangements for ecoding yet.
+    /// During encoding as an Items or Objects, will be entirely omitted,
+    /// via the multiplicity arrangements.
+    ///
+    /// Cannot be encoded as an Argument: if this is not the last
+    /// Argument, we need something to put into the output document to avoid generating
+    /// a document with the arguments out of step.  If it *is* the last argument,
+    /// it could simply be omitted, since additional arguments are in any case ignored.
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
     #[cfg_attr(
         feature = "parse2",
@@ -300,6 +316,14 @@ mod ignored_impl {
     )]
     #[allow(clippy::exhaustive_structs)]
     pub struct Ignored;
+
+    /// An Item or Object that would be ignored during parsing and is omitted during encoding
+    ///
+    /// This is the "single" item type for encoding multiplicity for Items or Objects,
+    /// for [`Ignored`].
+    ///
+    /// This type is uninhabited.
+    pub struct IgnoredItemOrObjectValue(Void);
 
     #[cfg(feature = "parse2")]
     impl ItemSetMethods for P2MultiplicitySelector<NotPresent> {
@@ -329,6 +353,24 @@ mod ignored_impl {
         type Each = Void;
         fn resolve_option(self, _found: Option<Void>) -> Result<NotPresent, EP> {
             Ok(NotPresent)
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl<'f> encode::MultiplicityMethods<'f> for EMultiplicitySelector<NotPresent> {
+        type Field = NotPresent;
+        type Each = Void;
+        fn iter_ordered(self, _: &'f Self::Field) -> impl Iterator<Item = &'f Self::Each> {
+            iter::empty()
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl encode::OptionalityMethods for EMultiplicitySelector<NotPresent> {
+        type Field = NotPresent;
+        type Each = Void;
+        fn as_option<'f>(self, _: &'f Self::Field) -> Option<&'f Self::Each> {
+            None
         }
     }
 
@@ -363,6 +405,41 @@ mod ignored_impl {
         type Each = Ignored;
         fn resolve_option(self, _found: Option<Ignored>) -> Result<Ignored, EP> {
             Ok(Ignored)
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl<'f> encode::MultiplicityMethods<'f> for EMultiplicitySelector<Ignored> {
+        type Field = Ignored;
+        type Each = IgnoredItemOrObjectValue;
+        fn iter_ordered(self, _: &'f Self::Field) -> impl Iterator<Item = &'f Self::Each> {
+            iter::empty()
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl encode::OptionalityMethods for EMultiplicitySelector<Ignored> {
+        type Field = Ignored;
+        type Each = IgnoredItemOrObjectValue;
+        fn as_option<'f>(self, _: &'f Self::Field) -> Option<&'f Self::Each> {
+            None
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl ItemValueEncodable for IgnoredItemOrObjectValue {
+        fn write_item_value_onto(&self, _: ItemEncoder) -> Result<(), Bug> {
+            void::unreachable(self.0)
+        }
+    }
+
+    #[cfg(feature = "encode")]
+    impl ItemObjectEncodable for IgnoredItemOrObjectValue {
+        fn label(&self) -> &str {
+            void::unreachable(self.0)
+        }
+        fn write_object_onto(&self, _: &mut Vec<u8>) -> Result<(), Bug> {
+            void::unreachable(self.0)
         }
     }
 }

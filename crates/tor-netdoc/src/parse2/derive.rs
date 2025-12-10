@@ -2,43 +2,11 @@
 
 use super::*;
 
-/// Macro to help check that netdoc items in a derive input are in the right order
-///
-/// Used only by the `NetdocParseable` derive-deftly macro.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! netdoc_ordering_check {
-    { } => { compile_error!("netdoc must have an intro item so cannot be empty"); };
-
-    // When we have   K0 P0 K1 P1 ...
-    //   * Check that P0 and P1 have a consistent ordr
-    //   * Continue with   K1 P1 ...
-    // So we check each consecutive pair of fields.
-    { $k0:ident $f0:ident $k1:ident $f1:ident $($rest:tt)* } => {
-        $crate::netdoc_ordering_check! { <=? $k0 $k1 $f1 }
-        $crate::netdoc_ordering_check! { $k1 $f1 $($rest)* }
-    };
-    { $k0:ident $f0:ident } => {}; // finished
-
-    // Individual ordering checks for K0 <=? K1
-    //
-    // We write out each of the allowed this-kind next-kind combinations:
-    { <=? intro     $any:ident $f1:ident } => {};
-    { <=? normal    normal     $f1:ident } => {};
-    { <=? normal    subdoc     $f1:ident } => {};
-    { <=? subdoc    subdoc     $f1:ident } => {};
-    // Not in the allowed list, must be an error:
-    { <=? $k0:ident $k1:ident  $f1:ident } => {
-        compile_error!(concat!(
-            "in netdoc, ", stringify!($k1)," field ", stringify!($f1),
-            " may not come after ", stringify!($k0),
-        ));
-    };
-}
-
 /// Helper to implemnet `dtrace!` inside `NetdocParseable` derive-deftly macro.
 #[doc(hidden)]
 pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]) {
+    // Take a lock like this so that all our output appears at once,
+    // rather than possibly being interleaved with similar output for other types.
     let mut out = std::io::stderr().lock();
     (|| {
         write!(out, "netdoc {ttype} parse: {msg}")?;
@@ -47,25 +15,20 @@ pub fn netdoc_parseable_derive_debug(ttype: &str, msg: &str, vals: &[&dyn Debug]
         }
         writeln!(out)
     })()
-    .expect("write to String failed");
+    .expect("write to stderr failed");
 }
 
 define_derive_deftly_module! {
     /// Common definitions for `NetdocParseable` and `NetdocParseableFields`
-    ///
-    /// Importing template must define these:
-    ///
-    ///  * **`F_INTRO`**, **`F_SUBDOC`**, **`F_SIGNATURE`**
-    ///    conditions for the fundamental field kinds which aren't supported everywhere.
-    ///
-    ///    The `F_FLATTEN` and `F_NORMAL` field type conditions are defined here.
     ///
     ///  * **`THIS_ITEM`**: consumes the next item and evaluates to it as an `UnparsedItem`.
     ///    See the definition in `NetdocParseable`.
     ///
     ///  * **`F_ACCUMULATE_VAR`** the variable or field into which to accumulate
     ///    normal items for this field.  Must be of type `&mut $F_ACCUMULATE_TYPE`.
-    NetdocParseableCommon beta_deftly:
+    ///
+    /// Importer must also import `NetdocSomeItemsDeriveCommon` and `NetdocDeriveAnyCommon`.
+    NetdocSomeItemsParseableCommon beta_deftly:
 
     // Convenience alias for our prelude
     ${define P { $crate::parse2::internal_prelude }}
@@ -75,7 +38,7 @@ define_derive_deftly_module! {
         #[allow(unused_macros)]
         macro_rules! dtrace { { $$msg:literal $$(, $$val:expr )* $$(,)? } => {
           ${if tmeta(netdoc(debug)) {
-              netdoc_parseable_derive_debug(
+              $P::netdoc_parseable_derive_debug(
                   ${concat $ttype},
                   $$msg,
                   &[ $$( &&$$val as _, )* ],
@@ -83,33 +46,6 @@ define_derive_deftly_module! {
           }}
         }}
     }}
-
-    // Is this field `flatten`?
-    ${defcond F_FLATTEN fmeta(netdoc(flatten))}
-    // Is this field normal (non-structural)?
-    ${defcond F_NORMAL not(any(F_SIGNATURE, F_INTRO, F_FLATTEN, F_SUBDOC))}
-
-    // Field keyword as `&str`
-    ${define F_KEYWORD_STR { ${concat
-        ${if any(F_FLATTEN, F_SUBDOC) {
-          ${if F_INTRO {
-            ${error "#[deftly(netdoc(subdoc))] and (flatten) not supported for intro items"}
-          } else {
-            // Sub-documents and flattened fields have their keywords inside;
-            // if we ask for the field-based keyword name for one of those then that's a bug.
-            ${error "internal error, subdoc KeywordRef"}
-          }}
-        }}
-        ${fmeta(netdoc(keyword)) as str,
-          default ${concat ${kebab_case $fname}}}
-    }}}
-    // Field keyword as `&str` for debugging and error reporting
-    ${define F_KEYWORD_REPORT {
-        ${if F_SUBDOC { ${concat $fname} }
-             else { $F_KEYWORD_STR }}
-    }}
-    // Field keyword as `KeywordRef`
-    ${define F_KEYWORD { (KeywordRef::new_const($F_KEYWORD_STR)) }}
 
     // The effective field type for parsing.
     //
@@ -275,6 +211,8 @@ define_derive_deftly_module! {
         }}
         $(
             ${when not(F_INTRO)}
+            // These conditions are mirrored in NetdocSomeItemsEncodableCommon,
+            // which is supposed to recognise netdoc(default) precisely when we do.
           ${if fmeta(netdoc(default)) {
             let $fpatname = Option::unwrap_or_default($fpatname);
           }}
@@ -284,10 +222,16 @@ define_derive_deftly_module! {
 }
 
 define_derive_deftly! {
-    use NetdocParseableCommon;
+    use NetdocDeriveAnyCommon;
+    use NetdocEntireDeriveCommon;
+    use NetdocSomeItemsDeriveCommon;
+    use NetdocSomeItemsParseableCommon;
 
     /// Derive [`NetdocParseable`] for a document (or sub-document)
     ///
+    // NB there is very similar wording in the NetdocEncodable derive docs.
+    // If editing any of this derive's documentation, considering editing that too.
+    //
     /// ### Expected input structure
     ///
     /// Should be applied named-field struct, where each field is
@@ -302,6 +246,7 @@ define_derive_deftly! {
     /// Each field must be
     ///  * `impl `[`ItemValueParseable`] for an "exactly once" field,
     ///  * `Vec<T: ItemValueParseable>` for "zero or more", or
+    ///  * `BTreeSet<T: ItemValueParseable + Ord>`, or
     ///  * `Option<T: ItemValueParseable>` for "zero or one".
     ///
     /// We don't directly support "at least once":
@@ -463,14 +408,6 @@ define_derive_deftly! {
     /// ```
     export NetdocParseable for struct, expect items, beta_deftly:
 
-    // Predicate for the toplevel
-    ${defcond T_SIGNATURES tmeta(netdoc(signatures))}
-
-    // Predicates for the field kinds
-    ${defcond F_INTRO all(not(T_SIGNATURES), approx_equal($findex, 0))}
-    ${defcond F_SUBDOC fmeta(netdoc(subdoc))}
-    ${defcond F_SIGNATURE T_SIGNATURES} // signatures section documents have only signature fields
-
     ${define F_ACCUMULATE_VAR { (&mut $fpatname) }}
 
     impl<$tgens> $P::NetdocParseable for $ttype {
@@ -497,22 +434,7 @@ define_derive_deftly! {
         ) -> $P::Result<$ttype, $P::ErrorProblem> {
             use $P::*;
             $DEFINE_DTRACE
-
-            //----- compile-time check that fields are in the right order in the struct -----
-
-            ${if not(T_SIGNATURES) { // signatures structs have only signature fields
-              netdoc_ordering_check! {
-                $(
-                    ${select1
-                      F_INTRO     { intro     }
-                      F_NORMAL    { normal    }
-                      F_FLATTEN   { normal    }
-                      F_SUBDOC    { subdoc    }
-                    }
-                    $fname
-                )
-              }
-            }}
+            $FIELD_ORDERING_CHECK
 
             //----- prepare item set selectors for every field -----
             $ITEM_SET_SELECTORS
@@ -649,7 +571,10 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
-    use NetdocParseableCommon;
+    use NetdocDeriveAnyCommon;
+    use NetdocFieldsDeriveCommon;
+    use NetdocSomeItemsDeriveCommon;
+    use NetdocSomeItemsParseableCommon;
 
     /// Derive [`NetdocParseableFields`] for a struct with individual items
     ///
@@ -661,19 +586,9 @@ define_derive_deftly! {
     /// but:
     ///
     ///  * Derives [`NetdocParseableFields`]
-    ///  * The input struct can contain only normal non-structural items
-    ///    (so it's not a sub-document with an intro item).
-    ///  * The only attributes supported are the field attributes
-    ///    `#[deftly(netdoc(keyword = STR))]`
-    ///    `#[deftly(netdoc(default))]`
-    ///    `#[deftly(netdoc(single_arg))]`
-    ///    `#[deftly(netdoc(with = "MODULE"))]`
-    ///    `#[deftly(netdoc(flatten))]`
+    $DOC_NETDOC_FIELDS_DERIVE_SUPPORTED
+    ///
     export NetdocParseableFields for struct , expect items, beta_deftly:
-
-    ${defcond F_INTRO false}
-    ${defcond F_SUBDOC false}
-    ${defcond F_SIGNATURE false}
 
     ${define THIS_ITEM item}
     ${define F_ACCUMULATE_VAR { (&mut acc.$fname) }}
@@ -752,6 +667,8 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
+    use NetdocDeriveAnyCommon;
+
     /// Derive `FooSigned` from `Foo`
     ///
     /// Apply this derive to the main body struct `Foo`.
@@ -769,6 +686,8 @@ define_derive_deftly! {
     ///   with `is_intro_item_keyword` reporting *every* signature keyword.
     ///   Normally this is achieved with
     ///   `#[derive_deftly(NetdocParseable)] #[deftly(netdoc(signatures))]`.
+    ///
+    $DOC_DEBUG_PLACEHOLDER
     ///
     /// ### Generated struct
     ///
@@ -831,6 +750,7 @@ define_derive_deftly! {
             input: &mut $P::ItemStream<'s>,
             outer_stop: $P::stop_at!(),
         ) -> $P::Result<$<$ttype Signed>, $P::ErrorProblem> {
+            $EMIT_DEBUG_PLACEHOLDER
             input.parse_signed(outer_stop)
         }
     }
@@ -851,8 +771,14 @@ define_derive_deftly! {
 }
 
 define_derive_deftly! {
+    use NetdocDeriveAnyCommon;
+    use NetdocItemDeriveCommon;
+
     /// Derive `ItemValueParseable`
     ///
+    // NB there is very similar wording in the ItemValueEncodable derive docs.
+    // If editing any of this derive's documentation, considering editing that too.
+    //
     /// Fields in the struct are parsed from the keyword line arguments,
     /// in the order they appear in the struct.
     ///
@@ -886,6 +812,16 @@ define_derive_deftly! {
     ///
     ///    Reject, rather than ignore, additional arguments found in the document
     ///    which aren't described by the struct.
+    ///
+    /// * **`#[deftly(netdoc(debug))]`**:
+    ///
+    ///   Currently implemented only as a placeholde
+    ///
+    ///   The generated implementation may in future generate copious debug output
+    ///   to the program's stderr when it is run.
+    ///   Do not enable in production!
+    ///
+    $DOC_DEBUG_PLACEHOLDER
     ///
     /// ### Field-level attributes:
     ///
@@ -944,12 +880,6 @@ define_derive_deftly! {
 
     ${define P { $crate::parse2::internal_prelude }}
 
-    ${defcond F_REST fmeta(netdoc(rest))}
-    ${defcond F_OBJECT fmeta(netdoc(object))}
-    ${defcond F_SIG_HASH fmeta(netdoc(sig_hash))}
-    ${defcond F_NORMAL not(any(F_REST, F_OBJECT, F_SIG_HASH))}
-
-    ${defcond T_IS_SIGNATURE not(approx_equal(${for fields { ${when F_SIG_HASH} 1 }}, {}))}
     ${define TRAIT ${if T_IS_SIGNATURE { SignatureItemParseable } else { ItemValueParseable }}}
     ${define METHOD ${if T_IS_SIGNATURE { from_unparsed_and_body } else { from_unparsed }}}
 
@@ -963,6 +893,8 @@ define_derive_deftly! {
         {
             #[allow(unused_imports)] // false positive when macro is used with prelude in scope
             use $P::*;
+
+            $EMIT_DEBUG_PLACEHOLDER
 
             let object = input.object();
             #[allow(unused)]

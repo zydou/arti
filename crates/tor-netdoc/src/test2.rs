@@ -13,13 +13,16 @@
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 #![allow(clippy::needless_borrows_for_generic_args)] // TODO add to maint/add_warning
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
+use std::mem;
 
 use anyhow::Context as _;
 use derive_deftly::Deftly;
+use itertools::{Itertools, chain};
 use testresult::TestResult;
-use tor_error::ErrorReport as _;
+use tor_error::{Bug, ErrorReport as _};
 
+use crate::encode::{ItemEncoder, ItemObjectEncodable, NetdocEncodable, NetdocEncoder};
 use crate::parse2::{
     ArgumentError as P2AE, ArgumentStream, ErrorProblem as P2EP, ItemObjectParseable,
     NetdocParseable, NetdocParseableFields, ParseError, ParseInput, UnparsedItem, parse_netdoc,
@@ -32,7 +35,7 @@ fn default<T: Default>() -> T {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Top {
     top_intro: (),
     needed: (String,),
@@ -54,7 +57,7 @@ struct Top {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub1 {
     sub1_intro: (),
     sub1_field: Option<(String,)>,
@@ -62,7 +65,7 @@ struct Sub1 {
     flatten: Flat1,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseableFields)]
+#[derive_deftly(NetdocEncodableFields, NetdocParseableFields)]
 struct Flat1 {
     flat_needed: (String,),
     flat_optional: Option<(String,)>,
@@ -86,12 +89,12 @@ struct Flat1 {
     flat_flat: FlatInner,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseableFields)]
+#[derive_deftly(NetdocEncodableFields, NetdocParseableFields)]
 struct FlatInner {
     flat_inner_optional: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub2 {
     #[deftly(netdoc(with = "needs_with_intro"))]
     sub2_intro: NeedsWith,
@@ -113,27 +116,27 @@ struct Sub2 {
     #[deftly(netdoc(subdoc))]
     subsub: SubSub,
 }
-#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive(Deftly, Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub3 {
     sub3_intro: (),
     sub3_field: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct Sub4 {
     sub4_intro: (),
     sub4_field: Option<(String,)>,
 }
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct SubSub {
     #[deftly(netdoc(single_arg))]
     subsub_intro: String,
     subsub_field: Option<(String,)>,
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct NeedsWith;
 
 impl NeedsWith {
@@ -149,6 +152,11 @@ mod needs_with_parse {
         NeedsWith::parse_expecting("normal", item.args_mut())
             .map_err(item.args().error_handler("in needs with"))
     }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn write_item_value_onto(_: &NeedsWith, out: ItemEncoder) -> Result<(), Bug> {
+        out.arg(&"normal");
+        Ok(())
+    }
 }
 mod needs_with_intro {
     use super::*;
@@ -156,30 +164,166 @@ mod needs_with_intro {
         NeedsWith::parse_expecting("intro", item.args_mut())
             .map_err(item.args().error_handler("in needs with"))
     }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn write_item_value_onto(_: &NeedsWith, out: ItemEncoder) -> Result<(), Bug> {
+        out.arg(&"intro");
+        Ok(())
+    }
 }
 mod needs_with_arg {
     use super::*;
     pub(super) fn from_args(args: &mut ArgumentStream) -> Result<NeedsWith, P2AE> {
         NeedsWith::parse_expecting("arg", args)
     }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn write_arg_onto(_self: &NeedsWith, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        out.args_raw_string(&"arg");
+        Ok(())
+    }
     pub(super) fn from_args_rest(s: &str) -> Result<NeedsWith, ()> {
         (s == "rest of line").then_some(NeedsWith).ok_or(())
     }
+    #[allow(clippy::unnecessary_wraps)]
+    pub(super) fn fmt_args_rest(_self: &NeedsWith, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "rest of line")
+    }
 }
 
-fn t_ok<D>(doc: &str, exp: &[D]) -> TestResult<()>
+/// Test parsing and encoding
+///
+/// `doc_spec` is the document to parse.
+/// `exp` is what it should parse as.
+///
+/// `doc_spec` can have magic instructions at end of each line.
+/// These allow the re-encoding to be not quite identical to the input document.
+///
+///  * **`@ re-encoded:`:
+///    This line is re-encoded differently.  The *next* source line is the encoding.
+///
+///  * **`@ not re-encoded`:
+///    This line is omitted from the re-encoding.
+///
+///  * **`@ re-encoded later N`:
+///    This line is reordered, to later in the re-encoding, by `N` lines.
+///
+///  * **`@ re-encoded only`:
+///    This line eppears only in the re-encoding.
+///    Prefer `re-encoded later` or `re-encoded:` if possible as they're clearer.
+fn t_ok<D>(doc_spec: &str, exp: &[D]) -> TestResult<()>
 where
-    D: NetdocParseable + Debug + PartialEq,
+    D: NetdocEncodable + NetdocParseable + Debug + PartialEq,
 {
-    let input = ParseInput::new(doc, "<literal>");
+    eprintln!("#####");
+    eprint!("====== doc_spec ======\n{doc_spec}");
+    eprintln!("====== exp ======\n{exp:#?}");
+
+    let mut lines = doc_spec.split_inclusive('\n');
+    let mut doc = String::new();
+    let mut enc = String::new();
+
+    // indices are line numbers but starting at 0
+    let mut moved = Vec::<String>::new();
+    let process_moved = |enc: &mut String, moved: &mut Vec<String>| {
+        if moved.is_empty() {
+            return;
+        }
+        loop {
+            let lno = enc.lines().count();
+            let Some(m) = moved.get_mut(lno) else {
+                eprintln!("PN {lno:2} nothing");
+                break;
+            };
+            if m.is_empty() {
+                eprintln!("PN {lno:2} empty");
+                break;
+            }
+            eprintln!("PN {lno:2} adding {m:?}");
+            *enc += &mem::take(m);
+        }
+    };
+
+    while let Some(l) = lines.next() {
+        if let Some((l, insn)) = l.split_once('@') {
+            eprintln!("LL    insn  {l:?}");
+            let insn = insn.trim();
+            let l = &format!("{}\n", l.trim_end());
+            let insn = insn.trim_end();
+            if insn == "re-encoded:" {
+                doc += l;
+                enc += lines.next().expect(r#""re-encoded:" needs re-encoded"#);
+            } else if insn == "not re-encoded" {
+                doc += l;
+            } else if insn == "re-encoded only" {
+                enc += l;
+            } else if let Some(later) = insn.strip_prefix("re-encoded later ") {
+                doc += l;
+                let later: usize = later.parse().expect(later);
+                let lno = later + enc.lines().count();
+                loop {
+                    if let Some(m) = moved.get_mut(lno) {
+                        *m += l;
+                        break;
+                    }
+                    moved.push("".into());
+                }
+            } else {
+                panic!("unknown insn {insn:?} in {doc_spec:?}");
+            }
+        } else {
+            eprintln!("LL    line  {l:?}");
+            doc += l;
+            enc += l;
+        }
+        process_moved(&mut enc, &mut moved);
+    }
+    process_moved(&mut enc, &mut moved);
+    for (i, l) in moved.iter().enumerate() {
+        assert_eq!(l, "", "line too late! {}: {l:?}", i + 1);
+    }
+
+    eprint!("====== doc ======\n{doc}");
+    eprint!("====== enc exp ======\n{enc}");
+    eprintln!("======");
+
+    let input = ParseInput::new(&doc, "<literal>");
 
     if exp.len() == 1 {
-        let got = parse_netdoc::<D>(&input).context(doc.to_owned())?;
-        assert_eq!(got, exp[0], "doc={doc}");
+        let got = parse_netdoc::<D>(&input).context(doc.clone())?;
+        assert_eq!(got, exp[0], "parse 1 mismatch");
     }
 
     let got = parse_netdoc_multiple::<D>(&input)?;
-    assert_eq!(got, exp, "doc={doc}");
+    assert_eq!(got, exp, "parse_multiple mismatch");
+
+    let reenc = {
+        let mut encoder = NetdocEncoder::default();
+        for d in exp {
+            d.encode_unsigned(&mut encoder)?;
+        }
+        encoder.finish()?
+    };
+
+    eprintln!("====== enc got ======\n{reenc}====== end ======");
+
+    assert_eq!(
+        &enc,
+        &reenc,
+        "re-encode mismatch:\n{}",
+        Itertools::zip_longest(
+            chain!(["EXPECTED"], enc.lines()),
+            chain!(["GOT"], reenc.lines()),
+        )
+        .enumerate()
+        .map(|(i, eob)| {
+            let lno = i + 1;
+            let [l, r] = [eob.clone().left(), eob.right()];
+            let yn = if l == r { "  " } else { "!=" };
+            let [l, r] = [l, r].map(|s| s.unwrap_or_default());
+            format!(" {lno:2} {l:30} {yn} {r}\n")
+        })
+        .collect::<String>(),
+    );
+
     Ok(())
 }
 
@@ -296,10 +440,13 @@ fn various_docs() -> TestResult<()> {
     t_ok(
         r#"top-intro
 needed N
+defaulted 0                             @ re-encoded only
 sub1-intro
 flat-needed FN
 flat-arg-needed FAN
+flat-arg-defaulted 0                    @ re-encoded only
 flat-with-needed normal
+sub4-intro                              @ re-encoded only
 "#,
         &[Top {
             needed: val("N"),
@@ -311,13 +458,16 @@ flat-with-needed normal
     t_ok(
         r#"top-intro
 needed N
+defaulted 0                             @ re-encoded only
 sub1-intro
 flat-needed FN
 flat-arg-needed FAN
+flat-arg-defaulted 0                    @ re-encoded only
 flat-with-needed normal
 sub2-intro intro
-with-needed normal
+with-needed normal                      @ re-encoded later 2
 arg-needed AN
+arg-defaulted 0                         @ re-encoded only
 subsub-intro SSI
 sub3-intro
 sub3-intro
@@ -337,37 +487,38 @@ sub4-intro
 needed N
 optional O
 several 1
-not-present oh yes it is
-not-present but it is ignored
+not-present oh yes it is                @ not re-encoded
+not-present but it is ignored           @ not re-encoded
 several 2
 defaulted -1
 renamed R
 sub1-intro
-flat-several FS1
-flat-needed FN
-flat-with-needed normal
-flat-inner-optional nested
+flat-several FS1                        @ re-encoded later 3
+flat-needed FN                          @ re-encoded later 1
+flat-with-needed normal                 @ re-encoded later 11
+flat-inner-optional nested              @ re-encoded later 15
 sub1-field A
-flat-with-several normal
-flat-with-several normal
+flat-with-several normal                @ re-encoded later 11
+flat-with-several normal                @ re-encoded later 11
 flat-optional FO
-flat-arg-needed FAN
-flat-with-optional normal
+flat-arg-needed FAN                     @ re-encoded later 2
+flat-with-optional normal               @ re-encoded later 8
 flat-several FS2
 flat-defaulted FD
 flat-arg-optional FAO
-flat-arg-several FAS1 ignored
+flat-arg-several FAS1 ignored           @ re-encoded:
+flat-arg-several FAS1
 flat-arg-several FAS2
 flat-arg-defaulted 31
 sub2-intro intro
-with-several normal
-with-several normal
-with-several normal
+with-several normal                     @ re-encoded later 8
+with-several normal                     @ re-encoded later 8
+with-several normal                     @ re-encoded later 8
 sub2-field B
 arg-needed AN
 arg-optional AO
-with-optional normal
-arg-defaulted 4
+with-optional normal                    @ re-encoded later 4
+arg-defaulted 4                         @ re-encoded later 2
 arg-several A1
 arg-several A2
 with-needed normal
@@ -538,7 +689,7 @@ sub3-intro # missing item with-needed
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(NetdocParseable)]
+#[derive_deftly(NetdocEncodable, NetdocParseable)]
 struct TopMinimal {
     test_item0: TestItem0,
     test_item: Option<TestItem>,
@@ -549,7 +700,7 @@ struct TopMinimal {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 #[deftly(netdoc(no_extra_args))]
 struct TestItem0 {
     #[deftly(netdoc(object(label = "UTF-8 STRING"), with = "string_data_object"))]
@@ -557,7 +708,7 @@ struct TestItem0 {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItem {
     needed: String,
     #[deftly(netdoc(with = "needs_with_arg"))]
@@ -568,7 +719,7 @@ struct TestItem {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemRest {
     optional: Option<String>,
     #[deftly(netdoc(rest))]
@@ -576,7 +727,7 @@ struct TestItemRest {
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemRestWith {
     #[deftly(netdoc(rest, with = "needs_with_arg"))]
     rest: NeedsWith,
@@ -586,14 +737,14 @@ struct TestItemRestWith {
 struct TestObject(String);
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemObjectNotPresent {
     #[deftly(netdoc(object))]
     object: NotPresent,
 }
 
 #[derive(Deftly, Debug, Default, Clone, Eq, PartialEq)]
-#[derive_deftly(ItemValueParseable)]
+#[derive_deftly(ItemValueEncodable, ItemValueParseable)]
 struct TestItemObjectIgnored {
     #[deftly(netdoc(object))]
     object: Ignored,
@@ -604,6 +755,16 @@ mod string_data_object {
     /// Parse the data
     pub(super) fn try_from(data: Vec<u8>) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(data)
+    }
+
+    /// Encode the data
+    #[allow(clippy::unnecessary_wraps)] // signature must match the derive's expectation
+    pub(super) fn write_object_onto<B>(self_: &String, b: &mut B) -> tor_bytes::EncodeResult<()>
+    where
+        B: tor_bytes::Writer + ?Sized,
+    {
+        b.write_all(self_.as_bytes());
+        Ok(())
     }
 }
 
@@ -618,6 +779,15 @@ impl ItemObjectParseable for TestObject {
         Ok(TestObject(
             String::from_utf8(data.to_owned()).map_err(|_| P2EP::ObjectInvalidData)?,
         ))
+    }
+}
+impl ItemObjectEncodable for TestObject {
+    fn label(&self) -> &'static str {
+        "TEST OBJECT"
+    }
+    fn write_object_onto(&self, b: &mut Vec<u8>) -> Result<(), Bug> {
+        b.extend(self.0.as_bytes());
+        Ok(())
     }
 }
 
@@ -673,13 +843,15 @@ test-item N arg R1 R2
 -----BEGIN TEST OBJECT-----
 aGVsbG8=
 -----END TEST OBJECT-----
-test-item-rest O  and  the rest
-test-item-rest-with   rest of line
+test-item-rest O  and  the rest                 @ re-encoded:
+test-item-rest O and  the rest
+test-item-rest-with   rest of line              @ re-encoded:
+test-item-rest-with rest of line
 test-item-object-not-present
 test-item-object-ignored
------BEGIN TEST OBJECT-----
-aGVsbG8=
------END TEST OBJECT-----
+-----BEGIN TEST OBJECT-----                     @ not re-encoded
+aGVsbG8=         @ not re-encoded
+-----END TEST OBJECT-----                       @ not re-encoded
 "#,
         &[TopMinimal {
             test_item0: TestItem0 {
