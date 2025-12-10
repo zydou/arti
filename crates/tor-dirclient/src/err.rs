@@ -30,7 +30,7 @@ pub enum Error {
 /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
 #[derive(Error, Debug, Clone)]
 #[allow(clippy::exhaustive_structs)] // TODO should not be exhaustive
-#[error("Request failed{}", FromSource(.source))]
+#[error("Request failed from {}: {error}", FromSource(.source))]
 pub struct RequestFailedError {
     /// The source that gave us this error.
     pub source: Option<SourceInfo>,
@@ -46,9 +46,9 @@ struct FromSource<'a>(&'a Option<SourceInfo>);
 impl std::fmt::Display for FromSource<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(si) = self.0 {
-            write!(f, " from {}", si)
+            write!(f, "{}", si)
         } else {
-            Ok(())
+            write!(f, "N/A")
         }
     }
 }
