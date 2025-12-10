@@ -275,6 +275,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                         }
                     }
                 }
+                // TODO: We are supposed to fail if all addresses in a group fail.
             }
         }
         Err(e) => warn_report!(e, "Invalid listen spec"),

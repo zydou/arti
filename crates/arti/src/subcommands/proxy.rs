@@ -38,11 +38,14 @@ pub(crate) fn run<R: ToplevelRuntime>(
 ) -> Result<()> {
     // Override configured listen addresses from the command line.
     // This implies listening on localhost ports.
+
+    // TODO: Parse a string rather than calling new_localhost.
     let socks_listen = match proxy_matches.get_one::<String>("socks-port") {
         Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
         None => config.proxy().socks_listen.clone(),
     };
 
+    // TODO: Parse a string rather than calling new_localhost.
     let dns_listen = match proxy_matches.get_one::<String>("dns-port") {
         Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
         None => config.proxy().dns_listen.clone(),

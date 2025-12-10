@@ -328,7 +328,7 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
     }
 }
 
-/// Launch a proxy to listen on a given localhost port, and run
+/// Launch a proxy to listen on a given set of ports, and run
 /// indefinitely.
 ///
 /// Requires a `runtime` to use for launching tasks and handling
@@ -384,6 +384,7 @@ pub(crate) async fn run_proxy<R: Runtime>(
                         }
                     }
                 }
+                // TODO: We are supposed to fail if every address in the group failed!
             }
         }
         Err(e) => warn_report!(e, "Invalid listen spec"),
