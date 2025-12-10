@@ -120,9 +120,9 @@ since we likely won't be needing any `mpsc`-specific APIs)
 Streams will be read from, and written to, by two new reactors,
 running in separate tasks:
 
-  * `StreamBackwardReactor` (`StreamBWD`), which polls the `Stream` of ready
-    application streams, and sends them to `BWD` for writing
-  * `StreamForwardReactor` (`StreamFWD`), which receives cells from `FWD`,
+  * `StreamReadReactor` (`StreamRead`), which reads from the `Stream` of ready
+    application streams, and sends the ready messages to `BWD` for writing
+  * `StreamWriteReactor` (`StreamWrite`), which receives cells from `FWD`,
     and writes them to the application streams
 
 So the first step will be to make the cell flow from the client to `BWD` look like this:
@@ -130,7 +130,7 @@ So the first step will be to make the cell flow from the client to `BWD` look li
 ```
                             stream_fwd_tx
                              <MPSC (0)>
-  +--------------> FWD ----------------------------> StreamFWD
+  +--------------> FWD ----------------------------> StreamWrite
   |                 |                                (StreamMapWrite->
   |                 |                                  OpenStreamEntWrite->
   |                 |                                   StreamQueueSender)
@@ -147,7 +147,7 @@ client           <MPSC (0)>                            <MPSC (unbounded if flowc
   |                 |                                      www.example.com
   |                 |
   |                 v
-  +--------------- BWD <---------------------------- StreamBWD
+  +--------------- BWD <---------------------------- StreamRead
     application stream data    stream_bwd_rx        (StreamMapRead->
                                 <MPSC (0)>            OpenStreamEntRead->
                                                        StreamUnobtrusivePeeker)
@@ -157,7 +157,7 @@ client           <MPSC (0)>                            <MPSC (unbounded if flowc
 To implement this, we will need the ability to split the `StreamMap` in two,
 such that each stream entry can be read from, and written to, from separate
 tasks (we need to hand out the read and write ends of the streams to
-`StreamBWD` and `StreamFWD`, respectively)
+`StreamRead` and `StreamWrite`, respectively)
 
 Note that we plan to retain `StreamPollSet` on the read side, for stream
 prioritization (we want ready-streams to be iterated over in order of priority).
@@ -165,9 +165,9 @@ prioritization (we want ready-streams to be iterated over in order of priority).
 (The somewhat tricky part is keeping the `StreamMapRead` and `StreamMapWrite`
 halves of the `StreamMap` in sync without a mutex, but this is an implementation
 detail we can iron out later; we will likely need an MPSC channel between
-`StreamFWD` and `StreamBWD` for this)
+`StreamWrite` and `StreamRead` for this)
 
-The `Stream{FWD, BWD}` tasks will be launched lazily.
+The `Stream{Read Write}` tasks will be launched lazily.
 That is, they will be launched by `FWD` upon receiving the first `BEGIN`.
 This will prevent unnecessarily launching 2 extra tasks per circuit
 for middle relays that don't do leaky pipe.
@@ -176,12 +176,12 @@ With this change, exits (and relays with leaky pipe) will spawn 4 tasks per circ
 instead of just 2.
 
 `FWD` will have a `stream_fwd_tx` `Sink` (internally an MPSC channel with no buffering)
-for sending stream cells (`BEGIN`, `DATA`, `END`, `RESOLVE`, etc.) to `StreamFWD` for handling.
+for sending stream cells (`BEGIN`, `DATA`, `END`, `RESOLVE`, etc.) to `StreamWrite` for handling.
 
 `BWD` will have a `stream_bwd_rx` `Stream` for reading ready stream messages
-from `StreamBWD`. `BWD` will write these messages to its "towards the client" Tor channel.
+from `StreamRead`. `BWD` will write these messages to its "towards the client" Tor channel.
 
-> Note: in the case of conflux circuits (tunnels), the `Stream{FWD, BWD}` tasks won't be launched by `FWD`.
+> Note: in the case of conflux circuits (tunnels), the `Stream{Read Write}` tasks won't be launched by `FWD`.
 >
 > More on that below.
 
@@ -193,13 +193,13 @@ nonces. `
 
 `ConfluxMgr` will be responsible for launching `ConfluxController`s (described
 below), and instructing the `FWD`s and `BWD`s to stop routing cells directly to
-and from `StreamFWD` and `StreamBWD`, and to instead route them via `ConfluxController`.
+and from `StreamWrite` and `StreamRead`, and to instead route them via `ConfluxController`.
 
 There will be a single `ConfluxMgr` per relay process.
 All `FWD`s will have an MPSC channel for sending `LINK` cells to it.
 
 2. A `ConfluxController`, wedged between `FWD` and `BWD`, and the
-  `StreamFWD` and `StreamBWD` reactors.
+  `StreamWrite` and `StreamRead` reactors.
 
 `ConfluxController` will handle the conflux seqno accounting and out-of-order cell buffering.
 There will be one these per conflux set.
@@ -210,7 +210,7 @@ reactors in the set, and will write cells to the `BWD` reactor of the primary le
 > in the background and react to events (such as incoming cells and handshake timeouts).
 
 Note that there will be one `FWD` and one `BWD` **per leg**,
-but only one `StreamFWD` and one `StreamBWD` **per tunnel** (or conflux set).
+but only one `StreamWrite` and one `StreamRead` **per tunnel** (or conflux set).
 
 Conflux handshake flow:
 
@@ -265,7 +265,7 @@ For example, for a two-legged conflux tunnel:
 ```
                   <stream_cell_tx MPSC (0)>
            FWD 1 ---------------------+
-            |                         | StreamFWD
+            |                         | StreamWrite
             |                         |    ^
             |                         |    |
     BackwardReactorCmd                |    | <MPSC (0)>
@@ -277,7 +277,7 @@ For example, for a two-legged conflux tunnel:
             |                   | |   |    | <MPSC (0)>
             |                   | |   |    |
             v                   | |   |    |
-           BWD 1 <--------------+ |   | StreamBWD
+           BWD 1 <--------------+ |   | StreamRead
                  <stream_cell_rx> |   |
                                   |   |
                                   |   |
@@ -301,7 +301,7 @@ Note that the `cell_rx` channel between `FWD` and `BWD` will be renamed to
 Here are some of the parts that will be a bit more tricky to get right:
 
   * The `ConfluxController` should only read from the `Stream` of ready
-  streams (obtained from `StreamBWD`) if its primary leg is not
+  streams (obtained from `StreamRead`) if its primary leg is not
   blocked on CC. To probe whether a given `BWD`
   is blocked on CC, the `ConfluxController` needs to know if
   `CongestionControl::can_send() == true` for each leg
@@ -336,17 +336,17 @@ For that, we will need ConfluxController to support being the initiator, as well
 > given that the new relay architecture is so different from the client one
 
 After delivering a message to a stream, if the incoming buffer of the stream
-has become too large, the `StreamFWD` reactor needs to send an XOFF to the client.
-But `StreamFWD` doesn't have the ability to do that, because its only
+has become too large, the `StreamWrite` reactor needs to send an XOFF to the client.
+But `StreamWrite` doesn't have the ability to do that, because its only
 job is to forward incoming messages to its local streams.
 
 We will need some way of signaling to `BWD` that we have an `XOFF` to send.
 
 We could
 
-   * add an MPSC channel between `StreamFWD` and `BWD`, for sending `XOFF` cells.
+   * add an MPSC channel between `StreamWrite` and `BWD`, for sending `XOFF` cells.
    * share state (a list of XOFF cells to send for each stream) between
-   `StreamFWD` and `BWD`
+   `StreamWrite` and `BWD`
 
 The `XON` case is a bit different.
 On the client side, when the stream reader's buffer becomes empty,
@@ -369,7 +369,7 @@ A client will have both a `FWD` and a `BWD` reactor, but its `FWD` reactor
 will never get initialized with an outgoing Tor channel. The only responsibility
 of this reactor will be to forward cells either to `BWD` (in the case of
 circuit-level SENDMEs), or to the stream data `Sink`
-(connected either to `StreamFWD`, for single-path cirucits,
+(connected either to `StreamWrite`, for single-path cirucits,
 or `ConfluxController`, for the multi-path ones).
 
 Various parts of the `FWD` reactor will need to be abstracted away,
