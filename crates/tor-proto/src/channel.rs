@@ -83,7 +83,6 @@ use std::time::Duration;
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, CircId, msg::PaddingNegotiate};
-use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
@@ -126,31 +125,6 @@ pub use super::relay::channel::handshake::RelayInitiatorHandshake;
 use crate::channel::unique_id::CircUniqIdContext;
 
 use kist::KistParams;
-
-restricted_msg! {
-    /// A channel message that we allow to be sent from a server to a client on
-    /// an open channel.
-    ///
-    /// (An Open channel here is one on which we have received a NETINFO cell.)
-    ///
-    /// Note that an unexpected message type will _not_ be ignored: instead, it
-    /// will cause the channel to shut down.
-    #[derive(Clone, Debug)]
-    pub(crate) enum OpenChanMsgS2C : ChanMsg {
-        Padding,
-        Vpadding,
-        // Not Create*, since we are not a relay.
-        // Not Created, since we never send CREATE.
-        CreatedFast,
-        Created2,
-        Relay,
-        // Not RelayEarly, since we are a client.
-        Destroy,
-        // Not PaddingNegotiate, since we are not a relay.
-        // Not Versions, Certs, AuthChallenge, Authenticate: they are for handshakes.
-        // Not Authorize: it is reserved, but unused.
-    }
-}
 
 /// This indicate what type of channel it is. It allows us to decide for the correct channel cell
 /// state machines and authentication process (if any).

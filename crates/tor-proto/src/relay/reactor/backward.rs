@@ -2,11 +2,11 @@
 
 use crate::channel::Channel;
 use crate::circuit::cell_sender::CircuitCellSender;
-use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopOutbound, HopSettings, SendRelayCell};
 use crate::circuit::{CircSyncView, UniqId};
 use crate::crypto::cell::{InboundRelayLayer, RelayCellBody};
 use crate::memquota::SpecificAccount as _;
+use crate::relay::RelayCircChanMsg;
 use crate::relay::channel_provider::ChannelResult;
 use crate::stream::CloseStreamBehavior;
 use crate::stream::cmdcheck::{AnyCmdChecker, StreamStatus};
@@ -365,7 +365,10 @@ impl BackwardReactor {
             if let Some(input) = self.input.as_mut() {
                 // Forward channel unexpectedly closed, we should close too
                 match input.next().await {
-                    Some(cell) => CircuitEvent::Cell(cell),
+                    Some(msg) => match msg.try_into() {
+                        Err(e) => CircuitEvent::ProtoViolation(e),
+                        Ok(cell) => CircuitEvent::Cell(cell),
+                    },
                     None => {
                         // The forward reactor has crashed, so we have to shut down.
                         CircuitEvent::ForwardShutdown
@@ -449,6 +452,7 @@ impl BackwardReactor {
 
                 Err(ReactorError::Shutdown)
             }
+            ProtoViolation(err) => Err(err.into()),
         }
     }
 
@@ -820,6 +824,11 @@ enum CircuitEvent {
     ///
     /// We need to shut down too.
     ForwardShutdown,
+    /// Protocol violation.
+    ///
+    /// This can happen if we receive a channel message that is not supported
+    /// on a relay-to-relay channel. The error is the cause of the violation.
+    ProtoViolation(Error),
 }
 
 /// Instructions from the forward reactor.

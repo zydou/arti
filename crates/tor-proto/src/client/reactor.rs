@@ -22,11 +22,10 @@ mod conflux;
 mod control;
 pub(super) mod syncview;
 
-use crate::circuit::UniqId;
-use crate::circuit::celltypes::ClientCircChanMsg;
 use crate::circuit::circhop::SendRelayCell;
+use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::client::circuit::padding::{PaddingController, PaddingEvent, PaddingEventStream};
-use crate::client::circuit::{CircuitRxReceiver, TimeoutEstimator};
+use crate::client::circuit::{ClientCircChanMsg, TimeoutEstimator};
 use crate::client::{HopLocation, TargetHop};
 use crate::crypto::cell::HopNum;
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
@@ -122,7 +121,7 @@ pub(crate) enum CircuitHandshake {
     },
 }
 
-// TODO: the RunOnceCmd/RunOnceCmdInner/CircuitCmd/CircuitAction enum
+// TODO: the RunOnceCmd/RunOnceCmdInner/CircuitCmd/CircuitEvent enum
 // proliferation is a bit bothersome, but unavoidable with the current design.
 //
 // We should consider getting rid of some of these enums (if possible),
@@ -276,13 +275,13 @@ enum RunOnceCmdInner {
         /// The out-of-order message.
         msg: OooRelayMsg,
     },
-    /// Take a padding-related action on a circuit leg.
+    /// Take a padding-related event on a circuit leg.
     #[cfg(feature = "circ-padding")]
     PaddingAction {
-        /// The leg to action on.
+        /// The leg to event on.
         leg: UniqId,
-        /// The action to take.
-        padding_action: PaddingEvent,
+        /// The event to take.
+        padding_event: PaddingEvent,
     },
     /// Perform a clean shutdown on this circuit.
     CleanShutdown,
@@ -331,7 +330,7 @@ impl RunOnceCmdInner {
 /// A command to execute at the end of [`Reactor::run_once`].
 #[derive(From, Debug)]
 #[allow(clippy::large_enum_variant)] // TODO #2003: should we resolve this?
-enum CircuitAction {
+enum CircuitEvent {
     /// Run a single `CircuitCmd` command.
     RunCmd {
         /// The unique identifier of the circuit leg to run the command on
@@ -354,7 +353,7 @@ enum CircuitAction {
     /// from the reactor's conflux set, without necessarily tearing down
     /// the whole set or shutting down the reactor.
     ///
-    /// Note: this action *can* cause the reactor to shut down
+    /// Note: this event *can* cause the reactor to shut down
     /// (and the conflux set to be closed).
     ///
     /// See the [`ConfluxSet::remove`] docs for more on the exact behavior of this command.
@@ -371,31 +370,40 @@ enum CircuitAction {
         /// handshake to indicate the reason the handshake failed.
         reason: RemoveLegReason,
     },
-    /// Take some action (blocking or unblocking a circuit, or sending padding)
+    /// Take some event (blocking or unblocking a circuit, or sending padding)
     /// based on the circuit padding backend code.
     PaddingAction {
-        /// The leg on which to take the padding action.
+        /// The leg on which to take the padding event .
         leg: UniqId,
-        /// The action to take.
-        padding_action: PaddingEvent,
+        /// The event to take.
+        padding_event: PaddingEvent,
+    },
+    /// Protocol violation. This leads for now to the close of the circuit reactor. The
+    /// error causing the violation is set in err.
+    ProtoViolation {
+        /// The error that causes this protocol violation.
+        err: crate::Error,
     },
 }
 
-impl CircuitAction {
-    /// Return the ordering with which we should handle this action
-    /// within a list of actions returned by a single call to next_circ_action().
+impl CircuitEvent {
+    /// Return the ordering with which we should handle this event
+    /// within a list of events returned by a single call to next_circ_event().
     ///
     /// NOTE: Please do not make this any more complicated:
     /// It is a consequence of a kludge that we need this sorting at all.
     /// Assuming that eventually, we switch away from the current
-    /// poll-oriented `next_circ_action` design,
+    /// poll-oriented `next_circ_event` design,
     /// we may be able to get rid of this entirely.
     fn order_within_batch(&self) -> u8 {
-        use CircuitAction as CA;
+        use CircuitEvent as CA;
         use PaddingEvent as PE;
-        const EARLY: u8 = 0;
-        const NORMAL: u8 = 1;
-        const LATE: u8 = 2;
+        // This immediate state MUST NOT be used for events emitting cells. At the moment, it is
+        // only used by the protocol violation event which leads to a shutdown of the reactor.
+        const IMMEDIATE: u8 = 0;
+        const EARLY: u8 = 1;
+        const NORMAL: u8 = 2;
+        const LATE: u8 = 3;
 
         // We use this ordering to move any "StartBlocking" to the _end_ of a batch and
         // "StopBlocking" to the start.
@@ -411,13 +419,14 @@ impl CircuitAction {
             CA::HandleCell { .. } => NORMAL,
             CA::RemoveLeg { .. } => NORMAL,
             #[cfg(feature = "circ-padding")]
-            CA::PaddingAction { padding_action, .. } => match padding_action {
+            CA::PaddingAction { padding_event, .. } => match padding_event {
                 PE::StopBlocking => EARLY,
                 PE::SendPadding(..) => NORMAL,
                 PE::StartBlocking(..) => LATE,
             },
             #[cfg(not(feature = "circ-padding"))]
             CA::PaddingAction { .. } => NORMAL,
+            CA::ProtoViolation { .. } => IMMEDIATE,
         }
     }
 }
@@ -769,7 +778,7 @@ impl Reactor {
         #[cfg(feature = "conflux")]
         self.try_dequeue_ooo_msgs().await?;
 
-        let mut actions = select_biased! {
+        let mut events = select_biased! {
             res = self.command.next() => {
                 let cmd = unwrap_or_shutdown!(self, res, "command channel drop")?;
                 return ControlHandler::new(self).handle_cmd(cmd);
@@ -784,26 +793,26 @@ impl Reactor {
             // circuit is ready for sending.
             ret = self.control.next() => {
                 let msg = unwrap_or_shutdown!(self, ret, "control drop")?;
-                smallvec![CircuitAction::HandleControl(msg)]
+                smallvec![CircuitEvent::HandleControl(msg)]
             },
-            res = self.circuits.next_circ_action(&self.runtime).fuse() => res?,
+            res = self.circuits.next_circ_event(&self.runtime).fuse() => res?,
         };
 
-        // Put the actions into the order that we need to execute them in.
+        // Put the events into the order that we need to execute them in.
         //
-        // (Yes, this _does_ have to be a stable sort.  Not all actions may be freely re-ordered
+        // (Yes, this _does_ have to be a stable sort.  Not all events may be freely re-ordered
         // with respect to one another.)
-        actions.sort_by_key(|a| a.order_within_batch());
+        events.sort_by_key(|a| a.order_within_batch());
 
-        for action in actions {
-            let cmd = match action {
-                CircuitAction::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
+        for event in events {
+            let cmd = match event {
+                CircuitEvent::RunCmd { leg, cmd } => Some(RunOnceCmd::Single(
                     RunOnceCmdInner::from_circuit_cmd(leg, cmd),
                 )),
-                CircuitAction::HandleControl(ctrl) => ControlHandler::new(self)
+                CircuitEvent::HandleControl(ctrl) => ControlHandler::new(self)
                     .handle_msg(ctrl)?
                     .map(RunOnceCmd::Single),
-                CircuitAction::HandleCell { leg, cell } => {
+                CircuitEvent::HandleCell { leg, cell } => {
                     let circ = self
                         .circuits
                         .leg_mut(leg)
@@ -826,22 +835,22 @@ impl Reactor {
                         Some(cmd)
                     }
                 }
-                CircuitAction::RemoveLeg { leg, reason } => {
+                CircuitEvent::RemoveLeg { leg, reason } => {
                     Some(RunOnceCmdInner::RemoveLeg { leg, reason }.into())
                 }
-                CircuitAction::PaddingAction {
-                    leg,
-                    padding_action,
-                } => {
+                CircuitEvent::PaddingAction { leg, padding_event } => {
                     cfg_if! {
                         if #[cfg(feature = "circ-padding")] {
-                            Some(RunOnceCmdInner::PaddingAction { leg, padding_action }.into())
+                            Some(RunOnceCmdInner::PaddingAction { leg, padding_event }.into())
                         } else {
-                            // If padding isn't enabled, we never generate a padding action,
+                            // If padding isn't enabled, we never generate a padding event,
                             // so we can be sure this case will never be called.
-                            void::unreachable(padding_action.0);
+                            void::unreachable(padding_event.0);
                         }
                     }
+                }
+                CircuitEvent::ProtoViolation { err } => {
+                    return Err(err.into());
                 }
             };
 
@@ -1196,15 +1205,10 @@ impl Reactor {
                 self.ooo_msgs.push(entry);
             }
             #[cfg(feature = "circ-padding")]
-            RunOnceCmdInner::PaddingAction {
-                leg,
-                padding_action,
-            } => {
+            RunOnceCmdInner::PaddingAction { leg, padding_event } => {
                 // TODO: If we someday move back to having a per-circuit reactor,
-                // this action would logically belong there, not on the tunnel reactor.
-                self.circuits
-                    .run_padding_action(leg, padding_action)
-                    .await?;
+                // this event would logically belong there, not on the tunnel reactor.
+                self.circuits.run_padding_event(leg, padding_event).await?;
             }
         }
 

@@ -47,8 +47,8 @@ pub(crate) mod padding;
 pub(super) mod path;
 
 use crate::channel::Channel;
-use crate::circuit::celltypes::*;
 use crate::circuit::circhop::{HopNegotiationType, HopSettings};
+use crate::circuit::{CircuitRxReceiver, celltypes::*};
 #[cfg(feature = "circ-padding-manual")]
 use crate::client::CircuitPadder;
 use crate::client::circuit::padding::{PaddingController, PaddingEventStream};
@@ -58,9 +58,13 @@ use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
 use crate::memquota::CircuitAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
+use derive_deftly::Deftly;
 use educe::Educe;
 use path::HopDetail;
-use tor_cell::chancell::CircId;
+use tor_cell::chancell::{
+    CircId,
+    msg::{self as chanmsg},
+};
 use tor_error::{bad_api_usage, internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 use tor_protover::named;
@@ -77,7 +81,7 @@ use futures::FutureExt as _;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tor_memquota::mq_queue::{self, MpscSpec};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 
@@ -95,10 +99,21 @@ pub(crate) use crate::client::reactor::syncview::ClientCircSyncView;
 // TODO: export this from the top-level instead (it's not client-specific).
 pub use crate::circuit::CircParameters;
 
-/// MPSC queue for inbound data on its way from channel to circuit, sender
-pub(crate) type CircuitRxSender = mq_queue::Sender<ClientCircChanMsg, MpscSpec>;
-/// MPSC queue for inbound data on its way from channel to circuit, receiver
-pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSpec>;
+/// A subclass of ChanMsg that can correctly arrive on a live client
+/// circuit (one where a CREATED* has been received).
+#[derive(Debug, Deftly)]
+#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+#[derive_deftly(HasMemoryCost)]
+#[derive_deftly(RestrictedChanMsgSet)]
+#[deftly(usage = "on an open client circuit")]
+pub(super) enum ClientCircChanMsg {
+    /// A relay cell telling us some kind of remote command from some
+    /// party on the circuit.
+    Relay(chanmsg::Relay),
+    /// A cell telling us to destroy the circuit.
+    Destroy(chanmsg::Destroy),
+    // Note: RelayEarly is not valid for clients!
+}
 
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
@@ -993,6 +1008,7 @@ pub(crate) mod test {
 
     use super::*;
     use crate::channel::test::{CodecResult, new_reactor};
+    use crate::circuit::CircuitRxSender;
     use crate::client::circuit::padding::new_padding;
     use crate::client::stream::DataStream;
     #[cfg(feature = "hs-service")]
@@ -1071,14 +1087,14 @@ pub(crate) mod test {
         }
     }
 
-    fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg {
+    fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> AnyChanMsg {
         // TODO #1947: test other formats.
         let rfmt = RelayCellFormat::V0;
         let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
             .encode(rfmt, &mut testing_rng())
             .unwrap();
         let chanmsg = chanmsg::Relay::from(body);
-        ClientCircChanMsg::Relay(chanmsg)
+        AnyChanMsg::Relay(chanmsg)
     }
 
     // Example relay IDs and keys
@@ -1590,7 +1606,7 @@ pub(crate) mod test {
     async fn bad_extend_test_impl<R: Runtime>(
         rt: &R,
         reply_hop: HopNum,
-        bad_reply: ClientCircChanMsg,
+        bad_reply: AnyChanMsg,
     ) -> Error {
         let (chan, mut rx, _sink) = working_fake_channel(rt);
         let hops = std::iter::repeat_with(|| {
@@ -1690,7 +1706,7 @@ pub(crate) mod test {
     #[test]
     fn bad_extend_destroy() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let cc = ClientCircChanMsg::Destroy(chanmsg::Destroy::new(4.into()));
+            let cc = AnyChanMsg::Destroy(chanmsg::Destroy::new(4.into()));
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             match error {
                 Error::CircuitClosed => {}
@@ -2360,9 +2376,7 @@ pub(crate) mod test {
                 let begin_msg = chanmsg::Relay::from(body);
 
                 // Pretend to be a client at the other end of the circuit sending a begin cell
-                send.send(ClientCircChanMsg::Relay(begin_msg))
-                    .await
-                    .unwrap();
+                send.send(AnyChanMsg::Relay(begin_msg)).await.unwrap();
 
                 // Wait until the service is ready to accept data
                 // TODO: we shouldn't need to wait! This is needed because the service will reject
@@ -2378,7 +2392,7 @@ pub(crate) mod test {
                         .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
 
-                send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
+                send.send(AnyChanMsg::Relay(data_msg)).await.unwrap();
                 send
             };
 
@@ -2457,7 +2471,7 @@ pub(crate) mod test {
                 // Pretend to be a client at the other end of the circuit sending 2 identical begin
                 // cells (the first one will be rejected by the test service).
                 for _ in 0..STREAM_COUNT {
-                    send.send(ClientCircChanMsg::Relay(begin_msg.clone()))
+                    send.send(AnyChanMsg::Relay(begin_msg.clone()))
                         .await
                         .unwrap();
 
@@ -2473,7 +2487,7 @@ pub(crate) mod test {
                         .unwrap();
                 let data_msg = chanmsg::Relay::from(body);
 
-                send.send(ClientCircChanMsg::Relay(data_msg)).await.unwrap();
+                send.send(AnyChanMsg::Relay(data_msg)).await.unwrap();
                 send
             };
 
@@ -2526,9 +2540,7 @@ pub(crate) mod test {
                 let begin_msg = chanmsg::Relay::from(body);
 
                 // Pretend to be a client at the other end of the circuit sending a begin cell
-                send.send(ClientCircChanMsg::Relay(begin_msg))
-                    .await
-                    .unwrap();
+                send.send(AnyChanMsg::Relay(begin_msg)).await.unwrap();
 
                 send
             };
@@ -4038,5 +4050,25 @@ pub(crate) mod test {
                 "{err_src}"
             );
         });
+    }
+
+    #[test]
+    fn client_circ_chan_msg() {
+        use tor_cell::chancell::msg::{self, AnyChanMsg};
+        fn good(m: AnyChanMsg) {
+            assert!(ClientCircChanMsg::try_from(m).is_ok());
+        }
+        fn bad(m: AnyChanMsg) {
+            assert!(ClientCircChanMsg::try_from(m).is_err());
+        }
+
+        good(msg::Destroy::new(2.into()).into());
+        bad(msg::CreatedFast::new(&b"guaranteed in this world"[..]).into());
+        bad(msg::Created2::new(&b"and the next"[..]).into());
+        good(msg::Relay::new(&b"guaranteed guaranteed"[..]).into());
+        bad(msg::AnyChanMsg::RelayEarly(
+            msg::Relay::new(&b"for the world and its mother"[..]).into(),
+        ));
+        bad(msg::Versions::new([1, 2, 3]).unwrap().into());
     }
 }

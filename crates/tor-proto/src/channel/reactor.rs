@@ -7,6 +7,7 @@
 //! or in the error handling behavior.
 
 use super::circmap::{CircEnt, CircMap};
+use crate::circuit::CircuitRxSender;
 use crate::client::circuit::halfcirc::HalfCirc;
 use crate::client::circuit::padding::{
     PaddingController, PaddingEvent, PaddingEventStream, SendPadding, StartBlocking,
@@ -42,7 +43,6 @@ use std::sync::Arc;
 
 use crate::channel::{ChannelDetails, CloseInfo, kist::KistParams, padding, params::*, unique_id};
 use crate::circuit::celltypes::CreateResponse;
-use crate::client::circuit::CircuitRxSender;
 use tracing::{debug, instrument, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -601,7 +601,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
         match &mut *ent {
             CircEnt::Open { cell_sender: s, .. } => {
                 // There's an open circuit; we can give it the RELAY cell.
-                if s.send(msg.try_into()?).await.is_err() {
+                if s.send(msg).await.is_err() {
                     drop(ent);
                     // The circuit's receiver went away, so we should destroy the circuit.
                     self.outbound_destroy_circ(circid).await?;
@@ -665,7 +665,7 @@ impl<S: SleepProvider + CoarseTimeProvider> Reactor<S> {
             }) => {
                 trace!(channel_id = %self, "Passing destroy to open circuit {}", circid);
                 cell_sender
-                    .send(msg.try_into()?)
+                    .send(msg)
                     .await
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
@@ -977,7 +977,6 @@ pub(crate) mod test {
     #[test]
     fn deliver_relay() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use crate::circuit::celltypes::ClientCircChanMsg;
             use oneshot_fused_workaround as oneshot;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt.clone());
@@ -1021,7 +1020,7 @@ pub(crate) mod test {
                 .unwrap();
             reactor.run_once().await.unwrap();
             let got = circ_stream_13.next().await.unwrap();
-            assert!(matches!(got, ClientCircChanMsg::Relay(_)));
+            assert!(matches!(got, AnyChanMsg::Relay(_)));
 
             // If a relay cell is sent on an opening channel, that's an error.
             input
@@ -1125,7 +1124,7 @@ pub(crate) mod test {
                 .unwrap();
             reactor.run_once().await.unwrap();
             let msg = circ_stream_13.next().await.unwrap();
-            assert!(matches!(msg, ClientCircChanMsg::Destroy(_)));
+            assert!(matches!(msg, AnyChanMsg::Destroy(_)));
 
             // Destroying a DestroySent circuit is fine.
             input

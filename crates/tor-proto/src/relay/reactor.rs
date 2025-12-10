@@ -144,13 +144,12 @@ use tor_cell::chancell::CircId;
 use tor_cell::relaycell::{RelayCellDecoder, RelayCmd};
 use tor_error::{debug_report, internal};
 use tor_linkspec::HasRelayIds;
-use tor_memquota::mq_queue::{self, ChannelSpec, MpscSpec};
+use tor_memquota::mq_queue::{ChannelSpec, MpscSpec};
 use tor_rtcompat::{DynTimeProvider, Runtime};
 
 use crate::channel::Channel;
-use crate::circuit::UniqId;
-use crate::circuit::celltypes::RelayCircChanMsg;
 use crate::circuit::circhop::{CircHopInbound, CircHopOutbound, HopSettings};
+use crate::circuit::{CircuitRxReceiver, UniqId};
 use crate::congestion::CongestionControl;
 use crate::congestion::sendme::StreamRecvWindow;
 use crate::crypto::cell::{InboundRelayLayer, OutboundRelayLayer};
@@ -238,13 +237,6 @@ pub(crate) struct Reactor<R: Runtime, T: HasRelayIds> {
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
     reactor_closed_tx: broadcast::Sender<void::Void>,
 }
-
-/// MPSC queue for inbound data on its way from channel to circuit, sender
-#[allow(unused)] // TODO(relay)
-pub(crate) type CircuitRxSender = mq_queue::Sender<RelayCircChanMsg, MpscSpec>;
-
-/// MPSC queue for inbound data on its way from channel to circuit, receiver
-pub(crate) type CircuitRxReceiver = mq_queue::Receiver<RelayCircChanMsg, MpscSpec>;
 
 /// Configuration for incoming stream requests.
 pub(super) struct IncomingStreamConfig<'a> {
