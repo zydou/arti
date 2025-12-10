@@ -191,10 +191,10 @@ tasks (we need to hand out the read and write ends of the streams to
 Note that we'd need to retain `StreamPollSet` on the read side, for stream
 prioritization (we want ready-streams to be iterated over in order of priority).
 
-(The somewhat tricky part is keeping the `StreamMapRead` and `StreamMapWrite`
-halves of the `StreamMap` in sync without a mutex, but this is an implementation
-detail we can iron out later; we will likely need an MPSC channel between
-`StreamWrite` and `StreamRead` for this)
+The `StreamMapRead` and `StreamMapWrite` halves of the `StreamMap`
+will need to be kept in sync, or to share the same underlying map of streams.
+(The design here is TBD, but we should bear in mind the suggestions from
+https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/3533#note_3305914)
 
 In both cases, the stream-handling tasks will be launched lazily.
 That is, they will be launched by `FWD` upon receiving the first `BEGIN`.
