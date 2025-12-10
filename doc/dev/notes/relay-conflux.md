@@ -117,8 +117,31 @@ read from an `mpsc::Receiver`, to an `mpsc::Sender`
 (we could even use opaque `futures::Stream`s and `futures::Sink`s,
 since we likely won't be needing any `mpsc`-specific APIs)
 
-Streams will be read from, and written to, by two new reactors,
-running in separate tasks:
+Streams will be read from, and written to, by a new `StreamReactor`,
+running in a separate task:
+
+```
+                            <stream_tx
+                             MPSC (0)>
+  +--------------> FWD -------------------------+
+  |                 |                           |
+  |                 |                           |
+  |                 |                           |
+  |                 |                           v
+client      BackwardReactorCmd            StreamReactor
+  ^             <MPSC (0)>                      |
+  |                 |                           |
+  |                 |                           |
+  |                 |                           |
+  |                 v                           |
+  +--------------- BWD <------------------------+
+    application stream data    <stream_rx
+                                MPSC (0)>
+
+```
+
+Later on, we might want to parallelize the stream read/write paths further,
+such that streams are handled by *two* new reactors:
 
   * `StreamReadReactor` (`StreamRead`), which reads from the `Stream` of ready
     application streams, and sends the ready messages to `BWD` for writing
@@ -154,12 +177,13 @@ client           <MPSC (0)>                            <MPSC (unbounded if flowc
 
 ```
 
-To implement this, we will need the ability to split the `StreamMap` in two,
+
+To implement this, we would need the ability to split the `StreamMap` in two,
 such that each stream entry can be read from, and written to, from separate
 tasks (we need to hand out the read and write ends of the streams to
 `StreamRead` and `StreamWrite`, respectively)
 
-Note that we plan to retain `StreamPollSet` on the read side, for stream
+Note that we'd need to retain `StreamPollSet` on the read side, for stream
 prioritization (we want ready-streams to be iterated over in order of priority).
 
 (The somewhat tricky part is keeping the `StreamMapRead` and `StreamMapWrite`
@@ -199,7 +223,7 @@ There will be a single `ConfluxMgr` per relay process.
 All `FWD`s will have an MPSC channel for sending `LINK` cells to it.
 
 2. A `ConfluxController`, wedged between `FWD` and `BWD`, and the
-  `StreamWrite` and `StreamRead` reactors.
+  stream handling reactor.
 
 `ConfluxController` will handle the conflux seqno accounting and out-of-order cell buffering.
 There will be one these per conflux set.
@@ -210,7 +234,7 @@ reactors in the set, and will write cells to the `BWD` reactor of the primary le
 > in the background and react to events (such as incoming cells and handshake timeouts).
 
 Note that there will be one `FWD` and one `BWD` **per leg**,
-but only one `StreamWrite` and one `StreamRead` **per tunnel** (or conflux set).
+but only one `StreamReactor` **per tunnel** (or conflux set).
 
 Conflux handshake flow:
 
@@ -265,19 +289,20 @@ For example, for a two-legged conflux tunnel:
 ```
                   <stream_cell_tx MPSC (0)>
            FWD 1 ---------------------+
-            |                         | StreamWrite
-            |                         |    ^
-            |                         |    |
-    BackwardReactorCmd                |    | <MPSC (0)>
-    <sendme_tx MPSC (0)>              |    |
-            |                         v    |
-            |                  ConfluxController
-            |                   | ^   |    ^
-            |                   | |   |    |
-            |                   | |   |    | <MPSC (0)>
-            |                   | |   |    |
-            v                   | |   |    |
-           BWD 1 <--------------+ |   | StreamRead
+            |                         |
+            |                         |
+            |                         |       stream_tx
+    BackwardReactorCmd                |       <MPSC (0)>
+    <sendme_tx MPSC (0)>              |    +-------------+
+            |                         |    |             |
+            |                         v    |             v
+            |                  ConfluxController    StreamReactor
+            |                   | ^   |    ^             |
+            |                   | |   |    |             |
+            |                   | |   |    |             |
+            |                   | |   |    +-------------+
+            v                   | |   |      <stream_rx
+           BWD 1 <--------------+ |   |       MPSC (0)>
                  <stream_cell_rx> |   |
                                   |   |
                                   |   |
@@ -369,8 +394,9 @@ A client will have both a `FWD` and a `BWD` reactor, but its `FWD` reactor
 will never get initialized with an outgoing Tor channel. The only responsibility
 of this reactor will be to forward cells either to `BWD` (in the case of
 circuit-level SENDMEs), or to the stream data `Sink`
-(connected either to `StreamWrite`, for single-path cirucits,
+(connected either to `StreamReactor`, for single-path cirucits,
 or `ConfluxController`, for the multi-path ones).
+
 
 Various parts of the `FWD` reactor will need to be abstracted away,
 as they will be different on the client side:
