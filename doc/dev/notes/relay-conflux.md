@@ -196,15 +196,16 @@ halves of the `StreamMap` in sync without a mutex, but this is an implementation
 detail we can iron out later; we will likely need an MPSC channel between
 `StreamWrite` and `StreamRead` for this)
 
-The `Stream{Read Write}` tasks will be launched lazily.
+In both cases, the stream-handling tasks will be launched lazily.
 That is, they will be launched by `FWD` upon receiving the first `BEGIN`.
-This will prevent unnecessarily launching 2 extra tasks per circuit
+This will prevent unnecessarily launching stream handling tasks
 for middle relays that don't do leaky pipe.
 
-With this change, exits (and relays with leaky pipe) will spawn 4 tasks per circuit,
-instead of just 2.
+With this change, exits (and relays with leaky pipe) will spawn 3
+(or 4, if we implement the stream read/write split)
+tasks per circuit, instead of just 2.
 
-> Note: in the case of conflux circuits (tunnels), the `Stream{Read Write}` tasks won't be launched by `FWD`.
+> Note: in the case of conflux circuits (tunnels), the stream handling tasks won't be launched by `FWD`.
 >
 > More on that below.
 
