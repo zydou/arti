@@ -40,7 +40,7 @@ use crate::util::poll_all::PollAll;
 use crate::util::tunnel_activity::TunnelActivity;
 
 use super::circuit::CircHop;
-use super::{Circuit, CircuitAction};
+use super::{Circuit, CircuitEvent};
 
 #[cfg(feature = "conflux")]
 use {
@@ -58,14 +58,14 @@ use {
 const MAX_CONFLUX_LEGS: usize = 16;
 
 /// The number of futures we add to the per-circuit [`PollAll`] future in
-/// [`ConfluxSet::next_circ_action`].
+/// [`ConfluxSet::next_circ_event`].
 ///
 /// Used for the SmallVec size estimate;
 const NUM_CIRC_FUTURES: usize = 2;
 
-/// The expected number of circuit actions to be returned from
-/// [`ConfluxSet::next_circ_action`]
-const CIRC_ACTION_COUNT: usize = MAX_CONFLUX_LEGS * NUM_CIRC_FUTURES;
+/// The expected number of circuit events to be returned from
+/// [`ConfluxSet::next_circ_event`]
+const CIRC_EVENT_COUNT: usize = MAX_CONFLUX_LEGS * NUM_CIRC_FUTURES;
 
 /// A set with one or more circuits.
 ///
@@ -826,7 +826,7 @@ impl ConfluxSet {
         Ok(!join_circhop.ccontrol().can_send())
     }
 
-    /// Returns whether [`next_circ_action`](Self::next_circ_action)
+    /// Returns whether [`next_circ_event`](Self::next_circ_event)
     /// should avoid polling the join point streams entirely.
     #[cfg(feature = "conflux")]
     fn should_skip_join_point(&self) -> Result<bool, Bug> {
@@ -902,7 +902,7 @@ impl ConfluxSet {
         Ok(should_skip)
     }
 
-    /// Returns the next ready [`CircuitAction`],
+    /// Returns the next ready [`CircuitEvent`],
     /// obtained from processing the incoming/outgoing messages on all the circuits in this set.
     ///
     /// Will return an error if there are no circuits in this set,
@@ -911,10 +911,10 @@ impl ConfluxSet {
     /// This is cancellation-safe.
     #[allow(clippy::unnecessary_wraps)] // Can return Err if conflux is enabled
     #[instrument(level = "trace", skip_all)]
-    pub(super) async fn next_circ_action(
+    pub(super) async fn next_circ_event(
         &mut self,
         runtime: &tor_rtcompat::DynTimeProvider,
-    ) -> Result<SmallVec<[CircuitAction; CIRC_ACTION_COUNT]>, crate::Error> {
+    ) -> Result<SmallVec<[CircuitEvent; CIRC_EVENT_COUNT]>, crate::Error> {
         // Avoid polling the streams on the join point if our primary
         // leg is blocked on cc
         cfg_if::cfg_if! {
@@ -941,12 +941,12 @@ impl ConfluxSet {
         // into `PollAll` before future B, the result of future A will come
         // before future B's result in the result list returned by poll_all.await.
         //
-        // This means that the actions corresponding to the first circuit in the tunnel
-        // will be executed first, followed by the actions issued by the next circuit,
-        // and s on.
+        // This means that the events corresponding to the first circuit in the tunnel
+        // will be executed first, followed by the events issued by the next circuit,
+        // and so on.
         //
         let mut poll_all =
-            PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitAction; NUM_CIRC_FUTURES]>>::new();
+            PollAll::<MAX_CONFLUX_LEGS, SmallVec<[CircuitEvent; NUM_CIRC_FUTURES]>>::new();
 
         for leg in &mut self.legs {
             let unique_id = leg.unique_id();
@@ -968,11 +968,11 @@ impl ConfluxSet {
             // implementation currently uses Circuit Build Timeout).
             let conflux_hs_timeout = leg.conflux_hs_timeout();
 
-            let mut poll_all_circ = PollAll::<NUM_CIRC_FUTURES, CircuitAction>::new();
+            let mut poll_all_circ = PollAll::<NUM_CIRC_FUTURES, CircuitEvent>::new();
 
             let input = leg.input.next().map(move |res| match res {
                 Some(msg) => match msg.try_into() {
-                    Ok(cell) => CircuitAction::HandleCell {
+                    Ok(cell) => CircuitEvent::HandleCell {
                         leg: unique_id,
                         cell,
                     },
@@ -984,9 +984,9 @@ impl ConfluxSet {
                     // that we decide to either keep this circuit close behavior or close the
                     // entire channel in this case. Resolution of the above ticket needs to fix
                     // this part.
-                    Err(e) => CircuitAction::ProtoViolation { err: e },
+                    Err(e) => CircuitEvent::ProtoViolation { err: e },
                 },
-                None => CircuitAction::RemoveLeg {
+                None => CircuitEvent::RemoveLeg {
                     leg: unique_id,
                     reason: RemoveLegReason::ChannelClosed,
                 },
@@ -1026,21 +1026,21 @@ impl ConfluxSet {
                         // We await an infinitely pending future so that we don't
                         // immediately return a `None` in the `select_biased!` below.
                         // We'd rather wait on `input.next()` than immediately return with
-                        // no `CircuitAction`, which could put the reactor into a spin loop.
+                        // no `CircuitEvent`, which could put the reactor into a spin loop.
                         let () = std::future::pending().await;
                         unreachable!();
                     }
                 }
             };
 
-            poll_all_circ.push(next_ready_stream.map(move |cmd| CircuitAction::RunCmd {
+            poll_all_circ.push(next_ready_stream.map(move |cmd| CircuitEvent::RunCmd {
                 leg: unique_id,
                 cmd,
             }));
 
             let mut next_padding_event_fut = leg.padding_event_stream.next();
 
-            // This selects between 3 actions that cannot be handled concurrently.
+            // This selects between 3 events that cannot be handled concurrently.
             //
             // If the conflux handshake times out, we need to remove the circuit leg
             // (any pending padding events or application stream data should be discarded;
@@ -1069,16 +1069,16 @@ impl ConfluxSet {
 
                             // Conflux handshake has timed out, time to remove this circuit leg,
                             // and notify the handshake initiator.
-                            smallvec![CircuitAction::RemoveLeg {
+                            smallvec![CircuitEvent::RemoveLeg {
                                 leg: unique_id,
                                 reason: RemoveLegReason::ConfluxHandshakeTimeout,
                             }]
                         }
-                        padding_action = next_padding_event_fut => {
-                            smallvec![CircuitAction::PaddingAction {
+                        padding_event = next_padding_event_fut => {
+                            smallvec![CircuitEvent::PaddingAction {
                                 leg: unique_id,
-                                padding_action:
-                                    padding_action.expect("PaddingEventStream, surprisingly, was terminated!"),
+                                padding_event:
+                                    padding_event.expect("PaddingEventStream, surprisingly, was terminated!"),
                             }]
                         }
                         ret = poll_all_circ.fuse() => ret,
@@ -1088,7 +1088,7 @@ impl ConfluxSet {
         }
 
         // Flatten the nested SmallVecs to simplify the calling code
-        // (which will handle all the returned actions sequentially).
+        // (which will handle all the returned events sequentially).
         Ok(poll_all.await.into_iter().flatten().collect())
     }
 
@@ -1231,12 +1231,12 @@ impl ConfluxSet {
         Ok(self.legs.remove(idx))
     }
 
-    /// Perform some circuit-padding-based action on the specified circuit.
+    /// Perform some circuit-padding-based event on the specified circuit.
     #[cfg(feature = "circ-padding")]
-    pub(super) async fn run_padding_action(
+    pub(super) async fn run_padding_event(
         &mut self,
         circ_id: UniqId,
-        padding_action: PaddingEvent,
+        padding_event: PaddingEvent,
     ) -> crate::Result<()> {
         use PaddingEvent as E;
         let Some(circ) = self.leg_mut(circ_id) else {
@@ -1245,7 +1245,7 @@ impl ConfluxSet {
             return Ok(());
         };
 
-        match padding_action {
+        match padding_event {
             E::SendPadding(send_padding) => {
                 circ.send_padding(send_padding).await?;
             }
