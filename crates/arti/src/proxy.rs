@@ -370,9 +370,10 @@ pub(crate) async fn run_proxy<R: Runtime>(
                 for addr in addrgroup {
                     match runtime.listen(&addr).await {
                         Ok(listener) => {
-                            info!("Listening on {:?}.", addr);
+                            let bound_addr = listener.local_addr()?;
+                            info!("Listening on {:?}", bound_addr);
                             listeners.push(listener);
-                            listening_on_addrs.push(addr);
+                            listening_on_addrs.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -400,6 +401,7 @@ pub(crate) async fn run_proxy<R: Runtime>(
                 rpc_state_sender.set_socks_listeners(&listening_on_addrs[..]);
             }
         } else {
+            // XXXX: Unconditionally write addresses to disk.
             let _ = listening_on_addrs;
         }
     }

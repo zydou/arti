@@ -245,7 +245,9 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
     listen: Listen,
 ) -> Result<()> {
     if !listen.is_loopback_only() {
-        warn!("Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only.");
+        warn!(
+            "Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
+        );
     }
 
     let mut listeners = Vec::new();
@@ -259,8 +261,10 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                     // knowing the address is basically essential for diagnostics.
                     match runtime.bind(&addr).await {
                         Ok(listener) => {
-                            info!("Listening on {:?}.", addr);
+                            let bound_addr = listener.local_addr()?;
+                            info!("Listening on {:?}.", bound_addr);
                             listeners.push(listener);
+                            // TODO Record DNS address, perhaps?
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
