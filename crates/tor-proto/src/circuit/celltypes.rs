@@ -34,6 +34,8 @@ define_derive_deftly! {
     }
 }
 
+pub(crate) use derive_deftly_template_RestrictedChanMsgSet;
+
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
 #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]

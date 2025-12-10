@@ -26,6 +26,8 @@ use tor_rtcompat::DynTimeProvider;
 
 use reactor::{RelayCtrlCmd, RelayCtrlMsg};
 
+use crate::circuit::celltypes::derive_deftly_template_RestrictedChanMsgSet;
+
 /// A subclass of ChanMsg that can correctly arrive on a live relay
 /// circuit (one where a CREATE* has been received).
 #[derive(Debug, Deftly)]
