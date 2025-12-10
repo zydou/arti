@@ -398,9 +398,12 @@ impl CircuitEvent {
     fn order_within_batch(&self) -> u8 {
         use CircuitEvent as CA;
         use PaddingEvent as PE;
-        const EARLY: u8 = 0;
-        const NORMAL: u8 = 1;
-        const LATE: u8 = 2;
+        // This immediate state MUST NOT be used for events emitting cells. At the moment, it is
+        // only used by the protocol violation event which leads to a shutdown of the reactor.
+        const IMMEDIATE: u8 = 0;
+        const EARLY: u8 = 1;
+        const NORMAL: u8 = 2;
+        const LATE: u8 = 3;
 
         // We use this ordering to move any "StartBlocking" to the _end_ of a batch and
         // "StopBlocking" to the start.
@@ -423,7 +426,7 @@ impl CircuitEvent {
             },
             #[cfg(not(feature = "circ-padding"))]
             CA::PaddingAction { .. } => NORMAL,
-            CA::ProtoViolation { .. } => EARLY,
+            CA::ProtoViolation { .. } => IMMEDIATE,
         }
     }
 }
