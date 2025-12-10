@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use tokio::task::JoinSet;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 use fs_mistrust::Mistrust;
 use tor_chanmgr::Dormancy;
@@ -121,7 +121,10 @@ impl InertTorRelay {
         let ephemeral_store = ArtiEphemeralKeystore::new("relay-ephemeral".into());
         let persistent_store = ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, mistrust)
             .context("Failed to construct the native keystore")?;
-        info!("Using relay keystore from {key_store_dir:?}");
+
+        // Should only log fs paths at debug level or lower,
+        // unless they're part of a diagnostic message.
+        debug!("Using relay keystore from {key_store_dir:?}");
 
         let keymgr = KeyMgrBuilder::default()
             .primary_store(Box::new(persistent_store))

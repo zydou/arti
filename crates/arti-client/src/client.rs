@@ -251,7 +251,9 @@ impl InertTorClient {
 
                 let native_store =
                     ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
-                info!("Using keystore from {key_store_dir:?}");
+                // Should only log fs paths at debug level or lower,
+                // unless they're part of a diagnostic message.
+                debug!("Using keystore from {key_store_dir:?}");
 
                 Box::new(native_store)
             }
