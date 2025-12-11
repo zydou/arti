@@ -252,6 +252,14 @@ rust-dev-recent:
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - section_end
 
+    - section_start "preserve artifacts"
+    - ./maint/preserve target/doc/
+    - section_end
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 1 week
+
 rust-dev-latest:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
@@ -373,6 +381,11 @@ rust-nightly:
     - ./maint/add_warning --ci-nightly
     - cargo clippy --all-features --tests -- -D clippy::dbg_macro
     - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
+    - ./maint/preserve target/doc/
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 1 week
 
 deb-source:
   needs: []
