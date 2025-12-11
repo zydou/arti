@@ -103,6 +103,9 @@ all the buffering layers at the "edge" of the reactor
 That way, blocking (for example due to an outbound MPSC channel being full)
 can only be initiated by these egdes, and not by the intermediate MPSC channels.
 
+> Note: eventually, we might want non-zero amounts of buffering on the
+> inner MPSC channels for performance reasons.
+
 > Currently, the client reactor architecture is completely
 > different from the work-in-progress relay one,
 > but if we are careful about our design choices here,
@@ -590,10 +593,10 @@ tearing down the entire circuit:
 Various parts of the `FWD`/`BWD` reactors will need to be abstracted away,
 as they will be different on the client side:
 
-  * the `crypto_out` state (set to `OutboundClientCrypt` for clients, and
-    `Box<dyn OutboundRelayLayer + Send>` for relays)
-  * the `Forward` state (representing the sending of the forward channel) will
-    always be `None` in the client reactor
+  * the `crypto_in`/`crypto_out` states
+  * the `Forward` state (representing the sending of the forward channel),
+    and the `input` channel from the `BWD` will always be set
+    to `None` in the client reactor
   * clients and relays support different incoming messages,
     so we might need to delegate their handling to an abstract `MsgHandler`
   * `FWD` and `BWD` will need to support handling `CtrlMsg`s.
