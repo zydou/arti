@@ -1,3 +1,7 @@
+include:
+  - project: tpo/tpa/ci-templates
+    file: static-shim-deploy.yml
+
 stages:
   - build
   - test
@@ -23,6 +27,8 @@ variables:
   # `ARTI_CI_PROFILE`.  This is *usually* the same as name of the profile, but
   # for profile `dev` is `debug`.
   ARTI_CI_PROFILE_PATH: quicktest
+  # For static website deployment job
+  SITE_URL: arti.torproject.org
 
 default:
   image:
@@ -876,10 +882,11 @@ check-targets:
   script:
     - ./maint/cargo_check_target -il
 
-pages:
+# build the website
+website:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
-  stage: deploy
+  stage: build
   image: docker.io/node:lts
   script:
     # Install tools needed.
@@ -895,10 +902,36 @@ pages:
     - yarn run build
     - cd ..
     - mv web/build public
-    # Add Coverage from previous job to the /coverage of the webroot.
-    - if test -d coverage ; then mv coverage public; fi
     # Make the old site available under /old of the webroot.
     - mv old-website public/old
   artifacts:
     paths:
       - public
+
+# deploy website to static component
+deploy-prod:
+  script:
+    # Add Coverage from previous job to the /coverage of the webroot.
+    - if test -d coverage ; then mv coverage public; fi
+    - !reference [.run-deploy-static]
+  rules:
+    - !reference [website, rules]
+  needs:
+    - coverage-aggregated
+    - website
+
+# redirect pages to arti.tpo
+pages:
+  # inhibit default before/after scripts
+  before_script: [ 'true' ]
+  after_script: [ 'true' ]
+  # write redirect file
+  script:
+    - mkdir -p public
+    - echo "/* https://${SITE_URL}/:splat" > public/_redirects
+  # no artifacts required from previous jobs
+  dependencies: []
+  rules:
+    - !reference [website, rules]
+  pages:
+    expire_in: never
