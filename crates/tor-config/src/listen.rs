@@ -60,7 +60,7 @@ impl Listen {
         self.0.items().any(ListenItem::is_auto)
     }
 
-    /// Return true if there are any "auto" addresses in this Listen.
+    /// Return true if there are any port-zero addresses in this Listen.
     ///
     /// See also [`using_auto()`](Self::using_auto).
     pub fn using_port_zero(&self) -> bool {
@@ -207,11 +207,26 @@ impl TryFrom<CustomizableListen> for Listen {
                 // A non-list standalone 0 means "none".
                 Ok(Self(CustomizableListen::Disabled))
             }
-            CustomizableListen::One(_) => Ok(Self(l)),
+            CustomizableListen::One(li) => {
+                if li.is_port_zero() {
+                    tracing::warn!(
+                        "Configured to listen on port zero via {li}. \
+                         This is deprecated. Instead, replace '0' with 'auto'."
+                    );
+                }
+                Ok(Self(l))
+            }
             CustomizableListen::List(list) => {
                 // We don't support a standalone 0 port in a list item.
                 if list.iter().any(|item| matches!(item, ListenItem::Port(0))) {
                     return Err(InvalidListen::ZeroPortInList);
+                }
+                // We warn on e.g. "127.0.0.1:0"
+                if let Some(zero_li) = list.iter().find(|li| li.is_port_zero()) {
+                    tracing::warn!(
+                        "Configured to listen on port zero via {zero_li}. \
+                         This is deprecated. Instead, replace '0' with 'auto'."
+                    );
                 }
                 Ok(Self(l))
             }
