@@ -22,7 +22,9 @@ use tor_config::Listen;
 use tor_error::{error_report, warn_report};
 use tor_rtcompat::{Runtime, UdpSocket};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+
+use crate::proxy::port_info;
 
 /// Maximum length for receiving a single datagram
 const MAX_DATAGRAM_SIZE: usize = 1536;
@@ -245,7 +247,7 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-) -> Result<impl Future<Output = Result<()>>> {
+) -> Result<(impl Future<Output = Result<()>>, Vec<port_info::Port>)> {
     if !listen.is_loopback_only() {
         warn!(
             "Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
@@ -253,6 +255,7 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
     }
 
     let mut listeners = Vec::new();
+    let mut listening_on = Vec::new();
 
     // Try to bind to the DNS ports.
     match listen.ip_addrs() {
@@ -266,7 +269,7 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
                             let bound_addr = listener.local_addr()?;
                             info!("Listening on {:?}.", bound_addr);
                             listeners.push(listener);
-                            // TODO Record DNS address, perhaps?
+                            listening_on.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -288,8 +291,17 @@ pub(crate) async fn launch_dns_resolver<R: Runtime>(
         return Err(anyhow!("Couldn't open any DNS listeners"));
     }
 
-    Ok(run_dns_resolver_with_listeners(
-        runtime, tor_client, listeners,
+    let ports = listening_on
+        .iter()
+        .map(|sockaddr| port_info::Port {
+            protocol: port_info::SupportedProtocol::DnsUdp,
+            address: (*sockaddr).into(),
+        })
+        .collect();
+
+    Ok((
+        run_dns_resolver_with_listeners(runtime, tor_client, listeners),
+        ports,
     ))
 }
 

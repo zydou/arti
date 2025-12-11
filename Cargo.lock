@@ -252,6 +252,7 @@ dependencies = [
  "tor-config",
  "tor-config-path",
  "tor-error",
+ "tor-general-addr",
  "tor-hsclient",
  "tor-hscrypto",
  "tor-hsrproxy",

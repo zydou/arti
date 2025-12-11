@@ -6,6 +6,7 @@ use paste::paste;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use tor_config_path::CfgPath;
 
 #[cfg(feature = "onion-service-service")]
 use crate::onion_proxy::{
@@ -160,8 +161,17 @@ pub struct ProxyConfig {
     )]
     #[builder_setter_attr(deprecated)]
     pub(crate) dns_port: (),
+
+    /// A file in which to write information about the ports we're listening on.
+    #[builder(setter(into), default = "default_port_info_file()")]
+    pub(crate) port_info_file: CfgPath,
 }
 impl_standard_builder! { ProxyConfig }
+
+/// Return the default ports_info_file location.
+fn default_port_info_file() -> CfgPath {
+    CfgPath::new("${ARTI_LOCAL_DATA}/public/port_info.json".to_owned())
+}
 
 /// Configuration for system resources used by Tor.
 ///
@@ -567,6 +577,7 @@ mod test {
                 "path_rules.long_lived_ports",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
+                "proxy.port_info_file",
                 "use_obsolete_software",
                 "circuit_timing.disused_circuit_timeout",
             ],

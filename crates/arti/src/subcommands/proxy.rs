@@ -15,7 +15,11 @@ use tor_rtcompat::ToplevelRuntime;
 
 #[cfg(feature = "dns-proxy")]
 use crate::dns;
-use crate::{ArtiConfig, TorClient, exit, process, proxy, reload_cfg};
+use crate::{
+    ArtiConfig, TorClient, exit, process,
+    proxy::{self, port_info},
+    reload_cfg,
+};
 
 #[cfg(feature = "rpc")]
 use crate::rpc;
@@ -121,10 +125,8 @@ async fn run_proxy<R: ToplevelRuntime>(
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
 
-    // TODO RPC: We may instead want to provide a way to get these items out of TorClient.
-    #[allow(unused)]
+    // TODO: We may instead want to provide a way to get these items out of TorClient.
     let fs_mistrust = client_config.fs_mistrust().clone();
-    #[allow(unused)]
     let path_resolver: CfgPathResolver = AsRef::<CfgPathResolver>::as_ref(&client_config).clone();
 
     let client_builder = TorClient::with_runtime(runtime.clone())
@@ -178,6 +180,7 @@ async fn run_proxy<R: ToplevelRuntime>(
     }
 
     let mut proxy: Vec<PinnedFuture<Result<()>>> = Vec::new();
+    let mut ports = Vec::new();
     if !socks_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
@@ -187,24 +190,27 @@ async fn run_proxy<R: ToplevelRuntime>(
         #[cfg(not(feature = "http-connect"))]
         let listener_type = "SOCKS";
 
-        let proxy_future = proxy::launch_proxy(runtime, client, socks_listen, rpc_data)
-            .await
-            .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
+        let (proxy_future, socks_ports) =
+            proxy::launch_proxy(runtime, client, socks_listen, rpc_data)
+                .await
+                .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
         let failure_message = format!("{listener_type} proxy died unexpectedly");
         let proxy_future = proxy_future.map(|future_result| future_result.context(failure_message));
         proxy.push(Box::pin(proxy_future));
+        ports.extend(socks_ports);
     }
 
     #[cfg(feature = "dns-proxy")]
     if !dns_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
-        let proxy_future = dns::launch_dns_resolver(runtime, client, dns_listen)
+        let (proxy_future, dns_ports) = dns::launch_dns_resolver(runtime, client, dns_listen)
             .await
             .context("Unable to launch DNS proxy")?;
         let proxy_future =
             proxy_future.map(|future_result| future_result.context("DNS proxy died unexpectedly"));
         proxy.push(Box::pin(proxy_future));
+        ports.extend(dns_ports);
     }
 
     #[cfg(not(feature = "dns-proxy"))]
@@ -226,6 +232,18 @@ async fn run_proxy<R: ToplevelRuntime>(
             // Push a dummy future to appease future::select_all,
             // which expects a non-empty list
             proxy.push(Box::pin(futures::future::pending()));
+        }
+    }
+
+    {
+        let port_info = port_info::PortInfo { ports };
+        let port_info_file = arti_config
+            .proxy()
+            .port_info_file
+            .path(&path_resolver)
+            .context("Can't find path for port_info_file")?;
+        if port_info_file.to_str() != Some("") {
+            port_info.write_to_file(&fs_mistrust, &port_info_file)?;
         }
     }
 
