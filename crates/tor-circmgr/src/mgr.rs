@@ -1059,6 +1059,8 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
             };
             // Record the error, flattening it if needed.
             match error {
+                #[allow(clippy::disallowed_methods)]
+                // Using extend here for convenience; time is already captured
                 Error::RequestFailed(e) => retry_err.extend(e),
                 e => retry_err.push_timed(e, now, None),
             }

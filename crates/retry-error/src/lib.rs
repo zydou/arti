@@ -186,6 +186,29 @@ impl<E> RetryError<E> {
         self.errors.is_empty()
     }
 
+    /// Add multiple errors to this RetryError using the current time.
+    ///
+    /// This method uses [`push()`](Self::push) internally, which captures
+    /// `SystemTime::now()`. For code that needs mockable time (such as in tests),
+    /// iterate manually and call [`push_timed()`](Self::push_timed) instead.
+    ///
+    /// # Example
+    /// ```
+    /// # use retry_error::RetryError;
+    /// let mut err: RetryError<anyhow::Error> = RetryError::in_attempt_to("parse");
+    /// let errors = vec!["error1", "error2"].into_iter().map(anyhow::Error::msg);
+    /// err.extend(errors);
+    /// ```
+    #[allow(clippy::disallowed_methods)] // This method intentionally uses push()
+    pub fn extend<T>(&mut self, iter: impl IntoIterator<Item = T>)
+    where
+        T: Into<E>,
+    {
+        for item in iter {
+            self.push(item);
+        }
+    }
+
     /// Group up consecutive errors of the same kind, for easier display.
     ///
     /// Two errors have "the same kind" if they return `true` when passed
@@ -226,21 +249,6 @@ impl Attempt {
             Attempt::Single(idx) => Attempt::Range(idx, idx + 1),
             Attempt::Range(first, last) => Attempt::Range(first, last + 1),
         };
-    }
-}
-
-impl<E, T> Extend<T> for RetryError<E>
-where
-    T: Into<E>,
-{
-    #[allow(clippy::disallowed_methods)]
-    fn extend<C>(&mut self, iter: C)
-    where
-        C: IntoIterator<Item = T>,
-    {
-        for item in iter.into_iter() {
-            self.push(item);
-        }
     }
 }
 

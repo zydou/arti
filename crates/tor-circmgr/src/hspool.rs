@@ -368,6 +368,14 @@ impl<R: Runtime> HsCircPool<R> {
     pub fn retire_all_circuits(&self) -> StdResult<(), tor_config::ReconfigureError> {
         self.0.retire_all_circuits()
     }
+
+    /// Return the current time instant from the runtime.
+    ///
+    /// This provides mockable time for use in error tracking and other
+    /// time-sensitive operations.
+    pub fn now(&self) -> std::time::Instant {
+        self.0.circmgr.mgr.peek_runtime().now()
+    }
 }
 
 /// An object to provide circuits for implementing onion services.

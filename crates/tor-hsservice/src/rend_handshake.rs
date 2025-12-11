@@ -166,11 +166,17 @@ pub(crate) struct OpenSession {
 /// `RendRequestContext` without needing to parameterize on R.
 #[async_trait]
 pub(crate) trait RendCircConnector: Send + Sync {
+    /// Launch or return an existing circuit to the specified target.
     async fn get_or_launch_specific(
         &self,
         netdir: &tor_netdir::NetDir,
         target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
     ) -> tor_circmgr::Result<ServiceOnionServiceDataTunnel>;
+
+    /// Return the current time instant from the runtime.
+    ///
+    /// This provides mockable time for use in error tracking.
+    fn now(&self) -> std::time::Instant;
 }
 
 #[async_trait]
@@ -181,6 +187,10 @@ impl<R: Runtime> RendCircConnector for HsCircPool<R> {
         target: VerbatimLinkSpecCircTarget<OwnedCircTarget>,
     ) -> tor_circmgr::Result<ServiceOnionServiceDataTunnel> {
         HsCircPool::get_or_launch_svc_rend(self, netdir, target).await
+    }
+
+    fn now(&self) -> std::time::Instant {
+        HsCircPool::now(self)
     }
 }
 
@@ -305,7 +315,7 @@ impl IntroRequest {
                     break;
                 }
                 Err(e) => {
-                    retry_err.push_timed(e, std::time::Instant::now(), None);
+                    retry_err.push_timed(e, hs_pool.now(), None);
                     // Note that we do not sleep on errors: if there is any
                     // error that will be solved by waiting, it would probably
                     // require waiting too long to satisfy the client.
