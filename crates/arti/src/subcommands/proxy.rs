@@ -177,30 +177,34 @@ async fn run_proxy<R: ToplevelRuntime>(
         }
     }
 
-    let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
+    let mut proxy: Vec<PinnedFuture<Result<()>>> = Vec::new();
     if !socks_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
         let socks_listen = socks_listen.clone();
-        proxy.push(Box::pin(async move {
-            let res = proxy::run_proxy(runtime, client, socks_listen, rpc_data).await;
-            #[cfg(feature = "http-connect")]
-            let listener_type = "SOCKS+HTTP";
-            #[cfg(not(feature = "http-connect"))]
-            let listener_type = "SOCKS";
+        #[cfg(feature = "http-connect")]
+        let listener_type = "SOCKS+HTTP";
+        #[cfg(not(feature = "http-connect"))]
+        let listener_type = "SOCKS";
 
-            (res, listener_type)
-        }));
+        let proxy_future = proxy::launch_proxy(runtime, client, socks_listen, rpc_data)
+            .await
+            .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
+        let failure_message = format!("{listener_type} proxy died unexpectedly");
+        let proxy_future = proxy_future.map(|future_result| future_result.context(failure_message));
+        proxy.push(Box::pin(proxy_future));
     }
 
     #[cfg(feature = "dns-proxy")]
     if !dns_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
-        proxy.push(Box::pin(async move {
-            let res = dns::run_dns_resolver(runtime, client, dns_listen).await;
-            (res, "DNS")
-        }));
+        let proxy_future = dns::launch_dns_resolver(runtime, client, dns_listen)
+            .await
+            .context("Unable to launch DNS proxy")?;
+        let proxy_future =
+            proxy_future.map(|future_result| future_result.context("DNS proxy died unexpectedly"));
+        proxy.push(Box::pin(proxy_future));
     }
 
     #[cfg(not(feature = "dns-proxy"))]
@@ -230,7 +234,7 @@ async fn run_proxy<R: ToplevelRuntime>(
         r = exit::wait_for_ctrl_c().fuse()
             => r.context("waiting for termination signal"),
         r = proxy.fuse()
-            => r.0.context(format!("{} proxy failure", r.1)),
+            => r,
         r = async {
             client.bootstrap().await?;
             if !socks_listen.is_empty() {

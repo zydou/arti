@@ -1,6 +1,6 @@
 //! Implement a simple proxy that relays connections over Tor.
 //!
-//! A proxy is launched with [`run_proxy()`], which listens for new
+//! A proxy is launched with [`launch_proxy()`], which starts a task to listen for new
 //! connections, handles an appropriate handshake,
 //! and then relays traffic as appropriate.
 
@@ -334,14 +334,16 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 /// Requires a `runtime` to use for launching tasks and handling
 /// timeouts, and a `tor_client` to use in connecting over the Tor
 /// network.
+///
+/// Returns a future that actually instantiates the proxy.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[instrument(skip_all, level = "trace")]
-pub(crate) async fn run_proxy<R: Runtime>(
+pub(crate) async fn launch_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
     rpc_data: Option<RpcProxySupport>,
-) -> Result<()> {
+) -> Result<impl Future<Output = Result<()>>> {
     #[cfg(feature = "rpc")]
     let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
         Some(RpcProxySupport {
@@ -407,7 +409,7 @@ pub(crate) async fn run_proxy<R: Runtime>(
         }
     }
 
-    run_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
+    Ok(run_proxy_with_listeners(tor_client, listeners, rpc_mgr))
 }
 
 /// Launch a proxy from a given set of already bound listeners.
