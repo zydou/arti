@@ -223,12 +223,15 @@ There will be a single `ConfluxMgr` per relay process.
 All `FWD`s will have an MPSC channel for sending `LINK` cells to it.
 
 2. A `ConfluxController`, wedged between `FWD` and `BWD`, and the
-  stream handling reactor.
+  stream handling reactor
 
 `ConfluxController` will handle the conflux seqno accounting and out-of-order cell buffering.
 There will be one these per conflux set.
 `ConfluxController` will receive cells from all the `FWD`
 reactors in the set, and will write cells to the `BWD` reactor of the primary leg.
+
+Alternatively, we might choose to merge `ConfluxController` and `StreamReactor`,
+i.e. have `StreamReactor` handle conflux.
 
 > `ConfluxMgr` and the `ConfluxController`s will be "reactors", in that they will run
 > in the background and react to events (such as incoming cells and handshake timeouts).
