@@ -44,8 +44,8 @@ we track in-tree when we breaking API changes,
 and try to bump the version numbers only then.
 
 The notable exception to this are changes to the API that are gated
-behind an opt-in compile feature prefixed with `experimental`, in which
-case breaking API changes may be done without bumping the major version
+behind an opt-in compile feature marked as "experimental", in which
+case breaking API changes may be done without bumping the major or minor version
 number.
 Please do not rely on these functionalities if you need API stability.
 
