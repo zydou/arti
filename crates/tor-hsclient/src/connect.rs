@@ -544,7 +544,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                             error,
                         }),
                         self.runtime.now(),
-                        None,
+                        Some(self.runtime.wallclock()),
                     );
                 }
             }
@@ -738,7 +738,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             .filter_map(|entry| match entry {
                 Ok(y) => Some(y),
                 Err(e) => {
-                    errors.push_timed(e, self.runtime.now(), None);
+                    errors.push_timed(e, self.runtime.now(), Some(self.runtime.wallclock()));
                     None
                 }
             })
@@ -972,7 +972,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     if let Some(intro_index) = error.intro_index() {
                         store_experience(intro_index, Err(error.retry_time()));
                     }
-                    errors.push_timed(error, self.runtime.now(), None);
+                    errors.push_timed(error, self.runtime.now(), Some(self.runtime.wallclock()));
 
                     // If we are using proof-of-work DoS mitigation, try harder next time
                     pow_client.increase_effort();

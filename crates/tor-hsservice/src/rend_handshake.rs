@@ -177,6 +177,9 @@ pub(crate) trait RendCircConnector: Send + Sync {
     ///
     /// This provides mockable time for use in error tracking.
     fn now(&self) -> std::time::Instant;
+
+    /// Return the current wall-clock time from the runtime.
+    fn wallclock(&self) -> std::time::SystemTime;
 }
 
 #[async_trait]
@@ -191,6 +194,10 @@ impl<R: Runtime> RendCircConnector for HsCircPool<R> {
 
     fn now(&self) -> std::time::Instant {
         HsCircPool::now(self)
+    }
+
+    fn wallclock(&self) -> std::time::SystemTime {
+        HsCircPool::wallclock(self)
     }
 }
 
@@ -315,7 +322,7 @@ impl IntroRequest {
                     break;
                 }
                 Err(e) => {
-                    retry_err.push_timed(e, hs_pool.now(), None);
+                    retry_err.push_timed(e, hs_pool.now(), Some(hs_pool.wallclock()));
                     // Note that we do not sleep on errors: if there is any
                     // error that will be solved by waiting, it would probably
                     // require waiting too long to satisfy the client.

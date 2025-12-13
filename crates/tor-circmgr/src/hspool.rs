@@ -376,6 +376,11 @@ impl<R: Runtime> HsCircPool<R> {
     pub fn now(&self) -> std::time::Instant {
         self.0.circmgr.mgr.peek_runtime().now()
     }
+
+    /// Return the current wall-clock time from the runtime.
+    pub fn wallclock(&self) -> std::time::SystemTime {
+        self.0.circmgr.mgr.peek_runtime().wallclock()
+    }
 }
 
 /// An object to provide circuits for implementing onion services.
