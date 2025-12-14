@@ -119,7 +119,7 @@ pub enum RawComponentParseResult {
     /// This was a field
     ///
     /// The `Option` has been filled with the actual value.
-    /// It has an entry in the `keys` argument to [`parse_key_path`].
+    /// It has an entry in the `keys` argument to [`parse_arti_path`].
     ParsedField,
     /// This was a literal, and it matched
     MatchedLiteral,
@@ -131,7 +131,7 @@ pub enum RawComponentParseResult {
 
 use RawComponentParseResult as RCPR;
 
-/// Trait for parsing a path component, used by [`parse_key_path`]
+/// Trait for parsing a path component, used by [`parse_arti_path`]
 ///
 /// Implemented for `Option<impl KeySpecifierComponent>`,
 /// and guarantees to fill in the Option if it succeeds.
@@ -189,19 +189,13 @@ type Parsers<'p> = [&'p mut dyn RawKeySpecifierComponentParser];
 /// We also need the key names for error reporting.
 /// We pass this as a *single* array, and a double-reference to the slice,
 /// since that resolves to one pointer to a static structure.
-pub fn parse_key_path(
-    path: &KeyPath,
+pub fn parse_arti_path(
+    arti_path: &ArtiPath,
     keys: &&[&str],
     path_parsers: &mut Parsers,
     leaf_parsers: &mut Parsers,
 ) -> Result<(), KeyPathError> {
-    let (path, arti_path) = match path {
-        KeyPath::Arti(path) => (path.as_str(), path),
-        KeyPath::CTor(_path) => {
-            // TODO (#858): support ctor stores
-            return Err(internal!("not implemented").into());
-        }
-    };
+    let path = arti_path.as_str();
 
     let (path, leaf) = match path.rsplit_once('/') {
         Some((path, leaf)) => (Some(path), leaf),
@@ -236,7 +230,7 @@ pub fn parse_key_path(
                     path: arti_path.clone(),
                 })?;
 
-            let missing_keys = || internal!("keys list too short, bad args to parse_key_path");
+            let missing_keys = || internal!("keys list too short, bad args to parse_arti_path");
 
             match parser.parse(&comp) {
                 RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched(arti_path.clone())),
@@ -612,12 +606,23 @@ define_derive_deftly! {
             ${define DO_FIELD { &mut builder.$fname, }}
             ${define DO_LITERAL { &mut $LIT, }}
 
-            parse_key_path(
-                path,
-                &FIELD_KEYS,
-                &mut [ $ARTI_PATH_COMPONENTS ],
-                &mut [ $ARTI_LEAF_COMPONENTS ],
-            )?;
+            #[allow(unused_variables)] // CTorPath is only used with ctor_path(..)
+            match path {
+                $crate::KeyPath::Arti(path) => {
+                    parse_arti_path(
+                        path,
+                        &FIELD_KEYS,
+                        &mut [ $ARTI_PATH_COMPONENTS ],
+                        &mut [ $ARTI_LEAF_COMPONENTS ],
+                    )?;
+                },
+                $crate::KeyPath::CTor(_) => {
+                    return Err(internal!("C Tor paths not supported").into());
+                },
+                &_ => {
+                    return Err(internal!("unrecognized key path?!").into());
+                }
+            };
 
             #[allow(unused_variables)] // not needed if there are no fields
             let handle_none = || internal!("bad RawKeySpecifierComponentParser impl");
