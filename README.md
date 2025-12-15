@@ -60,9 +60,11 @@ The eventual goal is to get this functionality into the Rust standard library.
 
 #### `SystemTime::MIN` and `SystemTime::MAX`
 
-There is an ACP that has been approved in November 2025.[^3]
-Please follow the tracking issue[^4] for more information about this in
-particular.
+In December 2025, `SystemTime::MIN` and `SystemTime::MAX` got merged
+into stable.[^3]
+
+This feature is guarded behind `time_systemtime_limits` and a tracking
+issue regarding the stabilization of it exists.[^4]
 
 #### `SystemTime::saturating_add()` and `SystemTime::saturating_sub()`
 
@@ -74,7 +76,7 @@ None yet.
 
 [^1]: This is an effort the maintainers are actively working upon.
 [^2]: Assuming the name, signature, and behavior does not change.
-[^3]: <https://github.com/rust-lang/libs-team/issues/692>
+[^3]: <https://github.com/rust-lang/rust/pull/149979>
 [^4]: <https://github.com/rust-lang/rust/issues/149067>
 
 ## License and Copyright
