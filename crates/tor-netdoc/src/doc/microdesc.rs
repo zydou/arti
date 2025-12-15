@@ -286,7 +286,7 @@ impl Microdesc {
             let tok = body.required(ONION_KEY)?;
             if tok.has_obj() {
                 let _: rsa::PublicKey = tok
-                    .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
+                    .parse_obj::<RsaPublicParse1Helper>("RSA PUBLIC KEY")?
                     .check_len_eq(1024)?
                     .check_exponent(65537)?
                     .into();

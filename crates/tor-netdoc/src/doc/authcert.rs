@@ -10,7 +10,7 @@ use crate::batching_split_before::IteratorExt as _;
 use crate::parse::keyword::Keyword;
 use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
-use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublic};
+use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper};
 use crate::util::str::Extent;
 use crate::{NetdocErrorKind as EK, Result};
 
@@ -246,14 +246,14 @@ impl AuthCert {
 
         let dir_signing_key: rsa::PublicKey = body
             .required(DIR_SIGNING_KEY)?
-            .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
+            .parse_obj::<RsaPublicParse1Helper>("RSA PUBLIC KEY")?
             .check_len(1024..)?
             .check_exponent(65537)?
             .into();
 
         let dir_identity_key: rsa::PublicKey = body
             .required(DIR_IDENTITY_KEY)?
-            .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
+            .parse_obj::<RsaPublicParse1Helper>("RSA PUBLIC KEY")?
             .check_len(1024..)?
             .check_exponent(65537)?
             .into();

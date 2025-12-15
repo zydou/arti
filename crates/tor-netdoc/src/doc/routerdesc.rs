@@ -503,7 +503,7 @@ impl RouterDesc {
         // Legacy RSA identity
         let rsa_identity_key: ll::pk::rsa::PublicKey = body
             .required(SIGNING_KEY)?
-            .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
+            .parse_obj::<RsaPublicParse1Helper>("RSA PUBLIC KEY")?
             .check_len_eq(1024)?
             .check_exponent(65537)?
             .into();
@@ -602,7 +602,7 @@ impl RouterDesc {
         // TAP key
         let tap_onion_key: Option<ll::pk::rsa::PublicKey> = if let Some(tok) = body.get(ONION_KEY) {
             Some(
-                tok.parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
+                tok.parse_obj::<RsaPublicParse1Helper>("RSA PUBLIC KEY")?
                     .check_len_eq(1024)?
                     .check_exponent(65537)?
                     .into(),

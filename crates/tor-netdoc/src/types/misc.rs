@@ -662,24 +662,27 @@ mod rsa {
     use std::ops::RangeBounds;
     use tor_llcrypto::pk::rsa::PublicKey;
 
-    /// An RSA public key, as parsed from a base64-encoded object.
+    /// RSA public key, partially processed by `crate::paarse`.
+    ///
+    /// As parsed from a base64-encoded object.
+    /// They key's properties (exponent and size) haven't been checked.
     #[allow(non_camel_case_types)]
     #[derive(Clone, Debug)]
-    pub(crate) struct RsaPublic(PublicKey, Pos);
+    pub(crate) struct RsaPublicParse1Helper(PublicKey, Pos);
 
-    impl From<RsaPublic> for PublicKey {
-        fn from(k: RsaPublic) -> PublicKey {
+    impl From<RsaPublicParse1Helper> for PublicKey {
+        fn from(k: RsaPublicParse1Helper) -> PublicKey {
             k.0
         }
     }
-    impl super::FromBytes for RsaPublic {
+    impl super::FromBytes for RsaPublicParse1Helper {
         fn from_bytes(b: &[u8], pos: Pos) -> Result<Self> {
             let key = PublicKey::from_der(b)
                 .ok_or_else(|| EK::BadObjectVal.with_msg("unable to decode RSA public key"))?;
-            Ok(RsaPublic(key, pos))
+            Ok(RsaPublicParse1Helper(key, pos))
         }
     }
-    impl RsaPublic {
+    impl RsaPublicParse1Helper {
         /// Give an error if the exponent of this key is not 'e'
         pub(crate) fn check_exponent(self, e: u32) -> Result<Self> {
             if self.0.exponent_is(e) {
@@ -1321,7 +1324,7 @@ mod test {
         FS3Dd/Dx/a6jAgMBAAE=
         "#;
         let key_bytes = base64_decode_ignore_ws(key_b64).unwrap();
-        let rsa = RsaPublic::from_vec(key_bytes, Pos::None).unwrap();
+        let rsa = RsaPublicParse1Helper::from_vec(key_bytes, Pos::None).unwrap();
 
         let bits = tor_llcrypto::pk::rsa::PublicKey::from(rsa.clone()).bits();
         assert_eq!(bits, 3072);
@@ -1335,7 +1338,7 @@ mod test {
         assert!(rsa.check_len(4096..).is_err());
 
         // A string of bytes that is not an RSA key.
-        let failure = RsaPublic::from_vec(vec![1, 2, 3], Pos::None);
+        let failure = RsaPublicParse1Helper::from_vec(vec![1, 2, 3], Pos::None);
         assert!(failure.is_err());
     }
 
