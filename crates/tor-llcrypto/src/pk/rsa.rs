@@ -144,6 +144,12 @@ impl RsaIdentity {
     pub fn as_bytes(&self) -> &[u8] {
         &self.id.as_ref()[..]
     }
+
+    /// Expose an RsaIdentity as an uppercase hexadecimal string.
+    pub fn as_hex_upper(&self) -> String {
+        hex::encode_upper(self.as_bytes())
+    }
+
     /// Construct an RsaIdentity from a slice of bytes.
     ///
     /// Returns None if the input is not of the correct length.
