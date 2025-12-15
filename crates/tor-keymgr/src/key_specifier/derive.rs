@@ -616,8 +616,28 @@ define_derive_deftly! {
                         &mut [ $ARTI_LEAF_COMPONENTS ],
                     )?;
                 },
-                $crate::KeyPath::CTor(_) => {
-                    return Err(internal!("C Tor paths not supported").into());
+                $crate::KeyPath::CTor(path) => {
+                    // XXX: it would be nicer if the to/from conversions
+                    // were specified as a module (like serde(with = "..."))
+                    ${if tmeta(from_ctor_path) {
+                        let res = ${tmeta(from_ctor_path) as token_stream} (path);
+
+                        match res {
+                            Some(spec) => return Ok(spec),
+                            None => {
+                                // XXX: internal! isn't right, use a proper error type
+                                return Err(
+                                    internal!(
+                                        "C Tor key cannot be converted to type {}",
+                                        stringify!($tname)
+                                    ).into()
+                                );
+                            }
+                        }
+                    } else {
+                        // XXX: internal! isn't right, use a proper error type
+                        return Err(internal!("Not a C Tor path").into());
+                    }}
                 },
                 &_ => {
                     return Err(internal!("unrecognized key path?!").into());

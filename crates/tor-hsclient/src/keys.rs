@@ -151,7 +151,10 @@ impl HsClientSecretKeysBuilder {
 #[deftly(prefix = "client")]
 #[deftly(role = "KS_hsc_desc_enc")]
 #[deftly(summary = "Descriptor decryption key")]
-#[deftly(ctor_path = "client_desc_enc_keypair_key_specifier_ctor_path")]
+#[deftly(
+    ctor_path = "client_desc_enc_keypair_key_specifier_ctor_path",
+    from_ctor_path = "client_desc_enc_keypair_key_specifier_from_ctor_path"
+)]
 /// A key for deriving keys for decrypting HS descriptors (KS_hsc_desc_enc).
 pub struct HsClientDescEncKeypairSpecifier {
     /// The hidden service this authorization key is for.
@@ -162,4 +165,18 @@ fn client_desc_enc_keypair_key_specifier_ctor_path(
     spec: &HsClientDescEncKeypairSpecifier,
 ) -> CTorPath {
     CTorPath::ClientHsDescEncKey(spec.hs_id)
+}
+
+/// Try to convert a `CTorPath` to an `HsClientDescEncKeypairSpecifier`.
+///
+/// Returns `None` if the `CTorPath` is not the path of a `HsClientDescEncKeypair`.
+fn client_desc_enc_keypair_key_specifier_from_ctor_path(
+    path: &CTorPath,
+) -> Option<HsClientDescEncKeypairSpecifier> {
+    match path {
+        CTorPath::ClientHsDescEncKey(hs_id) => {
+            Some(HsClientDescEncKeypairSpecifier { hs_id: *hs_id })
+        }
+        _ => None,
+    }
 }
