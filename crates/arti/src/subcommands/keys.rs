@@ -9,10 +9,7 @@ use anyhow::Result;
 
 use arti_client::{InertTorClient, TorClient, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand};
-use tor_keymgr::{
-    KeyMgr, KeystoreEntry, KeystoreEntryResult, KeystoreId,
-    UnrecognizedEntryError,
-};
+use tor_keymgr::{KeyMgr, KeystoreEntry, KeystoreEntryResult, KeystoreId, UnrecognizedEntryError};
 use tor_rtcompat::Runtime;
 
 use crate::{ArtiConfig, subcommands::prompt};
