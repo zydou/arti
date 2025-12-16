@@ -232,6 +232,25 @@ impl<E> RetryError<E> {
             }
         }
     }
+
+    /// Add multiple errors to this RetryError, preserving their original timestamps.
+    ///
+    /// The errors from other will be added to this RetryError, with their original
+    /// timestamps retained. The `Attempt` counters will be updated to continue from
+    /// the current state of this RetryError.
+    pub fn extend_from_retry_error(&mut self, other: RetryError<E>) {
+        if self.first_error_at.is_none() {
+            self.first_error_at = other.first_error_at;
+        }
+
+        for (_, err, timestamp) in other.errors {
+            if self.n_errors < usize::MAX {
+                self.n_errors += 1;
+                let attempt = Attempt::Single(self.n_errors);
+                self.errors.push((attempt, err, timestamp));
+            }
+        }
+    }
 }
 
 impl<E: PartialEq<E>> RetryError<E> {
@@ -619,5 +638,33 @@ Attempts 1..3: invalid digit found in string"
         err.push(errors.pop().expect("parser did not fail"));
         assert!(err.n_errors == usize::MAX);
         assert!(err.len() == 1);
+    }
+
+    #[test]
+    fn extend_from_retry_preserve_timestamps() {
+        let n1 = Instant::now();
+        let n2 = n1 + Duration::from_secs(10);
+        let n3 = n1 + Duration::from_secs(20);
+
+        let mut err1: RetryError<anyhow::Error> = RetryError::in_attempt_to("do first thing");
+        let mut err2: RetryError<anyhow::Error> = RetryError::in_attempt_to("do second thing");
+
+        err2.push_timed(anyhow::Error::msg("e1"), n1, None);
+        err2.push_timed(anyhow::Error::msg("e2"), n2, None);
+
+        // err1 is empty initially
+        assert!(err1.first_error_at.is_none());
+        
+        err1.extend_from_retry_error(err2);
+
+        assert_eq!(err1.len(), 2);
+        // The timestamps should be preserved
+        assert_eq!(err1.errors[0].2, n1);
+        assert_eq!(err1.errors[1].2, n2);
+
+        // Add another error to err1 to ensure mixed sources work
+        err1.push_timed(anyhow::Error::msg("e3"), n3, None);
+        assert_eq!(err1.len(), 3);
+        assert_eq!(err1.errors[2].2, n3);
     }
 }

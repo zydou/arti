@@ -1069,13 +1069,7 @@ impl<B: AbstractTunnelBuilder<R> + 'static, R: Runtime> AbstractTunnelMgr<B, R> 
             match error {
                 // Flatten nested RetryError, using mockable time for each error
                 Error::RequestFailed(e) => {
-                    for inner_err in e.sources() {
-                        retry_err.push_timed(
-                            inner_err.clone(),
-                            now,
-                            Some(self.runtime.wallclock()),
-                        );
-                    }
+                    retry_err.extend_from_retry_error(e);
                 }
                 e => retry_err.push_timed(e, now, Some(self.runtime.wallclock())),
             }
