@@ -409,18 +409,16 @@ mod test {
         *FRESH_UNTIL + Duration::from_secs(60 * 60 * 2);
     }
 
-    const CONTENT: &str = "Lorem ipsum dolor sit amet.";
-    const SHA256: &str = "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
+    const CONSENSUS_CONTENT: &str = "Lorem ipsum dolor sit amet.";
+    const CONSENSUS_SHA256: &str =
+        "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
 
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
         let pool = database::open("").unwrap();
         database::rw_tx(&pool, |tx| {
             tx.execute(
                 sql!("INSERT INTO store (sha256, content) VALUES (?1, ?2)"),
-                params![
-                    "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66",
-                    "Lorem ipsum dolor sit amet.".as_bytes()
-                ],
+                params![CONSENSUS_SHA256, CONSENSUS_CONTENT.as_bytes()],
             )
             .unwrap();
 
@@ -434,7 +432,7 @@ mod test {
                     "
                 ),
                 params![
-                    "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66",
+                    CONSENSUS_SHA256,
                     "0000000000000000000000000000000000000000000000000000000000000000", // not the correct hash
                     ConsensusFlavor::Plain.name(),
                     *VALID_AFTER,
@@ -527,7 +525,7 @@ mod test {
                     *VALID_AFTER,
                     *FRESH_UNTIL,
                     *VALID_UNTIL,
-                    CONTENT.to_string(),
+                    CONSENSUS_CONTENT.to_string(),
                 )
             );
             assert_eq!(res1, res2);
@@ -556,7 +554,7 @@ mod test {
                     *VALID_AFTER,
                     *FRESH_UNTIL,
                     *VALID_UNTIL,
-                    CONTENT.to_string(),
+                    CONSENSUS_CONTENT.to_string(),
                 )
             );
             assert_eq!(res1, res2);
