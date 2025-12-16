@@ -91,10 +91,12 @@ impl AuthCertBuilder {
     pub fn dangerous_testing_cert(&self) -> BuildResult<AuthCert> {
         let dir_key_published = self
             .published
-            .ok_or(Error::CannotBuild("Missing published time"))?;
+            .ok_or(Error::CannotBuild("Missing published time"))?
+            .into();
         let dir_key_expires = self
             .expires
-            .ok_or(Error::CannotBuild("Missing expiration time"))?;
+            .ok_or(Error::CannotBuild("Missing expiration time"))?
+            .into();
         if dir_key_expires < dir_key_published {
             return Err(Error::CannotBuild("Expires before published time."));
         }

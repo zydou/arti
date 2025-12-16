@@ -84,10 +84,10 @@ pub struct AuthCert {
     fingerprint: Fingerprint,
 
     /// Declared time when this certificate was published
-    dir_key_published: time::SystemTime,
+    dir_key_published: Iso8601TimeSp,
 
     /// Declared time when this certificate expires.
-    dir_key_expires: time::SystemTime,
+    dir_key_expires: Iso8601TimeSp,
 
     /// KP_auth_id_rsa
     ///
@@ -194,12 +194,12 @@ impl AuthCert {
 
     /// Return the time when this certificate says it was published.
     pub fn published(&self) -> time::SystemTime {
-        self.dir_key_published
+        *self.dir_key_published
     }
 
     /// Return the time when this certificate says it should expire.
     pub fn expires(&self) -> time::SystemTime {
-        self.dir_key_expires
+        *self.dir_key_expires
     }
 
     /// Parse an authority certificate from a reader.
@@ -259,14 +259,12 @@ impl AuthCert {
         let dir_key_published = body
             .required(DIR_KEY_PUBLISHED)?
             .args_as_str()
-            .parse::<Iso8601TimeSp>()?
-            .into();
+            .parse::<Iso8601TimeSp>()?;
 
         let dir_key_expires = body
             .required(DIR_KEY_EXPIRES)?
             .args_as_str()
-            .parse::<Iso8601TimeSp>()?
-            .into();
+            .parse::<Iso8601TimeSp>()?;
 
         {
             // Check fingerprint for consistency with key.
@@ -345,7 +343,7 @@ impl AuthCert {
         let signatures: Vec<Box<dyn pk::ValidatableSignature>> =
             vec![Box::new(v_crosscert), Box::new(v_sig)];
 
-        let timed = timed::TimerangeBound::new(authcert, dir_key_published..dir_key_expires);
+        let timed = timed::TimerangeBound::new(authcert, *dir_key_published..*dir_key_expires);
         let signed = signed::SignatureGated::new(timed, signatures);
         let unchecked = UncheckedAuthCert {
             location,
