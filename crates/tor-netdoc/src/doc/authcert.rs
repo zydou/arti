@@ -12,7 +12,7 @@ use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublicParse1Helper};
 use crate::util::str::Extent;
-use crate::{NetdocErrorKind as EK, Result};
+use crate::{NetdocErrorKind as EK, NormalItemArgument, Result};
 
 use tor_checkable::{signed, timed};
 use tor_llcrypto::pk::rsa;
@@ -77,6 +77,11 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct AuthCert {
+    /// Intro line
+    ///
+    /// Currently must be version 3.
+    pub dir_key_certificate_version: AuthCertVersion,
+
     /// An IPv4 address for this authority.
     pub dir_address: Option<net::SocketAddrV4>,
 
@@ -99,6 +104,21 @@ pub struct AuthCert {
     /// The medium-term RSA signing key for this authority
     pub dir_signing_key: rsa::PublicKey,
 }
+
+/// Represents the version of an [`AuthCert`].
+///
+/// Single argument.
+///
+/// <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certificate-version>
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString, strum::Display)]
+#[non_exhaustive]
+pub enum AuthCertVersion {
+    /// The current and only version understood.
+    #[strum(serialize = "3")]
+    V3,
+}
+
+impl NormalItemArgument for AuthCertVersion {}
 
 /// A pair of key identities that identifies a certificate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -241,6 +261,7 @@ impl AuthCert {
         if version != 3 {
             return Err(EK::BadDocumentVersion.with_msg(format!("unexpected version {}", version)));
         }
+        let dir_key_certificate_version = AuthCertVersion::V3;
 
         let dir_signing_key: rsa::PublicKey = body
             .required(DIR_SIGNING_KEY)?
@@ -332,6 +353,7 @@ impl AuthCert {
         };
 
         let authcert = AuthCert {
+            dir_key_certificate_version,
             dir_address,
             dir_identity_key,
             dir_signing_key,
@@ -369,12 +391,13 @@ impl tor_checkable::SelfSigned<timed::TimerangeBound<AuthCert>> for UncheckedAut
 /// Eventually, those will get merged into the main module.
 #[cfg(feature = "parse2")]
 pub mod tmp {
+    use super::AuthCertVersion;
+
     use std::time::{Duration, SystemTime};
 
     use derive_deftly::Deftly;
 
     use crate::{
-        NormalItemArgument,
         parse2::{
             ErrorProblem, ItemObjectParseable, SignatureHashInputs, VerifyFailed,
             check_validity_time_tolerance,
@@ -410,7 +433,7 @@ pub mod tmp {
         ///
         /// * <https://spec.torproject.org/dir-spec/creating-key-certificates.html#item:dir-key-certificate-version>
         #[deftly(netdoc(single_arg))]
-        pub dir_key_certificate_version: DirKeyCertificateVersion,
+        pub dir_key_certificate_version: AuthCertVersion,
 
         /// Uppercase base16 SHA-1 hash (fingerprint) of the long-term identity key.
         ///
@@ -574,19 +597,6 @@ pub mod tmp {
         pub hash: [u8; 20],
     }
 
-    /// Represents the version of a [`DirAuthKeyCert`].
-    ///
-    /// # See More
-    ///
-    /// See [`DirAuthKeyCert::dir_key_certificate_version`] for the syntax and the specs.
-    #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, strum::EnumString, strum::Display)]
-    #[non_exhaustive]
-    pub enum DirKeyCertificateVersion {
-        /// The current and only version understood.
-        #[strum(serialize = "3")]
-        V3,
-    }
-
     /// Pseudo-Signature of the long-term identity key by the medium-term key.
     ///
     /// This type does not implement `SignatureItemParseable` because this type
@@ -705,8 +715,6 @@ pub mod tmp {
             Ok(body)
         }
     }
-
-    impl NormalItemArgument for DirKeyCertificateVersion {}
 
     impl ItemObjectParseable for DirKeyCrossCertObject {
         fn check_label(label: &str) -> Result<(), ErrorProblem> {
@@ -838,6 +846,8 @@ mod test {
 
     #[cfg(feature = "parse2")]
     mod tmp {
+        use super::AuthCertVersion;
+
         use std::{
             fs::File,
             io::Read,
@@ -1023,7 +1033,7 @@ mod test {
             assert_eq!(
                 res,
                 DirAuthKeyCert {
-                    dir_key_certificate_version: DirKeyCertificateVersion::V3,
+                    dir_key_certificate_version: AuthCertVersion::V3,
                     fingerprint: types::Fingerprint(
                         RsaIdentity::from_hex("23D15D965BC35114467363C165C4F724B64B4F66").unwrap()
                     ),
