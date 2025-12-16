@@ -260,13 +260,16 @@ CREATE TABLE authority_key_certificate(
     sha256                  TEXT NOT NULL UNIQUE,
     kp_auth_id_rsa_sha1     TEXT NOT NULL,
     kp_auth_sign_rsa_sha1   TEXT NOT NULL,
+    dir_key_published       INTEGER NOT NULL,
     dir_key_expires         INTEGER NOT NULL,
     FOREIGN KEY(sha256) REFERENCES store(sha256),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_id_rsa_sha1) == 0),
     CHECK(GLOB('*[^0-9A-F]*', kp_auth_sign_rsa_sha1) == 0),
     CHECK(LENGTH(kp_auth_id_rsa_sha1) == 40),
     CHECK(LENGTH(kp_auth_sign_rsa_sha1) == 40),
-    CHECK(dir_key_expires >= 0)
+    CHECK(dir_key_published >= 0),
+    CHECK(dir_key_expires >= 0),
+    CHECK(dir_key_published < dir_key_expires)
 
 ) STRICT;
 
