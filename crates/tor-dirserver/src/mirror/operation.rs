@@ -390,6 +390,7 @@ mod test {
     use lazy_static::lazy_static;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_dircommon::config::DirToleranceBuilder;
+    use tor_llcrypto::pk::rsa::RsaIdentity;
 
     lazy_static! {
     /// Wed Jan 01 2020 00:00:00 GMT+0000
@@ -413,12 +414,20 @@ mod test {
     const CONSENSUS_SHA256: &str =
         "DD14CBBF0E74909AAC7F248A85D190AFD8DA98265CEF95FC90DFDDABEA7C2E66";
 
+    const CERT_CONTENT: &[u8] = include_bytes!("../../testdata/authcert-longclaw");
+    const CERT_SHA256: &str = "8E16D249DF4E78E65FA8E0E863AC01A63995A8FB6F2B40526275BEB3E4AEABC9";
+
     fn create_dummy_db() -> Pool<SqliteConnectionManager> {
         let pool = database::open("").unwrap();
         database::rw_tx(&pool, |tx| {
             tx.execute(
                 sql!("INSERT INTO store (sha256, content) VALUES (?1, ?2)"),
                 params![CONSENSUS_SHA256, CONSENSUS_CONTENT.as_bytes()],
+            )
+            .unwrap();
+            tx.execute(
+                sql!("INSERT INTO store (sha256, content) VALUES (?1, ?2)"),
+                params![CERT_SHA256, CERT_CONTENT],
             )
             .unwrap();
 
@@ -441,6 +450,22 @@ mod test {
                 ],
             )
             .unwrap();
+
+            tx.execute(sql!(
+                "
+                INSERT INTO authority_key_certificate
+                  (sha256, kp_auth_id_rsa_sha1, kp_auth_sign_rsa_sha1, dir_key_published, dir_key_expires)
+                VALUES
+                  (:sha256, :id_rsa, :sk_rsa, :published, :expires)
+                "
+                ),
+                named_params! {
+                ":sha256": CERT_SHA256,
+                ":id_rsa": "49015F787433103580E3B66A1707A00E60F2D15B",
+                ":sk_rsa": "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
+                ":published": 1764543578,
+                ":expires": 1772492378,
+            }).unwrap();
         })
         .unwrap();
 
@@ -572,5 +597,72 @@ mod test {
             assert!(dur >= *FRESH_UNTIL - now);
             assert!(dur <= *FRESH_UNTIL_HALF - now);
         }
+    }
+
+    #[test]
+    fn get_auth_cert() {
+        let pool = create_dummy_db();
+
+        // Empty.
+        let (found, missing) = database::read_tx(&pool, |tx| {
+            get_recent_authority_certificates(
+                tx,
+                &[],
+                &DirTolerance::default(),
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+            )
+        })
+        .unwrap()
+        .unwrap();
+        assert!(found.is_empty());
+        assert!(missing.is_empty());
+
+        // Find one and two missing ones.
+        let (found, missing) = database::read_tx(&pool, |tx| {
+            get_recent_authority_certificates(
+                tx,
+                &[
+                    // Found one.
+                    AuthCertKeyIds {
+                        id_fingerprint: RsaIdentity::from_hex(
+                            "49015F787433103580E3B66A1707A00E60F2D15B",
+                        )
+                        .unwrap(),
+                        sk_fingerprint: RsaIdentity::from_hex(
+                            "C5D153A6F0DA7CC22277D229DCBBF929D0589FE0",
+                        )
+                        .unwrap(),
+                    },
+                    // Missing.
+                    AuthCertKeyIds {
+                        id_fingerprint: RsaIdentity::from_hex(
+                            "0000000000000000000000000000000000000000",
+                        )
+                        .unwrap(),
+                        sk_fingerprint: RsaIdentity::from_hex(
+                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                        )
+                        .unwrap(),
+                    },
+                    // Missing.
+                    AuthCertKeyIds {
+                        id_fingerprint: RsaIdentity::from_hex(
+                            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                        )
+                        .unwrap(),
+                        sk_fingerprint: RsaIdentity::from_hex(
+                            "0000000000000000000000000000000000000000",
+                        )
+                        .unwrap(),
+                    },
+                ],
+                &DirTolerance::default(),
+                (SystemTime::UNIX_EPOCH + Duration::from_secs(1765900013)).into(),
+            )
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(missing.len(), 2);
     }
 }
