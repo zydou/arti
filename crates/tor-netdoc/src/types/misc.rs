@@ -662,6 +662,16 @@ mod rsa {
     use std::ops::RangeBounds;
     use tor_llcrypto::pk::rsa::PublicKey;
 
+    /// The fixed exponent which we require when parsing any RSA key in a netdoc
+    //
+    // TODO this value is duplicated a lot in the v1 parser
+    pub(crate) const RSA_FIXED_EXPONENT: u32 = 65537;
+
+    /// The fixed exponent which we require when parsing any RSA key in a netdoc
+    //
+    // TODO this value is duplicated a lot in the v1 parser
+    pub(crate) const RSA_MIN_BITS: usize = 1024;
+
     /// RSA public key, partially processed by `crate::paarse`.
     ///
     /// As parsed from a base64-encoded object.

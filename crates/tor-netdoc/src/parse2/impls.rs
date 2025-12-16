@@ -5,6 +5,7 @@ use super::*;
 /// Types related to RSA keys
 mod rsa {
     use super::*;
+    use crate::types;
     use tor_llcrypto::pk::rsa::PublicKey;
 
     /// An item which contains an RSA public key as an Object, and no extra arguments
@@ -25,7 +26,19 @@ mod rsa {
             }
         }
         fn from_bytes(input: &[u8]) -> Result<Self, EP> {
-            PublicKey::from_der(input).ok_or(EP::ObjectInvalidData)
+            (|| {
+                let key = PublicKey::from_der(input).ok_or(())?;
+
+                if !key.exponent_is(types::misc::RSA_FIXED_EXPONENT) {
+                    return Err(());
+                }
+                if key.bits() < types::misc::RSA_MIN_BITS {
+                    return Err(());
+                }
+
+                Ok(key)
+            })()
+            .map_err(|()| EP::ObjectInvalidData)
         }
     }
 
