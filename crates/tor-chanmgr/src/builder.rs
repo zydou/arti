@@ -7,8 +7,7 @@ use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
 use crate::{Error, event::ChanMgrEventSender};
 
-#[cfg(feature = "relay")]
-use safelog::Sensitive;
+use async_trait::async_trait;
 use std::time::Duration;
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
@@ -17,11 +16,12 @@ use tor_proto::channel::ChannelType;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
+use tor_rtcompat::SpawnExt;
 use tor_rtcompat::{Runtime, TlsProvider, tls::TlsConnector};
 use tracing::instrument;
 
-use async_trait::async_trait;
-use tor_rtcompat::SpawnExt;
+#[cfg(feature = "relay")]
+use {safelog::Sensitive, tor_proto::RelayIdentities};
 
 /// TLS-based channel builder.
 ///
@@ -48,6 +48,9 @@ where
     /// Outbound channel type this channel builder builds.
     #[expect(unused)] // TODO(relay): remove this once used.
     outbound_chan_type: ChannelType,
+    /// Relay identities needed for relay channels.
+    #[cfg(feature = "relay")]
+    identities: Option<Arc<RelayIdentities>>,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -62,7 +65,16 @@ where
             transport,
             tls_connector,
             outbound_chan_type,
+            #[cfg(feature = "relay")]
+            identities: None,
         }
+    }
+
+    /// Set the relay identities and return itself.
+    #[cfg(feature = "relay")]
+    pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
+        self.identities = Some(ids);
+        self
     }
 }
 #[async_trait]

@@ -55,6 +55,7 @@ mod testing;
 pub mod transport;
 pub(crate) mod util;
 
+use cfg_if::cfg_if;
 use futures::StreamExt;
 use futures::select_biased;
 #[cfg(feature = "relay")]
@@ -233,7 +234,18 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let reporter = BootstrapReporter(sender);
         let transport = transport::DefaultTransport::new(runtime.clone());
-        let builder = builder::ChanBuilder::new(runtime, transport, config.outbound_chan_type());
+        cfg_if! {
+            if #[cfg(feature="relay")] {
+                let mut builder =
+                    builder::ChanBuilder::new(runtime, transport, config.outbound_chan_type());
+                if let Some(ids) = &config.identities {
+                    builder = builder.with_identities(ids.clone());
+                }
+            } else {
+                let builder = builder::ChanBuilder::new(runtime, transport, config.outbound_chan_type());
+            }
+        }
+
         let factory = factory::CompoundFactory::new(
             Arc::new(builder),
             #[cfg(feature = "pt-client")]
