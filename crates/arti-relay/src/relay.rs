@@ -9,7 +9,7 @@ use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 use fs_mistrust::Mistrust;
-use tor_chanmgr::{ChanMgr, Dormancy};
+use tor_chanmgr::{ChanMgr, ChanMgrConfig, Dormancy};
 use tor_circmgr::CircMgr;
 use tor_config_path::CfgPathResolver;
 use tor_dirmgr::{DirMgr, DirMgrConfig, DirMgrStore, DirProvider};
@@ -229,7 +229,7 @@ impl<R: Runtime> TorRelay<R> {
 
         let chanmgr = Arc::new(ChanMgr::new(
             runtime.clone(),
-            &inert.config.channel,
+            ChanMgrConfig::new(inert.config.channel.clone()),
             Dormancy::Active,
             &NetParameters::default(),
             memquota.clone(),

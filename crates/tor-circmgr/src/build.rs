@@ -1083,7 +1083,7 @@ mod test {
     ) -> (Result<FakeCirc>, Vec<(bool, u8, Duration)>) {
         let chanmgr = Arc::new(ChanMgr::new(
             rt.clone(),
-            &ChannelConfig::default(),
+            Default::default(),
             Default::default(),
             &Default::default(),
             ToplevelAccount::new_noop(),

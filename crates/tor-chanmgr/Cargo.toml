@@ -38,7 +38,7 @@ full = [
 
 pt-client = ["tor-linkspec/pt-client"]
 
-relay = ["__is_experimental"]
+relay = ["__is_experimental", "tor-proto/relay"]
 testing = ["__is_experimental"]
 __is_experimental = []
 

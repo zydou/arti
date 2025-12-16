@@ -78,6 +78,7 @@ use void::{ResultVoidErrExt, Void};
 pub use err::Error;
 
 pub use config::{ChannelConfig, ChannelConfigBuilder};
+pub use mgr::ChanMgrConfig;
 
 use tor_rtcompat::Runtime;
 
@@ -220,7 +221,7 @@ impl<R: Runtime> ChanMgr<R> {
     /// other relays. Pass `None` for a client.
     pub fn new(
         runtime: R,
-        config: &ChannelConfig,
+        config: ChanMgrConfig,
         dormancy: Dormancy,
         netparams: &NetParameters,
         memquota: ToplevelAccount,
@@ -239,7 +240,7 @@ impl<R: Runtime> ChanMgr<R> {
             None,
         );
         let mgr =
-            mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter, memquota);
+            mgr::AbstractChanMgr::new(factory, config.cfg, dormancy, netparams, reporter, memquota);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,

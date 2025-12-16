@@ -865,7 +865,7 @@ pub(crate) mod test {
     ) {
         let chanmgr = tor_chanmgr::ChanMgr::new(
             runtime.clone(),
-            &Default::default(),
+            Default::default(),
             tor_chanmgr::Dormancy::Dormant,
             &Default::default(),
             ToplevelAccount::new_noop(),
