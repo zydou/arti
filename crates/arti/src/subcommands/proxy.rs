@@ -238,7 +238,7 @@ async fn run_proxy<R: ToplevelRuntime>(
     {
         let port_info = port_info::PortInfo { ports };
         let port_info_file = arti_config
-            .proxy()
+            .storage()
             .port_info_file
             .path(&path_resolver)
             .context("Can't find path for port_info_file")?;

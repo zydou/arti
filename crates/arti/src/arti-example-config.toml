@@ -50,15 +50,6 @@
 # Port to use to listen for DNS requests.  0 means disabled.
 #dns_listen = 0
 
-# A file in which to store a description of the proxy ports we're listening on.
-#
-# This is mostly useful if you've used "auto" in socks_listen, to find out
-# which ports were automatically chosen.
-#
-# The format of this JSON is documented in the Arti source,
-# in `crates/arti/src/proxy/proxy_info.rs`. (TODO: Replace with link.)
-#port_info_file = "${ARTI_LOCAL_DATA}/public/port_info.json"
-
 # Configure logging
 [logging]
 
@@ -174,6 +165,15 @@
 [storage]
 #cache_dir = "${ARTI_CACHE}"
 #state_dir = "${ARTI_LOCAL_DATA}"
+
+# A file in which to store a description of the proxy ports we're listening on.
+#
+# This is mostly useful if you've used "auto" in socks_listen, to find out
+# which ports were automatically chosen.
+#
+# The format of this JSON is documented in the Arti source,
+# in `crates/arti/src/proxy/proxy_info.rs`. (TODO: Replace with link.)
+#port_info_file = "${ARTI_LOCAL_DATA}/public/port_info.json"
 
 #[storage.keystore]
 # Whether the keystore is enabled.

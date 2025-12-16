@@ -161,12 +161,21 @@ pub struct ProxyConfig {
     )]
     #[builder_setter_attr(deprecated)]
     pub(crate) dns_port: (),
+}
+impl_standard_builder! { ProxyConfig }
 
+/// Configuration for arti-specific storage locations.
+///
+/// See also [`arti_client::config::StorageConfig`].
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+pub struct ArtiStorageConfig {
     /// A file in which to write information about the ports we're listening on.
     #[builder(setter(into), default = "default_port_info_file()")]
     pub(crate) port_info_file: CfgPath,
 }
-impl_standard_builder! { ProxyConfig }
+impl_standard_builder! { ArtiStorageConfig }
 
 /// Return the default ports_info_file location.
 fn default_port_info_file() -> CfgPath {
@@ -271,6 +280,14 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
 
+    /// Information on where things are stored by Arti.
+    ///
+    /// Note that [`TorClientConfig`] also has a storage configuration;
+    /// our configuration logic should merge them correctly.
+    #[builder(sub_builder(fn_name = "build"))]
+    #[builder_field_attr(serde(default))]
+    pub(crate) storage: ArtiStorageConfig,
+
     /// Configured list of proxied onion services.
     ///
     /// Note that this field is present unconditionally, but when onion service
@@ -371,6 +388,11 @@ impl ArtiConfig {
     /// Return the [`ProxyConfig`] for this configuration.
     pub fn proxy(&self) -> &ProxyConfig {
         &self.proxy
+    }
+
+    /// Return the [`ArtiStorageConfig`] for this configuration.
+    pub fn storage(&self) -> &ArtiStorageConfig {
+        &self.storage
     }
 
     /// Return the [`RpcConfig`] for this configuration.
@@ -577,9 +599,9 @@ mod test {
                 "path_rules.long_lived_ports",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
-                "proxy.port_info_file",
                 "use_obsolete_software",
                 "circuit_timing.disused_circuit_timeout",
+                "storage.port_info_file",
             ],
         );
 
