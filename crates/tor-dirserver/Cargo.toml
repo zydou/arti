@@ -44,7 +44,7 @@ tor-basic-utils = { version = "0.38.0", path = "../tor-basic-utils" }
 tor-dirclient = { version = "0.38.0", path = "../tor-dirclient" }
 tor-dircommon = { version = "0.38.0", path = "../tor-dircommon" }
 tor-error = { version = "0.38.0", path = "../tor-error" }
-tor-netdoc = { version = "0.38.0", path = "../tor-netdoc" }
+tor-netdoc = { version = "0.38.0", path = "../tor-netdoc", features = ["full", "experimental"] }
 tor-rtcompat = { version = "0.38.0", path = "../tor-rtcompat", features = [ "tokio", "native-tls", "rustls" ] }
 tracing = "0.1.41"
 weak-table = "0.3.2"

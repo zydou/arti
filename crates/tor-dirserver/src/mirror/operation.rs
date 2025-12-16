@@ -20,14 +20,20 @@ use std::time::Duration;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rand::Rng;
-use rusqlite::{params, OptionalExtension, Transaction};
+use rusqlite::{named_params, params, OptionalExtension, Transaction};
 use tor_basic_utils::RngExt;
 use tor_dircommon::{
     authority::AuthorityContacts,
     config::{DirTolerance, DownloadScheduleConfig},
 };
 use tor_error::internal;
-use tor_netdoc::doc::netstatus::ConsensusFlavor;
+use tor_netdoc::{
+    doc::{
+        authcert::{AuthCert, AuthCertKeyIds, AuthCertSigned},
+        netstatus::ConsensusFlavor,
+    },
+    parse2::{self, NetdocSigned, ParseInput},
+};
 
 use crate::{
     database::{self, sql, Timestamp},
@@ -123,6 +129,108 @@ fn get_recent_consensus(
         String::from_utf8(consensus).map_err(|e| internal!("utf-8 contraint violated? {e}"))?;
 
     Ok(Some((valid_after, fresh_until, valid_until, consensus)))
+}
+
+/// Obtain the most recently published and valid certificate for each authority.
+///
+/// Returns the found [`AuthCert`] items as well as the missing [`AuthCertKeyIds`]
+/// not present within the database.
+///
+/// # Performance
+///
+/// This function has `O(n)` performance because it performs `signatories.len()`
+/// database queries, which should not be a problem however, given that this
+/// respective value is oftentimes fairly small.  However, interfacing code
+/// shall ensure that it is not **too big** either, because a mitm may add lots
+/// of garbage signature, just to make this larger, as it is usually called
+/// within the context of obtaining the certificates for a given consensus.
+///
+/// Because the database has the invariance that all entires inside are
+/// valid, we do not bother about validating the signatures there again, hence
+/// why the return type is not [`AuthCertSigned`].
+fn get_recent_authority_certificates(
+    tx: &Transaction,
+    signatories: &[AuthCertKeyIds],
+    tolerance: &DirTolerance,
+    now: Timestamp,
+) -> Result<(Vec<AuthCert>, Vec<AuthCertKeyIds>), DatabaseError> {
+    // For every key pair in `signatories`, get the most recent valid cert.
+    //
+    // This query selects the most recent timestamp valid certificate from the
+    // database for a single given key pair.  It means that this query has to be
+    // executed as many times as there are entires in `signatories`.
+    //
+    // Unfortunately, there is no neater way to do this, because the alternative
+    // would involve using a nested set which SQLite does not support, even with
+    // the carray extension.  An alternative might be to precompute that string
+    // and then insert it here using `format!` but that feels hacky, error- and
+    // injection-prone.
+    //
+    // Parameters:
+    // :id_rsa: The RSA identity key fingerprint in uppercase hexadecimal.
+    // :sk_rsa: The RSA signing key fingerprint in uppercase hexadecimal.
+    // :now: The current system timestamp.
+    // :pre_tolerance: The tolerance for not-yet-valid certificates.
+    // :post_tolerance: The tolerance for expired certificates.
+    let mut stmt = tx.prepare_cached(sql!(
+        "
+        SELECT s.content
+        FROM
+          authority_key_certificate AS a
+          INNER JOIN store AS s ON s.sha256 = a.sha256
+        WHERE
+          (:id_rsa, :sk_rsa) = (a.kp_auth_id_rsa_sha1, a.kp_auth_sign_rsa_sha1)
+          AND :now >= a.dir_key_published - :pre_tolerance
+          AND :now <= a.dir_key_expires + :post_tolerance
+        ORDER BY dir_key_published DESC
+        LIMIT 1
+        "
+    ))?;
+
+    // Keep track of the found (and parsed) certificates and the missing ones.
+    let mut found = Vec::new();
+    let mut missing = Vec::new();
+
+    // Iterate over every key pair and query it, adding it to found if it exists
+    // and was parsed successfully or to missing if it does not exist within the
+    // database.
+    for kp in signatories {
+        // Query the certificate from the database.
+        let raw_cert = stmt
+            .query_one(
+                named_params! {
+                    ":id_rsa": kp.id_fingerprint.as_hex_upper(),
+                    ":sk_rsa": kp.sk_fingerprint.as_hex_upper(),
+                    ":now": now,
+                    ":pre_tolerance": tolerance.pre_valid_tolerance().as_secs(),
+                    ":post_tolerance": tolerance.post_valid_tolerance().as_secs(),
+                },
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .optional()?;
+
+        // Unwrap the Some (or None).
+        let raw_cert = match raw_cert {
+            Some(c) => {
+                String::from_utf8(c).map_err(|e| internal!("utf-8 constraint violation? {e}"))?
+            }
+            None => {
+                missing.push(*kp);
+                continue;
+            }
+        };
+
+        // Parse the raw certificate and validate it.  Failures here should not
+        // happen because the entries within the database are assumed to be
+        // valid forever (except timestamp bounds of course).
+        let cert = parse2::parse_netdoc::<AuthCertSigned>(&ParseInput::new(&raw_cert, ""))
+            .map_err(|e| internal!("invalid authcert in database? {e}"))?
+            .unwrap_unverified()
+            .0;
+        found.push(cert);
+    }
+
+    Ok((found, missing))
 }
 
 /// Calculates the [`Duration`] to wait before querying the authorities again.
