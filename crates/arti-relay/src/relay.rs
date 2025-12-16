@@ -233,7 +233,6 @@ impl<R: Runtime> TorRelay<R> {
             Dormancy::Active,
             &NetParameters::default(),
             memquota.clone(),
-            Some(inert.keymgr.clone()),
         ));
 
         // TODO: We probably don't want a guard manager for relays,

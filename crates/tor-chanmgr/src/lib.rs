@@ -64,7 +64,6 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_config::ReconfigureError;
 use tor_error::error_report;
-use tor_keymgr::KeyMgr;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{NetDirProvider, params::NetParameters};
 use tor_proto::channel::Channel;
@@ -225,7 +224,6 @@ impl<R: Runtime> ChanMgr<R> {
         dormancy: Dormancy,
         netparams: &NetParameters,
         memquota: ToplevelAccount,
-        keymgr: Option<Arc<KeyMgr>>,
     ) -> Self
     where
         R: 'static,
@@ -234,7 +232,7 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let reporter = BootstrapReporter(sender);
         let transport = transport::DefaultTransport::new(runtime.clone());
-        let builder = builder::ChanBuilder::new(runtime, transport, keymgr);
+        let builder = builder::ChanBuilder::new(runtime, transport);
         let factory = factory::CompoundFactory::new(
             Arc::new(builder),
             #[cfg(feature = "pt-client")]
