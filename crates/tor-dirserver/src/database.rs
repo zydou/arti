@@ -95,6 +95,12 @@ impl From<SystemTime> for Timestamp {
     }
 }
 
+impl From<Timestamp> for SystemTime {
+    fn from(value: Timestamp) -> Self {
+        value.0
+    }
+}
+
 impl Add<Duration> for Timestamp {
     type Output = Self;
 
