@@ -233,7 +233,7 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let reporter = BootstrapReporter(sender);
         let transport = transport::DefaultTransport::new(runtime.clone());
-        let builder = builder::ChanBuilder::new(runtime, transport);
+        let builder = builder::ChanBuilder::new(runtime, transport, config.outbound_chan_type());
         let factory = factory::CompoundFactory::new(
             Arc::new(builder),
             #[cfg(feature = "pt-client")]

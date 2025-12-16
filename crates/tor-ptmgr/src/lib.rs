@@ -346,6 +346,8 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
         &self,
         transport: &PtTransportName,
     ) -> Result<Option<Arc<dyn ChannelFactory + Send + Sync>>, Arc<dyn AbstractPtError>> {
+        use tor_proto::channel::ChannelType;
+
         let cmethod = match self.get_cmethod_for_transport(transport).await {
             Err(e) => return Err(Arc::new(e)),
             Ok(None) => return Ok(None),
@@ -353,7 +355,7 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
         };
 
         let proxy = ExternalProxyPlugin::new(self.runtime.clone(), cmethod.endpoint, cmethod.kind);
-        let factory = ChanBuilder::new(self.runtime.clone(), proxy);
+        let factory = ChanBuilder::new(self.runtime.clone(), proxy, ChannelType::ClientInitiator);
         // FIXME(eta): Should we cache constructed factories? If no: should this still be an Arc?
         // FIXME(eta): Should we track what transports are live somehow, so we can shut them down?
         Ok(Some(Arc::new(factory)))

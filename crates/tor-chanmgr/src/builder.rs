@@ -13,6 +13,7 @@ use std::time::Duration;
 use tor_basic_utils::rand_hostname;
 use tor_error::internal;
 use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
+use tor_proto::channel::ChannelType;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
@@ -44,6 +45,9 @@ where
     transport: H,
     /// Object to build TLS connections.
     tls_connector: <R as TlsProvider<H::Stream>>::Connector,
+    /// Outbound channel type this channel builder builds.
+    #[expect(unused)] // TODO(relay): remove this once used.
+    outbound_chan_type: ChannelType,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -51,12 +55,13 @@ where
     R: TlsProvider<H::Stream>,
 {
     /// Construct a new ChanBuilder.
-    pub fn new(runtime: R, transport: H) -> Self {
+    pub fn new(runtime: R, transport: H, outbound_chan_type: ChannelType) -> Self {
         let tls_connector = <R as TlsProvider<H::Stream>>::tls_connector(&runtime);
         ChanBuilder {
             runtime,
             transport,
             tls_connector,
+            outbound_chan_type,
         }
     }
 }
@@ -351,7 +356,7 @@ mod test {
 
             // Create the channel builder that we want to test.
             let transport = crate::transport::DefaultTransport::new(client_rt.clone());
-            let builder = ChanBuilder::new(client_rt, transport);
+            let builder = ChanBuilder::new(client_rt, transport, ChannelType::ClientInitiator);
 
             let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
                 async {

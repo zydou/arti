@@ -1,10 +1,10 @@
 //! Abstract implementation of a channel manager
 
+use crate::factory::BootstrapReporter;
 use crate::mgr::state::{ChannelForTarget, PendingChannelHandle};
 use crate::util::defer::Defer;
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
-use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
 use futures::future::Shared;
 use oneshot_fused_workaround as oneshot;
@@ -14,6 +14,7 @@ use std::time::Duration;
 use tor_error::{error_report, internal};
 use tor_linkspec::HasRelayIds;
 use tor_netdir::params::NetParameters;
+use tor_proto::channel::ChannelType;
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount};
@@ -125,6 +126,22 @@ impl ChanMgrConfig {
     pub fn with_identities(mut self, ids: Arc<RelayIdentities>) -> Self {
         self.identities = Some(ids);
         self
+    }
+
+    /// Return the outbound channel type of this config.
+    ///
+    /// The channel type is used when creating outbound channels. Relays always initiate channels
+    /// as "relay initiator" while client and bridges behave like a "client initiator".
+    ///
+    /// Important: The wrong channel type is returned if this is called before `with_identities()`
+    /// is called.
+    pub(crate) fn outbound_chan_type(&self) -> ChannelType {
+        #[cfg(feature = "relay")]
+        if self.identities.is_some() {
+            return ChannelType::RelayInitiator;
+        }
+        // No relay built in, always client.
+        ChannelType::ClientInitiator
     }
 }
 
