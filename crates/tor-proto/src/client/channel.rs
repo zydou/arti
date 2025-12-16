@@ -5,7 +5,7 @@
 
 pub(crate) mod handshake;
 
-pub use handshake::{ClientInitiatorHandshake, UnverifiedClientChannel, VerifiedClientChannel};
+pub use handshake::ClientInitiatorHandshake;
 
 use futures::{AsyncRead, AsyncWrite};
 

@@ -1,5 +1,6 @@
 //! Implementations for the client channel handshake
 
+use async_trait::async_trait;
 use futures::SinkExt;
 use futures::io::{AsyncRead, AsyncWrite};
 use std::net::SocketAddr;
@@ -8,14 +9,17 @@ use std::time::SystemTime;
 use tor_cell::chancell::msg;
 use tracing::{debug, instrument, trace};
 
-use tor_linkspec::{ChanTarget, ChannelMethod};
+use tor_linkspec::{ChannelMethod, OwnedChanTarget};
 use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use crate::channel::handshake::{
     ChannelBaseHandshake, ChannelInitiatorHandshake, UnverifiedChannel, VerifiedChannel,
     unauthenticated_clock_skew,
 };
-use crate::channel::{Channel, ChannelFrame, ChannelType, Reactor, UniqId, new_frame};
+use crate::channel::{
+    Channel, ChannelFrame, ChannelType, FinalizableChannel, Reactor, UniqId, VerifiableChannel,
+    new_frame,
+};
 use crate::memquota::ChannelAccount;
 use crate::{ClockSkew, Result};
 
@@ -96,7 +100,7 @@ impl<
     /// Takes a function that reports the current time.  In theory, this can just be
     /// `SystemTime::now()`.
     #[instrument(skip_all, level = "trace")]
-    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedClientChannel<T, S>>
+    pub async fn connect<F>(mut self, now_fn: F) -> Result<Box<dyn VerifiableChannel<T, S>>>
     where
         F: FnOnce() -> SystemTime,
     {
@@ -130,7 +134,7 @@ impl<
 
         trace!(stream_id = %self.unique_id, "received handshake, ready to verify.");
 
-        Ok(UnverifiedClientChannel {
+        Ok(Box::new(UnverifiedClientChannel {
             inner: UnverifiedChannel {
                 channel_type: ChannelType::ClientInitiator,
                 link_protocol,
@@ -142,13 +146,13 @@ impl<
                 sleep_prov: self.sleep_prov.clone(),
                 memquota: self.memquota.clone(),
             },
-        })
+        }))
     }
 }
 
 /// A client channel on which versions have been negotiated and the relay's handshake has been
 /// read, but where the certs have not been checked.
-pub struct UnverifiedClientChannel<
+struct UnverifiedClientChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -161,46 +165,31 @@ impl<
     S: CoarseTimeProvider + SleepProvider,
 > UnverifiedClientChannel<T, S>
 {
-    /// Return the reported clock skew from this handshake.
-    ///
-    /// Note that the skew reported by this function might not be "true": the
-    /// relay might have its clock set wrong, or it might be lying to us.
-    ///
-    /// The clock skew reported here is not yet authenticated; if you need to
-    /// make sure that the skew is authenticated, use
-    /// [`Channel::clock_skew`](crate::channel::Channel::clock_skew) instead.
-    pub fn clock_skew(&self) -> ClockSkew {
-        self.inner.clock_skew
-    }
-
-    /// Validate the certificates and keys in the relay's handshake.
-    ///
-    /// 'peer' is the peer that we want to make sure we're connecting to.
-    ///
-    /// 'peer_cert' is the x.509 certificate that the peer presented during
-    /// its TLS handshake (ServerHello).
-    ///
-    /// 'now' is the time at which to check that certificates are
-    /// valid.  `None` means to use the current time. It can be used
-    /// for testing to override the current view of the time.
-    ///
-    /// This is a separate function because it's likely to be somewhat
-    /// CPU-intensive.
-    #[instrument(skip_all, level = "trace")]
-    pub fn check<U: ChanTarget + ?Sized>(
-        self,
-        peer: &U,
-        peer_cert: &[u8],
-        now: Option<std::time::SystemTime>,
-    ) -> Result<VerifiedClientChannel<T, S>> {
-        let inner = self.inner.check(peer, peer_cert, now)?;
-        Ok(VerifiedClientChannel { inner })
-    }
-
     /// Return the link protocol version of this channel.
     #[cfg(test)]
     pub(crate) fn link_protocol(&self) -> u16 {
         self.inner.link_protocol
+    }
+}
+
+impl<
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> VerifiableChannel<T, S> for UnverifiedClientChannel<T, S>
+{
+    fn clock_skew(&self) -> ClockSkew {
+        self.inner.clock_skew
+    }
+
+    #[instrument(skip_all, level = "trace")]
+    fn check(
+        self: Box<Self>,
+        peer: &OwnedChanTarget,
+        peer_cert: &[u8],
+        now: Option<std::time::SystemTime>,
+    ) -> Result<Box<dyn FinalizableChannel<T, S>>> {
+        let inner = self.inner.check(peer, peer_cert, now)?;
+        Ok(Box::new(VerifiedClientChannel { inner }))
     }
 }
 
@@ -209,7 +198,7 @@ impl<
 ///
 /// This type is separate from UnverifiedClientChannel, since finishing the handshake requires a
 /// bunch of CPU, and you might want to do it as a separate task or after a yield.
-pub struct VerifiedClientChannel<
+struct VerifiedClientChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -217,18 +206,14 @@ pub struct VerifiedClientChannel<
     inner: VerifiedChannel<T, S>,
 }
 
+#[async_trait]
 impl<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
-> VerifiedClientChannel<T, S>
+> FinalizableChannel<T, S> for VerifiedClientChannel<T, S>
 {
-    /// Send a 'Netinfo' message to the relay to finish the handshake, and create an open channel
-    /// and reactor.
-    ///
-    /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
-    /// route incoming messages to their appropriate circuit.
     #[instrument(skip_all, level = "trace")]
-    pub async fn finish(mut self) -> Result<(Arc<Channel>, Reactor<S>)> {
+    async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)> {
         // Send the NETINFO message.
         let peer_ip = self
             .inner

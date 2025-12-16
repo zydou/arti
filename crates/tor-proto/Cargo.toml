@@ -82,6 +82,7 @@ __is_experimental = []
 [dependencies]
 aes = { version = "0.8", optional = true }
 amplify = { version = "4", default-features = false, features = ["derive"] }
+async-trait = "0.1.54"
 asynchronous-codec = "0.7.0"
 bitvec = "1.0.1"
 bytes = "1"

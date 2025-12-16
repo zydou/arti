@@ -7391,6 +7391,7 @@ dependencies = [
  "aes",
  "amplify",
  "assert_matches",
+ "async-trait",
  "asynchronous-codec",
  "bitvec",
  "bytes",

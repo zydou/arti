@@ -73,6 +73,7 @@ use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{ClockSkew, client};
 use crate::{Error, Result};
+use async_trait::async_trait;
 use cfg_if::cfg_if;
 use reactor::BoxedChannelStreamOps;
 use safelog::sensitive as sv;
@@ -125,6 +126,58 @@ pub use super::relay::channel::handshake::RelayInitiatorHandshake;
 use crate::channel::unique_id::CircUniqIdContext;
 
 use kist::KistParams;
+
+/// An verifiable channel trait which is public outside this crate.
+pub trait VerifiableChannel<T, S>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+{
+    /// Validate the certificates and keys in the relay's handshake.
+    ///
+    /// 'peer' is the peer that we want to make sure we're connecting to.
+    ///
+    /// 'peer_cert' is the x.509 certificate that the peer presented during
+    /// its TLS handshake (ServerHello).
+    ///
+    /// 'now' is the time at which to check that certificates are
+    /// valid.  `None` means to use the current time. It can be used
+    /// for testing to override the current view of the time.
+    ///
+    /// This is a separate function because it's likely to be somewhat
+    /// CPU-intensive.
+    fn check(
+        self: Box<Self>,
+        peer: &OwnedChanTarget,
+        peer_cert: &[u8],
+        now: Option<std::time::SystemTime>,
+    ) -> Result<Box<dyn FinalizableChannel<T, S>>>;
+
+    /// Return the reported clock skew from this handshake.
+    ///
+    /// Note that the skew reported by this function might not be "true": the
+    /// relay might have its clock set wrong, or it might be lying to us.
+    ///
+    /// The clock skew reported here is not yet authenticated; if you need to
+    /// make sure that the skew is authenticated, use
+    /// [`Channel::clock_skew`](crate::channel::Channel::clock_skew) instead.
+    fn clock_skew(&self) -> ClockSkew;
+}
+
+/// A finalizable channel trait used to yield a Channel.
+#[async_trait]
+pub trait FinalizableChannel<T, S>
+where
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+{
+    /// Send a 'Netinfo' message to the relay to finish the handshake, and create an open channel
+    /// and reactor.
+    ///
+    /// The channel is used to send cells, and to create outgoing circuits. The reactor is used to
+    /// route incoming messages to their appropriate circuit.
+    async fn finish(mut self: Box<Self>) -> Result<(Arc<Channel>, Reactor<S>)>;
+}
 
 /// This indicate what type of channel it is. It allows us to decide for the correct channel cell
 /// state machines and authentication process (if any).
