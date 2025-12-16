@@ -239,36 +239,27 @@ impl<E> RetryError<E> {
     /// timestamps retained. The `Attempt` counters will be updated to continue from
     /// the current state of this RetryError. `Attempt::Range` entries are preserved as ranges
     pub fn extend_from_retry_error(&mut self, other: RetryError<E>) {
-        // Debug: starting extend_from_retry_error
         if self.first_error_at.is_none() {
             self.first_error_at = other.first_error_at;
         }
 
         for (attempt, err, timestamp) in other.errors {
-            // Map attempt directly, preserving Range vs Single structure
             let new_attempt = match attempt {
                 Attempt::Single(_) => {
-                    // Single attempt: increment by 1
-                    if let Some(new_n_errors) = self.n_errors.checked_add(1) {
-                        self.n_errors = new_n_errors;
-                        Attempt::Single(new_n_errors)
-                    } else {
-                        // Overflow: stop adding errors
+                    let Some(new_n_errors) = self.n_errors.checked_add(1) else {
                         break;
-                    }
+                    };
+                    self.n_errors = new_n_errors;
+                    Attempt::Single(new_n_errors)
                 }
                 Attempt::Range(first, last) => {
-                    // Range: preserve as Range, adjusting indices
                     let count = last - first + 1;
-                    if let Some(new_n_errors) = self.n_errors.checked_add(count) {
-                        let start = self.n_errors + 1;
-                        self.n_errors = new_n_errors;
-                        // Debug: preserving Range structure
-                        Attempt::Range(start, new_n_errors)
-                    } else {
-                        // Overflow: stop adding errors
+                    let Some(new_n_errors) = self.n_errors.checked_add(count) else {
                         break;
-                    }
+                    };
+                    let start = self.n_errors + 1;
+                    self.n_errors = new_n_errors;
+                    Attempt::Range(start, new_n_errors)
                 }
             };
 
