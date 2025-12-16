@@ -99,7 +99,7 @@ where
             std::time::Duration::new(10, 0)
         };
 
-        let connect_future = self.connect_no_timeout(target, reporter.0, memquota);
+        let connect_future = self.connect_no_timeout_client(target, reporter.0, memquota);
         self.runtime
             .timeout(delay, connect_future)
             .await
@@ -148,13 +148,13 @@ where
 {
     /// Perform the work of `connect_via_transport`, but without enforcing a timeout.
     #[instrument(skip_all, level = "trace")]
-    async fn connect_no_timeout(
+    async fn connect_no_timeout_client(
         &self,
         target: &OwnedChanTarget,
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
         memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
-        use tor_proto::channel::ChannelBuilder;
+        use tor_proto::client::channel::ClientChannelBuilder;
         use tor_rtcompat::tls::CertifiedConn;
 
         {
@@ -212,11 +212,12 @@ where
                 .record_tls_finished();
         }
 
-        // 2. Set up the channel.
-        let mut builder = ChannelBuilder::new();
+        // Get the client specific channel builder.
+        let mut builder = ClientChannelBuilder::new();
         builder.set_declared_method(using_method);
+
         let chan = builder
-            .launch_client(
+            .launch(
                 tls,
                 self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                 memquota,
@@ -261,6 +262,7 @@ where
                 let _ = reactor.run().await;
             })
             .map_err(|e| Error::from_spawn("channel reactor", e))?;
+
         Ok(chan)
     }
 }
