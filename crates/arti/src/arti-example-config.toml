@@ -35,13 +35,24 @@
 
 # Set up the Arti program to run as a proxy.
 [proxy]
-# Default port to use when listening to SOCKS connections.  We always
-# listen on localhost.
+# Default port to use when listening to SOCKS connections
+# (We listen on the loopback addresses by default.)
+#
+# You can also specify:
+#  - Specific addresses ("127.0.0.1:9150")
+#  - An automatically chosen port on an address ("127.0.0.1:auto")
+#  - An automatically chosen port on the loopback addresses ("auto")
+#  - A list of listening locations ([ 9150, "127.0.0.1:auto" ])
 #
 # Note that only one process can listen on a given port at a time.
+#
+# To disable socks listening entirely,
+# you can set this to 0, false, or "" (the empty string).
 #socks_listen = 9150
 
-# Port to use to listen for DNS requests.  0 means disabled.
+# Port to use to listen for DNS requests.
+#
+# The syntax here is the same as for socks_listen.
 #dns_listen = 0
 
 # Configure logging
@@ -159,6 +170,15 @@
 [storage]
 #cache_dir = "${ARTI_CACHE}"
 #state_dir = "${ARTI_LOCAL_DATA}"
+
+# A file in which to store a description of the proxy ports we're listening on.
+#
+# This is mostly useful if you've used "auto" in socks_listen, to find out
+# which ports were automatically chosen.
+#
+# The format of this JSON is documented in the Arti source,
+# in `crates/arti/src/proxy/proxy_info.rs`. (TODO: Replace with link.)
+#port_info_file = "${ARTI_LOCAL_DATA}/public/port_info.json"
 
 #[storage.keystore]
 # Whether the keystore is enabled.

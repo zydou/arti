@@ -1,6 +1,6 @@
 //! Implement a simple proxy that relays connections over Tor.
 //!
-//! A proxy is launched with [`run_proxy()`], which listens for new
+//! A proxy is launched with [`launch_proxy()`], which starts a task to listen for new
 //! connections, handles an appropriate handshake,
 //! and then relays traffic as appropriate.
 
@@ -8,6 +8,7 @@ semipublic_mod! {
     #[cfg(feature="http-connect")]
     mod http_connect;
     mod socks;
+    pub(crate) mod port_info;
 }
 
 use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, Error as IoError};
@@ -328,20 +329,23 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
     }
 }
 
-/// Launch a proxy to listen on a given localhost port, and run
+/// Launch a proxy to listen on a given set of ports, and run
 /// indefinitely.
 ///
 /// Requires a `runtime` to use for launching tasks and handling
 /// timeouts, and a `tor_client` to use in connecting over the Tor
 /// network.
+///
+/// Returns a future that actually instantiates the proxy, and a list of the ports that we have
+/// bound to.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[instrument(skip_all, level = "trace")]
-pub(crate) async fn run_proxy<R: Runtime>(
+pub(crate) async fn launch_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
     rpc_data: Option<RpcProxySupport>,
-) -> Result<()> {
+) -> Result<(impl Future<Output = Result<()>>, Vec<port_info::Port>)> {
     #[cfg(feature = "rpc")]
     let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
         Some(RpcProxySupport {
@@ -370,9 +374,10 @@ pub(crate) async fn run_proxy<R: Runtime>(
                 for addr in addrgroup {
                     match runtime.listen(&addr).await {
                         Ok(listener) => {
-                            info!("Listening on {:?}.", addr);
+                            let bound_addr = listener.local_addr()?;
+                            info!("Listening on {:?}", bound_addr);
                             listeners.push(listener);
-                            listening_on_addrs.push(addr);
+                            listening_on_addrs.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -383,6 +388,7 @@ pub(crate) async fn run_proxy<R: Runtime>(
                         }
                     }
                 }
+                // TODO: We are supposed to fail if every address in the group failed!
             }
         }
         Err(e) => warn_report!(e, "Invalid listen spec"),
@@ -399,12 +405,30 @@ pub(crate) async fn run_proxy<R: Runtime>(
             if let Some(rpc_state_sender) = &mut rpc_state_sender {
                 rpc_state_sender.set_socks_listeners(&listening_on_addrs[..]);
             }
-        } else {
-            let _ = listening_on_addrs;
         }
     }
+    let ports = listening_on_addrs
+        .iter()
+        .flat_map(|sockaddr| {
+            [
+                port_info::Port {
+                    protocol: port_info::SupportedProtocol::Socks,
+                    address: (*sockaddr).into(),
+                },
+                // If http-connect is enabled, every socks proxy is also http.
+                #[cfg(feature = "http-connect")]
+                port_info::Port {
+                    protocol: port_info::SupportedProtocol::Http,
+                    address: (*sockaddr).into(),
+                },
+            ]
+        })
+        .collect();
 
-    run_proxy_with_listeners(tor_client, listeners, rpc_mgr).await
+    Ok((
+        run_proxy_with_listeners(tor_client, listeners, rpc_mgr),
+        ports,
+    ))
 }
 
 /// Launch a proxy from a given set of already bound listeners.

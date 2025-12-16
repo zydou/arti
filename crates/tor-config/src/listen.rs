@@ -53,6 +53,20 @@ impl Listen {
         self.ip_addrs_internal().count() == 0
     }
 
+    /// Return true if there are any "auto" addresses in this Listen.
+    ///
+    /// See also [`using_port_zero()`](Self::using_port_zero).
+    pub fn using_auto(&self) -> bool {
+        self.0.items().any(ListenItem::is_auto)
+    }
+
+    /// Return true if there are any port-zero addresses in this Listen.
+    ///
+    /// See also [`using_auto()`](Self::using_auto).
+    pub fn using_port_zero(&self) -> bool {
+        self.0.items().any(ListenItem::is_port_zero)
+    }
+
     /// List the network socket addresses to listen on
     ///
     /// Each returned item is a list of `SocketAddr`,
@@ -89,17 +103,14 @@ impl Listen {
     ///
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single localhost port in all address families"
+    #[deprecated(since = "0.38.0")]
     pub fn localhost_port_legacy(&self) -> Result<Option<u16>, ListenUnsupported> {
-        Ok(match &self.0 {
-            CustomizableListen::Disabled => None,
-            CustomizableListen::One(ListenItem::Port(port)) => Some(*port),
-            CustomizableListen::One(ListenItem::General(_)) => return Err(ListenUnsupported {}),
-            CustomizableListen::List(list) => match list.as_slice() {
-                [] => None,
-                [ListenItem::Port(port)] => Some(*port),
-                [ListenItem::General(_)] => return Err(ListenUnsupported {}),
-                [_, _, ..] => return Err(ListenUnsupported {}),
-            },
+        Ok(match self.to_singleton_legacy()? {
+            None => None,
+            Some(ListenItem::Port(port)) => Some(*port),
+            Some(ListenItem::Auto) => return Err(ListenUnsupported {}),
+            Some(ListenItem::AutoPort(_)) => return Err(ListenUnsupported {}),
+            Some(ListenItem::General(_)) => return Err(ListenUnsupported {}),
         })
     }
 
@@ -116,19 +127,31 @@ impl Listen {
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single port on one address family".
     pub fn single_address_legacy(&self) -> Result<Option<SocketAddr>, ListenUnsupported> {
-        Ok(match &self.0 {
-            CustomizableListen::Disabled => None,
-            CustomizableListen::One(ListenItem::Port(port)) => {
-                Some((Ipv4Addr::LOCALHOST, *port).into())
-            }
-            CustomizableListen::One(ListenItem::General(addr)) => Some(*addr),
-            CustomizableListen::List(list) => match list.as_slice() {
-                [] => None,
-                [ListenItem::Port(port)] => Some((Ipv4Addr::LOCALHOST, *port).into()),
-                [ListenItem::General(addr)] => Some(*addr),
-                [_, _, ..] => return Err(ListenUnsupported {}),
-            },
+        Ok(match self.to_singleton_legacy()? {
+            None => None,
+            Some(ListenItem::Port(port)) => Some((Ipv4Addr::LOCALHOST, *port).into()),
+            Some(ListenItem::Auto) => Some((Ipv4Addr::LOCALHOST, 0).into()),
+            Some(ListenItem::AutoPort(addr)) => Some((*addr, 0).into()),
+            Some(ListenItem::General(addr)) => Some(*addr),
         })
+    }
+
+    /// Helper: return a ListenItem if this Listen has exactly one.
+    ///
+    /// Return None if there are multiple items, or an error if there are multiple items.
+    ///
+    /// (Note that all users of this function are, or should be, deprecated.)
+    fn to_singleton_legacy(&self) -> Result<Option<&ListenItem>, ListenUnsupported> {
+        use CustomizableListen as CL;
+        match &self.0 {
+            CL::Disabled => Ok(None),
+            CL::One(li) => Ok(Some(li)),
+            CL::List(lst) => match lst.as_slice() {
+                [] => Ok(None),
+                [li] => Ok(Some(li)),
+                [_, _, ..] => Err(ListenUnsupported {}),
+            },
+        }
     }
 
     /// Return true if this `Listen` only configures listening on loopback addresses (`127.0.0.0/8`
@@ -165,7 +188,7 @@ impl Display for Listen {
                     write!(f, "{sep}localhost {item}")?;
                     sep = ", ";
                 }
-                ListenItem::General(_) => {
+                _other => {
                     write!(f, "{sep}{item}")?;
                     sep = ", ";
                 }
@@ -184,11 +207,26 @@ impl TryFrom<CustomizableListen> for Listen {
                 // A non-list standalone 0 means "none".
                 Ok(Self(CustomizableListen::Disabled))
             }
-            CustomizableListen::One(_) => Ok(Self(l)),
+            CustomizableListen::One(li) => {
+                if li.is_port_zero() {
+                    tracing::warn!(
+                        "Configured to listen on port zero via {li}. \
+                         This is deprecated. Instead, replace '0' with 'auto'."
+                    );
+                }
+                Ok(Self(l))
+            }
             CustomizableListen::List(list) => {
                 // We don't support a standalone 0 port in a list item.
                 if list.iter().any(|item| matches!(item, ListenItem::Port(0))) {
                     return Err(InvalidListen::ZeroPortInList);
+                }
+                // We warn on e.g. "127.0.0.1:0"
+                if let Some(zero_li) = list.iter().find(|li| li.is_port_zero()) {
+                    tracing::warn!(
+                        "Configured to listen on port zero via {zero_li}. \
+                         This is deprecated. Instead, replace '0' with 'auto'."
+                    );
                 }
                 Ok(Self(l))
             }
@@ -268,6 +306,12 @@ enum ListenItem {
     /// One port, both IPv6 and IPv4
     Port(u16),
 
+    /// IPv6 and/or IPv4, arbitrarily chosen ports.
+    Auto,
+
+    /// Specific address, arbitrarily chosen port.
+    AutoPort(IpAddr),
+
     /// Any other single socket address
     General(SocketAddr),
 }
@@ -282,13 +326,42 @@ impl ListenItem {
         ips_for_port: impl IntoIterator<Item = IpAddr> + 'a,
     ) -> impl Iterator<Item = SocketAddr> + 'a {
         use ListenItem as LI;
-        match self {
-            &LI::Port(port) => Either::Left({
+        let with_ips = |portnum| {
+            Either::Left({
                 ips_for_port
                     .into_iter()
-                    .map(move |ip| SocketAddr::new(ip, port))
-            }),
-            LI::General(addr) => Either::Right(iter::once(addr).cloned()),
+                    .map(move |ip| SocketAddr::new(ip, portnum))
+            })
+        };
+
+        match self {
+            &LI::Port(port) => with_ips(port),
+            LI::Auto => with_ips(0),
+            LI::AutoPort(addr) => Either::Right(iter::once((*addr, 0).into())),
+            LI::General(addr) => Either::Right(iter::once(*addr)),
+        }
+    }
+
+    /// Return true if this ListenItem is "addr:auto" or "auto"
+    fn is_auto(&self) -> bool {
+        use ListenItem as LI;
+        match self {
+            LI::Port(_) => false,
+            LI::Auto => true,
+            LI::AutoPort(_) => true,
+            LI::General(_) => false,
+        }
+    }
+
+    /// Return true if this ListenItem is using an explicit (deprecated) port value of 0.
+    fn is_port_zero(&self) -> bool {
+        use ListenItem as LI;
+
+        match self {
+            LI::Port(port) => *port == 0,
+            LI::Auto => false,
+            LI::AutoPort(_) => false,
+            LI::General(addr) => addr.port() == 0,
         }
     }
 }
@@ -297,6 +370,8 @@ impl Display for ListenItem {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ListenItem::Port(port) => write!(f, "port {}", port)?,
+            ListenItem::Auto => write!(f, "auto")?,
+            ListenItem::AutoPort(addr) => write!(f, "{addr}:auto")?,
             ListenItem::General(addr) => write!(f, "{}", addr)?,
         }
         Ok(())
@@ -349,6 +424,8 @@ impl From<ListenItem> for ListenItemSerde {
         use ListenItem as LI;
         match i {
             LI::Port(port) => Self::Port(port),
+            LI::Auto => Self::String("auto".to_string()),
+            LI::AutoPort(addr) => Self::String(format!("{addr}:auto")),
             LI::General(addr) => Self::String(addr.to_string()),
         }
     }
@@ -392,7 +469,15 @@ impl TryFrom<ListenItemSerde> for ListenItem {
         use ListenItem as LI;
         use ListenItemSerde as LIS;
         Ok(match i {
-            LIS::String(a) => LI::General(a.parse()?),
+            LIS::String(a) => {
+                if a == "auto" {
+                    LI::Auto
+                } else if let Some(ip_addr) = a.strip_suffix(":auto") {
+                    LI::AutoPort(ip_addr.parse()?)
+                } else {
+                    LI::General(a.parse()?)
+                }
+            }
             LIS::Port(p) => LI::Port(p),
         })
     }
@@ -446,7 +531,10 @@ mod test {
                     .map_err(|_| ()),
                 exp_addrs
             );
-            assert_eq!(ll.localhost_port_legacy().map_err(|_| ()), exp_lpd);
+            #[allow(deprecated)]
+            {
+                assert_eq!(ll.localhost_port_legacy().map_err(|_| ()), exp_lpd);
+            }
         }
 
         let chk_err = |exp, s: &str| {
@@ -519,6 +607,20 @@ mod test {
         chk_err(
             "value was not a bool, `u16` integer, string, or list of integers/strings",
             r#"listen = [ [] ]"#,
+        );
+
+        chk_1(
+            LI::Auto,
+            vec![vec![localhost6(0), localhost4(0)]],
+            Err(()),
+            r#" "auto" "#,
+        );
+
+        chk_1(
+            LI::AutoPort("1.2.3.4".parse().unwrap()),
+            vec![vec!["1.2.3.4:0".parse().unwrap()]],
+            Err(()),
+            r#" "1.2.3.4:auto" "#,
         );
     }
 
@@ -625,6 +727,12 @@ mod test {
             ListenItem::General("1.2.3.4:5678".parse().unwrap()),
         ]));
         assert_eq!(multi_addr.to_string(), "localhost port 1234, 1.2.3.4:5678");
+
+        let multi_addr = Listen(CustomizableListen::List(vec![
+            ListenItem::Auto,
+            ListenItem::AutoPort("1.2.3.4".parse().unwrap()),
+        ]));
+        assert_eq!(multi_addr.to_string(), "auto, 1.2.3.4:auto");
     }
 
     #[test]

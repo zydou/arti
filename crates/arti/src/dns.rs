@@ -1,19 +1,19 @@
 //! Implement a simple DNS resolver that relay request over Tor.
 //!
-//! A resolver is launched with [`run_dns_resolver()`], which listens for new
-//! connections and then runs
+//! A resolver is launched with [`launch_dns_resolver()`], which launches a task to listen for
+//! DNS requests, and send back replies in response.
 
 use futures::lock::Mutex;
 use futures::stream::StreamExt;
-use tor_rtcompat::SpawnExt;
 use hickory_proto::op::{
-    header::MessageType, op_code::OpCode, response_code::ResponseCode, Message, Query,
+    Message, Query, header::MessageType, op_code::OpCode, response_code::ResponseCode,
 };
-use hickory_proto::rr::{rdata, DNSClass, Name, RData, Record, RecordType};
+use hickory_proto::rr::{DNSClass, Name, RData, Record, RecordType, rdata};
 use hickory_proto::serialize::binary::{BinDecodable, BinEncodable};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
+use tor_rtcompat::SpawnExt;
 use tracing::{debug, error, info, warn};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
@@ -22,7 +22,9 @@ use tor_config::Listen;
 use tor_error::{error_report, warn_report};
 use tor_rtcompat::{Runtime, UdpSocket};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+
+use crate::proxy::port_info;
 
 /// Maximum length for receiving a single datagram
 const MAX_DATAGRAM_SIZE: usize = 1536;
@@ -237,18 +239,23 @@ where
 }
 
 /// Launch a DNS resolver to listen on a given local port, and run indefinitely.
+///
+/// Return a future that implements the DNS resolver.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[allow(clippy::cognitive_complexity)] // TODO: Refactor
-pub(crate) async fn run_dns_resolver<R: Runtime>(
+pub(crate) async fn launch_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     listen: Listen,
-) -> Result<()> {
+) -> Result<(impl Future<Output = Result<()>>, Vec<port_info::Port>)> {
     if !listen.is_loopback_only() {
-        warn!("Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only.");
+        warn!(
+            "Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only."
+        );
     }
 
     let mut listeners = Vec::new();
+    let mut listening_on = Vec::new();
 
     // Try to bind to the DNS ports.
     match listen.ip_addrs() {
@@ -259,8 +266,10 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                     // knowing the address is basically essential for diagnostics.
                     match runtime.bind(&addr).await {
                         Ok(listener) => {
-                            info!("Listening on {:?}.", addr);
+                            let bound_addr = listener.local_addr()?;
+                            info!("Listening on {:?}.", bound_addr);
                             listeners.push(listener);
+                            listening_on.push(bound_addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -271,6 +280,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                         }
                     }
                 }
+                // TODO: We are supposed to fail if all addresses in a group fail.
             }
         }
         Err(e) => warn_report!(e, "Invalid listen spec"),
@@ -281,6 +291,26 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
         return Err(anyhow!("Couldn't open any DNS listeners"));
     }
 
+    let ports = listening_on
+        .iter()
+        .map(|sockaddr| port_info::Port {
+            protocol: port_info::SupportedProtocol::DnsUdp,
+            address: (*sockaddr).into(),
+        })
+        .collect();
+
+    Ok((
+        run_dns_resolver_with_listeners(runtime, tor_client, listeners),
+        ports,
+    ))
+}
+
+/// Inner task: Receive incoming DNS requests and process them.
+async fn run_dns_resolver_with_listeners<R: Runtime>(
+    runtime: R,
+    tor_client: TorClient<R>,
+    listeners: Vec<<R as tor_rtcompat::UdpProvider>::UdpSocket>,
+) -> Result<()> {
     let mut incoming = futures::stream::select_all(
         listeners
             .into_iter()

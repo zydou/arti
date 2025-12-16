@@ -67,7 +67,7 @@ macro_rules! semipublic_mod {
     {
         $(
             $( #[$meta:meta] )*
-            mod $name:ident ;
+            $dflt_vis:vis mod $name:ident ;
         )*
     }  => {
         $(
@@ -76,7 +76,7 @@ macro_rules! semipublic_mod {
                 if #[cfg(feature="experimental-api")] {
                    pub mod $name;
                 } else {
-                   mod $name;
+                   $dflt_vis mod $name;
                 }
             }
          )*

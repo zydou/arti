@@ -15,7 +15,11 @@ use tor_rtcompat::ToplevelRuntime;
 
 #[cfg(feature = "dns-proxy")]
 use crate::dns;
-use crate::{ArtiConfig, TorClient, exit, process, proxy, reload_cfg};
+use crate::{
+    ArtiConfig, TorClient, exit, process,
+    proxy::{self, port_info},
+    reload_cfg,
+};
 
 #[cfg(feature = "rpc")]
 use crate::rpc;
@@ -38,11 +42,14 @@ pub(crate) fn run<R: ToplevelRuntime>(
 ) -> Result<()> {
     // Override configured listen addresses from the command line.
     // This implies listening on localhost ports.
+
+    // TODO: Parse a string rather than calling new_localhost.
     let socks_listen = match proxy_matches.get_one::<String>("socks-port") {
         Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
         None => config.proxy().socks_listen.clone(),
     };
 
+    // TODO: Parse a string rather than calling new_localhost.
     let dns_listen = match proxy_matches.get_one::<String>("dns-port") {
         Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
         None => config.proxy().dns_listen.clone(),
@@ -118,10 +125,8 @@ async fn run_proxy<R: ToplevelRuntime>(
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
 
-    // TODO RPC: We may instead want to provide a way to get these items out of TorClient.
-    #[allow(unused)]
+    // TODO: We may instead want to provide a way to get these items out of TorClient.
     let fs_mistrust = client_config.fs_mistrust().clone();
-    #[allow(unused)]
     let path_resolver: CfgPathResolver = AsRef::<CfgPathResolver>::as_ref(&client_config).clone();
 
     let client_builder = TorClient::with_runtime(runtime.clone())
@@ -174,30 +179,38 @@ async fn run_proxy<R: ToplevelRuntime>(
         }
     }
 
-    let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
+    let mut proxy: Vec<PinnedFuture<Result<()>>> = Vec::new();
+    let mut ports = Vec::new();
     if !socks_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
         let socks_listen = socks_listen.clone();
-        proxy.push(Box::pin(async move {
-            let res = proxy::run_proxy(runtime, client, socks_listen, rpc_data).await;
-            #[cfg(feature = "http-connect")]
-            let listener_type = "SOCKS+HTTP";
-            #[cfg(not(feature = "http-connect"))]
-            let listener_type = "SOCKS";
+        #[cfg(feature = "http-connect")]
+        let listener_type = "SOCKS+HTTP";
+        #[cfg(not(feature = "http-connect"))]
+        let listener_type = "SOCKS";
 
-            (res, listener_type)
-        }));
+        let (proxy_future, socks_ports) =
+            proxy::launch_proxy(runtime, client, socks_listen, rpc_data)
+                .await
+                .with_context(|| format!("Unable to launch {listener_type} proxy"))?;
+        let failure_message = format!("{listener_type} proxy died unexpectedly");
+        let proxy_future = proxy_future.map(|future_result| future_result.context(failure_message));
+        proxy.push(Box::pin(proxy_future));
+        ports.extend(socks_ports);
     }
 
     #[cfg(feature = "dns-proxy")]
     if !dns_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
-        proxy.push(Box::pin(async move {
-            let res = dns::run_dns_resolver(runtime, client, dns_listen).await;
-            (res, "DNS")
-        }));
+        let (proxy_future, dns_ports) = dns::launch_dns_resolver(runtime, client, dns_listen)
+            .await
+            .context("Unable to launch DNS proxy")?;
+        let proxy_future =
+            proxy_future.map(|future_result| future_result.context("DNS proxy died unexpectedly"));
+        proxy.push(Box::pin(proxy_future));
+        ports.extend(dns_ports);
     }
 
     #[cfg(not(feature = "dns-proxy"))]
@@ -222,12 +235,24 @@ async fn run_proxy<R: ToplevelRuntime>(
         }
     }
 
+    {
+        let port_info = port_info::PortInfo { ports };
+        let port_info_file = arti_config
+            .storage()
+            .port_info_file
+            .path(&path_resolver)
+            .context("Can't find path for port_info_file")?;
+        if port_info_file.to_str() != Some("") {
+            port_info.write_to_file(&fs_mistrust, &port_info_file)?;
+        }
+    }
+
     let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse()
             => r.context("waiting for termination signal"),
         r = proxy.fuse()
-            => r.0.context(format!("{} proxy failure", r.1)),
+            => r,
         r = async {
             client.bootstrap().await?;
             if !socks_listen.is_empty() {
