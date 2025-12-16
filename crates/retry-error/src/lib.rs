@@ -237,35 +237,42 @@ impl<E> RetryError<E> {
     ///
     /// The errors from other will be added to this RetryError, with their original
     /// timestamps retained. The `Attempt` counters will be updated to continue from
-    /// the current state of this RetryError.
+    /// the current state of this RetryError. `Attempt::Range` entries are preserved as ranges
     pub fn extend_from_retry_error(&mut self, other: RetryError<E>) {
+        // Debug: starting extend_from_retry_error
         if self.first_error_at.is_none() {
             self.first_error_at = other.first_error_at;
         }
 
         for (attempt, err, timestamp) in other.errors {
-            let count = match attempt {
-                Attempt::Single(_) => 1,
-                Attempt::Range(first, last) => last - first + 1,
+            // Map attempt directly, preserving Range vs Single structure
+            let new_attempt = match attempt {
+                Attempt::Single(_) => {
+                    // Single attempt: increment by 1
+                    if let Some(new_n_errors) = self.n_errors.checked_add(1) {
+                        self.n_errors = new_n_errors;
+                        Attempt::Single(new_n_errors)
+                    } else {
+                        // Overflow: stop adding errors
+                        break;
+                    }
+                }
+                Attempt::Range(first, last) => {
+                    // Range: preserve as Range, adjusting indices
+                    let count = last - first + 1;
+                    if let Some(new_n_errors) = self.n_errors.checked_add(count) {
+                        let start = self.n_errors + 1;
+                        self.n_errors = new_n_errors;
+                        // Debug: preserving Range structure
+                        Attempt::Range(start, new_n_errors)
+                    } else {
+                        // Overflow: stop adding errors
+                        break;
+                    }
+                }
             };
 
-            if self.n_errors < usize::MAX - count {
-                let start = self.n_errors + 1;
-                self.n_errors += count;
-                let end = self.n_errors;
-
-                let new_attempt = if count == 1 {
-                    Attempt::Single(start)
-                } else {
-                    Attempt::Range(start, end)
-                };
-
-                self.errors.push((new_attempt, err, timestamp));
-            } else {
-                // If we would overflow, we stop adding errors.
-                // This preserves the behavior of `push`.
-                break;
-            }
+            self.errors.push((new_attempt, err, timestamp));
         }
     }
 }
@@ -671,7 +678,7 @@ Attempts 1..3: invalid digit found in string"
 
         // err1 is empty initially
         assert!(err1.first_error_at.is_none());
-        
+
         err1.extend_from_retry_error(err2);
 
         assert_eq!(err1.len(), 2);
@@ -689,7 +696,7 @@ Attempts 1..3: invalid digit found in string"
     fn extend_from_retry_preserve_ranges() {
         let n1 = Instant::now();
         let mut err1: RetryError<anyhow::Error> = RetryError::in_attempt_to("do thing 1");
-        
+
         // Push 2 errors
         err1.push(anyhow::Error::msg("e1"));
         err1.push(anyhow::Error::msg("e2"));
@@ -701,12 +708,12 @@ Attempts 1..3: invalid digit found in string"
         err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
         err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
         err2.push_timed(anyhow::Error::msg("repeated"), n1, None);
-        
+
         // Dedup err2 so it has a range
         err2.dedup_by(|e1, e2| e1.to_string() == e2.to_string());
         assert_eq!(err2.len(), 1); // collapsed to 1 entry
         match err2.errors[0].0 {
-            Attempt::Range(1, 3) => {},
+            Attempt::Range(1, 3) => {}
             _ => panic!("Expected range 1..3"),
         }
 
@@ -718,7 +725,7 @@ Attempts 1..3: invalid digit found in string"
 
         // Check the range indices
         match err1.errors[2].0 {
-            Attempt::Range(3, 5) => {},
+            Attempt::Range(3, 5) => {}
             ref x => panic!("Expected range 3..5, got {:?}", x),
         }
     }
