@@ -69,23 +69,30 @@ static AUTHCERT_RULES: LazyLock<SectionRules<AuthCertKwd>> = LazyLock::new(|| {
     rules.build()
 });
 
-/// A single authority certificate.
+/// A single directory authority key certificate
 ///
-/// Authority certificates bind a long-term RSA identity key from a
-/// directory authority to a medium-term signing key.  The signing
-/// keys are the ones used to sign votes and consensuses; the identity
-/// keys can be kept offline.
+/// This is the body, not including signatures.
+///
+/// <https://spec.torproject.org/dir-spec/creating-key-certificates.html>
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct AuthCert {
     /// An IPv4 address for this authority.
     dir_address: Option<net::SocketAddrV4>,
+
     /// Declared time when this certificate was published
     dir_key_published: time::SystemTime,
+
     /// Declared time when this certificate expires.
     dir_key_expires: time::SystemTime,
+
+    /// KP_auth_id_rsa
+    ///
     /// The long-term RSA identity key for this authority
     dir_identity_key: rsa::PublicKey,
+
+    /// KP_auth_sign_rsa
+    ///
     /// The medium-term RSA signing key for this authority
     dir_signing_key: rsa::PublicKey,
 
